@@ -5,6 +5,8 @@ import type {
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
 import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
@@ -14,7 +16,7 @@ import {
 	getInitialParameterValues,
 	useValidationSchemaForDynamicParameters,
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
-import type { FC } from "react";
+import { type FC, useId } from "react";
 import { docs } from "utils/docs";
 import type { AutofillBuildParameter } from "utils/richParameters";
 
@@ -45,6 +47,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	sendMessage,
 	onCancel,
 }) => {
+	const id = useId();
 	const autofillByName = Object.fromEntries(
 		autofillParameters.map((param) => [param.name, param]),
 	);
@@ -149,6 +152,19 @@ export const WorkspaceParametersPageViewExperimental: FC<
 							)}
 						</div>
 					))}
+				</div>
+			)}
+
+			{workspace.template_active_version_id && (
+				<div className="flex flex-col gap-2 pb-4">
+					<Label className="text-sm" htmlFor={`${id}-version-id`}>
+						Version ID
+					</Label>
+					<Input
+						id={`${id}-version-id`}
+						value={workspace.template_active_version_id}
+						disabled
+					/>
 				</div>
 			)}
 

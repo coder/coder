@@ -8,7 +8,9 @@ import type {
 } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { UpdateBuildParametersDialog } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialog";
+import { UpdateBuildParametersDialogExperimental } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialogExperimental";
 import { type FC, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 
@@ -34,6 +36,8 @@ export const useWorkspaceUpdate = ({
 	onSuccess,
 	onError,
 }: UseWorkspaceUpdateOptions): UseWorkspaceUpdateResult => {
+	const { experiments } = useDashboard();
+	const isDynamicParametersEnabled = experiments.includes("dynamic-parameters");
 	const queryClient = useQueryClient();
 	const [isConfirmingUpdate, setIsConfirmingUpdate] = useState(false);
 
@@ -52,7 +56,10 @@ export const useWorkspaceUpdate = ({
 	};
 
 	const confirmUpdate = (buildParameters: WorkspaceBuildParameter[] = []) => {
-		updateWorkspaceMutation.mutate(buildParameters);
+		updateWorkspaceMutation.mutate({
+			buildParameters,
+			isDynamicParametersEnabled,
+		});
 		setIsConfirmingUpdate(false);
 	};
 
@@ -67,6 +74,7 @@ export const useWorkspaceUpdate = ({
 				latestVersion,
 			},
 			missingBuildParameters: {
+				workspace,
 				error: updateWorkspaceMutation.error,
 				onClose: () => {
 					updateWorkspaceMutation.reset();
@@ -134,21 +142,36 @@ const UpdateConfirmationDialog: FC<UpdateConfirmationDialogProps> = ({
 };
 
 type MissingBuildParametersDialogProps = {
+	workspace: Workspace;
 	error: unknown;
 	onClose: () => void;
 	onUpdate: (buildParameters: WorkspaceBuildParameter[]) => void;
 };
 
 const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
+	workspace,
 	error,
 	...dialogProps
 }) => {
-	return (
+	const { experiments } = useDashboard();
+	const isDynamicParametersEnabled = experiments.includes("dynamic-parameters");
+
+	const missedParameters =
+		error instanceof MissingBuildParameters ? error.parameters : [];
+	const isOpen = error instanceof MissingBuildParameters;
+
+	return isDynamicParametersEnabled ? (
+		<UpdateBuildParametersDialogExperimental
+			missedParameters={missedParameters}
+			open={isOpen}
+			onClose={dialogProps.onClose}
+			workspaceOwnerName={workspace.owner_name}
+			workspaceName={workspace.name}
+		/>
+	) : (
 		<UpdateBuildParametersDialog
-			missedParameters={
-				error instanceof MissingBuildParameters ? error.parameters : []
-			}
-			open={error instanceof MissingBuildParameters}
+			missedParameters={missedParameters}
+			open={isOpen}
 			{...dialogProps}
 		/>
 	);

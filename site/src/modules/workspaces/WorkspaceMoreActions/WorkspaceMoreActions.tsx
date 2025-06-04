@@ -21,12 +21,14 @@ import {
 	SettingsIcon,
 	TrashIcon,
 } from "lucide-react";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
+import { UpdateBuildParametersDialogExperimental } from "./UpdateBuildParametersDialogExperimental";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 
@@ -40,6 +42,8 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	disabled,
 }) => {
 	const queryClient = useQueryClient();
+	const { experiments } = useDashboard();
+	const isDynamicParametersEnabled = experiments.includes("dynamic-parameters");
 
 	// Permissions
 	const { data: permissions } = useQuery(workspacePermissions(workspace));
@@ -50,7 +54,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	// Change version
 	const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
 	const changeVersionMutation = useMutation(
-		changeVersion(workspace, queryClient),
+		changeVersion(workspace, queryClient, isDynamicParametersEnabled),
 	);
 
 	// Delete
@@ -142,25 +146,41 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				onClose={() => setIsDownloadDialogOpen(false)}
 			/>
 
-			<UpdateBuildParametersDialog
-				missedParameters={
-					changeVersionMutation.error instanceof MissingBuildParameters
-						? changeVersionMutation.error.parameters
-						: []
-				}
-				open={changeVersionMutation.error instanceof MissingBuildParameters}
-				onClose={() => {
-					changeVersionMutation.reset();
-				}}
-				onUpdate={(buildParameters) => {
-					if (changeVersionMutation.error instanceof MissingBuildParameters) {
-						changeVersionMutation.mutate({
-							versionId: changeVersionMutation.error.versionId,
-							buildParameters,
-						});
+			{isDynamicParametersEnabled ? (
+				<UpdateBuildParametersDialogExperimental
+					missedParameters={
+						changeVersionMutation.error instanceof MissingBuildParameters
+							? changeVersionMutation.error.parameters
+							: []
 					}
-				}}
-			/>
+					open={changeVersionMutation.error instanceof MissingBuildParameters}
+					onClose={() => {
+						changeVersionMutation.reset();
+					}}
+					workspaceOwnerName={workspace.owner_name}
+					workspaceName={workspace.name}
+				/>
+			) : (
+				<UpdateBuildParametersDialog
+					missedParameters={
+						changeVersionMutation.error instanceof MissingBuildParameters
+							? changeVersionMutation.error.parameters
+							: []
+					}
+					open={changeVersionMutation.error instanceof MissingBuildParameters}
+					onClose={() => {
+						changeVersionMutation.reset();
+					}}
+					onUpdate={(buildParameters) => {
+						if (changeVersionMutation.error instanceof MissingBuildParameters) {
+							changeVersionMutation.mutate({
+								versionId: changeVersionMutation.error.versionId,
+								buildParameters,
+							});
+						}
+					}}
+				/>
+			)}
 
 			<ChangeWorkspaceVersionDialog
 				workspace={workspace}

@@ -24,7 +24,10 @@ import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
 import { OneWayWebSocket } from "../utils/OneWayWebSocket";
 import { delay } from "../utils/delay";
-import type { PostWorkspaceUsageRequest } from "./typesGenerated";
+import type {
+	DynamicParametersRequest,
+	PostWorkspaceUsageRequest,
+} from "./typesGenerated";
 import * as TypesGen from "./typesGenerated";
 
 const getMissingParameters = (
@@ -987,6 +990,17 @@ class ApiMethods {
 			`/api/v2/templateversions/${versionId}/external-auth`,
 		);
 
+		return response.data;
+	};
+
+	getTemplateVersionDynamicParameters = async (
+		versionId: string,
+		data: TypesGen.DynamicParametersRequest,
+	): Promise<TypesGen.DynamicParametersResponse> => {
+		const response = await this.axios.post(
+			`/api/v2/templateversions/${versionId}/dynamic-parameters/evaluate`,
+			data,
+		);
 		return response.data;
 	};
 
@@ -2132,6 +2146,32 @@ class ApiMethods {
 		await this.axios.delete(`/api/v2/licenses/${licenseId}`);
 	};
 
+	getDynamicParameters = async (templateVersionId: string, ownerId: string) => {
+		const request: DynamicParametersRequest = {
+			id: 1,
+			owner_id: ownerId,
+			inputs: {},
+		};
+
+		const dynamicParametersResponse =
+			await this.getTemplateVersionDynamicParameters(
+				templateVersionId,
+				request,
+			);
+
+		return dynamicParametersResponse.parameters.map((p) => ({
+			...p,
+			description_plaintext: p.description || "",
+			default_value: p.default_value?.valid ? p.default_value.value : "",
+			options: p.options
+				? p.options.map((opt) => ({
+						...opt,
+						value: opt.value?.valid ? opt.value.value : "",
+					}))
+				: [],
+		}));
+	};
+
 	/** Steps to change the workspace version
 	 * - Get the latest template to access the latest active version
 	 * - Get the current build parameters
@@ -2145,11 +2185,22 @@ class ApiMethods {
 		workspace: TypesGen.Workspace,
 		templateVersionId: string,
 		newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
+		isDynamicParametersEnabled = false,
 	): Promise<TypesGen.WorkspaceBuild> => {
-		const [currentBuildParameters, templateParameters] = await Promise.all([
-			this.getWorkspaceBuildParameters(workspace.latest_build.id),
-			this.getTemplateVersionRichParameters(templateVersionId),
-		]);
+		const currentBuildParameters = await this.getWorkspaceBuildParameters(
+			workspace.latest_build.id,
+		);
+
+		let templateParameters: TypesGen.TemplateVersionParameter[] = [];
+		if (isDynamicParametersEnabled) {
+			templateParameters = await this.getDynamicParameters(
+				templateVersionId,
+				workspace.owner_id,
+			);
+		} else {
+			templateParameters =
+				await this.getTemplateVersionRichParameters(templateVersionId);
+		}
 
 		const missingParameters = getMissingParameters(
 			currentBuildParameters,
@@ -2180,6 +2231,7 @@ class ApiMethods {
 	updateWorkspace = async (
 		workspace: TypesGen.Workspace,
 		newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
+		isDynamicParametersEnabled = false,
 	): Promise<TypesGen.WorkspaceBuild> => {
 		const [template, oldBuildParameters] = await Promise.all([
 			this.getTemplate(workspace.template_id),
@@ -2187,8 +2239,18 @@ class ApiMethods {
 		]);
 
 		const activeVersionId = template.active_version_id;
-		const templateParameters =
-			await this.getTemplateVersionRichParameters(activeVersionId);
+
+		let templateParameters: TypesGen.TemplateVersionParameter[] = [];
+
+		if (isDynamicParametersEnabled) {
+			templateParameters = await this.getDynamicParameters(
+				activeVersionId,
+				workspace.owner_id,
+			);
+		} else {
+			templateParameters =
+				await this.getTemplateVersionRichParameters(activeVersionId);
+		}
 
 		const missingParameters = getMissingParameters(
 			oldBuildParameters,
