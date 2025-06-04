@@ -607,7 +607,7 @@ func (u *updater) netStatusLoop() {
 		case <-u.ctx.Done():
 			return
 		case <-ticker.C:
-			go u.recordLatency()
+			u.recordLatency()
 			u.sendAgentUpdate()
 		}
 	}
@@ -623,11 +623,8 @@ func (u *updater) recordLatency() {
 
 	pingCtx, cancelFunc := context.WithTimeout(u.ctx, 5*time.Second)
 	defer cancelFunc()
-	var wg sync.WaitGroup
 	for _, agentID := range agentsIDsToPing {
-		wg.Add(1)
 		go func() {
-			defer wg.Done()
 			pingDur, didP2p, pingResult, err := u.conn.Ping(pingCtx, agentID)
 			if err != nil {
 				u.logger.Warn(u.ctx, "failed to ping agent", slog.F("agent_id", agentID), slog.Error(err))
@@ -658,7 +655,6 @@ func (u *updater) recordLatency() {
 			}
 		}()
 	}
-	wg.Wait()
 }
 
 // processSnapshotUpdate handles the logic when a full state update is received.
