@@ -3851,9 +3851,19 @@ func (q *querier) InsertWorkspaceAgentStats(ctx context.Context, arg database.In
 }
 
 func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+	// NOTE(DanielleMaywood):
+	// It is possible for there to exist an agent without a workspace.
+	// This means that we want to allow execution to continue if
+	// there isn't a workspace found to allow this behavior to continue.
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.AgentID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return database.WorkspaceApp{}, err
 	}
+
+	if err := q.authorizeContext(ctx, policy.ActionCreateAgent, workspace); err != nil {
+		return database.WorkspaceApp{}, err
+	}
+
 	return q.db.InsertWorkspaceApp(ctx, arg)
 }
 
