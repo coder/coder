@@ -171,6 +171,7 @@ func TestIsWithinRange(t *testing.T) {
 		at                  time.Time
 		expectedWithinRange bool
 	}{
+		// "* 9-18 * * 1-5" should be interpreted as a continuous time range from 08:59:00 to 18:58:59, Monday through Friday
 		{
 			name:                "Right before the start of the time range",
 			spec:                "* 9-18 * * 1-5",
@@ -223,6 +224,18 @@ func TestIsWithinRange(t *testing.T) {
 			name:                "2AM - Significantly outside the time range",
 			spec:                "* 9-18 * * 1-5",
 			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 02:00:00 UTC"),
+			expectedWithinRange: false,
+		},
+		{
+			name:                "Outside the day range #1",
+			spec:                "* 9-18 * * 1-5",
+			at:                  mustParseTime(t, time.RFC1123, "Sat, 07 Jun 2025 14:00:00 UTC"),
+			expectedWithinRange: false,
+		},
+		{
+			name:                "Outside the day range #2",
+			spec:                "* 9-18 * * 1-5",
+			at:                  mustParseTime(t, time.RFC1123, "Sun, 08 Jun 2025 14:00:00 UTC"),
 			expectedWithinRange: false,
 		},
 	}
