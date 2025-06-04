@@ -173,6 +173,52 @@ func TestSubAgentAPI(t *testing.T) {
 				}
 			})
 		}
+
+		t.Run("TransactionRollbackOnAppError", func(t *testing.T) {
+			t.Parallel()
+
+			// Skip test on in-memory database since transactions are not fully supported
+			if !dbtestutil.WillUsePostgres() {
+				t.Skip("Transaction behavior requires PostgreSQL")
+			}
+
+			log := testutil.Logger(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+
+			db, org := newDatabaseWithOrg(t)
+			user, agent := newUserWithWorkspaceAgent(t, db, org)
+			api := newAgentAPI(t, log, db, clock, user, org, agent)
+
+			// When: We create a sub agent with valid name but invalid app that will cause transaction to fail
+			_, err := api.CreateSubAgent(ctx, &proto.CreateSubAgentRequest{
+				Name:            "test-agent",
+				Directory:       "/workspaces/test",
+				Architecture:    "amd64",
+				OperatingSystem: "linux",
+				Apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "valid-app",
+						DisplayName: ptr.Ref("Valid App"),
+					},
+					{
+						Slug:        "Invalid_App_Slug", // This will cause validation error inside transaction
+						DisplayName: ptr.Ref("Invalid App"),
+					},
+				},
+			})
+
+			// Then: The request should fail with validation error
+			require.Error(t, err)
+			var validationErr codersdk.ValidationError
+			require.ErrorAs(t, err, &validationErr)
+			require.Equal(t, "apps[1].slug", validationErr.Field)
+
+			// And: No sub agents should be created (transaction rolled back)
+			subAgents, err := db.GetWorkspaceAgentsByParentID(dbauthz.AsSystemRestricted(ctx), agent.ID) //nolint:gocritic // this is a test.
+			require.NoError(t, err)
+			require.Empty(t, subAgents, "Expected no sub agents to be created after transaction rollback")
+		})
 	})
 
 	t.Run("CreateSubAgentWithApps", func(t *testing.T) {
