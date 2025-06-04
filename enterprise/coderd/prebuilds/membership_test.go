@@ -39,9 +39,20 @@ func TestReconcileAll(t *testing.T) {
 	}{
 		// The StoreMembershipReconciler acts based on the provided agplprebuilds.GlobalSnapshot.
 		// These test cases must therefore trust any valid snapshot, so the only relevant functional test cases are:
+
+		// No presets to act on and the prebuilds user does not belong to any organizations.
+		// Reconciliation should be a no-op
 		{name: "no presets, no memberships", includePreset: false, preExistingMembership: false},
+		// If we have a preset that requires prebuilds, but the prebuilds user is not a member of
+		// that organization, then we should add the membership.
 		{name: "preset, but no membership", includePreset: true, preExistingMembership: false},
+		// If the prebuilds system user is already a member of the organization to which a preset belongs,
+		// then reconciliation should be a no-op:
 		{name: "preset, but already a member", includePreset: true, preExistingMembership: true},
+		// If the prebuilds system user is a member of an organization that doesn't have need any prebuilds,
+		// then it must have required prebuilds in the past. The membership is not currently necessary, but
+		// the reconciler won't remove it, because there's little cost to keeping it and prebuilds might be
+		// enabled again.
 		{name: "member, but no presets", includePreset: false, preExistingMembership: true},
 	}
 
@@ -54,7 +65,9 @@ func TestReconcileAll(t *testing.T) {
 
 			defaultOrg, err := db.GetDefaultOrganization(ctx)
 			require.NoError(t, err)
-			backgroundOrg := dbgen.Organization(t, db, database.Organization{})
+
+			// introduce an unrelated organization to ensure that the membership reconciler don't interfere with it.
+			unrelatedOrg := dbgen.Organization(t, db, database.Organization{})
 			targetOrg := dbgen.Organization(t, db, database.Organization{})
 
 			if !dbtestutil.WillUsePostgres() {
@@ -65,13 +78,13 @@ func TestReconcileAll(t *testing.T) {
 				})
 			}
 
-			dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: backgroundOrg.ID, UserID: agplprebuilds.SystemUserID})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: unrelatedOrg.ID, UserID: agplprebuilds.SystemUserID})
 			if tc.preExistingMembership {
 				// System user already a member of both orgs.
 				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: targetOrg.ID, UserID: agplprebuilds.SystemUserID})
 			}
 
-			presets := []database.GetTemplatePresetsWithPrebuildsRow{newPresetRow(backgroundOrg.ID)}
+			presets := []database.GetTemplatePresetsWithPrebuildsRow{newPresetRow(unrelatedOrg.ID)}
 			if tc.includePreset {
 				presets = append(presets, newPresetRow(targetOrg.ID))
 			}
@@ -81,11 +94,11 @@ func TestReconcileAll(t *testing.T) {
 				UserID: agplprebuilds.SystemUserID,
 			})
 			require.NoError(t, err)
-			expected := []uuid.UUID{defaultOrg.ID, backgroundOrg.ID}
+			expectedMembershipsBefore := []uuid.UUID{defaultOrg.ID, unrelatedOrg.ID}
 			if tc.preExistingMembership {
-				expected = append(expected, targetOrg.ID)
+				expectedMembershipsBefore = append(expectedMembershipsBefore, targetOrg.ID)
 			}
-			require.ElementsMatch(t, expected, extractOrgIDs(preReconcileMemberships))
+			require.ElementsMatch(t, expectedMembershipsBefore, extractOrgIDs(preReconcileMemberships))
 
 			// Reconcile
 			reconciler := prebuilds.NewStoreMembershipReconciler(db, clock)
@@ -96,10 +109,11 @@ func TestReconcileAll(t *testing.T) {
 				UserID: agplprebuilds.SystemUserID,
 			})
 			require.NoError(t, err)
+			expectedMembershipsAfter := expectedMembershipsBefore
 			if !tc.preExistingMembership && tc.includePreset {
-				expected = append(expected, targetOrg.ID)
+				expectedMembershipsAfter = append(expectedMembershipsAfter, targetOrg.ID)
 			}
-			require.ElementsMatch(t, expected, extractOrgIDs(postReconcileMemberships))
+			require.ElementsMatch(t, expectedMembershipsAfter, extractOrgIDs(postReconcileMemberships))
 		})
 	}
 }

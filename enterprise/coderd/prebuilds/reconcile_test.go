@@ -42,6 +42,10 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 	// Scenario: No reconciliation actions are taken if there are no presets
 	t.Parallel()
 
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("dbmem times out on nesting transactions, postgres ignores the inner ones")
+	}
+
 	clock := quartz.NewMock(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, ps := dbtestutil.NewDB(t)
@@ -82,6 +86,10 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 	// Scenario: No reconciliation actions are taken if there are no prebuilds
 	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("dbmem times out on nesting transactions, postgres ignores the inner ones")
+	}
 
 	clock := quartz.NewMock(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
