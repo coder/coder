@@ -44,6 +44,7 @@ type DRPCProvisionerDaemonClient interface {
 	UpdateJob(ctx context.Context, in *UpdateJobRequest) (*UpdateJobResponse, error)
 	FailJob(ctx context.Context, in *FailedJob) (*Empty, error)
 	CompleteJob(ctx context.Context, in *CompletedJob) (*Empty, error)
+	CompleteJobWithFiles(ctx context.Context) (DRPCProvisionerDaemon_CompleteJobWithFilesClient, error)
 }
 
 type drpcProvisionerDaemonClient struct {
@@ -140,6 +141,51 @@ func (c *drpcProvisionerDaemonClient) CompleteJob(ctx context.Context, in *Compl
 	return out, nil
 }
 
+func (c *drpcProvisionerDaemonClient) CompleteJobWithFiles(ctx context.Context) (DRPCProvisionerDaemon_CompleteJobWithFilesClient, error) {
+	stream, err := c.cc.NewStream(ctx, "/provisionerd.ProvisionerDaemon/CompleteJobWithFiles", drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
+	if err != nil {
+		return nil, err
+	}
+	x := &drpcProvisionerDaemon_CompleteJobWithFilesClient{stream}
+	return x, nil
+}
+
+type DRPCProvisionerDaemon_CompleteJobWithFilesClient interface {
+	drpc.Stream
+	Send(*CompleteWithFilesRequest) error
+	CloseAndRecv() (*Empty, error)
+}
+
+type drpcProvisionerDaemon_CompleteJobWithFilesClient struct {
+	drpc.Stream
+}
+
+func (x *drpcProvisionerDaemon_CompleteJobWithFilesClient) GetStream() drpc.Stream {
+	return x.Stream
+}
+
+func (x *drpcProvisionerDaemon_CompleteJobWithFilesClient) Send(m *CompleteWithFilesRequest) error {
+	return x.MsgSend(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
+}
+
+func (x *drpcProvisionerDaemon_CompleteJobWithFilesClient) CloseAndRecv() (*Empty, error) {
+	if err := x.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(Empty)
+	if err := x.MsgRecv(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{}); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (x *drpcProvisionerDaemon_CompleteJobWithFilesClient) CloseAndRecvMsg(m *Empty) error {
+	if err := x.CloseSend(); err != nil {
+		return err
+	}
+	return x.MsgRecv(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
+}
+
 type DRPCProvisionerDaemonServer interface {
 	AcquireJob(context.Context, *Empty) (*AcquiredJob, error)
 	AcquireJobWithCancel(DRPCProvisionerDaemon_AcquireJobWithCancelStream) error
@@ -147,6 +193,7 @@ type DRPCProvisionerDaemonServer interface {
 	UpdateJob(context.Context, *UpdateJobRequest) (*UpdateJobResponse, error)
 	FailJob(context.Context, *FailedJob) (*Empty, error)
 	CompleteJob(context.Context, *CompletedJob) (*Empty, error)
+	CompleteJobWithFiles(DRPCProvisionerDaemon_CompleteJobWithFilesStream) error
 }
 
 type DRPCProvisionerDaemonUnimplementedServer struct{}
@@ -175,9 +222,13 @@ func (s *DRPCProvisionerDaemonUnimplementedServer) CompleteJob(context.Context, 
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCProvisionerDaemonUnimplementedServer) CompleteJobWithFiles(DRPCProvisionerDaemon_CompleteJobWithFilesStream) error {
+	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCProvisionerDaemonDescription struct{}
 
-func (DRPCProvisionerDaemonDescription) NumMethods() int { return 6 }
+func (DRPCProvisionerDaemonDescription) NumMethods() int { return 7 }
 
 func (DRPCProvisionerDaemonDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -234,6 +285,14 @@ func (DRPCProvisionerDaemonDescription) Method(n int) (string, drpc.Encoding, dr
 						in1.(*CompletedJob),
 					)
 			}, DRPCProvisionerDaemonServer.CompleteJob, true
+	case 6:
+		return "/provisionerd.ProvisionerDaemon/CompleteJobWithFiles", drpcEncoding_File_provisionerd_proto_provisionerd_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return nil, srv.(DRPCProvisionerDaemonServer).
+					CompleteJobWithFiles(
+						&drpcProvisionerDaemon_CompleteJobWithFilesStream{in1.(drpc.Stream)},
+					)
+			}, DRPCProvisionerDaemonServer.CompleteJobWithFiles, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -347,4 +406,33 @@ func (x *drpcProvisionerDaemon_CompleteJobStream) SendAndClose(m *Empty) error {
 		return err
 	}
 	return x.CloseSend()
+}
+
+type DRPCProvisionerDaemon_CompleteJobWithFilesStream interface {
+	drpc.Stream
+	SendAndClose(*Empty) error
+	Recv() (*CompleteWithFilesRequest, error)
+}
+
+type drpcProvisionerDaemon_CompleteJobWithFilesStream struct {
+	drpc.Stream
+}
+
+func (x *drpcProvisionerDaemon_CompleteJobWithFilesStream) SendAndClose(m *Empty) error {
+	if err := x.MsgSend(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+func (x *drpcProvisionerDaemon_CompleteJobWithFilesStream) Recv() (*CompleteWithFilesRequest, error) {
+	m := new(CompleteWithFilesRequest)
+	if err := x.MsgRecv(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{}); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (x *drpcProvisionerDaemon_CompleteJobWithFilesStream) RecvMsg(m *CompleteWithFilesRequest) error {
+	return x.MsgRecv(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
 }
