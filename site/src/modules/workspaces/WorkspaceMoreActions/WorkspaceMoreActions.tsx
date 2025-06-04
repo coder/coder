@@ -31,6 +31,7 @@ import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { UpdateBuildParametersDialogExperimental } from "./UpdateBuildParametersDialogExperimental";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
+import { useDynamicParametersOptOut } from "hooks/useDynamicParametersOptOut";
 
 type WorkspaceMoreActionsProps = {
 	workspace: Workspace;
@@ -45,6 +46,13 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	const { experiments } = useDashboard();
 	const isDynamicParametersEnabled = experiments.includes("dynamic-parameters");
 
+	const optOutQuery = useDynamicParametersOptOut({
+		templateId: workspace.template_id,
+		templateUsesClassicParameters:
+			workspace.template_use_classic_parameter_flow,
+		enabled: isDynamicParametersEnabled,
+	});
+
 	// Permissions
 	const { data: permissions } = useQuery(workspacePermissions(workspace));
 
@@ -54,7 +62,11 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	// Change version
 	const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
 	const changeVersionMutation = useMutation(
-		changeVersion(workspace, queryClient, isDynamicParametersEnabled),
+		changeVersion(
+			workspace,
+			queryClient,
+			Boolean(!optOutQuery.data?.optedOut) ?? false,
+		),
 	);
 
 	// Delete
@@ -146,26 +158,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				onClose={() => setIsDownloadDialogOpen(false)}
 			/>
 
-			{isDynamicParametersEnabled ? (
-				<UpdateBuildParametersDialogExperimental
-					missedParameters={
-						changeVersionMutation.error instanceof MissingBuildParameters
-							? changeVersionMutation.error.parameters
-							: []
-					}
-					open={changeVersionMutation.error instanceof MissingBuildParameters}
-					onClose={() => {
-						changeVersionMutation.reset();
-					}}
-					workspaceOwnerName={workspace.owner_name}
-					workspaceName={workspace.name}
-					templateVersionId={
-						changeVersionMutation.error instanceof MissingBuildParameters
-							? changeVersionMutation.error?.versionId
-							: undefined
-					}
-				/>
-			) : (
+			{optOutQuery.data?.optedOut ? (
 				<UpdateBuildParametersDialog
 					missedParameters={
 						changeVersionMutation.error instanceof MissingBuildParameters
@@ -184,6 +177,25 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 							});
 						}
 					}}
+				/>
+			) : (
+				<UpdateBuildParametersDialogExperimental
+					missedParameters={
+						changeVersionMutation.error instanceof MissingBuildParameters
+							? changeVersionMutation.error.parameters
+							: []
+					}
+					open={changeVersionMutation.error instanceof MissingBuildParameters}
+					onClose={() => {
+						changeVersionMutation.reset();
+					}}
+					workspaceOwnerName={workspace.owner_name}
+					workspaceName={workspace.name}
+					templateVersionId={
+						changeVersionMutation.error instanceof MissingBuildParameters
+							? changeVersionMutation.error?.versionId
+							: undefined
+					}
 				/>
 			)}
 

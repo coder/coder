@@ -155,11 +155,11 @@ export const WorkspaceParametersPageViewExperimental: FC<
 				</div>
 			)}
 
-			{(templateVersionId || workspace.template_active_version_id) && (
+			{(templateVersionId || workspace.latest_build.template_version_id) && (
 				<div className="flex flex-col gap-2">
 					<Label className="text-sm text-content-secondary">Version ID</Label>
 					<p className="m-0 text-sm font-medium">
-						{templateVersionId ?? workspace.template_active_version_id}
+						{templateVersionId ?? workspace.latest_build.template_version_id}
 					</p>
 				</div>
 			)}

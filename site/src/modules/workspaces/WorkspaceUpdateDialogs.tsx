@@ -13,6 +13,9 @@ import { UpdateBuildParametersDialog } from "modules/workspaces/WorkspaceMoreAct
 import { UpdateBuildParametersDialogExperimental } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialogExperimental";
 import { type FC, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
+import { useDynamicParametersOptOut } from "hooks/useDynamicParametersOptOut";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Loader } from "components/Loader/Loader";
 
 type UseWorkspaceUpdateOptions = {
 	workspace: Workspace;
@@ -36,8 +39,6 @@ export const useWorkspaceUpdate = ({
 	onSuccess,
 	onError,
 }: UseWorkspaceUpdateOptions): UseWorkspaceUpdateResult => {
-	const { experiments } = useDashboard();
-	const isDynamicParametersEnabled = experiments.includes("dynamic-parameters");
 	const queryClient = useQueryClient();
 	const [isConfirmingUpdate, setIsConfirmingUpdate] = useState(false);
 
@@ -55,10 +56,20 @@ export const useWorkspaceUpdate = ({
 		setIsConfirmingUpdate(true);
 	};
 
+	const { experiments } = useDashboard();
+	const dynamicParametersEnabled = experiments.includes("dynamic-parameters");
+
+	const optOutQuery = useDynamicParametersOptOut({
+		templateId: workspace.template_id,
+		templateUsesClassicParameters:
+			workspace.template_use_classic_parameter_flow,
+		enabled: dynamicParametersEnabled,
+	});
+
 	const confirmUpdate = (buildParameters: WorkspaceBuildParameter[] = []) => {
 		updateWorkspaceMutation.mutate({
 			buildParameters,
-			isDynamicParametersEnabled,
+			isDynamicParametersEnabled: Boolean(!optOutQuery.data?.optedOut) ?? false,
 		});
 		setIsConfirmingUpdate(false);
 	};
@@ -155,6 +166,12 @@ const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
 }) => {
 	const { experiments } = useDashboard();
 	const isDynamicParametersEnabled = experiments.includes("dynamic-parameters");
+	const optOutQuery = useDynamicParametersOptOut({
+		templateId: workspace.template_id,
+		templateUsesClassicParameters:
+			workspace.template_use_classic_parameter_flow,
+		enabled: isDynamicParametersEnabled,
+	});
 
 	const missedParameters =
 		error instanceof MissingBuildParameters ? error.parameters : [];
@@ -162,7 +179,20 @@ const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
 		error instanceof MissingBuildParameters ? error.versionId : undefined;
 	const isOpen = error instanceof MissingBuildParameters;
 
-	return isDynamicParametersEnabled ? (
+	if (optOutQuery.isError) {
+		return <ErrorAlert error={optOutQuery.error} />;
+	}
+	if (!optOutQuery.data) {
+		return <Loader />;
+	}
+
+	return optOutQuery.data?.optedOut ? (
+		<UpdateBuildParametersDialog
+			missedParameters={missedParameters}
+			open={isOpen}
+			{...dialogProps}
+		/>
+	) : (
 		<UpdateBuildParametersDialogExperimental
 			missedParameters={missedParameters}
 			open={isOpen}
@@ -170,12 +200,6 @@ const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
 			workspaceOwnerName={workspace.owner_name}
 			workspaceName={workspace.name}
 			templateVersionId={versionId}
-		/>
-	) : (
-		<UpdateBuildParametersDialog
-			missedParameters={missedParameters}
-			open={isOpen}
-			{...dialogProps}
 		/>
 	);
 };
