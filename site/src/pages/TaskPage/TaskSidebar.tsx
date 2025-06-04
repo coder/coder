@@ -29,7 +29,7 @@ import { cn } from "utils/cn";
 import { timeFrom } from "utils/time";
 import { truncateURI } from "utils/uri";
 import { TaskAppIFrame } from "./TaskAppIframe";
-import { AI_APP_CHAT_SLUG } from "./constants";
+import { AI_APP_CHAT_SLUG, AI_APP_CHAT_URL_PATHNAME } from "./constants";
 
 type TaskSidebarProps = {
 	task: Task;
@@ -49,7 +49,7 @@ export const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
 					"border-0 border-r border-solid border-border",
 				],
 				// We want to make the sidebar wider for chat apps
-				chatApp ? "w-[440px]" : "w-[320px]",
+				chatApp ? "w-[520px]" : "w-[320px]",
 			])}
 		>
 			<header className="border-0 border-b border-solid border-border p-4 pt-0">
@@ -105,7 +105,13 @@ export const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
 			</header>
 
 			{chatApp ? (
-				<TaskAppIFrame active key={chatApp.id} app={chatApp} task={task} />
+				<TaskAppIFrame
+					active
+					key={chatApp.id}
+					app={chatApp}
+					task={task}
+					pathname={AI_APP_CHAT_URL_PATHNAME}
+				/>
 			) : (
 				<TaskStatuses task={task} />
 			)}
