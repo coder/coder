@@ -38,7 +38,7 @@
 						{
 							"title": "Code of Conduct",
 							"description": "See the code of conduct for contributing to Coder",
-							"path": "./CODE_OF_CONDUCT.md",
+							"path": "./about/contributing/CODE_OF_CONDUCT.md",
 							"icon_path": "./images/icons/circle-dot.svg"
 						},
 						{
@@ -62,7 +62,7 @@
 						{
 							"title": "Security",
 							"description": "Our guide for security",
-							"path": "./contributing/SECURITY.md",
+							"path": "./about/contributing/SECURITY.md",
 							"icon_path": "./images/icons/lock.svg"
 						}
 					]
