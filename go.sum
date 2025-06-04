@@ -911,8 +911,8 @@ github.com/coder/pq v1.10.5-0.20240813183442-0c420cb5a048 h1:3jzYUlGH7ZELIH4XggX
 github.com/coder/pq v1.10.5-0.20240813183442-0c420cb5a048/go.mod h1:AlVN5x4E4T544tWzH6hKfbfQvm3HdbOxrmggDNAPY9o=
 github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0 h1:3A0ES21Ke+FxEM8CXx9n47SZOKOpgSE1bbJzlE4qPVs=
 github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0/go.mod h1:5UuS2Ts+nTToAMeOjNlnHFkPahrtDkmpydBen/3wgZc=
-github.com/coder/preview v0.0.2-0.20250527172548-ab173d35040c h1:lPIImqcf46QcK3hYlr20xt2SG66IAAK/kfZdEhM6OJc=
-github.com/coder/preview v0.0.2-0.20250527172548-ab173d35040c/go.mod h1:Ltd83BrbNN7Nj+hToa6My7xTTj8FVa2xNk5589b1DJc=
+github.com/coder/preview v0.0.2-0.20250604144457-c9862a17f652 h1:GukgWbsop8A3vZXXwYtjJfLOIgLygvFw8I6BF0UuvNo=
+github.com/coder/preview v0.0.2-0.20250604144457-c9862a17f652/go.mod h1:nXz3bBwbU8/9NYI4OISUsoLDFlEREtTozYhJq6FAE8E=
 github.com/coder/quartz v0.2.1 h1:QgQ2Vc1+mvzewg2uD/nj8MJ9p9gE+QhGJm+Z+NGnrSE=
 github.com/coder/quartz v0.2.1/go.mod h1:vsiCc+AHViMKH2CQpGIpFgdHIEQsxwm8yCscqKmzbRA=
 github.com/coder/retry v1.5.1 h1:iWu8YnD8YqHs3XwqrqsjoBTAVqT9ml6z9ViJ2wlMiqc=
@@ -925,8 +925,8 @@ github.com/coder/tailscale v1.1.1-0.20250422090654-5090e715905e h1:nope/SZfoLB9M
 github.com/coder/tailscale v1.1.1-0.20250422090654-5090e715905e/go.mod h1:1ggFFdHTRjPRu9Yc1yA7nVHBYB50w9Ce7VIXNqcW6Ko=
 github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e h1:JNLPDi2P73laR1oAclY6jWzAbucf70ASAvf5mh2cME0=
 github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e/go.mod h1:Gz/z9Hbn+4KSp8A2FBtNszfLSdT2Tn/uAKGuVqqWmDI=
-github.com/coder/terraform-provider-coder/v2 v2.5.2 h1:hE1IGbsGtWrJjq+But2psGdZy5k8fRnOqysmlpoHNPg=
-github.com/coder/terraform-provider-coder/v2 v2.5.2/go.mod h1:kqP2MW/OF5u3QBRPDt84vn1izKjncICFfv26nSb781I=
+github.com/coder/terraform-provider-coder/v2 v2.5.3 h1:EwqIIQKe/j8bsR4WyDJ3bD0dVdkfVqJ43TwClyGneUU=
+github.com/coder/terraform-provider-coder/v2 v2.5.3/go.mod h1:kqP2MW/OF5u3QBRPDt84vn1izKjncICFfv26nSb781I=
 github.com/coder/trivy v0.0.0-20250527170238-9416a59d7019 h1:MHkv/W7l9eRAN9gOG0qZ1TLRGWIIfNi92273vPAQ8Fs=
 github.com/coder/trivy v0.0.0-20250527170238-9416a59d7019/go.mod h1:eqk+w9RLBmbd/cB5XfPZFuVn77cf/A6fB7qmEVeSmXk=
 github.com/coder/websocket v1.8.13 h1:f3QZdXy7uGVz+4uCJy2nTZyM0yTBj8yANEHhqlXZ9FE=

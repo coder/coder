@@ -101,7 +101,7 @@ require (
 	github.com/coder/quartz v0.2.1
 	github.com/coder/retry v1.5.1
 	github.com/coder/serpent v0.10.0
-	github.com/coder/terraform-provider-coder/v2 v2.5.2
+	github.com/coder/terraform-provider-coder/v2 v2.5.3
 	github.com/coder/websocket v1.8.13
 	github.com/coder/wgtunnel v0.1.13-0.20240522110300-ade90dfb2da0
 	github.com/coreos/go-oidc/v3 v3.14.1
@@ -485,7 +485,7 @@ require (
 
 require (
 	github.com/anthropics/anthropic-sdk-go v0.2.0-beta.3
-	github.com/coder/preview v0.0.2-0.20250527172548-ab173d35040c
+	github.com/coder/preview v0.0.2-0.20250604144457-c9862a17f652
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/kylecarbs/aisdk-go v0.0.8
 	github.com/mark3labs/mcp-go v0.31.0
