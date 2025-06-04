@@ -607,13 +607,13 @@ func (u *updater) netStatusLoop() {
 		case <-u.ctx.Done():
 			return
 		case <-ticker.C:
-			u.recordLatency()
+			u.recordLatencies()
 			u.sendAgentUpdate()
 		}
 	}
 }
 
-func (u *updater) recordLatency() {
+func (u *updater) recordLatencies() {
 	var agentsIDsToPing []uuid.UUID
 	u.mu.Lock()
 	for _, agent := range u.agents {
@@ -621,10 +621,10 @@ func (u *updater) recordLatency() {
 	}
 	u.mu.Unlock()
 
-	pingCtx, cancelFunc := context.WithTimeout(u.ctx, 5*time.Second)
-	defer cancelFunc()
 	for _, agentID := range agentsIDsToPing {
 		go func() {
+			pingCtx, cancelFunc := context.WithTimeout(u.ctx, 5*time.Second)
+			defer cancelFunc()
 			pingDur, didP2p, pingResult, err := u.conn.Ping(pingCtx, agentID)
 			if err != nil {
 				u.logger.Warn(u.ctx, "failed to ping agent", slog.F("agent_id", agentID), slog.Error(err))
