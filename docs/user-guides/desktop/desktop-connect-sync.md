@@ -11,7 +11,7 @@ While active, Coder Connect will list the workspaces you own and will configure 
 
 ![Coder Desktop list of workspaces](../../images/user-guides/desktop/coder-desktop-workspaces.png)
 
-To copy the `.coder` hostname of a workspace agent, you can click the copy icon beside it.
+To copy the `.coder` hostname of a workspace agent, select the copy icon beside it.
 
 You can also connect to the SSH server in your workspace using any SSH client, such as OpenSSH or PuTTY:
 
