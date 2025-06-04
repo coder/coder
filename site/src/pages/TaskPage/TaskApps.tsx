@@ -33,11 +33,12 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 		.filter((a) => !!a && a.slug !== AI_APP_CHAT_SLUG);
 
 	const [activeAppId, setActiveAppId] = useState<string>(() => {
-		const appId = task.workspace.latest_app_status?.app_id;
-		if (!appId) {
-			throw new Error("No active app found in task");
+		// Use the first app in order instead of the most recently active app
+		const firstApp = apps[0];
+		if (!firstApp) {
+			throw new Error("No apps found in task");
 		}
-		return appId;
+		return firstApp.id;
 	});
 
 	const activeApp = apps.find((app) => app.id === activeAppId);
