@@ -6,16 +6,16 @@ import type {
 	WorkspaceBuild,
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Loader } from "components/Loader/Loader";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
+import { useDynamicParametersOptOut } from "hooks/useDynamicParametersOptOut";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { UpdateBuildParametersDialog } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialog";
 import { UpdateBuildParametersDialogExperimental } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialogExperimental";
 import { type FC, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
-import { useDynamicParametersOptOut } from "hooks/useDynamicParametersOptOut";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Loader } from "components/Loader/Loader";
 
 type UseWorkspaceUpdateOptions = {
 	workspace: Workspace;

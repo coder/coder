@@ -1,15 +1,15 @@
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
+import {
+	optOutKey,
+	useDynamicParametersOptOut,
+} from "hooks/useDynamicParametersOptOut";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { ExperimentalFormContext } from "../../CreateWorkspacePage/ExperimentalFormContext";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import WorkspaceParametersPage from "./WorkspaceParametersPage";
 import WorkspaceParametersPageExperimental from "./WorkspaceParametersPageExperimental";
-import {
-	optOutKey,
-	useDynamicParametersOptOut,
-} from "hooks/useDynamicParametersOptOut";
 
 const WorkspaceParametersExperimentRouter: FC = () => {
 	const { experiments } = useDashboard();

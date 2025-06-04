@@ -13,6 +13,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
+import { useDynamicParametersOptOut } from "hooks/useDynamicParametersOptOut";
 import {
 	CopyIcon,
 	DownloadIcon,
@@ -31,7 +32,6 @@ import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { UpdateBuildParametersDialogExperimental } from "./UpdateBuildParametersDialogExperimental";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
-import { useDynamicParametersOptOut } from "hooks/useDynamicParametersOptOut";
 
 type WorkspaceMoreActionsProps = {
 	workspace: Workspace;
