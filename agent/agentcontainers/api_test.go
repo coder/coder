@@ -6,6 +6,8 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -190,6 +192,80 @@ func (w *fakeWatcher) sendEventWaitNextCalled(ctx context.Context, event fsnotif
 	w.waitNext(ctx)
 }
 
+// fakeSubAgentClient implements SubAgentClient for testing purposes.
+type fakeSubAgentClient struct {
+	agents map[uuid.UUID]agentcontainers.SubAgent
+	nextID int
+
+	listErrC   chan error // If set, send to return error, close to return nil.
+	created    []agentcontainers.SubAgent
+	createErrC chan error // If set, send to return error, close to return nil.
+	deleted    []uuid.UUID
+	deleteErrC chan error // If set, send to return error, close to return nil.
+}
+
+func (m *fakeSubAgentClient) List(ctx context.Context) ([]agentcontainers.SubAgent, error) {
+	var listErr error
+	if m.listErrC != nil {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case err, ok := <-m.listErrC:
+			if ok {
+				listErr = err
+			}
+		}
+	}
+	var agents []agentcontainers.SubAgent
+	for _, agent := range m.agents {
+		agents = append(agents, agent)
+	}
+	return agents, listErr
+}
+
+func (m *fakeSubAgentClient) Create(ctx context.Context, agent agentcontainers.SubAgent) (agentcontainers.SubAgent, error) {
+	var createErr error
+	if m.createErrC != nil {
+		select {
+		case <-ctx.Done():
+			return agentcontainers.SubAgent{}, ctx.Err()
+		case err, ok := <-m.createErrC:
+			if ok {
+				createErr = err
+			}
+		}
+	}
+	m.nextID++
+	agent.ID = uuid.New()
+	agent.AuthToken = uuid.New()
+	if m.agents == nil {
+		m.agents = make(map[uuid.UUID]agentcontainers.SubAgent)
+	}
+	m.agents[agent.ID] = agent
+	m.created = append(m.created, agent)
+	return agent, createErr
+}
+
+func (m *fakeSubAgentClient) Delete(ctx context.Context, id uuid.UUID) error {
+	var deleteErr error
+	if m.deleteErrC != nil {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case err, ok := <-m.deleteErrC:
+			if ok {
+				deleteErr = err
+			}
+		}
+	}
+	if m.agents == nil {
+		m.agents = make(map[uuid.UUID]agentcontainers.SubAgent)
+	}
+	delete(m.agents, id)
+	m.deleted = append(m.deleted, id)
+	return deleteErr
+}
+
 func TestAPI(t *testing.T) {
 	t.Parallel()
 
@@ -226,6 +302,7 @@ func TestAPI(t *testing.T) {
 				initialData: initialDataPayload{makeResponse(), nil},
 				setupMock: func(mcl *acmock.MockContainerCLI, preReq *gomock.Call) {
 					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(fakeCt), nil).After(preReq).AnyTimes()
+					mcl.EXPECT().DetectArchitecture(gomock.Any(), gomock.Any()).Return("<none>", nil).AnyTimes()
 				},
 				expected: makeResponse(fakeCt),
 			},
@@ -244,6 +321,7 @@ func TestAPI(t *testing.T) {
 				initialData: initialDataPayload{makeResponse(), assert.AnError},
 				setupMock: func(mcl *acmock.MockContainerCLI, preReq *gomock.Call) {
 					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(fakeCt), nil).After(preReq).AnyTimes()
+					mcl.EXPECT().DetectArchitecture(gomock.Any(), gomock.Any()).Return("<none>", nil).AnyTimes()
 				},
 				expected: makeResponse(fakeCt),
 			},
@@ -260,6 +338,7 @@ func TestAPI(t *testing.T) {
 				initialData: initialDataPayload{makeResponse(fakeCt), nil},
 				setupMock: func(mcl *acmock.MockContainerCLI, preReq *gomock.Call) {
 					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(fakeCt2), nil).After(preReq).AnyTimes()
+					mcl.EXPECT().DetectArchitecture(gomock.Any(), gomock.Any()).Return("<none>", nil).AnyTimes()
 				},
 				expected: makeResponse(fakeCt2),
 			},
@@ -415,6 +494,7 @@ func TestAPI(t *testing.T) {
 					containers: codersdk.WorkspaceAgentListContainersResponse{
 						Containers: []codersdk.WorkspaceAgentContainer{validContainer},
 					},
+					arch: "<none>", // Unsupported architecture, don't inject subagent.
 				},
 				devcontainerCLI: &fakeDevcontainerCLI{
 					upErr: xerrors.New("devcontainer CLI error"),
@@ -429,6 +509,7 @@ func TestAPI(t *testing.T) {
 					containers: codersdk.WorkspaceAgentListContainersResponse{
 						Containers: []codersdk.WorkspaceAgentContainer{validContainer},
 					},
+					arch: "<none>", // Unsupported architecture, don't inject subagent.
 				},
 				devcontainerCLI: &fakeDevcontainerCLI{},
 				wantStatus:      []int{http.StatusAccepted, http.StatusConflict},
@@ -1150,6 +1231,166 @@ func TestAPI(t *testing.T) {
 		require.NotNil(t, response.Devcontainers[0].Container, "container should not be nil")
 		assert.False(t, response.Devcontainers[0].Container.DevcontainerDirty,
 			"dirty flag should be cleared on the container after container recreation")
+	})
+
+	t.Run("SubAgentLifecycle", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx     = testutil.Context(t, testutil.WaitMedium)
+			logger  = slog.Make()
+			mClock  = quartz.NewMock(t)
+			mCCLI   = acmock.NewMockContainerCLI(gomock.NewController(t))
+			fakeSAC = &fakeSubAgentClient{
+				createErrC: make(chan error, 1),
+				deleteErrC: make(chan error, 1),
+			}
+			fakeDCCLI = &fakeDevcontainerCLI{
+				execErrC: make(chan error, 1),
+			}
+
+			testContainer = codersdk.WorkspaceAgentContainer{
+				ID:           "test-container-id",
+				FriendlyName: "test-container",
+				Image:        "test-image",
+				Running:      true,
+				CreatedAt:    time.Now(),
+				Labels: map[string]string{
+					agentcontainers.DevcontainerLocalFolderLabel: "/workspace",
+					agentcontainers.DevcontainerConfigFileLabel:  "/workspace/.devcontainer/devcontainer.json",
+				},
+			}
+		)
+
+		defer close(fakeDCCLI.execErrC)
+
+		coderBin, err := os.Executable()
+		require.NoError(t, err)
+
+		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentContainer{testContainer},
+		}, nil).AnyTimes()
+		gomock.InOrder(
+			mCCLI.EXPECT().DetectArchitecture(gomock.Any(), "test-container-id").Return(runtime.GOARCH, nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "mkdir", "-p", "/.coder-agent").Return(nil),
+			mCCLI.EXPECT().Copy(gomock.Any(), "test-container-id", coderBin, "/.coder-agent/coder").Return(nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "chmod", "+x", "/.coder-agent/coder").Return(nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "setcap", "cap_net_admin+ep", "/.coder-agent/coder").Return(nil),
+		)
+
+		mClock.Set(time.Now()).MustWait(ctx)
+		tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+
+		api := agentcontainers.NewAPI(logger,
+			agentcontainers.WithClock(mClock),
+			agentcontainers.WithContainerCLI(mCCLI),
+			agentcontainers.WithSubAgentClient(fakeSAC),
+			agentcontainers.WithDevcontainerCLI(fakeDCCLI),
+		)
+		defer api.Close()
+
+		// Allow initial agent creation to succeed.
+		testutil.RequireSend(ctx, t, fakeSAC.createErrC, nil)
+
+		// Make sure the ticker function has been registered
+		// before advancing the clock.
+		tickerTrap.MustWait(ctx).MustRelease(ctx)
+		tickerTrap.Close()
+
+		// Pre-populate for next iteration (also verify previous consumption).
+		testutil.RequireSend(ctx, t, fakeSAC.createErrC, nil)
+
+		// Ensure we only inject the agent once.
+		for i := range 3 {
+			_, aw := mClock.AdvanceNext()
+			aw.MustWait(ctx)
+
+			t.Logf("Iteration %d: agents created: %d", i+1, len(fakeSAC.created))
+
+			// Verify agent was created.
+			require.Len(t, fakeSAC.created, 1)
+			assert.Equal(t, "test-container", fakeSAC.created[0].Name)
+			assert.Equal(t, "/workspace", fakeSAC.created[0].Directory)
+			assert.Len(t, fakeSAC.deleted, 0)
+		}
+
+		// Expect the agent to be reinjected.
+		gomock.InOrder(
+			mCCLI.EXPECT().DetectArchitecture(gomock.Any(), "test-container-id").Return(runtime.GOARCH, nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "mkdir", "-p", "/.coder-agent").Return(nil),
+			mCCLI.EXPECT().Copy(gomock.Any(), "test-container-id", coderBin, "/.coder-agent/coder").Return(nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "chmod", "+x", "/.coder-agent/coder").Return(nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "setcap", "cap_net_admin+ep", "/.coder-agent/coder").Return(nil),
+		)
+
+		// Terminate the agent and verify it is deleted.
+		testutil.RequireSend(ctx, t, fakeDCCLI.execErrC, nil)
+
+		// Allow cleanup to proceed.
+		testutil.RequireSend(ctx, t, fakeSAC.deleteErrC, xerrors.New("test termination"))
+
+		// Wait until the agent recreation is started.
+		for len(fakeSAC.createErrC) > 0 {
+			_, aw := mClock.AdvanceNext()
+			aw.MustWait(ctx)
+		}
+
+		// Verify agent was deleted.
+		require.Len(t, fakeSAC.deleted, 1)
+		assert.Equal(t, fakeSAC.created[0].ID, fakeSAC.deleted[0])
+
+		// Verify the agent recreated.
+		require.Len(t, fakeSAC.created, 2)
+	})
+
+	t.Run("SubAgentCleanup", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			existingAgentID    = uuid.New()
+			existingAgentToken = uuid.New()
+			existingAgent      = agentcontainers.SubAgent{
+				ID:        existingAgentID,
+				Name:      "stopped-container",
+				Directory: "/tmp",
+				AuthToken: existingAgentToken,
+			}
+
+			ctx     = testutil.Context(t, testutil.WaitMedium)
+			logger  = slog.Make()
+			mClock  = quartz.NewMock(t)
+			mCCLI   = acmock.NewMockContainerCLI(gomock.NewController(t))
+			fakeSAC = &fakeSubAgentClient{
+				agents: map[uuid.UUID]agentcontainers.SubAgent{
+					existingAgentID: existingAgent,
+				},
+			}
+		)
+
+		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentContainer{},
+		}, nil).AnyTimes()
+
+		mClock.Set(time.Now()).MustWait(ctx)
+		tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+
+		api := agentcontainers.NewAPI(logger,
+			agentcontainers.WithClock(mClock),
+			agentcontainers.WithContainerCLI(mCCLI),
+			agentcontainers.WithSubAgentClient(fakeSAC),
+			agentcontainers.WithDevcontainerCLI(&fakeDevcontainerCLI{}),
+		)
+		defer api.Close()
+
+		tickerTrap.MustWait(ctx).MustRelease(ctx)
+		tickerTrap.Close()
+
+		_, aw := mClock.AdvanceNext()
+		aw.MustWait(ctx)
+
+		// Verify agent was deleted.
+		assert.Contains(t, fakeSAC.deleted, existingAgentID)
+		assert.Empty(t, fakeSAC.agents)
 	})
 }
 
