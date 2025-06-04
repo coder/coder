@@ -1,6 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import InfoOutlined from "@mui/icons-material/InfoOutlined";
-import WarningRounded from "@mui/icons-material/WarningRounded";
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import type {
 	Template,
@@ -9,13 +7,17 @@ import type {
 	WorkspaceBuild,
 } from "api/typesGenerated";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
-import formatDistanceToNow from "date-fns/formatDistanceToNow";
 import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import { TriangleAlertIcon } from "lucide-react";
+import { InfoIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 import { type FC, useEffect, useState } from "react";
+
+dayjs.extend(relativeTime);
 import { useQuery } from "react-query";
-import type { WorkspacePermissions } from "../permissions";
+import type { WorkspacePermissions } from "../../../modules/workspaces/permissions";
 import {
 	NotificationActionButton,
 	type NotificationItem,
@@ -147,19 +149,18 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 			detail: workspace.deleting_at ? (
 				<>
 					This workspace has not been used for{" "}
-					{formatDistanceToNow(Date.parse(workspace.last_used_at))} and was
-					marked dormant on {formatDate(workspace.dormant_at, false)}. It is
-					scheduled to be deleted on {formatDate(workspace.deleting_at, true)}.
-					To keep it you must activate the workspace.
+					{dayjs(workspace.last_used_at).fromNow(true)} and was marked dormant
+					on {formatDate(workspace.dormant_at, false)}. It is scheduled to be
+					deleted on {formatDate(workspace.deleting_at, true)}. To keep it you
+					must activate the workspace.
 				</>
 			) : (
 				<>
 					This workspace has not been used for{" "}
-					{formatDistanceToNow(Date.parse(workspace.last_used_at))} and was
-					marked dormant on {formatDate(workspace.dormant_at, false)}. It is not
-					scheduled for auto-deletion but will become a candidate if
-					auto-deletion is enabled on this template. To keep it you must
-					activate the workspace.
+					{dayjs(workspace.last_used_at).fromNow(true)} and was marked dormant
+					on {formatDate(workspace.dormant_at, false)}. It is not scheduled for
+					auto-deletion but will become a candidate if auto-deletion is enabled
+					on this template. To keep it you must activate the workspace.
 				</>
 			),
 		});
@@ -251,7 +252,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 				<Notifications
 					items={infoNotifications}
 					severity="info"
-					icon={<InfoOutlined />}
+					icon={<InfoIcon aria-hidden="true" className="size-icon-sm" />}
 				/>
 			)}
 
@@ -259,7 +260,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 				<Notifications
 					items={warningNotifications}
 					severity="warning"
-					icon={<WarningRounded />}
+					icon={<TriangleAlertIcon className="size-icon-sm" />}
 				/>
 			)}
 		</div>

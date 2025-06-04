@@ -6,7 +6,7 @@ import {
 	BreadcrumbSeparator,
 } from "components/Breadcrumb/Breadcrumb";
 import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import { canViewDeploymentSettings } from "modules/permissions";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, Suspense } from "react";

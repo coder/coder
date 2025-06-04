@@ -1,6 +1,6 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Button, { type ButtonProps } from "@mui/material/Button";
 import type { AlertProps } from "components/Alert/Alert";
+import { Button, type ButtonProps } from "components/Button/Button";
 import { Pill } from "components/Pill/Pill";
 import {
 	Popover,
@@ -89,28 +89,13 @@ const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {
 			{notification.detail && (
 				<p css={styles.notificationDetail}>{notification.detail}</p>
 			)}
-			<div css={{ marginTop: 8 }}>{notification.actions}</div>
+			<div className="mt-2 flex items-center gap-1">{notification.actions}</div>
 		</article>
 	);
 };
 
 export const NotificationActionButton: FC<ButtonProps> = (props) => {
-	return (
-		<Button
-			variant="text"
-			css={{
-				textDecoration: "underline",
-				paddingLeft: 0,
-				paddingRight: 8,
-				paddingTop: 0,
-				paddingBottom: 0,
-				height: "auto",
-				minWidth: "auto",
-				"&:hover": { background: "none", textDecoration: "underline" },
-			}}
-			{...props}
-		/>
-	);
+	return <Button variant="outline" size="sm" {...props} />;
 };
 
 const styles = {
@@ -123,7 +108,7 @@ const styles = {
 		lineHeight: "1.5",
 		borderTop: `1px solid ${theme.palette.divider}`,
 
-		"&:first-child": {
+		"&:first-of-type": {
 			borderTop: 0,
 		},
 	}),

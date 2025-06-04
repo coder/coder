@@ -1,4 +1,3 @@
-import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import Link from "@mui/material/Link";
 import useTheme from "@mui/system/useTheme";
 import type { ProvisionerDaemon } from "api/typesGenerated";
@@ -9,11 +8,12 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
+import { ChevronDownIcon } from "lucide-react";
 import { ProvisionerTagsField } from "modules/provisioners/ProvisionerTagsField";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
-export interface ProvisionerTagsPopoverProps {
+interface ProvisionerTagsPopoverProps {
 	tags: ProvisionerDaemon["tags"];
 	onTagsChange: (values: ProvisionerDaemon["tags"]) => void;
 }
@@ -31,7 +31,7 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 					color="neutral"
 					css={{ paddingLeft: 0, paddingRight: 0, minWidth: "28px !important" }}
 				>
-					<ExpandMoreOutlined css={{ fontSize: 14 }} />
+					<ChevronDownIcon className="size-icon-xs" />
 					<span className="sr-only">Expand provisioner tags</span>
 				</TopbarButton>
 			</PopoverTrigger>

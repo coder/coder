@@ -1,4 +1,3 @@
-import GroupAdd from "@mui/icons-material/GroupAddOutlined";
 import { getErrorMessage } from "api/errors";
 import { groupsByOrganization } from "api/queries/groups";
 import { organizationsPermissions } from "api/queries/organizations";
@@ -6,8 +5,13 @@ import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import { PlusIcon } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useEffect } from "react";
@@ -16,19 +20,19 @@ import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { useGroupsSettings } from "./GroupsPageProvider";
-import GroupsPageView from "./GroupsPageView";
+import { GroupsPageView } from "./GroupsPageView";
 
-export const GroupsPage: FC = () => {
+const GroupsPage: FC = () => {
 	const { template_rbac: groupsEnabled } = useFeatureVisibility();
 	const { organization, showOrganizations } = useGroupsSettings();
-	const groupsQuery = useQuery(
-		organization ? groupsByOrganization(organization.name) : { enabled: false },
-	);
-	const permissionsQuery = useQuery(
-		organization
-			? organizationsPermissions([organization.id])
-			: { enabled: false },
-	);
+	const groupsQuery = useQuery({
+		...groupsByOrganization(organization?.name ?? ""),
+		enabled: !!organization,
+	});
+	const permissionsQuery = useQuery({
+		...organizationsPermissions([organization?.id ?? ""]),
+		enabled: !!organization,
+	});
 
 	useEffect(() => {
 		if (groupsQuery.error) {
@@ -80,14 +84,18 @@ export const GroupsPage: FC = () => {
 				direction="row"
 				justifyContent="space-between"
 			>
-				<SettingsHeader
-					title="Groups"
-					description={`Manage groups for this ${showOrganizations ? "organization" : "deployment"}.`}
-				/>
+				<SettingsHeader>
+					<SettingsHeaderTitle>Groups</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Manage groups for this{" "}
+						{showOrganizations ? "organization" : "deployment"}.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
+
 				{groupsEnabled && permissions.createGroup && (
 					<Button asChild>
 						<RouterLink to="create">
-							<GroupAdd />
+							<PlusIcon className="size-icon-sm" />
 							Create group
 						</RouterLink>
 					</Button>

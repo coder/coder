@@ -22,7 +22,7 @@ func GracefulDisconnectTest(ctx context.Context, t *testing.T, coordinator tailn
 
 	p2.Disconnect()
 	p1.AssertEventuallyDisconnected(p2.ID)
-	p2.AssertEventuallyResponsesClosed()
+	p2.AssertEventuallyResponsesClosed("")
 }
 
 func LostTest(ctx context.Context, t *testing.T, coordinator tailnet.CoordinatorV2) {

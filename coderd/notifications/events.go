@@ -4,6 +4,7 @@ import "github.com/google/uuid"
 
 // These vars are mapped to UUIDs in the notification_templates table.
 // TODO: autogenerate these: https://github.com/coder/team-coconut/issues/36
+// TODO(defelmnq): add fallback icon to coderd/inboxnofication.go when adding a new template
 
 // Workspace-related events.
 var (
@@ -38,6 +39,12 @@ var (
 	TemplateTemplateDeprecated = uuid.MustParse("f40fae84-55a2-42cd-99fa-b41c1ca64894")
 
 	TemplateWorkspaceBuildsFailedReport = uuid.MustParse("34a20db2-e9cc-4a93-b0e4-8569699d7a00")
+	TemplateWorkspaceResourceReplaced   = uuid.MustParse("89d9745a-816e-4695-a17f-3d0a229e2b8d")
+)
+
+// Prebuilds-related events
+var (
+	PrebuildFailureLimitReached = uuid.MustParse("414d9331-c1fc-4761-b40c-d1f4702279eb")
 )
 
 // Notification-related events.

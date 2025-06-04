@@ -207,8 +207,9 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 			s.commandCreator.Execer,
 			cmd,
 			&Options{
-				Timeout: s.timeout,
-				Metrics: s.errorsTotal,
+				Timeout:     s.timeout,
+				Metrics:     s.errorsTotal,
+				BackendType: msg.BackendType,
 			},
 		)
 

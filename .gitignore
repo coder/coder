@@ -32,7 +32,8 @@ site/e2e/.auth.json
 site/playwright-report/*
 site/.swc
 
-# Make target for updating golden files (any dir).
+# Make target for updating generated/golden files (any dir).
+.gen
 .gen-golden
 
 # Build
@@ -49,6 +50,8 @@ site/stats/
 *.tfplan
 *.lock.hcl
 .terraform/
+!coderd/testdata/parameters/modules/.terraform/
+!provisioner/terraform/testdata/modules-source-caching/.terraform/
 
 **/.coderv2/*
 **/__debug_bin
@@ -78,3 +81,8 @@ result
 
 # Zed
 .zed_server
+
+# dlv debug binaries for go tests
+__debug_bin*
+
+**/.claude/settings.local.json

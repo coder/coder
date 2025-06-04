@@ -7,4 +7,26 @@ INSERT INTO public.template_versions (id, template_id, organization_id, created_
 
 INSERT INTO public.template_version_presets (id, template_version_id, name, created_at) VALUES ('28b42cc0-c4fe-4907-a0fe-e4d20f1e9bfe', 'af58bd62-428c-4c33-849b-d43a3be07d93', 'test', '0001-01-01 00:00:00.000000 +00:00');
 
+-- Add presets with the same template version ID and name
+-- to ensure they're correctly handled by the 00031*_preset_prebuilds migration.
+INSERT INTO public.template_version_presets (
+	id, template_version_id, name, created_at
+)
+VALUES (
+	'c9dd1a63-f0cf-446e-8d6f-2d29d7c8e38b',
+	'af58bd62-428c-4c33-849b-d43a3be07d93',
+	'duplicate_name',
+	'0001-01-01 00:00:00.000000 +00:00'
+);
+
+INSERT INTO public.template_version_presets (
+	id, template_version_id, name, created_at
+)
+VALUES (
+	'80f93d57-3948-487a-8990-bb011fb80a18',
+	'af58bd62-428c-4c33-849b-d43a3be07d93',
+	'duplicate_name',
+	'0001-01-01 00:00:00.000000 +00:00'
+);
+
 INSERT INTO public.template_version_preset_parameters (id, template_version_preset_id, name, value) VALUES ('ea90ccd2-5024-459e-87e4-879afd24de0f', '28b42cc0-c4fe-4907-a0fe-e4d20f1e9bfe', 'test', 'test');

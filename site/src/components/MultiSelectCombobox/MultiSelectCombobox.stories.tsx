@@ -16,7 +16,7 @@ const meta: Meta<typeof MultiSelectCombobox> = {
 				All organizations selected
 			</p>
 		),
-		defaultOptions: organizations.map((org) => ({
+		options: organizations.map((org) => ({
 			label: org.display_name,
 			value: org.id,
 		})),

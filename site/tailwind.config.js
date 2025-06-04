@@ -8,6 +8,9 @@ module.exports = {
 	important: ["#root", "#storybook-root"],
 	theme: {
 		extend: {
+			fontFamily: {
+				sans: `"Inter Variable", system-ui, sans-serif`,
+			},
 			size: {
 				"icon-lg": "1.5rem",
 				"icon-sm": "1.125rem",
@@ -15,7 +18,7 @@ module.exports = {
 			},
 			fontSize: {
 				"2xs": ["0.625rem", "0.875rem"],
-				xs: ["0.75rem", "1.125rem"],
+				xs: ["0.75rem", "1rem"],
 				sm: ["0.875rem", "1.5rem"],
 				"3xl": ["2rem", "2.5rem"],
 			},
@@ -49,10 +52,15 @@ module.exports = {
 					grey: "hsl(var(--surface-grey))",
 					orange: "hsl(var(--surface-orange))",
 					sky: "hsl(var(--surface-sky))",
+					red: "hsl(var(--surface-red))",
+					purple: "hsl(var(--surface-purple))",
 				},
 				border: {
 					DEFAULT: "hsl(var(--border-default))",
+					warning: "hsl(var(--border-warning))",
 					destructive: "hsl(var(--border-destructive))",
+					success: "hsl(var(--border-success))",
+					hover: "hsl(var(--border-hover))",
 				},
 				overlay: "hsla(var(--overlay-default))",
 				input: "hsl(var(--input))",
@@ -62,6 +70,7 @@ module.exports = {
 					green: "hsl(var(--highlight-green))",
 					grey: "hsl(var(--highlight-grey))",
 					sky: "hsl(var(--highlight-sky))",
+					red: "hsl(var(--highlight-red))",
 				},
 			},
 			keyframes: {
@@ -75,5 +84,5 @@ module.exports = {
 			},
 		},
 	},
-	plugins: [require("tailwindcss-animate")],
+	plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
 };

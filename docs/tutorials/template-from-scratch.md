@@ -21,6 +21,7 @@ Coder can provision all Terraform modules, resources, and properties. The Coder
 server essentially runs a `terraform apply` every time a workspace is created,
 started, or stopped.
 
+> [!TIP]
 > Haven't written Terraform before? Check out Hashicorp's
 > [Getting Started Guides](https://developer.hashicorp.com/terraform/tutorials).
 

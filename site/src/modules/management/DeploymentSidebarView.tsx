@@ -1,4 +1,3 @@
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	Sidebar as BaseSidebar,
 	SettingsSidebarNavItem as SidebarNavItem,
@@ -87,7 +86,6 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 					<SidebarNavItem href="/deployment/notifications">
 						<div className="flex flex-row items-center gap-2">
 							<span>Notifications</span>
-							<FeatureStageBadge contentType="beta" size="sm" />
 						</div>
 					</SidebarNavItem>
 				)}

@@ -47,8 +47,7 @@ argin: 8px 0 32px; line-height: 1.5;">
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
-
-<p>This is a test notification.</p>
+        <p>This is a test notification.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20

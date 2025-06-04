@@ -1,18 +1,17 @@
 import { useTheme } from "@emotion/react";
-import LoadingButton from "@mui/lab/LoadingButton";
 import { API } from "api/api";
+import { Button } from "components/Button/Button";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { Spinner } from "components/Spinner/Spinner";
 import type { FC } from "react";
 import { useMutation } from "react-query";
 
 export const Troubleshooting: FC = () => {
-	const { mutate: sendTestNotificationApi, isLoading } = useMutation(
-		API.postTestNotification,
-		{
-			onSuccess: () => displaySuccess("Test notification sent"),
-			onError: () => displayError("Failed to send test notification"),
-		},
-	);
+	const { mutate: sendTestNotificationApi, isPending } = useMutation({
+		mutationFn: API.postTestNotification,
+		onSuccess: () => displaySuccess("Test notification sent"),
+		onError: () => displayError("Failed to send test notification"),
+	});
 
 	const theme = useTheme();
 	return (
@@ -29,17 +28,17 @@ export const Troubleshooting: FC = () => {
 			</div>
 			<div>
 				<span>
-					<LoadingButton
-						variant="outlined"
-						loading={isLoading}
-						size="small"
-						css={{ minWidth: "auto", aspectRatio: "1" }}
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={isPending}
 						onClick={() => {
 							sendTestNotificationApi();
 						}}
 					>
+						<Spinner loading={isPending} />
 						Send notification
-					</LoadingButton>
+					</Button>
 				</span>
 			</div>
 		</>

@@ -1,6 +1,6 @@
 import { createOrganization } from "api/queries/organizations";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";

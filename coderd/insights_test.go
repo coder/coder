@@ -609,8 +609,8 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						Name: "example",
 						Type: "aws_instance",
 						Agents: []*proto.Agent{{
-							Id:   uuid.NewString(), // Doesn't matter, not used in DB.
-							Name: "dev",
+							Id:   uuid.NewString(),                      // Doesn't matter, not used in DB.
+							Name: fmt.Sprintf("dev-%d", len(resources)), // Ensure unique name per agent
 							Auth: &proto.Agent_Token{
 								Token: authToken.String(),
 							},
@@ -1295,7 +1295,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					}
 
 					f, err := os.Open(goldenFile)
-					require.NoError(t, err, "open golden file, run \"make update-golden-files\" and commit the changes")
+					require.NoError(t, err, "open golden file, run \"make gen/golden-files\" and commit the changes")
 					defer f.Close()
 					var want codersdk.TemplateInsightsResponse
 					err = json.NewDecoder(f).Decode(&want)
@@ -1311,7 +1311,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						}),
 					}
 					// Use cmp.Diff here because it produces more readable diffs.
-					assert.Empty(t, cmp.Diff(want, report, cmpOpts...), "golden file mismatch (-want +got): %s, run \"make update-golden-files\", verify and commit the changes", goldenFile)
+					assert.Empty(t, cmp.Diff(want, report, cmpOpts...), "golden file mismatch (-want +got): %s, run \"make gen/golden-files\", verify and commit the changes", goldenFile)
 				})
 			}
 		})
@@ -1525,8 +1525,8 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 						Name: "example",
 						Type: "aws_instance",
 						Agents: []*proto.Agent{{
-							Id:   uuid.NewString(), // Doesn't matter, not used in DB.
-							Name: "dev",
+							Id:   uuid.NewString(),                      // Doesn't matter, not used in DB.
+							Name: fmt.Sprintf("dev-%d", len(resources)), // Ensure unique name per agent
 							Auth: &proto.Agent_Token{
 								Token: authToken.String(),
 							},
@@ -2076,7 +2076,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 					}
 
 					f, err := os.Open(goldenFile)
-					require.NoError(t, err, "open golden file, run \"make update-golden-files\" and commit the changes")
+					require.NoError(t, err, "open golden file, run \"make gen/golden-files\" and commit the changes")
 					defer f.Close()
 					var want codersdk.UserActivityInsightsResponse
 					err = json.NewDecoder(f).Decode(&want)
@@ -2092,7 +2092,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 						}),
 					}
 					// Use cmp.Diff here because it produces more readable diffs.
-					assert.Empty(t, cmp.Diff(want, report, cmpOpts...), "golden file mismatch (-want +got): %s, run \"make update-golden-files\", verify and commit the changes", goldenFile)
+					assert.Empty(t, cmp.Diff(want, report, cmpOpts...), "golden file mismatch (-want +got): %s, run \"make gen/golden-files\", verify and commit the changes", goldenFile)
 				})
 			}
 		})

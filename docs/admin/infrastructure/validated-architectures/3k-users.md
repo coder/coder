@@ -20,13 +20,13 @@ continuously improve the reliability and performance of the platform.
 
 | Users       | Node capacity        | Replicas              | GCP             | AWS         | Azure             |
 |-------------|----------------------|-----------------------|-----------------|-------------|-------------------|
-| Up to 3,000 | 8 vCPU, 32 GB memory | 4 node, 1 coderd each | `n1-standard-4` | `t3.xlarge` | `Standard_D4s_v3` |
+| Up to 3,000 | 8 vCPU, 32 GB memory | 4 node, 1 coderd each | `n1-standard-4` | `m5.xlarge` | `Standard_D4s_v3` |
 
 ### Provisioner nodes
 
 | Users       | Node capacity        | Replicas                      | GCP              | AWS          | Azure             |
 |-------------|----------------------|-------------------------------|------------------|--------------|-------------------|
-| Up to 3,000 | 8 vCPU, 32 GB memory | 8 nodes, 30 provisioners each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
+| Up to 3,000 | 8 vCPU, 32 GB memory | 8 nodes, 30 provisioners each | `t2d-standard-8` | `c5.2xlarge` | `Standard_D8s_v3` |
 
 **Footnotes**:
 
@@ -40,7 +40,7 @@ continuously improve the reliability and performance of the platform.
 
 | Users       | Node capacity        | Replicas                      | GCP              | AWS          | Azure             |
 |-------------|----------------------|-------------------------------|------------------|--------------|-------------------|
-| Up to 3,000 | 8 vCPU, 32 GB memory | 256 nodes, 12 workspaces each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
+| Up to 3,000 | 8 vCPU, 32 GB memory | 256 nodes, 12 workspaces each | `t2d-standard-8` | `m5.2xlarge` | `Standard_D8s_v3` |
 
 **Footnotes**:
 
@@ -54,9 +54,16 @@ continuously improve the reliability and performance of the platform.
 
 | Users       | Node capacity        | Replicas | Storage | GCP                 | AWS             | Azure             |
 |-------------|----------------------|----------|---------|---------------------|-----------------|-------------------|
-| Up to 3,000 | 8 vCPU, 32 GB memory | 2 nodes  | 1.5 TB  | `db-custom-8-30720` | `db.t3.2xlarge` | `Standard_D8s_v3` |
+| Up to 3,000 | 8 vCPU, 32 GB memory | 2 nodes  | 1.5 TB  | `db-custom-8-30720` | `db.m5.2xlarge` | `Standard_D8s_v3` |
 
 **Footnotes**:
 
 - Consider adding more replicas if the workspace activity is higher than 1500
   workspace builds per day or to achieve higher RPS.
+
+**Footnotes for AWS instance types**:
+
+- For production deployments, we recommend using non-burstable instance types,
+  such as `m5` or `c5`, instead of burstable instances, such as `t3`.
+  Burstable instances can experience significant performance degradation once
+  CPU credits are exhausted, leading to poor user experience under sustained load.

@@ -1,11 +1,12 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ProxyContextValue } from "contexts/ProxyContext";
-import { MockPrimaryWorkspaceProxy, MockUser } from "testHelpers/entities";
+import { MockPrimaryWorkspaceProxy, MockUserOwner } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { NavbarView } from "./NavbarView";
 
 const proxyContextValue: ProxyContextValue = {
+	latenciesLoaded: true,
 	proxy: {
 		preferredPathAppURL: "",
 		preferredWildcardHostname: "",
@@ -26,7 +27,7 @@ describe("NavbarView", () => {
 		renderWithAuth(
 			<NavbarView
 				proxyContextValue={proxyContextValue}
-				user={MockUser}
+				user={MockUserOwner}
 				onSignOut={noop}
 				canViewDeployment
 				canViewOrganizations
@@ -43,7 +44,7 @@ describe("NavbarView", () => {
 		renderWithAuth(
 			<NavbarView
 				proxyContextValue={proxyContextValue}
-				user={MockUser}
+				user={MockUserOwner}
 				onSignOut={noop}
 				canViewDeployment
 				canViewOrganizations
@@ -60,7 +61,7 @@ describe("NavbarView", () => {
 		renderWithAuth(
 			<NavbarView
 				proxyContextValue={proxyContextValue}
-				user={MockUser}
+				user={MockUserOwner}
 				onSignOut={noop}
 				canViewDeployment
 				canViewOrganizations
@@ -78,7 +79,7 @@ describe("NavbarView", () => {
 		renderWithAuth(
 			<NavbarView
 				proxyContextValue={proxyContextValue}
-				user={MockUser}
+				user={MockUserOwner}
 				onSignOut={noop}
 				canViewDeployment
 				canViewOrganizations

@@ -19,6 +19,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/prebuilds"
+
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -41,10 +43,15 @@ import (
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
+
+	"github.com/coder/coder/v2/coderd/ai"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
+	"github.com/coder/coder/v2/coderd/webpush"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
@@ -63,6 +70,7 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/metricscache"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/portsharing"
@@ -79,7 +87,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -151,10 +158,10 @@ type Options struct {
 	Authorizer                     rbac.Authorizer
 	AzureCertificates              x509.VerifyOptions
 	GoogleTokenValidator           *idtoken.Validator
+	LanguageModels                 ai.LanguageModels
 	GithubOAuth2Config             *GithubOAuth2Config
 	OIDCConfig                     *OIDCConfig
 	PrometheusRegistry             *prometheus.Registry
-	SecureAuthCookie               bool
 	StrictTransportSecurityCfg     httpmw.HSTSConfig
 	SSHKeygenAlgorithm             gitsshkey.Algorithm
 	Telemetry                      telemetry.Reporter
@@ -226,6 +233,10 @@ type Options struct {
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
 
+	// WorkspaceAppAuditSessionTimeout allows changing the timeout for audit
+	// sessions. Raising or lowering this value will directly affect the write
+	// load of the audit log table. This is used for testing. Default 1 hour.
+	WorkspaceAppAuditSessionTimeout    time.Duration
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 
 	// This janky function is used in telemetry to parse fields out of the raw
@@ -256,6 +267,9 @@ type Options struct {
 	AppEncryptionKeyCache cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache   cryptokeys.SigningKeycache
 	Clock                 quartz.Clock
+
+	// WebPushDispatcher is a way to send notifications over Web Push.
+	WebPushDispatcher webpush.Dispatcher
 }
 
 // @title Coder API
@@ -307,6 +321,9 @@ func New(options *Options) *API {
 
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
+		if buildinfo.IsDev() {
+			options.Authorizer = rbac.Recorder(options.Authorizer)
+		}
 	}
 
 	if options.AccessControlStore == nil {
@@ -449,8 +466,22 @@ func New(options *Options) *API {
 		options.NotificationsEnqueuer = notifications.NewNoopEnqueuer()
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()
+	// We add this middleware early, to make sure that authorization checks made
+	// by other middleware get recorded.
+	//nolint:revive,staticcheck // This block will be re-enabled, not going to remove it
+	if buildinfo.IsDev() {
+		// TODO: Find another solution to opt into these checks.
+		//   If the header grows too large, it breaks `fetch()` requests.
+		//   Temporarily disabling this until we can find a better solution.
+		//	 One idea is to include checking the request for `X-Authz-Record=true`
+		//   header. To opt in on a per-request basis.
+		//   Some authz calls (like filtering lists) might be able to be
+		//   summarized better to condense the header payload.
+		// r.Use(httpmw.RecordAuthzChecks)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// nolint:gocritic // Load deployment ID. This never changes
 	depID, err := options.Database.GetDeploymentID(dbauthz.AsSystemRestricted(ctx))
@@ -534,16 +565,6 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
-		WorkspaceAppsProvider: workspaceapps.NewDBTokenProvider(
-			options.Logger.Named("workspaceapps"),
-			options.AccessURL,
-			options.Authorizer,
-			options.Database,
-			options.DeploymentValues,
-			oauthConfigs,
-			options.AgentInactiveDisconnectTimeout,
-			options.AppSigningKeyCache,
-		),
 		metricsCache:                metricsCache,
 		Auditor:                     atomic.Pointer[audit.Auditor]{},
 		TailnetCoordinator:          atomic.Pointer[tailnet.Coordinator]{},
@@ -551,7 +572,9 @@ func New(options *Options) *API {
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
+		FileCache:                   files.NewFromStore(options.Database, options.PrometheusRegistry),
 		Experiments:                 experiments,
+		WebpushDispatcher:           options.WebPushDispatcher,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
 		Acquirer: provisionerdserver.NewAcquirer(
 			ctx,
@@ -561,10 +584,24 @@ func New(options *Options) *API {
 		),
 		dbRolluper: options.DatabaseRolluper,
 	}
+	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
+		options.Logger.Named("workspaceapps"),
+		options.AccessURL,
+		options.Authorizer,
+		&api.Auditor,
+		options.Database,
+		options.DeploymentValues,
+		oauthConfigs,
+		options.AgentInactiveDisconnectTimeout,
+		options.WorkspaceAppAuditSessionTimeout,
+		options.AppSigningKeyCache,
+	)
 
 	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
 	api.AppearanceFetcher.Store(&f)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
+	api.PrebuildsClaimer.Store(&prebuilds.DefaultClaimer)
+	api.PrebuildsReconciler.Store(&prebuilds.DefaultReconciler)
 	buildInfo := codersdk.BuildInfoResponse{
 		ExternalURL:           buildinfo.ExternalURL(),
 		Version:               buildinfo.Version(),
@@ -574,6 +611,7 @@ func New(options *Options) *API {
 		WorkspaceProxy:        false,
 		UpgradeMessage:        api.DeploymentValues.CLIUpgradeMessage.String(),
 		DeploymentID:          api.DeploymentID,
+		WebPushPublicKey:      api.WebpushDispatcher.PublicKey(),
 		Telemetry:             api.Telemetry.Enabled(),
 	}
 	api.SiteHandler = site.New(&site.Options{
@@ -653,10 +691,11 @@ func New(options *Options) *API {
 	api.Auditor.Store(&options.Auditor)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
 	dialer := &InmemTailnetDialer{
-		CoordPtr: &api.TailnetCoordinator,
-		DERPFn:   api.DERPMap,
-		Logger:   options.Logger,
-		ClientID: uuid.New(),
+		CoordPtr:            &api.TailnetCoordinator,
+		DERPFn:              api.DERPMap,
+		Logger:              options.Logger,
+		ClientID:            uuid.New(),
+		DatabaseHealthCheck: api.Database,
 	}
 	stn, err := NewServerTailnet(api.ctx,
 		options.Logger,
@@ -728,7 +767,7 @@ func New(options *Options) *API {
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
 
 		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
-		SecureAuthCookie:         options.DeploymentValues.SecureAuthCookie.Value(),
+		Cookies:                  options.DeploymentValues.HTTPCookies,
 		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
 	}
 
@@ -763,6 +802,11 @@ func New(options *Options) *API {
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 
+	workspaceAgentInfo := httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
+		DB:       options.Database,
+		Optional: false,
+	})
+
 	// API rate limit middleware. The counter is local and not shared between
 	// replicas or instances of this middleware.
 	apiRateLimiter := httpmw.RateLimit(options.APIRateLimit, time.Minute)
@@ -788,7 +832,7 @@ func New(options *Options) *API {
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
-		httpmw.Logger(api.Logger),
+		loggermw.Logger(api.Logger),
 		singleSlashMW,
 		rolestore.CustomRoleMW,
 		prometheusMW,
@@ -816,14 +860,14 @@ func New(options *Options) *API {
 				next.ServeHTTP(w, r)
 			})
 		},
-		httpmw.CSRF(options.SecureAuthCookie),
+		httpmw.CSRF(options.DeploymentValues.HTTPCookies),
 	)
 
 	// This incurs a performance hit from the middleware, but is required to make sure
 	// we do not override subdomain app routes.
 	r.Get("/latency-check", tracing.StatusWriterMiddleware(prometheusMW(LatencyCheck())).ServeHTTP)
 
-	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
+	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("OK")) })
 
 	// Attach workspace apps routes.
 	r.Group(func(r chi.Router) {
@@ -838,7 +882,7 @@ func New(options *Options) *API {
 		r.Route("/derp", func(r chi.Router) {
 			r.Get("/", derpHandler.ServeHTTP)
 			// This is used when UDP is blocked, and latency must be checked via HTTP(s).
-			r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
+			r.Get("/latency-check", func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			})
 		})
@@ -856,7 +900,7 @@ func New(options *Options) *API {
 				r.Route(fmt.Sprintf("/%s/callback", externalAuthConfig.ID), func(r chi.Router) {
 					r.Use(
 						apiKeyMiddlewareRedirect,
-						httpmw.ExtractOAuth2(externalAuthConfig, options.HTTPClient, nil),
+						httpmw.ExtractOAuth2(externalAuthConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil),
 					)
 					r.Get("/", api.externalAuthCallback(externalAuthConfig))
 				})
@@ -895,7 +939,7 @@ func New(options *Options) *API {
 	r.Route("/api/v2", func(r chi.Router) {
 		api.APIHandler = r
 
-		r.NotFound(func(rw http.ResponseWriter, r *http.Request) { httpapi.RouteNotFound(rw) })
+		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
 			// Specific routes can specify different limits, but every rate
 			// limit must be configurable by the admin.
@@ -921,6 +965,7 @@ func New(options *Options) *API {
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
 			r.Get("/ssh", api.sshConfig)
+			r.Get("/llms", api.deploymentLLMs)
 		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -963,6 +1008,21 @@ func New(options *Options) *API {
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
 		})
+		// Chats are an experimental feature
+		r.Route("/chats", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentAgenticChat),
+			)
+			r.Get("/", api.listChats)
+			r.Post("/", api.postChats)
+			r.Route("/{chat}", func(r chi.Router) {
+				r.Use(httpmw.ExtractChatParam(options.Database))
+				r.Get("/", api.chat)
+				r.Get("/messages", api.chatMessages)
+				r.Post("/messages", api.postChatMessages)
+			})
+		})
 		r.Route("/external-auth", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1002,6 +1062,7 @@ func New(options *Options) *API {
 						})
 					})
 				})
+				r.Get("/paginated-members", api.paginatedMembers)
 				r.Route("/members", func(r chi.Router) {
 					r.Get("/", api.listMembers)
 					r.Route("/roles", func(r chi.Router) {
@@ -1061,6 +1122,7 @@ func New(options *Options) *API {
 				})
 			})
 		})
+
 		r.Route("/templateversions/{templateversion}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1089,6 +1151,16 @@ func New(options *Options) *API {
 				r.Get("/{jobID}/matched-provisioners", api.templateVersionDryRunMatchedProvisioners)
 				r.Patch("/{jobID}/cancel", api.patchTemplateVersionDryRunCancel)
 			})
+
+			r.Group(func(r chi.Router) {
+				r.Use(
+					httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentDynamicParameters),
+				)
+				r.Route("/dynamic-parameters", func(r chi.Router) {
+					r.Post("/evaluate", api.templateVersionDynamicParametersEvaluate)
+					r.Get("/", api.templateVersionDynamicParametersWebsocket)
+				})
+			})
 		})
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/first", api.firstUser)
@@ -1110,14 +1182,14 @@ func New(options *Options) *API {
 					r.Get("/github/device", api.userOAuth2GithubDevice)
 					r.Route("/github", func(r chi.Router) {
 						r.Use(
-							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, nil),
+							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil),
 						)
 						r.Get("/callback", api.userOAuth2Github)
 					})
 				})
 				r.Route("/oidc/callback", func(r chi.Router) {
 					r.Use(
-						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, oidcAuthURLParams),
+						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, oidcAuthURLParams),
 					)
 					r.Get("/", api.userOIDC)
 				})
@@ -1134,58 +1206,74 @@ func New(options *Options) *API {
 					r.Get("/", api.AssignableSiteRoles)
 				})
 				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractUserParam(options.Database))
-					r.Post("/convert-login", api.postConvertLoginType)
-					r.Delete("/", api.deleteUser)
-					r.Get("/", api.userByName)
-					r.Get("/autofill-parameters", api.userAutofillParameters)
-					r.Get("/login-type", api.userLoginType)
-					r.Put("/profile", api.putUserProfile)
-					r.Route("/status", func(r chi.Router) {
-						r.Put("/suspend", api.putSuspendUserAccount())
-						r.Put("/activate", api.putActivateUserAccount())
+					r.Group(func(r chi.Router) {
+						r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+						// Creating workspaces does not require permissions on the user, only the
+						// organization member. This endpoint should match the authz story of
+						// postWorkspacesByOrganization
+						r.Post("/workspaces", api.postUserWorkspaces)
+						r.Route("/workspace/{workspacename}", func(r chi.Router) {
+							r.Get("/", api.workspaceByOwnerAndName)
+							r.Get("/builds/{buildnumber}", api.workspaceBuildByBuildNumber)
+						})
 					})
-					r.Get("/appearance", api.userAppearanceSettings)
-					r.Put("/appearance", api.putUserAppearanceSettings)
-					r.Route("/password", func(r chi.Router) {
-						r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
-						r.Put("/", api.putUserPassword)
-					})
-					// These roles apply to the site wide permissions.
-					r.Put("/roles", api.putUserRoles)
-					r.Get("/roles", api.userRoles)
 
-					r.Route("/keys", func(r chi.Router) {
-						r.Post("/", api.postAPIKey)
-						r.Route("/tokens", func(r chi.Router) {
-							r.Post("/", api.postToken)
-							r.Get("/", api.tokens)
-							r.Get("/tokenconfig", api.tokenConfig)
-							r.Route("/{keyname}", func(r chi.Router) {
-								r.Get("/", api.apiKeyByName)
+					r.Group(func(r chi.Router) {
+						r.Use(httpmw.ExtractUserParam(options.Database))
+
+						r.Post("/convert-login", api.postConvertLoginType)
+						r.Delete("/", api.deleteUser)
+						r.Get("/", api.userByName)
+						r.Get("/autofill-parameters", api.userAutofillParameters)
+						r.Get("/login-type", api.userLoginType)
+						r.Put("/profile", api.putUserProfile)
+						r.Route("/status", func(r chi.Router) {
+							r.Put("/suspend", api.putSuspendUserAccount())
+							r.Put("/activate", api.putActivateUserAccount())
+						})
+						r.Get("/appearance", api.userAppearanceSettings)
+						r.Put("/appearance", api.putUserAppearanceSettings)
+						r.Route("/password", func(r chi.Router) {
+							r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
+							r.Put("/", api.putUserPassword)
+						})
+						// These roles apply to the site wide permissions.
+						r.Put("/roles", api.putUserRoles)
+						r.Get("/roles", api.userRoles)
+
+						r.Route("/keys", func(r chi.Router) {
+							r.Post("/", api.postAPIKey)
+							r.Route("/tokens", func(r chi.Router) {
+								r.Post("/", api.postToken)
+								r.Get("/", api.tokens)
+								r.Get("/tokenconfig", api.tokenConfig)
+								r.Route("/{keyname}", func(r chi.Router) {
+									r.Get("/", api.apiKeyByName)
+								})
+							})
+							r.Route("/{keyid}", func(r chi.Router) {
+								r.Get("/", api.apiKeyByID)
+								r.Delete("/", api.deleteAPIKey)
 							})
 						})
-						r.Route("/{keyid}", func(r chi.Router) {
-							r.Get("/", api.apiKeyByID)
-							r.Delete("/", api.deleteAPIKey)
-						})
-					})
 
-					r.Route("/organizations", func(r chi.Router) {
-						r.Get("/", api.organizationsByUser)
-						r.Get("/{organizationname}", api.organizationByUserAndName)
-					})
-					r.Post("/workspaces", api.postUserWorkspaces)
-					r.Route("/workspace/{workspacename}", func(r chi.Router) {
-						r.Get("/", api.workspaceByOwnerAndName)
-						r.Get("/builds/{buildnumber}", api.workspaceBuildByBuildNumber)
-					})
-					r.Get("/gitsshkey", api.gitSSHKey)
-					r.Put("/gitsshkey", api.regenerateGitSSHKey)
-					r.Route("/notifications", func(r chi.Router) {
-						r.Route("/preferences", func(r chi.Router) {
-							r.Get("/", api.userNotificationPreferences)
-							r.Put("/", api.putUserNotificationPreferences)
+						r.Route("/organizations", func(r chi.Router) {
+							r.Get("/", api.organizationsByUser)
+							r.Get("/{organizationname}", api.organizationByUserAndName)
+						})
+
+						r.Get("/gitsshkey", api.gitSSHKey)
+						r.Put("/gitsshkey", api.regenerateGitSSHKey)
+						r.Route("/notifications", func(r chi.Router) {
+							r.Route("/preferences", func(r chi.Router) {
+								r.Get("/", api.userNotificationPreferences)
+								r.Put("/", api.putUserNotificationPreferences)
+							})
+						})
+						r.Route("/webpush", func(r chi.Router) {
+							r.Post("/subscription", api.postUserWebpushSubscription)
+							r.Delete("/subscription", api.deleteUserWebpushSubscription)
+							r.Post("/test", api.postUserPushNotificationTest)
 						})
 					})
 				})
@@ -1204,17 +1292,16 @@ func New(options *Options) *API {
 				httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
 			).Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
-				r.Use(httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
-					DB:       options.Database,
-					Optional: false,
-				}))
+				r.Use(workspaceAgentInfo)
 				r.Get("/rpc", api.workspaceAgentRPC)
 				r.Patch("/logs", api.patchWorkspaceAgentLogs)
+				r.Patch("/app-status", api.patchWorkspaceAgentAppStatus)
 				// Deprecated: Required to support legacy agents
 				r.Get("/gitauth", api.workspaceAgentsGitAuth)
 				r.Get("/external-auth", api.workspaceAgentsExternalAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
+				r.Get("/reinit", api.workspaceAgentReinit)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -1230,12 +1317,14 @@ func New(options *Options) *API {
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
-				r.Get("/watch-metadata", api.watchWorkspaceAgentMetadata)
+				r.Get("/watch-metadata", api.watchWorkspaceAgentMetadataSSE)
+				r.Get("/watch-metadata-ws", api.watchWorkspaceAgentMetadataWS)
 				r.Get("/startup-logs", api.workspaceAgentLogsDeprecated)
 				r.Get("/logs", api.workspaceAgentLogs)
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)
 				r.Get("/containers", api.workspaceAgentListContainers)
+				r.Post("/containers/devcontainers/container/{container}/recreate", api.workspaceAgentRecreateDevcontainer)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
 
 				// PTY is part of workspaceAppServer.
@@ -1262,7 +1351,8 @@ func New(options *Options) *API {
 				r.Route("/ttl", func(r chi.Router) {
 					r.Put("/", api.putWorkspaceTTL)
 				})
-				r.Get("/watch", api.watchWorkspace)
+				r.Get("/watch", api.watchWorkspaceSSE)
+				r.Get("/watch-ws", api.watchWorkspaceWS)
 				r.Put("/extend", api.putExtendWorkspace)
 				r.Post("/usage", api.postWorkspaceUsage)
 				r.Put("/dormant", api.putWorkspaceDormant)
@@ -1386,6 +1476,12 @@ func New(options *Options) *API {
 		})
 		r.Route("/notifications", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
+			r.Route("/inbox", func(r chi.Router) {
+				r.Get("/", api.listInboxNotifications)
+				r.Put("/mark-all-as-read", api.markAllInboxNotificationsAsRead)
+				r.Get("/watch", api.watchInboxNotifications)
+				r.Put("/{id}/read-status", api.updateInboxNotificationReadStatus)
+			})
 			r.Get("/settings", api.notificationsSettings)
 			r.Put("/settings", api.putNotificationsSettings)
 			r.Route("/templates", func(r chi.Router) {
@@ -1408,7 +1504,7 @@ func New(options *Options) *API {
 		// global variable here.
 		r.Get("/swagger/*", globalHTTPSwaggerHandler)
 	} else {
-		swaggerDisabled := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		swaggerDisabled := http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 			httpapi.Write(context.Background(), rw, http.StatusNotFound, codersdk.Response{
 				Message: "Swagger documentation is disabled.",
 			})
@@ -1439,17 +1535,19 @@ func New(options *Options) *API {
 
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
-	cspMW := httpmw.CSPHeaders(options.Telemetry.Enabled(), func() []string {
-		if api.DeploymentValues.Dangerous.AllowAllCors {
-			// In this mode, allow all external requests
-			return []string{"*"}
-		}
-		if f := api.WorkspaceProxyHostsFn.Load(); f != nil {
-			return (*f)()
-		}
-		// By default we do not add extra websocket connections to the CSP
-		return []string{}
-	}, additionalCSPHeaders)
+	cspMW := httpmw.CSPHeaders(
+		api.Experiments,
+		options.Telemetry.Enabled(), func() []string {
+			if api.DeploymentValues.Dangerous.AllowAllCors {
+				// In this mode, allow all external requests
+				return []string{"*"}
+			}
+			if f := api.WorkspaceProxyHostsFn.Load(); f != nil {
+				return (*f)()
+			}
+			// By default we do not add extra websocket connections to the CSP
+			return []string{}
+		}, additionalCSPHeaders)
 
 	// Static file handler must be wrapped with HSTS handler if the
 	// StrictTransportSecurityAge is set. We only need to set this header on
@@ -1481,8 +1579,10 @@ type API struct {
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	NetworkTelemetryBatcher           *tailnet.NetworkTelemetryBatcher
 	TailnetClientService              *tailnet.ClientService
-	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
-	AppearanceFetcher                 atomic.Pointer[appearance.Fetcher]
+	// WebpushDispatcher is a way to send notifications to users via Web Push.
+	WebpushDispatcher webpush.Dispatcher
+	QuotaCommitter    atomic.Pointer[proto.QuotaCommitter]
+	AppearanceFetcher atomic.Pointer[appearance.Fetcher]
 	// WorkspaceProxyHostsFn returns the hosts of healthy workspace proxies
 	// for header reasons.
 	WorkspaceProxyHostsFn atomic.Pointer[func() []string]
@@ -1496,8 +1596,11 @@ type API struct {
 	DERPMapper atomic.Pointer[func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap]
 	// AccessControlStore is a pointer to an atomic pointer since it is
 	// passed to dbauthz.
-	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
-	PortSharer         atomic.Pointer[portsharing.PortSharer]
+	AccessControlStore  *atomic.Pointer[dbauthz.AccessControlStore]
+	PortSharer          atomic.Pointer[portsharing.PortSharer]
+	FileCache           *files.Cache
+	PrebuildsClaimer    atomic.Pointer[prebuilds.Claimer]
+	PrebuildsReconciler atomic.Pointer[prebuilds.ReconciliationOrchestrator]
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 
@@ -1585,6 +1688,13 @@ func (api *API) Close() error {
 	_ = api.AppSigningKeyCache.Close()
 	_ = api.AppEncryptionKeyCache.Close()
 	_ = api.UpdatesProvider.Close()
+
+	if current := api.PrebuildsReconciler.Load(); current != nil {
+		ctx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop before shutdown"))
+		defer giveUp()
+		(*current).Stop(ctx, nil)
+	}
+
 	return nil
 }
 
@@ -1613,15 +1723,32 @@ func compressHandler(h http.Handler) http.Handler {
 	return cmp.Handler(h)
 }
 
+type MemoryProvisionerDaemonOption func(*memoryProvisionerDaemonOptions)
+
+func MemoryProvisionerWithVersionOverride(version string) MemoryProvisionerDaemonOption {
+	return func(opts *memoryProvisionerDaemonOptions) {
+		opts.versionOverride = version
+	}
+}
+
+type memoryProvisionerDaemonOptions struct {
+	versionOverride string
+}
+
 // CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.
 // Useful when starting coderd and provisionerd in the same process.
 func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType) (client proto.DRPCProvisionerDaemonClient, err error) {
 	return api.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, provisionerTypes, nil)
 }
 
-func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType, provisionerTags map[string]string) (client proto.DRPCProvisionerDaemonClient, err error) {
+func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType, provisionerTags map[string]string, opts ...MemoryProvisionerDaemonOption) (client proto.DRPCProvisionerDaemonClient, err error) {
+	options := &memoryProvisionerDaemonOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
 	tracer := api.TracerProvider.Tracer(tracing.TracerName)
-	clientSession, serverSession := drpc.MemTransportPipe()
+	clientSession, serverSession := drpcsdk.MemTransportPipe()
 	defer func() {
 		if err != nil {
 			_ = clientSession.Close()
@@ -1646,6 +1773,12 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		return nil, xerrors.Errorf("failed to parse built-in provisioner key ID: %w", err)
 	}
 
+	apiVersion := proto.CurrentVersion.String()
+	if options.versionOverride != "" && flag.Lookup("test.v") != nil {
+		// This should only be usable for unit testing. To fake a different provisioner version
+		apiVersion = options.versionOverride
+	}
+
 	//nolint:gocritic // in-memory provisioners are owned by system
 	daemon, err := api.Database.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(dialCtx), database.UpsertProvisionerDaemonParams{
 		Name:           name,
@@ -1655,7 +1788,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		Tags:           provisionersdk.MutateTags(uuid.Nil, provisionerTags),
 		LastSeenAt:     sql.NullTime{Time: dbtime.Now(), Valid: true},
 		Version:        buildinfo.Version(),
-		APIVersion:     proto.CurrentVersion.String(),
+		APIVersion:     apiVersion,
 		KeyID:          keyID,
 	})
 	if err != nil {
@@ -1667,6 +1800,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	logger := api.Logger.Named(fmt.Sprintf("inmem-provisionerd-%s", name))
 	srv, err := provisionerdserver.NewServer(
 		api.ctx, // use the same ctx as the API
+		daemon.APIVersion,
 		api.AccessURL,
 		daemon.ID,
 		defaultOrg.ID,
@@ -1689,6 +1823,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 			Clock:               api.Clock,
 		},
 		api.NotificationsEnqueuer,
+		&api.PrebuildsReconciler,
 	)
 	if err != nil {
 		return nil, err
@@ -1699,6 +1834,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	}
 	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
+			Manager: drpcsdk.DefaultDRPCOptions(nil),
 			Log: func(err error) {
 				if xerrors.Is(err, io.EOF) {
 					return
@@ -1745,10 +1881,10 @@ func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 	for _, v := range raw {
 		switch v {
 		case "*":
-			exps = append(exps, codersdk.ExperimentsAll...)
+			exps = append(exps, codersdk.ExperimentsSafe...)
 		default:
 			ex := codersdk.Experiment(strings.ToLower(v))
-			if !slice.Contains(codersdk.ExperimentsAll, ex) {
+			if !slice.Contains(codersdk.ExperimentsSafe, ex) {
 				log.Warn(context.Background(), "🐉 HERE BE DRAGONS: opting into hidden experiment", slog.F("experiment", ex))
 			}
 			exps = append(exps, ex)

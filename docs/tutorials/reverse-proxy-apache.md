@@ -53,9 +53,9 @@
 
 ## Create DNS provider credentials
 
-> This example assumes you're using CloudFlare as your DNS provider. For other
-> providers, refer to the
-> [CertBot documentation](https://eff-certbot.readthedocs.io/en/stable/using.html#dns-plugins).
+This example assumes you're using CloudFlare as your DNS provider. For other
+providers, refer to the
+[CertBot documentation](https://eff-certbot.readthedocs.io/en/stable/using.html#dns-plugins).
 
 1. Create an API token for the DNS provider you're using: e.g.
    [CloudFlare](https://developers.cloudflare.com/fundamentals/api/get-started/create-token)
@@ -92,8 +92,8 @@
 
 ## Configure Apache
 
-> This example assumes Coder is running locally on `127.0.0.1:3000` and that
-> you're using `coder.example.com` as your subdomain.
+This example assumes Coder is running locally on `127.0.0.1:3000` and that
+you're using `coder.example.com` as your subdomain.
 
 1. Create Apache configuration for Coder:
 

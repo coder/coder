@@ -1,9 +1,9 @@
 import { useTheme } from "@emotion/react";
 import PublicOutlined from "@mui/icons-material/PublicOutlined";
-import TagOutlined from "@mui/icons-material/TagOutlined";
 import Tooltip from "@mui/material/Tooltip";
 import type { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useOutletContext } from "react-router-dom";
@@ -20,7 +20,7 @@ import {
 } from "./Content";
 import { DismissWarningButton } from "./DismissWarningButton";
 
-export const WorkspaceProxyPage: FC = () => {
+const WorkspaceProxyPage: FC = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();
 	const { workspace_proxy } = healthStatus;
 	const { regions } = workspace_proxy.workspace_proxies;
@@ -118,7 +118,9 @@ export const WorkspaceProxyPage: FC = () => {
 									)}
 									{region.version && (
 										<Tooltip title="Version">
-											<Pill icon={<TagOutlined />}>{region.version}</Pill>
+											<Pill icon={<HashIcon className="size-icon-sm" />}>
+												{region.version}
+											</Pill>
 										</Tooltip>
 									)}
 									{region.derp_enabled && (
@@ -154,12 +156,12 @@ export const WorkspaceProxyPage: FC = () => {
 									<span>OK</span>
 								) : (
 									<div css={{ display: "flex", flexDirection: "column" }}>
-										{[...errors, ...warnings].map((msg, i) => (
+										{[...errors, ...warnings].map((msg) => (
 											<span
+												key={msg}
 												css={{
 													":first-letter": { textTransform: "uppercase" },
 												}}
-												key={i}
 											>
 												{msg}
 											</span>

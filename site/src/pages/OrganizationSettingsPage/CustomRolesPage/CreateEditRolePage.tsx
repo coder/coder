@@ -17,7 +17,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import CreateEditRolePageView from "./CreateEditRolePageView";
 
-export const CreateEditRolePage: FC = () => {
+const CreateEditRolePage: FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
@@ -48,8 +48,9 @@ export const CreateEditRolePage: FC = () => {
 	return (
 		<RequirePermission
 			isFeatureVisible={
-				organizationPermissions.assignOrgRoles ||
-				organizationPermissions.createOrgRoles
+				role
+					? organizationPermissions.updateOrgRoles
+					: organizationPermissions.createOrgRoles
 			}
 		>
 			<Helmet>
@@ -83,11 +84,10 @@ export const CreateEditRolePage: FC = () => {
 				}
 				isLoading={
 					role
-						? updateOrganizationRoleMutation.isLoading
-						: createOrganizationRoleMutation.isLoading
+						? updateOrganizationRoleMutation.isPending
+						: createOrganizationRoleMutation.isPending
 				}
 				organizationName={organizationName}
-				canAssignOrgRole={organizationPermissions.assignOrgRoles}
 			/>
 		</RequirePermission>
 	);

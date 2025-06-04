@@ -1,8 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { mockSuccessResult } from "components/PaginationWidget/PaginationContainer.mocks";
+import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
 import {
 	MockOrganizationMember,
 	MockOrganizationMember2,
-	MockUser,
+	MockUserOwner,
 } from "testHelpers/entities";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
@@ -14,11 +16,16 @@ const meta: Meta<typeof OrganizationMembersPageView> = {
 		error: undefined,
 		isAddingMember: false,
 		isUpdatingMemberRoles: false,
-		me: MockUser,
+		canViewMembers: true,
+		me: MockUserOwner,
 		members: [
 			{ ...MockOrganizationMember, groups: [] },
 			{ ...MockOrganizationMember2, groups: [] },
 		],
+		membersQuery: {
+			...mockSuccessResult,
+			totalRecords: 2,
+		} as UsePaginatedQueryResult,
 		addMember: () => Promise.resolve(),
 		removeMember: () => Promise.resolve(),
 		updateMemberRoles: () => Promise.resolve(),

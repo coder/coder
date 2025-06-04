@@ -8,7 +8,7 @@ import type { FC, ReactNode } from "react";
 
 type SectionLayout = "fixed" | "fluid";
 
-export interface SectionProps {
+interface SectionProps {
 	// Useful for testing
 	id?: string;
 	title?: ReactNode | string;
@@ -53,7 +53,7 @@ export const Section: FC<SectionProps> = ({
 									{featureStage && (
 										<FeatureStageBadge
 											contentType={featureStage}
-											size="lg"
+											size="md"
 											css={{ marginBottom: "5px" }}
 										/>
 									)}

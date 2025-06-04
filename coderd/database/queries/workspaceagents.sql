@@ -31,6 +31,7 @@ SELECT * FROM workspace_agents WHERE created_at > $1;
 INSERT INTO
 	workspace_agents (
 		id,
+		parent_id,
 		created_at,
 		updated_at,
 		name,
@@ -47,10 +48,11 @@ INSERT INTO
 		troubleshooting_url,
 		motd_file,
 		display_apps,
-		display_order
+		display_order,
+		api_key_scope
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING *;
 
 -- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE
@@ -252,6 +254,19 @@ WHERE
 			wb.workspace_id = @workspace_id :: uuid
 	);
 
+-- name: GetWorkspaceAgentsByWorkspaceAndBuildNumber :many
+SELECT
+	workspace_agents.*
+FROM
+	workspace_agents
+JOIN
+	workspace_resources ON workspace_agents.resource_id = workspace_resources.id
+JOIN
+	workspace_builds ON workspace_resources.job_id = workspace_builds.job_id
+WHERE
+	workspace_builds.workspace_id = @workspace_id :: uuid AND
+	workspace_builds.build_number = @build_number :: int;
+
 -- name: GetWorkspaceAgentAndLatestBuildByAuthToken :one
 SELECT
 	sqlc.embed(workspaces),
@@ -315,3 +330,9 @@ INNER JOIN workspace_resources ON workspace_resources.id = workspace_agents.reso
 INNER JOIN workspace_builds ON workspace_builds.job_id = workspace_resources.job_id
 WHERE workspace_builds.id = $1
 ORDER BY workspace_agent_script_timings.script_id, workspace_agent_script_timings.started_at;
+
+-- name: GetWorkspaceAgentsByParentID :many
+SELECT * FROM workspace_agents WHERE parent_id = @parent_id::uuid;
+
+-- name: DeleteWorkspaceSubAgentByID :exec
+DELETE FROM workspace_agents WHERE id = $1 AND parent_id IS NOT NULL;

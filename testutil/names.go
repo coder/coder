@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -23,6 +24,14 @@ func GetRandomName(t testing.TB) string {
 	t.Helper()
 	name := namesgenerator.GetRandomName(0)
 	return incSuffix(name, n.Add(1), maxNameLen)
+}
+
+// GetRandomNameHyphenated is as GetRandomName but uses a hyphen "-" instead of
+// an underscore.
+func GetRandomNameHyphenated(t testing.TB) string {
+	t.Helper()
+	name := namesgenerator.GetRandomName(0)
+	return strings.ReplaceAll(name, "_", "-")
 }
 
 func incSuffix(s string, num int64, maxLen int) string {

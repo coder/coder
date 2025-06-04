@@ -72,6 +72,5 @@ coder:
 postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=verify-full&sslrootcert="/home/coder/.postgresql/postgres-root.crt"
 ```
 
-> More information on connecting to PostgreSQL databases using certificates can
-> be found
-> [here](https://www.postgresql.org/docs/current/libpq-ssl.html#LIBPQ-SSL-CLIENTCERT).
+More information on connecting to PostgreSQL databases using certificates can
+be found in the [PostgreSQL documentation](https://www.postgresql.org/docs/current/libpq-ssl.html#LIBPQ-SSL-CLIENTCERT).

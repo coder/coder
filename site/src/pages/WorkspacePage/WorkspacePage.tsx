@@ -1,22 +1,22 @@
 import { watchWorkspace } from "api/api";
-import { checkAuthorization } from "api/queries/authCheck";
 import { template as templateQueryOptions } from "api/queries/templates";
 import { workspaceBuildsKey } from "api/queries/workspaceBuilds";
-import { workspaceByOwnerAndName } from "api/queries/workspaces";
+import {
+	workspaceByOwnerAndName,
+	workspacePermissions,
+} from "api/queries/workspaces";
 import type { Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/AnnouncementBanners";
-import { Navbar } from "modules/dashboard/Navbar/Navbar";
 import { type FC, useEffect } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
-import { type WorkspacePermissions, workspaceChecks } from "./permissions";
 
-export const WorkspacePage: FC = () => {
+const WorkspacePage: FC = () => {
 	const queryClient = useQueryClient();
 	const params = useParams() as {
 		username: string;
@@ -34,21 +34,15 @@ export const WorkspacePage: FC = () => {
 	const workspace = workspaceQuery.data;
 
 	// Template
-	const templateQuery = useQuery(
-		workspace
-			? templateQueryOptions(workspace.template_id)
-			: { enabled: false },
-	);
+	const templateQuery = useQuery({
+		...templateQueryOptions(workspace?.template_id ?? ""),
+		enabled: !!workspace,
+	});
 	const template = templateQuery.data;
 
 	// Permissions
-	const checks =
-		workspace && template ? workspaceChecks(workspace, template) : {};
-	const permissionsQuery = useQuery({
-		...checkAuthorization({ checks }),
-		enabled: workspace !== undefined && template !== undefined,
-	});
-	const permissions = permissionsQuery.data as WorkspacePermissions | undefined;
+	const permissionsQuery = useQuery(workspacePermissions(workspace));
+	const permissions = permissionsQuery.data;
 
 	// Watch workspace changes
 	const updateWorkspaceData = useEffectEvent(
@@ -70,9 +64,9 @@ export const WorkspacePage: FC = () => {
 				newWorkspaceData.latest_build.status !== workspace.latest_build.status;
 
 			if (hasNewBuild || lastBuildHasChanged) {
-				await queryClient.invalidateQueries(
-					workspaceBuildsKey(newWorkspaceData.id),
-				);
+				await queryClient.invalidateQueries({
+					queryKey: workspaceBuildsKey(newWorkspaceData.id),
+				});
 			}
 		},
 	);
@@ -82,20 +76,26 @@ export const WorkspacePage: FC = () => {
 			return;
 		}
 
-		const eventSource = watchWorkspace(workspaceId);
+		const socket = watchWorkspace(workspaceId);
+		socket.addEventListener("message", (event) => {
+			if (event.parseError) {
+				displayError(
+					"Unable to process latest data from the server. Please try refreshing the page.",
+				);
+				return;
+			}
 
-		eventSource.addEventListener("data", async (event) => {
-			const newWorkspaceData = JSON.parse(event.data) as Workspace;
-			await updateWorkspaceData(newWorkspaceData);
+			if (event.parsedMessage.type === "data") {
+				updateWorkspaceData(event.parsedMessage.data as Workspace);
+			}
+		});
+		socket.addEventListener("error", () => {
+			displayError(
+				"Unable to get workspace changes. Connection has been closed.",
+			);
 		});
 
-		eventSource.addEventListener("error", (event) => {
-			console.error("Error on getting workspace changes.", event);
-		});
-
-		return () => {
-			eventSource.close();
-		};
+		return () => socket.close();
 	}, [updateWorkspaceData, workspaceId]);
 
 	// Page statuses
@@ -103,29 +103,18 @@ export const WorkspacePage: FC = () => {
 		workspaceQuery.error ?? templateQuery.error ?? permissionsQuery.error;
 	const isLoading = !workspace || !template || !permissions;
 
-	return (
-		<>
-			<AnnouncementBanners />
-			<div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
-				<Navbar />
-				{pageError ? (
-					<Margins>
-						<ErrorAlert
-							error={pageError}
-							css={{ marginTop: 16, marginBottom: 16 }}
-						/>
-					</Margins>
-				) : isLoading ? (
-					<Loader />
-				) : (
-					<WorkspaceReadyPage
-						workspace={workspace}
-						template={template}
-						permissions={permissions}
-					/>
-				)}
-			</div>
-		</>
+	return pageError ? (
+		<Margins>
+			<ErrorAlert error={pageError} css={{ marginTop: 16, marginBottom: 16 }} />
+		</Margins>
+	) : isLoading ? (
+		<Loader />
+	) : (
+		<WorkspaceReadyPage
+			workspace={workspace}
+			template={template}
+			permissions={permissions}
+		/>
 	);
 };
 

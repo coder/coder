@@ -362,7 +362,7 @@ func TestCache(t *testing.T) {
 			authOut       = make(chan error, 1) // buffered to not block
 			authorizeFunc = func(ctx context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
 				// Just return what you're told.
-				return testutil.RequireRecvCtx(ctx, t, authOut)
+				return testutil.TryReceive(ctx, t, authOut)
 			}
 			ma                = &rbac.MockAuthorizer{AuthorizeFunc: authorizeFunc}
 			rec               = &coderdtest.RecordingAuthorizer{Wrapped: ma}
@@ -371,12 +371,12 @@ func TestCache(t *testing.T) {
 		)
 
 		// First call will result in a transient error. This should not be cached.
-		testutil.RequireSendCtx(ctx, t, authOut, context.Canceled)
+		testutil.RequireSend(ctx, t, authOut, context.Canceled)
 		err := authz.Authorize(ctx, subj, action, obj)
 		assert.ErrorIs(t, err, context.Canceled)
 
 		// A subsequent call should still hit the authorizer.
-		testutil.RequireSendCtx(ctx, t, authOut, nil)
+		testutil.RequireSend(ctx, t, authOut, nil)
 		err = authz.Authorize(ctx, subj, action, obj)
 		assert.NoError(t, err)
 		// This should be cached and not hit the wrapped authorizer again.
@@ -387,7 +387,7 @@ func TestCache(t *testing.T) {
 		subj, obj, action = coderdtest.RandomRBACSubject(), coderdtest.RandomRBACObject(), coderdtest.RandomRBACAction()
 
 		// A third will be a legit error
-		testutil.RequireSendCtx(ctx, t, authOut, assert.AnError)
+		testutil.RequireSend(ctx, t, authOut, assert.AnError)
 		err = authz.Authorize(ctx, subj, action, obj)
 		assert.EqualError(t, err, assert.AnError.Error())
 		// This should be cached and not hit the wrapped authorizer again.

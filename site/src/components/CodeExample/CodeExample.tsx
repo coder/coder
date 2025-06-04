@@ -1,10 +1,9 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { visuallyHidden } from "@mui/utils";
-import { type FC, type KeyboardEvent, type MouseEvent, useRef } from "react";
+import type { FC } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { CopyButton } from "../CopyButton/CopyButton";
 
-export interface CodeExampleProps {
+interface CodeExampleProps {
 	code: string;
 	secret?: boolean;
 	className?: string;
@@ -21,33 +20,8 @@ export const CodeExample: FC<CodeExampleProps> = ({
 	// the secure option, not remember to opt in
 	secret = true,
 }) => {
-	const buttonRef = useRef<HTMLButtonElement>(null);
-	const triggerButton = (event: KeyboardEvent | MouseEvent) => {
-		const clickTriggeredOutsideButton =
-			event.target instanceof HTMLElement &&
-			!buttonRef.current?.contains(event.target);
-
-		if (clickTriggeredOutsideButton) {
-			buttonRef.current?.click();
-		}
-	};
-
 	return (
-		<div
-			css={styles.container}
-			className={className}
-			onClick={triggerButton}
-			onKeyDown={(event) => {
-				if (event.key === "Enter") {
-					triggerButton(event);
-				}
-			}}
-			onKeyUp={(event) => {
-				if (event.key === " ") {
-					triggerButton(event);
-				}
-			}}
-		>
+		<div css={styles.container} className={className}>
 			<code css={[styles.code, secret && styles.secret]}>
 				{secret ? (
 					<>
@@ -60,7 +34,7 @@ export const CodeExample: FC<CodeExampleProps> = ({
 						 *    readily available in the HTML itself
 						 */}
 						<span aria-hidden>{obfuscateText(code)}</span>
-						<span css={{ ...visuallyHidden }}>
+						<span className="sr-only">
 							Encrypted text. Please access via the copy button.
 						</span>
 					</>
@@ -69,7 +43,7 @@ export const CodeExample: FC<CodeExampleProps> = ({
 				)}
 			</code>
 
-			<CopyButton ref={buttonRef} text={code} />
+			<CopyButton text={code} label="Copy code" />
 		</div>
 	);
 };

@@ -67,9 +67,8 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 			<DropdownMenuTrigger asChild>
 				<Button
 					aria-label={open ? "Close menu" : "Open menu"}
-					size="lg"
+					size="icon-lg"
 					variant="subtle"
-					className="ml-auto md:hidden"
 				>
 					{open ? <XIcon /> : <MenuIcon />}
 				</Button>

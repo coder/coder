@@ -1,6 +1,5 @@
 import { useTheme } from "@emotion/react";
 import CancelOutlined from "@mui/icons-material/CancelOutlined";
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import LinkOutlined from "@mui/icons-material/LinkOutlined";
 import LinearProgress from "@mui/material/LinearProgress";
 import Link from "@mui/material/Link";
@@ -36,15 +35,8 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
-import {
-	addHours,
-	addWeeks,
-	format,
-	startOfDay,
-	startOfHour,
-	subDays,
-} from "date-fns";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { CircleCheck as CircleCheckIcon } from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
@@ -57,6 +49,13 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router-dom";
 import { getLatencyColor } from "utils/latency";
+import {
+	addTime,
+	formatDateTime,
+	startOfDay,
+	startOfHour,
+	subtractTime,
+} from "utils/time";
 import { getTemplatePageTitle } from "../utils";
 import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
@@ -138,7 +137,7 @@ export default function TemplateInsightsPage() {
 const getDefaultInterval = (template: Template) => {
 	const now = new Date();
 	const templateCreateDate = new Date(template.created_at);
-	const hasFiveWeeksOrMore = addWeeks(templateCreateDate, 5) < now;
+	const hasFiveWeeksOrMore = addTime(templateCreateDate, 5, "week") < now;
 	return hasFiveWeeksOrMore ? "week" : "day";
 };
 
@@ -162,9 +161,9 @@ const getDateRange = (
 		// instantiation.
 		const today = new Date();
 		return {
-			startDate: startOfDay(subDays(today, 6)),
+			startDate: startOfDay(subtractTime(today, 6, "day")),
 			// Add one hour to endDate to include real-time data for today.
-			endDate: addHours(startOfHour(today), 1),
+			endDate: addTime(startOfHour(today), 1, "hour"),
 		};
 	}
 
@@ -257,7 +256,6 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 				{data && data.length === 0 && <NoDataAvailable />}
 				{data && data.length > 0 && (
 					<ActiveUserChart
-						interval={interval}
 						data={data.map((d) => ({
 							amount: d.active_users,
 							date: d.start_time,
@@ -412,7 +410,9 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 	...panelProps
 }) => {
 	const theme = useTheme();
-	const validUsage = data?.filter((u) => u.seconds > 0);
+	const validUsage = data
+		?.filter((u) => u.seconds > 0)
+		.sort((a, b) => b.seconds - a.seconds);
 	const totalInSeconds =
 		validUsage?.reduce((total, usage) => total + usage.seconds, 0) ?? 1;
 	const usageColors = chroma
@@ -438,86 +438,82 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 							gap: 24,
 						}}
 					>
-						{validUsage
-							.sort((a, b) => b.seconds - a.seconds)
-							.map((usage, i) => {
-								const percentage = (usage.seconds / totalInSeconds) * 100;
-								return (
-									<div
-										key={usage.slug}
-										css={{ display: "flex", gap: 24, alignItems: "center" }}
-									>
+						{validUsage.map((usage, i) => {
+							const percentage = (usage.seconds / totalInSeconds) * 100;
+							return (
+								<div
+									key={usage.slug}
+									css={{ display: "flex", gap: 24, alignItems: "center" }}
+								>
+									<div css={{ display: "flex", alignItems: "center", gap: 8 }}>
 										<div
-											css={{ display: "flex", alignItems: "center", gap: 8 }}
-										>
-											<div
-												css={{
-													width: 20,
-													height: 20,
-													display: "flex",
-													alignItems: "center",
-													justifyContent: "center",
-												}}
-											>
-												<img
-													src={usage.icon}
-													alt=""
-													style={{
-														objectFit: "contain",
-														width: "100%",
-														height: "100%",
-													}}
-												/>
-											</div>
-											<div css={{ fontSize: 13, fontWeight: 500, width: 200 }}>
-												{usage.display_name}
-											</div>
-										</div>
-										<Tooltip
-											title={`${Math.floor(percentage)}%`}
-											placement="top"
-											arrow
-										>
-											<LinearProgress
-												value={percentage}
-												variant="determinate"
-												css={{
-													width: "100%",
-													height: 8,
-													backgroundColor: theme.palette.divider,
-													"& .MuiLinearProgress-bar": {
-														backgroundColor: usageColors[i],
-														borderRadius: 999,
-													},
-												}}
-											/>
-										</Tooltip>
-										<Stack
-											spacing={0}
 											css={{
-												fontSize: 13,
-												color: theme.palette.text.secondary,
-												width: 120,
-												flexShrink: 0,
-												lineHeight: "1.5",
+												width: 20,
+												height: 20,
+												display: "flex",
+												alignItems: "center",
+												justifyContent: "center",
 											}}
 										>
-											{formatTime(usage.seconds)}
-											{usage.times_used > 0 && (
-												<span
-													css={{
-														fontSize: 12,
-														color: theme.palette.text.disabled,
-													}}
-												>
-													Opened {usage.times_used.toLocaleString()}{" "}
-													{usage.times_used === 1 ? "time" : "times"}
-												</span>
-											)}
-										</Stack>
+											<img
+												src={usage.icon}
+												alt=""
+												style={{
+													objectFit: "contain",
+													width: "100%",
+													height: "100%",
+												}}
+											/>
+										</div>
+										<div css={{ fontSize: 13, fontWeight: 500, width: 200 }}>
+											{usage.display_name}
+										</div>
 									</div>
-								);
-							})}
+									<Tooltip
+										title={`${Math.floor(percentage)}%`}
+										placement="top"
+										arrow
+									>
+										<LinearProgress
+											value={percentage}
+											variant="determinate"
+											css={{
+												width: "100%",
+												height: 8,
+												backgroundColor: theme.palette.divider,
+												"& .MuiLinearProgress-bar": {
+													backgroundColor: usageColors[i],
+													borderRadius: 999,
+												},
+											}}
+										/>
+									</Tooltip>
+									<Stack
+										spacing={0}
+										css={{
+											fontSize: 13,
+											color: theme.palette.text.secondary,
+											width: 120,
+											flexShrink: 0,
+											lineHeight: "1.5",
+										}}
+									>
+										{formatTime(usage.seconds)}
+										{usage.times_used > 0 && (
+											<span
+												css={{
+													fontSize: 12,
+													color: theme.palette.text.disabled,
+												}}
+											>
+												Opened {usage.times_used.toLocaleString()}{" "}
+												{usage.times_used === 1 ? "time" : "times"}
+											</span>
+										)}
+									</Stack>
+								</div>
+							);
+						})}
 					</div>
 				)}
 			</PanelContent>
@@ -561,7 +557,7 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 									marginRight: -24,
 									borderTop: `1px solid ${theme.palette.divider}`,
 									width: "calc(100% + 48px)",
-									"&:first-child": {
+									"&:first-of-type": {
 										borderTop: 0,
 									},
 									gap: 24,
@@ -761,12 +757,11 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 					</>
 				) : (
 					<>
-						<CheckCircleOutlined
+						<CircleCheckIcon
 							css={{
-								width: 16,
-								height: 16,
 								color: theme.palette.success.light,
 							}}
+							className="size-icon-xs"
 						/>
 						True
 					</>
@@ -914,7 +909,7 @@ function formatTime(seconds: number): string {
 }
 
 function toISOLocal(d: Date, offset: number) {
-	return format(d, `yyyy-MM-dd'T'HH:mm:ss${formatOffset(offset)}`);
+	return formatDateTime(d, `YYYY-MM-DD[T]HH:mm:ss${formatOffset(offset)}`);
 }
 
 function formatOffset(offset: number): string {

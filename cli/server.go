@@ -61,9 +61,12 @@ import (
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
 
+	"github.com/coder/coder/v2/coderd/ai"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
+	"github.com/coder/coder/v2/coderd/webpush"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
@@ -84,6 +87,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/jobreaper"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/oauthpki"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
@@ -92,14 +96,13 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
-	"github.com/coder/coder/v2/coderd/unhanger"
 	"github.com/coder/coder/v2/coderd/updatecheck"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisioner/terraform"
@@ -608,6 +611,22 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				)
 			}
 
+			aiProviders, err := ReadAIProvidersFromEnv(os.Environ())
+			if err != nil {
+				return xerrors.Errorf("read ai providers from env: %w", err)
+			}
+			vals.AI.Value.Providers = append(vals.AI.Value.Providers, aiProviders...)
+			for _, provider := range aiProviders {
+				logger.Debug(
+					ctx, "loaded ai provider",
+					slog.F("type", provider.Type),
+				)
+			}
+			languageModels, err := ai.ModelsFromConfig(ctx, vals.AI.Value.Providers)
+			if err != nil {
+				return xerrors.Errorf("create language models: %w", err)
+			}
+
 			realIPConfig, err := httpmw.ParseRealIPConfig(vals.ProxyTrustedHeaders, vals.ProxyTrustedOrigins)
 			if err != nil {
 				return xerrors.Errorf("parse real ip config: %w", err)
@@ -616,6 +635,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			configSSHOptions, err := vals.SSHConfig.ParseOptions()
 			if err != nil {
 				return xerrors.Errorf("parse ssh config options %q: %w", vals.SSHConfig.SSHConfigOptions.String(), err)
+			}
+
+			// The workspace hostname suffix is always interpreted as implicitly beginning with a single dot, so it is
+			// a config error to explicitly include the dot. This ensures that we always interpret the suffix as a
+			// separate DNS label, and not just an ordinary string suffix. E.g. a suffix of 'coder' will match
+			// 'en.coder' but not 'encoder'.
+			if strings.HasPrefix(vals.WorkspaceHostnameSuffix.String(), ".") {
+				return xerrors.Errorf("you must omit any leading . in workspace hostname suffix: %s",
+					vals.WorkspaceHostnameSuffix.String())
 			}
 
 			options := &coderd.Options{
@@ -629,8 +657,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
 				ExternalAuthConfigs:         externalAuthConfigs,
+				LanguageModels:              languageModels,
 				RealIPConfig:                realIPConfig,
-				SecureAuthCookie:            vals.SecureAuthCookie.Value(),
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
 				Telemetry:                   telemetry.NewNoop(),
@@ -651,6 +679,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				SSHConfig: codersdk.SSHConfigResponse{
 					HostnamePrefix:   vals.SSHConfig.DeploymentName.String(),
 					SSHConfigOptions: configSSHOptions,
+					HostnameSuffix:   vals.WorkspaceHostnameSuffix.String(),
 				},
 				AllowWorkspaceRenames: vals.AllowWorkspaceRenames.Value(),
 				Entitlements:          entitlements.New(),
@@ -728,6 +757,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					_ = sqlDB.Close()
 				}()
 
+				if options.DeploymentValues.Prometheus.Enable {
+					// At this stage we don't think the database name serves much purpose in these metrics.
+					// It requires parsing the DSN to determine it, which requires pulling in another dependency
+					// (i.e. https://github.com/jackc/pgx), but it's rather heavy.
+					// The conn string (https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING) can
+					// take different forms, which make parsing non-trivial.
+					options.PrometheusRegistry.MustRegister(collectors.NewDBStatsCollector(sqlDB, ""))
+				}
+
 				options.Database = database.New(sqlDB)
 				ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
 				if err != nil {
@@ -775,6 +813,29 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("set deployment id: %w", err)
 			}
 
+			// Manage push notifications.
+			experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
+			if experiments.Enabled(codersdk.ExperimentWebPush) {
+				if !strings.HasPrefix(options.AccessURL.String(), "https://") {
+					options.Logger.Warn(ctx, "access URL is not HTTPS, so web push notifications may not work on some browsers", slog.F("access_url", options.AccessURL.String()))
+				}
+				webpusher, err := webpush.New(ctx, ptr.Ref(options.Logger.Named("webpush")), options.Database, options.AccessURL.String())
+				if err != nil {
+					options.Logger.Error(ctx, "failed to create web push dispatcher", slog.Error(err))
+					options.Logger.Warn(ctx, "web push notifications will not work until the VAPID keys are regenerated")
+					webpusher = &webpush.NoopWebpusher{
+						Msg: "Web Push notifications are disabled due to a system error. Please contact your Coder administrator.",
+					}
+				}
+				options.WebPushDispatcher = webpusher
+			} else {
+				options.WebPushDispatcher = &webpush.NoopWebpusher{
+					// Users will likely not see this message as the endpoints return 404
+					// if not enabled. Just in case...
+					Msg: "Web Push notifications are an experimental feature and are disabled by default. Enable the 'web-push' experiment to use this feature.",
+				}
+			}
+
 			githubOAuth2ConfigParams, err := getGithubOAuth2ConfigParams(ctx, options.Database, vals)
 			if err != nil {
 				return xerrors.Errorf("get github oauth2 config params: %w", err)
@@ -803,6 +864,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				BuiltinPostgres:  builtinPostgres,
 				DeploymentID:     deploymentID,
 				Database:         options.Database,
+				Experiments:      coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value()),
 				Logger:           logger.Named("telemetry"),
 				URL:              vals.Telemetry.URL.Value(),
 				Tunnel:           tunnel != nil,
@@ -867,6 +929,37 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			options.StatsBatcher = batcher
 			defer closeBatcher()
 
+			// Manage notifications.
+			var (
+				notificationsCfg     = options.DeploymentValues.Notifications
+				notificationsManager *notifications.Manager
+			)
+
+			metrics := notifications.NewMetrics(options.PrometheusRegistry)
+			helpers := templateHelpers(options)
+
+			// The enqueuer is responsible for enqueueing notifications to the given store.
+			enqueuer, err := notifications.NewStoreEnqueuer(notificationsCfg, options.Database, helpers, logger.Named("notifications.enqueuer"), quartz.NewReal())
+			if err != nil {
+				return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
+			}
+			options.NotificationsEnqueuer = enqueuer
+
+			// The notification manager is responsible for:
+			//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
+			//   - keeping the store updated with status updates
+			notificationsManager, err = notifications.NewManager(notificationsCfg, options.Database, options.Pubsub, helpers, metrics, logger.Named("notifications.manager"))
+			if err != nil {
+				return xerrors.Errorf("failed to instantiate notification manager: %w", err)
+			}
+
+			// nolint:gocritic // We need to run the manager in a notifier context.
+			notificationsManager.Run(dbauthz.AsNotifier(ctx))
+
+			// Run report generator to distribute periodic reports.
+			notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
+			defer notificationReportGenerator.Close()
+
 			// We use a separate coderAPICloser so the Enterprise API
 			// can have its own close functions. This is cleaner
 			// than abstracting the Coder API itself.
@@ -912,41 +1005,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			err = config.URL().Write(client.URL.String())
 			if err != nil && flag.Lookup("test.v") != nil {
 				return xerrors.Errorf("write config url: %w", err)
-			}
-
-			// Manage notifications.
-			var (
-				notificationsCfg     = options.DeploymentValues.Notifications
-				notificationsManager *notifications.Manager
-			)
-
-			if notificationsCfg.Enabled() {
-				metrics := notifications.NewMetrics(options.PrometheusRegistry)
-				helpers := templateHelpers(options)
-
-				// The enqueuer is responsible for enqueueing notifications to the given store.
-				enqueuer, err := notifications.NewStoreEnqueuer(notificationsCfg, options.Database, helpers, logger.Named("notifications.enqueuer"), quartz.NewReal())
-				if err != nil {
-					return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
-				}
-				options.NotificationsEnqueuer = enqueuer
-
-				// The notification manager is responsible for:
-				//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
-				//   - keeping the store updated with status updates
-				notificationsManager, err = notifications.NewManager(notificationsCfg, options.Database, helpers, metrics, logger.Named("notifications.manager"))
-				if err != nil {
-					return xerrors.Errorf("failed to instantiate notification manager: %w", err)
-				}
-
-				// nolint:gocritic // We need to run the manager in a notifier context.
-				notificationsManager.Run(dbauthz.AsNotifier(ctx))
-
-				// Run report generator to distribute periodic reports.
-				notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
-				defer notificationReportGenerator.Close()
-			} else {
-				logger.Debug(ctx, "notifications are currently disabled as there are no configured delivery methods. See https://coder.com/docs/admin/monitoring/notifications#delivery-methods for more details")
 			}
 
 			// Since errCh only has one buffered slot, all routines
@@ -1067,14 +1125,14 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			autobuildTicker := time.NewTicker(vals.AutobuildPollInterval.Value())
 			defer autobuildTicker.Stop()
 			autobuildExecutor := autobuild.NewExecutor(
-				ctx, options.Database, options.Pubsub, options.PrometheusRegistry, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, logger, autobuildTicker.C, options.NotificationsEnqueuer)
+				ctx, options.Database, options.Pubsub, options.PrometheusRegistry, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, logger, autobuildTicker.C, options.NotificationsEnqueuer, coderAPI.Experiments)
 			autobuildExecutor.Run()
 
-			hangDetectorTicker := time.NewTicker(vals.JobHangDetectorInterval.Value())
-			defer hangDetectorTicker.Stop()
-			hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, logger, hangDetectorTicker.C)
-			hangDetector.Start()
-			defer hangDetector.Close()
+			jobReaperTicker := time.NewTicker(vals.JobReaperDetectorInterval.Value())
+			defer jobReaperTicker.Stop()
+			jobReaper := jobreaper.New(ctx, options.Database, options.Pubsub, logger, jobReaperTicker.C)
+			jobReaper.Start()
+			defer jobReaper.Close()
 
 			waitForProvisionerJobs := false
 			// Currently there is no way to ask the server to shut
@@ -1259,6 +1317,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	}
 
 	createAdminUserCmd := r.newCreateAdminUserCommand()
+	regenerateVapidKeypairCmd := r.newRegenerateVapidKeypairCommand()
 
 	rawURLOpt := serpent.Option{
 		Flag: "raw-url",
@@ -1272,7 +1331,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 	serverCmd.Children = append(
 		serverCmd.Children,
-		createAdminUserCmd, postgresBuiltinURLCmd, postgresBuiltinServeCmd,
+		createAdminUserCmd, postgresBuiltinURLCmd, postgresBuiltinServeCmd, regenerateVapidKeypairCmd,
 	)
 
 	return serverCmd
@@ -1389,7 +1448,7 @@ func newProvisionerDaemon(
 	for _, provisionerType := range provisionerTypes {
 		switch provisionerType {
 		case codersdk.ProvisionerTypeEcho:
-			echoClient, echoServer := drpc.MemTransportPipe()
+			echoClient, echoServer := drpcsdk.MemTransportPipe()
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -1423,7 +1482,7 @@ func newProvisionerDaemon(
 			}
 
 			tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
-			terraformClient, terraformServer := drpc.MemTransportPipe()
+			terraformClient, terraformServer := drpcsdk.MemTransportPipe()
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -1768,9 +1827,9 @@ func parseTLSCipherSuites(ciphers []string) ([]tls.CipherSuite, error) {
 // hasSupportedVersion is a helper function that returns true if the list
 // of supported versions contains a version between min and max.
 // If the versions list is outside the min/max, then it returns false.
-func hasSupportedVersion(min, max uint16, versions []uint16) bool {
+func hasSupportedVersion(minVal, maxVal uint16, versions []uint16) bool {
 	for _, v := range versions {
-		if v >= min && v <= max {
+		if v >= minVal && v <= maxVal {
 			// If one version is in between min/max, return true.
 			return true
 		}
@@ -1894,7 +1953,7 @@ func getGithubOAuth2ConfigParams(ctx context.Context, db database.Store, vals *c
 
 	if defaultEligibleNotSet {
 		// nolint:gocritic // User count requires system privileges
-		userCount, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx))
+		userCount, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
 		if err != nil {
 			return nil, xerrors.Errorf("get user count: %w", err)
 		}
@@ -2129,6 +2188,8 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 		embeddedpostgres.DefaultConfig().
 			Version(embeddedpostgres.V13).
 			BinariesPath(filepath.Join(cfg.PostgresPath(), "bin")).
+			// Default BinaryRepositoryURL repo1.maven.org is flaky.
+			BinaryRepositoryURL("https://repo.maven.apache.org/maven2").
 			DataPath(filepath.Join(cfg.PostgresPath(), "data")).
 			RuntimePath(filepath.Join(cfg.PostgresPath(), "runtime")).
 			CachePath(cachePath).
@@ -2577,6 +2638,77 @@ func redirectHTTPToHTTPSDeprecation(ctx context.Context, logger slog.Logger, inv
 		logger.Warn(ctx, "⚠️ --tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead")
 		cfg.RedirectToAccessURL = cfg.TLS.RedirectHTTP
 	}
+}
+
+func ReadAIProvidersFromEnv(environ []string) ([]codersdk.AIProviderConfig, error) {
+	// The index numbers must be in-order.
+	sort.Strings(environ)
+
+	var providers []codersdk.AIProviderConfig
+	for _, v := range serpent.ParseEnviron(environ, "CODER_AI_PROVIDER_") {
+		tokens := strings.SplitN(v.Name, "_", 2)
+		if len(tokens) != 2 {
+			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
+		}
+
+		providerNum, err := strconv.Atoi(tokens[0])
+		if err != nil {
+			return nil, xerrors.Errorf("parse number: %s", v.Name)
+		}
+
+		var provider codersdk.AIProviderConfig
+		switch {
+		case len(providers) < providerNum:
+			return nil, xerrors.Errorf(
+				"provider num %v skipped: %s",
+				len(providers),
+				v.Name,
+			)
+		case len(providers) == providerNum:
+			// At the next next provider.
+			providers = append(providers, provider)
+		case len(providers) == providerNum+1:
+			// At the current provider.
+			provider = providers[providerNum]
+		}
+
+		key := tokens[1]
+		switch key {
+		case "TYPE":
+			provider.Type = v.Value
+		case "API_KEY":
+			provider.APIKey = v.Value
+		case "BASE_URL":
+			provider.BaseURL = v.Value
+		case "MODELS":
+			provider.Models = strings.Split(v.Value, ",")
+		}
+		providers[providerNum] = provider
+	}
+	for _, envVar := range environ {
+		tokens := strings.SplitN(envVar, "=", 2)
+		if len(tokens) != 2 {
+			continue
+		}
+		switch tokens[0] {
+		case "OPENAI_API_KEY":
+			providers = append(providers, codersdk.AIProviderConfig{
+				Type:   "openai",
+				APIKey: tokens[1],
+			})
+		case "ANTHROPIC_API_KEY":
+			providers = append(providers, codersdk.AIProviderConfig{
+				Type:   "anthropic",
+				APIKey: tokens[1],
+			})
+		case "GOOGLE_API_KEY":
+			providers = append(providers, codersdk.AIProviderConfig{
+				Type:   "google",
+				APIKey: tokens[1],
+			})
+		}
+	}
+	return providers, nil
 }
 
 // ReadExternalAuthProvidersFromEnv is provided for compatibility purposes with

@@ -81,7 +81,7 @@ export async function login(page: Page, options: LoginOptions = users.owner) {
 	(ctx as any)[Symbol.for("currentUser")] = options;
 }
 
-export function currentUser(page: Page): LoginOptions {
+function currentUser(page: Page): LoginOptions {
 	const ctx = page.context();
 	// biome-ignore lint/suspicious/noExplicitAny: get the current user
 	const user = (ctx as any)[Symbol.for("currentUser")];
@@ -152,7 +152,7 @@ export const createWorkspace = async (
 	const user = currentUser(page);
 	await expectUrl(page).toHavePathName(`/@${user.username}/${name}`);
 
-	await page.waitForSelector("[data-testid='build-status'] >> text=Running", {
+	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
 	});
 	return name;
@@ -267,9 +267,8 @@ export const createTemplate = async (
 			);
 		}
 
-		// picker is disabled if only one org is available
+		// The organization picker will be disabled if there is only one option.
 		const pickerIsDisabled = await orgPicker.isDisabled();
-
 		if (!pickerIsDisabled) {
 			await orgPicker.click();
 			await page.getByText(orgName, { exact: true }).click();
@@ -365,7 +364,7 @@ export const stopWorkspace = async (page: Page, workspaceName: string) => {
 
 	await page.getByTestId("workspace-stop-button").click();
 
-	await page.waitForSelector("*[data-testid='build-status'] >> text=Stopped", {
+	await page.waitForSelector("text=Workspace status: Stopped", {
 		state: "visible",
 	});
 };
@@ -390,7 +389,7 @@ export const buildWorkspaceWithParameters = async (
 		await page.getByTestId("confirm-button").click();
 	}
 
-	await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
 	});
 };
@@ -413,11 +412,12 @@ export const startAgent = async (
 export const downloadCoderVersion = async (
 	version: string,
 ): Promise<string> => {
-	if (version.startsWith("v")) {
-		version = version.slice(1);
+	let versionNumber = version;
+	if (versionNumber.startsWith("v")) {
+		versionNumber = versionNumber.slice(1);
 	}
 
-	const binaryName = `coder-e2e-${version}`;
+	const binaryName = `coder-e2e-${versionNumber}`;
 	const tempDir = "/tmp/coder-e2e-cache";
 	// The install script adds `./bin` automatically to the path :shrug:
 	const binaryPath = path.join(tempDir, "bin", binaryName);
@@ -439,7 +439,7 @@ export const downloadCoderVersion = async (
 			path.join(__dirname, "../../install.sh"),
 			[
 				"--version",
-				version,
+				versionNumber,
 				"--method",
 				"standalone",
 				"--prefix",
@@ -545,16 +545,15 @@ interface EchoProvisionerResponses {
 	apply?: RecursivePartial<Response>[];
 }
 
+const emptyPlan = new TextEncoder().encode("{}");
+
 /**
  * createTemplateVersionTar consumes a series of echo provisioner protobufs and
  * converts it into an uploadable tar file.
  */
 const createTemplateVersionTar = async (
-	responses?: EchoProvisionerResponses,
+	responses: EchoProvisionerResponses = {},
 ): Promise<Buffer> => {
-	if (!responses) {
-		responses = {};
-	}
 	if (!responses.parse) {
 		responses.parse = [
 			{
@@ -582,6 +581,9 @@ const createTemplateVersionTar = async (
 					externalAuthProviders: response.apply?.externalAuthProviders ?? [],
 					timings: response.apply?.timings ?? [],
 					presets: [],
+					resourceReplacements: [],
+					plan: emptyPlan,
+					moduleFiles: new Uint8Array(),
 				},
 			};
 		});
@@ -617,6 +619,7 @@ const createTemplateVersionTar = async (
 								slug: "example",
 								subdomain: false,
 								url: "",
+								group: "",
 								...app,
 							} as App;
 						});
@@ -641,6 +644,8 @@ const createTemplateVersionTar = async (
 						startupScriptTimeoutSeconds: 300,
 						troubleshootingUrl: "",
 						token: randomUUID(),
+						devcontainers: [],
+						apiKeyScope: "all",
 						...agent,
 					} as Agent;
 
@@ -703,6 +708,9 @@ const createTemplateVersionTar = async (
 			timings: [],
 			modules: [],
 			presets: [],
+			resourceReplacements: [],
+			plan: emptyPlan,
+			moduleFiles: new Uint8Array(),
 			...response.plan,
 		} as PlanComplete;
 		response.plan.resources = response.plan.resources?.map(fillResource);
@@ -871,7 +879,7 @@ export const echoResponsesWithExternalAuth = (
 	};
 };
 
-export const fillParameters = async (
+const fillParameters = async (
 	page: Page,
 	richParameters: RichParameter[] = [],
 	buildParameters: WorkspaceBuildParameter[] = [],
@@ -1006,7 +1014,7 @@ export const updateWorkspace = async (
 	await fillParameters(page, richParameters, buildParameters);
 	await page.getByRole("button", { name: /update parameters/i }).click();
 
-	await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
 	});
 };
@@ -1025,7 +1033,7 @@ export const updateWorkspaceParameters = async (
 	await fillParameters(page, richParameters, buildParameters);
 	await page.getByRole("button", { name: /submit and restart/i }).click();
 
-	await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
 	});
 };
@@ -1038,7 +1046,9 @@ export async function openTerminalWindow(
 ): Promise<Page> {
 	// Wait for the web terminal to open in a new tab
 	const pagePromise = context.waitForEvent("page");
-	await page.getByTestId("terminal").click({ timeout: 60_000 });
+	await page
+		.getByRole("link", { name: /terminal/i })
+		.click({ timeout: 60_000 });
 	const terminal = await pagePromise;
 	await terminal.waitForLoadState("domcontentloaded");
 
@@ -1094,8 +1104,12 @@ export async function createUser(
 	const orgPicker = page.getByLabel("Organization *");
 	const organizationsEnabled = await orgPicker.isVisible();
 	if (organizationsEnabled) {
-		await orgPicker.click();
-		await page.getByText(orgName, { exact: true }).click();
+		// The organization picker will be disabled if there is only one option.
+		const pickerIsDisabled = await orgPicker.isDisabled();
+		if (!pickerIsDisabled) {
+			await orgPicker.click();
+			await page.getByText(orgName, { exact: true }).click();
+		}
 	}
 
 	await page.getByLabel("Login Type").click();

@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -18,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/v2/agent"
@@ -25,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
@@ -363,6 +366,44 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 	})
+}
+
+func TestDialFailure(t *testing.T) {
+	t.Parallel()
+
+	// Setup.
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := testutil.Logger(t)
+
+	// Given: a tailnet coordinator.
+	coord := tailnet.NewCoordinator(logger)
+	t.Cleanup(func() {
+		_ = coord.Close()
+	})
+	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
+	coordPtr.Store(&coord)
+
+	// Given: a fake DB healthchecker which will always fail.
+	fch := &failingHealthcheck{}
+
+	// When: dialing the in-memory coordinator.
+	dialer := &coderd.InmemTailnetDialer{
+		CoordPtr:            &coordPtr,
+		Logger:              logger,
+		ClientID:            uuid.UUID{5},
+		DatabaseHealthCheck: fch,
+	}
+	_, err := dialer.Dial(ctx, nil)
+
+	// Then: the error returned reflects the database has failed its healthcheck.
+	require.ErrorIs(t, err, codersdk.ErrDatabaseNotReachable)
+}
+
+type failingHealthcheck struct{}
+
+func (failingHealthcheck) Ping(context.Context) (time.Duration, error) {
+	// Simulate a database connection error.
+	return 0, xerrors.New("oops")
 }
 
 type wrappedListener struct {

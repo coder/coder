@@ -5,7 +5,6 @@ import {
 	verifyConfigFlagArray,
 	verifyConfigFlagBoolean,
 	verifyConfigFlagDuration,
-	verifyConfigFlagEmpty,
 	verifyConfigFlagString,
 } from "../../api";
 import { login } from "../../helpers";
@@ -28,7 +27,11 @@ test("enabled observability settings", async ({ page }) => {
 	await verifyConfigFlagBoolean(page, config, "enable-terraform-debug-mode");
 	await verifyConfigFlagBoolean(page, config, "enable-terraform-debug-mode");
 	await verifyConfigFlagDuration(page, config, "health-check-refresh");
-	await verifyConfigFlagEmpty(page, "health-check-threshold-database");
+	await verifyConfigFlagDuration(
+		page,
+		config,
+		"health-check-threshold-database",
+	);
 	await verifyConfigFlagString(page, config, "log-human");
 	await verifyConfigFlagString(page, config, "prometheus-address");
 	await verifyConfigFlagArray(

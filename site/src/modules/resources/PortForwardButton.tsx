@@ -1,20 +1,14 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import CloseIcon from "@mui/icons-material/Close";
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
 import LockIcon from "@mui/icons-material/Lock";
 import LockOpenIcon from "@mui/icons-material/LockOpen";
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import SensorsIcon from "@mui/icons-material/Sensors";
-import LoadingButton from "@mui/lab/LoadingButton";
-import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
 import FormControl from "@mui/material/FormControl";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
+import MUITooltip from "@mui/material/Tooltip";
 import { API } from "api/api";
 import {
 	deleteWorkspacePortShare,
@@ -23,25 +17,40 @@ import {
 } from "api/queries/workspaceportsharing";
 import {
 	type Template,
-	type UpsertWorkspaceAgentPortShareRequest,
+	type Workspace,
 	type WorkspaceAgent,
 	type WorkspaceAgentListeningPort,
+	type WorkspaceAgentPortShare,
 	type WorkspaceAgentPortShareLevel,
 	type WorkspaceAgentPortShareProtocol,
 	WorkspaceAppSharingLevels,
 } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import {
 	HelpTooltipLink,
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
+import { Spinner } from "components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
-import { type FormikContextType, useFormik } from "formik";
+import { useFormik } from "formik";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import {
+	ChevronDownIcon,
+	ExternalLinkIcon,
+	ShareIcon,
+	X as XIcon,
+} from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
 import { useMutation, useQuery } from "react-query";
@@ -54,136 +63,132 @@ import {
 } from "utils/portForward";
 import * as Yup from "yup";
 
-export interface PortForwardButtonProps {
+interface PortForwardButtonProps {
 	host: string;
-	username: string;
-	workspaceName: string;
-	workspaceID: string;
+	workspace: Workspace;
 	agent: WorkspaceAgent;
 	template: Template;
 }
 
-export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
-	const { agent } = props;
+export const PortForwardButton: FC<PortForwardButtonProps> = ({
+	host,
+	workspace,
+	template,
+	agent,
+}) => {
 	const { entitlements } = useDashboard();
 	const paper = useClassName(classNames.paper, []);
 
-	const portsQuery = useQuery({
+	const { data: listeningPorts } = useQuery({
 		queryKey: ["portForward", agent.id],
 		queryFn: () => API.getAgentListeningPorts(agent.id),
 		enabled: agent.status === "connected",
 		refetchInterval: 5_000,
+		select: (res) => res.ports,
+	});
+
+	const { data: sharedPorts, refetch: refetchSharedPorts } = useQuery({
+		...workspacePortShares(workspace.id),
+		enabled: agent.status === "connected",
+		select: (res) => res.shares,
 	});
 
 	return (
 		<Popover>
 			<PopoverTrigger>
-				<Button
-					disabled={!portsQuery.data}
-					size="small"
-					variant="text"
-					endIcon={<KeyboardArrowDown />}
-					css={{ fontSize: 13, padding: "8px 12px" }}
-					startIcon={
-						portsQuery.data ? (
-							<div>
-								<span css={styles.portCount}>
-									{portsQuery.data.ports.length}
-								</span>
-							</div>
-						) : (
-							<CircularProgress size={10} />
-						)
-					}
-				>
+				<Button disabled={!listeningPorts} size="sm" variant="subtle">
+					<Spinner loading={!listeningPorts}>
+						<span css={styles.portCount}>{listeningPorts?.length}</span>
+					</Spinner>
 					Open ports
+					<ChevronDownIcon className="size-4" />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent horizontal="right" classes={{ paper }}>
 				<PortForwardPopoverView
-					{...props}
-					listeningPorts={portsQuery.data?.ports}
+					host={host}
+					agent={agent}
+					workspace={workspace}
+					template={template}
+					sharedPorts={sharedPorts ?? []}
+					listeningPorts={listeningPorts ?? []}
 					portSharingControlsEnabled={
 						entitlements.features.control_shared_ports.enabled
 					}
+					refetchSharedPorts={refetchSharedPorts}
 				/>
 			</PopoverContent>
 		</Popover>
 	);
 };
 
-const getValidationSchema = (): Yup.AnyObjectSchema =>
+const openPortSchema = (): Yup.AnyObjectSchema =>
 	Yup.object({
 		port: Yup.number().required().min(9).max(65535),
 		share_level: Yup.string().required().oneOf(WorkspaceAppSharingLevels),
 	});
 
-interface PortForwardPopoverViewProps extends PortForwardButtonProps {
-	listeningPorts?: readonly WorkspaceAgentListeningPort[];
+interface PortForwardPopoverViewProps {
+	host: string;
+	workspace: Workspace;
+	agent: WorkspaceAgent;
+	template: Template;
+	sharedPorts: readonly WorkspaceAgentPortShare[];
+	listeningPorts: readonly WorkspaceAgentListeningPort[];
 	portSharingControlsEnabled: boolean;
+	refetchSharedPorts: () => void;
 }
-
-type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 
 export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	host,
-	workspaceName,
-	workspaceID,
+	workspace,
 	agent,
 	template,
-	username,
+	sharedPorts,
 	listeningPorts,
 	portSharingControlsEnabled,
+	refetchSharedPorts,
 }) => {
 	const theme = useTheme();
 	const [listeningPortProtocol, setListeningPortProtocol] = useState(
-		getWorkspaceListeningPortsProtocol(workspaceID),
+		getWorkspaceListeningPortsProtocol(workspace.id),
 	);
 
-	const sharedPortsQuery = useQuery({
-		...workspacePortShares(workspaceID),
-		enabled: agent.status === "connected",
+	const upsertSharedPortMutation = useMutation({
+		...upsertWorkspacePortShare(workspace.id),
+		onSuccess: refetchSharedPorts,
 	});
-	const sharedPorts = sharedPortsQuery.data?.shares || [];
 
-	const upsertSharedPortMutation = useMutation(
-		upsertWorkspacePortShare(workspaceID),
-	);
+	const deleteSharedPortMutation = useMutation({
+		...deleteWorkspacePortShare(workspace.id),
+		onSuccess: refetchSharedPorts,
+	});
 
-	const deleteSharedPortMutation = useMutation(
-		deleteWorkspacePortShare(workspaceID),
-	);
-
-	// share port form
 	const {
 		mutateAsync: upsertWorkspacePortShareForm,
-		isLoading: isSubmitting,
+		isPending: isSubmitting,
 		error: submitError,
-	} = useMutation(upsertWorkspacePortShare(workspaceID));
-	const validationSchema = getValidationSchema();
-	// TODO: do partial here
-	const form: FormikContextType<
-		Optional<UpsertWorkspaceAgentPortShareRequest, "port">
-	> = useFormik<Optional<UpsertWorkspaceAgentPortShareRequest, "port">>({
+	} = useMutation({
+		...upsertWorkspacePortShare(workspace.id),
+		onSuccess: refetchSharedPorts,
+	});
+
+	const form = useFormik({
 		initialValues: {
 			agent_name: agent.name,
-			port: undefined,
+			port: "",
 			protocol: "http",
 			share_level: "authenticated",
 		},
-		validationSchema,
-		onSubmit: async (values) => {
-			// we need port to be optional in the initialValues so it appears empty instead of 0.
-			// because of this we need to reset the form to clear the port field manually.
-			form.resetForm();
-			await form.setFieldValue("port", "");
-
-			const port = Number(values.port);
+		validationSchema: openPortSchema(),
+		onSubmit: async (values, { resetForm }) => {
+			resetForm();
 			await upsertWorkspacePortShareForm({
-				...values,
-				port,
+				agent_name: values.agent_name,
+				port: Number(values.port),
+				share_level: values.share_level as WorkspaceAgentPortShareLevel,
+				protocol: values.protocol as WorkspaceAgentPortShareProtocol,
 			});
-			await sharedPortsQuery.refetch();
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form, submitError);
@@ -193,7 +198,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 		(port) => port.agent_name === agent.name,
 	);
 	// we don't want to show listening ports if it's a shared port
-	const filteredListeningPorts = (listeningPorts ?? []).filter((port) =>
+	const filteredListeningPorts = listeningPorts.filter((port) =>
 		filteredSharedPorts.every((sharedPort) => sharedPort.port !== port.port),
 	);
 	// only disable the form if shared port controls are entitled and the template doesn't allow sharing ports
@@ -204,14 +209,14 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 		canSharePorts && template.max_port_share_level === "public";
 
 	const disabledPublicMenuItem = (
-		<Tooltip title="This workspace template does not allow sharing ports with unauthenticated users.">
+		<MUITooltip title="This workspace template does not allow sharing ports with unauthenticated users.">
 			{/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
 			<div>
 				<MenuItem value="public" disabled>
 					Public
 				</MenuItem>
 			</div>
-		</Tooltip>
+		</MUITooltip>
 	);
 
 	return (
@@ -262,7 +267,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 											| "https";
 										setListeningPortProtocol(selectedProtocol);
 										saveWorkspaceListeningPortsProtocol(
-											workspaceID,
+											workspace.id,
 											selectedProtocol,
 										);
 									}}
@@ -281,8 +286,8 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										host,
 										port,
 										agent.name,
-										workspaceName,
-										username,
+										workspace.name,
+										workspace.owner_name,
 										listeningPortProtocol,
 									);
 									window.open(url, "_blank");
@@ -298,25 +303,17 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									required
 									css={styles.newPortInput}
 								/>
-								<Button
-									type="submit"
-									size="small"
-									variant="text"
-									css={{
-										paddingLeft: 12,
-										paddingRight: 12,
-										minWidth: 0,
-									}}
-								>
-									<OpenInNewOutlined
-										css={{
-											flexShrink: 0,
-											width: 14,
-											height: 14,
-											color: theme.palette.text.primary,
-										}}
-									/>
-								</Button>
+								<TooltipProvider>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button type="submit" size="icon" variant="subtle">
+												<ExternalLinkIcon />
+												<span className="sr-only">Connect to port</span>
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent>Connect to port</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
 							</form>
 						</Stack>
 					</Stack>
@@ -330,8 +327,8 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 							host,
 							port.port,
 							agent.name,
-							workspaceName,
-							username,
+							workspace.name,
+							workspace.owner_name,
 							listeningPortProtocol,
 						);
 						const label =
@@ -371,21 +368,28 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									alignItems="center"
 								>
 									{canSharePorts && (
-										<Button
-											size="small"
-											variant="text"
-											onClick={async () => {
-												await upsertSharedPortMutation.mutateAsync({
-													agent_name: agent.name,
-													port: port.port,
-													protocol: listeningPortProtocol,
-													share_level: "authenticated",
-												});
-												await sharedPortsQuery.refetch();
-											}}
-										>
-											Share
-										</Button>
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<Button
+														size="icon"
+														variant="subtle"
+														onClick={async () => {
+															await upsertSharedPortMutation.mutateAsync({
+																agent_name: agent.name,
+																port: port.port,
+																protocol: listeningPortProtocol,
+																share_level: "authenticated",
+															});
+														}}
+													>
+														<ShareIcon />
+														<span className="sr-only">Share</span>
+													</Button>
+												</TooltipTrigger>
+												<TooltipContent>Share this port</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
 									)}
 								</Stack>
 							</Stack>
@@ -412,8 +416,8 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 								host,
 								share.port,
 								agent.name,
-								workspaceName,
-								username,
+								workspace.name,
+								workspace.owner_name,
 								share.protocol,
 							);
 							const label = share.port;
@@ -450,7 +454,6 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 														.value as WorkspaceAgentPortShareProtocol,
 													share_level: share.share_level,
 												});
-												await sharedPortsQuery.refetch();
 											}}
 										>
 											<MenuItem value="http">HTTP</MenuItem>
@@ -474,7 +477,6 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 														share_level: event.target
 															.value as WorkspaceAgentPortShareLevel,
 													});
-													await sharedPortsQuery.refetch();
 												}}
 											>
 												<MenuItem value="authenticated">Authenticated</MenuItem>
@@ -486,18 +488,16 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 											</Select>
 										</FormControl>
 										<Button
-											size="small"
-											variant="text"
-											css={styles.deleteButton}
+											size="sm"
+											variant="subtle"
 											onClick={async () => {
 												await deleteSharedPortMutation.mutateAsync({
 													agent_name: agent.name,
 													port: share.port,
 												});
-												await sharedPortsQuery.refetch();
 											}}
 										>
-											<CloseIcon
+											<XIcon
 												css={{
 													width: 14,
 													height: 14,
@@ -553,14 +553,10 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										disabledPublicMenuItem
 									)}
 								</TextField>
-								<LoadingButton
-									variant="contained"
-									type="submit"
-									loading={isSubmitting}
-									disabled={!form.isValid}
-								>
+								<Button type="submit" disabled={!form.isValid || isSubmitting}>
+									<Spinner loading={isSubmitting} />
 									Share Port
-								</LoadingButton>
+								</Button>
 							</Stack>
 						</form>
 					</div>
@@ -621,11 +617,6 @@ const styles = {
 		"&.MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
 			border: 0,
 		},
-	}),
-
-	deleteButton: () => ({
-		minWidth: 30,
-		padding: 0,
 	}),
 
 	newPortForm: (theme) => ({

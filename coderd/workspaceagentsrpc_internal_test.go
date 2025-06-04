@@ -90,7 +90,7 @@ func TestAgentConnectionMonitor_ContextCancel(t *testing.T) {
 	fConn.requireEventuallyClosed(t, websocket.StatusGoingAway, "canceled")
 
 	// make sure we got at least one additional update on close
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 	m := fUpdater.getUpdates()
 	require.Greater(t, m, n)
 }
@@ -293,7 +293,7 @@ func TestAgentConnectionMonitor_StartClose(t *testing.T) {
 		uut.close()
 		close(closed)
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, closed)
+	_ = testutil.TryReceive(ctx, t, closed)
 }
 
 type fakePingerCloser struct {

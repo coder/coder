@@ -1,15 +1,14 @@
 package cli_test
 
 import (
-	"fmt"
 	"runtime"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 
 	"github.com/coder/coder/v2/agent"
-	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -23,7 +22,7 @@ import (
 func TestExpRpty(t *testing.T) {
 	t.Parallel()
 
-	t.Run("OK", func(t *testing.T) {
+	t.Run("DefaultCommand", func(t *testing.T) {
 		t.Parallel()
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
@@ -33,16 +32,38 @@ func TestExpRpty(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
+		_ = agenttest.New(t, client.URL, agentToken)
+		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
 		cmdDone := tGo(t, func() {
 			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
 		})
 
+		pty.WriteLine("exit")
+		<-cmdDone
+	})
+
+	t.Run("Command", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		randStr := uuid.NewString()
+		inv, root := clitest.New(t, "exp", "rpty", workspace.Name, "echo", randStr)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
 		_ = agenttest.New(t, client.URL, agentToken)
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
-		pty.ExpectMatch(fmt.Sprintf("Connected to %s", workspace.Name))
-		pty.WriteLine("exit")
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+
+		pty.ExpectMatch(randStr)
 		<-cmdDone
 	})
 
@@ -90,7 +111,6 @@ func TestExpRpty(t *testing.T) {
 
 		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
 			o.ExperimentalDevcontainersEnabled = true
-			o.ContainerLister = agentcontainers.NewDocker(o.Execer)
 		})
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
@@ -103,8 +123,6 @@ func TestExpRpty(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		pty.ExpectMatch(fmt.Sprintf("Connected to %s", workspace.Name))
-		pty.ExpectMatch("Reconnect ID: ")
 		pty.ExpectMatch(" #")
 		pty.WriteLine("hostname")
 		pty.ExpectMatch(ct.Container.Config.Hostname)

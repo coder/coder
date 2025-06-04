@@ -8,13 +8,14 @@ import {
 	MockAuthMethodsAll,
 	MockPermissions,
 	MockProxyLatencies,
-	MockUser,
+	MockUserOwner,
 	MockWorkspaceProxies,
 } from "testHelpers/entities";
 import { withDesktopViewport } from "testHelpers/storybook";
 import { ProxyMenu } from "./ProxyMenu";
 
 const defaultProxyContextValue = {
+	latenciesLoaded: true,
 	proxyLatencies: MockProxyLatencies,
 	proxy: getPreferredProxy(MockWorkspaceProxies, undefined),
 	proxies: MockWorkspaceProxies,
@@ -41,7 +42,7 @@ const meta: Meta<typeof ProxyMenu> = {
 	],
 	parameters: {
 		queries: [
-			{ key: ["me"], data: MockUser },
+			{ key: ["me"], data: MockUserOwner },
 			{ key: ["authMethods"], data: MockAuthMethodsAll },
 			{ key: ["hasFirstUser"], data: true },
 			{

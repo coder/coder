@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import {
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
+	MockTemplate,
 	MockWorkspace,
 	MockWorkspaceAgent,
 } from "testHelpers/entities";
@@ -14,6 +15,8 @@ const meta: Meta<typeof PortForwardButton> = {
 	decorators: [withDashboardProvider],
 	args: {
 		agent: MockWorkspaceAgent,
+		workspace: MockWorkspace,
+		template: MockTemplate,
 	},
 };
 

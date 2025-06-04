@@ -1,6 +1,6 @@
 export type ThemeRole = keyof Roles;
 
-export type InteractiveThemeRole = keyof {
+type InteractiveThemeRole = keyof {
 	[K in keyof Roles as Roles[K] extends InteractiveRole ? K : never]: unknown;
 };
 

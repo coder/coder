@@ -28,6 +28,7 @@ func BenchmarkGenerateDeterministicKey(b *testing.B) {
 	for range b.N {
 		// always record the result of DeterministicPrivateKey to prevent
 		// the compiler eliminating the function call.
+		// #nosec G404 - Using math/rand is acceptable for benchmarking deterministic keys
 		r = agentrsa.GenerateDeterministicKey(rand.Int64())
 	}
 

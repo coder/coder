@@ -62,11 +62,9 @@ func (*RootCmd) resetPassword() *serpent.Command {
 			}
 
 			password, err := cliui.Prompt(inv, cliui.PromptOptions{
-				Text:   "Enter new " + pretty.Sprint(cliui.DefaultStyles.Field, "password") + ":",
-				Secret: true,
-				Validate: func(s string) error {
-					return userpassword.Validate(s)
-				},
+				Text:     "Enter new " + pretty.Sprint(cliui.DefaultStyles.Field, "password") + ":",
+				Secret:   true,
+				Validate: userpassword.Validate,
 			})
 			if err != nil {
 				return xerrors.Errorf("password prompt: %w", err)

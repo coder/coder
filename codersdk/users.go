@@ -28,7 +28,8 @@ type UsersRequest struct {
 	// Filter users by status.
 	Status UserStatus `json:"status,omitempty" typescript:"-"`
 	// Filter users that have the given role.
-	Role string `json:"role,omitempty" typescript:"-"`
+	Role      string      `json:"role,omitempty" typescript:"-"`
+	LoginType []LoginType `json:"login_type,omitempty" typescript:"-"`
 
 	SearchQuery string `json:"q,omitempty"`
 	Pagination
@@ -39,7 +40,7 @@ type UsersRequest struct {
 type MinimalUser struct {
 	ID        uuid.UUID `json:"id" validate:"required" table:"id" format:"uuid"`
 	Username  string    `json:"username" validate:"required" table:"username,default_sort"`
-	AvatarURL string    `json:"avatar_url" format:"uri"`
+	AvatarURL string    `json:"avatar_url,omitempty" format:"uri"`
 }
 
 // ReducedUser omits role and organization information. Roles are deduced from
@@ -48,11 +49,11 @@ type MinimalUser struct {
 // required by the frontend.
 type ReducedUser struct {
 	MinimalUser `table:"m,recursive_inline"`
-	Name        string    `json:"name"`
+	Name        string    `json:"name,omitempty"`
 	Email       string    `json:"email" validate:"required" table:"email" format:"email"`
 	CreatedAt   time.Time `json:"created_at" validate:"required" table:"created at" format:"date-time"`
 	UpdatedAt   time.Time `json:"updated_at" table:"updated at" format:"date-time"`
-	LastSeenAt  time.Time `json:"last_seen_at" format:"date-time"`
+	LastSeenAt  time.Time `json:"last_seen_at,omitempty" format:"date-time"`
 
 	Status    UserStatus `json:"status" table:"status" enums:"active,suspended"`
 	LoginType LoginType  `json:"login_type"`
@@ -189,12 +190,30 @@ type ValidateUserPasswordResponse struct {
 	Details string `json:"details"`
 }
 
+// TerminalFontName is the name of supported terminal font
+type TerminalFontName string
+
+var TerminalFontNames = []TerminalFontName{
+	TerminalFontUnknown, TerminalFontIBMPlexMono, TerminalFontFiraCode,
+	TerminalFontSourceCodePro, TerminalFontJetBrainsMono,
+}
+
+const (
+	TerminalFontUnknown       TerminalFontName = ""
+	TerminalFontIBMPlexMono   TerminalFontName = "ibm-plex-mono"
+	TerminalFontFiraCode      TerminalFontName = "fira-code"
+	TerminalFontSourceCodePro TerminalFontName = "source-code-pro"
+	TerminalFontJetBrainsMono TerminalFontName = "jetbrains-mono"
+)
+
 type UserAppearanceSettings struct {
-	ThemePreference string `json:"theme_preference"`
+	ThemePreference string           `json:"theme_preference"`
+	TerminalFont    TerminalFontName `json:"terminal_font"`
 }
 
 type UpdateUserAppearanceSettingsRequest struct {
-	ThemePreference string `json:"theme_preference" validate:"required"`
+	ThemePreference string           `json:"theme_preference" validate:"required"`
+	TerminalFont    TerminalFontName `json:"terminal_font" validate:"required"`
 }
 
 type UpdateUserPasswordRequest struct {
@@ -466,17 +485,31 @@ func (c *Client) UpdateUserStatus(ctx context.Context, user string, status UserS
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// UpdateUserAppearanceSettings updates the appearance settings for a user.
-func (c *Client) UpdateUserAppearanceSettings(ctx context.Context, user string, req UpdateUserAppearanceSettingsRequest) (User, error) {
-	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/appearance", user), req)
+// GetUserAppearanceSettings fetches the appearance settings for a user.
+func (c *Client) GetUserAppearanceSettings(ctx context.Context, user string) (UserAppearanceSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/appearance", user), nil)
 	if err != nil {
-		return User{}, err
+		return UserAppearanceSettings{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return User{}, ReadBodyAsError(res)
+		return UserAppearanceSettings{}, ReadBodyAsError(res)
 	}
-	var resp User
+	var resp UserAppearanceSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateUserAppearanceSettings updates the appearance settings for a user.
+func (c *Client) UpdateUserAppearanceSettings(ctx context.Context, user string, req UpdateUserAppearanceSettingsRequest) (UserAppearanceSettings, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/appearance", user), req)
+	if err != nil {
+		return UserAppearanceSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserAppearanceSettings{}, ReadBodyAsError(res)
+	}
+	var resp UserAppearanceSettings
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
@@ -630,7 +663,14 @@ func (c *Client) ChangePasswordWithOneTimePasscode(ctx context.Context, req Chan
 // based authentication to oauth based. The response has the oauth state code
 // to use in the oauth flow.
 func (c *Client) ConvertLoginType(ctx context.Context, req ConvertLoginRequest) (OAuthConversionResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/me/convert-login", req)
+	return c.ConvertUserLoginType(ctx, Me, req)
+}
+
+// ConvertUserLoginType will send a request to convert the user from password
+// based authentication to oauth based. The response has the oauth state code
+// to use in the oauth flow.
+func (c *Client) ConvertUserLoginType(ctx context.Context, user string, req ConvertLoginRequest) (OAuthConversionResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/convert-login", user), req)
 	if err != nil {
 		return OAuthConversionResponse{}, err
 	}
@@ -722,6 +762,9 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) (GetUsersResponse,
 			}
 			if req.SearchQuery != "" {
 				params = append(params, req.SearchQuery)
+			}
+			for _, lt := range req.LoginType {
+				params = append(params, "login_type:"+string(lt))
 			}
 			q.Set("q", strings.Join(params, " "))
 			r.URL.RawQuery = q.Encode()

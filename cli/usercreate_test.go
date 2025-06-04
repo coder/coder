@@ -39,7 +39,7 @@ func TestUserCreate(t *testing.T) {
 			pty.ExpectMatch(match)
 			pty.WriteLine(value)
 		}
-		_ = testutil.RequireRecvCtx(ctx, t, doneChan)
+		_ = testutil.TryReceive(ctx, t, doneChan)
 		created, err := client.User(ctx, matches[1])
 		require.NoError(t, err)
 		assert.Equal(t, matches[1], created.Username)
@@ -72,7 +72,7 @@ func TestUserCreate(t *testing.T) {
 			pty.ExpectMatch(match)
 			pty.WriteLine(value)
 		}
-		_ = testutil.RequireRecvCtx(ctx, t, doneChan)
+		_ = testutil.TryReceive(ctx, t, doneChan)
 		created, err := client.User(ctx, matches[1])
 		require.NoError(t, err)
 		assert.Equal(t, matches[1], created.Username)

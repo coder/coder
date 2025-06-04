@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -579,6 +580,8 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		externalAuthProviderNames = append(externalAuthProviderNames, it.Id)
 	}
 
+	// fmt.Println("completed job: template import: graph:", startProvision.Graph)
+
 	return &proto.CompletedJob{
 		JobId: r.job.JobId,
 		Type: &proto.CompletedJob_TemplateImport_{
@@ -591,6 +594,8 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				StartModules:               startProvision.Modules,
 				StopModules:                stopProvision.Modules,
 				Presets:                    startProvision.Presets,
+				Plan:                       startProvision.Plan,
+				ModuleFiles:                startProvision.ModuleFiles,
 			},
 		},
 	}, nil
@@ -652,6 +657,8 @@ type templateImportProvision struct {
 	ExternalAuthProviders []*sdkproto.ExternalAuthProviderResource
 	Modules               []*sdkproto.Module
 	Presets               []*sdkproto.Preset
+	Plan                  json.RawMessage
+	ModuleFiles           []byte
 }
 
 // Performs a dry-run provision when importing a template.
@@ -684,7 +691,9 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 	err := r.session.Send(&sdkproto.Request{Type: &sdkproto.Request_Plan{Plan: &sdkproto.PlanRequest{
 		Metadata:            metadata,
 		RichParameterValues: richParameterValues,
-		VariableValues:      variableValues,
+		// Template import has no previous values
+		PreviousParameterValues: make([]*sdkproto.RichParameterValue, 0),
+		VariableValues:          variableValues,
 	}}})
 	if err != nil {
 		return nil, xerrors.Errorf("start provision: %w", err)
@@ -745,6 +754,8 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 				ExternalAuthProviders: c.ExternalAuthProviders,
 				Modules:               c.Modules,
 				Presets:               c.Presets,
+				Plan:                  c.Plan,
+				ModuleFiles:           c.ModuleFiles,
 			}, nil
 		default:
 			return nil, xerrors.Errorf("invalid message type %q received from provisioner",
@@ -879,7 +890,8 @@ func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource
 	const stage = "Commit quota"
 
 	resp, err := r.quotaCommitter.CommitQuota(ctx, &proto.CommitQuotaRequest{
-		JobId:     r.job.JobId,
+		JobId: r.job.JobId,
+		// #nosec G115 - Safe conversion as cost is expected to be within int32 range for provisioning costs
 		DailyCost: int32(cost),
 	})
 	if err != nil {
@@ -950,10 +962,11 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	resp, failed := r.buildWorkspace(ctx, "Planning infrastructure", &sdkproto.Request{
 		Type: &sdkproto.Request_Plan{
 			Plan: &sdkproto.PlanRequest{
-				Metadata:              r.job.GetWorkspaceBuild().Metadata,
-				RichParameterValues:   r.job.GetWorkspaceBuild().RichParameterValues,
-				VariableValues:        r.job.GetWorkspaceBuild().VariableValues,
-				ExternalAuthProviders: r.job.GetWorkspaceBuild().ExternalAuthProviders,
+				Metadata:                r.job.GetWorkspaceBuild().Metadata,
+				RichParameterValues:     r.job.GetWorkspaceBuild().RichParameterValues,
+				PreviousParameterValues: r.job.GetWorkspaceBuild().PreviousParameterValues,
+				VariableValues:          r.job.GetWorkspaceBuild().VariableValues,
+				ExternalAuthProviders:   r.job.GetWorkspaceBuild().ExternalAuthProviders,
 			},
 		},
 	})
@@ -1052,6 +1065,8 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 				// called by `plan`. `apply` does not modify them, so we can use the
 				// modules from the plan response.
 				Modules: planComplete.Modules,
+				// Resource replacements are discovered at plan time, only.
+				ResourceReplacements: planComplete.ResourceReplacements,
 			},
 		},
 	}, nil

@@ -11,7 +11,7 @@ import { useClickableTableRow } from "hooks/useClickableTableRow";
 import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
 
-export interface VersionRowProps {
+interface VersionRowProps {
 	version: TemplateVersion;
 	isActive: boolean;
 	isLatest: boolean;
@@ -33,7 +33,6 @@ export const VersionRow: FC<VersionRowProps> = ({
 	});
 
 	const jobStatus = version.job.status;
-	const showActions = onPromoteClick || onArchiveClick;
 
 	return (
 		<TimelineEntry
@@ -106,7 +105,7 @@ export const VersionRow: FC<VersionRowProps> = ({
 							</Pill>
 						)}
 
-						{showActions && jobStatus === "failed" ? (
+						{jobStatus === "failed" && onArchiveClick && (
 							<Button
 								css={styles.promoteButton}
 								disabled={isActive || version.archived}
@@ -118,7 +117,9 @@ export const VersionRow: FC<VersionRowProps> = ({
 							>
 								Archive&hellip;
 							</Button>
-						) : (
+						)}
+
+						{jobStatus === "succeeded" && onPromoteClick && (
 							<Button
 								css={styles.promoteButton}
 								disabled={isActive || jobStatus !== "succeeded"}

@@ -32,7 +32,8 @@ values:
 The below values are modified from Coder defaults and allow the Coder deployment
 to run under the SCC `restricted-v2`.
 
-> Note: `readOnlyRootFilesystem: true` is not technically required under
+> [!NOTE]
+> `readOnlyRootFilesystem: true` is not technically required under
 > `restricted-v2`, but is often mandated in OpenShift environments.
 
 ```yaml
@@ -92,7 +93,8 @@ To fix this, you can mount a temporary volume in the pod and set the
 example, we mount this under `/tmp` and set the cache location to `/tmp/coder`.
 This enables Coder to run with `readOnlyRootFilesystem: true`.
 
-> Note: Depending on the number of templates and provisioners you use, you may
+> [!NOTE]
+> Depending on the number of templates and provisioners you use, you may
 > need to increase the size of the volume, as the `coder` pod will be
 > automatically restarted when this volume fills up.
 
@@ -128,7 +130,8 @@ coder:
       readOnly: false
 ```
 
-> Note: OpenShift provides a Developer Catalog offering you can use to install
+> [!NOTE]
+> OpenShift provides a Developer Catalog offering you can use to install
 > PostgreSQL into your cluster.
 
 ### 4. Create the OpenShift route
@@ -176,7 +179,8 @@ helm install coder coder-v2/coder \
   --values values.yaml
 ```
 
-> Note: If the Helm installation fails with a Kubernetes RBAC error, check the
+> [!NOTE]
+> If the Helm installation fails with a Kubernetes RBAC error, check the
 > permissions of your OpenShift user using the `oc auth can-i` command.
 >
 > The below permissions are the minimum required:

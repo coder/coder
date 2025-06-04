@@ -167,7 +167,7 @@ func parseCLISchedule(parts ...string) (*cron.Schedule, error) {
 func parseDuration(raw string) (time.Duration, error) {
 	// If the user input a raw number, assume minutes
 	if isDigit(raw) {
-		raw = raw + "m"
+		raw += "m"
 	}
 	d, err := time.ParseDuration(raw)
 	if err != nil {

@@ -38,7 +38,7 @@ func New(serverURL *url.URL) *Client {
 	sdkClient.SessionTokenHeader = httpmw.WorkspaceProxyAuthTokenHeader
 
 	sdkClientIgnoreRedirects := codersdk.New(serverURL)
-	sdkClientIgnoreRedirects.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	sdkClientIgnoreRedirects.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 	sdkClientIgnoreRedirects.SessionTokenHeader = httpmw.WorkspaceProxyAuthTokenHeader

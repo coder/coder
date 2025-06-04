@@ -11,7 +11,9 @@ SET
 		'':: bytea
 	END
 WHERE
-	id = @user_id RETURNING *;
+	id = @user_id
+	AND NOT is_system
+RETURNING *;
 
 -- name: GetUserByID :one
 SELECT
@@ -46,7 +48,8 @@ SELECT
 FROM
 	users
 WHERE
-	deleted = false;
+	deleted = false
+  	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: GetActiveUserCount :one
 SELECT
@@ -54,7 +57,8 @@ SELECT
 FROM
 	users
 WHERE
-	status = 'active'::user_status AND deleted = false;
+	status = 'active'::user_status AND deleted = false
+	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: InsertUser :one
 INSERT INTO
@@ -98,7 +102,7 @@ SET
 WHERE
 	id = $1;
 
--- name: GetUserAppearanceSettings :one
+-- name: GetUserThemePreference :one
 SELECT
 	value as theme_preference
 FROM
@@ -107,7 +111,7 @@ WHERE
 	user_id = @user_id
 	AND key = 'theme_preference';
 
--- name: UpdateUserAppearanceSettings :one
+-- name: UpdateUserThemePreference :one
 INSERT INTO
 	user_configs (user_id, key, value)
 VALUES
@@ -119,6 +123,29 @@ SET
 	value = @theme_preference
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'theme_preference'
+RETURNING *;
+
+-- name: GetUserTerminalFont :one
+SELECT
+	value as terminal_font
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'terminal_font';
+
+-- name: UpdateUserTerminalFont :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'terminal_font', @terminal_font)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @terminal_font
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'terminal_font'
 RETURNING *;
 
 -- name: UpdateUserRoles :one
@@ -223,6 +250,22 @@ WHERE
 			created_at >= @created_after
 		ELSE true
 	END
+  	AND CASE
+  	    WHEN @include_system::bool THEN TRUE
+  	    ELSE
+			is_system = false
+	END
+	AND CASE
+		WHEN @github_com_user_id :: bigint != 0 THEN
+			github_com_user_id = @github_com_user_id
+		ELSE true
+	END
+	-- Filter by login_type
+	AND CASE
+		WHEN cardinality(@login_type :: login_type[]) > 0 THEN
+			login_type = ANY(@login_type :: login_type[])
+		ELSE true
+	END
 	-- End of filters
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
@@ -257,10 +300,10 @@ WHERE
 -- This function returns roles for authorization purposes. Implied member roles
 -- are included.
 SELECT
-	-- username is returned just to help for logging purposes
+	-- username and email are returned just to help for logging purposes
 	-- status is used to enforce 'suspended' users, as all roles are ignored
 	--	when suspended.
-	id, username, status,
+	id, username, status, email,
 	-- All user roles, including their org roles.
 	array_cat(
 		-- All users are members
@@ -311,15 +354,17 @@ UPDATE
     users
 SET
     status = 'dormant'::user_status,
-	updated_at = @updated_at
+    updated_at = @updated_at
 WHERE
     last_seen_at < @last_seen_after :: timestamp
     AND status = 'active'::user_status
+		AND NOT is_system
 RETURNING id, email, username, last_seen_at;
 
 -- AllUserIDs returns all UserIDs regardless of user status or deletion.
 -- name: AllUserIDs :many
-SELECT DISTINCT id FROM USERS;
+SELECT DISTINCT id FROM USERS
+	WHERE CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: UpdateUserHashedOneTimePasscode :exec
 UPDATE

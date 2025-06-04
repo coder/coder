@@ -1,8 +1,6 @@
-import CheckOutlined from "@mui/icons-material/CheckOutlined";
-import Button, { type ButtonProps } from "@mui/material/Button";
 import MenuItem, { type MenuItemProps } from "@mui/material/MenuItem";
 import MenuList, { type MenuListProps } from "@mui/material/MenuList";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import { Button, type ButtonProps } from "components/Button/Button";
 import {
 	SearchField,
 	type SearchFieldProps,
@@ -12,6 +10,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
+import { CheckIcon, ChevronDownIcon } from "lucide-react";
 import {
 	Children,
 	type FC,
@@ -30,46 +29,25 @@ export const SelectMenuTrigger = PopoverTrigger;
 
 export const SelectMenuContent = PopoverContent;
 
-export const SelectMenuButton = forwardRef<HTMLButtonElement, ButtonProps>(
-	(props, ref) => {
-		return (
-			<Button
-				css={{
-					// Icon and text should be aligned to the left
-					justifyContent: "flex-start",
-					flexShrink: 0,
-					"& .MuiButton-startIcon": {
-						marginLeft: 0,
-						marginRight: SIDE_PADDING,
-					},
-					// Dropdown arrow should be at the end of the button
-					"& .MuiButton-endIcon": {
-						marginLeft: "auto",
-					},
-				}}
-				endIcon={<DropdownArrow />}
-				ref={ref}
-				{...props}
-				// MUI applies a style that affects the sizes of start icons.
-				// .MuiButton-startIcon > *:nth-of-type(1) { font-size: 20px }. To
-				// prevent this from breaking the inner components of startIcon, we wrap
-				// it in a div.
-				startIcon={props.startIcon && <div>{props.startIcon}</div>}
-			>
-				<span
-					// Make sure long text does not break the button layout
-					css={{
-						display: "block",
-						overflow: "hidden",
-						textOverflow: "ellipsis",
-					}}
-				>
-					{props.children}
-				</span>
-			</Button>
-		);
-	},
-);
+type SelectMenuButtonProps = ButtonProps & {
+	startIcon?: React.ReactNode;
+};
+
+export const SelectMenuButton = forwardRef<
+	HTMLButtonElement,
+	SelectMenuButtonProps
+>((props, ref) => {
+	const { startIcon, ...restProps } = props;
+	return (
+		<Button variant="outline" size="lg" ref={ref} {...restProps}>
+			{startIcon}
+			<span className="text-left block overflow-hidden text-ellipsis flex-grow">
+				{props.children}
+			</span>
+			<ChevronDownIcon />
+		</Button>
+	);
+});
 
 export const SelectMenuSearch: FC<SearchFieldProps> = (props) => {
 	return (
@@ -145,10 +123,7 @@ export const SelectMenuItem: FC<MenuItemProps> = (props) => {
 		>
 			{props.children}
 			{props.selected && (
-				<CheckOutlined
-					// TODO: Don't set the menu icon font size on default theme
-					css={{ marginLeft: "auto", fontSize: "inherit !important" }}
-				/>
+				<CheckIcon className="size-icon-xs" css={{ marginLeft: "auto" }} />
 			)}
 		</MenuItem>
 	);

@@ -287,23 +287,27 @@ type TemplateVersionResponse struct {
 }
 
 type TemplateVersionBuilder struct {
-	t         testing.TB
-	db        database.Store
-	seed      database.TemplateVersion
-	fileID    uuid.UUID
-	ps        pubsub.Pubsub
-	resources []*sdkproto.Resource
-	params    []database.TemplateVersionParameter
-	promote   bool
+	t                  testing.TB
+	db                 database.Store
+	seed               database.TemplateVersion
+	fileID             uuid.UUID
+	ps                 pubsub.Pubsub
+	resources          []*sdkproto.Resource
+	params             []database.TemplateVersionParameter
+	presets            []database.TemplateVersionPreset
+	presetParams       []database.TemplateVersionPresetParameter
+	promote            bool
+	autoCreateTemplate bool
 }
 
 // TemplateVersion generates a template version and optionally a parent
 // template if no template ID is set on the seed.
 func TemplateVersion(t testing.TB, db database.Store) TemplateVersionBuilder {
 	return TemplateVersionBuilder{
-		t:       t,
-		db:      db,
-		promote: true,
+		t:                  t,
+		db:                 db,
+		promote:            true,
+		autoCreateTemplate: true,
 	}
 }
 
@@ -337,6 +341,20 @@ func (t TemplateVersionBuilder) Params(ps ...database.TemplateVersionParameter) 
 	return t
 }
 
+func (t TemplateVersionBuilder) Preset(preset database.TemplateVersionPreset, params ...database.TemplateVersionPresetParameter) TemplateVersionBuilder {
+	// nolint: revive // returns modified struct
+	t.presets = append(t.presets, preset)
+	t.presetParams = append(t.presetParams, params...)
+	return t
+}
+
+func (t TemplateVersionBuilder) SkipCreateTemplate() TemplateVersionBuilder {
+	// nolint: revive // returns modified struct
+	t.autoCreateTemplate = false
+	t.promote = false
+	return t
+}
+
 func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 	t.t.Helper()
 
@@ -347,7 +365,7 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 	t.fileID = takeFirst(t.fileID, uuid.New())
 
 	var resp TemplateVersionResponse
-	if t.seed.TemplateID.UUID == uuid.Nil {
+	if t.seed.TemplateID.UUID == uuid.Nil && t.autoCreateTemplate {
 		resp.Template = dbgen.Template(t.t, t.db, database.Template{
 			ActiveVersionID: t.seed.ID,
 			OrganizationID:  t.seed.OrganizationID,
@@ -360,16 +378,33 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 	}
 
 	version := dbgen.TemplateVersion(t.t, t.db, t.seed)
+	if t.promote {
+		err := t.db.UpdateTemplateActiveVersionByID(ownerCtx, database.UpdateTemplateActiveVersionByIDParams{
+			ID:              t.seed.TemplateID.UUID,
+			ActiveVersionID: t.seed.ID,
+			UpdatedAt:       dbtime.Now(),
+		})
+		require.NoError(t.t, err)
+	}
 
-	// Always make this version the active version. We can easily
-	// add a conditional to the builder to opt out of this when
-	// necessary.
-	err := t.db.UpdateTemplateActiveVersionByID(ownerCtx, database.UpdateTemplateActiveVersionByIDParams{
-		ID:              t.seed.TemplateID.UUID,
-		ActiveVersionID: t.seed.ID,
-		UpdatedAt:       dbtime.Now(),
-	})
-	require.NoError(t.t, err)
+	for _, preset := range t.presets {
+		dbgen.Preset(t.t, t.db, database.InsertPresetParams{
+			ID:                  preset.ID,
+			TemplateVersionID:   version.ID,
+			Name:                preset.Name,
+			CreatedAt:           version.CreatedAt,
+			DesiredInstances:    preset.DesiredInstances,
+			InvalidateAfterSecs: preset.InvalidateAfterSecs,
+		})
+	}
+
+	for _, presetParam := range t.presetParams {
+		dbgen.PresetParameter(t.t, t.db, database.InsertPresetParametersParams{
+			TemplateVersionPresetID: presetParam.TemplateVersionPresetID,
+			Names:                   []string{presetParam.Name},
+			Values:                  []string{presetParam.Value},
+		})
+	}
 
 	payload, err := json.Marshal(provisionerdserver.TemplateVersionImportJob{
 		TemplateVersionID: t.seed.ID,

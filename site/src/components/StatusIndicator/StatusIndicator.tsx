@@ -1,5 +1,5 @@
 import { type VariantProps, cva } from "class-variance-authority";
-import { type FC, createContext, useContext } from "react";
+import { type FC, createContext, forwardRef, useContext } from "react";
 import { cn } from "utils/cn";
 
 const statusIndicatorVariants = cva(
@@ -33,21 +33,19 @@ export interface StatusIndicatorProps
 	extends React.HTMLAttributes<HTMLDivElement>,
 		StatusIndicatorContextValue {}
 
-export const StatusIndicator: FC<StatusIndicatorProps> = ({
-	size,
-	variant,
-	className,
-	...props
-}) => {
-	return (
-		<StatusIndicatorContext.Provider value={{ size, variant }}>
-			<div
-				className={cn(statusIndicatorVariants({ variant, size }), className)}
-				{...props}
-			/>
-		</StatusIndicatorContext.Provider>
-	);
-};
+export const StatusIndicator = forwardRef<HTMLDivElement, StatusIndicatorProps>(
+	({ size, variant, className, ...props }, ref) => {
+		return (
+			<StatusIndicatorContext.Provider value={{ size, variant }}>
+				<div
+					ref={ref}
+					className={cn(statusIndicatorVariants({ variant, size }), className)}
+					{...props}
+				/>
+			</StatusIndicatorContext.Provider>
+		);
+	},
+);
 
 const dotVariants = cva("rounded-full inline-block border-4 border-solid", {
 	variants: {

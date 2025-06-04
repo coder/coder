@@ -4,7 +4,11 @@ import type { Role } from "api/typesGenerated";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
@@ -14,9 +18,9 @@ import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import CustomRolesPageView from "./CustomRolesPageView";
+import { CustomRolesPageView } from "./CustomRolesPageView";
 
-export const CustomRolesPage: FC = () => {
+const CustomRolesPage: FC = () => {
 	const queryClient = useQueryClient();
 	const { custom_roles: isCustomRolesEnabled } = useFeatureVisibility();
 	const { organization: organizationName } = useParams() as {
@@ -71,25 +75,28 @@ export const CustomRolesPage: FC = () => {
 					direction="row"
 					justifyContent="space-between"
 				>
-					<SettingsHeader
-						title="Roles"
-						description="Manage roles for this organization."
-					/>
+					<SettingsHeader>
+						<SettingsHeaderTitle>Roles</SettingsHeaderTitle>
+						<SettingsHeaderDescription>
+							Manage roles for this organization.
+						</SettingsHeaderDescription>
+					</SettingsHeader>
 				</Stack>
 
 				<CustomRolesPageView
 					builtInRoles={builtInRoles}
 					customRoles={customRoles}
 					onDeleteRole={setRoleToDelete}
-					canAssignOrgRole={organizationPermissions?.assignOrgRoles ?? false}
 					canCreateOrgRole={organizationPermissions?.createOrgRoles ?? false}
+					canUpdateOrgRole={organizationPermissions?.updateOrgRoles ?? false}
+					canDeleteOrgRole={organizationPermissions?.deleteOrgRoles ?? false}
 					isCustomRolesEnabled={isCustomRolesEnabled}
 				/>
 
 				<DeleteDialog
 					key={roleToDelete?.name}
 					isOpen={roleToDelete !== undefined}
-					confirmLoading={deleteRoleMutation.isLoading}
+					confirmLoading={deleteRoleMutation.isPending}
 					name={roleToDelete?.name ?? ""}
 					entity="role"
 					onCancel={() => setRoleToDelete(undefined)}

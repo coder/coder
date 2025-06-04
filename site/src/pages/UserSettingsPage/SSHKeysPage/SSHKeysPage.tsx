@@ -18,7 +18,7 @@ export const Language = {
 	cancelLabel: "Cancel",
 };
 
-export const SSHKeysPage: FC = () => {
+const SSHKeysPage: FC = () => {
 	const [isConfirmingRegeneration, setIsConfirmingRegeneration] =
 		useState(false);
 
@@ -43,7 +43,7 @@ export const SSHKeysPage: FC = () => {
 				type="delete"
 				hideCancel={false}
 				open={isConfirmingRegeneration}
-				confirmLoading={regenerateSSHKeyMutation.isLoading}
+				confirmLoading={regenerateSSHKeyMutation.isPending}
 				title={Language.regenerateDialogTitle}
 				description={Language.regenerateDialogMessage}
 				confirmText={Language.confirmLabel}

@@ -48,8 +48,7 @@ argin: 8px 0 32px; line-height: 1.5;">
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
-
-<p>New user account <strong>bobby</strong> has been created.</p>
+        <p>New user account <strong>bobby</strong> has been created.</p>
 
 <p>This new user account was created for <strong>William Tables</strong> by=
  <strong>rob</strong>.</p>

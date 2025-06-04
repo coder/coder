@@ -64,11 +64,11 @@ export const handlers = [
 			M.MockOrganizationAuditorRole,
 		]);
 	}),
-	http.get("/api/v2/organizations/:organizationId/members", () => {
-		return HttpResponse.json([
-			M.MockOrganizationMember,
-			M.MockOrganizationMember2,
-		]);
+	http.get("/api/v2/organizations/:organizationId/paginated-members", () => {
+		return HttpResponse.json({
+			members: [M.MockOrganizationMember, M.MockOrganizationMember2],
+			count: 2,
+		});
 	}),
 	http.delete(
 		"/api/v2/organizations/:organizationId/members/:userId",
@@ -135,12 +135,12 @@ export const handlers = [
 	// users
 	http.get("/api/v2/users", () => {
 		return HttpResponse.json({
-			users: [M.MockUser, M.MockUser2, M.SuspendedMockUser],
+			users: [M.MockUserOwner, M.MockUserMember, M.SuspendedMockUser],
 			count: 26,
 		});
 	}),
 	http.post("/api/v2/users", () => {
-		return HttpResponse.json(M.MockUser);
+		return HttpResponse.json(M.MockUserOwner);
 	}),
 	http.get("/api/v2/users/:userid/login-type", () => {
 		return HttpResponse.json({
@@ -160,7 +160,7 @@ export const handlers = [
 		return new HttpResponse(null, { status: 200 });
 	}),
 	http.get("/api/v2/users/me", () => {
-		return HttpResponse.json(M.MockUser);
+		return HttpResponse.json(M.MockUserOwner);
 	}),
 	http.get("/api/v2/users/me/appearance", () => {
 		return HttpResponse.json(M.MockUserAppearanceSettings);
@@ -198,7 +198,7 @@ export const handlers = [
 		return new HttpResponse(null, { status: 200 });
 	}),
 	http.post("/api/v2/users/first", () => {
-		return HttpResponse.json(M.MockUser);
+		return HttpResponse.json(M.MockUserOwner);
 	}),
 
 	// workspaces
@@ -373,9 +373,5 @@ export const handlers = [
 
 	http.get("/api/v2/workspaceagents/:agent/listening-ports", () => {
 		return HttpResponse.json(M.MockListeningPortsResponse);
-	}),
-
-	http.get("/api/v2/integrations/jfrog/xray-scan", () => {
-		return new HttpResponse(null, { status: 404 });
 	}),
 ];

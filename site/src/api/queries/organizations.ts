@@ -1,16 +1,28 @@
-import { API } from "api/api";
+import {
+	API,
+	type GetProvisionerDaemonsParams,
+	type GetProvisionerJobsParams,
+} from "api/api";
 import type {
 	CreateOrganizationRequest,
 	GroupSyncSettings,
+	PaginatedMembersRequest,
+	PaginatedMembersResponse,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
+import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import {
 	type OrganizationPermissionName,
 	type OrganizationPermissions,
 	organizationPermissionChecks,
 } from "modules/permissions/organizations";
-import type { QueryClient } from "react-query";
+import {
+	type WorkspacePermissionName,
+	type WorkspacePermissions,
+	workspacePermissionChecks,
+} from "modules/permissions/workspaces";
+import type { QueryClient, UseQueryOptions } from "react-query";
 import { meKey } from "./users";
 
 export const createOrganization = (queryClient: QueryClient) => {
@@ -19,8 +31,8 @@ export const createOrganization = (queryClient: QueryClient) => {
 			API.createOrganization(params),
 
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(meKey);
-			await queryClient.invalidateQueries(organizationsKey);
+			await queryClient.invalidateQueries({ queryKey: meKey });
+			await queryClient.invalidateQueries({ queryKey: organizationsKey });
 		},
 	};
 };
@@ -36,7 +48,7 @@ export const updateOrganization = (queryClient: QueryClient) => {
 			API.updateOrganization(variables.organizationId, variables.req),
 
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(organizationsKey);
+			await queryClient.invalidateQueries({ queryKey: organizationsKey });
 		},
 	};
 };
@@ -47,8 +59,8 @@ export const deleteOrganization = (queryClient: QueryClient) => {
 			API.deleteOrganization(organizationId),
 
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(meKey);
-			await queryClient.invalidateQueries(organizationsKey);
+			await queryClient.invalidateQueries({ queryKey: meKey });
+			await queryClient.invalidateQueries({ queryKey: organizationsKey });
 		},
 	};
 };
@@ -59,10 +71,42 @@ export const organizationMembersKey = (id: string) => [
 	"members",
 ];
 
+/**
+ * Creates a query configuration to fetch all members of an organization.
+ *
+ * Unlike the paginated version, this function sets the `limit` parameter to 0,
+ * which instructs the API to return all organization members in a single request
+ * without pagination.
+ *
+ * @param id - The unique identifier of the organization
+ * @returns A query configuration object for use with React Query
+ *
+ * @see paginatedOrganizationMembers - For fetching members with pagination support
+ */
 export const organizationMembers = (id: string) => {
 	return {
-		queryFn: () => API.getOrganizationMembers(id),
+		queryFn: () => API.getOrganizationPaginatedMembers(id, { limit: 0 }),
 		queryKey: organizationMembersKey(id),
+	};
+};
+
+export const paginatedOrganizationMembers = (
+	id: string,
+	searchParams: URLSearchParams,
+): UsePaginatedQueryOptions<
+	PaginatedMembersResponse,
+	PaginatedMembersRequest
+> => {
+	return {
+		searchParams,
+		queryPayload: ({ limit, offset }) => {
+			return {
+				limit: limit,
+				offset: offset,
+			};
+		},
+		queryKey: ({ payload }) => [...organizationMembersKey(id), payload],
+		queryFn: ({ payload }) => API.getOrganizationPaginatedMembers(id, payload),
 	};
 };
 
@@ -73,7 +117,9 @@ export const addOrganizationMember = (queryClient: QueryClient, id: string) => {
 		},
 
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(["organization", id, "members"]);
+			await queryClient.invalidateQueries({
+				queryKey: ["organization", id, "members"],
+			});
 		},
 	};
 };
@@ -88,7 +134,9 @@ export const removeOrganizationMember = (
 		},
 
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(["organization", id, "members"]);
+			await queryClient.invalidateQueries({
+				queryKey: ["organization", id, "members"],
+			});
 		},
 	};
 };
@@ -103,11 +151,9 @@ export const updateOrganizationMemberRoles = (
 		},
 
 		onSuccess: async () => {
-			await queryClient.invalidateQueries([
-				"organization",
-				organizationId,
-				"members",
-			]);
+			await queryClient.invalidateQueries({
+				queryKey: ["organization", organizationId, "members"],
+			});
 		},
 	};
 };
@@ -123,20 +169,21 @@ export const organizations = () => {
 
 export const getProvisionerDaemonsKey = (
 	organization: string,
-	tags?: Record<string, string>,
-) => ["organization", organization, tags, "provisionerDaemons"];
+	params?: GetProvisionerDaemonsParams,
+) => ["organization", organization, "provisionerDaemons", params];
 
 export const provisionerDaemons = (
 	organization: string,
-	tags?: Record<string, string>,
+	params?: GetProvisionerDaemonsParams,
 ) => {
 	return {
-		queryKey: getProvisionerDaemonsKey(organization, tags),
-		queryFn: () => API.getProvisionerDaemonsByOrganization(organization, tags),
+		queryKey: getProvisionerDaemonsKey(organization, params),
+		queryFn: () =>
+			API.getProvisionerDaemonsByOrganization(organization, params),
 	};
 };
 
-export const getProvisionerDaemonGroupsKey = (organization: string) => [
+const getProvisionerDaemonGroupsKey = (organization: string) => [
 	"organization",
 	organization,
 	"provisionerDaemons",
@@ -149,7 +196,7 @@ export const provisionerDaemonGroups = (organization: string) => {
 	};
 };
 
-export const getGroupIdpSyncSettingsKey = (organization: string) => [
+const getGroupIdpSyncSettingsKey = (organization: string) => [
 	"organizations",
 	organization,
 	"groupIdpSyncSettings",
@@ -174,7 +221,7 @@ export const patchGroupSyncSettings = (
 	};
 };
 
-export const getRoleIdpSyncSettingsKey = (organization: string) => [
+const getRoleIdpSyncSettingsKey = (organization: string) => [
 	"organizations",
 	organization,
 	"roleIdpSyncSettings",
@@ -195,22 +242,24 @@ export const patchRoleSyncSettings = (
 		mutationFn: (request: RoleSyncSettings) =>
 			API.patchRoleIdpSyncSettings(request, organization),
 		onSuccess: async () =>
-			await queryClient.invalidateQueries(
-				getRoleIdpSyncSettingsKey(organization),
-			),
+			await queryClient.invalidateQueries({
+				queryKey: getRoleIdpSyncSettingsKey(organization),
+			}),
 	};
 };
 
-export const provisionerJobQueryKey = (orgId: string) => [
-	"organization",
-	orgId,
-	"provisionerjobs",
-];
+export const provisionerJobsQueryKey = (
+	orgId: string,
+	params: GetProvisionerJobsParams = {},
+) => ["organization", orgId, "provisionerjobs", params];
 
-export const provisionerJobs = (orgId: string) => {
+export const provisionerJobs = (
+	orgId: string,
+	params: GetProvisionerJobsParams = {},
+) => {
 	return {
-		queryKey: provisionerJobQueryKey(orgId),
-		queryFn: () => API.getProvisionerJobs(orgId),
+		queryKey: provisionerJobsQueryKey(orgId, params),
+		queryFn: () => API.getProvisionerJobs(orgId, params),
 	};
 };
 
@@ -222,12 +271,13 @@ export const provisionerJobs = (orgId: string) => {
 export const organizationsPermissions = (
 	organizationIds: string[] | undefined,
 ) => {
-	if (!organizationIds) {
-		return { enabled: false };
-	}
-
 	return {
-		queryKey: ["organizations", organizationIds.sort(), "permissions"],
+		enabled: !!organizationIds,
+		queryKey: [
+			"organizations",
+			[...(organizationIds ?? []).sort()],
+			"permissions",
+		],
 		queryFn: async () => {
 			// Only request what we need for the sidebar, which is one edit permission
 			// per sub-link (settings, groups, roles, and members pages) that tells us
@@ -236,7 +286,7 @@ export const organizationsPermissions = (
 
 			// The endpoint takes a flat array, so to avoid collisions prepend each
 			// check with the org ID (the key can be anything we want).
-			const prefixedChecks = organizationIds.flatMap((orgId) =>
+			const prefixedChecks = (organizationIds ?? []).flatMap((orgId) =>
 				Object.entries(organizationPermissionChecks(orgId)).map(
 					([key, val]) => [`${orgId}.${key}`, val],
 				),
@@ -264,7 +314,46 @@ export const organizationsPermissions = (
 	};
 };
 
-export const getOrganizationIdpSyncClaimFieldValuesKey = (
+export const workspacePermissionsByOrganization = (
+	organizationIds: string[] | undefined,
+	userId: string,
+) => {
+	return {
+		enabled: !!organizationIds,
+		queryKey: [
+			"workspaces",
+			[...(organizationIds ?? []).sort()],
+			"permissions",
+		],
+		queryFn: async () => {
+			const prefixedChecks = (organizationIds ?? []).flatMap((orgId) =>
+				Object.entries(workspacePermissionChecks(orgId, userId)).map(
+					([key, val]) => [`${orgId}.${key}`, val],
+				),
+			);
+
+			const response = await API.checkAuthorization({
+				checks: Object.fromEntries(prefixedChecks),
+			});
+
+			return Object.entries(response).reduce(
+				(acc, [key, value]) => {
+					const index = key.indexOf(".");
+					const orgId = key.substring(0, index);
+					const perm = key.substring(index + 1);
+					if (!acc[orgId]) {
+						acc[orgId] = {};
+					}
+					acc[orgId][perm as WorkspacePermissionName] = value;
+					return acc;
+				},
+				{} as Record<string, Partial<WorkspacePermissions>>,
+			) as Record<string, WorkspacePermissions>;
+		},
+	} satisfies UseQueryOptions<Record<string, WorkspacePermissions>>;
+};
+
+const getOrganizationIdpSyncClaimFieldValuesKey = (
 	organization: string,
 	field: string,
 ) => [organization, "idpSync", "fieldValues", field];

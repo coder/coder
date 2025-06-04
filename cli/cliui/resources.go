@@ -182,7 +182,7 @@ func renderDevcontainers(wro WorkspaceResourcesOptions, agentID uuid.UUID, index
 	return rows
 }
 
-func renderDevcontainerRow(container codersdk.WorkspaceAgentDevcontainer, index, total int) table.Row {
+func renderDevcontainerRow(container codersdk.WorkspaceAgentContainer, index, total int) table.Row {
 	var row table.Row
 	var sb strings.Builder
 	_, _ = sb.WriteString("      ")

@@ -1,15 +1,15 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import CloseIcon from "@mui/icons-material/Close";
 import IconButton from "@mui/material/IconButton";
 import Snackbar, {
 	type SnackbarProps as MuiSnackbarProps,
 } from "@mui/material/Snackbar";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import { X as XIcon } from "lucide-react";
 import type { FC } from "react";
 
 type EnterpriseSnackbarVariant = "error" | "info" | "success";
 
-export interface EnterpriseSnackbarProps extends MuiSnackbarProps {
+interface EnterpriseSnackbarProps extends MuiSnackbarProps {
 	/** Called when the snackbar should close, either from timeout or clicking close */
 	onClose: () => void;
 	/** Variant of snackbar, for theming */
@@ -47,7 +47,11 @@ export const EnterpriseSnackbar: FC<EnterpriseSnackbarProps> = ({
 				<div css={styles.actionWrapper}>
 					{action}
 					<IconButton onClick={onClose} css={{ padding: 0 }}>
-						<CloseIcon css={styles.closeIcon} aria-label="close" />
+						<XIcon
+							css={styles.closeIcon}
+							aria-label="close"
+							className="size-icon-sm"
+						/>
 					</IconButton>
 				</div>
 			}
@@ -96,8 +100,6 @@ const styles = {
 		alignItems: "center",
 	},
 	closeIcon: (theme) => ({
-		width: 25,
-		height: 25,
 		color: theme.palette.primary.contrastText,
 	}),
 } satisfies Record<string, Interpolation<Theme>>;

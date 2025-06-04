@@ -19,7 +19,7 @@ const CreateOAuth2AppPage: FC = () => {
 			</Helmet>
 
 			<CreateOAuth2AppPageView
-				isUpdating={postAppMutation.isLoading}
+				isUpdating={postAppMutation.isPending}
 				error={postAppMutation.error}
 				createApp={async (req) => {
 					try {

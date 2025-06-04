@@ -8,7 +8,6 @@ import (
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
 
@@ -39,18 +38,6 @@ func (r *RootCmd) createOrganization() *serpent.Command {
 			existing, _ := client.OrganizationByName(inv.Context(), orgName)
 			if existing.ID != uuid.Nil {
 				return xerrors.Errorf("organization %q already exists", orgName)
-			}
-
-			_, err = cliui.Prompt(inv, cliui.PromptOptions{
-				Text: fmt.Sprintf("Are you sure you want to create an organization with the name %s?\n%s",
-					pretty.Sprint(cliui.DefaultStyles.Code, orgName),
-					pretty.Sprint(cliui.BoldFmt(), "This action is irreversible."),
-				),
-				IsConfirm: true,
-				Default:   cliui.ConfirmNo,
-			})
-			if err != nil {
-				return err
 			}
 
 			organization, err := client.CreateOrganization(inv.Context(), codersdk.CreateOrganizationRequest{

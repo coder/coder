@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
@@ -50,6 +51,7 @@ type API struct {
 	*LogsAPI
 	*ScriptsAPI
 	*AuditAPI
+	*SubAgentAPI
 	*tailnet.DRPCService
 
 	mu sync.Mutex
@@ -58,9 +60,10 @@ type API struct {
 var _ agentproto.DRPCAgentServer = &API{}
 
 type Options struct {
-	AgentID     uuid.UUID
-	OwnerID     uuid.UUID
-	WorkspaceID uuid.UUID
+	AgentID        uuid.UUID
+	OwnerID        uuid.UUID
+	WorkspaceID    uuid.UUID
+	OrganizationID uuid.UUID
 
 	Ctx                               context.Context
 	Log                               slog.Logger
@@ -121,7 +124,7 @@ func New(opts Options) *API {
 		Clock:                 opts.Clock,
 		Database:              opts.Database,
 		NotificationsEnqueuer: opts.NotificationsEnqueuer,
-		Debounce:              5 * time.Minute,
+		Debounce:              30 * time.Minute,
 
 		Config: resourcesmonitor.Config{
 			NumDatapoints:      20,
@@ -192,6 +195,16 @@ func New(opts Options) *API {
 		NetworkTelemetryHandler: opts.NetworkTelemetryHandler,
 	}
 
+	api.SubAgentAPI = &SubAgentAPI{
+		OwnerID:        opts.OwnerID,
+		OrganizationID: opts.OrganizationID,
+		AgentID:        opts.AgentID,
+		AgentFn:        api.agent,
+		Log:            opts.Log,
+		Clock:          opts.Clock,
+		Database:       opts.Database,
+	}
+
 	return api
 }
 
@@ -209,6 +222,7 @@ func (a *API) Server(ctx context.Context) (*drpcserver.Server, error) {
 
 	return drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
+			Manager: drpcsdk.DefaultDRPCOptions(nil),
 			Log: func(err error) {
 				if xerrors.Is(err, io.EOF) {
 					return

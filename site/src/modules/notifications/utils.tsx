@@ -1,13 +1,13 @@
-import EmailIcon from "@mui/icons-material/EmailOutlined";
-import WebhookIcon from "@mui/icons-material/WebhookOutlined";
+import { MailIcon } from "lucide-react";
+import { WebhookIcon } from "lucide-react";
 
 // TODO: This should be provided by the auto generated types from codersdk
 const notificationMethods = ["smtp", "webhook"] as const;
 
 export type NotificationMethod = (typeof notificationMethods)[number];
 
-export const methodIcons: Record<NotificationMethod, typeof EmailIcon> = {
-	smtp: EmailIcon,
+export const methodIcons: Record<NotificationMethod, typeof MailIcon> = {
+	smtp: MailIcon,
 	webhook: WebhookIcon,
 };
 

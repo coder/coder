@@ -54,10 +54,8 @@ func init() {
 			"wrapCode": func(s string) string {
 				return fmt.Sprintf("<code>%s</code>", s)
 			},
-			"commandURI": func(cmd *serpent.Command) string {
-				return fmtDocFilename(cmd)
-			},
-			"fullName": fullName,
+			"commandURI": fmtDocFilename,
+			"fullName":   fullName,
 			"tableHeader": func() string {
 				return `| | |
 | --- | --- |`

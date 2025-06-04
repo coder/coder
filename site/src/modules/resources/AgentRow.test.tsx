@@ -1,159 +1,31 @@
-import { screen } from "@testing-library/react";
-import {
-	MockTemplate,
-	MockWorkspace,
-	MockWorkspaceAgent,
-	MockWorkspaceApp,
-} from "testHelpers/entities";
-import {
-	renderWithAuth,
-	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import type { AgentRowProps } from "./AgentRow";
-import { AgentRow } from "./AgentRow";
-import { DisplayAppNameMap } from "./AppLink/AppLink";
+import { MockWorkspaceApp } from "testHelpers/entities";
+import { organizeAgentApps } from "./AgentRow";
 
-jest.mock("modules/resources/AgentMetadata", () => {
-	const AgentMetadata = () => <></>;
-	return { AgentMetadata };
-});
+describe("organizeAgentApps", () => {
+	test("returns one ungrouped app", () => {
+		const result = organizeAgentApps([{ ...MockWorkspaceApp }]);
 
-describe.each<{
-	result: "visible" | "hidden";
-	props: Partial<AgentRowProps>;
-}>([
-	{
-		result: "visible",
-		props: {
-			showApps: true,
-			agent: {
-				...MockWorkspaceAgent,
-				display_apps: ["vscode", "vscode_insiders"],
-				status: "connected",
-			},
-			hideVSCodeDesktopButton: false,
-		},
-	},
-	{
-		result: "hidden",
-		props: {
-			showApps: false,
-			agent: {
-				...MockWorkspaceAgent,
-				display_apps: ["vscode", "vscode_insiders"],
-				status: "connected",
-			},
-			hideVSCodeDesktopButton: false,
-		},
-	},
-	{
-		result: "hidden",
-		props: {
-			showApps: true,
-			agent: {
-				...MockWorkspaceAgent,
-				display_apps: [],
-				status: "connected",
-			},
-			hideVSCodeDesktopButton: false,
-		},
-	},
-	{
-		result: "hidden",
-		props: {
-			showApps: true,
-			agent: {
-				...MockWorkspaceAgent,
-				display_apps: ["vscode", "vscode_insiders"],
-				status: "disconnected",
-			},
-			hideVSCodeDesktopButton: false,
-		},
-	},
-	{
-		result: "hidden",
-		props: {
-			showApps: true,
-			agent: {
-				...MockWorkspaceAgent,
-				display_apps: ["vscode", "vscode_insiders"],
-				status: "connected",
-			},
-			hideVSCodeDesktopButton: true,
-		},
-	},
-])("VSCode button visibility", ({ props: testProps, result }) => {
-	const props: AgentRowProps = {
-		agent: MockWorkspaceAgent,
-		workspace: MockWorkspace,
-		template: MockTemplate,
-		showApps: false,
-		serverVersion: "",
-		serverAPIVersion: "",
-		onUpdateAgent: () => {
-			throw new Error("Function not implemented.");
-		},
-		...testProps,
-	};
-
-	test(`visibility: ${result}, showApps: ${props.showApps}, hideVSCodeDesktopButton: ${props.hideVSCodeDesktopButton}, display apps: ${props.agent.display_apps}`, async () => {
-		renderWithAuth(<AgentRow {...props} />);
-		await waitForLoaderToBeRemoved();
-
-		if (result === "visible") {
-			expect(screen.getByText(DisplayAppNameMap.vscode)).toBeVisible();
-		} else {
-			expect(screen.queryByText(DisplayAppNameMap.vscode)).toBeNull();
-		}
+		expect(result).toEqual([{ apps: [MockWorkspaceApp] }]);
 	});
-});
 
-describe.each<{
-	props: Partial<AgentRowProps>;
-}>([
-	{
-		props: {
-			agent: {
-				...MockWorkspaceAgent,
-				apps: [
-					{
-						...MockWorkspaceApp,
-						display_name: `${MockWorkspaceApp.display_name} Not Hidden`,
-						hidden: false,
-					},
-					{
-						...MockWorkspaceApp,
-						display_name: `${MockWorkspaceApp.display_name} Is Hidden`,
-						hidden: true,
-					},
-				],
-			},
-		},
-	},
-])("hidden hides App button", ({ props: testProps }) => {
-	const props: AgentRowProps = {
-		agent: MockWorkspaceAgent,
-		workspace: MockWorkspace,
-		template: MockTemplate,
-		showApps: true,
-		serverVersion: "",
-		serverAPIVersion: "",
-		onUpdateAgent: () => {
-			throw new Error("Function not implemented.");
-		},
-		...testProps,
-	};
+	test("handles ordering correctly", () => {
+		const bugApp = { ...MockWorkspaceApp, slug: "bug", group: "creatures" };
+		const birdApp = { ...MockWorkspaceApp, slug: "bird", group: "creatures" };
+		const fishApp = { ...MockWorkspaceApp, slug: "fish", group: "creatures" };
+		const riderApp = { ...MockWorkspaceApp, slug: "rider" };
+		const zedApp = { ...MockWorkspaceApp, slug: "zed" };
+		const result = organizeAgentApps([
+			bugApp,
+			riderApp,
+			birdApp,
+			zedApp,
+			fishApp,
+		]);
 
-	test(`apps: ${props.agent.apps}`, async () => {
-		renderWithAuth(<AgentRow {...props} />);
-		await waitForLoaderToBeRemoved();
-
-		for (const app of props.agent.apps) {
-			if (app.hidden) {
-				expect(screen.queryByText(app.display_name)).toBeNull();
-			} else {
-				expect(screen.getByText(app.display_name)).toBeVisible();
-			}
-		}
+		expect(result).toEqual([
+			{ group: "creatures", apps: [bugApp, birdApp, fishApp] },
+			{ apps: [riderApp] },
+			{ apps: [zedApp] },
+		]);
 	});
 });

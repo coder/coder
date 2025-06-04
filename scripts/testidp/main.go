@@ -38,7 +38,7 @@ func main() {
 	flag.Parse()
 
 	// This is just a way to run tests outside go test
-	testing.Main(func(pat, str string) (bool, error) {
+	testing.Main(func(_, _ string) (bool, error) {
 		return true, nil
 	}, []testing.InternalTest{
 		{

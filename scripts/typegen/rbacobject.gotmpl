@@ -16,6 +16,7 @@ var (
 		{{- range $action, $value := .Actions }}
 		//  - "{{ actionEnum $action }}" :: {{ $value.Description }}
 		{{- end }}
+		{{- .Comment }}
 		Resource{{ $Name }} = Object {
 			Type: "{{ $element.Type }}",
 		}

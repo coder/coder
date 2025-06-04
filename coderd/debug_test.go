@@ -117,7 +117,7 @@ func TestDebugHealth(t *testing.T) {
 		require.NoError(t, err)
 		defer res.Body.Close()
 		_, _ = io.ReadAll(res.Body)
-		require.Equal(t, http.StatusNotFound, res.StatusCode)
+		require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
 	})
 
 	t.Run("Refresh", func(t *testing.T) {

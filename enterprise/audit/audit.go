@@ -35,8 +35,8 @@ func NewAuditor(db database.Store, filter Filter, backends ...Backend) audit.Aud
 		db:       db,
 		filter:   filter,
 		backends: backends,
-		Differ: audit.Differ{DiffFn: func(old, new any) audit.Map {
-			return diffValues(old, new, AuditableResources)
+		Differ: audit.Differ{DiffFn: func(old, newVal any) audit.Map {
+			return diffValues(old, newVal, AuditableResources)
 		}},
 	}
 }

@@ -34,10 +34,10 @@ import (
 )
 
 var (
-	ValidationNoFromAddressErr = xerrors.New("'from' address not defined")
-	ValidationNoToAddressErr   = xerrors.New("'to' address(es) not defined")
-	ValidationNoSmarthostErr   = xerrors.New("'smarthost' address not defined")
-	ValidationNoHelloErr       = xerrors.New("'hello' not defined")
+	ErrValidationNoFromAddress = xerrors.New("'from' address not defined")
+	ErrValidationNoToAddress   = xerrors.New("'to' address(es) not defined")
+	ErrValidationNoSmarthost   = xerrors.New("'smarthost' address not defined")
+	ErrValidationNoHello       = xerrors.New("'hello' not defined")
 
 	//go:embed smtp/html.gotmpl
 	htmlTemplate string
@@ -493,7 +493,7 @@ func (*SMTPHandler) validateFromAddr(from string) (string, error) {
 		return "", xerrors.Errorf("parse 'from' address: %w", err)
 	}
 	if len(addrs) != 1 {
-		return "", ValidationNoFromAddressErr
+		return "", ErrValidationNoFromAddress
 	}
 	return from, nil
 }
@@ -505,7 +505,7 @@ func (s *SMTPHandler) validateToAddrs(to string) ([]string, error) {
 	}
 	if len(addrs) == 0 {
 		s.log.Warn(context.Background(), "no valid 'to' address(es) defined; some may be invalid", slog.F("defined", to))
-		return nil, ValidationNoToAddressErr
+		return nil, ErrValidationNoToAddress
 	}
 
 	var out []string
@@ -522,7 +522,7 @@ func (s *SMTPHandler) validateToAddrs(to string) ([]string, error) {
 func (s *SMTPHandler) smarthost() (string, string, error) {
 	smarthost := strings.TrimSpace(string(s.cfg.Smarthost))
 	if smarthost == "" {
-		return "", "", ValidationNoSmarthostErr
+		return "", "", ErrValidationNoSmarthost
 	}
 
 	host, port, err := net.SplitHostPort(string(s.cfg.Smarthost))
@@ -538,7 +538,7 @@ func (s *SMTPHandler) smarthost() (string, string, error) {
 func (s *SMTPHandler) hello() (string, error) {
 	val := s.cfg.Hello.String()
 	if val == "" {
-		return "", ValidationNoHelloErr
+		return "", ErrValidationNoHello
 	}
 	return val, nil
 }

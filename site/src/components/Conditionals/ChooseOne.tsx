@@ -5,7 +5,7 @@ import {
 	type ReactNode,
 } from "react";
 
-export interface CondProps {
+interface CondProps {
 	condition?: boolean;
 	children?: ReactNode;
 }

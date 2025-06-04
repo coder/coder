@@ -171,7 +171,7 @@ type AuditLog struct {
 	Action           AuditAction     `json:"action"`
 	Diff             AuditDiff       `json:"diff"`
 	StatusCode       int32           `json:"status_code"`
-	AdditionalFields json.RawMessage `json:"additional_fields"`
+	AdditionalFields json.RawMessage `json:"additional_fields" swaggertype:"object"`
 	Description      string          `json:"description"`
 	ResourceLink     string          `json:"resource_link"`
 	IsDeleted        bool            `json:"is_deleted"`

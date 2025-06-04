@@ -3,13 +3,17 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
+	"net"
 	"net/url"
 	"sync"
 	"testing"
 	"time"
 
+	gliderssh "github.com/gliderlabs/ssh"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -98,7 +102,7 @@ func TestCloserStack_Empty(t *testing.T) {
 		defer close(closed)
 		uut.close(nil)
 	}()
-	testutil.RequireRecvCtx(ctx, t, closed)
+	testutil.TryReceive(ctx, t, closed)
 }
 
 func TestCloserStack_Context(t *testing.T) {
@@ -157,7 +161,7 @@ func TestCloserStack_CloseAfterContext(t *testing.T) {
 	err := uut.push("async", ac)
 	require.NoError(t, err)
 	cancel()
-	testutil.RequireRecvCtx(testCtx, t, ac.started)
+	testutil.TryReceive(testCtx, t, ac.started)
 
 	closed := make(chan struct{})
 	go func() {
@@ -174,7 +178,7 @@ func TestCloserStack_CloseAfterContext(t *testing.T) {
 	}
 
 	ac.complete()
-	testutil.RequireRecvCtx(testCtx, t, closed)
+	testutil.TryReceive(testCtx, t, closed)
 }
 
 func TestCloserStack_Timeout(t *testing.T) {
@@ -202,22 +206,103 @@ func TestCloserStack_Timeout(t *testing.T) {
 		defer close(closed)
 		uut.close(nil)
 	}()
-	trap.MustWait(ctx).Release()
+	trap.MustWait(ctx).MustRelease(ctx)
 	// top starts right away, but it hangs
-	testutil.RequireRecvCtx(ctx, t, ac[2].started)
+	testutil.TryReceive(ctx, t, ac[2].started)
 	// timer pops and we start the middle one
 	mClock.Advance(gracefulShutdownTimeout).MustWait(ctx)
-	testutil.RequireRecvCtx(ctx, t, ac[1].started)
+	testutil.TryReceive(ctx, t, ac[1].started)
 
 	// middle one finishes
 	ac[1].complete()
 	// bottom starts, but also hangs
-	testutil.RequireRecvCtx(ctx, t, ac[0].started)
+	testutil.TryReceive(ctx, t, ac[0].started)
 
 	// timer has to pop twice to time out.
 	mClock.Advance(gracefulShutdownTimeout).MustWait(ctx)
 	mClock.Advance(gracefulShutdownTimeout).MustWait(ctx)
-	testutil.RequireRecvCtx(ctx, t, closed)
+	testutil.TryReceive(ctx, t, closed)
+}
+
+func TestCoderConnectStdio(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	stack := newCloserStack(ctx, logger, quartz.NewMock(t))
+
+	clientOutput, clientInput := io.Pipe()
+	serverOutput, serverInput := io.Pipe()
+	defer func() {
+		for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+			_ = c.Close()
+		}
+	}()
+
+	server := newSSHServer("127.0.0.1:0")
+	ln, err := net.Listen("tcp", server.server.Addr)
+	require.NoError(t, err)
+
+	go func() {
+		_ = server.Serve(ln)
+	}()
+	t.Cleanup(func() {
+		_ = server.Close()
+	})
+
+	stdioDone := make(chan struct{})
+	go func() {
+		err = runCoderConnectStdio(ctx, ln.Addr().String(), clientOutput, serverInput, stack)
+		assert.NoError(t, err)
+		close(stdioDone)
+	}()
+
+	conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
+		Reader: serverOutput,
+		Writer: clientInput,
+	}, "", &ssh.ClientConfig{
+		// #nosec
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	})
+	require.NoError(t, err)
+	defer conn.Close()
+
+	sshClient := ssh.NewClient(conn, channels, requests)
+	session, err := sshClient.NewSession()
+	require.NoError(t, err)
+	defer session.Close()
+
+	// We're not connected to a real shell
+	err = session.Run("")
+	require.NoError(t, err)
+	err = sshClient.Close()
+	require.NoError(t, err)
+	_ = clientOutput.Close()
+
+	<-stdioDone
+}
+
+type sshServer struct {
+	server *gliderssh.Server
+}
+
+func newSSHServer(addr string) *sshServer {
+	return &sshServer{
+		server: &gliderssh.Server{
+			Addr: addr,
+			Handler: func(s gliderssh.Session) {
+				_, _ = io.WriteString(s.Stderr(), "Connected!")
+			},
+		},
+	}
+}
+
+func (s *sshServer) Serve(ln net.Listener) error {
+	return s.server.Serve(ln)
+}
+
+func (s *sshServer) Close() error {
+	return s.server.Close()
 }
 
 type fakeCloser struct {

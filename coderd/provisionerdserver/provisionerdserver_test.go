@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -36,12 +38,15 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
+	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
@@ -118,7 +123,7 @@ func TestHeartbeat(t *testing.T) {
 	})
 
 	for i := 0; i < numBeats; i++ {
-		testutil.RequireRecvCtx(ctx, t, heartbeatChan)
+		testutil.TryReceive(ctx, t, heartbeatChan)
 	}
 	// goleak.VerifyTestMain ensures that the heartbeat goroutine does not leak
 }
@@ -164,279 +169,369 @@ func TestAcquireJob(t *testing.T) {
 			_, err = tc.acquire(ctx, srv)
 			require.ErrorContains(t, err, "sql: no rows in result set")
 		})
-		t.Run(tc.name+"_WorkspaceBuildJob", func(t *testing.T) {
-			t.Parallel()
-			// Set the max session token lifetime so we can assert we
-			// create an API key with an expiration within the bounds of the
-			// deployment config.
-			dv := &codersdk.DeploymentValues{
-				Sessions: codersdk.SessionLifetime{
-					MaximumTokenDuration: serpent.Duration(time.Hour),
-				},
-			}
-			gitAuthProvider := &sdkproto.ExternalAuthProviderResource{
-				Id: "github",
-			}
-
-			srv, db, ps, pd := setup(t, false, &overrides{
-				deploymentValues: dv,
-				externalAuthConfigs: []*externalauth.Config{{
-					ID:                       gitAuthProvider.Id,
-					InstrumentedOAuth2Config: &testutil.OAuth2Config{},
-				}},
-			})
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
-
-			user := dbgen.User(t, db, database.User{})
-			group1 := dbgen.Group(t, db, database.Group{
-				Name:           "group1",
-				OrganizationID: pd.OrganizationID,
-			})
-			sshKey := dbgen.GitSSHKey(t, db, database.GitSSHKey{
-				UserID: user.ID,
-			})
-			err := db.InsertGroupMember(ctx, database.InsertGroupMemberParams{
-				UserID:  user.ID,
-				GroupID: group1.ID,
-			})
-			require.NoError(t, err)
-			link := dbgen.UserLink(t, db, database.UserLink{
-				LoginType:        database.LoginTypeOIDC,
-				UserID:           user.ID,
-				OAuthExpiry:      dbtime.Now().Add(time.Hour),
-				OAuthAccessToken: "access-token",
-			})
-			dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
-				ProviderID: gitAuthProvider.Id,
-				UserID:     user.ID,
-			})
-			template := dbgen.Template(t, db, database.Template{
-				Name:           "template",
-				Provisioner:    database.ProvisionerTypeEcho,
-				OrganizationID: pd.OrganizationID,
-			})
-			file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
-			versionFile := dbgen.File(t, db, database.File{CreatedBy: user.ID})
-			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				OrganizationID: pd.OrganizationID,
-				TemplateID: uuid.NullUUID{
-					UUID:  template.ID,
-					Valid: true,
-				},
-				JobID: uuid.New(),
-			})
-			externalAuthProviders, err := json.Marshal([]database.ExternalAuthProvider{{
-				ID:       gitAuthProvider.Id,
-				Optional: gitAuthProvider.Optional,
-			}})
-			require.NoError(t, err)
-			err = db.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
-				JobID:                 version.JobID,
-				ExternalAuthProviders: json.RawMessage(externalAuthProviders),
-				UpdatedAt:             dbtime.Now(),
-			})
-			require.NoError(t, err)
-			// Import version job
-			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-				OrganizationID: pd.OrganizationID,
-				ID:             version.JobID,
-				InitiatorID:    user.ID,
-				FileID:         versionFile.ID,
-				Provisioner:    database.ProvisionerTypeEcho,
-				StorageMethod:  database.ProvisionerStorageMethodFile,
-				Type:           database.ProvisionerJobTypeTemplateVersionImport,
-				Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
-					TemplateVersionID: version.ID,
-					UserVariableValues: []codersdk.VariableValue{
-						{Name: "second", Value: "bah"},
+		for _, prebuiltWorkspaceBuildStage := range []sdkproto.PrebuiltWorkspaceBuildStage{
+			sdkproto.PrebuiltWorkspaceBuildStage_NONE,
+			sdkproto.PrebuiltWorkspaceBuildStage_CREATE,
+			sdkproto.PrebuiltWorkspaceBuildStage_CLAIM,
+		} {
+			prebuiltWorkspaceBuildStage := prebuiltWorkspaceBuildStage
+			t.Run(tc.name+"_WorkspaceBuildJob", func(t *testing.T) {
+				t.Parallel()
+				// Set the max session token lifetime so we can assert we
+				// create an API key with an expiration within the bounds of the
+				// deployment config.
+				dv := &codersdk.DeploymentValues{
+					Sessions: codersdk.SessionLifetime{
+						MaximumTokenDuration: serpent.Duration(time.Hour),
 					},
-				})),
-			})
-			_ = dbgen.TemplateVersionVariable(t, db, database.TemplateVersionVariable{
-				TemplateVersionID: version.ID,
-				Name:              "first",
-				Value:             "first_value",
-				DefaultValue:      "default_value",
-				Sensitive:         true,
-			})
-			_ = dbgen.TemplateVersionVariable(t, db, database.TemplateVersionVariable{
-				TemplateVersionID: version.ID,
-				Name:              "second",
-				Value:             "second_value",
-				DefaultValue:      "default_value",
-				Required:          true,
-				Sensitive:         false,
-			})
-			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-				TemplateID:     template.ID,
-				OwnerID:        user.ID,
-				OrganizationID: pd.OrganizationID,
-			})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-				WorkspaceID:       workspace.ID,
-				BuildNumber:       1,
-				JobID:             uuid.New(),
-				TemplateVersionID: version.ID,
-				Transition:        database.WorkspaceTransitionStart,
-				Reason:            database.BuildReasonInitiator,
-			})
-			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-				ID:             build.ID,
-				OrganizationID: pd.OrganizationID,
-				InitiatorID:    user.ID,
-				Provisioner:    database.ProvisionerTypeEcho,
-				StorageMethod:  database.ProvisionerStorageMethodFile,
-				FileID:         file.ID,
-				Type:           database.ProvisionerJobTypeWorkspaceBuild,
-				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+				}
+				gitAuthProvider := &sdkproto.ExternalAuthProviderResource{
+					Id: "github",
+				}
+
+				srv, db, ps, pd := setup(t, false, &overrides{
+					deploymentValues: dv,
+					externalAuthConfigs: []*externalauth.Config{{
+						ID:                       gitAuthProvider.Id,
+						InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+					}},
+				})
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+				defer cancel()
+
+				user := dbgen.User(t, db, database.User{})
+				group1 := dbgen.Group(t, db, database.Group{
+					Name:           "group1",
+					OrganizationID: pd.OrganizationID,
+				})
+				sshKey := dbgen.GitSSHKey(t, db, database.GitSSHKey{
+					UserID: user.ID,
+				})
+				err := db.InsertGroupMember(ctx, database.InsertGroupMemberParams{
+					UserID:  user.ID,
+					GroupID: group1.ID,
+				})
+				require.NoError(t, err)
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{
+					UserID:         user.ID,
+					OrganizationID: pd.OrganizationID,
+					Roles:          []string{rbac.RoleOrgAuditor()},
+				})
+
+				// Add extra erroneous roles
+				secondOrg := dbgen.Organization(t, db, database.Organization{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{
+					UserID:         user.ID,
+					OrganizationID: secondOrg.ID,
+					Roles:          []string{rbac.RoleOrgAuditor()},
+				})
+
+				link := dbgen.UserLink(t, db, database.UserLink{
+					LoginType:        database.LoginTypeOIDC,
+					UserID:           user.ID,
+					OAuthExpiry:      dbtime.Now().Add(time.Hour),
+					OAuthAccessToken: "access-token",
+				})
+				dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+					ProviderID: gitAuthProvider.Id,
+					UserID:     user.ID,
+				})
+				template := dbgen.Template(t, db, database.Template{
+					Name:           "template",
+					Provisioner:    database.ProvisionerTypeEcho,
+					OrganizationID: pd.OrganizationID,
+				})
+				file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+				versionFile := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+				version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					OrganizationID: pd.OrganizationID,
+					TemplateID: uuid.NullUUID{
+						UUID:  template.ID,
+						Valid: true,
+					},
+					JobID: uuid.New(),
+				})
+				externalAuthProviders, err := json.Marshal([]database.ExternalAuthProvider{{
+					ID:       gitAuthProvider.Id,
+					Optional: gitAuthProvider.Optional,
+				}})
+				require.NoError(t, err)
+				err = db.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
+					JobID:                 version.JobID,
+					ExternalAuthProviders: json.RawMessage(externalAuthProviders),
+					UpdatedAt:             dbtime.Now(),
+				})
+				require.NoError(t, err)
+				// Import version job
+				_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+					OrganizationID: pd.OrganizationID,
+					ID:             version.JobID,
+					InitiatorID:    user.ID,
+					FileID:         versionFile.ID,
+					Provisioner:    database.ProvisionerTypeEcho,
+					StorageMethod:  database.ProvisionerStorageMethodFile,
+					Type:           database.ProvisionerJobTypeTemplateVersionImport,
+					Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
+						TemplateVersionID: version.ID,
+						UserVariableValues: []codersdk.VariableValue{
+							{Name: "second", Value: "bah"},
+						},
+					})),
+				})
+				_ = dbgen.TemplateVersionVariable(t, db, database.TemplateVersionVariable{
+					TemplateVersionID: version.ID,
+					Name:              "first",
+					Value:             "first_value",
+					DefaultValue:      "default_value",
+					Sensitive:         true,
+				})
+				_ = dbgen.TemplateVersionVariable(t, db, database.TemplateVersionVariable{
+					TemplateVersionID: version.ID,
+					Name:              "second",
+					Value:             "second_value",
+					DefaultValue:      "default_value",
+					Required:          true,
+					Sensitive:         false,
+				})
+				workspace := database.WorkspaceTable{
+					TemplateID:     template.ID,
+					OwnerID:        user.ID,
+					OrganizationID: pd.OrganizationID,
+				}
+				workspace = dbgen.Workspace(t, db, workspace)
+				build := database.WorkspaceBuild{
+					WorkspaceID:       workspace.ID,
+					BuildNumber:       1,
+					JobID:             uuid.New(),
+					TemplateVersionID: version.ID,
+					Transition:        database.WorkspaceTransitionStart,
+					Reason:            database.BuildReasonInitiator,
+				}
+				build = dbgen.WorkspaceBuild(t, db, build)
+				input := provisionerdserver.WorkspaceProvisionJob{
 					WorkspaceBuildID: build.ID,
-				})),
-			})
+				}
+				dbJob := database.ProvisionerJob{
+					ID:             build.JobID,
+					OrganizationID: pd.OrganizationID,
+					InitiatorID:    user.ID,
+					Provisioner:    database.ProvisionerTypeEcho,
+					StorageMethod:  database.ProvisionerStorageMethodFile,
+					FileID:         file.ID,
+					Type:           database.ProvisionerJobTypeWorkspaceBuild,
+					Input:          must(json.Marshal(input)),
+				}
+				dbJob = dbgen.ProvisionerJob(t, db, ps, dbJob)
 
-			startPublished := make(chan struct{})
-			var closed bool
-			closeStartSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
-				wspubsub.HandleWorkspaceEvent(
-					func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
-						if err != nil {
-							return
-						}
-						if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
-							if !closed {
-								close(startPublished)
-								closed = true
+				var agent database.WorkspaceAgent
+				if prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
+					resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+						JobID: dbJob.ID,
+					})
+					agent = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+						ResourceID: resource.ID,
+						AuthToken:  uuid.New(),
+					})
+					// At this point we have an unclaimed workspace and build, now we need to setup the claim
+					// build
+					build = database.WorkspaceBuild{
+						WorkspaceID:       workspace.ID,
+						BuildNumber:       2,
+						JobID:             uuid.New(),
+						TemplateVersionID: version.ID,
+						Transition:        database.WorkspaceTransitionStart,
+						Reason:            database.BuildReasonInitiator,
+						InitiatorID:       user.ID,
+					}
+					build = dbgen.WorkspaceBuild(t, db, build)
+
+					input = provisionerdserver.WorkspaceProvisionJob{
+						WorkspaceBuildID:            build.ID,
+						PrebuiltWorkspaceBuildStage: prebuiltWorkspaceBuildStage,
+					}
+					dbJob = database.ProvisionerJob{
+						ID:             build.JobID,
+						OrganizationID: pd.OrganizationID,
+						InitiatorID:    user.ID,
+						Provisioner:    database.ProvisionerTypeEcho,
+						StorageMethod:  database.ProvisionerStorageMethodFile,
+						FileID:         file.ID,
+						Type:           database.ProvisionerJobTypeWorkspaceBuild,
+						Input:          must(json.Marshal(input)),
+					}
+					dbJob = dbgen.ProvisionerJob(t, db, ps, dbJob)
+				}
+
+				startPublished := make(chan struct{})
+				var closed bool
+				closeStartSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+					wspubsub.HandleWorkspaceEvent(
+						func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+							if err != nil {
+								return
 							}
+							if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
+								if !closed {
+									close(startPublished)
+									closed = true
+								}
+							}
+						}))
+				require.NoError(t, err)
+				defer closeStartSubscribe()
+
+				var job *proto.AcquiredJob
+
+				for {
+					// Grab jobs until we find the workspace build job. There is also
+					// an import version job that we need to ignore.
+					job, err = tc.acquire(ctx, srv)
+					require.NoError(t, err)
+					if _, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
+						break
+					}
+				}
+
+				<-startPublished
+
+				if prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
+					for {
+						// In the case of a prebuild claim, there is a second build, which is the
+						// one that we're interested in.
+						job, err = tc.acquire(ctx, srv)
+						require.NoError(t, err)
+						if _, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
+							break
 						}
-					}))
-			require.NoError(t, err)
-			defer closeStartSubscribe()
+					}
+					<-startPublished
+				}
 
-			var job *proto.AcquiredJob
+				got, err := json.Marshal(job.Type)
+				require.NoError(t, err)
 
-			for {
+				// Validate that a session token is generated during the job.
+				sessionToken := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild.Metadata.WorkspaceOwnerSessionToken
+				require.NotEmpty(t, sessionToken)
+				toks := strings.Split(sessionToken, "-")
+				require.Len(t, toks, 2, "invalid api key")
+				key, err := db.GetAPIKeyByID(ctx, toks[0])
+				require.NoError(t, err)
+				require.Equal(t, int64(dv.Sessions.MaximumTokenDuration.Value().Seconds()), key.LifetimeSeconds)
+				require.WithinDuration(t, time.Now().Add(dv.Sessions.MaximumTokenDuration.Value()), key.ExpiresAt, time.Minute)
+
+				wantedMetadata := &sdkproto.Metadata{
+					CoderUrl:                      (&url.URL{}).String(),
+					WorkspaceTransition:           sdkproto.WorkspaceTransition_START,
+					WorkspaceName:                 workspace.Name,
+					WorkspaceOwner:                user.Username,
+					WorkspaceOwnerEmail:           user.Email,
+					WorkspaceOwnerName:            user.Name,
+					WorkspaceOwnerOidcAccessToken: link.OAuthAccessToken,
+					WorkspaceOwnerGroups:          []string{"Everyone", group1.Name},
+					WorkspaceId:                   workspace.ID.String(),
+					WorkspaceOwnerId:              user.ID.String(),
+					TemplateId:                    template.ID.String(),
+					TemplateName:                  template.Name,
+					TemplateVersion:               version.Name,
+					WorkspaceOwnerSessionToken:    sessionToken,
+					WorkspaceOwnerSshPublicKey:    sshKey.PublicKey,
+					WorkspaceOwnerSshPrivateKey:   sshKey.PrivateKey,
+					WorkspaceBuildId:              build.ID.String(),
+					WorkspaceOwnerLoginType:       string(user.LoginType),
+					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}},
+				}
+				if prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
+					// For claimed prebuilds, we expect the prebuild state to be set to CLAIM
+					// and we expect tokens from the first build to be set for reuse
+					wantedMetadata.PrebuiltWorkspaceBuildStage = prebuiltWorkspaceBuildStage
+					wantedMetadata.RunningAgentAuthTokens = append(wantedMetadata.RunningAgentAuthTokens, &sdkproto.RunningAgentAuthToken{
+						AgentId: agent.ID.String(),
+						Token:   agent.AuthToken.String(),
+					})
+				}
+
+				slices.SortFunc(wantedMetadata.WorkspaceOwnerRbacRoles, func(a, b *sdkproto.Role) int {
+					return strings.Compare(a.Name+a.OrgId, b.Name+b.OrgId)
+				})
+				want, err := json.Marshal(&proto.AcquiredJob_WorkspaceBuild_{
+					WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
+						WorkspaceBuildId: build.ID.String(),
+						WorkspaceName:    workspace.Name,
+						VariableValues: []*sdkproto.VariableValue{
+							{
+								Name:      "first",
+								Value:     "first_value",
+								Sensitive: true,
+							},
+							{
+								Name:  "second",
+								Value: "second_value",
+							},
+						},
+						ExternalAuthProviders: []*sdkproto.ExternalAuthProvider{{
+							Id:          gitAuthProvider.Id,
+							AccessToken: "access_token",
+						}},
+						Metadata: wantedMetadata,
+					},
+				})
+				require.NoError(t, err)
+
+				require.JSONEq(t, string(want), string(got))
+
+				// Assert that we delete the session token whenever
+				// a stop is issued.
+				stopbuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+					WorkspaceID:       workspace.ID,
+					BuildNumber:       2,
+					JobID:             uuid.New(),
+					TemplateVersionID: version.ID,
+					Transition:        database.WorkspaceTransitionStop,
+					Reason:            database.BuildReasonInitiator,
+				})
+				_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+					ID:            stopbuild.ID,
+					InitiatorID:   user.ID,
+					Provisioner:   database.ProvisionerTypeEcho,
+					StorageMethod: database.ProvisionerStorageMethodFile,
+					FileID:        file.ID,
+					Type:          database.ProvisionerJobTypeWorkspaceBuild,
+					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+						WorkspaceBuildID: stopbuild.ID,
+					})),
+				})
+
+				stopPublished := make(chan struct{})
+				closeStopSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+					wspubsub.HandleWorkspaceEvent(
+						func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+							if err != nil {
+								return
+							}
+							if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
+								close(stopPublished)
+							}
+						}))
+				require.NoError(t, err)
+				defer closeStopSubscribe()
+
 				// Grab jobs until we find the workspace build job. There is also
 				// an import version job that we need to ignore.
 				job, err = tc.acquire(ctx, srv)
 				require.NoError(t, err)
-				if _, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
-					break
-				}
-			}
+				_, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_)
+				require.True(t, ok, "acquired job not a workspace build?")
 
-			<-startPublished
+				<-stopPublished
 
-			got, err := json.Marshal(job.Type)
-			require.NoError(t, err)
-
-			// Validate that a session token is generated during the job.
-			sessionToken := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild.Metadata.WorkspaceOwnerSessionToken
-			require.NotEmpty(t, sessionToken)
-			toks := strings.Split(sessionToken, "-")
-			require.Len(t, toks, 2, "invalid api key")
-			key, err := db.GetAPIKeyByID(ctx, toks[0])
-			require.NoError(t, err)
-			require.Equal(t, int64(dv.Sessions.MaximumTokenDuration.Value().Seconds()), key.LifetimeSeconds)
-			require.WithinDuration(t, time.Now().Add(dv.Sessions.MaximumTokenDuration.Value()), key.ExpiresAt, time.Minute)
-
-			want, err := json.Marshal(&proto.AcquiredJob_WorkspaceBuild_{
-				WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-					WorkspaceBuildId: build.ID.String(),
-					WorkspaceName:    workspace.Name,
-					VariableValues: []*sdkproto.VariableValue{
-						{
-							Name:      "first",
-							Value:     "first_value",
-							Sensitive: true,
-						},
-						{
-							Name:  "second",
-							Value: "second_value",
-						},
-					},
-					ExternalAuthProviders: []*sdkproto.ExternalAuthProvider{{
-						Id:          gitAuthProvider.Id,
-						AccessToken: "access_token",
-					}},
-					Metadata: &sdkproto.Metadata{
-						CoderUrl:                      (&url.URL{}).String(),
-						WorkspaceTransition:           sdkproto.WorkspaceTransition_START,
-						WorkspaceName:                 workspace.Name,
-						WorkspaceOwner:                user.Username,
-						WorkspaceOwnerEmail:           user.Email,
-						WorkspaceOwnerName:            user.Name,
-						WorkspaceOwnerOidcAccessToken: link.OAuthAccessToken,
-						WorkspaceOwnerGroups:          []string{group1.Name},
-						WorkspaceId:                   workspace.ID.String(),
-						WorkspaceOwnerId:              user.ID.String(),
-						TemplateId:                    template.ID.String(),
-						TemplateName:                  template.Name,
-						TemplateVersion:               version.Name,
-						WorkspaceOwnerSessionToken:    sessionToken,
-						WorkspaceOwnerSshPublicKey:    sshKey.PublicKey,
-						WorkspaceOwnerSshPrivateKey:   sshKey.PrivateKey,
-						WorkspaceBuildId:              build.ID.String(),
-						WorkspaceOwnerLoginType:       string(user.LoginType),
-						WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: "member", OrgId: pd.OrganizationID.String()}},
-					},
-				},
+				// Validate that a session token is deleted during a stop job.
+				sessionToken = job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild.Metadata.WorkspaceOwnerSessionToken
+				require.Empty(t, sessionToken)
+				_, err = db.GetAPIKeyByID(ctx, key.ID)
+				require.ErrorIs(t, err, sql.ErrNoRows)
 			})
-			require.NoError(t, err)
-
-			require.JSONEq(t, string(want), string(got))
-
-			// Assert that we delete the session token whenever
-			// a stop is issued.
-			stopbuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-				WorkspaceID:       workspace.ID,
-				BuildNumber:       2,
-				JobID:             uuid.New(),
-				TemplateVersionID: version.ID,
-				Transition:        database.WorkspaceTransitionStop,
-				Reason:            database.BuildReasonInitiator,
-			})
-			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-				ID:            stopbuild.ID,
-				InitiatorID:   user.ID,
-				Provisioner:   database.ProvisionerTypeEcho,
-				StorageMethod: database.ProvisionerStorageMethodFile,
-				FileID:        file.ID,
-				Type:          database.ProvisionerJobTypeWorkspaceBuild,
-				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-					WorkspaceBuildID: stopbuild.ID,
-				})),
-			})
-
-			stopPublished := make(chan struct{})
-			closeStopSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
-				wspubsub.HandleWorkspaceEvent(
-					func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
-						if err != nil {
-							return
-						}
-						if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
-							close(stopPublished)
-						}
-					}))
-			require.NoError(t, err)
-			defer closeStopSubscribe()
-
-			// Grab jobs until we find the workspace build job. There is also
-			// an import version job that we need to ignore.
-			job, err = tc.acquire(ctx, srv)
-			require.NoError(t, err)
-			_, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_)
-			require.True(t, ok, "acquired job not a workspace build?")
-
-			<-stopPublished
-
-			// Validate that a session token is deleted during a stop job.
-			sessionToken = job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild.Metadata.WorkspaceOwnerSessionToken
-			require.Empty(t, sessionToken)
-			_, err = db.GetAPIKeyByID(ctx, key.ID)
-			require.ErrorIs(t, err, sql.ErrNoRows)
-		})
-
+		}
 		t.Run(tc.name+"_TemplateVersionDryRun", func(t *testing.T) {
 			t.Parallel()
 			srv, db, ps, _ := setup(t, false, nil)
@@ -459,6 +554,13 @@ func TestAcquireJob(t *testing.T) {
 
 			job, err := tc.acquire(ctx, srv)
 			require.NoError(t, err)
+
+			// sort
+			if wk, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
+				slices.SortFunc(wk.WorkspaceBuild.Metadata.WorkspaceOwnerRbacRoles, func(a, b *sdkproto.Role) int {
+					return strings.Compare(a.Name+a.OrgId, b.Name+b.OrgId)
+				})
+			}
 
 			got, err := json.Marshal(job.Type)
 			require.NoError(t, err)
@@ -1018,6 +1120,324 @@ func TestCompleteJob(t *testing.T) {
 		require.ErrorContains(t, err, "you don't own this job")
 	})
 
+	// Test for verifying transaction behavior on the extracted methods
+	t.Run("TransactionBehavior", func(t *testing.T) {
+		t.Parallel()
+		// Test TemplateImport transaction
+		t.Run("TemplateImportTransaction", func(t *testing.T) {
+			t.Parallel()
+			srv, db, _, pd := setup(t, false, &overrides{})
+			jobID := uuid.New()
+			versionID := uuid.New()
+			err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+				ID:             versionID,
+				JobID:          jobID,
+				OrganizationID: pd.OrganizationID,
+			})
+			require.NoError(t, err)
+			job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+				OrganizationID: pd.OrganizationID,
+				ID:             jobID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				Input:          []byte(`{"template_version_id": "` + versionID.String() + `"}`),
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			})
+			require.NoError(t, err)
+			_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+				OrganizationID: pd.OrganizationID,
+				WorkerID: uuid.NullUUID{
+					UUID:  pd.ID,
+					Valid: true,
+				},
+				Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			})
+			require.NoError(t, err)
+
+			_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+				JobId: job.ID.String(),
+				Type: &proto.CompletedJob_TemplateImport_{
+					TemplateImport: &proto.CompletedJob_TemplateImport{
+						StartResources: []*sdkproto.Resource{{
+							Name: "test-resource",
+							Type: "aws_instance",
+						}},
+						Plan: []byte("{}"),
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			// Verify job was marked as completed
+			completedJob, err := db.GetProvisionerJobByID(ctx, job.ID)
+			require.NoError(t, err)
+			require.True(t, completedJob.CompletedAt.Valid, "Job should be marked as completed")
+
+			// Verify resources were created
+			resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
+			require.NoError(t, err)
+			require.Len(t, resources, 1, "Expected one resource to be created")
+			require.Equal(t, "test-resource", resources[0].Name)
+		})
+
+		// Test TemplateDryRun transaction
+		t.Run("TemplateDryRunTransaction", func(t *testing.T) {
+			t.Parallel()
+			srv, db, _, pd := setup(t, false, &overrides{})
+			job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+				ID:            uuid.New(),
+				Provisioner:   database.ProvisionerTypeEcho,
+				Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
+				StorageMethod: database.ProvisionerStorageMethodFile,
+			})
+			require.NoError(t, err)
+			_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+				WorkerID: uuid.NullUUID{
+					UUID:  pd.ID,
+					Valid: true,
+				},
+				Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			})
+			require.NoError(t, err)
+
+			_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+				JobId: job.ID.String(),
+				Type: &proto.CompletedJob_TemplateDryRun_{
+					TemplateDryRun: &proto.CompletedJob_TemplateDryRun{
+						Resources: []*sdkproto.Resource{{
+							Name: "test-dry-run-resource",
+							Type: "aws_instance",
+						}},
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			// Verify job was marked as completed
+			completedJob, err := db.GetProvisionerJobByID(ctx, job.ID)
+			require.NoError(t, err)
+			require.True(t, completedJob.CompletedAt.Valid, "Job should be marked as completed")
+
+			// Verify resources were created
+			resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
+			require.NoError(t, err)
+			require.Len(t, resources, 1, "Expected one resource to be created")
+			require.Equal(t, "test-dry-run-resource", resources[0].Name)
+		})
+
+		// Test WorkspaceBuild transaction
+		t.Run("WorkspaceBuildTransaction", func(t *testing.T) {
+			t.Parallel()
+			srv, db, ps, pd := setup(t, false, &overrides{})
+
+			// Create test data
+			user := dbgen.User(t, db, database.User{})
+			template := dbgen.Template(t, db, database.Template{
+				Name:           "template",
+				Provisioner:    database.ProvisionerTypeEcho,
+				OrganizationID: pd.OrganizationID,
+			})
+			file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+			workspaceTable := dbgen.Workspace(t, db, database.WorkspaceTable{
+				TemplateID:     template.ID,
+				OwnerID:        user.ID,
+				OrganizationID: pd.OrganizationID,
+			})
+			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				OrganizationID: pd.OrganizationID,
+				TemplateID: uuid.NullUUID{
+					UUID:  template.ID,
+					Valid: true,
+				},
+				JobID: uuid.New(),
+			})
+			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				WorkspaceID:       workspaceTable.ID,
+				TemplateVersionID: version.ID,
+				Transition:        database.WorkspaceTransitionStart,
+				Reason:            database.BuildReasonInitiator,
+			})
+			job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+				FileID:      file.ID,
+				InitiatorID: user.ID,
+				Type:        database.ProvisionerJobTypeWorkspaceBuild,
+				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+					WorkspaceBuildID: build.ID,
+				})),
+				OrganizationID: pd.OrganizationID,
+			})
+			_, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+				OrganizationID: pd.OrganizationID,
+				WorkerID: uuid.NullUUID{
+					UUID:  pd.ID,
+					Valid: true,
+				},
+				Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			})
+			require.NoError(t, err)
+
+			// Add a published channel to make sure the workspace event is sent
+			publishedWorkspace := make(chan struct{})
+			closeWorkspaceSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspaceTable.OwnerID),
+				wspubsub.HandleWorkspaceEvent(
+					func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+						if err != nil {
+							return
+						}
+						if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspaceTable.ID {
+							close(publishedWorkspace)
+						}
+					}))
+			require.NoError(t, err)
+			defer closeWorkspaceSubscribe()
+
+			// The actual test
+			_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+				JobId: job.ID.String(),
+				Type: &proto.CompletedJob_WorkspaceBuild_{
+					WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+						State: []byte{},
+						Resources: []*sdkproto.Resource{{
+							Name: "test-workspace-resource",
+							Type: "aws_instance",
+						}},
+						Timings: []*sdkproto.Timing{
+							{
+								Stage:    "test",
+								Source:   "test-source",
+								Resource: "test-resource",
+								Action:   "test-action",
+								Start:    timestamppb.Now(),
+								End:      timestamppb.Now(),
+							},
+							{
+								Stage:    "test2",
+								Source:   "test-source2",
+								Resource: "test-resource2",
+								Action:   "test-action2",
+								// Start: omitted
+								// End: omitted
+							},
+							{
+								Stage:    "test3",
+								Source:   "test-source3",
+								Resource: "test-resource3",
+								Action:   "test-action3",
+								Start:    timestamppb.Now(),
+								End:      nil,
+							},
+							{
+								Stage:    "test3",
+								Source:   "test-source3",
+								Resource: "test-resource3",
+								Action:   "test-action3",
+								Start:    nil,
+								End:      timestamppb.Now(),
+							},
+							{
+								Stage:    "test4",
+								Source:   "test-source4",
+								Resource: "test-resource4",
+								Action:   "test-action4",
+								Start:    timestamppb.New(time.Time{}),
+								End:      timestamppb.Now(),
+							},
+							{
+								Stage:    "test5",
+								Source:   "test-source5",
+								Resource: "test-resource5",
+								Action:   "test-action5",
+								Start:    timestamppb.Now(),
+								End:      timestamppb.New(time.Time{}),
+							},
+							nil, // nil timing should be ignored
+						},
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			// Wait for workspace notification
+			select {
+			case <-publishedWorkspace:
+				// Success
+			case <-time.After(testutil.WaitShort):
+				t.Fatal("Workspace event not published")
+			}
+
+			// Verify job was marked as completed
+			completedJob, err := db.GetProvisionerJobByID(ctx, job.ID)
+			require.NoError(t, err)
+			require.True(t, completedJob.CompletedAt.Valid, "Job should be marked as completed")
+
+			// Verify resources were created
+			resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
+			require.NoError(t, err)
+			require.Len(t, resources, 1, "Expected one resource to be created")
+			require.Equal(t, "test-workspace-resource", resources[0].Name)
+
+			// Verify timings were recorded
+			timings, err := db.GetProvisionerJobTimingsByJobID(ctx, job.ID)
+			require.NoError(t, err)
+			require.Len(t, timings, 1, "Expected one timing entry to be created")
+			require.Equal(t, "test", string(timings[0].Stage), "Timing stage should match what was sent")
+		})
+	})
+
+	t.Run("WorkspaceBuild_BadFormType", func(t *testing.T) {
+		t.Parallel()
+		srv, db, _, pd := setup(t, false, &overrides{})
+		jobID := uuid.New()
+		versionID := uuid.New()
+		err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+			ID:             versionID,
+			JobID:          jobID,
+			OrganizationID: pd.OrganizationID,
+		})
+		require.NoError(t, err)
+		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+			ID:             jobID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			Input:          []byte(`{"template_version_id": "` + versionID.String() + `"}`),
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			OrganizationID: pd.OrganizationID,
+		})
+		require.NoError(t, err)
+		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			OrganizationID: pd.OrganizationID,
+			WorkerID: uuid.NullUUID{
+				UUID:  pd.ID,
+				Valid: true,
+			},
+			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+		})
+		require.NoError(t, err)
+
+		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+			JobId: job.ID.String(),
+			Type: &proto.CompletedJob_TemplateImport_{
+				TemplateImport: &proto.CompletedJob_TemplateImport{
+					StartResources: []*sdkproto.Resource{{
+						Name: "hello",
+						Type: "aws_instance",
+					}},
+					StopResources: []*sdkproto.Resource{},
+					RichParameters: []*sdkproto.RichParameter{
+						{
+							Name:     "parameter",
+							Type:     "string",
+							FormType: -1,
+						},
+					},
+					Plan: []byte("{}"),
+				},
+			},
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "unsupported form type")
+	})
+
 	t.Run("TemplateImport_MissingGitAuth", func(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, &overrides{})
@@ -1060,6 +1480,7 @@ func TestCompleteJob(t *testing.T) {
 						ExternalAuthProviders: []*sdkproto.ExternalAuthProviderResource{{
 							Id: "github",
 						}},
+						Plan: []byte("{}"),
 					},
 				},
 			})
@@ -1115,6 +1536,7 @@ func TestCompleteJob(t *testing.T) {
 						}},
 						StopResources:         []*sdkproto.Resource{},
 						ExternalAuthProviders: []*sdkproto.ExternalAuthProviderResource{{Id: "github"}},
+						Plan:                  []byte("{}"),
 					},
 				},
 			})
@@ -1523,6 +1945,7 @@ func TestCompleteJob(t *testing.T) {
 									Source:  "github.com/example2/example",
 								},
 							},
+							Plan: []byte("{}"),
 						},
 					},
 				},
@@ -1708,6 +2131,210 @@ func TestCompleteJob(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("ReinitializePrebuiltAgents", func(t *testing.T) {
+		t.Parallel()
+		type testcase struct {
+			name                    string
+			shouldReinitializeAgent bool
+		}
+
+		for _, tc := range []testcase{
+			// Whether or not there are presets and those presets define prebuilds, etc
+			// are all irrelevant at this level. Those factors are useful earlier in the process.
+			// Everything relevant to this test is determined by the value of `PrebuildClaimedByUser`
+			// on the provisioner job. As such, there are only two significant test cases:
+			{
+				name:                    "claimed prebuild",
+				shouldReinitializeAgent: true,
+			},
+			{
+				name:                    "not a claimed prebuild",
+				shouldReinitializeAgent: false,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				// GIVEN an enqueued provisioner job and its dependencies:
+
+				srv, db, ps, pd := setup(t, false, &overrides{})
+
+				buildID := uuid.New()
+				jobInput := provisionerdserver.WorkspaceProvisionJob{
+					WorkspaceBuildID: buildID,
+				}
+				if tc.shouldReinitializeAgent { // This is the key lever in the test
+					// GIVEN the enqueued provisioner job is for a workspace being claimed by a user:
+					jobInput.PrebuiltWorkspaceBuildStage = sdkproto.PrebuiltWorkspaceBuildStage_CLAIM
+				}
+				input, err := json.Marshal(jobInput)
+				require.NoError(t, err)
+
+				ctx := testutil.Context(t, testutil.WaitShort)
+				job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+					Input:         input,
+					Provisioner:   database.ProvisionerTypeEcho,
+					StorageMethod: database.ProvisionerStorageMethodFile,
+					Type:          database.ProvisionerJobTypeWorkspaceBuild,
+				})
+				require.NoError(t, err)
+
+				tpl := dbgen.Template(t, db, database.Template{
+					OrganizationID: pd.OrganizationID,
+				})
+				tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
+					JobID:      job.ID,
+				})
+				workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+					TemplateID: tpl.ID,
+				})
+				_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+					ID:                buildID,
+					JobID:             job.ID,
+					WorkspaceID:       workspace.ID,
+					TemplateVersionID: tv.ID,
+				})
+				_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+					WorkerID: uuid.NullUUID{
+						UUID:  pd.ID,
+						Valid: true,
+					},
+					Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+				})
+				require.NoError(t, err)
+
+				// GIVEN something is listening to process workspace reinitialization:
+				reinitChan := make(chan agentsdk.ReinitializationEvent, 1) // Buffered to simplify test structure
+				cancel, err := agplprebuilds.NewPubsubWorkspaceClaimListener(ps, testutil.Logger(t)).ListenForWorkspaceClaims(ctx, workspace.ID, reinitChan)
+				require.NoError(t, err)
+				defer cancel()
+
+				// WHEN the job is completed
+				completedJob := proto.CompletedJob{
+					JobId: job.ID.String(),
+					Type: &proto.CompletedJob_WorkspaceBuild_{
+						WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{},
+					},
+				}
+				_, err = srv.CompleteJob(ctx, &completedJob)
+				require.NoError(t, err)
+
+				if tc.shouldReinitializeAgent {
+					event := testutil.RequireReceive(ctx, t, reinitChan)
+					require.Equal(t, workspace.ID, event.WorkspaceID)
+				} else {
+					select {
+					case <-reinitChan:
+						t.Fatal("unexpected reinitialization event published")
+					default:
+						// OK
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("PrebuiltWorkspaceClaimWithResourceReplacements", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Given: a mock prebuild orchestrator which stores calls to TrackResourceReplacement.
+		done := make(chan struct{})
+		orchestrator := &mockPrebuildsOrchestrator{
+			ReconciliationOrchestrator: agplprebuilds.DefaultReconciler,
+			done:                       done,
+		}
+		srv, db, ps, pd := setup(t, false, &overrides{
+			prebuildsOrchestrator: orchestrator,
+		})
+
+		// Given: a workspace build which simulates claiming a prebuild.
+		user := dbgen.User(t, db, database.User{})
+		template := dbgen.Template(t, db, database.Template{
+			Name:           "template",
+			Provisioner:    database.ProvisionerTypeEcho,
+			OrganizationID: pd.OrganizationID,
+		})
+		file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+		workspaceTable := dbgen.Workspace(t, db, database.WorkspaceTable{
+			TemplateID:     template.ID,
+			OwnerID:        user.ID,
+			OrganizationID: pd.OrganizationID,
+		})
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: pd.OrganizationID,
+			TemplateID: uuid.NullUUID{
+				UUID:  template.ID,
+				Valid: true,
+			},
+			JobID: uuid.New(),
+		})
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       workspaceTable.ID,
+			InitiatorID:       user.ID,
+			TemplateVersionID: version.ID,
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonInitiator,
+		})
+		job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+			FileID:      file.ID,
+			InitiatorID: user.ID,
+			Type:        database.ProvisionerJobTypeWorkspaceBuild,
+			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+				WorkspaceBuildID:            build.ID,
+				PrebuiltWorkspaceBuildStage: sdkproto.PrebuiltWorkspaceBuildStage_CLAIM,
+			})),
+			OrganizationID: pd.OrganizationID,
+		})
+		_, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			OrganizationID: pd.OrganizationID,
+			WorkerID: uuid.NullUUID{
+				UUID:  pd.ID,
+				Valid: true,
+			},
+			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+		})
+		require.NoError(t, err)
+
+		// When: a replacement is encountered.
+		replacements := []*sdkproto.ResourceReplacement{
+			{
+				Resource: "docker_container[0]",
+				Paths:    []string{"env"},
+			},
+		}
+
+		// Then: CompleteJob makes a call to TrackResourceReplacement.
+		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+			JobId: job.ID.String(),
+			Type: &proto.CompletedJob_WorkspaceBuild_{
+				WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+					State:                []byte{},
+					ResourceReplacements: replacements,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Then: the replacements are as we expected.
+		testutil.RequireReceive(ctx, t, done)
+		require.Equal(t, replacements, orchestrator.replacements)
+	})
+}
+
+type mockPrebuildsOrchestrator struct {
+	agplprebuilds.ReconciliationOrchestrator
+
+	replacements []*sdkproto.ResourceReplacement
+	done         chan struct{}
+}
+
+func (m *mockPrebuildsOrchestrator) TrackResourceReplacement(_ context.Context, _, _ uuid.UUID, replacements []*sdkproto.ResourceReplacement) {
+	m.replacements = replacements
+	m.done <- struct{}{}
 }
 
 func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
@@ -1731,6 +2358,34 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 			},
 		},
 		{
+			name: "one preset, no parameters, requesting prebuilds",
+			givenPresets: []*sdkproto.Preset{
+				{
+					Name: "preset1",
+					Prebuild: &sdkproto.Prebuild{
+						Instances: 1,
+					},
+				},
+			},
+		},
+		{
+			name: "one preset with multiple parameters, requesting 0 prebuilds",
+			givenPresets: []*sdkproto.Preset{
+				{
+					Name: "preset1",
+					Parameters: []*sdkproto.PresetParameter{
+						{
+							Name:  "param1",
+							Value: "value1",
+						},
+					},
+					Prebuild: &sdkproto.Prebuild{
+						Instances: 0,
+					},
+				},
+			},
+		},
+		{
 			name: "one preset with multiple parameters",
 			givenPresets: []*sdkproto.Preset{
 				{
@@ -1749,6 +2404,27 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 			},
 		},
 		{
+			name: "one preset, multiple parameters, requesting prebuilds",
+			givenPresets: []*sdkproto.Preset{
+				{
+					Name: "preset1",
+					Parameters: []*sdkproto.PresetParameter{
+						{
+							Name:  "param1",
+							Value: "value1",
+						},
+						{
+							Name:  "param2",
+							Value: "value2",
+						},
+					},
+					Prebuild: &sdkproto.Prebuild{
+						Instances: 1,
+					},
+				},
+			},
+		},
+		{
 			name: "multiple presets with parameters",
 			givenPresets: []*sdkproto.Preset{
 				{
@@ -1762,6 +2438,9 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 							Name:  "param2",
 							Value: "value2",
 						},
+					},
+					Prebuild: &sdkproto.Prebuild{
+						Instances: 1,
 					},
 				},
 				{
@@ -1791,6 +2470,7 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 			db, ps := dbtestutil.NewDB(t)
 			org := dbgen.Organization(t, db, database.Organization{})
 			user := dbgen.User(t, db, database.User{})
+
 			job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 				Type:           database.ProvisionerJobTypeWorkspaceBuild,
 				OrganizationID: org.ID,
@@ -1817,42 +2497,37 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 			require.Len(t, gotPresets, len(c.givenPresets))
 
 			for _, givenPreset := range c.givenPresets {
-				foundMatch := false
+				var foundPreset *database.TemplateVersionPreset
 				for _, gotPreset := range gotPresets {
 					if givenPreset.Name == gotPreset.Name {
-						foundMatch = true
+						foundPreset = &gotPreset
 						break
 					}
 				}
-				require.True(t, foundMatch, "preset %s not found in parameters", givenPreset.Name)
-			}
+				require.NotNil(t, foundPreset, "preset %s not found in parameters", givenPreset.Name)
 
-			gotPresetParameters, err := db.GetPresetParametersByTemplateVersionID(ctx, templateVersion.ID)
-			require.NoError(t, err)
+				gotPresetParameters, err := db.GetPresetParametersByPresetID(ctx, foundPreset.ID)
+				require.NoError(t, err)
+				require.Len(t, gotPresetParameters, len(givenPreset.Parameters))
 
-			for _, givenPreset := range c.givenPresets {
 				for _, givenParameter := range givenPreset.Parameters {
 					foundMatch := false
 					for _, gotParameter := range gotPresetParameters {
 						nameMatches := givenParameter.Name == gotParameter.Name
 						valueMatches := givenParameter.Value == gotParameter.Value
-
-						// ensure that preset parameters are matched to the correct preset:
-						var gotPreset database.TemplateVersionPreset
-						for _, preset := range gotPresets {
-							if preset.ID == gotParameter.TemplateVersionPresetID {
-								gotPreset = preset
-								break
-							}
-						}
-						presetMatches := gotPreset.Name == givenPreset.Name
-
-						if nameMatches && valueMatches && presetMatches {
+						if nameMatches && valueMatches {
 							foundMatch = true
 							break
 						}
 					}
-					require.True(t, foundMatch, "preset parameter %s not found in presets", givenParameter.Name)
+					require.True(t, foundMatch, "preset parameter %s not found in parameters", givenParameter.Name)
+				}
+				if givenPreset.Prebuild == nil {
+					require.False(t, foundPreset.DesiredInstances.Valid)
+				}
+				if givenPreset.Prebuild != nil {
+					require.True(t, foundPreset.DesiredInstances.Valid)
+					require.Equal(t, givenPreset.Prebuild.Instances, foundPreset.DesiredInstances.Int32)
 				}
 			}
 		})
@@ -2068,6 +2743,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, agents, 1)
 		agent := agents[0]
+		require.Equal(t, uuid.NullUUID{}, agent.ParentID)
 		require.Equal(t, "amd64", agent.Architecture)
 		require.Equal(t, "linux", agent.OperatingSystem)
 		want, err := json.Marshal(map[string]string{
@@ -2189,6 +2865,40 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		require.Equal(t, "/volume1", volMonitors[0].Path)
 		require.Equal(t, int32(50), volMonitors[1].Threshold)
 		require.Equal(t, "/volume2", volMonitors[1].Path)
+	})
+
+	t.Run("Devcontainers", func(t *testing.T) {
+		t.Parallel()
+		db := dbmem.New()
+		job := uuid.New()
+		err := insert(db, job, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "dev",
+				Devcontainers: []*sdkproto.Devcontainer{
+					{Name: "foo", WorkspaceFolder: "/workspace1"},
+					{Name: "bar", WorkspaceFolder: "/workspace2", ConfigPath: "/workspace2/.devcontainer/devcontainer.json"},
+				},
+			}},
+		})
+		require.NoError(t, err)
+		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job)
+		require.NoError(t, err)
+		require.Len(t, resources, 1)
+		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+		agent := agents[0]
+		devcontainers, err := db.GetWorkspaceAgentDevcontainersByAgentID(ctx, agent.ID)
+		require.NoError(t, err)
+		require.Len(t, devcontainers, 2)
+		require.Equal(t, "foo", devcontainers[0].Name)
+		require.Equal(t, "/workspace1", devcontainers[0].WorkspaceFolder)
+		require.Equal(t, "", devcontainers[0].ConfigPath)
+		require.Equal(t, "bar", devcontainers[1].Name)
+		require.Equal(t, "/workspace2", devcontainers[1].WorkspaceFolder)
+		require.Equal(t, "/workspace2/.devcontainer/devcontainer.json", devcontainers[1].ConfigPath)
 	})
 }
 
@@ -2511,6 +3221,7 @@ type overrides struct {
 	heartbeatInterval           time.Duration
 	auditor                     audit.Auditor
 	notificationEnqueuer        notifications.Enqueuer
+	prebuildsOrchestrator       agplprebuilds.ReconciliationOrchestrator
 }
 
 func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub, database.ProvisionerDaemon) {
@@ -2592,8 +3303,16 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	})
 	require.NoError(t, err)
 
+	prebuildsOrchestrator := ov.prebuildsOrchestrator
+	if prebuildsOrchestrator == nil {
+		prebuildsOrchestrator = agplprebuilds.DefaultReconciler
+	}
+	var op atomic.Pointer[agplprebuilds.ReconciliationOrchestrator]
+	op.Store(&prebuildsOrchestrator)
+
 	srv, err := provisionerdserver.NewServer(
 		ov.ctx,
+		proto.CurrentVersion.String(),
 		&url.URL{},
 		daemon.ID,
 		defOrg.ID,
@@ -2619,6 +3338,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 			HeartbeatFn:           ov.heartbeatFn,
 		},
 		notifEnq,
+		&op,
 	)
 	require.NoError(t, err)
 	return srv, db, ps, daemon

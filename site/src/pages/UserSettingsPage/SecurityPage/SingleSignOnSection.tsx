@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import KeyIcon from "@mui/icons-material/VpnKey";
 import Button from "@mui/material/Button";
@@ -16,6 +15,7 @@ import type {
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Stack } from "components/Stack/Stack";
+import { CircleCheck as CircleCheckIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation } from "react-query";
 import { docs } from "utils/docs";
@@ -52,7 +52,8 @@ export const useSingleSignOnSection = () => {
 	const [loginTypeConfirmation, setLoginTypeConfirmation] =
 		useState<LoginTypeConfirmation>({ open: false, selectedType: undefined });
 
-	const mutation = useMutation(API.convertToOAUTH, {
+	const mutation = useMutation({
+		mutationFn: API.convertToOAUTH,
 		onSuccess: (data) => {
 			const loginTypeMsg =
 				data.to_type === "github" ? "Github" : "OpenID Connect";
@@ -93,7 +94,7 @@ export const useSingleSignOnSection = () => {
 		confirm,
 		// We still want to show it loading when it is success so the modal does not
 		// change until the redirect
-		isUpdating: mutation.isLoading || mutation.isSuccess,
+		isUpdating: mutation.isPending || mutation.isSuccess,
 		isConfirming: loginTypeConfirmation.open,
 		error: mutation.error,
 	};
@@ -191,11 +192,11 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 								fontSize: 14,
 							}}
 						>
-							<CheckCircleOutlined
+							<CircleCheckIcon
 								css={{
 									color: theme.palette.success.light,
-									fontSize: 16,
 								}}
+								className="size-icon-xs"
 							/>
 							<span>
 								Authenticated with{" "}

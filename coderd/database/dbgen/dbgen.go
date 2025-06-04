@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -142,6 +143,30 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 	return key, fmt.Sprintf("%s-%s", key.ID, secret)
 }
 
+func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
+	chat, err := db.InsertChat(genCtx, database.InsertChatParams{
+		OwnerID:   takeFirst(seed.OwnerID, uuid.New()),
+		CreatedAt: takeFirst(seed.CreatedAt, dbtime.Now()),
+		UpdatedAt: takeFirst(seed.UpdatedAt, dbtime.Now()),
+		Title:     takeFirst(seed.Title, "Test Chat"),
+	})
+	require.NoError(t, err, "insert chat")
+	return chat
+}
+
+func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) database.ChatMessage {
+	msg, err := db.InsertChatMessages(genCtx, database.InsertChatMessagesParams{
+		CreatedAt: takeFirst(seed.CreatedAt, dbtime.Now()),
+		ChatID:    takeFirst(seed.ChatID, uuid.New()),
+		Model:     takeFirst(seed.Model, "train"),
+		Provider:  takeFirst(seed.Provider, "thomas"),
+		Content:   takeFirstSlice(seed.Content, []byte(`[{"text": "Choo choo!"}]`)),
+	})
+	require.NoError(t, err, "insert chat message")
+	require.Len(t, msg, 1, "insert one chat message did not return exactly one message")
+	return msg[0]
+}
+
 func WorkspaceAgentPortShare(t testing.TB, db database.Store, orig database.WorkspaceAgentPortShare) database.WorkspaceAgentPortShare {
 	ps, err := db.UpsertWorkspaceAgentPortShare(genCtx, database.UpsertWorkspaceAgentPortShareParams{
 		WorkspaceID: takeFirst(orig.WorkspaceID, uuid.New()),
@@ -157,6 +182,7 @@ func WorkspaceAgentPortShare(t testing.TB, db database.Store, orig database.Work
 func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgent) database.WorkspaceAgent {
 	agt, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
+		ParentID:   takeFirst(orig.ParentID, uuid.NullUUID{}),
 		CreatedAt:  takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:  takeFirst(orig.UpdatedAt, dbtime.Now()),
 		Name:       takeFirst(orig.Name, testutil.GetRandomName(t)),
@@ -186,8 +212,20 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		MOTDFile:                 takeFirst(orig.TroubleshootingURL, ""),
 		DisplayApps:              append([]database.DisplayApp{}, orig.DisplayApps...),
 		DisplayOrder:             takeFirst(orig.DisplayOrder, 1),
+		APIKeyScope:              takeFirst(orig.APIKeyScope, database.AgentKeyScopeEnumAll),
 	})
 	require.NoError(t, err, "insert workspace agent")
+	if orig.FirstConnectedAt.Valid || orig.LastConnectedAt.Valid || orig.DisconnectedAt.Valid || orig.LastConnectedReplicaID.Valid {
+		err = db.UpdateWorkspaceAgentConnectionByID(genCtx, database.UpdateWorkspaceAgentConnectionByIDParams{
+			ID:                     agt.ID,
+			FirstConnectedAt:       takeFirst(orig.FirstConnectedAt, agt.FirstConnectedAt),
+			LastConnectedAt:        takeFirst(orig.LastConnectedAt, agt.LastConnectedAt),
+			DisconnectedAt:         takeFirst(orig.DisconnectedAt, agt.DisconnectedAt),
+			LastConnectedReplicaID: takeFirst(orig.LastConnectedReplicaID, agt.LastConnectedReplicaID),
+			UpdatedAt:              takeFirst(orig.UpdatedAt, agt.UpdatedAt),
+		})
+		require.NoError(t, err, "update workspace agent first connected at")
+	}
 	return agt
 }
 
@@ -253,6 +291,19 @@ func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.W
 		require.NoError(t, err, "insert workspace agent script")
 	}
 	panic("failed to insert workspace agent script timing")
+}
+
+func WorkspaceAgentDevcontainer(t testing.TB, db database.Store, orig database.WorkspaceAgentDevcontainer) database.WorkspaceAgentDevcontainer {
+	devcontainers, err := db.InsertWorkspaceAgentDevcontainers(genCtx, database.InsertWorkspaceAgentDevcontainersParams{
+		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
+		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
+		ID:               []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+		Name:             []string{takeFirst(orig.Name, testutil.GetRandomName(t))},
+		WorkspaceFolder:  []string{takeFirst(orig.WorkspaceFolder, "/workspace")},
+		ConfigPath:       []string{takeFirst(orig.ConfigPath, "")},
+	})
+	require.NoError(t, err, "insert workspace agent devcontainer")
+	return devcontainers[0]
 }
 
 func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) database.WorkspaceTable {
@@ -464,6 +515,18 @@ func NotificationInbox(t testing.TB, db database.Store, orig database.InsertInbo
 	})
 	require.NoError(t, err, "insert notification")
 	return notification
+}
+
+func WebpushSubscription(t testing.TB, db database.Store, orig database.InsertWebpushSubscriptionParams) database.WebpushSubscription {
+	subscription, err := db.InsertWebpushSubscription(genCtx, database.InsertWebpushSubscriptionParams{
+		CreatedAt:         takeFirst(orig.CreatedAt, dbtime.Now()),
+		UserID:            takeFirst(orig.UserID, uuid.New()),
+		Endpoint:          takeFirst(orig.Endpoint, testutil.GetRandomName(t)),
+		EndpointP256dhKey: takeFirst(orig.EndpointP256dhKey, testutil.GetRandomName(t)),
+		EndpointAuthKey:   takeFirst(orig.EndpointAuthKey, testutil.GetRandomName(t)),
+	})
+	require.NoError(t, err, "insert webpush subscription")
+	return subscription
 }
 
 func Group(t testing.TB, db database.Store, orig database.Group) database.Group {
@@ -696,6 +759,7 @@ func WorkspaceApp(t testing.TB, db database.Store, orig database.WorkspaceApp) d
 		HealthcheckThreshold: takeFirst(orig.HealthcheckThreshold, 60),
 		Health:               takeFirst(orig.Health, database.WorkspaceAppHealthHealthy),
 		DisplayOrder:         takeFirst(orig.DisplayOrder, 1),
+		DisplayGroup:         orig.DisplayGroup,
 		Hidden:               orig.Hidden,
 		OpenIn:               takeFirst(orig.OpenIn, database.WorkspaceAppOpenInSlimWindow),
 	})
@@ -928,6 +992,7 @@ func TemplateVersionParameter(t testing.TB, db database.Store, orig database.Tem
 		Name:                takeFirst(orig.Name, testutil.GetRandomName(t)),
 		Description:         takeFirst(orig.Description, testutil.GetRandomName(t)),
 		Type:                takeFirst(orig.Type, "string"),
+		FormType:            orig.FormType, // empty string is ok!
 		Mutable:             takeFirst(orig.Mutable, false),
 		DefaultValue:        takeFirst(orig.DefaultValue, testutil.GetRandomName(t)),
 		Icon:                takeFirst(orig.Icon, testutil.GetRandomName(t)),
@@ -944,6 +1009,34 @@ func TemplateVersionParameter(t testing.TB, db database.Store, orig database.Tem
 	})
 	require.NoError(t, err, "insert template version parameter")
 	return version
+}
+
+func TemplateVersionTerraformValues(t testing.TB, db database.Store, orig database.TemplateVersionTerraformValue) database.TemplateVersionTerraformValue {
+	t.Helper()
+
+	jobID := uuid.New()
+	if orig.TemplateVersionID != uuid.Nil {
+		v, err := db.GetTemplateVersionByID(genCtx, orig.TemplateVersionID)
+		if err == nil {
+			jobID = v.JobID
+		}
+	}
+
+	params := database.InsertTemplateVersionTerraformValuesByJobIDParams{
+		JobID:               jobID,
+		CachedPlan:          takeFirstSlice(orig.CachedPlan, []byte("{}")),
+		CachedModuleFiles:   orig.CachedModuleFiles,
+		UpdatedAt:           takeFirst(orig.UpdatedAt, dbtime.Now()),
+		ProvisionerdVersion: takeFirst(orig.ProvisionerdVersion, proto.CurrentVersion.String()),
+	}
+
+	err := db.InsertTemplateVersionTerraformValuesByJobID(genCtx, params)
+	require.NoError(t, err, "insert template version parameter")
+
+	v, err := db.GetTemplateVersionTerraformValues(genCtx, orig.TemplateVersionID)
+	require.NoError(t, err, "get template version values")
+
+	return v
 }
 
 func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.WorkspaceAgentStat) database.WorkspaceAgentStat {
@@ -1156,6 +1249,30 @@ func TelemetryItem(t testing.TB, db database.Store, seed database.TelemetryItem)
 	item, err := db.GetTelemetryItem(genCtx, seed.Key)
 	require.NoError(t, err, "get telemetry item")
 	return item
+}
+
+func Preset(t testing.TB, db database.Store, seed database.InsertPresetParams) database.TemplateVersionPreset {
+	preset, err := db.InsertPreset(genCtx, database.InsertPresetParams{
+		ID:                  takeFirst(seed.ID, uuid.New()),
+		TemplateVersionID:   takeFirst(seed.TemplateVersionID, uuid.New()),
+		Name:                takeFirst(seed.Name, testutil.GetRandomName(t)),
+		CreatedAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
+		DesiredInstances:    seed.DesiredInstances,
+		InvalidateAfterSecs: seed.InvalidateAfterSecs,
+	})
+	require.NoError(t, err, "insert preset")
+	return preset
+}
+
+func PresetParameter(t testing.TB, db database.Store, seed database.InsertPresetParametersParams) []database.TemplateVersionPresetParameter {
+	parameters, err := db.InsertPresetParameters(genCtx, database.InsertPresetParametersParams{
+		TemplateVersionPresetID: takeFirst(seed.TemplateVersionPresetID, uuid.New()),
+		Names:                   takeFirstSlice(seed.Names, []string{testutil.GetRandomName(t)}),
+		Values:                  takeFirstSlice(seed.Values, []string{testutil.GetRandomName(t)}),
+	})
+
+	require.NoError(t, err, "insert preset parameters")
+	return parameters
 }
 
 func provisionerJobTiming(t testing.TB, db database.Store, seed database.ProvisionerJobTiming) database.ProvisionerJobTiming {

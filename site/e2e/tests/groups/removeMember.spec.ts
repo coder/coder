@@ -6,14 +6,13 @@ import {
 	getCurrentOrgId,
 	setupApiCalls,
 } from "../../api";
-import { defaultOrganizationName } from "../../constants";
-import { requiresLicense } from "../../helpers";
-import { login } from "../../helpers";
+import { defaultOrganizationName, users } from "../../constants";
+import { login, requiresLicense } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
-	await login(page);
+	await login(page, users.userAdmin);
 	await setupApiCalls(page);
 });
 
@@ -34,9 +33,8 @@ test("remove member", async ({ page, baseURL }) => {
 	await expect(page).toHaveTitle(`${group.display_name} - Coder`);
 
 	const userRow = page.getByRole("row", { name: member.username });
-	await userRow.getByRole("button", { name: "More options" }).click();
-
-	const menu = page.locator("#more-options");
+	await userRow.getByRole("button", { name: "Open menu" }).click();
+	const menu = page.getByRole("menu");
 	await menu.getByText("Remove").click({ timeout: 1_000 });
 
 	await expect(page.getByText("Member removed successfully.")).toBeVisible();

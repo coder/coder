@@ -10,6 +10,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -91,6 +92,7 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 		orgMemberships, err := tx.OrganizationMembers(ctx, database.OrganizationMembersParams{
 			OrganizationID: uuid.Nil,
 			UserID:         user.ID,
+			IncludeSystem:  false,
 		})
 		if err != nil {
 			return xerrors.Errorf("get organizations by user id: %w", err)
@@ -284,5 +286,8 @@ func (s *RoleSyncSettings) Set(v string) error {
 }
 
 func (s *RoleSyncSettings) String() string {
+	if s.Mapping == nil {
+		s.Mapping = make(map[string][]string)
+	}
 	return runtimeconfig.JSONString(s)
 }

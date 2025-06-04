@@ -1,0 +1,12 @@
+{
+	"$schema": "https://unpkg.com/knip@5/schema.json",
+	"entry": ["./src/index.tsx", "./src/serviceWorker.ts"],
+	"project": ["./src/**/*.ts", "./src/**/*.tsx", "./e2e/**/*.ts"],
+	"ignore": ["**/*Generated.ts"],
+	"ignoreBinaries": ["protoc"],
+	"ignoreDependencies": [
+		"@types/react-virtualized-auto-sizer",
+		"jest_workaround",
+		"ts-proto"
+	]
+}

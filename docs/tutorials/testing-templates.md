@@ -103,7 +103,6 @@ jobs:
       - name: Create a test workspace and run some example commands
         run: |
           coder create -t $TEMPLATE_NAME --template-version ${{ steps.name.outputs.version_name }} test-${{ steps.name.outputs.version_name }} --yes
-          coder config-ssh --yes
           # run some example commands
           coder ssh test-${{ steps.name.outputs.version_name }} -- make build
 

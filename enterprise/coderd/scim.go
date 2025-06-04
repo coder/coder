@@ -508,13 +508,13 @@ func (api *API) scimPutUser(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, sUser)
 }
 
-func immutabilityViolation[T comparable](old, new T) bool {
+func immutabilityViolation[T comparable](old, newVal T) bool {
 	var empty T
-	if new == empty {
+	if newVal == empty {
 		// No change
 		return false
 	}
-	return old != new
+	return old != newVal
 }
 
 //nolint:revive // active is not a control flag

@@ -1,4 +1,4 @@
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { DeploymentSidebarView } from "./DeploymentSidebarView";

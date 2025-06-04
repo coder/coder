@@ -65,13 +65,9 @@ func TestParseGroupClaims(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest, tparallel
 func TestGroupSyncTable(t *testing.T) {
 	t.Parallel()
-
-	// Last checked, takes 30s with postgres on a fast machine.
-	if dbtestutil.WillUsePostgres() {
-		t.Skip("Skipping test because it populates a lot of db entries, which is slow on postgres.")
-	}
 
 	userClaims := jwt.MapClaims{
 		"groups": []string{
@@ -248,9 +244,11 @@ func TestGroupSyncTable(t *testing.T) {
 
 	for _, tc := range testCases {
 		tc := tc
+		// The final test, "AllTogether", cannot run in parallel.
+		// These tests are nearly instant using the memory db, so
+		// this is still fast without being in parallel.
+		//nolint:paralleltest, tparallel
 		t.Run(tc.Name, func(t *testing.T) {
-			t.Parallel()
-
 			db, _ := dbtestutil.NewDB(t)
 			manager := runtimeconfig.NewManager()
 			s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
@@ -289,9 +287,8 @@ func TestGroupSyncTable(t *testing.T) {
 	// deployment. This tests all organizations being synced together.
 	// The reason we do them individually, is that it is much easier to
 	// debug a single test case.
+	//nolint:paralleltest, tparallel // This should run after all the individual tests
 	t.Run("AllTogether", func(t *testing.T) {
-		t.Parallel()
-
 		db, _ := dbtestutil.NewDB(t)
 		manager := runtimeconfig.NewManager()
 		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
@@ -376,10 +373,6 @@ func TestGroupSyncTable(t *testing.T) {
 
 func TestSyncDisabled(t *testing.T) {
 	t.Parallel()
-
-	if dbtestutil.WillUsePostgres() {
-		t.Skip("Skipping test because it populates a lot of db entries, which is slow on postgres.")
-	}
 
 	db, _ := dbtestutil.NewDB(t)
 	manager := runtimeconfig.NewManager()
@@ -872,7 +865,7 @@ func (o orgSetupDefinition) Assert(t *testing.T, orgID uuid.UUID, db database.St
 	}
 }
 
-func (o orgGroupAssert) Assert(t *testing.T, orgID uuid.UUID, db database.Store, user database.User) {
+func (o *orgGroupAssert) Assert(t *testing.T, orgID uuid.UUID, db database.Store, user database.User) {
 	t.Helper()
 
 	ctx := context.Background()

@@ -1,10 +1,12 @@
 package codersdk
 
 import (
-	"strconv"
+	"encoding/json"
 
 	"golang.org/x/xerrors"
+	"tailscale.com/types/ptr"
 
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
@@ -46,80 +48,84 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 }
 
 func validateBuildParameter(richParameter TemplateVersionParameter, buildParameter *WorkspaceBuildParameter, lastBuildParameter *WorkspaceBuildParameter) error {
-	var value string
+	var (
+		current  string
+		previous *string
+	)
 
 	if buildParameter != nil {
-		value = buildParameter.Value
+		current = buildParameter.Value
 	}
 
-	if richParameter.Required && value == "" {
+	if lastBuildParameter != nil {
+		previous = ptr.To(lastBuildParameter.Value)
+	}
+
+	if richParameter.Required && current == "" {
 		return xerrors.Errorf("parameter value is required")
 	}
 
-	if value == "" { // parameter is optional, so take the default value
-		value = richParameter.DefaultValue
+	if current == "" { // parameter is optional, so take the default value
+		current = richParameter.DefaultValue
 	}
 
-	if lastBuildParameter != nil && lastBuildParameter.Value != "" && richParameter.Type == "number" && len(richParameter.ValidationMonotonic) > 0 {
-		prev, err := strconv.Atoi(lastBuildParameter.Value)
-		if err != nil {
-			return xerrors.Errorf("previous parameter value is not a number: %s", lastBuildParameter.Value)
-		}
-
-		current, err := strconv.Atoi(buildParameter.Value)
-		if err != nil {
-			return xerrors.Errorf("current parameter value is not a number: %s", buildParameter.Value)
-		}
-
-		switch richParameter.ValidationMonotonic {
-		case MonotonicOrderIncreasing:
-			if prev > current {
-				return xerrors.Errorf("parameter value must be equal or greater than previous value: %d", prev)
-			}
-		case MonotonicOrderDecreasing:
-			if prev < current {
-				return xerrors.Errorf("parameter value must be equal or lower than previous value: %d", prev)
-			}
-		}
-	}
-
-	if len(richParameter.Options) > 0 {
-		var matched bool
-		for _, opt := range richParameter.Options {
-			if opt.Value == value {
-				matched = true
-				break
-			}
-		}
-
-		if !matched {
-			return xerrors.Errorf("parameter value must match one of options: %s", parameterValuesAsArray(richParameter.Options))
-		}
-		return nil
+	if len(richParameter.Options) > 0 && !inOptionSet(richParameter, current) {
+		return xerrors.Errorf("parameter value must match one of options: %s", parameterValuesAsArray(richParameter.Options))
 	}
 
 	if !validationEnabled(richParameter) {
 		return nil
 	}
 
-	var min, max int
+	var minVal, maxVal int
 	if richParameter.ValidationMin != nil {
-		min = int(*richParameter.ValidationMin)
+		minVal = int(*richParameter.ValidationMin)
 	}
 	if richParameter.ValidationMax != nil {
-		max = int(*richParameter.ValidationMax)
+		maxVal = int(*richParameter.ValidationMax)
 	}
 
 	validation := &provider.Validation{
-		Min:         min,
-		Max:         max,
+		Min:         minVal,
+		Max:         maxVal,
 		MinDisabled: richParameter.ValidationMin == nil,
 		MaxDisabled: richParameter.ValidationMax == nil,
 		Regex:       richParameter.ValidationRegex,
 		Error:       richParameter.ValidationError,
 		Monotonic:   string(richParameter.ValidationMonotonic),
 	}
-	return validation.Valid(richParameter.Type, value)
+	return validation.Valid(richParameter.Type, current, previous)
+}
+
+// inOptionSet returns if the value given is in the set of options for a parameter.
+func inOptionSet(richParameter TemplateVersionParameter, value string) bool {
+	optionValues := make([]string, 0, len(richParameter.Options))
+	for _, option := range richParameter.Options {
+		optionValues = append(optionValues, option.Value)
+	}
+
+	// If the type is `list(string)` and the form_type is `multi-select`, then we check each individual
+	// value in the list against the option set.
+	isMultiSelect := richParameter.Type == provider.OptionTypeListString && richParameter.FormType == string(provider.ParameterFormTypeMultiSelect)
+
+	if !isMultiSelect {
+		// This is the simple case. Just checking if the value is in the option set.
+		return slice.Contains(optionValues, value)
+	}
+
+	var checks []string
+	err := json.Unmarshal([]byte(value), &checks)
+	if err != nil {
+		return false
+	}
+
+	for _, check := range checks {
+		if !slice.Contains(optionValues, check) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func findBuildParameter(params []WorkspaceBuildParameter, parameterName string) (*WorkspaceBuildParameter, bool) {
@@ -164,7 +170,7 @@ type ParameterResolver struct {
 // resolves the correct value.  It returns the value of the parameter, if valid, and an error if invalid.
 func (r *ParameterResolver) ValidateResolve(p TemplateVersionParameter, v *WorkspaceBuildParameter) (value string, err error) {
 	prevV := r.findLastValue(p)
-	if !p.Mutable && v != nil && prevV != nil {
+	if !p.Mutable && v != nil && prevV != nil && v.Value != prevV.Value {
 		return "", xerrors.Errorf("Parameter %q is not mutable, so it can't be updated after creating a workspace.", p.Name)
 	}
 	if p.Required && v == nil && prevV == nil {
@@ -188,6 +194,26 @@ func (r *ParameterResolver) ValidateResolve(p TemplateVersionParameter, v *Works
 		return "", err
 	}
 	return resolvedValue.Value, nil
+}
+
+// Resolve returns the value of the parameter. It does not do any validation,
+// and is meant for use with the new dynamic parameters code path.
+func (r *ParameterResolver) Resolve(p TemplateVersionParameter, v *WorkspaceBuildParameter) string {
+	prevV := r.findLastValue(p)
+	// First, the provided value
+	resolvedValue := v
+	// Second, previous value if not ephemeral
+	if resolvedValue == nil && !p.Ephemeral {
+		resolvedValue = prevV
+	}
+	// Last, default value
+	if resolvedValue == nil {
+		resolvedValue = &WorkspaceBuildParameter{
+			Name:  p.Name,
+			Value: p.DefaultValue,
+		}
+	}
+	return resolvedValue.Value
 }
 
 // findLastValue finds the value from the previous build and returns it, or nil if the parameter had no value in the

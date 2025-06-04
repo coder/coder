@@ -3,8 +3,15 @@ package resourcesmonitor
 import (
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clistat"
+	"github.com/coder/clistat"
 )
+
+type Statter interface {
+	IsContainerized() (bool, error)
+	ContainerMemory(p clistat.Prefix) (*clistat.Result, error)
+	HostMemory(p clistat.Prefix) (*clistat.Result, error)
+	Disk(p clistat.Prefix, path string) (*clistat.Result, error)
+}
 
 type Fetcher interface {
 	FetchMemory() (total int64, used int64, err error)
@@ -12,20 +19,45 @@ type Fetcher interface {
 }
 
 type fetcher struct {
-	*clistat.Statter
+	Statter
+	isContainerized bool
 }
 
 //nolint:revive
-func NewFetcher(f *clistat.Statter) *fetcher {
-	return &fetcher{
-		f,
+func NewFetcher(f Statter) (*fetcher, error) {
+	isContainerized, err := f.IsContainerized()
+	if err != nil {
+		return nil, xerrors.Errorf("check is containerized: %w", err)
 	}
+
+	return &fetcher{f, isContainerized}, nil
 }
 
 func (f *fetcher) FetchMemory() (total int64, used int64, err error) {
-	mem, err := f.HostMemory(clistat.PrefixDefault)
-	if err != nil {
-		return 0, 0, xerrors.Errorf("failed to fetch memory: %w", err)
+	var mem *clistat.Result
+
+	if f.isContainerized {
+		mem, err = f.ContainerMemory(clistat.PrefixDefault)
+		if err != nil {
+			return 0, 0, xerrors.Errorf("fetch container memory: %w", err)
+		}
+
+		// A container might not have a memory limit set. If this
+		// happens we want to fallback to querying the host's memory
+		// to know what the total memory is on the host.
+		if mem.Total == nil {
+			hostMem, err := f.HostMemory(clistat.PrefixDefault)
+			if err != nil {
+				return 0, 0, xerrors.Errorf("fetch host memory: %w", err)
+			}
+
+			mem.Total = hostMem.Total
+		}
+	} else {
+		mem, err = f.HostMemory(clistat.PrefixDefault)
+		if err != nil {
+			return 0, 0, xerrors.Errorf("fetch host memory: %w", err)
+		}
 	}
 
 	if mem.Total == nil {

@@ -11,7 +11,6 @@ const meta: Meta<typeof CustomRolesPageView> = {
 	args: {
 		builtInRoles: [MockRoleWithOrgPermissions],
 		customRoles: [MockRoleWithOrgPermissions],
-		canAssignOrgRole: true,
 		canCreateOrgRole: true,
 		isCustomRolesEnabled: true,
 	},
@@ -31,7 +30,7 @@ export const NotEnabled: Story = {
 export const NotEnabledEmptyTable: Story = {
 	args: {
 		customRoles: [],
-		canAssignOrgRole: true,
+		canCreateOrgRole: true,
 		isCustomRolesEnabled: false,
 	},
 };
@@ -58,7 +57,6 @@ export const EmptyDisplayName: Story = {
 export const EmptyTableUserWithoutPermission: Story = {
 	args: {
 		customRoles: [],
-		canAssignOrgRole: false,
 		canCreateOrgRole: false,
 	},
 };

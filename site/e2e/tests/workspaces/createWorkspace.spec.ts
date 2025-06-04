@@ -5,11 +5,11 @@ import {
 	createTemplate,
 	createWorkspace,
 	echoResponsesWithParameters,
+	login,
 	openTerminalWindow,
 	requireTerraformProvisioner,
 	verifyParameters,
 } from "../../helpers";
-import { login } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 import {
 	fifthParameter,
@@ -150,9 +150,7 @@ test("create workspace with disable_param search params", async ({ page }) => {
 	await login(page, users.member);
 	await page.goto(
 		`/templates/${templateName}/workspace?disable_params=first_parameter,second_parameter`,
-		{
-			waitUntil: "domcontentloaded",
-		},
+		{ waitUntil: "domcontentloaded" },
 	);
 
 	await expect(page.getByLabel(/First parameter/i)).toBeDisabled();
@@ -173,9 +171,7 @@ test.skip("create docker workspace", async ({ context, page }) => {
 	// The workspace agents must be ready before we try to interact with the workspace.
 	await page.waitForSelector(
 		`//div[@role="status"][@data-testid="agent-status-ready"]`,
-		{
-			state: "visible",
-		},
+		{ state: "visible" },
 	);
 
 	// Wait for the terminal button to be visible, and click it.

@@ -1,6 +1,14 @@
 package cli
 
-import "testing"
+import (
+	"net/url"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/codersdk"
+)
 
 func Test_resolveAgentAbsPath(t *testing.T) {
 	t.Parallel()
@@ -51,6 +59,110 @@ func Test_resolveAgentAbsPath(t *testing.T) {
 			if got != tt.want {
 				t.Errorf("resolveAgentAbsPath() = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func Test_buildAppLinkURL(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		// function arguments
+		baseURL           string
+		workspace         codersdk.Workspace
+		agent             codersdk.WorkspaceAgent
+		app               codersdk.WorkspaceApp
+		appsHost          string
+		preferredPathBase string
+		// expected results
+		expectedLink string
+	}{
+		{
+			name:    "external url",
+			baseURL: "https://coder.tld",
+			app: codersdk.WorkspaceApp{
+				External: true,
+				URL:      "https://external-url.tld",
+			},
+			expectedLink: "https://external-url.tld",
+		},
+		{
+			name:    "without subdomain",
+			baseURL: "https://coder.tld",
+			workspace: codersdk.Workspace{
+				Name:      "Test-Workspace",
+				OwnerName: "username",
+			},
+			agent: codersdk.WorkspaceAgent{
+				Name: "a-workspace-agent",
+			},
+			app: codersdk.WorkspaceApp{
+				Slug:      "app-slug",
+				Subdomain: false,
+			},
+			preferredPathBase: "/path-base",
+			expectedLink:      "https://coder.tld/path-base/@username/Test-Workspace.a-workspace-agent/apps/app-slug/",
+		},
+		{
+			name:    "with command",
+			baseURL: "https://coder.tld",
+			workspace: codersdk.Workspace{
+				Name:      "Test-Workspace",
+				OwnerName: "username",
+			},
+			agent: codersdk.WorkspaceAgent{
+				Name: "a-workspace-agent",
+			},
+			app: codersdk.WorkspaceApp{
+				Command: "ls -la",
+			},
+			expectedLink: "https://coder.tld/@username/Test-Workspace.a-workspace-agent/terminal?command=ls%20-la",
+		},
+		{
+			name:    "with subdomain",
+			baseURL: "ftps://coder.tld",
+			workspace: codersdk.Workspace{
+				Name:      "Test-Workspace",
+				OwnerName: "username",
+			},
+			agent: codersdk.WorkspaceAgent{
+				Name: "a-workspace-agent",
+			},
+			app: codersdk.WorkspaceApp{
+				Subdomain:     true,
+				SubdomainName: "hellocoder",
+			},
+			preferredPathBase: "/path-base",
+			appsHost:          "*.apps-host.tld",
+			expectedLink:      "ftps://hellocoder.apps-host.tld/",
+		},
+		{
+			name:    "with subdomain, but not apps host",
+			baseURL: "https://coder.tld",
+			workspace: codersdk.Workspace{
+				Name:      "Test-Workspace",
+				OwnerName: "username",
+			},
+			agent: codersdk.WorkspaceAgent{
+				Name: "a-workspace-agent",
+			},
+			app: codersdk.WorkspaceApp{
+				Slug:          "app-slug",
+				Subdomain:     true,
+				SubdomainName: "It really doesn't matter what this is without AppsHost.",
+			},
+			preferredPathBase: "/path-base",
+			expectedLink:      "https://coder.tld/path-base/@username/Test-Workspace.a-workspace-agent/apps/app-slug/",
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			baseURL, err := url.Parse(tt.baseURL)
+			require.NoError(t, err)
+			actual := buildAppLinkURL(baseURL, tt.workspace, tt.agent, tt.app, tt.appsHost, tt.preferredPathBase)
+			assert.Equal(t, tt.expectedLink, actual)
 		})
 	}
 }

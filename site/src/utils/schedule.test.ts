@@ -78,14 +78,53 @@ describe("util/schedule", () => {
 	});
 
 	describe("quietHoursDisplay", () => {
-		const quietHoursStart = quietHoursDisplay(
-			"00:00",
-			"Australia/Sydney",
-			new Date("2023-09-06T15:00:00.000+10:00"),
-		);
+		it("midnight in Poland", () => {
+			const quietHoursStart = quietHoursDisplay(
+				"pl",
+				"00:00",
+				"Australia/Sydney",
+				new Date("2023-09-06T15:00:00.000+10:00"),
+			);
 
-		expect(quietHoursStart).toBe(
-			"12:00AM tomorrow (in 9 hours) in Australia/Sydney",
-		);
+			expect(quietHoursStart).toBe(
+				"00:00 tomorrow (in 9 hours) in Australia/Sydney",
+			);
+		});
+		it("five o'clock today in Sweden", () => {
+			const quietHoursStart = quietHoursDisplay(
+				"sv",
+				"17:00",
+				"Europe/London",
+				new Date("2023-09-06T15:00:00.000+10:00"),
+			);
+
+			expect(quietHoursStart).toBe(
+				"17:00 today (in 11 hours) in Europe/London",
+			);
+		});
+		it("five o'clock today in Finland", () => {
+			const quietHoursStart = quietHoursDisplay(
+				"fl",
+				"17:00",
+				"Europe/London",
+				new Date("2023-09-06T15:00:00.000+10:00"),
+			);
+
+			expect(quietHoursStart).toBe(
+				"5:00 PM today (in 11 hours) in Europe/London",
+			);
+		});
+		it("lunch tomorrow in England", () => {
+			const quietHoursStart = quietHoursDisplay(
+				"en",
+				"13:00",
+				"US/Central",
+				new Date("2023-09-06T08:00:00.000+10:00"),
+			);
+
+			expect(quietHoursStart).toBe(
+				"1:00 PM tomorrow (in 20 hours) in US/Central",
+			);
+		});
 	});
 });

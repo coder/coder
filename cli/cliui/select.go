@@ -147,7 +147,7 @@ func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
 	}
 
 	if model.canceled {
-		return "", Canceled
+		return "", ErrCanceled
 	}
 
 	return model.selected, nil
@@ -360,7 +360,7 @@ func MultiSelect(inv *serpent.Invocation, opts MultiSelectOptions) ([]string, er
 	}
 
 	if model.canceled {
-		return nil, Canceled
+		return nil, ErrCanceled
 	}
 
 	return model.selectedOptions(), nil

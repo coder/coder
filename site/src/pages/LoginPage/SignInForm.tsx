@@ -7,16 +7,6 @@ import { getApplicationName } from "utils/appearance";
 import { OAuthSignInForm } from "./OAuthSignInForm";
 import { PasswordSignInForm } from "./PasswordSignInForm";
 
-export const Language = {
-	emailLabel: "Email",
-	passwordLabel: "Password",
-	emailInvalid: "Please enter a valid email address.",
-	emailRequired: "Please enter an email address.",
-	passwordSignIn: "Sign In",
-	githubSignIn: "GitHub",
-	oidcSignIn: "OpenID Connect",
-};
-
 const styles = {
 	root: {
 		width: "100%",
@@ -60,7 +50,7 @@ const styles = {
 	},
 } satisfies Record<string, Interpolation<Theme>>;
 
-export interface SignInFormProps {
+interface SignInFormProps {
 	isSigningIn: boolean;
 	redirectTo: string;
 	error?: unknown;

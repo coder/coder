@@ -52,12 +52,7 @@ export const ClickableBar = forwardRef<HTMLButtonElement, ClickableBarProps>(
 	},
 );
 
-export const barCSS = ({
-	scale,
-	value,
-	colors,
-	offset,
-}: BaseBarProps<unknown>) => {
+const barCSS = ({ scale, value, colors, offset }: BaseBarProps<unknown>) => {
 	return [
 		styles.bar,
 		{

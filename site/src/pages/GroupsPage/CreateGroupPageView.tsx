@@ -10,7 +10,11 @@ import {
 	HorizontalForm,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import type { FC } from "react";
@@ -26,7 +30,7 @@ const validationSchema = Yup.object({
 	name: nameValidator("Name"),
 });
 
-export type CreateGroupPageViewProps = {
+type CreateGroupPageViewProps = {
 	onSubmit: (data: CreateGroupRequest) => void;
 	error?: unknown;
 	isLoading: boolean;
@@ -53,10 +57,12 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 
 	return (
 		<>
-			<SettingsHeader
-				title="New Group"
-				description="Create a group in this organization."
-			/>
+			<SettingsHeader>
+				<SettingsHeaderTitle>New Group</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Create a group in this organization.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
 			<HorizontalForm onSubmit={form.handleSubmit}>
 				<FormSection
@@ -108,4 +114,3 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 		</>
 	);
 };
-export default CreateGroupPageView;

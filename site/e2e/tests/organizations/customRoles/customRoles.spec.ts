@@ -37,8 +37,8 @@ test.describe("CustomRolesPage", () => {
 		await expect(roleRow.getByText(customRole.display_name)).toBeVisible();
 		await expect(roleRow.getByText("organization_member")).toBeVisible();
 
-		await roleRow.getByRole("button", { name: "More options" }).click();
-		const menu = page.locator("#more-options");
+		await roleRow.getByRole("button", { name: "Open menu" }).click();
+		const menu = page.getByRole("menu");
 		await menu.getByText("Edit").click();
 
 		await expect(page).toHaveURL(
@@ -118,7 +118,7 @@ test.describe("CustomRolesPage", () => {
 
 		// Verify that the more menu (three dots) is not present for built-in roles
 		await expect(
-			roleRow.getByRole("button", { name: "More options" }),
+			roleRow.getByRole("button", { name: "Open menu" }),
 		).not.toBeVisible();
 
 		await deleteOrganization(org.name);
@@ -175,9 +175,9 @@ test.describe("CustomRolesPage", () => {
 		await page.goto(`/organizations/${org.name}/roles`);
 
 		const roleRow = page.getByTestId(`role-${customRole.name}`);
-		await roleRow.getByRole("button", { name: "More options" }).click();
+		await roleRow.getByRole("button", { name: "Open menu" }).click();
 
-		const menu = page.locator("#more-options");
+		const menu = page.getByRole("menu");
 		await menu.getByText("Delete…").click();
 
 		const input = page.getByRole("textbox");

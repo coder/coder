@@ -80,13 +80,15 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetUsersParams{
-		Search:         parser.String(values, "", "search"),
-		Status:         httpapi.ParseCustomList(parser, values, []database.UserStatus{}, "status", httpapi.ParseEnum[database.UserStatus]),
-		RbacRole:       parser.Strings(values, []string{}, "role"),
-		LastSeenAfter:  parser.Time3339Nano(values, time.Time{}, "last_seen_after"),
-		LastSeenBefore: parser.Time3339Nano(values, time.Time{}, "last_seen_before"),
-		CreatedAfter:   parser.Time3339Nano(values, time.Time{}, "created_after"),
-		CreatedBefore:  parser.Time3339Nano(values, time.Time{}, "created_before"),
+		Search:          parser.String(values, "", "search"),
+		Status:          httpapi.ParseCustomList(parser, values, []database.UserStatus{}, "status", httpapi.ParseEnum[database.UserStatus]),
+		RbacRole:        parser.Strings(values, []string{}, "role"),
+		LastSeenAfter:   parser.Time3339Nano(values, time.Time{}, "last_seen_after"),
+		LastSeenBefore:  parser.Time3339Nano(values, time.Time{}, "last_seen_before"),
+		CreatedAfter:    parser.Time3339Nano(values, time.Time{}, "created_after"),
+		CreatedBefore:   parser.Time3339Nano(values, time.Time{}, "created_before"),
+		GithubComUserID: parser.Int64(values, 0, "github_com_user_id"),
+		LoginType:       httpapi.ParseCustomList(parser, values, []database.LoginType{}, "login_type", httpapi.ParseEnum[database.LoginType]),
 	}
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
@@ -96,8 +98,10 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	filter := database.GetWorkspacesParams{
 		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
 
+		// #nosec G115 - Safe conversion for pagination offset which is expected to be within int32 range
 		Offset: int32(page.Offset),
-		Limit:  int32(page.Limit),
+		// #nosec G115 - Safe conversion for pagination limit which is expected to be within int32 range
+		Limit: int32(page.Limit),
 	}
 
 	if query == "" {

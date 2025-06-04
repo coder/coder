@@ -47,10 +47,10 @@ func Int63() (int64, error) {
 	return rng.Int63(), cs.err
 }
 
-// Intn returns a non-negative integer in [0,max) as an int.
-func Intn(max int) (int, error) {
+// Intn returns a non-negative integer in [0,maxVal) as an int.
+func Intn(maxVal int) (int, error) {
 	rng, cs := secureRand()
-	return rng.Intn(max), cs.err
+	return rng.Intn(maxVal), cs.err
 }
 
 // Float64 returns a random number in [0.0,1.0) as a float64.

@@ -32,7 +32,9 @@ func Distance(a, b string, maxDist int) (int, error) {
 	if len(b) > 255 {
 		return 0, xerrors.Errorf("levenshtein: b must be less than 255 characters long")
 	}
+	// #nosec G115 - Safe conversion since we've checked that len(a) < 255
 	m := uint8(len(a))
+	// #nosec G115 - Safe conversion since we've checked that len(b) < 255
 	n := uint8(len(b))
 
 	// Special cases for empty strings
@@ -70,12 +72,13 @@ func Distance(a, b string, maxDist int) (int, error) {
 				subCost = 1
 			}
 			// Don't forget: matrix is +1 size
-			d[i+1][j+1] = min(
+			d[i+1][j+1] = minOf(
 				d[i][j+1]+1,     // deletion
 				d[i+1][j]+1,     // insertion
 				d[i][j]+subCost, // substitution
 			)
 			// check maxDist on the diagonal
+			// #nosec G115 - Safe conversion as maxDist is expected to be small for edit distances
 			if maxDist > -1 && i == j && d[i+1][j+1] > uint8(maxDist) {
 				return int(d[i+1][j+1]), ErrMaxDist
 			}
@@ -85,9 +88,9 @@ func Distance(a, b string, maxDist int) (int, error) {
 	return int(d[m][n]), nil
 }
 
-func min[T constraints.Ordered](ts ...T) T {
+func minOf[T constraints.Ordered](ts ...T) T {
 	if len(ts) == 0 {
-		panic("min: no arguments")
+		panic("minOf: no arguments")
 	}
 	m := ts[0]
 	for _, t := range ts[1:] {

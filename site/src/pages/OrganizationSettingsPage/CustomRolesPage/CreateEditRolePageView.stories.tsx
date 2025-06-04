@@ -6,7 +6,7 @@ import {
 	assignableRole,
 	mockApiError,
 } from "testHelpers/entities";
-import { CreateEditRolePageView } from "./CreateEditRolePageView";
+import CreateEditRolePageView from "./CreateEditRolePageView";
 
 const meta: Meta<typeof CreateEditRolePageView> = {
 	title: "pages/OrganizationCreateEditRolePage",
@@ -23,7 +23,6 @@ export const Default: Story = {
 		error: undefined,
 		isLoading: false,
 		organizationName: "my-org",
-		canAssignOrgRole: true,
 	},
 };
 
@@ -81,7 +80,6 @@ export const InvalidCharsError: Story = {
 export const CannotEditRoleName: Story = {
 	args: {
 		...Default.args,
-		canAssignOrgRole: false,
 	},
 };
 

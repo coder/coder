@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime"
@@ -155,6 +156,14 @@ func TestIntegration(t *testing.T) {
 			// These can run in parallel because every test should be in an
 			// isolated NetNS.
 			t.Parallel()
+
+			// Fail early if NGINX is not installed in tests that require it.
+			if _, ok := topo.Server.(integration.NGINXServerOptions); ok {
+				_, err := exec.LookPath("nginx")
+				if err != nil {
+					t.Fatalf("could not find nginx in PATH: %v", err)
+				}
+			}
 
 			log := testutil.Logger(t)
 			networking := topo.SetupNetworking(t, log)

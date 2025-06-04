@@ -83,7 +83,7 @@ config option.
 You risk overloading Coder if you use too many built-in provisioners, so we
 recommend a maximum of five built-in provisioners per `coderd` replica. For more
 than five provisioners, we recommend that you move to
-[External Provisioners](../../admin/provisioners.md) and also consider
+[External Provisioners](../../admin/provisioners/index.md) and also consider
 [High Availability](../../admin/networking/high-availability.md) to run multiple
 `coderd` replicas.
 
@@ -165,4 +165,4 @@ directory.
 
 Ensure that this directory is set to a location on disk which will persist
 across restarts of Coder or
-[external provisioners](../../admin/provisioners.md), if you're using them.
+[external provisioners](../../admin/provisioners/index.md), if you're using them.

@@ -84,6 +84,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		data.metadata,
 		data.agents,
 		data.apps,
+		data.appStatuses,
 		data.scripts,
 		data.logSources,
 		data.templateVersions[0],
@@ -161,9 +162,11 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		req := database.GetWorkspaceBuildsByWorkspaceIDParams{
 			WorkspaceID: workspace.ID,
 			AfterID:     paginationParams.AfterID,
-			OffsetOpt:   int32(paginationParams.Offset),
-			LimitOpt:    int32(paginationParams.Limit),
-			Since:       dbtime.Time(since),
+			// #nosec G115 - Pagination offsets are small and fit in int32
+			OffsetOpt: int32(paginationParams.Offset),
+			// #nosec G115 - Pagination limits are small and fit in int32
+			LimitOpt: int32(paginationParams.Limit),
+			Since:    dbtime.Time(since),
 		}
 		workspaceBuilds, err = store.GetWorkspaceBuildsByWorkspaceID(ctx, req)
 		if xerrors.Is(err, sql.ErrNoRows) {
@@ -200,6 +203,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		data.metadata,
 		data.agents,
 		data.apps,
+		data.appStatuses,
 		data.scripts,
 		data.logSources,
 		data.templateVersions,
@@ -228,7 +232,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/{user}/workspace/{workspacename}/builds/{buildnumber} [get]
 func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	owner := httpmw.UserParam(r)
+	mems := httpmw.OrganizationMembersParam(r)
 	workspaceName := chi.URLParam(r, "workspacename")
 	buildNumber, err := strconv.ParseInt(chi.URLParam(r, "buildnumber"), 10, 32)
 	if err != nil {
@@ -240,7 +244,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 	}
 
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
-		OwnerID: owner.ID,
+		OwnerID: mems.UserID(),
 		Name:    workspaceName,
 	})
 	if httpapi.Is404Error(err) {
@@ -290,6 +294,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		data.metadata,
 		data.agents,
 		data.apps,
+		data.appStatuses,
 		data.scripts,
 		data.logSources,
 		data.templateVersions[0],
@@ -332,7 +337,9 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		Initiator(apiKey.UserID).
 		RichParameterValues(createBuild.RichParameterValues).
 		LogLevel(string(createBuild.LogLevel)).
-		DeploymentValues(api.Options.DeploymentValues)
+		DeploymentValues(api.Options.DeploymentValues).
+		Experiments(api.Experiments).
+		TemplateVersionPresetID(createBuild.TemplateVersionPresetID)
 
 	var (
 		previousWorkspaceBuild database.WorkspaceBuild
@@ -375,6 +382,22 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		}
 		if len(createBuild.ProvisionerState) > 0 {
 			builder = builder.State(createBuild.ProvisionerState)
+		}
+
+		// Only defer to dynamic parameters if the experiment is enabled.
+		if api.Experiments.Enabled(codersdk.ExperimentDynamicParameters) {
+			if createBuild.EnableDynamicParameters != nil {
+				// Explicit opt-in
+				builder = builder.DynamicParameters(*createBuild.EnableDynamicParameters)
+			}
+		} else {
+			if createBuild.EnableDynamicParameters != nil {
+				api.Logger.Warn(ctx, "ignoring dynamic parameter field sent by request, the experiment is not enabled",
+					slog.F("field", *createBuild.EnableDynamicParameters),
+					slog.F("user", apiKey.UserID.String()),
+					slog.F("transition", string(createBuild.Transition)),
+				)
+			}
 		}
 
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
@@ -430,6 +453,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		[]database.WorkspaceResourceMetadatum{},
 		[]database.WorkspaceAgent{},
 		[]database.WorkspaceApp{},
+		[]database.WorkspaceAppStatus{},
 		[]database.WorkspaceAgentScript{},
 		[]database.WorkspaceAgentLogSource{},
 		database.TemplateVersion{},
@@ -517,11 +541,12 @@ func (api *API) notifyWorkspaceUpdated(
 		receiverID,
 		notifications.TemplateWorkspaceManuallyUpdated,
 		map[string]string{
-			"organization": template.OrganizationName,
-			"initiator":    initiator.Name,
-			"workspace":    workspace.Name,
-			"template":     template.Name,
-			"version":      version.Name,
+			"organization":             template.OrganizationName,
+			"initiator":                initiator.Name,
+			"workspace":                workspace.Name,
+			"template":                 template.Name,
+			"version":                  version.Name,
+			"workspace_owner_username": owner.Username,
 		},
 		map[string]any{
 			"workspace":        map[string]any{"id": workspace.ID, "name": workspace.Name},
@@ -761,6 +786,7 @@ type workspaceBuildsData struct {
 	metadata           []database.WorkspaceResourceMetadatum
 	agents             []database.WorkspaceAgent
 	apps               []database.WorkspaceApp
+	appStatuses        []database.WorkspaceAppStatus
 	scripts            []database.WorkspaceAgentScript
 	logSources         []database.WorkspaceAgentLogSource
 	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
@@ -771,7 +797,10 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 	for _, build := range workspaceBuilds {
 		jobIDs = append(jobIDs, build.JobID)
 	}
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get provisioner jobs: %w", err)
 	}
@@ -871,6 +900,17 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 		return workspaceBuildsData{}, err
 	}
 
+	appIDs := make([]uuid.UUID, 0)
+	for _, app := range apps {
+		appIDs = append(appIDs, app.ID)
+	}
+
+	// nolint:gocritic // Getting workspace app statuses by app IDs is a system function.
+	statuses, err := api.Database.GetWorkspaceAppStatusesByAppIDs(dbauthz.AsSystemRestricted(ctx), appIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildsData{}, xerrors.Errorf("get workspace app statuses: %w", err)
+	}
+
 	return workspaceBuildsData{
 		jobs:               jobs,
 		templateVersions:   templateVersions,
@@ -878,6 +918,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 		metadata:           metadata,
 		agents:             agents,
 		apps:               apps,
+		appStatuses:        statuses,
 		scripts:            scripts,
 		logSources:         logSources,
 		provisionerDaemons: pendingJobProvisioners,
@@ -892,6 +933,7 @@ func (api *API) convertWorkspaceBuilds(
 	resourceMetadata []database.WorkspaceResourceMetadatum,
 	resourceAgents []database.WorkspaceAgent,
 	agentApps []database.WorkspaceApp,
+	agentAppStatuses []database.WorkspaceAppStatus,
 	agentScripts []database.WorkspaceAgentScript,
 	agentLogSources []database.WorkspaceAgentLogSource,
 	templateVersions []database.TemplateVersion,
@@ -934,6 +976,7 @@ func (api *API) convertWorkspaceBuilds(
 			resourceMetadata,
 			resourceAgents,
 			agentApps,
+			agentAppStatuses,
 			agentScripts,
 			agentLogSources,
 			templateVersion,
@@ -957,6 +1000,7 @@ func (api *API) convertWorkspaceBuild(
 	resourceMetadata []database.WorkspaceResourceMetadatum,
 	resourceAgents []database.WorkspaceAgent,
 	agentApps []database.WorkspaceApp,
+	agentAppStatuses []database.WorkspaceAppStatus,
 	agentScripts []database.WorkspaceAgentScript,
 	agentLogSources []database.WorkspaceAgentLogSource,
 	templateVersion database.TemplateVersion,
@@ -994,6 +1038,10 @@ func (api *API) convertWorkspaceBuild(
 		provisionerDaemonsForThisWorkspaceBuild = append(provisionerDaemonsForThisWorkspaceBuild, provisionerDaemon.ProvisionerDaemon)
 	}
 	matchedProvisioners := db2sdk.MatchedProvisioners(provisionerDaemonsForThisWorkspaceBuild, job.ProvisionerJob.CreatedAt, provisionerdserver.StaleInterval)
+	statusesByAgentID := map[uuid.UUID][]database.WorkspaceAppStatus{}
+	for _, status := range agentAppStatuses {
+		statusesByAgentID[status.AgentID] = append(statusesByAgentID[status.AgentID], status)
+	}
 
 	resources := resourcesByJobID[job.ProvisionerJob.ID]
 	apiResources := make([]codersdk.WorkspaceResource, 0)
@@ -1015,9 +1063,10 @@ func (api *API) convertWorkspaceBuild(
 
 			apps := appsByAgentID[agent.ID]
 			scripts := scriptsByAgentID[agent.ID]
+			statuses := statusesByAgentID[agent.ID]
 			logSources := logSourcesByAgentID[agent.ID]
 			apiAgent, err := db2sdk.WorkspaceAgent(
-				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, agent, workspace.OwnerUsername, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
+				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, statuses, agent, workspace.OwnerUsername, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)
 			if err != nil {
@@ -1036,6 +1085,11 @@ func (api *API) convertWorkspaceBuild(
 		}
 		return apiResources[i].Name < apiResources[j].Name
 	})
+
+	var presetID *uuid.UUID
+	if build.TemplateVersionPresetID.Valid {
+		presetID = &build.TemplateVersionPresetID.UUID
+	}
 
 	apiJob := convertProvisionerJob(job)
 	transition := codersdk.WorkspaceTransition(build.Transition)
@@ -1062,6 +1116,7 @@ func (api *API) convertWorkspaceBuild(
 		Status:                  codersdk.ConvertWorkspaceStatus(apiJob.Status, transition),
 		DailyCost:               build.DailyCost,
 		MatchedProvisioners:     &matchedProvisioners,
+		TemplateVersionPresetID: presetID,
 	}, nil
 }
 
@@ -1123,6 +1178,16 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 	}
 
 	for _, t := range provisionerTimings {
+		// Ref: #15432: agent script timings must not have a zero start or end time.
+		if t.StartedAt.IsZero() || t.EndedAt.IsZero() {
+			api.Logger.Debug(ctx, "ignoring provisioner timing with zero start or end time",
+				slog.F("workspace_id", build.WorkspaceID),
+				slog.F("workspace_build_id", build.ID),
+				slog.F("provisioner_job_id", t.JobID),
+			)
+			continue
+		}
+
 		res.ProvisionerTimings = append(res.ProvisionerTimings, codersdk.ProvisionerTiming{
 			JobID:     t.JobID,
 			Stage:     codersdk.TimingStage(t.Stage),
@@ -1134,6 +1199,17 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 		})
 	}
 	for _, t := range agentScriptTimings {
+		// Ref: #15432: agent script timings must not have a zero start or end time.
+		if t.StartedAt.IsZero() || t.EndedAt.IsZero() {
+			api.Logger.Debug(ctx, "ignoring agent script timing with zero start or end time",
+				slog.F("workspace_id", build.WorkspaceID),
+				slog.F("workspace_agent_id", t.WorkspaceAgentID),
+				slog.F("workspace_build_id", build.ID),
+				slog.F("workspace_agent_script_id", t.ScriptID),
+			)
+			continue
+		}
+
 		res.AgentScriptTimings = append(res.AgentScriptTimings, codersdk.AgentScriptTiming{
 			StartedAt:          t.StartedAt,
 			EndedAt:            t.EndedAt,
@@ -1146,6 +1222,14 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 		})
 	}
 	for _, agent := range agents {
+		if agent.FirstConnectedAt.Time.IsZero() {
+			api.Logger.Debug(ctx, "ignoring agent connection timing with zero first connected time",
+				slog.F("workspace_id", build.WorkspaceID),
+				slog.F("workspace_agent_id", agent.ID),
+				slog.F("workspace_build_id", build.ID),
+			)
+			continue
+		}
 		res.AgentConnectionTimings = append(res.AgentConnectionTimings, codersdk.AgentConnectionTiming{
 			WorkspaceAgentID:   agent.ID.String(),
 			WorkspaceAgentName: agent.Name,

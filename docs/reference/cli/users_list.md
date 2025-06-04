@@ -1,6 +1,8 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # users list
 
+Prints the list of users.
+
 Aliases:
 
 * ls
@@ -12,6 +14,14 @@ coder users list [flags]
 ```
 
 ## Options
+
+### --github-user-id
+
+|      |                  |
+|------|------------------|
+| Type | <code>int</code> |
+
+Filter users by their GitHub user ID.
 
 ### -c, --column
 

@@ -1,7 +1,7 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # config-ssh
 
-Add an SSH Host entry for your workspaces "ssh coder.workspace"
+Add an SSH Host entry for your workspaces "ssh workspace.coder"
 
 ## Usage
 
@@ -78,6 +78,15 @@ Specifies whether or not to keep options from previous run of config-ssh.
 | Environment | <code>$CODER_CONFIGSSH_SSH_HOST_PREFIX</code> |
 
 Override the default host prefix.
+
+### --hostname-suffix
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>string</code>                           |
+| Environment | <code>$CODER_CONFIGSSH_HOSTNAME_SUFFIX</code> |
+
+Override the default hostname suffix.
 
 ### --wait
 

@@ -1,4 +1,6 @@
 import { GlobalErrorBoundary } from "components/ErrorBoundary/GlobalErrorBoundary";
+import { ChatLayout } from "pages/ChatPage/ChatLayout";
+import { ChatMessages } from "pages/ChatPage/ChatMessages";
 import { TemplateRedirectController } from "pages/TemplatePage/TemplateRedirectController";
 import { Suspense, lazy } from "react";
 import {
@@ -31,6 +33,7 @@ const NotFoundPage = lazy(() => import("./pages/404Page/404Page"));
 const DeploymentSettingsLayout = lazy(
 	() => import("./modules/management/DeploymentSettingsLayout"),
 );
+const ChatLanding = lazy(() => import("./pages/ChatPage/ChatLanding"));
 const DeploymentConfigProvider = lazy(
 	() => import("./modules/management/DeploymentConfigProvider"),
 );
@@ -79,10 +82,10 @@ const WorkspaceSchedulePage = lazy(
 			"./pages/WorkspaceSettingsPage/WorkspaceSchedulePage/WorkspaceSchedulePage"
 		),
 );
-const WorkspaceParametersPage = lazy(
+const WorkspaceParametersExperimentRouter = lazy(
 	() =>
 		import(
-			"./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersPage"
+			"./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersExperimentRouter"
 		),
 );
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"));
@@ -92,11 +95,12 @@ const TemplatePermissionsPage = lazy(
 			"./pages/TemplateSettingsPage/TemplatePermissionsPage/TemplatePermissionsPage"
 		),
 );
-const TemplateSummaryPage = lazy(
-	() => import("./pages/TemplatePage/TemplateSummaryPage/TemplateSummaryPage"),
+const TemplateResourcesPage = lazy(
+	() =>
+		import("./pages/TemplatePage/TemplateResourcesPage/TemplateResourcesPage"),
 );
-const CreateWorkspacePage = lazy(
-	() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"),
+const CreateWorkspaceExperimentRouter = lazy(
+	() => import("./pages/CreateWorkspacePage/CreateWorkspaceExperimentRouter"),
 );
 const OverviewPage = lazy(
 	() => import("./pages/DeploymentSettingsPage/OverviewPage/OverviewPage"),
@@ -264,7 +268,10 @@ const CreateEditRolePage = lazy(
 		),
 );
 const ProvisionersPage = lazy(
-	() => import("./pages/OrganizationSettingsPage/OrganizationProvisionersPage"),
+	() =>
+		import(
+			"./pages/OrganizationSettingsPage/OrganizationProvisionersPage/OrganizationProvisionersPage"
+		),
 );
 const TemplateEmbedPage = lazy(
 	() => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedPage"),
@@ -306,6 +313,20 @@ const ChangePasswordPage = lazy(
 const IdpOrgSyncPage = lazy(
 	() => import("./pages/DeploymentSettingsPage/IdpOrgSyncPage/IdpOrgSyncPage"),
 );
+const ProvisionerKeysPage = lazy(
+	() =>
+		import(
+			"./pages/OrganizationSettingsPage/OrganizationProvisionerKeysPage/OrganizationProvisionerKeysPage"
+		),
+);
+const ProvisionerJobsPage = lazy(
+	() =>
+		import(
+			"./pages/OrganizationSettingsPage/OrganizationProvisionerJobsPage/OrganizationProvisionerJobsPage"
+		),
+);
+const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
+const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
 
 const RoutesWithSuspense = () => {
 	return (
@@ -320,15 +341,16 @@ const templateRouter = () => {
 		<Route path=":template">
 			<Route element={<TemplateRedirectController />}>
 				<Route element={<TemplateLayout />}>
-					<Route index element={<TemplateSummaryPage />} />
+					<Route index element={<Navigate to="docs" replace />} />
 					<Route path="docs" element={<TemplateDocsPage />} />
 					<Route path="files" element={<TemplateFilesPage />} />
+					<Route path="resources" element={<TemplateResourcesPage />} />
 					<Route path="versions" element={<TemplateVersionsPage />} />
 					<Route path="embed" element={<TemplateEmbedPage />} />
 					<Route path="insights" element={<TemplateInsightsPage />} />
 				</Route>
 
-				<Route path="workspace" element={<CreateWorkspacePage />} />
+				<Route path="workspace" element={<CreateWorkspaceExperimentRouter />} />
 
 				<Route path="settings" element={<TemplateSettingsLayout />}>
 					<Route index element={<TemplateSettingsPage />} />
@@ -411,6 +433,13 @@ export const router = createBrowserRouter(
 
 					<Route path="/audit" element={<AuditPage />} />
 
+					<Route path="/chat" element={<ChatLayout />}>
+						<Route index element={<ChatLanding />} />
+						<Route path=":chatID" element={<ChatMessages />} />
+					</Route>
+
+					<Route path="/tasks" element={<TasksPage />} />
+
 					<Route path="/organizations" element={<OrganizationSettingsLayout />}>
 						<Route path="new" element={<CreateOrganizationPage />} />
 
@@ -426,6 +455,14 @@ export const router = createBrowserRouter(
 								<Route path=":roleName" element={<CreateEditRolePage />} />
 							</Route>
 							<Route path="provisioners" element={<ProvisionersPage />} />
+							<Route
+								path="provisioner-jobs"
+								element={<ProvisionerJobsPage />}
+							/>
+							<Route
+								path="provisioner-keys"
+								element={<ProvisionerKeysPage />}
+							/>
 							<Route path="idp-sync" element={<OrganizationIdPSyncPage />} />
 							<Route path="settings" element={<OrganizationSettingsPage />} />
 						</Route>
@@ -499,17 +536,20 @@ export const router = createBrowserRouter(
 
 					{/* In order for the 404 page to work properly the routes that start with
               top level parameter must be fully qualified. */}
-					<Route
-						path="/:username/:workspace/builds/:buildNumber"
-						element={<WorkspaceBuildPage />}
-					/>
-					<Route
-						path="/:username/:workspace/settings"
-						element={<WorkspaceSettingsLayout />}
-					>
-						<Route index element={<WorkspaceSettingsPage />} />
-						<Route path="parameters" element={<WorkspaceParametersPage />} />
-						<Route path="schedule" element={<WorkspaceSchedulePage />} />
+					<Route path="/:username/:workspace">
+						<Route index element={<WorkspacePage />} />
+						<Route
+							path="builds/:buildNumber"
+							element={<WorkspaceBuildPage />}
+						/>
+						<Route path="settings" element={<WorkspaceSettingsLayout />}>
+							<Route index element={<WorkspaceSettingsPage />} />
+							<Route
+								path="parameters"
+								element={<WorkspaceParametersExperimentRouter />}
+							/>
+							<Route path="schedule" element={<WorkspaceSchedulePage />} />
+						</Route>
 					</Route>
 
 					<Route path="/health" element={<HealthLayout />}>
@@ -538,7 +578,6 @@ export const router = createBrowserRouter(
 				</Route>
 
 				{/* Pages that don't have the dashboard layout */}
-				<Route path="/:username/:workspace" element={<WorkspacePage />} />
 				<Route
 					path="/templates/:template/versions/:version/edit"
 					element={<TemplateVersionEditorPage />}
@@ -553,6 +592,7 @@ export const router = createBrowserRouter(
 				/>
 				<Route path="/cli-auth" element={<CliAuthPage />} />
 				<Route path="/icons" element={<IconsPage />} />
+				<Route path="/tasks/:username/:workspace" element={<TaskPage />} />
 			</Route>
 		</Route>,
 	),

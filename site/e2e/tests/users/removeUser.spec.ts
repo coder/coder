@@ -17,9 +17,9 @@ test("remove user", async ({ page, baseURL }) => {
 	await expect(page).toHaveTitle("Users - Coder");
 
 	const userRow = page.getByRole("row", { name: user.email });
-	await userRow.getByRole("button", { name: "More options" }).click();
-	const menu = page.locator("#more-options");
-	await menu.getByText("Delete").click();
+	await userRow.getByRole("button", { name: "Open menu" }).click();
+	const menu = page.getByRole("menu");
+	await menu.getByText("Delete…").click();
 
 	const dialog = page.getByTestId("dialog");
 	await dialog.getByLabel("Name of the user to delete").fill(user.username);

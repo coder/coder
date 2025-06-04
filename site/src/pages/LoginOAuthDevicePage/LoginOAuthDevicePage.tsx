@@ -4,20 +4,17 @@ import {
 	getGitHubDeviceFlowCallback,
 } from "api/queries/oauth2";
 import { isAxiosError } from "axios";
+import {
+	isExchangeErrorRetryable,
+	newRetryDelay,
+} from "components/GitDeviceAuth/GitDeviceAuth";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router-dom";
 import LoginOAuthDevicePageView from "./LoginOAuthDevicePageView";
-
-const isErrorRetryable = (error: unknown) => {
-	if (!isAxiosError(error)) {
-		return false;
-	}
-	return error.response?.data?.detail === "authorization_pending";
-};
 
 // The page is hardcoded to only use GitHub,
 // as that's the only OAuth2 login provider in our backend
@@ -38,19 +35,23 @@ const LoginOAuthDevicePage: FC = () => {
 		...getGitHubDevice(),
 		refetchOnMount: false,
 	});
+
+	const retryDelay = useMemo(
+		() => newRetryDelay(externalAuthDeviceQuery.data?.interval),
+		[externalAuthDeviceQuery.data],
+	);
+
 	const exchangeExternalAuthDeviceQuery = useQuery({
 		...getGitHubDeviceFlowCallback(
 			externalAuthDeviceQuery.data?.device_code ?? "",
 			state,
 		),
 		enabled: Boolean(externalAuthDeviceQuery.data),
-		retry: (_, error) => isErrorRetryable(error),
-		retryDelay: (externalAuthDeviceQuery.data?.interval || 5) * 1000,
-		refetchOnWindowFocus: (query) =>
-			query.state.status === "success" ||
-			(query.state.error != null && !isErrorRetryable(query.state.error))
-				? false
-				: "always",
+		retry: isExchangeErrorRetryable,
+		retryDelay,
+		// We don't want to refetch the query outside of the standard retry
+		// logic, because the device auth flow is very strict about rate limits.
+		refetchOnWindowFocus: false,
 	});
 
 	useEffect(() => {

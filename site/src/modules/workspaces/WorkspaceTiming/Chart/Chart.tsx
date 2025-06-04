@@ -1,9 +1,9 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import ChevronRight from "@mui/icons-material/ChevronRight";
 import {
 	SearchField,
 	type SearchFieldProps,
 } from "components/SearchField/SearchField";
+import { ChevronRightIcon } from "lucide-react";
 import type { FC, HTMLProps } from "react";
 import React, { useEffect, useRef } from "react";
 import type { BarColors } from "./Bar";
@@ -81,7 +81,7 @@ export const ChartBreadcrumbs: FC<ChartBreadcrumbsProps> = ({
 						</li>
 						{!isLast && (
 							<li role="presentation">
-								<ChevronRight />
+								<ChevronRightIcon />
 							</li>
 						)}
 					</React.Fragment>
@@ -185,7 +185,7 @@ const styles = {
 			},
 		},
 
-		"& li:first-child": {
+		"& li:first-of-type": {
 			color: theme.palette.text.secondary,
 		},
 

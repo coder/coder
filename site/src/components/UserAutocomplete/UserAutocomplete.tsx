@@ -15,17 +15,17 @@ import {
 	type FC,
 	useState,
 } from "react";
-import { useQuery } from "react-query";
+import { keepPreviousData, useQuery } from "react-query";
 import { prepareQuery } from "utils/filters";
 
 // The common properties between users and org members that we need.
-export type SelectedUser = {
-	avatar_url: string;
+type SelectedUser = {
+	avatar_url?: string;
 	email: string;
 	username: string;
 };
 
-export type CommonAutocompleteProps<T extends SelectedUser> = {
+type CommonAutocompleteProps<T extends SelectedUser> = {
 	className?: string;
 	label?: string;
 	onChange: (user: T | null) => void;
@@ -34,7 +34,7 @@ export type CommonAutocompleteProps<T extends SelectedUser> = {
 	value: T | null;
 };
 
-export type UserAutocompleteProps = CommonAutocompleteProps<User>;
+type UserAutocompleteProps = CommonAutocompleteProps<User>;
 
 export const UserAutocomplete: FC<UserAutocompleteProps> = (props) => {
 	const [filter, setFilter] = useState<string>();
@@ -45,7 +45,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = (props) => {
 			limit: 25,
 		}),
 		enabled: filter !== undefined,
-		keepPreviousData: true,
+		placeholderData: keepPreviousData,
 	});
 	return (
 		<InnerAutocomplete<User>
@@ -58,7 +58,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = (props) => {
 	);
 };
 
-export type MemberAutocompleteProps =
+type MemberAutocompleteProps =
 	CommonAutocompleteProps<OrganizationMemberWithUserData> & {
 		organizationId: string;
 	};
@@ -69,18 +69,17 @@ export const MemberAutocomplete: FC<MemberAutocompleteProps> = ({
 }) => {
 	const [filter, setFilter] = useState<string>();
 
-	// Currently this queries all members, as there is no pagination.
 	const membersQuery = useQuery({
 		...organizationMembers(organizationId),
 		enabled: filter !== undefined,
-		keepPreviousData: true,
+		placeholderData: keepPreviousData,
 	});
 	return (
 		<InnerAutocomplete<OrganizationMemberWithUserData>
 			error={membersQuery.error}
 			isFetching={membersQuery.isFetching}
 			setFilter={setFilter}
-			users={membersQuery.data}
+			users={membersQuery.data?.members}
 			{...props}
 		/>
 	);

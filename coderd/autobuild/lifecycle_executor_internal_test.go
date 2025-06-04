@@ -52,6 +52,7 @@ func Test_isEligibleForAutostart(t *testing.T) {
 	for i, weekday := range schedule.DaysOfWeek {
 		// Find the local weekday
 		if okTick.In(localLocation).Weekday() == weekday {
+			// #nosec G115 - Safe conversion as i is the index of a 7-day week and will be in the range 0-6
 			okWeekdayBit = 1 << uint(i)
 		}
 	}

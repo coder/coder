@@ -20,15 +20,15 @@ export const DropdownMenu = DropdownMenuPrimitive.Root;
 
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
-export const DropdownMenuGroup = DropdownMenuPrimitive.Group;
+const DropdownMenuGroup = DropdownMenuPrimitive.Group;
 
-export const DropdownMenuPortal = DropdownMenuPrimitive.Portal;
+const DropdownMenuPortal = DropdownMenuPrimitive.Portal;
 
-export const DropdownMenuSub = DropdownMenuPrimitive.Sub;
+const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 
-export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
+const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
-export const DropdownMenuSubTrigger = forwardRef<
+const DropdownMenuSubTrigger = forwardRef<
 	ElementRef<typeof DropdownMenuPrimitive.SubTrigger>,
 	ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubTrigger> & {
 		inset?: boolean;
@@ -53,7 +53,7 @@ export const DropdownMenuSubTrigger = forwardRef<
 DropdownMenuSubTrigger.displayName =
 	DropdownMenuPrimitive.SubTrigger.displayName;
 
-export const DropdownMenuSubContent = forwardRef<
+const DropdownMenuSubContent = forwardRef<
 	ElementRef<typeof DropdownMenuPrimitive.SubContent>,
 	ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>
 >(({ className, ...props }, ref) => (
@@ -109,9 +109,15 @@ export const DropdownMenuItem = forwardRef<
 		ref={ref}
 		className={cn(
 			[
-				"relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-2 text-sm text-content-secondary font-medium outline-none transition-colors",
-				"focus:bg-surface-secondary focus:text-content-primary data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-				"[&>svg]:size-4 [&>svg]:shrink-0",
+				`
+				relative flex cursor-default select-none items-center gap-2 rounded-sm
+				px-2 py-1.5 text-sm text-content-secondary font-medium outline-none
+				no-underline
+				focus:bg-surface-secondary focus:text-content-primary
+				data-[disabled]:pointer-events-none data-[disabled]:opacity-50
+				[&_svg]:size-icon-sm [&>svg]:shrink-0
+				[&_img]:size-icon-sm [&>img]:shrink-0
+				`,
 				inset && "pl-8",
 			],
 			className,
@@ -121,7 +127,7 @@ export const DropdownMenuItem = forwardRef<
 ));
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName;
 
-export const DropdownMenuCheckboxItem = forwardRef<
+const DropdownMenuCheckboxItem = forwardRef<
 	ElementRef<typeof DropdownMenuPrimitive.CheckboxItem>,
 	ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>
 >(({ className, children, checked, ...props }, ref) => (
@@ -148,7 +154,7 @@ export const DropdownMenuCheckboxItem = forwardRef<
 DropdownMenuCheckboxItem.displayName =
 	DropdownMenuPrimitive.CheckboxItem.displayName;
 
-export const DropdownMenuRadioItem = forwardRef<
+const DropdownMenuRadioItem = forwardRef<
 	ElementRef<typeof DropdownMenuPrimitive.RadioItem>,
 	ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.RadioItem>
 >(({ className, children, ...props }, ref) => (
@@ -173,7 +179,7 @@ export const DropdownMenuRadioItem = forwardRef<
 ));
 DropdownMenuRadioItem.displayName = DropdownMenuPrimitive.RadioItem.displayName;
 
-export const DropdownMenuLabel = forwardRef<
+const DropdownMenuLabel = forwardRef<
 	ElementRef<typeof DropdownMenuPrimitive.Label>,
 	ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Label> & {
 		inset?: boolean;
@@ -196,13 +202,13 @@ export const DropdownMenuSeparator = forwardRef<
 >(({ className, ...props }, ref) => (
 	<DropdownMenuPrimitive.Separator
 		ref={ref}
-		className={cn(["-mx-1 my-3 h-px bg-border"], className)}
+		className={cn(["-mx-1 my-2 h-px bg-border"], className)}
 		{...props}
 	/>
 ));
 DropdownMenuSeparator.displayName = DropdownMenuPrimitive.Separator.displayName;
 
-export const DropdownMenuShortcut = ({
+const DropdownMenuShortcut = ({
 	className,
 	...props
 }: HTMLAttributes<HTMLSpanElement>) => {

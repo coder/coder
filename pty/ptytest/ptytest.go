@@ -164,9 +164,7 @@ func (e *outExpecter) expectMatchContextFunc(str string, fn func(ctx context.Con
 
 // TODO(mafredri): Rename this to ExpectMatch when refactoring.
 func (e *outExpecter) ExpectMatchContext(ctx context.Context, str string) string {
-	return e.expectMatcherFunc(ctx, str, func(src, pattern string) bool {
-		return strings.Contains(src, pattern)
-	})
+	return e.expectMatcherFunc(ctx, str, strings.Contains)
 }
 
 func (e *outExpecter) ExpectRegexMatchContext(ctx context.Context, str string) string {

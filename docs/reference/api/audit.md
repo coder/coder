@@ -30,9 +30,7 @@ curl -X GET http://coder-server:8080/api/v2/audit?limit=0 \
   "audit_logs": [
     {
       "action": "create",
-      "additional_fields": [
-        0
-      ],
+      "additional_fields": {},
       "description": "string",
       "diff": {
         "property1": {

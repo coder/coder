@@ -856,7 +856,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			generatedLicenses := make([]database.License, 0, len(tc.Licenses))
 			for i, lo := range tc.Licenses {
 				generatedLicenses = append(generatedLicenses, database.License{
-					ID:         int32(i),
+					ID:         int32(i), // nolint:gosec
 					UploadedAt: time.Now().Add(time.Hour * -1),
 					JWT:        lo.Generate(t),
 					Exp:        lo.GraceAt,

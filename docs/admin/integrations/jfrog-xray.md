@@ -56,14 +56,11 @@ workspaces using Coder's [JFrog Xray Integration](https://github.com/coder/coder
      --set artifactory.secretName="jfrog-token"
    ```
 
-   <blockquote class="admonition warning">
-
-   To authenticate with the Artifactory registry, you may need to
-   create a [Docker config](https://jfrog.com/help/r/jfrog-artifactory-documentation/docker-advanced-topics) and use it in the
-   `imagePullSecrets` field of the Kubernetes Pod. See the [Defining ImagePullSecrets for Coder workspaces](../../tutorials/image-pull-secret.md) guide for more
-   information.
-
-   </blockquote>
+> [!IMPORTANT]
+> To authenticate with the Artifactory registry, you may need to
+> create a [Docker config](https://jfrog.com/help/r/jfrog-artifactory-documentation/docker-advanced-topics) and use it in the
+> `imagePullSecrets` field of the Kubernetes Pod.
+> See the [Defining ImagePullSecrets for Coder workspaces](../../tutorials/image-pull-secret.md) guide for more information.
 
 ## Validate your installation
 

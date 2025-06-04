@@ -15,8 +15,7 @@ simplicity.
 
 First, install [Docker](https://docs.docker.com/engine/install/) locally.
 
-> If you already have the Coder binary installed, restart it after installing
-> Docker.
+If you already have the Coder binary installed, restart it after installing Docker.
 
 <div class="tabs">
 
@@ -30,7 +29,8 @@ curl -L https://coder.com/install.sh | sh
 
 ## Windows
 
-> **Important:** If you plan to use the built-in PostgreSQL database, you will
+> [!IMPORTANT]
+> If you plan to use the built-in PostgreSQL database, you will
 > need to ensure that the
 > [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
 > is installed.

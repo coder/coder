@@ -28,7 +28,8 @@ hardware sizing recommendations.
 | Kubernetes (GKE) | 4 cores   | 16 GB     | 2              | db-custom-8-30720 | 2000  | 50                | 2000 simulated                        | `v2.8.4`      | Feb 28, 2024 |
 | Kubernetes (GKE) | 2 cores   | 4 GB      | 2              | db-custom-2-7680  | 1000  | 50                | 1000 simulated                        | `v2.10.2`     | Apr 26, 2024 |
 
-> Note: A simulated connection reads and writes random data at 40KB/s per connection.
+> [!NOTE]
+> A simulated connection reads and writes random data at 40KB/s per connection.
 
 ## Scale testing utility
 
@@ -36,19 +37,16 @@ Since Coder's performance is highly dependent on the templates and workflows you
 support, you may wish to use our internal scale testing utility against your own
 environments.
 
-<blockquote class="admonition important">
-
-This utility is experimental.
-
-It is not subject to any compatibility guarantees and may cause interruptions
-for your users.
-To avoid potential outages and orphaned resources, we recommend that you run
-scale tests on a secondary "staging" environment or a dedicated
-[Kubernetes playground cluster](https://github.com/coder/coder/tree/main/scaletest/terraform).
-
-Run it against a production environment at your own risk.
-
-</blockquote>
+> [!IMPORTANT]
+> This utility is experimental.
+>
+> It is not subject to any compatibility guarantees and may cause interruptions
+> for your users.
+> To avoid potential outages and orphaned resources, we recommend that you run
+> scale tests on a secondary "staging" environment or a dedicated
+> [Kubernetes playground cluster](https://github.com/coder/coder/tree/main/scaletest/terraform).
+>
+> Run it against a production environment at your own risk.
 
 ### Create workspaces
 

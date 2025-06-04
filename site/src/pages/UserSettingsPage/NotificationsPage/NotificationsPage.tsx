@@ -22,7 +22,7 @@ import type {
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import {
 	castNotificationMethod,
 	methodIcons,
@@ -36,7 +36,7 @@ import { useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { Section } from "../Section";
 
-export const NotificationsPage: FC = () => {
+const NotificationsPage: FC = () => {
 	const { user, permissions } = useAuthenticated();
 	const [disabledPreferences, templatesByGroup, dispatchMethods] = useQueries({
 		queries: [
@@ -99,7 +99,6 @@ export const NotificationsPage: FC = () => {
 				title="Notifications"
 				description="Control which notifications you receive."
 				layout="fluid"
-				featureStage="beta"
 			>
 				{ready ? (
 					<Stack spacing={4}>

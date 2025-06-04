@@ -157,6 +157,9 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 			"timestamp": a.Clock.Now(),
 		},
 		"workspace-monitor-memory",
+		workspace.ID,
+		workspace.OwnerID,
+		workspace.OrganizationID,
 	)
 	if err != nil {
 		return xerrors.Errorf("notify workspace OOM: %w", err)
@@ -248,6 +251,9 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 			"timestamp": a.Clock.Now(),
 		},
 		"workspace-monitor-volumes",
+		workspace.ID,
+		workspace.OwnerID,
+		workspace.OrganizationID,
 	); err != nil {
 		return xerrors.Errorf("notify workspace OOD: %w", err)
 	}

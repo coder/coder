@@ -8,7 +8,7 @@ import {
 	MockTemplateVersionParameter1,
 	MockTemplateVersionParameter2,
 	MockTemplateVersionParameter3,
-	MockUser,
+	MockUserOwner,
 	mockApiError,
 } from "testHelpers/entities";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
@@ -19,7 +19,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 	component: CreateWorkspacePageView,
 	args: {
 		defaultName: "",
-		defaultOwner: MockUser,
+		defaultOwner: MockUserOwner,
 		autofillParameters: [],
 		template: MockTemplate,
 		parameters: [],
@@ -27,7 +27,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 		hasAllRequiredExternalAuth: true,
 		mode: "form",
 		permissions: {
-			createWorkspaceForUser: true,
+			createWorkspaceForAny: true,
 		},
 		onCancel: action("onCancel"),
 	},
@@ -77,6 +77,7 @@ export const Parameters: Story = {
 				description: "",
 				description_plaintext: "",
 				type: "string",
+				form_type: "radio",
 				mutable: false,
 				default_value: "",
 				icon: "/emojis/1f30e.png",
@@ -156,6 +157,47 @@ export const PresetSelected: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByLabelText("Preset"));
 		await userEvent.click(canvas.getByText("Preset 1"));
+	},
+};
+
+export const PresetSelectedWithHiddenParameters: Story = {
+	args: PresetsButNoneSelected.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Select a preset
+		await userEvent.click(canvas.getByLabelText("Preset"));
+		await userEvent.click(canvas.getByText("Preset 1"));
+	},
+};
+
+export const PresetSelectedWithVisibleParameters: Story = {
+	args: PresetsButNoneSelected.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Select a preset
+		await userEvent.click(canvas.getByLabelText("Preset"));
+		await userEvent.click(canvas.getByText("Preset 1"));
+		// Toggle off the show preset parameters switch
+		await userEvent.click(canvas.getByLabelText("Show preset parameters"));
+	},
+};
+
+export const PresetReselected: Story = {
+	args: PresetsButNoneSelected.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// First selection of Preset 1
+		await userEvent.click(canvas.getByLabelText("Preset"));
+		await userEvent.click(
+			canvas.getByText("Preset 1", { selector: ".MuiMenuItem-root" }),
+		);
+
+		// Reselect the same preset
+		await userEvent.click(canvas.getByLabelText("Preset"));
+		await userEvent.click(
+			canvas.getByText("Preset 1", { selector: ".MuiMenuItem-root" }),
+		);
 	},
 };
 

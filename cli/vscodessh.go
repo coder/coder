@@ -142,7 +142,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			})
 			if err != nil {
 				if xerrors.Is(err, context.Canceled) {
-					return cliui.Canceled
+					return cliui.ErrCanceled
 				}
 			}
 

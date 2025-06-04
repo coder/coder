@@ -53,7 +53,7 @@ func (r *RootCmd) gitAskpass() *serpent.Command {
 					cliui.Warn(inv.Stderr, "Coder was unable to handle this git request. The default git behavior will be used instead.",
 						lines...,
 					)
-					return cliui.Canceled
+					return cliui.ErrCanceled
 				}
 				return xerrors.Errorf("get git token: %w", err)
 			}

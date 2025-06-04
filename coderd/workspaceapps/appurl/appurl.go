@@ -267,7 +267,7 @@ func CompileHostnamePattern(pattern string) (*regexp.Regexp, error) {
 	regexPattern = strings.Replace(regexPattern, "*", "([^.]+)", 1)
 
 	// Allow trailing period.
-	regexPattern = regexPattern + "\\.?"
+	regexPattern += "\\.?"
 
 	// Allow optional port number.
 	regexPattern += "(:\\d+)?"

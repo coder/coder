@@ -33,7 +33,7 @@ type peer struct {
 func (p *peer) updateMappingLocked(id uuid.UUID, n *proto.Node, k proto.CoordinateResponse_PeerUpdate_Kind, reason string) error {
 	logger := p.logger.With(slog.F("from_id", id), slog.F("kind", k), slog.F("reason", reason))
 	update, err := p.storeMappingLocked(id, n, k, reason)
-	if xerrors.Is(err, noResp) {
+	if xerrors.Is(err, errNoResp) {
 		logger.Debug(context.Background(), "skipping update")
 		return nil
 	}
@@ -61,7 +61,7 @@ func (p *peer) batchUpdateMappingLocked(others []*peer, k proto.CoordinateRespon
 			continue
 		}
 		update, err := p.storeMappingLocked(other.id, other.node, k, reason)
-		if xerrors.Is(err, noResp) {
+		if xerrors.Is(err, errNoResp) {
 			continue
 		}
 		if err != nil {
@@ -82,7 +82,7 @@ func (p *peer) batchUpdateMappingLocked(others []*peer, k proto.CoordinateRespon
 	}
 }
 
-var noResp = xerrors.New("no response needed")
+var errNoResp = xerrors.New("no response needed")
 
 func (p *peer) storeMappingLocked(
 	id uuid.UUID, n *proto.Node, k proto.CoordinateResponse_PeerUpdate_Kind, reason string,
@@ -95,7 +95,7 @@ func (p *peer) storeMappingLocked(
 	switch {
 	case !ok && (k == proto.CoordinateResponse_PeerUpdate_LOST || k == proto.CoordinateResponse_PeerUpdate_DISCONNECTED):
 		// we don't need to send a lost/disconnect update if we've never sent an update about this peer
-		return nil, noResp
+		return nil, errNoResp
 	case !ok && k == proto.CoordinateResponse_PeerUpdate_NODE:
 		p.sent[id] = n
 	case ok && k == proto.CoordinateResponse_PeerUpdate_LOST:
@@ -109,7 +109,7 @@ func (p *peer) storeMappingLocked(
 			return nil, xerrors.Errorf("failed to compare nodes: %s", sn.String())
 		}
 		if eq {
-			return nil, noResp
+			return nil, errNoResp
 		}
 		p.sent[id] = n
 	}
@@ -121,24 +121,24 @@ func (p *peer) storeMappingLocked(
 	}, nil
 }
 
-func (p *peer) reqLoop(ctx context.Context, logger slog.Logger, handler func(context.Context, *peer, *proto.CoordinateRequest) error) {
+func (p *peer) reqLoop(ctx context.Context, logger slog.Logger, handler func(context.Context, *peer, *proto.CoordinateRequest) error) error {
 	for {
 		select {
 		case <-ctx.Done():
 			logger.Debug(ctx, "peerReadLoop context done")
-			return
+			return ctx.Err()
 		case req, ok := <-p.reqs:
 			if !ok {
 				logger.Debug(ctx, "peerReadLoop channel closed")
-				return
+				return nil
 			}
 			logger.Debug(ctx, "peerReadLoop got request")
 			if err := handler(ctx, p, req); err != nil {
 				if xerrors.Is(err, ErrAlreadyRemoved) || xerrors.Is(err, ErrClosed) {
-					return
+					return nil
 				}
 				logger.Error(ctx, "peerReadLoop error handling request", slog.Error(err), slog.F("request", req))
-				return
+				return err
 			}
 		}
 	}

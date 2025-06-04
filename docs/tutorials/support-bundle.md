@@ -23,7 +23,8 @@ treated as such.**
 
 A brief overview of all files contained in the bundle is provided below:
 
-> Note: detailed descriptions of all the information available in the bundle is
+> [!NOTE]
+> Detailed descriptions of all the information available in the bundle is
 > out of scope, as support bundles are primarily intended for internal use.
 
 | Filename                          | Description                                                                                                |
@@ -61,7 +62,8 @@ A brief overview of all files contained in the bundle is provided below:
 2. Ensure you have the Coder CLI installed on a local machine. See
    [installation](../install/index.md) for steps on how to do this.
 
-   > Note: It is recommended to generate a support bundle from a location
+   > [!NOTE]
+   > It is recommended to generate a support bundle from a location
    > experiencing workspace connectivity issues.
 
 3. Ensure you are [logged in](../reference/cli/login.md#login) to your Coder
@@ -80,7 +82,8 @@ A brief overview of all files contained in the bundle is provided below:
 6. Coder staff will provide you a link where you can upload the bundle along
    with any other necessary supporting files.
 
-   > Note: It is helpful to leave an informative message regarding the nature of
+   > [!NOTE]
+   > It is helpful to leave an informative message regarding the nature of
    > supporting files.
 
 Coder support will then review the information you provided and respond to you

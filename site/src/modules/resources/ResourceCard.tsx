@@ -19,7 +19,7 @@ const styles = {
 			borderBottom: 0,
 		},
 
-		"&:first-child": {
+		"&:first-of-type": {
 			borderTopLeftRadius: 8,
 			borderTopRightRadius: 8,
 		},
@@ -70,7 +70,7 @@ const styles = {
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
 
-export interface ResourceCardProps {
+interface ResourceCardProps {
 	resource: WorkspaceResource;
 	agentRow: (agent: WorkspaceAgent) => JSX.Element;
 }

@@ -10,7 +10,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import GroupSettingsPageView from "./GroupSettingsPageView";
 
-export const GroupSettingsPage: FC = () => {
+const GroupSettingsPage: FC = () => {
 	const { organization = "default", groupName } = useParams() as {
 		organization?: string;
 		groupName: string;
@@ -66,7 +66,7 @@ export const GroupSettingsPage: FC = () => {
 				group={groupQuery.data}
 				formErrors={groupQuery.error}
 				isLoading={groupQuery.isLoading}
-				isUpdating={patchGroupMutation.isLoading}
+				isUpdating={patchGroupMutation.isPending}
 			/>
 		</>
 	);

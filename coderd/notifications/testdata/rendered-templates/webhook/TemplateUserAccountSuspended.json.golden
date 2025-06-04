@@ -2,7 +2,7 @@
   "_version": "1.1",
   "msg_id": "00000000-0000-0000-0000-000000000000",
   "payload": {
-    "_version": "1.1",
+    "_version": "1.2",
     "notification_name": "User account suspended",
     "notification_template_id": "00000000-0000-0000-0000-000000000000",
     "user_id": "00000000-0000-0000-0000-000000000000",
@@ -25,6 +25,6 @@
   },
   "title": "User account \"bobby\" suspended",
   "title_markdown": "User account \"bobby\" suspended",
-  "body": "Hi Bobby,\n\nUser account bobby has been suspended.\n\nThe account belongs to William Tables and it was suspended by rob.",
-  "body_markdown": "Hi Bobby,\n\nUser account **bobby** has been suspended.\n\nThe account belongs to **William Tables** and it was suspended by **rob**."
+  "body": "User account bobby has been suspended.\n\nThe account belongs to William Tables and it was suspended by rob.",
+  "body_markdown": "User account **bobby** has been suspended.\n\nThe account belongs to **William Tables** and it was suspended by **rob**."
 }

@@ -33,8 +33,8 @@ const (
 	mutableParameterValue = "hello"
 )
 
-var (
-	mutableParamsResponse = &echo.Responses{
+func mutableParamsResponse() *echo.Responses {
+	return &echo.Responses{
 		Parse: echo.ParseComplete,
 		ProvisionPlan: []*proto.Response{
 			{
@@ -54,8 +54,10 @@ var (
 		},
 		ProvisionApply: echo.ApplyComplete,
 	}
+}
 
-	immutableParamsResponse = &echo.Responses{
+func immutableParamsResponse() *echo.Responses {
+	return &echo.Responses{
 		Parse: echo.ParseComplete,
 		ProvisionPlan: []*proto.Response{
 			{
@@ -74,30 +76,32 @@ var (
 		},
 		ProvisionApply: echo.ApplyComplete,
 	}
-)
+}
 
 func TestStart(t *testing.T) {
 	t.Parallel()
 
-	echoResponses := &echo.Responses{
-		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
-			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
-						Parameters: []*proto.RichParameter{
-							{
-								Name:        ephemeralParameterName,
-								Description: ephemeralParameterDescription,
-								Mutable:     true,
-								Ephemeral:   true,
+	echoResponses := func() *echo.Responses {
+		return &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{
+				{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Parameters: []*proto.RichParameter{
+								{
+									Name:        ephemeralParameterName,
+									Description: ephemeralParameterDescription,
+									Mutable:     true,
+									Ephemeral:   true,
+								},
 							},
 						},
 					},
 				},
 			},
-		},
-		ProvisionApply: echo.ApplyComplete,
+			ProvisionApply: echo.ApplyComplete,
+		}
 	}
 
 	t.Run("BuildOptions", func(t *testing.T) {
@@ -106,7 +110,7 @@ func TestStart(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, member, template.ID)
@@ -160,7 +164,7 @@ func TestStart(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, member, template.ID)
@@ -208,7 +212,7 @@ func TestStartWithParameters(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, immutableParamsResponse)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, immutableParamsResponse())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, member, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
@@ -260,7 +264,7 @@ func TestStartWithParameters(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, mutableParamsResponse)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, mutableParamsResponse())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, member, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
@@ -406,7 +410,7 @@ func TestStart_AlreadyRunning(t *testing.T) {
 	}()
 
 	pty.ExpectMatch("workspace is already running")
-	_ = testutil.RequireRecvCtx(ctx, t, doneChan)
+	_ = testutil.TryReceive(ctx, t, doneChan)
 }
 
 func TestStart_Starting(t *testing.T) {
@@ -439,5 +443,38 @@ func TestStart_Starting(t *testing.T) {
 	_ = dbfake.JobComplete(t, store, r.Build.JobID).Pubsub(ps).Do()
 	pty.ExpectMatch("workspace has been started")
 
-	_ = testutil.RequireRecvCtx(ctx, t, doneChan)
+	_ = testutil.TryReceive(ctx, t, doneChan)
+}
+
+func TestStart_NoWait(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Prepare user, template, workspace
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	owner := coderdtest.CreateFirstUser(t, client)
+	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version1.ID)
+	workspace := coderdtest.CreateWorkspace(t, member, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	// Stop the workspace
+	build := coderdtest.CreateWorkspaceBuild(t, member, workspace, database.WorkspaceTransitionStop)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+
+	// Start in no-wait mode
+	inv, root := clitest.New(t, "start", workspace.Name, "--no-wait")
+	clitest.SetupConfig(t, member, root)
+	doneChan := make(chan struct{})
+	pty := ptytest.New(t).Attach(inv)
+	go func() {
+		defer close(doneChan)
+		err := inv.Run()
+		assert.NoError(t, err)
+	}()
+
+	pty.ExpectMatch("workspace has been started in no-wait mode")
+	_ = testutil.TryReceive(ctx, t, doneChan)
 }

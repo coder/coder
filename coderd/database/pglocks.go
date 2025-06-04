@@ -112,7 +112,7 @@ func (l PGLocks) String() string {
 
 // Difference returns the difference between two sets of locks.
 // This is helpful to determine what changed between the two sets.
-func (l PGLocks) Difference(to PGLocks) (new PGLocks, removed PGLocks) {
+func (l PGLocks) Difference(to PGLocks) (newVal PGLocks, removed PGLocks) {
 	return slice.SymmetricDifferenceFunc(l, to, func(a, b PGLock) bool {
 		return a.Equal(b)
 	})

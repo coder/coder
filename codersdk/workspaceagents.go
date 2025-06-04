@@ -139,6 +139,7 @@ const (
 
 type WorkspaceAgent struct {
 	ID                   uuid.UUID               `json:"id" format:"uuid"`
+	ParentID             uuid.NullUUID           `json:"parent_id" format:"uuid"`
 	CreatedAt            time.Time               `json:"created_at" format:"date-time"`
 	UpdatedAt            time.Time               `json:"updated_at" format:"date-time"`
 	FirstConnectedAt     *time.Time              `json:"first_connected_at,omitempty" format:"date-time"`
@@ -392,11 +393,42 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
 }
 
-// WorkspaceAgentDevcontainer describes a devcontainer of some sort
+// WorkspaceAgentDevcontainersResponse is the response to the devcontainers
+// request.
+type WorkspaceAgentDevcontainersResponse struct {
+	Devcontainers []WorkspaceAgentDevcontainer `json:"devcontainers"`
+}
+
+// WorkspaceAgentDevcontainerStatus is the status of a devcontainer.
+type WorkspaceAgentDevcontainerStatus string
+
+// WorkspaceAgentDevcontainerStatus enums.
+const (
+	WorkspaceAgentDevcontainerStatusRunning  WorkspaceAgentDevcontainerStatus = "running"
+	WorkspaceAgentDevcontainerStatusStopped  WorkspaceAgentDevcontainerStatus = "stopped"
+	WorkspaceAgentDevcontainerStatusStarting WorkspaceAgentDevcontainerStatus = "starting"
+	WorkspaceAgentDevcontainerStatusError    WorkspaceAgentDevcontainerStatus = "error"
+)
+
+// WorkspaceAgentDevcontainer defines the location of a devcontainer
+// configuration in a workspace that is visible to the workspace agent.
+type WorkspaceAgentDevcontainer struct {
+	ID              uuid.UUID `json:"id" format:"uuid"`
+	Name            string    `json:"name"`
+	WorkspaceFolder string    `json:"workspace_folder"`
+	ConfigPath      string    `json:"config_path,omitempty"`
+
+	// Additional runtime fields.
+	Status    WorkspaceAgentDevcontainerStatus `json:"status"`
+	Dirty     bool                             `json:"dirty"`
+	Container *WorkspaceAgentContainer         `json:"container,omitempty"`
+}
+
+// WorkspaceAgentContainer describes a devcontainer of some sort
 // that is visible to the workspace agent. This struct is an abstraction
 // of potentially multiple implementations, and the fields will be
 // somewhat implementation-dependent.
-type WorkspaceAgentDevcontainer struct {
+type WorkspaceAgentContainer struct {
 	// CreatedAt is the time the container was created.
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	// ID is the unique identifier of the container.
@@ -410,7 +442,7 @@ type WorkspaceAgentDevcontainer struct {
 	// Running is true if the container is currently running.
 	Running bool `json:"running"`
 	// Ports includes ports exposed by the container.
-	Ports []WorkspaceAgentListeningPort `json:"ports"`
+	Ports []WorkspaceAgentContainerPort `json:"ports"`
 	// Status is the current status of the container. This is somewhat
 	// implementation-dependent, but should generally be a human-readable
 	// string.
@@ -418,13 +450,44 @@ type WorkspaceAgentDevcontainer struct {
 	// Volumes is a map of "things" mounted into the container. Again, this
 	// is somewhat implementation-dependent.
 	Volumes map[string]string `json:"volumes"`
+	// DevcontainerStatus is the status of the devcontainer, if this
+	// container is a devcontainer. This is used to determine if the
+	// devcontainer is running, stopped, starting, or in an error state.
+	DevcontainerStatus WorkspaceAgentDevcontainerStatus `json:"devcontainer_status,omitempty"`
+	// DevcontainerDirty is true if the devcontainer configuration has changed
+	// since the container was created. This is used to determine if the
+	// container needs to be rebuilt.
+	DevcontainerDirty bool `json:"devcontainer_dirty"`
+}
+
+func (c *WorkspaceAgentContainer) Match(idOrName string) bool {
+	if c.ID == idOrName {
+		return true
+	}
+	if c.FriendlyName == idOrName {
+		return true
+	}
+	return false
+}
+
+// WorkspaceAgentContainerPort describes a port as exposed by a container.
+type WorkspaceAgentContainerPort struct {
+	// Port is the port number *inside* the container.
+	Port uint16 `json:"port"`
+	// Network is the network protocol used by the port (tcp, udp, etc).
+	Network string `json:"network"`
+	// HostIP is the IP address of the host interface to which the port is
+	// bound. Note that this can be an IPv4 or IPv6 address.
+	HostIP string `json:"host_ip,omitempty"`
+	// HostPort is the port number *outside* the container.
+	HostPort uint16 `json:"host_port,omitempty"`
 }
 
 // WorkspaceAgentListContainersResponse is the response to the list containers
 // request.
 type WorkspaceAgentListContainersResponse struct {
 	// Containers is a list of containers visible to the workspace agent.
-	Containers []WorkspaceAgentDevcontainer `json:"containers"`
+	Containers []WorkspaceAgentContainer `json:"containers"`
 	// Warnings is a list of warnings that may have occurred during the
 	// process of listing containers. This should not include fatal errors.
 	Warnings []string `json:"warnings,omitempty"`
@@ -456,6 +519,23 @@ func (c *Client) WorkspaceAgentListContainers(ctx context.Context, agentID uuid.
 	var cr WorkspaceAgentListContainersResponse
 
 	return cr, json.NewDecoder(res.Body).Decode(&cr)
+}
+
+// WorkspaceAgentRecreateDevcontainer recreates the devcontainer with the given ID.
+func (c *Client) WorkspaceAgentRecreateDevcontainer(ctx context.Context, agentID uuid.UUID, containerIDOrName string) (Response, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/containers/devcontainers/container/%s/recreate", agentID, containerIDOrName), nil)
+	if err != nil {
+		return Response{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusAccepted {
+		return Response{}, ReadBodyAsError(res)
+	}
+	var m Response
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		return Response{}, xerrors.Errorf("decode response body: %w", err)
+	}
+	return m, nil
 }
 
 //nolint:revive // Follow is a control flag on the server as well.

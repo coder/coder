@@ -1,6 +1,8 @@
 package syncmap
 
-import "sync"
+import (
+	"sync"
+)
 
 // Map is a type safe sync.Map
 type Map[K, V any] struct {
@@ -51,8 +53,8 @@ func (m *Map[K, V]) LoadOrStore(key K, value V) (actual V, loaded bool) {
 	return act.(V), loaded
 }
 
-func (m *Map[K, V]) CompareAndSwap(key K, old V, new V) bool {
-	return m.m.CompareAndSwap(key, old, new)
+func (m *Map[K, V]) CompareAndSwap(key K, old V, newVal V) bool {
+	return m.m.CompareAndSwap(key, old, newVal)
 }
 
 func (m *Map[K, V]) CompareAndDelete(key K, old V) (deleted bool) {

@@ -46,7 +46,7 @@ func Cors(allowAll bool, origins ...string) func(next http.Handler) http.Handler
 
 func WorkspaceAppCors(regex *regexp.Regexp, app appurl.ApplicationURL) func(next http.Handler) http.Handler {
 	return cors.Handler(cors.Options{
-		AllowOriginFunc: func(r *http.Request, rawOrigin string) bool {
+		AllowOriginFunc: func(_ *http.Request, rawOrigin string) bool {
 			origin, err := url.Parse(rawOrigin)
 			if rawOrigin == "" || origin.Host == "" || err != nil {
 				return false

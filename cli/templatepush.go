@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -80,6 +81,46 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				createTemplate = true
 			}
 
+			var tags map[string]string
+			// Passing --provisioner-tag="-" allows the user to clear all provisioner tags.
+			if len(provisionerTags) == 1 && strings.TrimSpace(provisionerTags[0]) == "-" {
+				cliui.Warn(inv.Stderr, "Not reusing provisioner tags from the previous template version.")
+				tags = map[string]string{}
+			} else {
+				tags, err = ParseProvisionerTags(provisionerTags)
+				if err != nil {
+					return err
+				}
+
+				// If user hasn't provided new provisioner tags, inherit ones from the active template version.
+				if len(tags) == 0 && template.ActiveVersionID != uuid.Nil {
+					templateVersion, err := client.TemplateVersion(inv.Context(), template.ActiveVersionID)
+					if err != nil {
+						return err
+					}
+					tags = templateVersion.Job.Tags
+					cliui.Info(inv.Stderr, "Re-using provisioner tags from the active template version.")
+					cliui.Info(inv.Stderr, "Tip: You can override these tags by passing "+cliui.Code(`--provisioner-tag="key=value"`)+".")
+					cliui.Info(inv.Stderr, "     You can also clear all provisioner tags by passing "+cliui.Code(`--provisioner-tag="-"`)+".")
+				}
+			}
+
+			{ // For clarity, display provisioner tags to the user.
+				var tmp []string
+				for k, v := range tags {
+					if k == provisionersdk.TagScope || k == provisionersdk.TagOwner {
+						continue
+					}
+					tmp = append(tmp, fmt.Sprintf("%s=%q", k, v))
+				}
+				slices.Sort(tmp)
+				tagStr := strings.Join(tmp, " ")
+				if len(tmp) == 0 {
+					tagStr = "<none>"
+				}
+				cliui.Info(inv.Stderr, "Provisioner tags: "+cliui.Code(tagStr))
+			}
+
 			err = uploadFlags.checkForLockfile(inv)
 			if err != nil {
 				return xerrors.Errorf("check for lockfile: %w", err)
@@ -104,21 +145,6 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				return err
 			}
 
-			tags, err := ParseProvisionerTags(provisionerTags)
-			if err != nil {
-				return err
-			}
-
-			// If user hasn't provided new provisioner tags, inherit ones from the active template version.
-			if len(tags) == 0 && template.ActiveVersionID != uuid.Nil {
-				templateVersion, err := client.TemplateVersion(inv.Context(), template.ActiveVersionID)
-				if err != nil {
-					return err
-				}
-				tags = templateVersion.Job.Tags
-				inv.Logger.Info(inv.Context(), "reusing existing provisioner tags", "tags", tags)
-			}
-
 			userVariableValues, err := codersdk.ParseUserVariableValues(
 				varsFiles,
 				variablesFile,
@@ -137,8 +163,9 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				UserVariableValues: userVariableValues,
 			}
 
+			// This ensures the version name is set in the request arguments regardless of whether you're creating a new template or updating an existing one.
+			args.Name = versionName
 			if !createTemplate {
-				args.Name = versionName
 				args.Template = &template
 				args.ReuseParameters = !alwaysPrompt
 			}
@@ -213,7 +240,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 		},
 		{
 			Flag:        "provisioner-tag",
-			Description: "Specify a set of tags to target provisioner daemons.",
+			Description: "Specify a set of tags to target provisioner daemons. If you do not specify any tags, the tags from the active template version will be reused, if available. To remove existing tags, use --provisioner-tag=\"-\".",
 			Value:       serpent.StringArrayOf(&provisionerTags),
 		},
 		{

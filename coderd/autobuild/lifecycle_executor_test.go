@@ -2,7 +2,6 @@ package autobuild_test
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -400,7 +399,7 @@ func TestExecutorAutostartUserSuspended(t *testing.T) {
 	}()
 
 	// Then: nothing should happen
-	stats := testutil.RequireRecvCtx(ctx, t, statsCh)
+	stats := testutil.TryReceive(ctx, t, statsCh)
 	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 0)
 }
@@ -741,7 +740,7 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 }
 
 func TestExecutorAutostartMultipleOK(t *testing.T) {
-	if os.Getenv("DB") == "" {
+	if !dbtestutil.WillUsePostgres() {
 		t.Skip(`This test only really works when using a "real" database, similar to a HA setup`)
 	}
 
@@ -1167,7 +1166,7 @@ func TestNotifications(t *testing.T) {
 		// Wait for workspace to become dormant
 		notifyEnq.Clear()
 		ticker <- workspace.LastUsedAt.Add(timeTilDormant * 3)
-		_ = testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, statCh)
+		_ = testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statCh)
 
 		// Check that the workspace is dormant
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)

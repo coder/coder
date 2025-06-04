@@ -2,6 +2,7 @@ package slice_test
 
 import (
 	"math/rand"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -80,6 +81,64 @@ func TestContains(t *testing.T) {
 		[]uuid.UUID{uuid.MustParse("c7c6686d-a93c-4df2-bef9-5f837e9a33d5")},
 		[]uuid.UUID{uuid.MustParse("1d00e27d-8de6-46f8-80d5-1da0ca83874a")},
 	)
+}
+
+func TestFilter(t *testing.T) {
+	t.Parallel()
+
+	type testCase[T any] struct {
+		haystack []T
+		cond     func(T) bool
+		expected []T
+	}
+
+	{
+		testCases := []*testCase[int]{
+			{
+				haystack: []int{1, 2, 3, 4, 5},
+				cond: func(num int) bool {
+					return num%2 == 1
+				},
+				expected: []int{1, 3, 5},
+			},
+			{
+				haystack: []int{1, 2, 3, 4, 5},
+				cond: func(num int) bool {
+					return num%2 == 0
+				},
+				expected: []int{2, 4},
+			},
+		}
+
+		for _, tc := range testCases {
+			actual := slice.Filter(tc.haystack, tc.cond)
+			require.Equal(t, tc.expected, actual)
+		}
+	}
+
+	{
+		testCases := []*testCase[string]{
+			{
+				haystack: []string{"hello", "hi", "bye"},
+				cond: func(str string) bool {
+					return strings.HasPrefix(str, "h")
+				},
+				expected: []string{"hello", "hi"},
+			},
+			{
+				haystack: []string{"hello", "hi", "bye"},
+				cond: func(str string) bool {
+					return strings.HasPrefix(str, "b")
+				},
+				expected: []string{"bye"},
+			},
+		}
+
+		for _, tc := range testCases {
+			actual := slice.Filter(tc.haystack, tc.cond)
+			require.Equal(t, tc.expected, actual)
+		}
+	}
 }
 
 func TestOverlap(t *testing.T) {

@@ -10,6 +10,7 @@
 	},
 	"devDependencies": {
 		"markdown-table-formatter": "^1.6.1",
-		"markdownlint-cli2": "^0.16.0"
+		"markdownlint-cli2": "^0.16.0",
+		"quicktype": "^23.0.0"
 	}
 }

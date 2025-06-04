@@ -6,6 +6,7 @@ USAGE:
   Open a workspace
 
 SUBCOMMANDS:
+    app       Open a workspace application.
     vscode    Open a workspace in VS Code Desktop
 
 ———

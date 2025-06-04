@@ -21,6 +21,29 @@ import (
 
 // ProvisionApplyWithAgent returns provision responses that will mock a fake
 // "aws_instance" resource with an agent that has the given auth token.
+func ProvisionApplyWithAgentAndAPIKeyScope(authToken string, apiKeyScope string) []*proto.Response {
+	return []*proto.Response{{
+		Type: &proto.Response_Apply{
+			Apply: &proto.ApplyComplete{
+				Resources: []*proto.Resource{{
+					Name: "example_with_scope",
+					Type: "aws_instance",
+					Agents: []*proto.Agent{{
+						Id:   uuid.NewString(),
+						Name: "example",
+						Auth: &proto.Agent_Token{
+							Token: authToken,
+						},
+						ApiKeyScope: apiKeyScope,
+					}},
+				}},
+			},
+		},
+	}}
+}
+
+// ProvisionApplyWithAgent returns provision responses that will mock a fake
+// "aws_instance" resource with an agent that has the given auth token.
 func ProvisionApplyWithAgent(authToken string) []*proto.Response {
 	return []*proto.Response{{
 		Type: &proto.Response_Apply{
@@ -51,7 +74,10 @@ var (
 	// PlanComplete is a helper to indicate an empty provision completion.
 	PlanComplete = []*proto.Response{{
 		Type: &proto.Response_Plan{
-			Plan: &proto.PlanComplete{},
+			Plan: &proto.PlanComplete{
+				Plan:        []byte("{}"),
+				ModuleFiles: []byte{},
+			},
 		},
 	}}
 	// ApplyComplete is a helper to indicate an empty provision completion.
@@ -209,6 +235,8 @@ type Responses struct {
 	// transition responses. They are prioritized over the generic responses.
 	ProvisionApplyMap map[proto.WorkspaceTransition][]*proto.Response
 	ProvisionPlanMap  map[proto.WorkspaceTransition][]*proto.Response
+
+	ExtraFiles map[string][]byte
 }
 
 // Tar returns a tar archive of responses to provisioner operations.
@@ -224,8 +252,12 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 
 	if responses == nil {
 		responses = &Responses{
-			ParseComplete, ApplyComplete, PlanComplete,
-			nil, nil,
+			Parse:             ParseComplete,
+			ProvisionApply:    ApplyComplete,
+			ProvisionPlan:     PlanComplete,
+			ProvisionApplyMap: nil,
+			ProvisionPlanMap:  nil,
+			ExtraFiles:        nil,
 		}
 	}
 	if responses.ProvisionPlan == nil {
@@ -240,8 +272,21 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 					Resources:             resp.GetApply().GetResources(),
 					Parameters:            resp.GetApply().GetParameters(),
 					ExternalAuthProviders: resp.GetApply().GetExternalAuthProviders(),
+					Plan:                  []byte("{}"),
+					ModuleFiles:           []byte{},
 				}},
 			})
+		}
+	}
+
+	for _, resp := range responses.ProvisionPlan {
+		plan := resp.GetPlan()
+		if plan == nil {
+			continue
+		}
+
+		if plan.Error == "" && len(plan.Plan) == 0 {
+			plan.Plan = []byte("{}")
 		}
 	}
 
@@ -299,12 +344,38 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 		}
 	}
 	for trans, m := range responses.ProvisionPlanMap {
-		for i, rs := range m {
-			err := writeProto(fmt.Sprintf("%d.%s.plan.protobuf", i, strings.ToLower(trans.String())), rs)
+		for i, resp := range m {
+			plan := resp.GetPlan()
+			if plan != nil {
+				if plan.Error == "" && len(plan.Plan) == 0 {
+					plan.Plan = []byte("{}")
+				}
+			}
+
+			err := writeProto(fmt.Sprintf("%d.%s.plan.protobuf", i, strings.ToLower(trans.String())), resp)
 			if err != nil {
 				return nil, err
 			}
 		}
+	}
+	for name, content := range responses.ExtraFiles {
+		logger.Debug(ctx, "extra file", slog.F("name", name))
+
+		err := writer.WriteHeader(&tar.Header{
+			Name: name,
+			Size: int64(len(content)),
+			Mode: 0o644,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		n, err := writer.Write(content)
+		if err != nil {
+			return nil, err
+		}
+
+		logger.Debug(context.Background(), "extra file written", slog.F("name", name), slog.F("bytes_written", n))
 	}
 	// `writer.Close()` function flushes the writer buffer, and adds extra padding to create a legal tarball.
 	err := writer.Close()
@@ -322,6 +393,16 @@ func WithResources(resources []*proto.Resource) *Responses {
 		}}}},
 		ProvisionPlan: []*proto.Response{{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
 			Resources: resources,
+			Plan:      []byte("{}"),
 		}}}},
+	}
+}
+
+func WithExtraFiles(extraFiles map[string][]byte) *Responses {
+	return &Responses{
+		Parse:          ParseComplete,
+		ProvisionApply: ApplyComplete,
+		ProvisionPlan:  PlanComplete,
+		ExtraFiles:     extraFiles,
 	}
 }

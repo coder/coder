@@ -23,12 +23,9 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+//nolint:paralleltest, tparallel
 func TestRoleSyncTable(t *testing.T) {
 	t.Parallel()
-
-	if dbtestutil.WillUsePostgres() {
-		t.Skip("Skipping test because it populates a lot of db entries, which is slow on postgres.")
-	}
 
 	userClaims := jwt.MapClaims{
 		"roles": []string{
@@ -190,9 +187,11 @@ func TestRoleSyncTable(t *testing.T) {
 
 	for _, tc := range testCases {
 		tc := tc
+		// The final test, "AllTogether", cannot run in parallel.
+		// These tests are nearly instant using the memory db, so
+		// this is still fast without being in parallel.
+		//nolint:paralleltest, tparallel
 		t.Run(tc.Name, func(t *testing.T) {
-			t.Parallel()
-
 			db, _ := dbtestutil.NewDB(t)
 			manager := runtimeconfig.NewManager()
 			s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{
@@ -225,9 +224,8 @@ func TestRoleSyncTable(t *testing.T) {
 	// deployment. This tests all organizations being synced together.
 	// The reason we do them individually, is that it is much easier to
 	// debug a single test case.
+	//nolint:paralleltest, tparallel // This should run after all the individual tests
 	t.Run("AllTogether", func(t *testing.T) {
-		t.Parallel()
-
 		db, _ := dbtestutil.NewDB(t)
 		manager := runtimeconfig.NewManager()
 		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{

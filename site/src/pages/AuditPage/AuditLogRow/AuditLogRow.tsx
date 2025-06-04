@@ -1,5 +1,4 @@
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
-import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import Collapse from "@mui/material/Collapse";
 import Link from "@mui/material/Link";
 import TableCell from "@mui/material/TableCell";
@@ -10,6 +9,7 @@ import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
+import { InfoIcon } from "lucide-react";
 import { NetworkIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
@@ -37,7 +37,7 @@ const httpStatusColor = (httpStatus: number): ThemeRole => {
 	return "success";
 };
 
-export interface AuditLogRowProps {
+interface AuditLogRowProps {
 	auditLog: AuditLog;
 	// Useful for Storybook
 	defaultIsDiffOpen?: boolean;
@@ -191,9 +191,8 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 												</div>
 											}
 										>
-											<InfoOutlined
+											<InfoIcon
 												css={(theme) => ({
-													fontSize: 20,
 													color: theme.palette.info.light,
 												})}
 											/>

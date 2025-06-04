@@ -1,15 +1,14 @@
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import Button from "@mui/material/Button";
 import { API } from "api/api";
 import { isApiValidationError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
-import { templateByName } from "api/queries/templates";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button as ShadcnButton } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import type { FC } from "react";
+import { ExternalLinkIcon } from "lucide-react";
+import { type FC, useContext } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router-dom";
@@ -18,7 +17,8 @@ import { pageTitle } from "utils/page";
 import {
 	type WorkspacePermissions,
 	workspaceChecks,
-} from "../../WorkspacePage/permissions";
+} from "../../../modules/workspaces/permissions";
+import { ExperimentalFormContext } from "../../CreateWorkspacePage/ExperimentalFormContext";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import {
 	WorkspaceParametersForm,
@@ -43,21 +43,14 @@ const WorkspaceParametersPage: FC = () => {
 		},
 	});
 
-	const templateQuery = useQuery({
-		...templateByName(workspace.organization_id, workspace.template_name ?? ""),
-		enabled: workspace !== undefined,
-	});
-	const template = templateQuery.data;
-
 	// Permissions
-	const checks =
-		workspace && template ? workspaceChecks(workspace, template) : {};
+	const checks = workspace ? workspaceChecks(workspace) : {};
 	const permissionsQuery = useQuery({
 		...checkAuthorization({ checks }),
-		enabled: workspace !== undefined && template !== undefined,
+		enabled: workspace !== undefined,
 	});
 	const permissions = permissionsQuery.data as WorkspacePermissions | undefined;
-	const canChangeVersions = Boolean(permissions?.updateTemplate);
+	const canChangeVersions = Boolean(permissions?.updateWorkspaceVersion);
 
 	return (
 		<>
@@ -70,16 +63,25 @@ const WorkspaceParametersPage: FC = () => {
 				canChangeVersions={canChangeVersions}
 				data={parameters.data}
 				submitError={updateParameters.error}
-				isSubmitting={updateParameters.isLoading}
+				isSubmitting={updateParameters.isPending}
 				onSubmit={(values) => {
+					if (!parameters.data) {
+						return;
+					}
 					// When updating the parameters, the API does not accept immutable
 					// values so we need to filter them
-					const onlyMultableValues = parameters
-						.data!.templateVersionRichParameters.filter((p) => p.mutable)
-						.map(
-							(p) =>
-								values.rich_parameter_values.find((v) => v.name === p.name)!,
-						);
+					const onlyMultableValues =
+						parameters.data.templateVersionRichParameters
+							.filter((p) => p.mutable)
+							.map((p) => {
+								const value = values.rich_parameter_values.find(
+									(v) => v.name === p.name,
+								);
+								if (!value) {
+									throw new Error(`Missing value for parameter ${p.name}`);
+								}
+								return value;
+							});
 					updateParameters.mutate(onlyMultableValues);
 				}}
 				onCancel={() => {
@@ -90,7 +92,7 @@ const WorkspaceParametersPage: FC = () => {
 	);
 };
 
-export type WorkspaceParametersPageViewProps = {
+type WorkspaceParametersPageViewProps = {
 	workspace: Workspace;
 	canChangeVersions: boolean;
 	data: Awaited<ReturnType<typeof API.getWorkspaceParameters>> | undefined;
@@ -111,15 +113,27 @@ export const WorkspaceParametersPageView: FC<
 	isSubmitting,
 	onCancel,
 }) => {
+	const experimentalFormContext = useContext(ExperimentalFormContext);
 	return (
-		<>
-			<PageHeader css={{ paddingTop: 0 }}>
-				<PageHeaderTitle>Workspace parameters</PageHeaderTitle>
-			</PageHeader>
+		<div className="flex flex-col gap-10">
+			<header className="flex flex-col items-start gap-2">
+				<span className="flex flex-row justify-between w-full items-center gap-2">
+					<h1 className="text-3xl m-0">Workspace parameters</h1>
+					{experimentalFormContext && (
+						<ShadcnButton
+							size="sm"
+							variant="outline"
+							onClick={experimentalFormContext.toggleOptedOut}
+						>
+							Try out the new workspace parameters ✨
+						</ShadcnButton>
+					)}
+				</span>
+			</header>
 
-			{submitError && !isApiValidationError(submitError) && (
+			{submitError && !isApiValidationError(submitError) ? (
 				<ErrorAlert error={submitError} css={{ marginBottom: 48 }} />
-			)}
+			) : null}
 
 			{data ? (
 				data.templateVersionRichParameters.length > 0 ? (
@@ -143,7 +157,7 @@ export const WorkspaceParametersPageView: FC<
 							<Button
 								component="a"
 								href={docs("/admin/templates/extending-templates/parameters")}
-								startIcon={<OpenInNewOutlined />}
+								startIcon={<ExternalLinkIcon className="size-icon-xs" />}
 								variant="contained"
 								target="_blank"
 								rel="noreferrer"
@@ -160,7 +174,7 @@ export const WorkspaceParametersPageView: FC<
 			) : (
 				<Loader />
 			)}
-		</>
+		</div>
 	);
 };
 

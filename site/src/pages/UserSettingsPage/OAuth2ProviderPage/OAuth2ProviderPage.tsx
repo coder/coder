@@ -2,7 +2,7 @@ import { getErrorMessage } from "api/errors";
 import { getApps, revokeApp } from "api/queries/oauth2";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Section } from "../Section";
@@ -35,7 +35,7 @@ const OAuth2ProviderPage: FC = () => {
 					info={`This will invalidate any tokens created by the OAuth2 application "${appToRevoke.name}".`}
 					label="Name of the application to revoke"
 					isOpen
-					confirmLoading={revokeAppMutation.isLoading}
+					confirmLoading={revokeAppMutation.isPending}
 					name={appToRevoke.name}
 					entity="application"
 					onCancel={() => setAppIdToRevoke(undefined)}

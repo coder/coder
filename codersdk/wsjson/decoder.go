@@ -18,9 +18,12 @@ type Decoder[T any] struct {
 	logger     slog.Logger
 }
 
-// Chan starts the decoder reading from the websocket and returns a channel for reading the
-// resulting values. The chan T is closed if the underlying websocket is closed, or we encounter an
-// error. We also close the underlying websocket if we encounter an error reading or decoding.
+// Chan returns a `chan` that you can read incoming messages from. The returned
+// `chan` will be closed when the WebSocket connection is closed. If there is an
+// error reading from the WebSocket or decoding a value the WebSocket will be
+// closed.
+//
+// Safety: Chan must only be called once. Successive calls will panic.
 func (d *Decoder[T]) Chan() <-chan T {
 	if !d.chanCalled.CompareAndSwap(false, true) {
 		panic("chan called more than once")

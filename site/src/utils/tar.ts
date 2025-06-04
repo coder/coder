@@ -22,7 +22,7 @@ export interface ITarFileInfo {
 	headerOffset: number;
 }
 
-export interface ITarWriteItem {
+interface ITarWriteItem {
 	name: string;
 	type: TarFileType;
 	data: ArrayBuffer | Promise<ArrayBuffer> | null;
@@ -30,7 +30,7 @@ export interface ITarWriteItem {
 	opts?: Partial<ITarWriteOptions>;
 }
 
-export interface ITarWriteOptions {
+interface ITarWriteOptions {
 	uid: number;
 	gid: number;
 	mode: number;

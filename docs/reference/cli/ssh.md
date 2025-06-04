@@ -1,12 +1,22 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # ssh
 
-Start a shell into a workspace
+Start a shell into a workspace or run a command
 
 ## Usage
 
 ```console
-coder ssh [flags] <workspace>
+coder ssh [flags] <workspace> [command]
+```
+
+## Description
+
+```console
+This command does not have full parity with the standard SSH command. For users who need the full functionality of SSH, create an ssh configuration with `coder config-ssh`.
+
+  - Use `--` to separate and pass flags directly to the command executed via SSH.:
+
+     $ coder ssh <workspace> -- ls -la
 ```
 
 ## Options
@@ -28,6 +38,15 @@ Specifies whether to emit SSH output over stdin/stdout.
 | Environment | <code>$CODER_SSH_SSH_HOST_PREFIX</code> |
 
 Strip this prefix from the provided hostname to determine the workspace name. This is useful when used as part of an OpenSSH proxy command.
+
+### --hostname-suffix
+
+|             |                                         |
+|-------------|-----------------------------------------|
+| Type        | <code>string</code>                     |
+| Environment | <code>$CODER_SSH_HOSTNAME_SUFFIX</code> |
+
+Strip this suffix from the provided hostname to determine the workspace name. This is useful when used as part of an OpenSSH proxy command. The suffix must be specified without a leading . character.
 
 ### -A, --forward-agent
 

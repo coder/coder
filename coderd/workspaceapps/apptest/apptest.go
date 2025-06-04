@@ -1667,6 +1667,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		require.True(t, ok)
 
 		appDetails := setupProxyTest(t, &DeploymentOptions{
+			// #nosec G115 - Safe conversion as TCP port numbers are within uint16 range (0-65535)
 			port: uint16(tcpAddr.Port),
 		})
 

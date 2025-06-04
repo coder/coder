@@ -119,7 +119,7 @@ func clickRandomElement(ctx context.Context, log slog.Logger, randIntn func(int)
 		return "", nil, xerrors.Errorf("no matches found")
 	}
 	match := pick(matches, randIntn)
-	act := func(actx context.Context) error {
+	act := func(_ context.Context) error {
 		log.Debug(ctx, "clicking", slog.F("label", match.Label), slog.F("xpath", match.ClickOn))
 		if err := runWithDeadline(ctx, deadline, chromedp.Click(match.ClickOn, chromedp.NodeReady)); err != nil {
 			log.Error(ctx, "click failed", slog.F("label", match.Label), slog.F("xpath", match.ClickOn), slog.Error(err))

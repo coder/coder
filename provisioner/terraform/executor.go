@@ -19,11 +19,13 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
+	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -35,8 +37,9 @@ type executor struct {
 	mut        *sync.Mutex
 	binaryPath string
 	// cachePath and workdir must not be used by multiple processes at once.
-	cachePath string
-	workdir   string
+	cachePath     string
+	cliConfigPath string
+	workdir       string
 	// used to capture execution times at various stages
 	timings *timingAggregator
 }
@@ -49,6 +52,9 @@ func (e *executor) basicEnv() []string {
 	// cache directory. It's unknown why this is.
 	if e.cachePath != "" && runtime.GOOS == "linux" {
 		env = append(env, "TF_PLUGIN_CACHE_DIR="+e.cachePath)
+	}
+	if e.cliConfigPath != "" {
+		env = append(env, "TF_CLI_CONFIG_FILE="+e.cliConfigPath)
 	}
 	return env
 }
@@ -254,7 +260,7 @@ func getStateFilePath(workdir string) string {
 }
 
 // revive:disable-next-line:flag-parameter
-func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, destroy bool) (*proto.PlanComplete, error) {
+func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, metadata *proto.Metadata) (*proto.PlanComplete, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
@@ -270,6 +276,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		"-refresh=true",
 		"-out=" + planfilePath,
 	}
+	destroy := metadata.GetWorkspaceTransition() == proto.WorkspaceTransition_DESTROY
 	if destroy {
 		args = append(args, "-destroy")
 	}
@@ -295,21 +302,67 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	graphTimings := newTimingAggregator(database.ProvisionerJobTimingStageGraph)
 	graphTimings.ingest(createGraphTimingsEvent(timingGraphStart))
 
-	state, err := e.planResources(ctx, killCtx, planfilePath)
+	state, plan, err := e.planResources(ctx, killCtx, planfilePath)
 	if err != nil {
 		graphTimings.ingest(createGraphTimingsEvent(timingGraphErrored))
-		return nil, err
+		return nil, xerrors.Errorf("plan resources: %w", err)
+	}
+	planJSON, err := json.Marshal(plan)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal plan: %w", err)
 	}
 
 	graphTimings.ingest(createGraphTimingsEvent(timingGraphComplete))
 
-	return &proto.PlanComplete{
+	moduleFiles, err := GetModulesArchive(os.DirFS(e.workdir))
+	if err != nil {
+		// TODO: we probably want to persist this error or make it louder eventually
+		e.logger.Warn(ctx, "failed to archive terraform modules", slog.Error(err))
+	}
+
+	// When a prebuild claim attempt is made, log a warning if a resource is due to be replaced, since this will obviate
+	// the point of prebuilding if the expensive resource is replaced once claimed!
+	var (
+		isPrebuildClaimAttempt = !destroy && metadata.GetPrebuiltWorkspaceBuildStage().IsPrebuiltWorkspaceClaim()
+		resReps                []*proto.ResourceReplacement
+	)
+	if repsFromPlan := findResourceReplacements(plan); len(repsFromPlan) > 0 {
+		if isPrebuildClaimAttempt {
+			// TODO(dannyk): we should log drift always (not just during prebuild claim attempts); we're validating that this output
+			//				 will not be overwhelming for end-users, but it'll certainly be super valuable for template admins
+			//				 to diagnose this resource replacement issue, at least.
+			//				 Once prebuilds moves out of beta, consider deleting this condition.
+
+			// Lock held before calling (see top of method).
+			e.logDrift(ctx, killCtx, planfilePath, logr)
+		}
+
+		resReps = make([]*proto.ResourceReplacement, 0, len(repsFromPlan))
+		for n, p := range repsFromPlan {
+			resReps = append(resReps, &proto.ResourceReplacement{
+				Resource: n,
+				Paths:    p,
+			})
+		}
+	}
+
+	msg := &proto.PlanComplete{
 		Parameters:            state.Parameters,
 		Resources:             state.Resources,
 		ExternalAuthProviders: state.ExternalAuthProviders,
 		Timings:               append(e.timings.aggregate(), graphTimings.aggregate()...),
 		Presets:               state.Presets,
-	}, nil
+		Plan:                  planJSON,
+		ResourceReplacements:  resReps,
+		ModuleFiles:           moduleFiles,
+	}
+
+	if protobuf.Size(msg) > drpcsdk.MaxMessageSize {
+		e.logger.Warn(ctx, "cannot persist terraform modules, message payload too big", slog.F("archive_size", len(msg.ModuleFiles)))
+		msg.ModuleFiles = nil
+	}
+
+	return msg, nil
 }
 
 func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
@@ -330,18 +383,18 @@ func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
 }
 
 // planResources must only be called while the lock is held.
-func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) (*State, error) {
+func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) (*State, *tfjson.Plan, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
-	plan, err := e.showPlan(ctx, killCtx, planfilePath)
+	plan, err := e.parsePlan(ctx, killCtx, planfilePath)
 	if err != nil {
-		return nil, xerrors.Errorf("show terraform plan file: %w", err)
+		return nil, nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
 
 	rawGraph, err := e.graph(ctx, killCtx)
 	if err != nil {
-		return nil, xerrors.Errorf("graph: %w", err)
+		return nil, nil, xerrors.Errorf("graph: %w", err)
 	}
 	modules := []*tfjson.StateModule{}
 	if plan.PriorState != nil {
@@ -359,13 +412,14 @@ func (e *executor) planResources(ctx, killCtx context.Context, planfilePath stri
 
 	state, err := ConvertState(ctx, modules, rawGraph, e.server.logger)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return state, nil
+
+	return state, plan, nil
 }
 
-// showPlan must only be called while the lock is held.
-func (e *executor) showPlan(ctx, killCtx context.Context, planfilePath string) (*tfjson.Plan, error) {
+// parsePlan must only be called while the lock is held.
+func (e *executor) parsePlan(ctx, killCtx context.Context, planfilePath string) (*tfjson.Plan, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
@@ -373,6 +427,64 @@ func (e *executor) showPlan(ctx, killCtx context.Context, planfilePath string) (
 	p := new(tfjson.Plan)
 	err := e.execParseJSON(ctx, killCtx, args, e.basicEnv(), p)
 	return p, err
+}
+
+// logDrift must only be called while the lock is held.
+// It will log the output of `terraform show`, which will show which resources have drifted from the known state.
+func (e *executor) logDrift(ctx, killCtx context.Context, planfilePath string, logr logSink) {
+	stdout, stdoutDone := resourceReplaceLogWriter(logr, e.logger)
+	stderr, stderrDone := logWriter(logr, proto.LogLevel_ERROR)
+	defer func() {
+		_ = stdout.Close()
+		_ = stderr.Close()
+		<-stdoutDone
+		<-stderrDone
+	}()
+
+	err := e.showPlan(ctx, killCtx, stdout, stderr, planfilePath)
+	if err != nil {
+		e.server.logger.Debug(ctx, "failed to log state drift", slog.Error(err))
+	}
+}
+
+// resourceReplaceLogWriter highlights log lines relating to resource replacement by elevating their log level.
+// This will help template admins to visually find problematic resources easier.
+//
+// The WriteCloser must be closed by the caller to end logging, after which the returned channel will be closed to
+// indicate that logging of the written data has finished.  Failure to close the WriteCloser will leak a goroutine.
+func resourceReplaceLogWriter(sink logSink, logger slog.Logger) (io.WriteCloser, <-chan struct{}) {
+	r, w := io.Pipe()
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		scanner := bufio.NewScanner(r)
+		for scanner.Scan() {
+			line := scanner.Bytes()
+			level := proto.LogLevel_INFO
+
+			// Terraform indicates that a resource will be deleted and recreated by showing the change along with this substring.
+			if bytes.Contains(line, []byte("# forces replacement")) {
+				level = proto.LogLevel_WARN
+			}
+
+			sink.ProvisionLog(level, string(line))
+		}
+		if err := scanner.Err(); err != nil {
+			logger.Error(context.Background(), "failed to read terraform log", slog.Error(err))
+		}
+	}()
+	return w, done
+}
+
+// showPlan must only be called while the lock is held.
+func (e *executor) showPlan(ctx, killCtx context.Context, stdoutWriter, stderrWriter io.WriteCloser, planfilePath string) error {
+	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
+	args := []string{"show", "-no-color", planfilePath}
+	return e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), stdoutWriter, stderrWriter)
 }
 
 // graph must only be called while the lock is held.

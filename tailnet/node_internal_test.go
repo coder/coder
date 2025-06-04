@@ -42,7 +42,7 @@ func TestNodeUpdater_setNetInfo_different(t *testing.T) {
 		DERPLatency:   dl,
 	})
 
-	node := testutil.RequireRecvCtx(ctx, t, nodeCh)
+	node := testutil.TryReceive(ctx, t, nodeCh)
 	require.Equal(t, nodeKey, node.Key)
 	require.Equal(t, discoKey, node.DiscoKey)
 	require.Equal(t, 1, node.PreferredDERP)
@@ -56,7 +56,7 @@ func TestNodeUpdater_setNetInfo_different(t *testing.T) {
 	})
 	close(goCh) // allows callback to complete
 
-	node = testutil.RequireRecvCtx(ctx, t, nodeCh)
+	node = testutil.TryReceive(ctx, t, nodeCh)
 	require.Equal(t, nodeKey, node.Key)
 	require.Equal(t, discoKey, node.DiscoKey)
 	require.Equal(t, 2, node.PreferredDERP)
@@ -67,7 +67,7 @@ func TestNodeUpdater_setNetInfo_different(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestNodeUpdater_setNetInfo_same(t *testing.T) {
@@ -108,7 +108,7 @@ func TestNodeUpdater_setNetInfo_same(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestNodeUpdater_setDERPForcedWebsocket_different(t *testing.T) {
@@ -137,7 +137,7 @@ func TestNodeUpdater_setDERPForcedWebsocket_different(t *testing.T) {
 	uut.setDERPForcedWebsocket(1, "test")
 
 	// Then: we receive an update with the reason set
-	node := testutil.RequireRecvCtx(ctx, t, nodeCh)
+	node := testutil.TryReceive(ctx, t, nodeCh)
 	require.Equal(t, nodeKey, node.Key)
 	require.Equal(t, discoKey, node.DiscoKey)
 	require.True(t, maps.Equal(map[int]string{1: "test"}, node.DERPForcedWebsocket))
@@ -147,7 +147,7 @@ func TestNodeUpdater_setDERPForcedWebsocket_different(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestNodeUpdater_setDERPForcedWebsocket_same(t *testing.T) {
@@ -185,7 +185,7 @@ func TestNodeUpdater_setDERPForcedWebsocket_same(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestNodeUpdater_setStatus_different(t *testing.T) {
@@ -220,7 +220,7 @@ func TestNodeUpdater_setStatus_different(t *testing.T) {
 	}, nil)
 
 	// Then: we receive an update with the endpoint
-	node := testutil.RequireRecvCtx(ctx, t, nodeCh)
+	node := testutil.TryReceive(ctx, t, nodeCh)
 	require.Equal(t, nodeKey, node.Key)
 	require.Equal(t, discoKey, node.DiscoKey)
 	require.Equal(t, []string{"[fe80::1]:5678"}, node.Endpoints)
@@ -235,7 +235,7 @@ func TestNodeUpdater_setStatus_different(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestNodeUpdater_setStatus_same(t *testing.T) {
@@ -275,7 +275,7 @@ func TestNodeUpdater_setStatus_same(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestNodeUpdater_setStatus_error(t *testing.T) {
@@ -313,7 +313,7 @@ func TestNodeUpdater_setStatus_error(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestNodeUpdater_setStatus_outdated(t *testing.T) {
@@ -355,7 +355,7 @@ func TestNodeUpdater_setStatus_outdated(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestNodeUpdater_setAddresses_different(t *testing.T) {
@@ -385,7 +385,7 @@ func TestNodeUpdater_setAddresses_different(t *testing.T) {
 	uut.setAddresses(addrs)
 
 	// Then: we receive an update with the addresses
-	node := testutil.RequireRecvCtx(ctx, t, nodeCh)
+	node := testutil.TryReceive(ctx, t, nodeCh)
 	require.Equal(t, nodeKey, node.Key)
 	require.Equal(t, discoKey, node.DiscoKey)
 	require.Equal(t, addrs, node.Addresses)
@@ -396,7 +396,7 @@ func TestNodeUpdater_setAddresses_different(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestNodeUpdater_setAddresses_same(t *testing.T) {
@@ -435,7 +435,7 @@ func TestNodeUpdater_setAddresses_same(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestNodeUpdater_setCallback(t *testing.T) {
@@ -466,7 +466,7 @@ func TestNodeUpdater_setCallback(t *testing.T) {
 	})
 
 	// Then: we get a node update
-	node := testutil.RequireRecvCtx(ctx, t, nodeCh)
+	node := testutil.TryReceive(ctx, t, nodeCh)
 	require.Equal(t, nodeKey, node.Key)
 	require.Equal(t, discoKey, node.DiscoKey)
 	require.Equal(t, 1, node.PreferredDERP)
@@ -476,7 +476,7 @@ func TestNodeUpdater_setCallback(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestNodeUpdater_setBlockEndpoints_different(t *testing.T) {
@@ -506,7 +506,7 @@ func TestNodeUpdater_setBlockEndpoints_different(t *testing.T) {
 	uut.setBlockEndpoints(true)
 
 	// Then: we receive an update without endpoints
-	node := testutil.RequireRecvCtx(ctx, t, nodeCh)
+	node := testutil.TryReceive(ctx, t, nodeCh)
 	require.Equal(t, nodeKey, node.Key)
 	require.Equal(t, discoKey, node.DiscoKey)
 	require.Len(t, node.Endpoints, 0)
@@ -515,7 +515,7 @@ func TestNodeUpdater_setBlockEndpoints_different(t *testing.T) {
 	uut.setBlockEndpoints(false)
 
 	// Then: we receive an update with endpoints
-	node = testutil.RequireRecvCtx(ctx, t, nodeCh)
+	node = testutil.TryReceive(ctx, t, nodeCh)
 	require.Equal(t, nodeKey, node.Key)
 	require.Equal(t, discoKey, node.DiscoKey)
 	require.Len(t, node.Endpoints, 1)
@@ -525,7 +525,7 @@ func TestNodeUpdater_setBlockEndpoints_different(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestNodeUpdater_setBlockEndpoints_same(t *testing.T) {
@@ -563,7 +563,7 @@ func TestNodeUpdater_setBlockEndpoints_same(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestNodeUpdater_fillPeerDiagnostics(t *testing.T) {
@@ -611,7 +611,7 @@ func TestNodeUpdater_fillPeerDiagnostics(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestNodeUpdater_fillPeerDiagnostics_noCallback(t *testing.T) {
@@ -651,5 +651,5 @@ func TestNodeUpdater_fillPeerDiagnostics_noCallback(t *testing.T) {
 		defer close(done)
 		uut.close()
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 }

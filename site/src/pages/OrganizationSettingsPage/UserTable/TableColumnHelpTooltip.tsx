@@ -18,7 +18,7 @@ type TooltipData = {
 	links: readonly { text: string; href: string }[];
 };
 
-export const Language = {
+const Language = {
 	roles: {
 		title: "What is a role?",
 		text:

@@ -174,13 +174,16 @@ networking:
   # Controls if the 'Secure' property is set on browser session cookies.
   # (default: <unset>, type: bool)
   secureAuthCookie: false
+  # Controls the 'SameSite' property is set on browser session cookies.
+  # (default: lax, type: enum[lax\|none])
+  sameSiteAuthCookie: lax
   # Whether Coder only allows connections to workspaces via the browser.
   # (default: <unset>, type: bool)
   browserOnly: false
 # Interval to poll for scheduled workspace builds.
 # (default: 1m0s, type: duration)
 autobuildPollInterval: 1m0s
-# Interval to poll for hung jobs and automatically terminate them.
+# Interval to poll for hung and pending jobs and automatically terminate them.
 # (default: 1m0s, type: duration)
 jobHangDetectorInterval: 1m0s
 introspection:
@@ -490,11 +493,15 @@ disablePathApps: false
 # (default: <unset>, type: bool)
 disableOwnerWorkspaceAccess: false
 # These options change the behavior of how clients interact with the Coder.
-# Clients include the coder cli, vs code extension, and the web UI.
+# Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 client:
   # The SSH deployment prefix is used in the Host of the ssh config.
   # (default: coder., type: string)
   sshHostnamePrefix: coder.
+  # Workspace hostnames use this suffix in SSH config and Coder Connect on Coder
+  # Desktop. By default it is coder, resulting in names like myworkspace.coder.
+  # (default: coder, type: string)
+  workspaceHostnameSuffix: coder
   # These SSH config options will override the default SSH config options. Provide
   # options in "key=value" or "key value" format separated by commas.Using this
   # incorrectly can break SSH to your deployment, use cautiously.
@@ -512,6 +519,9 @@ client:
 # Support links to display in the top right drop down menu.
 # (default: <unset>, type: struct[[]codersdk.LinkConfig])
 supportLinks: []
+# Configure AI providers.
+# (default: <unset>, type: struct[codersdk.AIConfig])
+ai: {}
 # External Authentication providers.
 # (default: <unset>, type: struct[[]codersdk.ExternalAuthConfig])
 externalAuthProviders: []
@@ -643,6 +653,10 @@ notifications:
     # The endpoint to which to send webhooks.
     # (default: <unset>, type: url)
     endpoint:
+  inbox:
+    # Enable Coder Inbox.
+    # (default: true, type: bool)
+    enabled: true
   # The upper limit of attempts to send a notification.
   # (default: 5, type: int)
   maxSendAttempts: 5
@@ -677,3 +691,20 @@ notifications:
   # How often to query the database for queued notifications.
   # (default: 15s, type: duration)
   fetchInterval: 15s
+# Configure how workspace prebuilds behave.
+workspace_prebuilds:
+  # How often to reconcile workspace prebuilds state.
+  # (default: 15s, type: duration)
+  reconciliation_interval: 15s
+  # Interval to increase reconciliation backoff by when prebuilds fail, after which
+  # a retry attempt is made.
+  # (default: 15s, type: duration)
+  reconciliation_backoff_interval: 15s
+  # Interval to look back to determine number of failed prebuilds, which influences
+  # backoff.
+  # (default: 1h0m0s, type: duration)
+  reconciliation_backoff_lookback_period: 1h0m0s
+  # Maximum number of consecutive failed prebuilds before a preset hits the hard
+  # limit; disabled when set to zero.
+  # (default: 3, type: int)
+  failure_hard_limit: 3

@@ -31,6 +31,8 @@ import (
 
 	"github.com/coder/pretty"
 
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/config"
@@ -38,7 +40,6 @@ import (
 	"github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/serpent"
 )
 
 var (
@@ -49,6 +50,10 @@ var (
 	workspaceCommand = map[string]string{
 		"workspaces": "",
 	}
+
+	// ErrSilent is a sentinel error that tells the command handler to just exit with a non-zero error, but not print
+	// anything.
+	ErrSilent = xerrors.New("silent error")
 )
 
 const (
@@ -67,7 +72,7 @@ const (
 	varDisableDirect           = "disable-direct-connections"
 	varDisableNetworkTelemetry = "disable-network-telemetry"
 
-	notLoggedInMessage = "You are not logged in. Try logging in using 'coder login <url>'."
+	notLoggedInMessage = "You are not logged in. Try logging in using '%s login <url>'."
 
 	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
 	envNoFeatureWarning = "CODER_NO_FEATURE_WARNING"
@@ -122,6 +127,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.whoami(),
 
 		// Hidden
+		r.connectCmd(),
 		r.expCmd(),
 		r.gitssh(),
 		r.support(),
@@ -171,15 +177,19 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 			code = exitErr.code
 			err = exitErr.err
 		}
-		if errors.Is(err, cliui.Canceled) {
-			//nolint:revive
+		if errors.Is(err, cliui.ErrCanceled) {
+			//nolint:revive,gocritic
+			os.Exit(code)
+		}
+		if errors.Is(err, ErrSilent) {
+			//nolint:revive,gocritic
 			os.Exit(code)
 		}
 		f := PrettyErrorFormatter{w: os.Stderr, verbose: r.verbose}
 		if err != nil {
 			f.Format(err)
 		}
-		//nolint:revive
+		//nolint:revive,gocritic
 		os.Exit(code)
 	}
 }
@@ -433,7 +443,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		{
 			Flag:        varForceTty,
 			Env:         "CODER_FORCE_TTY",
-			Hidden:      true,
+			Hidden:      false,
 			Description: "Force the use of a TTY.",
 			Value:       serpent.BoolOf(&r.forceTTY),
 			Group:       globalGroup,
@@ -524,7 +534,11 @@ func (r *RootCmd) InitClient(client *codersdk.Client) serpent.MiddlewareFunc {
 				rawURL, err := conf.URL().Read()
 				// If the configuration files are absent, the user is logged out
 				if os.IsNotExist(err) {
-					return xerrors.New(notLoggedInMessage)
+					binPath, err := os.Executable()
+					if err != nil {
+						binPath = "coder"
+					}
+					return xerrors.Errorf(notLoggedInMessage, binPath)
 				}
 				if err != nil {
 					return err
@@ -556,6 +570,58 @@ func (r *RootCmd) InitClient(client *codersdk.Client) serpent.MiddlewareFunc {
 				client.SetLogBodies(true)
 			}
 			client.DisableDirectConnections = r.disableDirect
+			return next(inv)
+		}
+	}
+}
+
+// TryInitClient is similar to InitClient but doesn't error when credentials are missing.
+// This allows commands to run without requiring authentication, but still use auth if available.
+func (r *RootCmd) TryInitClient(client *codersdk.Client) serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
+			conf := r.createConfig()
+			var err error
+			// Read the client URL stored on disk.
+			if r.clientURL == nil || r.clientURL.String() == "" {
+				rawURL, err := conf.URL().Read()
+				// If the configuration files are absent, just continue without URL
+				if err != nil {
+					// Continue with a nil or empty URL
+					if !os.IsNotExist(err) {
+						return err
+					}
+				} else {
+					r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
+					if err != nil {
+						return err
+					}
+				}
+			}
+			// Read the token stored on disk.
+			if r.token == "" {
+				r.token, err = conf.Session().Read()
+				// Even if there isn't a token, we don't care.
+				// Some API routes can be unauthenticated.
+				if err != nil && !os.IsNotExist(err) {
+					return err
+				}
+			}
+
+			// Only configure the client if we have a URL
+			if r.clientURL != nil && r.clientURL.String() != "" {
+				err = r.configureClient(inv.Context(), client, r.clientURL, inv)
+				if err != nil {
+					return err
+				}
+				client.SetSessionToken(r.token)
+
+				if r.debugHTTP {
+					client.PlainLogger = os.Stderr
+					client.SetLogBodies(true)
+				}
+				client.DisableDirectConnections = r.disableDirect
+			}
 			return next(inv)
 		}
 	}
@@ -891,7 +957,7 @@ func DumpHandler(ctx context.Context, name string) {
 
 	done:
 		if sigStr == "SIGQUIT" {
-			//nolint:revive
+			//nolint:revive,gocritic
 			os.Exit(1)
 		}
 	}
@@ -994,11 +1060,12 @@ func cliHumanFormatError(from string, err error, opts *formatOpts) (string, bool
 		return formatRunCommandError(cmdErr, opts), true
 	}
 
-	uw, ok := err.(interface{ Unwrap() error })
-	if ok {
-		msg, special := cliHumanFormatError(from+traceError(err), uw.Unwrap(), opts)
-		if special {
-			return msg, special
+	if uw, ok := err.(interface{ Unwrap() error }); ok {
+		if unwrapped := uw.Unwrap(); unwrapped != nil {
+			msg, special := cliHumanFormatError(from+traceError(err), unwrapped, opts)
+			if special {
+				return msg, special
+			}
 		}
 	}
 	// If we got here, that means that the wrapped error chain does not have
@@ -1045,7 +1112,7 @@ func formatMultiError(from string, multi []error, opts *formatOpts) string {
 		prefix := fmt.Sprintf("%d. ", i+1)
 		if len(prefix) < len(indent) {
 			// Indent the prefix to match the indent
-			prefix = prefix + strings.Repeat(" ", len(indent)-len(prefix))
+			prefix += strings.Repeat(" ", len(indent)-len(prefix))
 		}
 		errStr = prefix + errStr
 		// Now looks like

@@ -50,8 +50,7 @@ argin: 8px 0 32px; line-height: 1.5;">
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
-
-<p>Your workspace <strong>bobby-workspace</strong> was deleted.</p>
+        <p>Your workspace <strong>bobby-workspace</strong> was deleted.</p>
 
 <p>The specified reason was &ldquo;<strong>autodeleted due to dormancy (aut=
 obuild)</strong>&rdquo;.</p>

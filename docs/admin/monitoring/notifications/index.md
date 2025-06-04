@@ -14,27 +14,24 @@ user(s) of the event.
 
 Coder supports the following list of events:
 
-### Workspace Events
+### Template Events
 
-These notifications are sent to the workspace owner:
+These notifications are sent to users with **template admin** roles:
 
-- Workspace created
-- Workspace deleted
-- Workspace manual build failure
-- Workspace automatic build failure
-- Workspace manually updated
-- Workspace automatically updated
-- Workspace marked as dormant
-- Workspace marked for deletion
+- Report: Workspace builds failed for template
+  - This notification is delivered as part of a weekly cron job and summarizes
+    the failed builds for a given template.
+- Template deleted
+- Template deprecated
 
 ### User Events
 
 These notifications are sent to users with **owner** and **user admin** roles:
 
+- User account activated
 - User account created
 - User account deleted
 - User account suspended
-- User account activated
 
 These notifications are sent to users themselves:
 
@@ -42,28 +39,50 @@ These notifications are sent to users themselves:
 - User account activated
 - User password reset (One-time passcode)
 
-### Template Events
+### Workspace Events
 
-These notifications are sent to users with **template admin** roles:
+These notifications are sent to the workspace owner:
 
-- Template deleted
-- Template deprecated
+- Workspace automatic build failure
+- Workspace created
+- Workspace deleted
+- Workspace manual build failure
+- Workspace manually updated
+- Workspace marked as dormant
+- Workspace marked for deletion
 - Out of memory (OOM) / Out of disk (OOD)
-  - [Configure](#configure-oomood-notifications) in the template `main.tf`.
-- Report: Workspace builds failed for template
-  - This notification is delivered as part of a weekly cron job and summarizes
-    the failed builds for a given template.
+  - Template admins can [configure OOM/OOD](#configure-oomood-notifications) notifications in the template `main.tf`.
+- Workspace automatically updated
+
+## Delivery Methods
+
+Notifications can be delivered through the Coder dashboard Inbox and by SMTP or webhook.
+OOM/OOD notifications can be delivered to users in VS Code.
+
+You can configure:
+
+- SMTP or webhooks globally with
+[`CODER_NOTIFICATIONS_METHOD`](../../../reference/cli/server.md#--notifications-method)
+(default: `smtp`).
+- Coder dashboard Inbox with
+[`CODER_NOTIFICATIONS_INBOX_ENABLED`](../../../reference/cli/server.md#--notifications-inbox-enabled)
+(default: `true`).
+
+Premium customers can configure which method to use for each of the supported
+[Events](#workspace-events).
+See the [Preferences](#delivery-preferences) section for more details.
 
 ## Configuration
 
-You can modify the notification delivery behavior using the following server
-flags.
+You can modify the notification delivery behavior in your Coder deployment's
+`https://coder.example.com/settings/notifications`, or with the following server flags:
 
 | Required | CLI                                 | Env                                     | Type       | Description                                                                                                           | Default |
 |:--------:|-------------------------------------|-----------------------------------------|------------|-----------------------------------------------------------------------------------------------------------------------|---------|
 |    ✔️    | `--notifications-dispatch-timeout`  | `CODER_NOTIFICATIONS_DISPATCH_TIMEOUT`  | `duration` | How long to wait while a notification is being sent before giving up.                                                 | 1m      |
 |    ✔️    | `--notifications-method`            | `CODER_NOTIFICATIONS_METHOD`            | `string`   | Which delivery method to use (available options: 'smtp', 'webhook'). See [Delivery Methods](#delivery-methods) below. | smtp    |
 |    -️    | `--notifications-max-send-attempts` | `CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS` | `int`      | The upper limit of attempts to send a notification.                                                                   | 5       |
+|    -️    | `--notifications-inbox-enabled`     | `CODER_NOTIFICATIONS_INBOX_ENABLED`     | `bool`     | Enable or disable inbox notifications in the Coder dashboard.                                                         | true    |
 
 ### Configure OOM/OOD notifications
 
@@ -75,18 +94,6 @@ This can help prevent agent disconnects due to OOM/OOD issues.
 To enable OOM/OOD notifications on a template, follow the steps in the
 [resource monitoring guide](../../templates/extending-templates/resource-monitoring.md).
 
-## Delivery Methods
-
-Notifications can currently be delivered by either SMTP or webhook. Each message
-can only be delivered to one method, and this method is configured globally with
-[`CODER_NOTIFICATIONS_METHOD`](../../../reference/cli/server.md#--notifications-method)
-(default: `smtp`). When there are no delivery methods configured, notifications
-will be disabled.
-
-Premium customers can configure which method to use for each of the supported
-[Events](#workspace-events); see the [Preferences](#delivery-preferences)
-section below for more details.
-
 ## SMTP (Email)
 
 Use the `smtp` method to deliver notifications by email to your users. Coder
@@ -95,11 +102,11 @@ existing one.
 
 **Server Settings:**
 
-| Required | CLI                 | Env                     | Type     | Description                               | Default   |
-|:--------:|---------------------|-------------------------|----------|-------------------------------------------|-----------|
-|    ✔️    | `--email-from`      | `CODER_EMAIL_FROM`      | `string` | The sender's address to use.              |           |
-|    ✔️    | `--email-smarthost` | `CODER_EMAIL_SMARTHOST` | `string` | The SMTP relay to send messages           |           |
-|    ✔️    | `--email-hello`     | `CODER_EMAIL_HELLO`     | `string` | The hostname identifying the SMTP server. | localhost |
+| Required | CLI                 | Env                     | Type     | Description                                               | Default   |
+|:--------:|---------------------|-------------------------|----------|-----------------------------------------------------------|-----------|
+|    ✔️    | `--email-from`      | `CODER_EMAIL_FROM`      | `string` | The sender's address to use.                              |           |
+|    ✔️    | `--email-smarthost` | `CODER_EMAIL_SMARTHOST` | `string` | The SMTP relay to send messages (format: `hostname:port`) |           |
+|    ✔️    | `--email-hello`     | `CODER_EMAIL_HELLO`     | `string` | The hostname identifying the SMTP server.                 | localhost |
 
 **Authentication Settings:**
 
@@ -115,7 +122,7 @@ existing one.
 | Required | CLI                         | Env                           | Type     | Description                                                                                                                                                        | Default |
 |:--------:|-----------------------------|-------------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
 |    -     | `--email-force-tls`         | `CODER_EMAIL_FORCE_TLS`       | `bool`   | Force a TLS connection to the configured SMTP smarthost. If port 465 is used, TLS will be forced. See <https://datatracker.ietf.org/doc/html/rfc8314#section-3.3>. | false   |
-|    -     | `--email-tls-starttls`      | `CODER_EMAIL_TLS_STARTTLS`    | `bool`   | Enable STARTTLS to upgrade insecure SMTP connections using TLS. Ignored if `CODER_NOTIFICATIONS_EMAIL_FORCE_TLS` is set.                                           | false   |
+|    -     | `--email-tls-starttls`      | `CODER_EMAIL_TLS_STARTTLS`    | `bool`   | Enable STARTTLS to upgrade insecure SMTP connections using TLS. Ignored if `CODER_EMAIL_FORCE_TLS` is set.                                                         | false   |
 |    -     | `--email-tls-skip-verify`   | `CODER_EMAIL_TLS_SKIPVERIFY`  | `bool`   | Skip verification of the target server's certificate (**insecure**).                                                                                               | false   |
 |    -     | `--email-tls-server-name`   | `CODER_EMAIL_TLS_SERVERNAME`  | `string` | Server name to verify against the target certificate.                                                                                                              |         |
 |    -     | `--email-tls-cert-file`     | `CODER_EMAIL_TLS_CERTFILE`    | `string` | Certificate file to use.                                                                                                                                           |         |
@@ -242,12 +249,9 @@ notification is indicated on the right hand side of this table.
 
 ## Delivery Preferences
 
-<blockquote class="info">
-
-Delivery preferences is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
+> [!NOTE]
+> Delivery preferences is a Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Administrators can configure which delivery methods are used for each different
 [event type](#event-types).
@@ -281,7 +285,7 @@ troubleshoot:
     `CODER_VERBOSE=true` or `--verbose` to output debug logs.
 1. If you are on version 2.15.x, notifications must be enabled using the
     `notifications`
-    [experiment](../../../about/feature-stages.md#early-access-features).
+    [experiment](../../../install/releases/feature-stages.md#early-access-features).
 
     Notifications are enabled by default in Coder v2.16.0 and later.
 

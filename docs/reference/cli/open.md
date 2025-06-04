@@ -14,3 +14,4 @@ coder open
 | Name                                    | Purpose                             |
 |-----------------------------------------|-------------------------------------|
 | [<code>vscode</code>](./open_vscode.md) | Open a workspace in VS Code Desktop |
+| [<code>app</code>](./open_app.md)       | Open a workspace application.       |

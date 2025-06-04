@@ -174,8 +174,8 @@ func diffFileSystem(t *testing.T, fs afero.Fs) {
 	}
 
 	want, err := os.ReadFile(goldenFile)
-	require.NoError(t, err, "open golden file, run \"make update-golden-files\" and commit the changes")
-	assert.Empty(t, cmp.Diff(want, actual), "golden file mismatch (-want +got): %s, run \"make update-golden-files\", verify and commit the changes", goldenFile)
+	require.NoError(t, err, "open golden file, run \"make gen/golden-files\" and commit the changes")
+	assert.Empty(t, cmp.Diff(want, actual), "golden file mismatch (-want +got): %s, run \"make gen/golden-files\", verify and commit the changes", goldenFile)
 }
 
 func dumpFileSystem(t *testing.T, fs afero.Fs) []byte {

@@ -8,7 +8,7 @@ import {
 	MockWorkspaceBuild,
 } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
-import { WorkspaceBuildPage } from "./WorkspaceBuildPage";
+import WorkspaceBuildPage from "./WorkspaceBuildPage";
 import { LOGS_TAB_KEY } from "./WorkspaceBuildPageView";
 
 afterEach(() => {

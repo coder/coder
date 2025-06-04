@@ -144,7 +144,8 @@ if [ $status -ne 0 ]; then
 fi
 ```
 
-> **Note:** We don't use `set -x` here because we're manually echoing the
+> [!NOTE]
+> We don't use `set -x` here because we're manually echoing the
 > commands. This protects against sensitive information being shown in the log.
 
 This script tells us what command is being run and what the exit status is. If
@@ -152,7 +153,8 @@ the exit status is non-zero, it means the command failed and we exit the script.
 Since we are manually checking the exit status here, we don't need `set -e` at
 the top of the script to exit on error.
 
-> **Note:** If you aren't seeing any logs, check that the `dir` directive points
+> [!NOTE]
+> If you aren't seeing any logs, check that the `dir` directive points
 > to a valid directory in the file system.
 
 ## Slow workspace startup times
@@ -168,3 +170,59 @@ See our
 to optimize your templates based on this data.
 
 ![Workspace build timings UI](../../images/admin/templates/troubleshooting/workspace-build-timings-ui.png)
+
+## Docker Workspaces on Raspberry Pi OS
+
+### Unable to query ContainerMemory
+
+When you query `ContainerMemory` and encounter the error:
+
+```shell
+open /sys/fs/cgroup/memory.max: no such file or directory
+```
+
+This error mostly affects Raspberry Pi OS, but might also affect older Debian-based systems as well.
+
+<details><summary>Add cgroup_memory and cgroup_enable to cmdline.txt:</summary>
+
+1. Confirm the list of existing cgroup controllers doesn't include `memory`:
+
+   ```console
+   $ cat /sys/fs/cgroup/cgroup.controllers
+   cpuset cpu io pids
+
+   $ cat /sys/fs/cgroup/cgroup.subtree_control
+   cpuset cpu io pids
+   ```
+
+1. Add cgroup entries to `cmdline.txt` in `/boot/firmware` (or `/boot/` on older Pi OS releases):
+
+   ```text
+   cgroup_memory=1 cgroup_enable=memory
+   ```
+
+   You can use `sed` to add it to the file for you:
+
+   ```bash
+   sudo sed -i '$s/$/ cgroup_memory=1 cgroup_enable=memory/' /boot/firmware/cmdline.txt
+   ```
+
+1. Reboot:
+
+   ```bash
+   sudo reboot
+   ```
+
+1. Confirm that the list of cgroup controllers now includes `memory`:
+
+   ```console
+   $ cat /sys/fs/cgroup/cgroup.controllers
+   cpuset cpu io memory pids
+
+   $ cat /sys/fs/cgroup/cgroup.subtree_control
+   cpuset cpu io memory pids
+   ```
+
+Read more about cgroup controllers in [The Linux Kernel](https://docs.kernel.org/admin-guide/cgroup-v2.html#controlling-controllers) documentation.
+
+</details>

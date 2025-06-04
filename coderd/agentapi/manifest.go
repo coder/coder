@@ -3,6 +3,7 @@ package agentapi
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/url"
 	"strings"
 	"time"
@@ -42,11 +43,11 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil, err
 	}
 	var (
-		dbApps    []database.WorkspaceApp
-		scripts   []database.WorkspaceAgentScript
-		metadata  []database.WorkspaceAgentMetadatum
-		workspace database.Workspace
-		owner     database.User
+		dbApps        []database.WorkspaceApp
+		scripts       []database.WorkspaceAgentScript
+		metadata      []database.WorkspaceAgentMetadatum
+		workspace     database.Workspace
+		devcontainers []database.WorkspaceAgentDevcontainer
 	)
 
 	var eg errgroup.Group
@@ -74,11 +75,14 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		if err != nil {
 			return xerrors.Errorf("getting workspace by id: %w", err)
 		}
-		owner, err = a.Database.GetUserByID(ctx, workspace.OwnerID)
-		if err != nil {
-			return xerrors.Errorf("getting workspace owner by id: %w", err)
-		}
 		return err
+	})
+	eg.Go(func() (err error) {
+		devcontainers, err = a.Database.GetWorkspaceAgentDevcontainersByAgentID(ctx, workspaceAgent.ID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		return nil
 	})
 	err = eg.Wait()
 	if err != nil {
@@ -89,7 +93,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		AppSlugOrPort: "{{port}}",
 		AgentName:     workspaceAgent.Name,
 		WorkspaceName: workspace.Name,
-		Username:      owner.Username,
+		Username:      workspace.OwnerUsername,
 	}
 
 	vscodeProxyURI := vscodeProxyURI(appSlug, a.AccessURL, a.AppHostname)
@@ -106,15 +110,20 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		}
 	}
 
-	apps, err := dbAppsToProto(dbApps, workspaceAgent, owner.Username, workspace)
+	apps, err := dbAppsToProto(dbApps, workspaceAgent, workspace.OwnerUsername, workspace)
 	if err != nil {
 		return nil, xerrors.Errorf("converting workspace apps: %w", err)
+	}
+
+	var parentID []byte
+	if workspaceAgent.ParentID.Valid {
+		parentID = workspaceAgent.ParentID.UUID[:]
 	}
 
 	return &agentproto.Manifest{
 		AgentId:                  workspaceAgent.ID[:],
 		AgentName:                workspaceAgent.Name,
-		OwnerUsername:            owner.Username,
+		OwnerUsername:            workspace.OwnerUsername,
 		WorkspaceId:              workspace.ID[:],
 		WorkspaceName:            workspace.Name,
 		GitAuthConfigs:           gitAuthConfigs,
@@ -124,11 +133,13 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		MotdPath:                 workspaceAgent.MOTDFile,
 		DisableDirectConnections: a.DisableDirectConnections,
 		DerpForceWebsockets:      a.DerpForceWebSockets,
+		ParentId:                 parentID,
 
-		DerpMap:  tailnet.DERPMapToProto(a.DerpMapFn()),
-		Scripts:  dbAgentScriptsToProto(scripts),
-		Apps:     apps,
-		Metadata: dbAgentMetadataToProtoDescription(metadata),
+		DerpMap:       tailnet.DERPMapToProto(a.DerpMapFn()),
+		Scripts:       dbAgentScriptsToProto(scripts),
+		Apps:          apps,
+		Metadata:      dbAgentMetadataToProtoDescription(metadata),
+		Devcontainers: dbAgentDevcontainersToProto(devcontainers),
 	}, nil
 }
 
@@ -227,4 +238,17 @@ func dbAppToProto(dbApp database.WorkspaceApp, agent database.WorkspaceAgent, ow
 		Health: agentproto.WorkspaceApp_Health(healthRaw),
 		Hidden: dbApp.Hidden,
 	}, nil
+}
+
+func dbAgentDevcontainersToProto(devcontainers []database.WorkspaceAgentDevcontainer) []*agentproto.WorkspaceAgentDevcontainer {
+	ret := make([]*agentproto.WorkspaceAgentDevcontainer, len(devcontainers))
+	for i, dc := range devcontainers {
+		ret[i] = &agentproto.WorkspaceAgentDevcontainer{
+			Id:              dc.ID[:],
+			Name:            dc.Name,
+			WorkspaceFolder: dc.WorkspaceFolder,
+			ConfigPath:      dc.ConfigPath,
+		}
+	}
+	return ret
 }

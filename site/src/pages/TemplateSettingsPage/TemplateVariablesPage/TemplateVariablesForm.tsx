@@ -122,7 +122,7 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
 	);
 };
 
-export const selectInitialUserVariableValues = (
+const selectInitialUserVariableValues = (
 	templateVariables: TemplateVersionVariable[],
 ): VariableValue[] => {
 	const defaults: VariableValue[] = [];

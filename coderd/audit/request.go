@@ -71,6 +71,7 @@ type BackgroundAuditParams[T Auditable] struct {
 	Action         database.AuditAction
 	OrganizationID uuid.UUID
 	IP             string
+	UserAgent      string
 	// todo: this should automatically marshal an interface{} instead of accepting a raw message.
 	AdditionalFields json.RawMessage
 
@@ -406,11 +407,12 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 
 		var userID uuid.UUID
 		key, ok := httpmw.APIKeyOptional(p.Request)
-		if ok {
+		switch {
+		case ok:
 			userID = key.UserID
-		} else if req.UserID != uuid.Nil {
+		case req.UserID != uuid.Nil:
 			userID = req.UserID
-		} else {
+		default:
 			// if we do not have a user associated with the audit action
 			// we do not want to audit
 			// (this pertains to logins; we don't want to capture non-user login attempts)
@@ -422,18 +424,19 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			action = req.Action
 		}
 
-		ip := parseIP(p.Request.RemoteAddr)
+		ip := ParseIP(p.Request.RemoteAddr)
 		auditLog := database.AuditLog{
-			ID:               uuid.New(),
-			Time:             dbtime.Now(),
-			UserID:           userID,
-			Ip:               ip,
-			UserAgent:        sql.NullString{String: p.Request.UserAgent(), Valid: true},
-			ResourceType:     either(req.Old, req.New, ResourceType[T], req.params.Action),
-			ResourceID:       either(req.Old, req.New, ResourceID[T], req.params.Action),
-			ResourceTarget:   either(req.Old, req.New, ResourceTarget[T], req.params.Action),
-			Action:           action,
-			Diff:             diffRaw,
+			ID:             uuid.New(),
+			Time:           dbtime.Now(),
+			UserID:         userID,
+			Ip:             ip,
+			UserAgent:      sql.NullString{String: p.Request.UserAgent(), Valid: true},
+			ResourceType:   either(req.Old, req.New, ResourceType[T], req.params.Action),
+			ResourceID:     either(req.Old, req.New, ResourceID[T], req.params.Action),
+			ResourceTarget: either(req.Old, req.New, ResourceTarget[T], req.params.Action),
+			Action:         action,
+			Diff:           diffRaw,
+			// #nosec G115 - Safe conversion as HTTP status code is expected to be within int32 range (typically 100-599)
 			StatusCode:       int32(sw.Status),
 			RequestID:        httpmw.RequestID(p.Request),
 			AdditionalFields: additionalFieldsRaw,
@@ -453,7 +456,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 // BackgroundAudit creates an audit log for a background event.
 // The audit log is committed upon invocation.
 func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[T]) {
-	ip := parseIP(p.IP)
+	ip := ParseIP(p.IP)
 
 	diff := Diff(p.Audit, p.Old, p.New)
 	var err error
@@ -474,17 +477,18 @@ func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[
 	}
 
 	auditLog := database.AuditLog{
-		ID:               uuid.New(),
-		Time:             p.Time,
-		UserID:           p.UserID,
-		OrganizationID:   requireOrgID[T](ctx, p.OrganizationID, p.Log),
-		Ip:               ip,
-		UserAgent:        sql.NullString{},
-		ResourceType:     either(p.Old, p.New, ResourceType[T], p.Action),
-		ResourceID:       either(p.Old, p.New, ResourceID[T], p.Action),
-		ResourceTarget:   either(p.Old, p.New, ResourceTarget[T], p.Action),
-		Action:           p.Action,
-		Diff:             diffRaw,
+		ID:             uuid.New(),
+		Time:           p.Time,
+		UserID:         p.UserID,
+		OrganizationID: requireOrgID[T](ctx, p.OrganizationID, p.Log),
+		Ip:             ip,
+		UserAgent:      sql.NullString{Valid: p.UserAgent != "", String: p.UserAgent},
+		ResourceType:   either(p.Old, p.New, ResourceType[T], p.Action),
+		ResourceID:     either(p.Old, p.New, ResourceID[T], p.Action),
+		ResourceTarget: either(p.Old, p.New, ResourceTarget[T], p.Action),
+		Action:         p.Action,
+		Diff:           diffRaw,
+		// #nosec G115 - Safe conversion as HTTP status code is expected to be within int32 range (typically 100-599)
 		StatusCode:       int32(p.Status),
 		RequestID:        p.RequestID,
 		AdditionalFields: p.AdditionalFields,
@@ -553,20 +557,22 @@ func BaggageFromContext(ctx context.Context) WorkspaceBuildBaggage {
 	return d
 }
 
-func either[T Auditable, R any](old, new T, fn func(T) R, auditAction database.AuditAction) R {
-	if ResourceID(new) != uuid.Nil {
-		return fn(new)
-	} else if ResourceID(old) != uuid.Nil {
+func either[T Auditable, R any](old, newVal T, fn func(T) R, auditAction database.AuditAction) R {
+	switch {
+	case ResourceID(newVal) != uuid.Nil:
+		return fn(newVal)
+	case ResourceID(old) != uuid.Nil:
 		return fn(old)
-	} else if auditAction == database.AuditActionLogin || auditAction == database.AuditActionLogout {
+	case auditAction == database.AuditActionLogin || auditAction == database.AuditActionLogout:
 		// If the request action is a login or logout, we always want to audit it even if
 		// there is no diff. See the comment in audit.InitRequest for more detail.
 		return fn(old)
+	default:
+		panic("both old and new are nil")
 	}
-	panic("both old and new are nil")
 }
 
-func parseIP(ipStr string) pqtype.Inet {
+func ParseIP(ipStr string) pqtype.Inet {
 	ip := net.ParseIP(ipStr)
 	ipNet := net.IPNet{}
 	if ip != nil {

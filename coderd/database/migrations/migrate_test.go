@@ -199,7 +199,7 @@ func (s *tableStats) Add(table string, n int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.s[table] = s.s[table] + n
+	s.s[table] += n
 }
 
 func (s *tableStats) Empty() []string {

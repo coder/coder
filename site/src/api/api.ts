@@ -22,9 +22,10 @@
 import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
 import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
+import { OneWayWebSocket } from "../utils/OneWayWebSocket";
 import { delay } from "../utils/delay";
-import * as TypesGen from "./typesGenerated";
 import type { PostWorkspaceUsageRequest } from "./typesGenerated";
+import * as TypesGen from "./typesGenerated";
 
 const getMissingParameters = (
 	oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
@@ -101,28 +102,40 @@ const getMissingParameters = (
 };
 
 /**
- *
  * @param agentId
- * @returns An EventSource that emits agent metadata event objects
- * (ServerSentEvent)
+ * @returns {OneWayWebSocket} A OneWayWebSocket that emits Server-Sent Events.
  */
-export const watchAgentMetadata = (agentId: string): EventSource => {
-	return new EventSource(
-		`${location.protocol}//${location.host}/api/v2/workspaceagents/${agentId}/watch-metadata`,
-		{ withCredentials: true },
-	);
+export const watchAgentMetadata = (
+	agentId: string,
+): OneWayWebSocket<TypesGen.ServerSentEvent> => {
+	return new OneWayWebSocket({
+		apiRoute: `/api/v2/workspaceagents/${agentId}/watch-metadata-ws`,
+	});
 };
 
 /**
- * @returns {EventSource} An EventSource that emits workspace event objects
- * (ServerSentEvent)
+ * @returns {OneWayWebSocket} A OneWayWebSocket that emits Server-Sent Events.
  */
-export const watchWorkspace = (workspaceId: string): EventSource => {
-	return new EventSource(
-		`${location.protocol}//${location.host}/api/v2/workspaces/${workspaceId}/watch`,
-		{ withCredentials: true },
-	);
+export const watchWorkspace = (
+	workspaceId: string,
+): OneWayWebSocket<TypesGen.ServerSentEvent> => {
+	return new OneWayWebSocket({
+		apiRoute: `/api/v2/workspaces/${workspaceId}/watch-ws`,
+	});
 };
+
+type WatchInboxNotificationsParams = Readonly<{
+	read_status?: "read" | "unread" | "all";
+}>;
+
+export function watchInboxNotifications(
+	params?: WatchInboxNotificationsParams,
+): OneWayWebSocket<TypesGen.GetInboxNotificationResponse> {
+	return new OneWayWebSocket({
+		apiRoute: "/api/v2/notifications/inbox/watch",
+		searchParams: params,
+	});
+}
 
 export const getURLWithSearchParams = (
 	basePath: string,
@@ -184,14 +197,10 @@ export const watchBuildLogsByTemplateVersionId = (
 		searchParams.append("after", after.toString());
 	}
 
-	const proto = location.protocol === "https:" ? "wss:" : "ws:";
-	const socket = new WebSocket(
-		`${proto}//${
-			location.host
-		}/api/v2/templateversions/${versionId}/logs?${searchParams.toString()}`,
+	const socket = createWebSocket(
+		`/api/v2/templateversions/${versionId}/logs`,
+		searchParams,
 	);
-
-	socket.binaryType = "blob";
 
 	socket.addEventListener("message", (event) =>
 		onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
@@ -212,45 +221,30 @@ export const watchBuildLogsByTemplateVersionId = (
 
 export const watchWorkspaceAgentLogs = (
 	agentId: string,
-	{ after, onMessage, onDone, onError }: WatchWorkspaceAgentLogsOptions,
+	params?: WatchWorkspaceAgentLogsParams,
 ) => {
-	// WebSocket compression in Safari (confirmed in 16.5) is broken when
-	// the server sends large messages. The following error is seen:
-	//
-	//   WebSocket connection to 'wss://.../logs?follow&after=0' failed: The operation couldn’t be completed. Protocol error
-	//
-	const noCompression =
-		userAgentParser(navigator.userAgent).browser.name === "Safari"
-			? "&no_compression"
-			: "";
-
-	const proto = location.protocol === "https:" ? "wss:" : "ws:";
-	const socket = new WebSocket(
-		`${proto}//${location.host}/api/v2/workspaceagents/${agentId}/logs?follow&after=${after}${noCompression}`,
-	);
-	socket.binaryType = "blob";
-
-	socket.addEventListener("message", (event) => {
-		const logs = JSON.parse(event.data) as TypesGen.WorkspaceAgentLog[];
-		onMessage(logs);
+	const searchParams = new URLSearchParams({
+		follow: "true",
+		after: params?.after?.toString() ?? "",
 	});
 
-	socket.addEventListener("error", () => {
-		onError(new Error("socket errored"));
-	});
+	/**
+	 * WebSocket compression in Safari (confirmed in 16.5) is broken when
+	 * the server sends large messages. The following error is seen:
+	 * WebSocket connection to 'wss://...' failed: The operation couldn’t be completed.
+	 */
+	if (userAgentParser(navigator.userAgent).browser.name === "Safari") {
+		searchParams.set("no_compression", "");
+	}
 
-	socket.addEventListener("close", () => {
-		onDone?.();
+	return new OneWayWebSocket<TypesGen.WorkspaceAgentLog[]>({
+		apiRoute: `/api/v2/workspaceagents/${agentId}/logs`,
+		searchParams,
 	});
-
-	return socket;
 };
 
-type WatchWorkspaceAgentLogsOptions = {
-	after: number;
-	onMessage: (logs: TypesGen.WorkspaceAgentLog[]) => void;
-	onDone?: () => void;
-	onError: (error: Error) => void;
+type WatchWorkspaceAgentLogsParams = {
+	after?: number;
 };
 
 type WatchBuildLogsByBuildIdOptions = {
@@ -267,13 +261,11 @@ export const watchBuildLogsByBuildId = (
 	if (after !== undefined) {
 		searchParams.append("after", after.toString());
 	}
-	const proto = location.protocol === "https:" ? "wss:" : "ws:";
-	const socket = new WebSocket(
-		`${proto}//${
-			location.host
-		}/api/v2/workspacebuilds/${buildId}/logs?${searchParams.toString()}`,
+
+	const socket = createWebSocket(
+		`/api/v2/workspacebuilds/${buildId}/logs`,
+		searchParams,
 	);
-	socket.binaryType = "blob";
 
 	socket.addEventListener("message", (event) =>
 		onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
@@ -371,11 +363,6 @@ export type InsightsTemplateParams = InsightsParams & {
 	interval: "day" | "week";
 };
 
-export type GetJFrogXRayScanParams = {
-	workspaceId: string;
-	agentId: string;
-};
-
 export class MissingBuildParameters extends Error {
 	parameters: TypesGen.TemplateVersionParameter[] = [];
 	versionId: string;
@@ -389,6 +376,21 @@ export class MissingBuildParameters extends Error {
 		this.versionId = versionId;
 	}
 }
+
+export type GetProvisionerJobsParams = {
+	status?: string;
+	limit?: number;
+	// IDs separated by comma
+	ids?: string;
+};
+
+export type GetProvisionerDaemonsParams = {
+	// IDs separated by comma
+	ids?: string;
+	// Stringified JSON Object
+	tags?: string;
+	limit?: number;
+};
 
 /**
  * This is the container for all API methods. It's split off to make it more
@@ -462,10 +464,10 @@ class ApiMethods {
 		return response.data;
 	};
 
-	checkAuthorization = async (
+	checkAuthorization = async <TResponse extends TypesGen.AuthorizationResponse>(
 		params: TypesGen.AuthorizationRequest,
-	): Promise<TypesGen.AuthorizationResponse> => {
-		const response = await this.axios.post<TypesGen.AuthorizationResponse>(
+	) => {
+		const response = await this.axios.post<TResponse>(
 			"/api/v2/authcheck",
 			params,
 		);
@@ -585,6 +587,24 @@ class ApiMethods {
 
 	/**
 	 * @param organization Can be the organization's ID or name
+	 * @param options Pagination options
+	 */
+	getOrganizationPaginatedMembers = async (
+		organization: string,
+		options?: TypesGen.Pagination,
+	) => {
+		const url = getURLWithSearchParams(
+			`/api/v2/organizations/${organization}/paginated-members`,
+			options,
+		);
+		const response =
+			await this.axios.get<TypesGen.PaginatedMembersResponse>(url);
+
+		return response.data;
+	};
+
+	/**
+	 * @param organization Can be the organization's ID or name
 	 */
 	getOrganizationRoles = async (organization: string) => {
 		const response = await this.axios.get<TypesGen.AssignableRoles[]>(
@@ -683,22 +703,13 @@ class ApiMethods {
 		return response.data;
 	};
 
-	/**
-	 * @param organization Can be the organization's ID or name
-	 * @param tags to filter provisioner daemons by.
-	 */
 	getProvisionerDaemonsByOrganization = async (
 		organization: string,
-		tags?: Record<string, string>,
+		params?: GetProvisionerDaemonsParams,
 	): Promise<TypesGen.ProvisionerDaemon[]> => {
-		const params = new URLSearchParams();
-
-		if (tags) {
-			params.append("tags", JSON.stringify(tags));
-		}
-
 		const response = await this.axios.get<TypesGen.ProvisionerDaemon[]>(
-			`/api/v2/organizations/${organization}/provisionerdaemons?${params}`,
+			`/api/v2/organizations/${organization}/provisionerdaemons`,
+			{ params },
 		);
 		return response.data;
 	};
@@ -794,6 +805,13 @@ class ApiMethods {
 		params.set("claimField", field);
 		const response = await this.axios.get<readonly string[]>(
 			`/api/v2/settings/idpsync/field-values?${params}`,
+		);
+		return response.data;
+	};
+
+	getDeploymentLLMs = async (): Promise<TypesGen.LanguageModelConfig> => {
+		const response = await this.axios.get<TypesGen.LanguageModelConfig>(
+			"/api/v2/deployment/llms",
 		);
 		return response.data;
 	};
@@ -981,6 +999,38 @@ class ApiMethods {
 		return response.data;
 	};
 
+	templateVersionDynamicParameters = (
+		versionId: string,
+		{
+			onMessage,
+			onError,
+			onClose,
+		}: {
+			onMessage: (response: TypesGen.DynamicParametersResponse) => void;
+			onError: (error: Error) => void;
+			onClose: () => void;
+		},
+	): WebSocket => {
+		const socket = createWebSocket(
+			`/api/v2/templateversions/${versionId}/dynamic-parameters`,
+		);
+
+		socket.addEventListener("message", (event) =>
+			onMessage(JSON.parse(event.data) as TypesGen.DynamicParametersResponse),
+		);
+
+		socket.addEventListener("error", () => {
+			onError(new Error("Connection for dynamic parameters failed."));
+			socket.close();
+		});
+
+		socket.addEventListener("close", () => {
+			onClose();
+		});
+
+		return socket;
+	};
+
 	/**
 	 * @param organization Can be the organization's ID or name
 	 */
@@ -1034,6 +1084,31 @@ class ApiMethods {
 		return response.data;
 	};
 
+	/**
+	 * Downloads a template version as a tar or zip archive
+	 * @param fileId The file ID from the template version's job
+	 * @param format Optional format: "zip" for zip archive, empty/undefined for tar
+	 * @returns Promise that resolves to a Blob containing the archive
+	 */
+	downloadTemplateVersion = async (
+		fileId: string,
+		format?: "zip",
+	): Promise<Blob> => {
+		const params = new URLSearchParams();
+		if (format) {
+			params.set("format", format);
+		}
+
+		const response = await this.axios.get(
+			`/api/v2/files/${fileId}?${params.toString()}`,
+			{
+				responseType: "blob",
+			},
+		);
+
+		return response.data;
+	};
+
 	updateTemplateMeta = async (
 		templateId: string,
 		data: TypesGen.UpdateTemplateMeta,
@@ -1080,7 +1155,7 @@ class ApiMethods {
 	};
 
 	getWorkspaceByOwnerAndName = async (
-		username = "me",
+		username: string,
 		workspaceName: string,
 		params?: TypesGen.WorkspaceOptions,
 	): Promise<TypesGen.Workspace> => {
@@ -1093,7 +1168,7 @@ class ApiMethods {
 	};
 
 	getWorkspaceBuildByNumber = async (
-		username = "me",
+		username: string,
 		workspaceName: string,
 		buildNumber: number,
 	): Promise<TypesGen.WorkspaceBuild> => {
@@ -1279,7 +1354,7 @@ class ApiMethods {
 	};
 
 	createWorkspace = async (
-		userId = "me",
+		userId: string,
 		workspace: TypesGen.CreateWorkspaceRequest,
 	): Promise<TypesGen.Workspace> => {
 		const response = await this.axios.post<TypesGen.Workspace>(
@@ -2244,29 +2319,6 @@ class ApiMethods {
 		await this.axios.delete(`/api/v2/workspaces/${workspaceID}/favorite`);
 	};
 
-	getJFrogXRayScan = async (options: GetJFrogXRayScanParams) => {
-		const searchParams = new URLSearchParams({
-			workspace_id: options.workspaceId,
-			agent_id: options.agentId,
-		});
-
-		try {
-			const res = await this.axios.get<TypesGen.JFrogXrayScan>(
-				`/api/v2/integrations/jfrog/xray-scan?${searchParams}`,
-			);
-
-			return res.data;
-		} catch (error) {
-			if (isAxiosError(error) && error.response?.status === 404) {
-				// react-query library does not allow undefined to be returned as a
-				// query result
-				return null;
-			}
-
-			throw error;
-		}
-	};
-
 	postWorkspaceUsage = async (
 		workspaceID: string,
 		options: PostWorkspaceUsageRequest,
@@ -2326,6 +2378,28 @@ class ApiMethods {
 		await this.axios.post<void>("/api/v2/notifications/test");
 	};
 
+	createWebPushSubscription = async (
+		userId: string,
+		req: TypesGen.WebpushSubscription,
+	) => {
+		await this.axios.post<void>(
+			`/api/v2/users/${userId}/webpush/subscription`,
+			req,
+		);
+	};
+
+	deleteWebPushSubscription = async (
+		userId: string,
+		req: TypesGen.DeleteWebpushSubscription,
+	) => {
+		await this.axios.delete<void>(
+			`/api/v2/users/${userId}/webpush/subscription`,
+			{
+				data: req,
+			},
+		);
+	};
+
 	requestOneTimePassword = async (
 		req: TypesGen.RequestOneTimePasscodeRequest,
 	) => {
@@ -2345,9 +2419,13 @@ class ApiMethods {
 		return res.data;
 	};
 
-	getProvisionerJobs = async (orgId: string) => {
+	getProvisionerJobs = async (
+		orgId: string,
+		params: GetProvisionerJobsParams = {},
+	) => {
 		const res = await this.axios.get<TypesGen.ProvisionerJob[]>(
 			`/api/v2/organizations/${orgId}/provisionerjobs`,
+			{ params },
 		);
 		return res.data;
 	};
@@ -2381,11 +2459,54 @@ class ApiMethods {
 		const params = new URLSearchParams(
 			labels?.map((label) => ["label", label]),
 		);
-
 		const res =
 			await this.axios.get<TypesGen.WorkspaceAgentListContainersResponse>(
 				`/api/v2/workspaceagents/${agentId}/containers?${params.toString()}`,
 			);
+		return res.data;
+	};
+
+	getInboxNotifications = async (startingBeforeId?: string) => {
+		const params = new URLSearchParams();
+		if (startingBeforeId) {
+			params.append("starting_before", startingBeforeId);
+		}
+		const res = await this.axios.get<TypesGen.ListInboxNotificationsResponse>(
+			`/api/v2/notifications/inbox?${params.toString()}`,
+		);
+		return res.data;
+	};
+
+	updateInboxNotificationReadStatus = async (
+		notificationId: string,
+		req: TypesGen.UpdateInboxNotificationReadStatusRequest,
+	) => {
+		const res =
+			await this.axios.put<TypesGen.UpdateInboxNotificationReadStatusResponse>(
+				`/api/v2/notifications/inbox/${notificationId}/read-status`,
+				req,
+			);
+		return res.data;
+	};
+
+	markAllInboxNotificationsAsRead = async () => {
+		await this.axios.put<void>("/api/v2/notifications/inbox/mark-all-as-read");
+	};
+
+	createChat = async () => {
+		const res = await this.axios.post<TypesGen.Chat>("/api/v2/chats");
+		return res.data;
+	};
+
+	getChats = async () => {
+		const res = await this.axios.get<TypesGen.Chat[]>("/api/v2/chats");
+		return res.data;
+	};
+
+	getChatMessages = async (chatId: string) => {
+		const res = await this.axios.get<TypesGen.ChatMessage[]>(
+			`/api/v2/chats/${chatId}/messages`,
+		);
 		return res.data;
 	};
 }
@@ -2439,6 +2560,21 @@ function getConfiguredAxiosInstance(): AxiosInstance {
 	return instance;
 }
 
+/**
+ * Utility function to help create a WebSocket connection with Coder's API.
+ */
+function createWebSocket(
+	path: string,
+	params: URLSearchParams = new URLSearchParams(),
+) {
+	const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+	const socket = new WebSocket(
+		`${protocol}//${location.host}${path}?${params}`,
+	);
+	socket.binaryType = "blob";
+	return socket;
+}
+
 // Other non-API methods defined here to make it a little easier to find them.
 interface ClientApi extends ApiMethods {
 	getCsrfToken: () => string;
@@ -2447,7 +2583,7 @@ interface ClientApi extends ApiMethods {
 	getAxiosInstance: () => AxiosInstance;
 }
 
-export class Api extends ApiMethods implements ClientApi {
+class Api extends ApiMethods implements ClientApi {
 	constructor() {
 		const scopedAxiosInstance = getConfiguredAxiosInstance();
 		super(scopedAxiosInstance);

@@ -17,7 +17,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/codersdk/drpc"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionerd/runner"
@@ -178,6 +178,7 @@ type ProvisionerJob struct {
 	ErrorCode        JobErrorCode           `json:"error_code,omitempty" enums:"REQUIRED_TEMPLATE_VARIABLES" table:"error code"`
 	Status           ProvisionerJobStatus   `json:"status" enums:"pending,running,succeeded,canceling,canceled,failed" table:"status"`
 	WorkerID         *uuid.UUID             `json:"worker_id,omitempty" format:"uuid" table:"worker id"`
+	WorkerName       string                 `json:"worker_name,omitempty" table:"worker name"`
 	FileID           uuid.UUID              `json:"file_id" format:"uuid" table:"file id"`
 	Tags             map[string]string      `json:"tags" table:"tags"`
 	QueuePosition    int                    `json:"queue_position" table:"queue position"`
@@ -332,7 +333,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 		_ = wsNetConn.Close()
 		return nil, xerrors.Errorf("multiplex client: %w", err)
 	}
-	return proto.NewDRPCProvisionerDaemonClient(drpc.MultiplexedConn(session)), nil
+	return proto.NewDRPCProvisionerDaemonClient(drpcsdk.MultiplexedConn(session)), nil
 }
 
 type ProvisionerKeyTags map[string]string

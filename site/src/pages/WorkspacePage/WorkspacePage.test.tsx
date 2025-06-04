@@ -2,11 +2,12 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as apiModule from "api/api";
 import type { TemplateVersionParameter, Workspace } from "api/typesGenerated";
-import EventSourceMock from "eventsourcemock";
+import MockServerSocket from "jest-websocket-mock";
 import {
 	DashboardContext,
 	type DashboardProvider,
 } from "modules/dashboard/DashboardProvider";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import { http, HttpResponse } from "msw";
 import type { FC } from "react";
 import { type Location, useLocation } from "react-router-dom";
@@ -22,7 +23,7 @@ import {
 	MockTemplate,
 	MockTemplateVersionParameter1,
 	MockTemplateVersionParameter2,
-	MockUser,
+	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceBuild,
 	MockWorkspaceBuildDelete,
@@ -32,7 +33,7 @@ import {
 	renderWithAuth,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import { WorkspacePage } from "./WorkspacePage";
+import WorkspacePage from "./WorkspacePage";
 
 const { API, MissingBuildParameters } = apiModule;
 
@@ -49,12 +50,7 @@ const renderWorkspacePage = async (
 	jest
 		.spyOn(API, "getDeploymentConfig")
 		.mockResolvedValueOnce(MockDeploymentConfig);
-	jest
-		.spyOn(apiModule, "watchWorkspaceAgentLogs")
-		.mockImplementation((_, options) => {
-			options.onDone?.();
-			return new WebSocket("");
-		});
+	jest.spyOn(apiModule, "watchWorkspaceAgentLogs");
 
 	renderWithAuth(<WorkspacePage />, {
 		...options,
@@ -84,23 +80,11 @@ const testButton = async (
 
 	const user = userEvent.setup();
 	await user.click(button);
-	expect(actionMock).toBeCalled();
+	expect(actionMock).toHaveBeenCalled();
 };
 
-let originalEventSource: typeof window.EventSource;
-
-beforeAll(() => {
-	originalEventSource = window.EventSource;
-	// mocking out EventSource for SSE
-	window.EventSource = EventSourceMock;
-});
-
-beforeEach(() => {
-	jest.resetAllMocks();
-});
-
-afterAll(() => {
-	window.EventSource = originalEventSource;
+afterEach(() => {
+	MockServerSocket.clean();
 });
 
 describe("WorkspacePage", () => {
@@ -138,11 +122,14 @@ describe("WorkspacePage", () => {
 		// set permissions
 		server.use(
 			http.post("/api/v2/authcheck", async () => {
-				return HttpResponse.json({
-					updateTemplates: true,
+				const permissions: WorkspacePermissions = {
+					deleteFailedWorkspace: true,
+					deploymentConfig: true,
+					readWorkspace: true,
 					updateWorkspace: true,
-					updateTemplate: true,
-				});
+					updateWorkspaceVersion: true,
+				};
+				return HttpResponse.json(permissions);
 			}),
 		);
 
@@ -332,7 +319,7 @@ describe("WorkspacePage", () => {
 	});
 
 	it("restart the workspace with one time parameters when having the confirmation dialog", async () => {
-		localStorage.removeItem(`${MockUser.id}_ignoredWarnings`);
+		localStorage.removeItem(`${MockUserOwner.id}_ignoredWarnings`);
 		jest.spyOn(API, "getWorkspaceParameters").mockResolvedValue({
 			templateVersionRichParameters: [
 				{

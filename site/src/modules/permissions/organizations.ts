@@ -73,6 +73,20 @@ export const organizationPermissionChecks = (organizationId: string) =>
 			},
 			action: "create",
 		},
+		updateOrgRoles: {
+			object: {
+				resource_type: "assign_org_role",
+				organization_id: organizationId,
+			},
+			action: "update",
+		},
+		deleteOrgRoles: {
+			object: {
+				resource_type: "assign_org_role",
+				organization_id: organizationId,
+			},
+			action: "delete",
+		},
 		viewProvisioners: {
 			object: {
 				resource_type: "provisioner_daemon",

@@ -17,12 +17,19 @@ import {
 	MockBuildInfo,
 	MockOrganization,
 	MockPendingProvisionerJob,
+	MockStoppedWorkspace,
 	MockTemplate,
-	MockUser,
+	MockUserOwner,
 	MockWorkspace,
+	MockWorkspaceAgent,
+	MockWorkspaceAppStatus,
 	mockApiError,
 } from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withProxyProvider,
+} from "testHelpers/storybook";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
 const createWorkspace = (
@@ -101,7 +108,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 		organizations: MockMenu,
 	},
 	values: {
-		owner: MockUser.username,
+		owner: MockUserOwner.username,
 		template: undefined,
 		status: undefined,
 	},
@@ -140,8 +147,9 @@ const meta: Meta<typeof WorkspacesPageView> = {
 				data: MockBuildInfo,
 			},
 		],
+		user: MockUserOwner,
 	},
-	decorators: [withDashboardProvider],
+	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
 };
 
 export default meta;
@@ -269,6 +277,42 @@ export const InvalidPageNumber: Story = {
 	},
 };
 
+export const MultipleApps: Story = {
+	args: {
+		workspaces: [
+			{
+				...MockWorkspace,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					resources: [
+						{
+							...MockWorkspace.latest_build.resources[0],
+							agents: [
+								{
+									...MockWorkspaceAgent,
+									apps: [
+										{
+											...MockWorkspaceAgent.apps[0],
+											display_name: "App 1",
+											id: "app-1",
+										},
+										{
+											...MockWorkspaceAgent.apps[0],
+											display_name: "App 2",
+											id: "app-2",
+										},
+									],
+								},
+							],
+						},
+					],
+				},
+			},
+		],
+		count: allWorkspaces.length,
+	},
+};
+
 export const ShowOrganizations: Story = {
 	args: {
 		workspaces: [{ ...MockWorkspace, organization_name: "limbus-co" }],
@@ -295,5 +339,64 @@ export const ShowOrganizations: Story = {
 		});
 
 		expect(accessibleTableCell).toBeDefined();
+	},
+};
+
+export const WithLatestAppStatus: Story = {
+	args: {
+		workspaces: [
+			{
+				...MockWorkspace,
+				latest_app_status: {
+					...MockWorkspaceAppStatus,
+					message:
+						"This is a long message that will wrap around the component. It should wrap many times because this is very very very very very long.",
+				},
+			},
+			{
+				...MockWorkspace,
+				latest_app_status: null,
+			},
+			{
+				...MockWorkspace,
+				latest_app_status: {
+					...MockWorkspaceAppStatus,
+					state: "working",
+					message: "Fixing the competitors page...",
+				},
+			},
+			{
+				...MockWorkspace,
+				latest_app_status: {
+					...MockWorkspaceAppStatus,
+					state: "failure",
+					message: "I couldn't figure it out...",
+				},
+			},
+			{
+				...{
+					...MockStoppedWorkspace,
+					latest_build: {
+						...MockStoppedWorkspace.latest_build,
+						resources: [],
+					},
+				},
+				latest_app_status: {
+					...MockWorkspaceAppStatus,
+					state: "failure",
+					message: "I couldn't figure it out...",
+					uri: "",
+				},
+			},
+			{
+				...MockWorkspace,
+				latest_app_status: {
+					...MockWorkspaceAppStatus,
+					state: "working",
+					message: "Updating the README...",
+					uri: "file:///home/coder/projects/coder/coder/README.md",
+				},
+			},
+		],
 	},
 };

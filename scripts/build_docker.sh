@@ -153,4 +153,6 @@ if [[ "$push" == 1 ]]; then
 	docker push "$image_tag" 1>&2
 fi
 
+# SBOM generation and attestation moved to the GitHub workflow
+
 echo "$image_tag"

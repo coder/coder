@@ -24,6 +24,9 @@ const (
 
 	ActionReadPersonal   Action = "read_personal"
 	ActionUpdatePersonal Action = "update_personal"
+
+	ActionCreateAgent Action = "create_agent"
+	ActionDeleteAgent Action = "delete_agent"
 )
 
 type PermissionDefinition struct {
@@ -33,6 +36,8 @@ type PermissionDefinition struct {
 	// should represent. The key in the actions map is the verb to use
 	// in the rbac policy.
 	Actions map[Action]ActionDefinition
+	// Comment is additional text to include in the generated object comment.
+	Comment string
 }
 
 type ActionDefinition struct {
@@ -65,6 +70,9 @@ var workspaceActions = map[Action]ActionDefinition{
 	// Running a workspace
 	ActionSSH:                actDef("ssh into a given workspace"),
 	ActionApplicationConnect: actDef("connect to workspace apps via browser"),
+
+	ActionCreateAgent: actDef("create a new workspace agent"),
+	ActionDeleteAgent: actDef("delete an existing workspace agent"),
 }
 
 // RBACPermissions is indexed by the type
@@ -100,6 +108,14 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionDelete: actDef("delete a workspace proxy"),
 			ActionUpdate: actDef("update a workspace proxy"),
 			ActionRead:   actDef("read and use a workspace proxy"),
+		},
+	},
+	"chat": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef("create a chat"),
+			ActionRead:   actDef("read a chat"),
+			ActionDelete: actDef("delete a chat"),
+			ActionUpdate: actDef("update a chat"),
 		},
 	},
 	"license": {
@@ -172,7 +188,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"provisioner_jobs": {
 		Actions: map[Action]ActionDefinition{
-			ActionRead: actDef("read provisioner jobs"),
+			ActionRead:   actDef("read provisioner jobs"),
+			ActionUpdate: actDef("update provisioner jobs"),
+			ActionCreate: actDef("create provisioner jobs"),
 		},
 	},
 	"organization": {
@@ -203,6 +221,10 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: actDef("update system resources"),
 			ActionDelete: actDef("delete system resources"),
 		},
+		Comment: `
+	// DEPRECATED: New resources should be created for new things, rather than adding them to System, which has become
+	//             an unmanaged collection of things that don't relate to one another. We can't effectively enforce
+	//             least privilege access control when unrelated resources are grouped together.`,
 	},
 	"api_key": {
 		Actions: map[Action]ActionDefinition{
@@ -280,6 +302,13 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: actDef("update notification preferences"),
 		},
 	},
+	"webpush_subscription": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef("create webpush subscriptions"),
+			ActionRead:   actDef("read webpush subscriptions"),
+			ActionDelete: actDef("delete webpush subscriptions"),
+		},
+	},
 	"inbox_notification": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef("create inbox notifications"),
@@ -307,6 +336,11 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionRead:   actDef("read workspace agent resource monitor"),
 			ActionCreate: actDef("create workspace agent resource monitor"),
 			ActionUpdate: actDef("update workspace agent resource monitor"),
+		},
+	},
+	"workspace_agent_devcontainers": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef("create workspace agent devcontainers"),
 		},
 	},
 }

@@ -1,5 +1,5 @@
 import type { SerpentOption } from "api/typesGenerated";
-import { formatDuration, intervalToDuration } from "date-fns";
+import { humanDuration } from "utils/time";
 
 // optionValue is a helper function to format the value of a specific deployment options
 export function optionValue(
@@ -14,13 +14,7 @@ export function optionValue(
 			}
 			switch (k) {
 				case "format_duration":
-					return formatDuration(
-						// intervalToDuration takes ms, so convert nanoseconds to ms
-						intervalToDuration({
-							start: 0,
-							end: (option.value as number) / 1e6,
-						}),
-					);
+					return humanDuration((option.value as number) / 1e6);
 				// Add additional cases here as needed.
 			}
 		}
@@ -40,8 +34,10 @@ export function optionValue(
 		case "Experiments": {
 			const experimentMap = additionalValues?.reduce<Record<string, boolean>>(
 				(acc, v) => {
-					// biome-ignore lint/suspicious/noExplicitAny: opt.value is any
-					acc[v] = (option.value as any).includes("*");
+					const isIncluded = Array.isArray(option.value)
+						? option.value.includes("*")
+						: false;
+					acc[v] = isIncluded;
 					return acc;
 				},
 				{},
@@ -57,10 +53,11 @@ export function optionValue(
 
 			// We show all experiments (including unsafe) that are currently enabled on a deployment
 			// but only show safe experiments that are not.
-			// biome-ignore lint/suspicious/noExplicitAny: opt.value is any
-			for (const v of option.value as any) {
-				if (v !== "*") {
-					experimentMap[v] = true;
+			if (Array.isArray(option.value)) {
+				for (const v of option.value) {
+					if (v !== "*") {
+						experimentMap[v] = true;
+					}
 				}
 			}
 			return experimentMap;

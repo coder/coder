@@ -1,6 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import PersonAdd from "@mui/icons-material/PersonAdd";
-import LoadingButton from "@mui/lab/LoadingButton";
 import MenuItem from "@mui/material/MenuItem";
 import Select, { type SelectProps } from "@mui/material/Select";
 import Table from "@mui/material/Table";
@@ -19,18 +17,21 @@ import type {
 } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
+import { Button } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { EmptyState } from "components/EmptyState/EmptyState";
 import {
-	MoreMenu,
-	MoreMenuContent,
-	MoreMenuItem,
-	MoreMenuTrigger,
-	ThreeDotsButton,
-} from "components/MoreMenu/MoreMenu";
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
+import { UserPlusIcon } from "lucide-react";
+import { EllipsisVertical } from "lucide-react";
 import { type FC, useState } from "react";
 import { getGroupSubtitle } from "utils/groups";
 import {
@@ -115,15 +116,15 @@ const AddTemplateUserOrGroup: FC<AddTemplateUserOrGroupProps> = ({
 					</MenuItem>
 				</Select>
 
-				<LoadingButton
-					loadingPosition="start"
-					disabled={!selectedRole || !selectedOption}
+				<Button
+					disabled={!selectedRole || !selectedOption || isLoading}
 					type="submit"
-					startIcon={<PersonAdd />}
-					loading={isLoading}
 				>
+					<Spinner loading={isLoading}>
+						<UserPlusIcon className="size-icon-sm" />
+					</Spinner>
 					Add member
-				</LoadingButton>
+				</Button>
 			</Stack>
 		</form>
 	);
@@ -157,7 +158,7 @@ const RoleSelect: FC<SelectProps> = (props) => {
 	);
 };
 
-export interface TemplatePermissionsPageViewProps {
+interface TemplatePermissionsPageViewProps {
 	templateACL: TemplateACL | undefined;
 	templateID: string;
 	canUpdatePermissions: boolean;
@@ -258,6 +259,7 @@ export const TemplatePermissionsPageView: FC<
 												<AvatarData
 													avatar={
 														<Avatar
+															size="lg"
 															fallback={group.display_name || group.name}
 															src={group.avatar_url}
 														/>
@@ -288,19 +290,26 @@ export const TemplatePermissionsPageView: FC<
 
 											<TableCell>
 												{canUpdatePermissions && (
-													<MoreMenu>
-														<MoreMenuTrigger>
-															<ThreeDotsButton />
-														</MoreMenuTrigger>
-														<MoreMenuContent>
-															<MoreMenuItem
-																danger
+													<DropdownMenu>
+														<DropdownMenuTrigger asChild>
+															<Button
+																size="icon-lg"
+																variant="subtle"
+																aria-label="Open menu"
+															>
+																<EllipsisVertical aria-hidden="true" />
+																<span className="sr-only">Open menu</span>
+															</Button>
+														</DropdownMenuTrigger>
+														<DropdownMenuContent align="end">
+															<DropdownMenuItem
+																className="text-content-destructive focus:text-content-destructive"
 																onClick={() => onRemoveGroup(group)}
 															>
 																Remove
-															</MoreMenuItem>
-														</MoreMenuContent>
-													</MoreMenu>
+															</DropdownMenuItem>
+														</DropdownMenuContent>
+													</DropdownMenu>
 												)}
 											</TableCell>
 										</TableRow>
@@ -337,19 +346,26 @@ export const TemplatePermissionsPageView: FC<
 
 											<TableCell>
 												{canUpdatePermissions && (
-													<MoreMenu>
-														<MoreMenuTrigger>
-															<ThreeDotsButton />
-														</MoreMenuTrigger>
-														<MoreMenuContent>
-															<MoreMenuItem
-																danger
+													<DropdownMenu>
+														<DropdownMenuTrigger asChild>
+															<Button
+																size="icon-lg"
+																variant="subtle"
+																aria-label="Open menu"
+															>
+																<EllipsisVertical aria-hidden="true" />
+																<span className="sr-only">Open menu</span>
+															</Button>
+														</DropdownMenuTrigger>
+														<DropdownMenuContent align="end">
+															<DropdownMenuItem
+																className="text-content-destructive focus:text-content-destructive"
 																onClick={() => onRemoveUser(user)}
 															>
 																Remove
-															</MoreMenuItem>
-														</MoreMenuContent>
-													</MoreMenu>
+															</DropdownMenuItem>
+														</DropdownMenuContent>
+													</DropdownMenu>
 												)}
 											</TableCell>
 										</TableRow>

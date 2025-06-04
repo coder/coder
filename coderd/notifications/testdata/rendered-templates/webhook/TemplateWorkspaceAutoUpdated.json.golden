@@ -2,7 +2,7 @@
   "_version": "1.1",
   "msg_id": "00000000-0000-0000-0000-000000000000",
   "payload": {
-    "_version": "1.1",
+    "_version": "1.2",
     "notification_name": "Workspace Updated Automatically",
     "notification_template_id": "00000000-0000-0000-0000-000000000000",
     "user_id": "00000000-0000-0000-0000-000000000000",
@@ -25,6 +25,6 @@
   },
   "title": "Workspace \"bobby-workspace\" updated automatically",
   "title_markdown": "Workspace \"bobby-workspace\" updated automatically",
-  "body": "Hi Bobby,\n\nYour workspace bobby-workspace has been updated automatically to the latest template version (1.0).\n\nReason for update: template now includes catnip.",
-  "body_markdown": "Hi Bobby,\n\nYour workspace **bobby-workspace** has been updated automatically to the latest template version (1.0).\n\nReason for update: **template now includes catnip**."
+  "body": "Your workspace bobby-workspace has been updated automatically to the latest template version (1.0).\n\nReason for update: template now includes catnip.",
+  "body_markdown": "Your workspace **bobby-workspace** has been updated automatically to the latest template version (1.0).\n\nReason for update: **template now includes catnip**."
 }

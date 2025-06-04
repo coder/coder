@@ -59,7 +59,7 @@ func TestCipherAES256(t *testing.T) {
 
 		munged := make([]byte, len(encrypted1))
 		copy(munged, encrypted1)
-		munged[0] = munged[0] ^ 0xff
+		munged[0] ^= 0xff
 		_, err = cipher.Decrypt(munged)
 		var decryptErr *DecryptFailedError
 		require.ErrorAs(t, err, &decryptErr, "munging the first byte of the encrypted data should cause decryption to fail")
@@ -100,9 +100,10 @@ func TestCiphersBackwardCompatibility(t *testing.T) {
 //  3. Copy the value from the test output and do what you need with it.
 func TestHelpMeEncryptSomeValue(t *testing.T) {
 	t.Parallel()
-	t.Skip("this only exists if you need to encrypt a value with dbcrypt, it does not actually test anything")
-
 	valueToEncrypt := os.Getenv("ENCRYPT_ME")
+	if valueToEncrypt == "" {
+		t.Skip("Set ENCRYPT_ME to some value you need to encrypt")
+	}
 	t.Logf("valueToEncrypt: %q", valueToEncrypt)
 	keys := os.Getenv("CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS")
 	require.NotEmpty(t, keys, "Set the CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS environment variable to use this")

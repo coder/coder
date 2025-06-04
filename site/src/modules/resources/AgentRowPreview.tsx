@@ -13,7 +13,7 @@ interface AgentRowPreviewStyles {
 	// When it is only one row, it is better to have than "flex" and not hard aligned
 	alignValues?: boolean;
 }
-export interface AgentRowPreviewProps extends AgentRowPreviewStyles {
+interface AgentRowPreviewProps extends AgentRowPreviewStyles {
 	agent: WorkspaceAgent;
 }
 
@@ -31,7 +31,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 		>
 			<Stack direction="row" alignItems="baseline">
 				<div css={styles.agentStatusWrapper}>
-					<div css={styles.agentStatusPreview}></div>
+					<div css={styles.agentStatusPreview} />
 				</div>
 				<Stack
 					alignItems="baseline"

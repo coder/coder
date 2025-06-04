@@ -12,6 +12,7 @@ import { AgentRow } from "modules/resources/AgentRow";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
+import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";
@@ -22,70 +23,49 @@ import {
 } from "./WorkspaceBuildProgress";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
-import type { WorkspacePermissions } from "./permissions";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 
-export interface WorkspaceProps {
+interface WorkspaceProps {
+	workspace: TypesGen.Workspace;
+	template: TypesGen.Template;
+	permissions: WorkspacePermissions;
+	isUpdating: boolean;
+	isRestarting: boolean;
+	buildLogs?: TypesGen.ProvisionerJobLog[];
+	latestVersion?: TypesGen.TemplateVersion;
+	timings?: TypesGen.WorkspaceBuildTimings;
 	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleStop: () => void;
 	handleRestart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-	handleDelete: () => void;
 	handleUpdate: () => void;
 	handleCancel: () => void;
-	handleSettings: () => void;
-	handleChangeVersion: () => void;
 	handleDormantActivate: () => void;
 	handleToggleFavorite: () => void;
-	isUpdating: boolean;
-	isRestarting: boolean;
-	workspace: TypesGen.Workspace;
-	canChangeVersions: boolean;
-	hideSSHButton?: boolean;
-	hideVSCodeDesktopButton?: boolean;
-	buildInfo?: TypesGen.BuildInfoResponse;
-	sshPrefix?: string;
-	template: TypesGen.Template;
-	canDebugMode: boolean;
 	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-	buildLogs?: TypesGen.ProvisionerJobLog[];
-	latestVersion?: TypesGen.TemplateVersion;
-	permissions: WorkspacePermissions;
-	isOwner: boolean;
-	timings?: TypesGen.WorkspaceBuildTimings;
 }
 
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
 export const Workspace: FC<WorkspaceProps> = ({
-	handleStart,
-	handleStop,
-	handleRestart,
-	handleDelete,
-	handleUpdate,
-	handleCancel,
-	handleSettings,
-	handleChangeVersion,
-	handleDormantActivate,
-	handleToggleFavorite,
 	workspace,
 	isUpdating,
 	isRestarting,
-	canChangeVersions,
-	hideSSHButton,
-	hideVSCodeDesktopButton,
-	buildInfo,
-	sshPrefix,
 	template,
-	canDebugMode,
-	handleRetry,
-	handleDebug,
 	buildLogs,
 	latestVersion,
 	permissions,
-	isOwner,
 	timings,
+	handleStart,
+	handleStop,
+	handleRestart,
+	handleUpdate,
+	handleCancel,
+	handleDormantActivate,
+	handleToggleFavorite,
+	handleRetry,
+	handleDebug,
 }) => {
 	const navigate = useNavigate();
 	const theme = useTheme();
@@ -134,27 +114,20 @@ export const Workspace: FC<WorkspaceProps> = ({
 		>
 			<WorkspaceTopbar
 				workspace={workspace}
-				handleStart={handleStart}
-				handleStop={handleStop}
-				handleRestart={handleRestart}
-				handleDelete={handleDelete}
-				handleUpdate={handleUpdate}
-				handleCancel={handleCancel}
-				handleSettings={handleSettings}
-				handleRetry={handleRetry}
-				handleDebug={handleDebug}
-				handleChangeVersion={handleChangeVersion}
-				handleDormantActivate={handleDormantActivate}
-				handleToggleFavorite={handleToggleFavorite}
-				canDebugMode={canDebugMode}
-				canChangeVersions={canChangeVersions}
-				isUpdating={isUpdating}
-				isRestarting={isRestarting}
-				canUpdateWorkspace={permissions.updateWorkspace}
-				isOwner={isOwner}
 				template={template}
 				permissions={permissions}
 				latestVersion={latestVersion}
+				isUpdating={isUpdating}
+				isRestarting={isRestarting}
+				handleStart={handleStart}
+				handleStop={handleStop}
+				handleRestart={handleRestart}
+				handleUpdate={handleUpdate}
+				handleCancel={handleCancel}
+				handleRetry={handleRetry}
+				handleDebug={handleDebug}
+				handleDormantActivate={handleDormantActivate}
+				handleToggleFavorite={handleToggleFavorite}
 			/>
 
 			<div
@@ -251,24 +224,29 @@ export const Workspace: FC<WorkspaceProps> = ({
 
 					{selectedResource && (
 						<section
-							css={{ display: "flex", flexDirection: "column", gap: 24 }}
+							css={{
+								display: "flex",
+								flexDirection: "column",
+								gap: 24,
+								flexGrow: 1,
+								minWidth: 0 /* Prevent overflow */,
+							}}
 						>
-							{selectedResource.agents?.map((agent) => (
-								<AgentRow
-									key={agent.id}
-									agent={agent}
-									workspace={workspace}
-									template={template}
-									sshPrefix={sshPrefix}
-									showApps={permissions.updateWorkspace}
-									showBuiltinApps={permissions.updateWorkspace}
-									hideSSHButton={hideSSHButton}
-									hideVSCodeDesktopButton={hideVSCodeDesktopButton}
-									serverVersion={buildInfo?.version || ""}
-									serverAPIVersion={buildInfo?.agent_api_version || ""}
-									onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
-								/>
-							))}
+							{selectedResource.agents
+								// If an agent has a `parent_id`, that means it is
+								// child of another agent. We do not want these agents
+								// to be displayed at the top-level on this page. We
+								// want them to display _as children_ of their parents.
+								?.filter((agent) => agent.parent_id === null)
+								.map((agent) => (
+									<AgentRow
+										key={agent.id}
+										agent={agent}
+										workspace={workspace}
+										template={template}
+										onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
+									/>
+								))}
 
 							{(!selectedResource.agents ||
 								selectedResource.agents?.length === 0) && (

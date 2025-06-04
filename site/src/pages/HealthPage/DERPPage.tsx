@@ -44,7 +44,7 @@ type BooleanKeys<T> = {
 	[K in keyof T]: T[K] extends boolean | null ? K : never;
 }[keyof T];
 
-export const DERPPage: FC = () => {
+const DERPPage: FC = () => {
 	const { derp } = useOutletContext<HealthcheckReport>();
 	const { netcheck, regions, netcheck_logs: logs } = derp;
 	const safeNetcheck = netcheck || ({} as NetcheckReport);
@@ -91,7 +91,7 @@ export const DERPPage: FC = () => {
 				<section>
 					<SectionLabel>Regions</SectionLabel>
 					<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-						{Object.values(regions!)
+						{Object.values(regions ?? {})
 							.filter((region) => {
 								// Values can technically be null
 								return region !== null;

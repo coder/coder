@@ -15,29 +15,51 @@ if (process.env.STATS !== undefined) {
 	plugins.push(
 		visualizer({
 			filename: "./stats/index.html",
+			gzipSize: true,
 		}),
 	);
 }
 
 export default defineConfig({
-	plugins: plugins,
+	plugins,
 	publicDir: path.resolve(__dirname, "./static"),
 	build: {
 		outDir: path.resolve(__dirname, "./out"),
-		// We need to keep the /bin folder and GITKEEP files
-		emptyOutDir: false,
-		// 'hidden' works like true except that the corresponding sourcemap comments in the bundled files are suppressed
+		emptyOutDir: false, // We need to keep the /bin folder and GITKEEP files
 		sourcemap: "hidden",
+		rollupOptions: {
+			input: {
+				index: path.resolve(__dirname, "./index.html"),
+				serviceWorker: path.resolve(__dirname, "./src/serviceWorker.ts"),
+			},
+			output: {
+				entryFileNames: (chunkInfo) => {
+					return chunkInfo.name === "serviceWorker"
+						? "[name].js"
+						: "assets/[name]-[hash].js";
+				},
+				manualChunks(id) {
+					if (!id.includes("node_modules")) {
+						return;
+					}
+
+					if (id.includes("@mui")) return "mui";
+					if (id.includes("@emotion")) return "emotion";
+					if (id.includes("monaco-editor")) return "monaco";
+					if (id.includes("@xterm")) return "xterm";
+					if (id.includes("emoji-mart")) return "emoji-mart";
+					if (id.includes("radix-ui")) return "radix-ui";
+				},
+			},
+		},
 	},
 	define: {
 		"process.env": {
 			NODE_ENV: process.env.NODE_ENV,
 			STORYBOOK: process.env.STORYBOOK,
-			INSPECT_XSTATE: process.env.INSPECT_XSTATE,
 		},
 	},
 	server: {
-		host: "127.0.0.1",
 		port: process.env.PORT ? Number(process.env.PORT) : 8080,
 		headers: {
 			// This header corresponds to "src/api/api.ts"'s hardcoded FE token.
@@ -86,6 +108,10 @@ export default defineConfig({
 				secure: process.env.NODE_ENV === "production",
 			},
 			"/healthz": {
+				target: process.env.CODER_HOST || "http://localhost:3000",
+				secure: process.env.NODE_ENV === "production",
+			},
+			"/serviceWorker.js": {
 				target: process.env.CODER_HOST || "http://localhost:3000",
 				secure: process.env.NODE_ENV === "production",
 			},

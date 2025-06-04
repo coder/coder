@@ -119,7 +119,6 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 
 						{lifetimeDays === "custom" && (
 							<TextField
-								data-chromatic="ignore"
 								type="date"
 								label="Expires on"
 								defaultValue={dayjs().add(expDays, "day").format("YYYY-MM-DD")}
@@ -130,6 +129,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 									setExpDays(lt);
 								}}
 								inputProps={{
+									"data-chromatic": "ignore",
 									min: dayjs().add(1, "day").format("YYYY-MM-DD"),
 									max: maxTokenLifetime
 										? dayjs()

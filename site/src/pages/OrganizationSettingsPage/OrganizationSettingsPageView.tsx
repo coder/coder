@@ -14,7 +14,10 @@ import {
 	HorizontalForm,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import {
+	SettingsHeader,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
@@ -66,7 +69,10 @@ export const OrganizationSettingsPageView: FC<
 
 	return (
 		<div>
-			<SettingsHeader title="Settings" />
+			<SettingsHeader>
+				<SettingsHeaderTitle>Settings</SettingsHeaderTitle>
+			</SettingsHeader>
+
 			{Boolean(error) && !isApiValidationError(error) && (
 				<div css={{ marginBottom: 32 }}>
 					<ErrorAlert error={error} />

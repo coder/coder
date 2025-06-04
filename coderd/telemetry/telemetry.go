@@ -28,6 +28,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/buildinfo"
 	clitelemetry "github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/coderd/database"
@@ -47,7 +48,8 @@ type Options struct {
 	Database database.Store
 	Logger   slog.Logger
 	// URL is an endpoint to direct telemetry towards!
-	URL *url.URL
+	URL         *url.URL
+	Experiments codersdk.Experiments
 
 	DeploymentID     string
 	DeploymentConfig *codersdk.DeploymentValues
@@ -497,7 +499,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		groupMembers, err := r.options.Database.GetGroupMembers(ctx)
+		groupMembers, err := r.options.Database.GetGroupMembers(ctx, false)
 		if err != nil {
 			return xerrors.Errorf("get groups: %w", err)
 		}
@@ -683,6 +685,52 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		return nil
 	})
+	eg.Go(func() error {
+		if !r.options.Experiments.Enabled(codersdk.ExperimentWorkspacePrebuilds) {
+			return nil
+		}
+
+		metrics, err := r.options.Database.GetPrebuildMetrics(ctx)
+		if err != nil {
+			return xerrors.Errorf("get prebuild metrics: %w", err)
+		}
+
+		var totalCreated, totalFailed, totalClaimed int64
+		for _, metric := range metrics {
+			totalCreated += metric.CreatedCount
+			totalFailed += metric.FailedCount
+			totalClaimed += metric.ClaimedCount
+		}
+
+		snapshot.PrebuiltWorkspaces = make([]PrebuiltWorkspace, 0, 3)
+		now := dbtime.Now()
+
+		if totalCreated > 0 {
+			snapshot.PrebuiltWorkspaces = append(snapshot.PrebuiltWorkspaces, PrebuiltWorkspace{
+				ID:        uuid.New(),
+				CreatedAt: now,
+				EventType: PrebuiltWorkspaceEventTypeCreated,
+				Count:     int(totalCreated),
+			})
+		}
+		if totalFailed > 0 {
+			snapshot.PrebuiltWorkspaces = append(snapshot.PrebuiltWorkspaces, PrebuiltWorkspace{
+				ID:        uuid.New(),
+				CreatedAt: now,
+				EventType: PrebuiltWorkspaceEventTypeFailed,
+				Count:     int(totalFailed),
+			})
+		}
+		if totalClaimed > 0 {
+			snapshot.PrebuiltWorkspaces = append(snapshot.PrebuiltWorkspaces, PrebuiltWorkspace{
+				ID:        uuid.New(),
+				CreatedAt: now,
+				EventType: PrebuiltWorkspaceEventTypeClaimed,
+				Count:     int(totalClaimed),
+			})
+		}
+		return nil
+	})
 
 	err := eg.Wait()
 	if err != nil {
@@ -729,7 +777,8 @@ func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
 		WorkspaceID:       build.WorkspaceID,
 		JobID:             build.JobID,
 		TemplateVersionID: build.TemplateVersionID,
-		BuildNumber:       uint32(build.BuildNumber),
+		// #nosec G115 - Safe conversion as build numbers are expected to be positive and within uint32 range
+		BuildNumber: uint32(build.BuildNumber),
 	}
 }
 
@@ -1035,11 +1084,12 @@ func ConvertTemplate(dbTemplate database.Template) Template {
 		FailureTTLMillis:               time.Duration(dbTemplate.FailureTTL).Milliseconds(),
 		TimeTilDormantMillis:           time.Duration(dbTemplate.TimeTilDormant).Milliseconds(),
 		TimeTilDormantAutoDeleteMillis: time.Duration(dbTemplate.TimeTilDormantAutoDelete).Milliseconds(),
-		AutostopRequirementDaysOfWeek:  codersdk.BitmapToWeekdays(uint8(dbTemplate.AutostopRequirementDaysOfWeek)),
-		AutostopRequirementWeeks:       dbTemplate.AutostopRequirementWeeks,
-		AutostartAllowedDays:           codersdk.BitmapToWeekdays(dbTemplate.AutostartAllowedDays()),
-		RequireActiveVersion:           dbTemplate.RequireActiveVersion,
-		Deprecated:                     dbTemplate.Deprecated != "",
+		// #nosec G115 - Safe conversion as AutostopRequirementDaysOfWeek is a bitmap of 7 days, easily within uint8 range
+		AutostopRequirementDaysOfWeek: codersdk.BitmapToWeekdays(uint8(dbTemplate.AutostopRequirementDaysOfWeek)),
+		AutostopRequirementWeeks:      dbTemplate.AutostopRequirementWeeks,
+		AutostartAllowedDays:          codersdk.BitmapToWeekdays(dbTemplate.AutostartAllowedDays()),
+		RequireActiveVersion:          dbTemplate.RequireActiveVersion,
+		Deprecated:                    dbTemplate.Deprecated != "",
 	}
 }
 
@@ -1149,6 +1199,8 @@ type Snapshot struct {
 	NetworkEvents                        []NetworkEvent                        `json:"network_events"`
 	Organizations                        []Organization                        `json:"organizations"`
 	TelemetryItems                       []TelemetryItem                       `json:"telemetry_items"`
+	UserTailnetConnections               []UserTailnetConnection               `json:"user_tailnet_connections"`
+	PrebuiltWorkspaces                   []PrebuiltWorkspace                   `json:"prebuilt_workspaces"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -1709,6 +1761,31 @@ type TelemetryItem struct {
 	Value     string    `json:"value"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type UserTailnetConnection struct {
+	ConnectedAt         time.Time  `json:"connected_at"`
+	DisconnectedAt      *time.Time `json:"disconnected_at"`
+	UserID              string     `json:"user_id"`
+	PeerID              string     `json:"peer_id"`
+	DeviceID            *string    `json:"device_id"`
+	DeviceOS            *string    `json:"device_os"`
+	CoderDesktopVersion *string    `json:"coder_desktop_version"`
+}
+
+type PrebuiltWorkspaceEventType string
+
+const (
+	PrebuiltWorkspaceEventTypeCreated PrebuiltWorkspaceEventType = "created"
+	PrebuiltWorkspaceEventTypeFailed  PrebuiltWorkspaceEventType = "failed"
+	PrebuiltWorkspaceEventTypeClaimed PrebuiltWorkspaceEventType = "claimed"
+)
+
+type PrebuiltWorkspace struct {
+	ID        uuid.UUID                  `json:"id"`
+	CreatedAt time.Time                  `json:"created_at"`
+	EventType PrebuiltWorkspaceEventType `json:"event_type"`
+	Count     int                        `json:"count"`
 }
 
 type noopReporter struct{}

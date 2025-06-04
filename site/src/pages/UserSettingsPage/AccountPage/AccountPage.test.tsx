@@ -3,7 +3,7 @@ import { API } from "api/api";
 import { mockApiError } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import * as AccountForm from "./AccountForm";
-import { AccountPage } from "./AccountPage";
+import AccountPage from "./AccountPage";
 
 const newData = {
 	username: "user",
