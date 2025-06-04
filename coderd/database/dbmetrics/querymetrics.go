@@ -2482,6 +2482,13 @@ func (m queryMetricsStore) InsertWorkspaceResourceMetadata(ctx context.Context, 
 	return metadata, err
 }
 
+func (m queryMetricsStore) InsertWormholeEvent(ctx context.Context, arg database.InsertWormholeEventParams) error {
+	start := time.Now()
+	r0 := m.s.InsertWormholeEvent(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWormholeEvent").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListProvisionerKeysByOrganization(ctx, organizationID)

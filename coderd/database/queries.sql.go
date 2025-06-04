@@ -19783,3 +19783,18 @@ func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg Insert
 	}
 	return items, nil
 }
+
+const insertWormholeEvent = `-- name: InsertWormholeEvent :exec
+INSERT INTO wormhole (id, created_at, event, event_type)
+VALUES (gen_random_uuid(), now(), $1, $2)
+`
+
+type InsertWormholeEventParams struct {
+	Event     json.RawMessage `db:"event" json:"event"`
+	EventType string          `db:"event_type" json:"event_type"`
+}
+
+func (q *sqlQuerier) InsertWormholeEvent(ctx context.Context, arg InsertWormholeEventParams) error {
+	_, err := q.db.ExecContext(ctx, insertWormholeEvent, arg.Event, arg.EventType)
+	return err
+}

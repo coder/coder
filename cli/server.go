@@ -1596,7 +1596,7 @@ func newProvisionerDaemon(
 func newAIBridgeDaemon(ctx context.Context, coderAPI *coderd.API, name string) (*aibridged.Server, error) {
 	httpAddr := "0.0.0.0:0" // TODO: configurable.
 
-	return aibridged.New(func(dialCtx context.Context) (aibridgedproto.DRPCAIBridgeDaemonClient, error) {
+	return aibridged.New(coderAPI.Database, func(dialCtx context.Context) (aibridgedproto.DRPCAIBridgeDaemonClient, error) {
 		// This debounces calls to listen every second.
 		// TODO: is this true / necessary?
 		return coderAPI.CreateInMemoryAIBridgeDaemon(dialCtx, name)

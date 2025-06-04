@@ -3980,3 +3980,10 @@ type WorkspaceTable struct {
 	Favorite    bool         `db:"favorite" json:"favorite"`
 	NextStartAt sql.NullTime `db:"next_start_at" json:"next_start_at"`
 }
+
+type Wormhole struct {
+	ID        uuid.NullUUID   `db:"id" json:"id"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	Event     json.RawMessage `db:"event" json:"event"`
+	EventType string          `db:"event_type" json:"event_type"`
+}

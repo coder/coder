@@ -15,6 +15,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/aibridged/proto"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -51,13 +52,13 @@ type Server struct {
 	bridge *Bridge
 }
 
-func New(rpcDialer Dialer, httpAddr string, logger slog.Logger) (*Server, error) {
+func New(store database.Store, rpcDialer Dialer, httpAddr string, logger slog.Logger) (*Server, error) {
 	if rpcDialer == nil {
 		return nil, xerrors.Errorf("nil rpcDialer given")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	bridge := NewBridge(httpAddr)
+	bridge := NewBridge(httpAddr, store)
 	daemon := &Server{
 		logger:           logger,
 		clientDialer:     rpcDialer,

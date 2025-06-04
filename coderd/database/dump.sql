@@ -2320,6 +2320,13 @@ CREATE VIEW workspaces_expanded AS
 
 COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name.';
 
+CREATE TABLE wormhole (
+    id uuid,
+    created_at timestamp with time zone NOT NULL,
+    event jsonb NOT NULL,
+    event_type character varying(32) NOT NULL
+);
+
 ALTER TABLE ONLY chat_messages ALTER COLUMN id SET DEFAULT nextval('chat_messages_id_seq'::regclass);
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
