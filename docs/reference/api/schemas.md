@@ -583,6 +583,9 @@
 
 ```json
 {
+  "bridge": {
+    "daemons": 0
+  },
   "providers": [
     {
       "base_url": "string",
@@ -599,6 +602,8 @@
 
 | Name        | Type                                                            | Required | Restrictions | Description |
 |-------------|-----------------------------------------------------------------|----------|--------------|-------------|
+| `bridge`    | object                                                          | false    |              |             |
+| `» daemons` | integer                                                         | false    |              |             |
 | `providers` | array of [codersdk.AIProviderConfig](#codersdkaiproviderconfig) | false    |              |             |
 
 ## codersdk.AIProviderConfig
@@ -2334,6 +2339,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "agent_stat_refresh_interval": 0,
     "ai": {
       "value": {
+        "bridge": {
+          "daemons": 0
+        },
         "providers": [
           {
             "base_url": "string",
@@ -2833,6 +2841,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "agent_stat_refresh_interval": 0,
   "ai": {
     "value": {
+      "bridge": {
+        "daemons": 0
+      },
       "providers": [
         {
           "base_url": "string",
@@ -11792,6 +11803,9 @@ None
 ```json
 {
   "value": {
+    "bridge": {
+      "daemons": 0
+    },
     "providers": [
       {
         "base_url": "string",

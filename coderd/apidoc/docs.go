@@ -10856,6 +10856,14 @@ const docTemplate = `{
         "codersdk.AIConfig": {
             "type": "object",
             "properties": {
+                "bridge": {
+                    "type": "object",
+                    "properties": {
+                        "daemons": {
+                            "type": "integer"
+                        }
+                    }
+                },
                 "providers": {
                     "type": "array",
                     "items": {

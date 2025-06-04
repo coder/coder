@@ -521,7 +521,9 @@ client:
 supportLinks: []
 # Configure AI providers.
 # (default: <unset>, type: struct[codersdk.AIConfig])
-ai: {}
+ai:
+  bridgeconfig:
+    daemons: 3
 # External Authentication providers.
 # (default: <unset>, type: struct[[]codersdk.ExternalAuthConfig])
 externalAuthProviders: []
@@ -708,3 +710,7 @@ workspace_prebuilds:
   # limit; disabled when set to zero.
   # (default: 3, type: int)
   failure_hard_limit: 3
+ai_bridge:
+  # TODO.
+  # (default: 3, type: int)
+  daemons: 3
