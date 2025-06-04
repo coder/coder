@@ -14,16 +14,16 @@ import WorkspaceParametersPageExperimental from "./WorkspaceParametersPageExperi
 const WorkspaceParametersExperimentRouter: FC = () => {
 	const { experiments } = useDashboard();
 	const workspace = useWorkspaceSettings();
-	const dynamicParametersEnabled = experiments.includes("dynamic-parameters");
+	const isDynamicParametersEnabled = experiments.includes("dynamic-parameters");
 
 	const optOutQuery = useDynamicParametersOptOut({
 		templateId: workspace.template_id,
 		templateUsesClassicParameters:
 			workspace.template_use_classic_parameter_flow,
-		enabled: dynamicParametersEnabled,
+		enabled: isDynamicParametersEnabled,
 	});
 
-	if (dynamicParametersEnabled) {
+	if (isDynamicParametersEnabled) {
 		if (optOutQuery.isError) {
 			return <ErrorAlert error={optOutQuery.error} />;
 		}

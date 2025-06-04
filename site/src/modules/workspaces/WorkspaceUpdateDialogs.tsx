@@ -57,13 +57,13 @@ export const useWorkspaceUpdate = ({
 	};
 
 	const { experiments } = useDashboard();
-	const dynamicParametersEnabled = experiments.includes("dynamic-parameters");
+	const isDynamicParametersEnabled = experiments.includes("dynamic-parameters");
 
 	const optOutQuery = useDynamicParametersOptOut({
 		templateId: workspace.template_id,
 		templateUsesClassicParameters:
 			workspace.template_use_classic_parameter_flow,
-		enabled: dynamicParametersEnabled,
+		enabled: isDynamicParametersEnabled,
 	});
 
 	const confirmUpdate = (buildParameters: WorkspaceBuildParameter[] = []) => {
