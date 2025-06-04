@@ -941,6 +941,151 @@ func TestMatchesCron(t *testing.T) {
 	}
 }
 
+func TestCalculateDesiredInstances(t *testing.T) {
+	t.Parallel()
+
+	mkPreset := func(instances int32, timezone string) database.GetTemplatePresetsWithPrebuildsRow {
+		return database.GetTemplatePresetsWithPrebuildsRow{
+			DesiredInstances: sql.NullInt32{
+				Int32: instances,
+				Valid: true,
+			},
+			AutoscalingEnabled:  true,
+			AutoscalingTimezone: timezone,
+		}
+	}
+	mkSchedule := func(cronExpr string, instances int32) database.TemplateVersionPresetPrebuildSchedule {
+		return database.TemplateVersionPresetPrebuildSchedule{
+			CronExpression: cronExpr,
+			Instances:      instances,
+		}
+	}
+	mkSnapshot := func(preset database.GetTemplatePresetsWithPrebuildsRow, schedules ...database.TemplateVersionPresetPrebuildSchedule) prebuilds.PresetSnapshot {
+		return prebuilds.PresetSnapshot{
+			Preset:            preset,
+			PrebuildSchedules: schedules,
+		}
+	}
+
+	testCases := []struct {
+		name                        string
+		snapshot                    prebuilds.PresetSnapshot
+		at                          time.Time
+		expectedCalculatedInstances int32
+	}{
+		// "* 9-18 * * 1-5" should be interpreted as a continuous time range from 08:59:00 to 18:58:59, Monday through Friday
+		{
+			name: "Right before the start of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 8:58:59 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "Start of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 8:59:00 UTC"),
+			expectedCalculatedInstances: 3,
+		},
+		{
+			name: "9AM - One minute after the start of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 9:00:00 UTC"),
+			expectedCalculatedInstances: 3,
+		},
+		{
+			name: "2PM - The middle of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 14:00:00 UTC"),
+			expectedCalculatedInstances: 3,
+		},
+		{
+			name: "6PM - Around one hour before the end of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 18:00:00 UTC"),
+			expectedCalculatedInstances: 3,
+		},
+		{
+			name: "End of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 18:58:59 UTC"),
+			expectedCalculatedInstances: 3,
+		},
+		{
+			name: "Right after the end of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 18:59:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "7PM - Around one minute after the end of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 19:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "2AM - Significantly outside the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 02:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "Outside the day range #1",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Sat, 07 Jun 2025 14:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "Outside the day range #2",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Sun, 08 Jun 2025 14:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			desiredInstances, err := tc.snapshot.CalculateDesiredInstances(tc.at)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedCalculatedInstances, desiredInstances)
+		})
+	}
+}
+
 func mustParseTime(t *testing.T, layout, value string) time.Time {
 	t.Helper()
 	parsedTime, err := time.Parse(layout, value)

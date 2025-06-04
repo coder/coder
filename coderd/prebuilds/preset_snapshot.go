@@ -97,7 +97,7 @@ func MatchesCron(cronExpression string, now time.Time) (bool, error) {
 	return sched.IsWithinRange(now), nil
 }
 
-func (p PresetSnapshot) calculateDesiredInstances(now time.Time) (int32, error) {
+func (p PresetSnapshot) CalculateDesiredInstances(now time.Time) (int32, error) {
 	if !p.Preset.AutoscalingEnabled {
 		return p.Preset.DesiredInstances.Int32, nil
 	}
@@ -152,7 +152,7 @@ func (p PresetSnapshot) CalculateState() *ReconciliationState {
 
 	if p.isActive() {
 		var err error
-		desired, err = p.calculateDesiredInstances(time.Now())
+		desired, err = p.CalculateDesiredInstances(time.Now())
 		if err != nil {
 			// TODO: handle error
 		}
