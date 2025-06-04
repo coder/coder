@@ -1,3 +1,5 @@
+import dayjs from "dayjs";
+
 export type TimeRange = {
 	startedAt: Date;
 	endedAt: Date;
@@ -11,12 +13,26 @@ export const mergeTimeRanges = (ranges: TimeRange[]): TimeRange => {
 	const sortedDurations = ranges
 		.slice()
 		.sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
-	const start = sortedDurations[0].startedAt;
 
 	const sortedEndDurations = [...ranges].sort(
 		(a, b) => a.endedAt.getTime() - b.endedAt.getTime(),
 	);
 	const end = sortedEndDurations[sortedEndDurations.length - 1].endedAt;
+
+	// Ref: #15432: if there start time is the 'zero' value, default
+	// to the end time. This will result in an 'instant'.
+	let start: Date = end;
+	for (const r of sortedDurations) {
+		if (
+			Number.isNaN(r.startedAt.getTime()) ||
+			r.startedAt.getUTCFullYear() <= 1
+		) {
+			continue; // Skip invalid start dates.
+		}
+		start = r.startedAt;
+		break;
+	}
+
 	return { startedAt: start, endedAt: end };
 };
 
@@ -33,7 +49,12 @@ const second = 1_000;
 const minute = 60 * second;
 const hour = 60 * minute;
 const day = 24 * hour;
+const week = 7 * day;
+const year = 365 * day; // Unlikely, and leap years won't matter here.
+
 const scales = [
+	year,
+	week,
 	day,
 	hour,
 	5 * minute,
@@ -43,6 +64,8 @@ const scales = [
 	500,
 	100,
 ];
+
+const zeroTime: Date = dayjs("0001-01-01T00:00:00Z").toDate();
 
 const pickScale = (totalTime: number): number => {
 	for (const s of scales) {
@@ -64,6 +87,7 @@ export const formatTime = (time: number): string => {
 	const absTime = Math.abs(time);
 	let unit = "";
 	let value = 0;
+	let frac = 2;
 
 	if (absTime < second) {
 		value = time;
@@ -74,15 +98,26 @@ export const formatTime = (time: number): string => {
 	} else if (absTime < hour) {
 		value = time / minute;
 		unit = "m";
+		frac = 1;
 	} else if (absTime < day) {
 		value = time / hour;
 		unit = "h";
-	} else {
+		frac = 0;
+	} else if (absTime < week) {
 		value = time / day;
 		unit = "d";
+		frac = 0;
+	} else if (absTime < year) {
+		value = time / week;
+		unit = "w";
+		frac = 0;
+	} else {
+		value = time / year;
+		unit = "y";
+		frac = 0;
 	}
 	return `${value.toLocaleString(undefined, {
-		maximumFractionDigits: 2,
+		maximumFractionDigits: frac,
 	})}${unit}`;
 };
 

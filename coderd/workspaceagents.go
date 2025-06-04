@@ -956,7 +956,7 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 	}
 	defer release()
 
-	err = agentConn.RecreateDevcontainer(ctx, container)
+	m, err := agentConn.RecreateDevcontainer(ctx, container)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			httpapi.Write(ctx, rw, http.StatusRequestTimeout, codersdk.Response{
@@ -977,7 +977,7 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+	httpapi.Write(ctx, rw, http.StatusAccepted, m)
 }
 
 // @Summary Get connection info for workspace agent

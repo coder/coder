@@ -4,18 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -27,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -1268,7 +1270,10 @@ func TestQueuePosition(t *testing.T) {
 		Tags: database.StringMap{},
 	})
 
-	queued, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	queued, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, queued, jobCount)
 	sort.Slice(queued, func(i, j int) bool {
@@ -1296,7 +1301,10 @@ func TestQueuePosition(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, jobs[0].ID, job.ID)
 
-	queued, err = db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	queued, err = db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, queued, jobCount)
 	sort.Slice(queued, func(i, j int) bool {
@@ -2550,7 +2558,10 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			}
 
 			// When: we fetch the jobs by their IDs
-			actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, filteredJobIDs)
+			actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+				IDs:             filteredJobIDs,
+				StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+			})
 			require.NoError(t, err)
 			require.Len(t, actualJobs, len(filteredJobs), "should return all unskipped jobs")
 
@@ -2693,7 +2704,10 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 	}
 
 	// When: we fetch the jobs by their IDs
-	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, actualJobs, len(allJobs), "should return all jobs")
 
@@ -2788,7 +2802,10 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) 
 	}
 
 	// When: we fetch the jobs by their IDs
-	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+		IDs:             jobIDs,
+		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+	})
 	require.NoError(t, err)
 	require.Len(t, actualJobs, len(allJobs), "should return all jobs")
 
@@ -4702,6 +4719,269 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 		hardLimitedPresets, err := db.GetPresetsAtFailureLimit(ctx, 1)
 		require.NoError(t, err)
 		require.Nil(t, hardLimitedPresets)
+	})
+}
+
+func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test makes use of a database trigger not implemented in dbmem")
+	}
+
+	createWorkspaceWithAgent := func(t *testing.T, db database.Store, org database.Organization, agentName string) (database.WorkspaceBuild, database.WorkspaceResource, database.WorkspaceAgent) {
+		t.Helper()
+
+		user := dbgen.User(t, db, database.User{})
+		template := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{Valid: true, UUID: template.ID},
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			TemplateID:     template.ID,
+			OwnerID:        user.ID,
+		})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			OrganizationID: org.ID,
+		})
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			BuildNumber:       1,
+			JobID:             job.ID,
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: templateVersion.ID,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: build.JobID,
+		})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+			Name:       agentName,
+		})
+
+		return build, resource, agent
+	}
+
+	t.Run("DuplicateNamesInSameWorkspaceResource", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A workspace with an agent
+		_, resource, _ := createWorkspaceWithAgent(t, db, org, "duplicate-agent")
+
+		// When: Another agent is created for that workspace with the same name.
+		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+			ID:              uuid.New(),
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+			Name:            "duplicate-agent", // Same name as agent1
+			ResourceID:      resource.ID,
+			AuthToken:       uuid.New(),
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			APIKeyScope:     database.AgentKeyScopeEnumAll,
+		})
+
+		// Then: We expect it to fail.
+		require.Error(t, err)
+		var pqErr *pq.Error
+		require.True(t, errors.As(err, &pqErr))
+		require.Equal(t, pq.ErrorCode("23505"), pqErr.Code) // unique_violation
+		require.Contains(t, pqErr.Message, `workspace agent name "duplicate-agent" already exists in this workspace build`)
+	})
+
+	t.Run("DuplicateNamesInSameProvisionerJob", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A workspace with an agent
+		_, resource, agent := createWorkspaceWithAgent(t, db, org, "duplicate-agent")
+
+		// When: A child agent is created for that workspace with the same name.
+		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+			ID:              uuid.New(),
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+			Name:            agent.Name,
+			ResourceID:      resource.ID,
+			AuthToken:       uuid.New(),
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			APIKeyScope:     database.AgentKeyScopeEnumAll,
+		})
+
+		// Then: We expect it to fail.
+		require.Error(t, err)
+		var pqErr *pq.Error
+		require.True(t, errors.As(err, &pqErr))
+		require.Equal(t, pq.ErrorCode("23505"), pqErr.Code) // unique_violation
+		require.Contains(t, pqErr.Message, `workspace agent name "duplicate-agent" already exists in this workspace build`)
+	})
+
+	t.Run("DuplicateChildNamesOverMultipleResources", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A workspace with two agents
+		_, resource1, agent1 := createWorkspaceWithAgent(t, db, org, "parent-agent-1")
+
+		resource2 := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: resource1.JobID})
+		agent2 := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource2.ID,
+			Name:       "parent-agent-2",
+		})
+
+		// Given: One agent has a child agent
+		agent1Child := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ParentID:   uuid.NullUUID{Valid: true, UUID: agent1.ID},
+			Name:       "child-agent",
+			ResourceID: resource1.ID,
+		})
+
+		// When: A child agent is inserted for the other parent.
+		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+			ID:              uuid.New(),
+			ParentID:        uuid.NullUUID{Valid: true, UUID: agent2.ID},
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+			Name:            agent1Child.Name,
+			ResourceID:      resource2.ID,
+			AuthToken:       uuid.New(),
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			APIKeyScope:     database.AgentKeyScopeEnumAll,
+		})
+
+		// Then: We expect it to fail.
+		require.Error(t, err)
+		var pqErr *pq.Error
+		require.True(t, errors.As(err, &pqErr))
+		require.Equal(t, pq.ErrorCode("23505"), pqErr.Code) // unique_violation
+		require.Contains(t, pqErr.Message, `workspace agent name "child-agent" already exists in this workspace build`)
+	})
+
+	t.Run("SameNamesInDifferentWorkspaces", func(t *testing.T) {
+		t.Parallel()
+
+		agentName := "same-name-different-workspace"
+
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		// Given: A workspace with an agent
+		_, _, agent1 := createWorkspaceWithAgent(t, db, org, agentName)
+		require.Equal(t, agentName, agent1.Name)
+
+		// When: A second workspace is created with an agent having the same name
+		_, _, agent2 := createWorkspaceWithAgent(t, db, org, agentName)
+		require.Equal(t, agentName, agent2.Name)
+
+		// Then: We expect there to be different agents with the same name.
+		require.NotEqual(t, agent1.ID, agent2.ID)
+		require.Equal(t, agent1.Name, agent2.Name)
+	})
+
+	t.Run("NullWorkspaceID", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A resource that does not belong to a workspace build (simulating template import)
+		orphanJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			OrganizationID: org.ID,
+		})
+		orphanResource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: orphanJob.ID,
+		})
+
+		// And this resource has a workspace agent.
+		agent1, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+			ID:              uuid.New(),
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+			Name:            "orphan-agent",
+			ResourceID:      orphanResource.ID,
+			AuthToken:       uuid.New(),
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			APIKeyScope:     database.AgentKeyScopeEnumAll,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "orphan-agent", agent1.Name)
+
+		// When: We created another resource that does not belong to a workspace build.
+		orphanJob2 := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			OrganizationID: org.ID,
+		})
+		orphanResource2 := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: orphanJob2.ID,
+		})
+
+		// Then: We expect to be able to create an agent in this new resource that has the same name.
+		agent2, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+			ID:              uuid.New(),
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+			Name:            "orphan-agent", // Same name as agent1
+			ResourceID:      orphanResource2.ID,
+			AuthToken:       uuid.New(),
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			APIKeyScope:     database.AgentKeyScopeEnumAll,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "orphan-agent", agent2.Name)
+		require.NotEqual(t, agent1.ID, agent2.ID)
+	})
+}
+
+func TestGetWorkspaceAgentsByParentID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NilParentDoesNotReturnAllParentAgents", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: A workspace agent
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			OrganizationID: org.ID,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+
+		// When: We attempt to select agents with a null parent id
+		agents, err := db.GetWorkspaceAgentsByParentID(ctx, uuid.Nil)
+		require.NoError(t, err)
+
+		// Then: We expect to see no agents.
+		require.Len(t, agents, 0)
 	})
 }
 

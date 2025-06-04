@@ -92,13 +92,13 @@ func WorkspaceBuildParameters(params []database.WorkspaceBuildParameter) []coder
 }
 
 func TemplateVersionParameters(params []database.TemplateVersionParameter) ([]codersdk.TemplateVersionParameter, error) {
-	out := make([]codersdk.TemplateVersionParameter, len(params))
-	var err error
-	for i, p := range params {
-		out[i], err = TemplateVersionParameter(p)
+	out := make([]codersdk.TemplateVersionParameter, 0, len(params))
+	for _, p := range params {
+		np, err := TemplateVersionParameter(p)
 		if err != nil {
 			return nil, xerrors.Errorf("convert template version parameter %q: %w", p.Name, err)
 		}
+		out = append(out, np)
 	}
 
 	return out, nil
@@ -131,6 +131,7 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 		Description:          param.Description,
 		DescriptionPlaintext: descriptionPlaintext,
 		Type:                 param.Type,
+		FormType:             string(param.FormType),
 		Mutable:              param.Mutable,
 		DefaultValue:         param.DefaultValue,
 		Icon:                 param.Icon,
@@ -293,7 +294,8 @@ func templateVersionParameterOptions(rawOptions json.RawMessage) ([]codersdk.Tem
 	if err != nil {
 		return nil, err
 	}
-	var options []codersdk.TemplateVersionParameterOption
+
+	options := make([]codersdk.TemplateVersionParameterOption, 0)
 	for _, option := range protoOptions {
 		options = append(options, codersdk.TemplateVersionParameterOption{
 			Name:        option.Name,
@@ -525,6 +527,7 @@ func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus
 				Threshold: dbApp.HealthcheckThreshold,
 			},
 			Health:   codersdk.WorkspaceAppHealth(dbApp.Health),
+			Group:    dbApp.DisplayGroup.String,
 			Hidden:   dbApp.Hidden,
 			OpenIn:   codersdk.WorkspaceAppOpenIn(dbApp.OpenIn),
 			Statuses: WorkspaceAppStatuses(statuses),

@@ -4033,6 +4033,44 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Asserts(rbac.ResourceProvisionerJobs.InOrg(o.ID), policy.ActionRead).
 			Returns(slice.New(a, b))
 	}))
+	s.Run("DeleteWorkspaceSubAgentByID", s.Subtest(func(db database.Store, check *expects) {
+		_ = dbgen.User(s.T(), db, database.User{})
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{Type: database.ProvisionerJobTypeWorkspaceBuild})
+		tpl := dbgen.Template(s.T(), db, database.Template{CreatedBy: u.ID, OrganizationID: o.ID})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			JobID:          j.ID,
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OwnerID: u.ID, TemplateID: tpl.ID, OrganizationID: o.ID})
+		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: j.ID, TemplateVersionID: tv.ID})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: j.ID})
+		agent := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
+		_ = dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID, ParentID: uuid.NullUUID{Valid: true, UUID: agent.ID}})
+		check.Args(agent.ID).Asserts(ws, policy.ActionDeleteAgent)
+	}))
+	s.Run("GetWorkspaceAgentsByParentID", s.Subtest(func(db database.Store, check *expects) {
+		_ = dbgen.User(s.T(), db, database.User{})
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{Type: database.ProvisionerJobTypeWorkspaceBuild})
+		tpl := dbgen.Template(s.T(), db, database.Template{CreatedBy: u.ID, OrganizationID: o.ID})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			JobID:          j.ID,
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OwnerID: u.ID, TemplateID: tpl.ID, OrganizationID: o.ID})
+		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: j.ID, TemplateVersionID: tv.ID})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: j.ID})
+		agent := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
+		_ = dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID, ParentID: uuid.NullUUID{Valid: true, UUID: agent.ID}})
+		check.Args(agent.ID).Asserts(ws, policy.ActionRead)
+	}))
 	s.Run("InsertWorkspaceAgent", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		o := dbgen.Organization(s.T(), db, database.Organization{})
@@ -4345,7 +4383,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args([]uuid.UUID{uuid.New()}).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetProvisionerJobsByIDsWithQueuePosition", s.Subtest(func(db database.Store, check *expects) {
-		check.Args([]uuid.UUID{}).Asserts()
+		check.Args(database.GetProvisionerJobsByIDsWithQueuePositionParams{}).Asserts()
 	}))
 	s.Run("GetReplicaByID", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, policy.ActionRead).Errors(sql.ErrNoRows)

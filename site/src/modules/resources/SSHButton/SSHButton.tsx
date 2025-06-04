@@ -1,4 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import { deploymentSSHConfig } from "api/queries/deployment";
 import { Button } from "components/Button/Button";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import {
@@ -15,31 +16,30 @@ import {
 import { type ClassName, useClassName } from "hooks/useClassName";
 import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
+import { useQuery } from "react-query";
 import { docs } from "utils/docs";
 
 interface AgentSSHButtonProps {
 	workspaceName: string;
 	agentName: string;
-	sshPrefix?: string;
+	workspaceOwnerUsername: string;
 }
 
 export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 	workspaceName,
 	agentName,
-	sshPrefix,
+	workspaceOwnerUsername,
 }) => {
 	const paper = useClassName(classNames.paper, []);
+	const { data } = useQuery(deploymentSSHConfig());
+	const sshSuffix = data?.hostname_suffix;
 
 	return (
 		<Popover>
 			<PopoverTrigger>
-				<Button
-					size="sm"
-					variant="subtle"
-					css={{ fontSize: 13, padding: "8px 12px" }}
-				>
+				<Button size="sm" variant="subtle">
 					Connect via SSH
-					<ChevronDownIcon className="size-4 ml-2" />
+					<ChevronDownIcon />
 				</Button>
 			</PopoverTrigger>
 
@@ -56,7 +56,7 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 						/>
 						<SSHStep
 							helpText="Connect to the agent:"
-							codeExample={`ssh ${sshPrefix}${workspaceName}.${agentName}`}
+							codeExample={`ssh ${workspaceName}.${agentName}.${workspaceOwnerUsername}.${sshSuffix}`}
 						/>
 					</Stack>
 				</ol>
@@ -71,7 +71,10 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 					<HelpTooltipLink
 						href={docs("/user-guides/workspace-access/jetbrains")}
 					>
-						Connect via JetBrains Gateway
+						Connect via JetBrains IDEs
+					</HelpTooltipLink>
+					<HelpTooltipLink href={docs("/user-guides/desktop")}>
+						Connect via Coder Desktop
 					</HelpTooltipLink>
 					<HelpTooltipLink href={docs("/user-guides/workspace-access#ssh")}>
 						SSH configuration

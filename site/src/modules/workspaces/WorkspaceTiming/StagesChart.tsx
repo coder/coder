@@ -141,6 +141,7 @@ export const StagesChart: FC<StagesChartProps> = ({
 
 									const value = calcDuration(t.range);
 									const offset = calcOffset(t.range, totalRange);
+									const validDuration = value > 0 && !Number.isNaN(value);
 
 									return (
 										<XAxisRow
@@ -172,7 +173,17 @@ export const StagesChart: FC<StagesChartProps> = ({
 											) : (
 												<Bar scale={scale} value={value} offset={offset} />
 											)}
-											{formatTime(calcDuration(t.range))}
+											{validDuration ? (
+												<span>{formatTime(value)}</span>
+											) : (
+												<span
+													css={(theme) => ({
+														color: theme.palette.error.main,
+													})}
+												>
+													Invalid
+												</span>
+											)}
 										</XAxisRow>
 									);
 								})}

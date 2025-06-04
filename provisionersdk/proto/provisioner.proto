@@ -27,6 +27,20 @@ message RichParameterOption {
     string icon = 4;
 }
 
+enum ParameterFormType {
+    DEFAULT = 0;
+    FORM_ERROR = 1;
+    RADIO = 2;
+    DROPDOWN = 3;
+    INPUT = 4;
+    TEXTAREA = 5;
+    SLIDER = 6;
+    CHECKBOX = 7;
+    SWITCH = 8;
+    TAGSELECT = 9;
+    MULTISELECT = 10;
+}
+
 // RichParameter represents a variable that is exposed.
 message RichParameter {
     reserved 14;
@@ -49,6 +63,7 @@ message RichParameter {
     string display_name = 15;
     int32 order = 16;
     bool ephemeral = 17;
+    ParameterFormType form_type = 18;
 }
 
 // RichParameterValue holds the key/value mapping of a parameter.
@@ -239,6 +254,7 @@ message App {
     int64 order = 10;
     bool hidden = 11;
     AppOpenIn open_in = 12;
+    string group = 13;
 }
 
 // Healthcheck represents configuration for checking for app readiness.

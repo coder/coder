@@ -29,60 +29,92 @@ import (
 	"github.com/coder/websocket"
 )
 
+// @Summary Evaluate dynamic parameters for template version
+// @ID evaluate-dynamic-parameters-for-template-version
+// @Security CoderSessionToken
+// @Tags Templates
+// @Param templateversion path string true "Template version ID" format(uuid)
+// @Accept json
+// @Produce json
+// @Param request body codersdk.DynamicParametersRequest true "Initial parameter values"
+// @Success 200 {object} codersdk.DynamicParametersResponse
+// @Router /templateversions/{templateversion}/dynamic-parameters/evaluate [post]
+func (api *API) templateVersionDynamicParametersEvaluate(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var req codersdk.DynamicParametersRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	api.templateVersionDynamicParameters(false, req)(rw, r)
+}
+
 // @Summary Open dynamic parameters WebSocket by template version
 // @ID open-dynamic-parameters-websocket-by-template-version
 // @Security CoderSessionToken
 // @Tags Templates
-// @Param user path string true "Template version ID" format(uuid)
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 101
-// @Router /users/{user}/templateversions/{templateversion}/parameters [get]
-func (api *API) templateVersionDynamicParameters(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	templateVersion := httpmw.TemplateVersionParam(r)
+// @Router /templateversions/{templateversion}/dynamic-parameters [get]
+func (api *API) templateVersionDynamicParametersWebsocket(rw http.ResponseWriter, r *http.Request) {
+	apikey := httpmw.APIKey(r)
 
-	// Check that the job has completed successfully
-	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
-	if httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if !job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusTooEarly, codersdk.Response{
-			Message: "Template version job has not finished",
-		})
-		return
-	}
+	api.templateVersionDynamicParameters(true, codersdk.DynamicParametersRequest{
+		ID:      -1,
+		Inputs:  map[string]string{},
+		OwnerID: apikey.UserID,
+	})(rw, r)
+}
 
-	tf, err := api.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to retrieve Terraform values for template version",
-			Detail:  err.Error(),
-		})
-		return
-	}
+func (api *API) templateVersionDynamicParameters(listen bool, initial codersdk.DynamicParametersRequest) func(rw http.ResponseWriter, r *http.Request) {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		templateVersion := httpmw.TemplateVersionParam(r)
 
-	if wsbuilder.ProvisionerVersionSupportsDynamicParameters(tf.ProvisionerdVersion) {
-		api.handleDynamicParameters(rw, r, tf, templateVersion)
-	} else {
-		api.handleStaticParameters(rw, r, templateVersion.ID)
+		// Check that the job has completed successfully
+		job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching provisioner job.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if !job.CompletedAt.Valid {
+			httpapi.Write(ctx, rw, http.StatusTooEarly, codersdk.Response{
+				Message: "Template version job has not finished",
+			})
+			return
+		}
+
+		tf, err := api.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to retrieve Terraform values for template version",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		if wsbuilder.ProvisionerVersionSupportsDynamicParameters(tf.ProvisionerdVersion) {
+			api.handleDynamicParameters(listen, rw, r, tf, templateVersion, initial)
+		} else {
+			api.handleStaticParameters(listen, rw, r, templateVersion.ID, initial)
+		}
 	}
 }
 
-type previewFunction func(ctx context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics)
+type previewFunction func(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics)
 
-func (api *API) handleDynamicParameters(rw http.ResponseWriter, r *http.Request, tf database.TemplateVersionTerraformValue, templateVersion database.TemplateVersion) {
+// nolint:revive
+func (api *API) handleDynamicParameters(listen bool, rw http.ResponseWriter, r *http.Request, tf database.TemplateVersionTerraformValue, templateVersion database.TemplateVersion, initial codersdk.DynamicParametersRequest) {
 	var (
-		ctx  = r.Context()
-		user = httpmw.UserParam(r)
+		ctx    = r.Context()
+		apikey = httpmw.APIKey(r)
 	)
 
 	// nolint:gocritic // We need to fetch the templates files for the Terraform
@@ -130,7 +162,7 @@ func (api *API) handleDynamicParameters(rw http.ResponseWriter, r *http.Request,
 		templateFS = files.NewOverlayFS(templateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
 	}
 
-	owner, err := getWorkspaceOwnerData(ctx, api.Database, user, templateVersion.OrganizationID)
+	owner, err := getWorkspaceOwnerData(ctx, api.Database, apikey.UserID, templateVersion.OrganizationID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace owner.",
@@ -145,15 +177,57 @@ func (api *API) handleDynamicParameters(rw http.ResponseWriter, r *http.Request,
 		Owner:           owner,
 	}
 
-	api.handleParameterWebsocket(rw, r, func(ctx context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+	// failedOwners keeps track of which owners failed to fetch from the database.
+	// This prevents db spam on repeated requests for the same failed owner.
+	failedOwners := make(map[uuid.UUID]error)
+	failedOwnerDiag := hcl.Diagnostics{
+		{
+			Severity: hcl.DiagError,
+			Summary:  "Failed to fetch workspace owner",
+			Detail:   "Please check your permissions or the user may not exist.",
+			Extra: previewtypes.DiagnosticExtra{
+				Code: "owner_not_found",
+			},
+		},
+	}
+
+	dynamicRender := func(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+		if ownerID == uuid.Nil {
+			// Default to the authenticated user
+			// Nice for testing
+			ownerID = apikey.UserID
+		}
+
+		if _, ok := failedOwners[ownerID]; ok {
+			// If it has failed once, assume it will fail always.
+			// Re-open the websocket to try again.
+			return nil, failedOwnerDiag
+		}
+
 		// Update the input values with the new values.
-		// The rest of the input is unchanged.
 		input.ParameterValues = values
+
+		// Update the owner if there is a change
+		if input.Owner.ID != ownerID.String() {
+			owner, err = getWorkspaceOwnerData(ctx, api.Database, ownerID, templateVersion.OrganizationID)
+			if err != nil {
+				failedOwners[ownerID] = err
+				return nil, failedOwnerDiag
+			}
+			input.Owner = owner
+		}
+
 		return preview.Preview(ctx, input, templateFS)
-	})
+	}
+	if listen {
+		api.handleParameterWebsocket(rw, r, initial, dynamicRender)
+	} else {
+		api.handleParameterEvaluate(rw, r, initial, dynamicRender)
+	}
 }
 
-func (api *API) handleStaticParameters(rw http.ResponseWriter, r *http.Request, version uuid.UUID) {
+// nolint:revive
+func (api *API) handleStaticParameters(listen bool, rw http.ResponseWriter, r *http.Request, version uuid.UUID, initial codersdk.DynamicParametersRequest) {
 	ctx := r.Context()
 	dbTemplateVersionParameters, err := api.Database.GetTemplateVersionParameters(ctx, version)
 	if err != nil {
@@ -239,7 +313,7 @@ func (api *API) handleStaticParameters(rw http.ResponseWriter, r *http.Request, 
 		params = append(params, param)
 	}
 
-	api.handleParameterWebsocket(rw, r, func(_ context.Context, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+	staticRender := func(_ context.Context, _ uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
 		for i := range params {
 			param := &params[i]
 			paramValue, ok := values[param.Name]
@@ -261,10 +335,31 @@ func (api *API) handleStaticParameters(rw http.ResponseWriter, r *http.Request, 
 					Detail:   "To restore full functionality, please re-import the terraform as a new template version.",
 				},
 			}
-	})
+	}
+	if listen {
+		api.handleParameterWebsocket(rw, r, initial, staticRender)
+	} else {
+		api.handleParameterEvaluate(rw, r, initial, staticRender)
+	}
 }
 
-func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request, render previewFunction) {
+func (*API) handleParameterEvaluate(rw http.ResponseWriter, r *http.Request, initial codersdk.DynamicParametersRequest, render previewFunction) {
+	ctx := r.Context()
+
+	// Send an initial form state, computed without any user input.
+	result, diagnostics := render(ctx, initial.OwnerID, initial.Inputs)
+	response := codersdk.DynamicParametersResponse{
+		ID:          0,
+		Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
+	}
+	if result != nil {
+		response.Parameters = db2sdk.List(result.Parameters, db2sdk.PreviewParameter)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, response)
+}
+
+func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request, initial codersdk.DynamicParametersRequest, render previewFunction) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
 	defer cancel()
 
@@ -284,7 +379,7 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 	)
 
 	// Send an initial form state, computed without any user input.
-	result, diagnostics := render(ctx, map[string]string{})
+	result, diagnostics := render(ctx, initial.OwnerID, initial.Inputs)
 	response := codersdk.DynamicParametersResponse{
 		ID:          -1, // Always start with -1.
 		Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
@@ -312,7 +407,7 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 				return
 			}
 
-			result, diagnostics := render(ctx, update.Inputs)
+			result, diagnostics := render(ctx, update.OwnerID, update.Inputs)
 			response := codersdk.DynamicParametersResponse{
 				ID:          update.ID,
 				Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
@@ -332,17 +427,24 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 func getWorkspaceOwnerData(
 	ctx context.Context,
 	db database.Store,
-	user database.User,
+	ownerID uuid.UUID,
 	organizationID uuid.UUID,
 ) (previewtypes.WorkspaceOwner, error) {
 	var g errgroup.Group
+
+	// TODO: @emyrk we should only need read access on the org member, not the
+	//   site wide user object. Figure out a better way to handle this.
+	user, err := db.GetUserByID(ctx, ownerID)
+	if err != nil {
+		return previewtypes.WorkspaceOwner{}, xerrors.Errorf("fetch user: %w", err)
+	}
 
 	var ownerRoles []previewtypes.WorkspaceOwnerRBACRole
 	g.Go(func() error {
 		// nolint:gocritic // This is kind of the wrong query to use here, but it
 		// matches how the provisioner currently works. We should figure out
 		// something that needs less escalation but has the correct behavior.
-		row, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user.ID)
+		row, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), ownerID)
 		if err != nil {
 			return err
 		}
@@ -372,7 +474,7 @@ func getWorkspaceOwnerData(
 		// The correct public key has to be sent. This will not be leaked
 		// unless the template leaks it.
 		// nolint:gocritic
-		key, err := db.GetGitSSHKey(dbauthz.AsSystemRestricted(ctx), user.ID)
+		key, err := db.GetGitSSHKey(dbauthz.AsSystemRestricted(ctx), ownerID)
 		if err != nil {
 			return err
 		}
@@ -388,7 +490,7 @@ func getWorkspaceOwnerData(
 		// nolint:gocritic
 		groups, err := db.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{
 			OrganizationID: organizationID,
-			HasMemberID:    user.ID,
+			HasMemberID:    ownerID,
 		})
 		if err != nil {
 			return err
@@ -400,7 +502,7 @@ func getWorkspaceOwnerData(
 		return nil
 	})
 
-	err := g.Wait()
+	err = g.Wait()
 	if err != nil {
 		return previewtypes.WorkspaceOwner{}, err
 	}

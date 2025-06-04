@@ -1000,7 +1000,6 @@ class ApiMethods {
 	};
 
 	templateVersionDynamicParameters = (
-		userId: string,
 		versionId: string,
 		{
 			onMessage,
@@ -1013,7 +1012,7 @@ class ApiMethods {
 		},
 	): WebSocket => {
 		const socket = createWebSocket(
-			`/api/v2/users/${userId}/templateversions/${versionId}/parameters`,
+			`/api/v2/templateversions/${versionId}/dynamic-parameters`,
 		);
 
 		socket.addEventListener("message", (event) =>
@@ -1082,6 +1081,31 @@ class ApiMethods {
 		const response = await this.axios.post<TypesGen.TemplateVersion>(
 			`/api/v2/templateversions/${templateVersionId}/unarchive`,
 		);
+		return response.data;
+	};
+
+	/**
+	 * Downloads a template version as a tar or zip archive
+	 * @param fileId The file ID from the template version's job
+	 * @param format Optional format: "zip" for zip archive, empty/undefined for tar
+	 * @returns Promise that resolves to a Blob containing the archive
+	 */
+	downloadTemplateVersion = async (
+		fileId: string,
+		format?: "zip",
+	): Promise<Blob> => {
+		const params = new URLSearchParams();
+		if (format) {
+			params.set("format", format);
+		}
+
+		const response = await this.axios.get(
+			`/api/v2/files/${fileId}?${params.toString()}`,
+			{
+				responseType: "blob",
+			},
+		);
+
 		return response.data;
 	};
 

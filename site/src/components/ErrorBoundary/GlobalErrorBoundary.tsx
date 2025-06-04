@@ -1,6 +1,6 @@
-import Link from "@mui/material/Link";
 import { Button } from "components/Button/Button";
 import { CoderIcon } from "components/Icons/CoderIcon";
+import { Link } from "components/Link/Link";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
@@ -43,14 +43,14 @@ export const GlobalErrorBoundaryInner: FC<GlobalErrorBoundaryInnerProps> = ({
 					<CoderIcon className="w-11 h-11" />
 
 					<div className="text-content-primary flex flex-col gap-1">
-						<h1 className="text-2xl font-normal m-0">{errorPageTitle}</h1>
-						<p className="leading-6 m-0">
+						<h1 className="text-2xl font-semibold m-0">{errorPageTitle}</h1>
+						<p className="leading-6 m-0 text-content-secondary text-sm">
 							Please try reloading the page. If reloading does not work, you can
 							ask for help in the{" "}
 							<Link
 								href="https://discord.gg/coder"
 								target="_blank"
-								rel="noreferer"
+								rel="noreferrer"
 							>
 								Coder Discord community
 								<span className="sr-only"> (link opens in a new tab)</span>
@@ -58,7 +58,7 @@ export const GlobalErrorBoundaryInner: FC<GlobalErrorBoundaryInnerProps> = ({
 							or{" "}
 							<Link
 								target="_blank"
-								rel="noreferer"
+								rel="noreferrer"
 								href={publicGithubIssueLink(
 									coderVersion,
 									location.pathname,
@@ -73,9 +73,9 @@ export const GlobalErrorBoundaryInner: FC<GlobalErrorBoundaryInnerProps> = ({
 					</div>
 				</div>
 
-				<div className="flex flex-row flex-nowrap justify-center gap-4">
-					<Button asChild className="min-w-32 font-medium">
-						<Link href={location.pathname}>Reload page</Link>
+				<div className="flex flex-row flex-nowrap justify-center gap-2">
+					<Button asChild className="min-w-32 ">
+						<a href={location.pathname}>Reload page</a>
 					</Button>
 
 					{isRenderableError && (

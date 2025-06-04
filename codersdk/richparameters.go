@@ -1,9 +1,12 @@
 package codersdk
 
 import (
+	"encoding/json"
+
 	"golang.org/x/xerrors"
 	"tailscale.com/types/ptr"
 
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
@@ -66,18 +69,8 @@ func validateBuildParameter(richParameter TemplateVersionParameter, buildParamet
 		current = richParameter.DefaultValue
 	}
 
-	if len(richParameter.Options) > 0 {
-		var matched bool
-		for _, opt := range richParameter.Options {
-			if opt.Value == current {
-				matched = true
-				break
-			}
-		}
-
-		if !matched {
-			return xerrors.Errorf("parameter value must match one of options: %s", parameterValuesAsArray(richParameter.Options))
-		}
+	if len(richParameter.Options) > 0 && !inOptionSet(richParameter, current) {
+		return xerrors.Errorf("parameter value must match one of options: %s", parameterValuesAsArray(richParameter.Options))
 	}
 
 	if !validationEnabled(richParameter) {
@@ -102,6 +95,37 @@ func validateBuildParameter(richParameter TemplateVersionParameter, buildParamet
 		Monotonic:   string(richParameter.ValidationMonotonic),
 	}
 	return validation.Valid(richParameter.Type, current, previous)
+}
+
+// inOptionSet returns if the value given is in the set of options for a parameter.
+func inOptionSet(richParameter TemplateVersionParameter, value string) bool {
+	optionValues := make([]string, 0, len(richParameter.Options))
+	for _, option := range richParameter.Options {
+		optionValues = append(optionValues, option.Value)
+	}
+
+	// If the type is `list(string)` and the form_type is `multi-select`, then we check each individual
+	// value in the list against the option set.
+	isMultiSelect := richParameter.Type == provider.OptionTypeListString && richParameter.FormType == string(provider.ParameterFormTypeMultiSelect)
+
+	if !isMultiSelect {
+		// This is the simple case. Just checking if the value is in the option set.
+		return slice.Contains(optionValues, value)
+	}
+
+	var checks []string
+	err := json.Unmarshal([]byte(value), &checks)
+	if err != nil {
+		return false
+	}
+
+	for _, check := range checks {
+		if !slice.Contains(optionValues, check) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func findBuildParameter(params []WorkspaceBuildParameter, parameterName string) (*WorkspaceBuildParameter, bool) {

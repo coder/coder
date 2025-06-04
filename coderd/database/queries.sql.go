@@ -7663,17 +7663,21 @@ pending_jobs AS (
 	WHERE
 		job_status = 'pending'
 ),
+online_provisioner_daemons AS (
+	SELECT id, tags FROM provisioner_daemons pd
+	WHERE pd.last_seen_at IS NOT NULL AND pd.last_seen_at >= (NOW() - ($2::bigint || ' ms')::interval)
+),
 ranked_jobs AS (
 	-- Step 3: Rank only pending jobs based on provisioner availability
 	SELECT
 		pj.id,
 		pj.created_at,
-		ROW_NUMBER() OVER (PARTITION BY pd.id ORDER BY pj.created_at ASC) AS queue_position,
-		COUNT(*) OVER (PARTITION BY pd.id) AS queue_size
+		ROW_NUMBER() OVER (PARTITION BY opd.id ORDER BY pj.created_at ASC) AS queue_position,
+		COUNT(*) OVER (PARTITION BY opd.id) AS queue_size
 	FROM
 		pending_jobs pj
-			INNER JOIN provisioner_daemons pd
-					ON provisioner_tagset_contains(pd.tags, pj.tags) -- Join only on the small pending set
+			INNER JOIN online_provisioner_daemons opd
+					ON provisioner_tagset_contains(opd.tags, pj.tags) -- Join only on the small pending set
 ),
 final_jobs AS (
 	-- Step 4: Compute best queue position and max queue size per job
@@ -7705,6 +7709,11 @@ ORDER BY
 	fj.created_at
 `
 
+type GetProvisionerJobsByIDsWithQueuePositionParams struct {
+	IDs             []uuid.UUID `db:"ids" json:"ids"`
+	StaleIntervalMS int64       `db:"stale_interval_ms" json:"stale_interval_ms"`
+}
+
 type GetProvisionerJobsByIDsWithQueuePositionRow struct {
 	ID             uuid.UUID      `db:"id" json:"id"`
 	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
@@ -7713,8 +7722,8 @@ type GetProvisionerJobsByIDsWithQueuePositionRow struct {
 	QueueSize      int64          `db:"queue_size" json:"queue_size"`
 }
 
-func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]GetProvisionerJobsByIDsWithQueuePositionRow, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerJobsByIDsWithQueuePosition, pq.Array(ids))
+func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, arg GetProvisionerJobsByIDsWithQueuePositionParams) ([]GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerJobsByIDsWithQueuePosition, pq.Array(arg.IDs), arg.StaleIntervalMS)
 	if err != nil {
 		return nil, err
 	}
@@ -10623,7 +10632,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTem
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, created_by_avatar_url, created_by_username, organization_name, organization_display_name, organization_icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
 FROM
 	template_with_names
 WHERE
@@ -10667,6 +10676,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.UseClassicParameterFlow,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
+		&i.CreatedByName,
 		&i.OrganizationName,
 		&i.OrganizationDisplayName,
 		&i.OrganizationIcon,
@@ -10676,7 +10686,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, created_by_avatar_url, created_by_username, organization_name, organization_display_name, organization_icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
 FROM
 	template_with_names AS templates
 WHERE
@@ -10728,6 +10738,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.UseClassicParameterFlow,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
+		&i.CreatedByName,
 		&i.OrganizationName,
 		&i.OrganizationDisplayName,
 		&i.OrganizationIcon,
@@ -10736,7 +10747,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, created_by_avatar_url, created_by_username, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
 ORDER BY (name, id) ASC
 `
 
@@ -10781,6 +10792,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.UseClassicParameterFlow,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
+			&i.CreatedByName,
 			&i.OrganizationName,
 			&i.OrganizationDisplayName,
 			&i.OrganizationIcon,
@@ -10800,7 +10812,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, created_by_avatar_url, created_by_username, organization_name, organization_display_name, organization_icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
 FROM
 	template_with_names AS templates
 WHERE
@@ -10903,6 +10915,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.UseClassicParameterFlow,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
+			&i.CreatedByName,
 			&i.OrganizationName,
 			&i.OrganizationDisplayName,
 			&i.OrganizationIcon,
@@ -11165,7 +11178,7 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 }
 
 const getTemplateVersionParameters = `-- name: GetTemplateVersionParameters :many
-SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral FROM template_version_parameters WHERE template_version_id = $1 ORDER BY display_order ASC, LOWER(name) ASC
+SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral, form_type FROM template_version_parameters WHERE template_version_id = $1 ORDER BY display_order ASC, LOWER(name) ASC
 `
 
 func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error) {
@@ -11195,6 +11208,7 @@ func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateV
 			&i.DisplayName,
 			&i.DisplayOrder,
 			&i.Ephemeral,
+			&i.FormType,
 		); err != nil {
 			return nil, err
 		}
@@ -11216,6 +11230,7 @@ INSERT INTO
         name,
         description,
         type,
+        form_type,
         mutable,
         default_value,
         icon,
@@ -11248,28 +11263,30 @@ VALUES
         $14,
         $15,
         $16,
-        $17
-    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral
+        $17,
+        $18
+    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral, form_type
 `
 
 type InsertTemplateVersionParameterParams struct {
-	TemplateVersionID   uuid.UUID       `db:"template_version_id" json:"template_version_id"`
-	Name                string          `db:"name" json:"name"`
-	Description         string          `db:"description" json:"description"`
-	Type                string          `db:"type" json:"type"`
-	Mutable             bool            `db:"mutable" json:"mutable"`
-	DefaultValue        string          `db:"default_value" json:"default_value"`
-	Icon                string          `db:"icon" json:"icon"`
-	Options             json.RawMessage `db:"options" json:"options"`
-	ValidationRegex     string          `db:"validation_regex" json:"validation_regex"`
-	ValidationMin       sql.NullInt32   `db:"validation_min" json:"validation_min"`
-	ValidationMax       sql.NullInt32   `db:"validation_max" json:"validation_max"`
-	ValidationError     string          `db:"validation_error" json:"validation_error"`
-	ValidationMonotonic string          `db:"validation_monotonic" json:"validation_monotonic"`
-	Required            bool            `db:"required" json:"required"`
-	DisplayName         string          `db:"display_name" json:"display_name"`
-	DisplayOrder        int32           `db:"display_order" json:"display_order"`
-	Ephemeral           bool            `db:"ephemeral" json:"ephemeral"`
+	TemplateVersionID   uuid.UUID         `db:"template_version_id" json:"template_version_id"`
+	Name                string            `db:"name" json:"name"`
+	Description         string            `db:"description" json:"description"`
+	Type                string            `db:"type" json:"type"`
+	FormType            ParameterFormType `db:"form_type" json:"form_type"`
+	Mutable             bool              `db:"mutable" json:"mutable"`
+	DefaultValue        string            `db:"default_value" json:"default_value"`
+	Icon                string            `db:"icon" json:"icon"`
+	Options             json.RawMessage   `db:"options" json:"options"`
+	ValidationRegex     string            `db:"validation_regex" json:"validation_regex"`
+	ValidationMin       sql.NullInt32     `db:"validation_min" json:"validation_min"`
+	ValidationMax       sql.NullInt32     `db:"validation_max" json:"validation_max"`
+	ValidationError     string            `db:"validation_error" json:"validation_error"`
+	ValidationMonotonic string            `db:"validation_monotonic" json:"validation_monotonic"`
+	Required            bool              `db:"required" json:"required"`
+	DisplayName         string            `db:"display_name" json:"display_name"`
+	DisplayOrder        int32             `db:"display_order" json:"display_order"`
+	Ephemeral           bool              `db:"ephemeral" json:"ephemeral"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error) {
@@ -11278,6 +11295,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		arg.Name,
 		arg.Description,
 		arg.Type,
+		arg.FormType,
 		arg.Mutable,
 		arg.DefaultValue,
 		arg.Icon,
@@ -11311,6 +11329,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		&i.DisplayName,
 		&i.DisplayOrder,
 		&i.Ephemeral,
+		&i.FormType,
 	)
 	return i, err
 }
@@ -11431,7 +11450,7 @@ func (q *sqlQuerier) ArchiveUnusedTemplateVersions(ctx context.Context, arg Arch
 
 const getPreviousTemplateVersion = `-- name: GetPreviousTemplateVersion :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -11471,13 +11490,14 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 		&i.SourceExampleID,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
+		&i.CreatedByName,
 	)
 	return i, err
 }
 
 const getTemplateVersionByID = `-- name: GetTemplateVersionByID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -11503,13 +11523,14 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 		&i.SourceExampleID,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
+		&i.CreatedByName,
 	)
 	return i, err
 }
 
 const getTemplateVersionByJobID = `-- name: GetTemplateVersionByJobID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -11535,13 +11556,14 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 		&i.SourceExampleID,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
+		&i.CreatedByName,
 	)
 	return i, err
 }
 
 const getTemplateVersionByTemplateIDAndName = `-- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -11573,13 +11595,14 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 		&i.SourceExampleID,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
+		&i.CreatedByName,
 	)
 	return i, err
 }
 
 const getTemplateVersionsByIDs = `-- name: GetTemplateVersionsByIDs :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -11611,6 +11634,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 			&i.SourceExampleID,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
+			&i.CreatedByName,
 		); err != nil {
 			return nil, err
 		}
@@ -11627,7 +11651,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 
 const getTemplateVersionsByTemplateID = `-- name: GetTemplateVersionsByTemplateID :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -11706,6 +11730,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 			&i.SourceExampleID,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
+			&i.CreatedByName,
 		); err != nil {
 			return nil, err
 		}
@@ -11721,7 +11746,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 }
 
 const getTemplateVersionsCreatedAfter = `-- name: GetTemplateVersionsCreatedAfter :many
-SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username FROM template_version_with_user AS template_versions WHERE created_at > $1
+SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username, created_by_name FROM template_version_with_user AS template_versions WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error) {
@@ -11749,6 +11774,7 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 			&i.SourceExampleID,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
+			&i.CreatedByName,
 		); err != nil {
 			return nil, err
 		}
@@ -14139,11 +14165,20 @@ func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold 
 	return err
 }
 
+const deleteWorkspaceSubAgentByID = `-- name: DeleteWorkspaceSubAgentByID :exec
+DELETE FROM workspace_agents WHERE id = $1 AND parent_id IS NOT NULL
+`
+
+func (q *sqlQuerier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkspaceSubAgentByID, id)
+	return err
+}
+
 const getWorkspaceAgentAndLatestBuildByAuthToken = `-- name: GetWorkspaceAgentAndLatestBuildByAuthToken :one
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at,
 	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope,
-	workspace_build_with_user.id, workspace_build_with_user.created_at, workspace_build_with_user.updated_at, workspace_build_with_user.workspace_id, workspace_build_with_user.template_version_id, workspace_build_with_user.build_number, workspace_build_with_user.transition, workspace_build_with_user.initiator_id, workspace_build_with_user.provisioner_state, workspace_build_with_user.job_id, workspace_build_with_user.deadline, workspace_build_with_user.reason, workspace_build_with_user.daily_cost, workspace_build_with_user.max_deadline, workspace_build_with_user.template_version_preset_id, workspace_build_with_user.initiator_by_avatar_url, workspace_build_with_user.initiator_by_username
+	workspace_build_with_user.id, workspace_build_with_user.created_at, workspace_build_with_user.updated_at, workspace_build_with_user.workspace_id, workspace_build_with_user.template_version_id, workspace_build_with_user.build_number, workspace_build_with_user.transition, workspace_build_with_user.initiator_id, workspace_build_with_user.provisioner_state, workspace_build_with_user.job_id, workspace_build_with_user.deadline, workspace_build_with_user.reason, workspace_build_with_user.daily_cost, workspace_build_with_user.max_deadline, workspace_build_with_user.template_version_preset_id, workspace_build_with_user.initiator_by_avatar_url, workspace_build_with_user.initiator_by_username, workspace_build_with_user.initiator_by_name
 FROM
 	workspace_agents
 JOIN
@@ -14251,6 +14286,7 @@ func (q *sqlQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Cont
 		&i.WorkspaceBuild.TemplateVersionPresetID,
 		&i.WorkspaceBuild.InitiatorByAvatarUrl,
 		&i.WorkspaceBuild.InitiatorByUsername,
+		&i.WorkspaceBuild.InitiatorByName,
 	)
 	return i, err
 }
@@ -14556,6 +14592,67 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context
 			&i.DisplayName,
 			&i.WorkspaceAgentID,
 			&i.WorkspaceAgentName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceAgentsByParentID = `-- name: GetWorkspaceAgentsByParentID :many
+SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order, parent_id, api_key_scope FROM workspace_agents WHERE parent_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentsByParentID(ctx context.Context, parentID uuid.UUID) ([]WorkspaceAgent, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentsByParentID, parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgent
+	for rows.Next() {
+		var i WorkspaceAgent
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+			&i.FirstConnectedAt,
+			&i.LastConnectedAt,
+			&i.DisconnectedAt,
+			&i.ResourceID,
+			&i.AuthToken,
+			&i.AuthInstanceID,
+			&i.Architecture,
+			&i.EnvironmentVariables,
+			&i.OperatingSystem,
+			&i.InstanceMetadata,
+			&i.ResourceMetadata,
+			&i.Directory,
+			&i.Version,
+			&i.LastConnectedReplicaID,
+			&i.ConnectionTimeoutSeconds,
+			&i.TroubleshootingURL,
+			&i.MOTDFile,
+			&i.LifecycleState,
+			&i.ExpandedDirectory,
+			&i.LogsLength,
+			&i.LogsOverflowed,
+			&i.StartedAt,
+			&i.ReadyAt,
+			pq.Array(&i.Subsystems),
+			pq.Array(&i.DisplayApps),
+			&i.APIVersion,
+			&i.DisplayOrder,
+			&i.ParentID,
+			&i.APIKeyScope,
 		); err != nil {
 			return nil, err
 		}
@@ -16206,7 +16303,7 @@ func (q *sqlQuerier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Con
 }
 
 const getWorkspaceAppByAgentIDAndSlug = `-- name: GetWorkspaceAppByAgentIDAndSlug :one
-SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in FROM workspace_apps WHERE agent_id = $1 AND slug = $2
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group FROM workspace_apps WHERE agent_id = $1 AND slug = $2
 `
 
 type GetWorkspaceAppByAgentIDAndSlugParams struct {
@@ -16236,6 +16333,7 @@ func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg Ge
 		&i.DisplayOrder,
 		&i.Hidden,
 		&i.OpenIn,
+		&i.DisplayGroup,
 	)
 	return i, err
 }
@@ -16277,7 +16375,7 @@ func (q *sqlQuerier) GetWorkspaceAppStatusesByAppIDs(ctx context.Context, ids []
 }
 
 const getWorkspaceAppsByAgentID = `-- name: GetWorkspaceAppsByAgentID :many
-SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in FROM workspace_apps WHERE agent_id = $1 ORDER BY slug ASC
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group FROM workspace_apps WHERE agent_id = $1 ORDER BY slug ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceApp, error) {
@@ -16308,6 +16406,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid
 			&i.DisplayOrder,
 			&i.Hidden,
 			&i.OpenIn,
+			&i.DisplayGroup,
 		); err != nil {
 			return nil, err
 		}
@@ -16323,7 +16422,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid
 }
 
 const getWorkspaceAppsByAgentIDs = `-- name: GetWorkspaceAppsByAgentIDs :many
-SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ]) ORDER BY slug ASC
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ]) ORDER BY slug ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceApp, error) {
@@ -16354,6 +16453,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.
 			&i.DisplayOrder,
 			&i.Hidden,
 			&i.OpenIn,
+			&i.DisplayGroup,
 		); err != nil {
 			return nil, err
 		}
@@ -16369,7 +16469,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.
 }
 
 const getWorkspaceAppsCreatedAfter = `-- name: GetWorkspaceAppsCreatedAfter :many
-SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in FROM workspace_apps WHERE created_at > $1 ORDER BY slug ASC
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group FROM workspace_apps WHERE created_at > $1 ORDER BY slug ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceApp, error) {
@@ -16400,6 +16500,7 @@ func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt
 			&i.DisplayOrder,
 			&i.Hidden,
 			&i.OpenIn,
+			&i.DisplayGroup,
 		); err != nil {
 			return nil, err
 		}
@@ -16434,10 +16535,11 @@ INSERT INTO
         health,
         display_order,
         hidden,
-        open_in
+        open_in,
+        display_group
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group
 `
 
 type InsertWorkspaceAppParams struct {
@@ -16459,6 +16561,7 @@ type InsertWorkspaceAppParams struct {
 	DisplayOrder         int32              `db:"display_order" json:"display_order"`
 	Hidden               bool               `db:"hidden" json:"hidden"`
 	OpenIn               WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
+	DisplayGroup         sql.NullString     `db:"display_group" json:"display_group"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error) {
@@ -16481,6 +16584,7 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 		arg.DisplayOrder,
 		arg.Hidden,
 		arg.OpenIn,
+		arg.DisplayGroup,
 	)
 	var i WorkspaceApp
 	err := row.Scan(
@@ -16502,6 +16606,7 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 		&i.DisplayOrder,
 		&i.Hidden,
 		&i.OpenIn,
+		&i.DisplayGroup,
 	)
 	return i, err
 }
@@ -16748,7 +16853,7 @@ func (q *sqlQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg Ins
 }
 
 const getActiveWorkspaceBuildsByTemplateID = `-- name: GetActiveWorkspaceBuildsByTemplateID :many
-SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline, wb.template_version_preset_id, wb.initiator_by_avatar_url, wb.initiator_by_username
+SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline, wb.template_version_preset_id, wb.initiator_by_avatar_url, wb.initiator_by_username, wb.initiator_by_name
 FROM (
     SELECT
         workspace_id, MAX(build_number) as max_build_number
@@ -16805,6 +16910,7 @@ func (q *sqlQuerier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, t
 			&i.TemplateVersionPresetID,
 			&i.InitiatorByAvatarUrl,
 			&i.InitiatorByUsername,
+			&i.InitiatorByName,
 		); err != nil {
 			return nil, err
 		}
@@ -16901,7 +17007,7 @@ func (q *sqlQuerier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, a
 
 const getLatestWorkspaceBuildByWorkspaceID = `-- name: GetLatestWorkspaceBuildByWorkspaceID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, initiator_by_avatar_url, initiator_by_username
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, initiator_by_avatar_url, initiator_by_username, initiator_by_name
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -16933,12 +17039,13 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 		&i.TemplateVersionPresetID,
 		&i.InitiatorByAvatarUrl,
 		&i.InitiatorByUsername,
+		&i.InitiatorByName,
 	)
 	return i, err
 }
 
 const getLatestWorkspaceBuilds = `-- name: GetLatestWorkspaceBuilds :many
-SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline, wb.template_version_preset_id, wb.initiator_by_avatar_url, wb.initiator_by_username
+SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline, wb.template_version_preset_id, wb.initiator_by_avatar_url, wb.initiator_by_username, wb.initiator_by_name
 FROM (
     SELECT
         workspace_id, MAX(build_number) as max_build_number
@@ -16979,6 +17086,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceB
 			&i.TemplateVersionPresetID,
 			&i.InitiatorByAvatarUrl,
 			&i.InitiatorByUsername,
+			&i.InitiatorByName,
 		); err != nil {
 			return nil, err
 		}
@@ -16994,7 +17102,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceB
 }
 
 const getLatestWorkspaceBuildsByWorkspaceIDs = `-- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many
-SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline, wb.template_version_preset_id, wb.initiator_by_avatar_url, wb.initiator_by_username
+SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline, wb.template_version_preset_id, wb.initiator_by_avatar_url, wb.initiator_by_username, wb.initiator_by_name
 FROM (
     SELECT
         workspace_id, MAX(build_number) as max_build_number
@@ -17037,6 +17145,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context,
 			&i.TemplateVersionPresetID,
 			&i.InitiatorByAvatarUrl,
 			&i.InitiatorByUsername,
+			&i.InitiatorByName,
 		); err != nil {
 			return nil, err
 		}
@@ -17053,7 +17162,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context,
 
 const getWorkspaceBuildByID = `-- name: GetWorkspaceBuildByID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, initiator_by_avatar_url, initiator_by_username
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, initiator_by_avatar_url, initiator_by_username, initiator_by_name
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -17083,13 +17192,14 @@ func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (W
 		&i.TemplateVersionPresetID,
 		&i.InitiatorByAvatarUrl,
 		&i.InitiatorByUsername,
+		&i.InitiatorByName,
 	)
 	return i, err
 }
 
 const getWorkspaceBuildByJobID = `-- name: GetWorkspaceBuildByJobID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, initiator_by_avatar_url, initiator_by_username
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, initiator_by_avatar_url, initiator_by_username, initiator_by_name
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -17119,13 +17229,14 @@ func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UU
 		&i.TemplateVersionPresetID,
 		&i.InitiatorByAvatarUrl,
 		&i.InitiatorByUsername,
+		&i.InitiatorByName,
 	)
 	return i, err
 }
 
 const getWorkspaceBuildByWorkspaceIDAndBuildNumber = `-- name: GetWorkspaceBuildByWorkspaceIDAndBuildNumber :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, initiator_by_avatar_url, initiator_by_username
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, initiator_by_avatar_url, initiator_by_username, initiator_by_name
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -17159,6 +17270,7 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Co
 		&i.TemplateVersionPresetID,
 		&i.InitiatorByAvatarUrl,
 		&i.InitiatorByUsername,
+		&i.InitiatorByName,
 	)
 	return i, err
 }
@@ -17232,7 +17344,7 @@ func (q *sqlQuerier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, sinc
 
 const getWorkspaceBuildsByWorkspaceID = `-- name: GetWorkspaceBuildsByWorkspaceID :many
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, initiator_by_avatar_url, initiator_by_username
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, initiator_by_avatar_url, initiator_by_username, initiator_by_name
 FROM
 	workspace_build_with_user AS workspace_builds
 WHERE
@@ -17305,6 +17417,7 @@ func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg Ge
 			&i.TemplateVersionPresetID,
 			&i.InitiatorByAvatarUrl,
 			&i.InitiatorByUsername,
+			&i.InitiatorByName,
 		); err != nil {
 			return nil, err
 		}
@@ -17320,7 +17433,7 @@ func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg Ge
 }
 
 const getWorkspaceBuildsCreatedAfter = `-- name: GetWorkspaceBuildsCreatedAfter :many
-SELECT id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, initiator_by_avatar_url, initiator_by_username FROM workspace_build_with_user WHERE created_at > $1
+SELECT id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, template_version_preset_id, initiator_by_avatar_url, initiator_by_username, initiator_by_name FROM workspace_build_with_user WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceBuild, error) {
@@ -17350,6 +17463,7 @@ func (q *sqlQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, created
 			&i.TemplateVersionPresetID,
 			&i.InitiatorByAvatarUrl,
 			&i.InitiatorByUsername,
+			&i.InitiatorByName,
 		); err != nil {
 			return nil, err
 		}
@@ -18079,7 +18193,7 @@ func (q *sqlQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploy
 
 const getWorkspaceByAgentID = `-- name: GetWorkspaceByAgentID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, owner_avatar_url, owner_username, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
 FROM
 	workspaces_expanded as workspaces
 WHERE
@@ -18129,6 +18243,7 @@ func (q *sqlQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUI
 		&i.NextStartAt,
 		&i.OwnerAvatarUrl,
 		&i.OwnerUsername,
+		&i.OwnerName,
 		&i.OrganizationName,
 		&i.OrganizationDisplayName,
 		&i.OrganizationIcon,
@@ -18143,7 +18258,7 @@ func (q *sqlQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUI
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, owner_avatar_url, owner_username, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
 FROM
 	workspaces_expanded
 WHERE
@@ -18174,6 +18289,7 @@ func (q *sqlQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Worksp
 		&i.NextStartAt,
 		&i.OwnerAvatarUrl,
 		&i.OwnerUsername,
+		&i.OwnerName,
 		&i.OrganizationName,
 		&i.OrganizationDisplayName,
 		&i.OrganizationIcon,
@@ -18188,7 +18304,7 @@ func (q *sqlQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Worksp
 
 const getWorkspaceByOwnerIDAndName = `-- name: GetWorkspaceByOwnerIDAndName :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, owner_avatar_url, owner_username, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
 FROM
 	workspaces_expanded as workspaces
 WHERE
@@ -18226,6 +18342,7 @@ func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWo
 		&i.NextStartAt,
 		&i.OwnerAvatarUrl,
 		&i.OwnerUsername,
+		&i.OwnerName,
 		&i.OrganizationName,
 		&i.OrganizationDisplayName,
 		&i.OrganizationIcon,
@@ -18240,7 +18357,7 @@ func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWo
 
 const getWorkspaceByResourceID = `-- name: GetWorkspaceByResourceID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, owner_avatar_url, owner_username, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
 FROM
 	workspaces_expanded as workspaces
 WHERE
@@ -18285,6 +18402,7 @@ func (q *sqlQuerier) GetWorkspaceByResourceID(ctx context.Context, resourceID uu
 		&i.NextStartAt,
 		&i.OwnerAvatarUrl,
 		&i.OwnerUsername,
+		&i.OwnerName,
 		&i.OrganizationName,
 		&i.OrganizationDisplayName,
 		&i.OrganizationIcon,
@@ -18299,7 +18417,7 @@ func (q *sqlQuerier) GetWorkspaceByResourceID(ctx context.Context, resourceID uu
 
 const getWorkspaceByWorkspaceAppID = `-- name: GetWorkspaceByWorkspaceAppID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, owner_avatar_url, owner_username, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description
 FROM
 	workspaces_expanded as workspaces
 WHERE
@@ -18356,6 +18474,7 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 		&i.NextStartAt,
 		&i.OwnerAvatarUrl,
 		&i.OwnerUsername,
+		&i.OwnerName,
 		&i.OrganizationName,
 		&i.OrganizationDisplayName,
 		&i.OrganizationIcon,
@@ -18413,7 +18532,7 @@ SELECT
 ),
 filtered_workspaces AS (
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.owner_avatar_url, workspaces.owner_username, workspaces.organization_name, workspaces.organization_display_name, workspaces.organization_icon, workspaces.organization_description, workspaces.template_name, workspaces.template_display_name, workspaces.template_icon, workspaces.template_description,
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.owner_avatar_url, workspaces.owner_username, workspaces.owner_name, workspaces.organization_name, workspaces.organization_display_name, workspaces.organization_icon, workspaces.organization_description, workspaces.template_name, workspaces.template_display_name, workspaces.template_icon, workspaces.template_description,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
 	latest_build.completed_at as latest_build_completed_at,
@@ -18653,7 +18772,7 @@ WHERE
 	-- @authorize_filter
 ), filtered_workspaces_order AS (
 	SELECT
-		fw.id, fw.created_at, fw.updated_at, fw.owner_id, fw.organization_id, fw.template_id, fw.deleted, fw.name, fw.autostart_schedule, fw.ttl, fw.last_used_at, fw.dormant_at, fw.deleting_at, fw.automatic_updates, fw.favorite, fw.next_start_at, fw.owner_avatar_url, fw.owner_username, fw.organization_name, fw.organization_display_name, fw.organization_icon, fw.organization_description, fw.template_name, fw.template_display_name, fw.template_icon, fw.template_description, fw.template_version_id, fw.template_version_name, fw.latest_build_completed_at, fw.latest_build_canceled_at, fw.latest_build_error, fw.latest_build_transition, fw.latest_build_status
+		fw.id, fw.created_at, fw.updated_at, fw.owner_id, fw.organization_id, fw.template_id, fw.deleted, fw.name, fw.autostart_schedule, fw.ttl, fw.last_used_at, fw.dormant_at, fw.deleting_at, fw.automatic_updates, fw.favorite, fw.next_start_at, fw.owner_avatar_url, fw.owner_username, fw.owner_name, fw.organization_name, fw.organization_display_name, fw.organization_icon, fw.organization_description, fw.template_name, fw.template_display_name, fw.template_icon, fw.template_description, fw.template_version_id, fw.template_version_name, fw.latest_build_completed_at, fw.latest_build_canceled_at, fw.latest_build_error, fw.latest_build_transition, fw.latest_build_status
 	FROM
 		filtered_workspaces fw
 	ORDER BY
@@ -18674,7 +18793,7 @@ WHERE
 		$20
 ), filtered_workspaces_order_with_summary AS (
 	SELECT
-		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.next_start_at, fwo.owner_avatar_url, fwo.owner_username, fwo.organization_name, fwo.organization_display_name, fwo.organization_icon, fwo.organization_description, fwo.template_name, fwo.template_display_name, fwo.template_icon, fwo.template_description, fwo.template_version_id, fwo.template_version_name, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status
+		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.next_start_at, fwo.owner_avatar_url, fwo.owner_username, fwo.owner_name, fwo.organization_name, fwo.organization_display_name, fwo.organization_icon, fwo.organization_description, fwo.template_name, fwo.template_display_name, fwo.template_icon, fwo.template_description, fwo.template_version_id, fwo.template_version_name, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status
 	FROM
 		filtered_workspaces_order fwo
 	-- Return a technical summary row with total count of workspaces.
@@ -18699,6 +18818,7 @@ WHERE
 		'0001-01-01 00:00:00+00'::timestamptz, -- next_start_at
 		'', -- owner_avatar_url
 		'', -- owner_username
+		'', -- owner_name
 		'', -- organization_name
 		'', -- organization_display_name
 		'', -- organization_icon
@@ -18724,7 +18844,7 @@ WHERE
 		filtered_workspaces
 )
 SELECT
-	fwos.id, fwos.created_at, fwos.updated_at, fwos.owner_id, fwos.organization_id, fwos.template_id, fwos.deleted, fwos.name, fwos.autostart_schedule, fwos.ttl, fwos.last_used_at, fwos.dormant_at, fwos.deleting_at, fwos.automatic_updates, fwos.favorite, fwos.next_start_at, fwos.owner_avatar_url, fwos.owner_username, fwos.organization_name, fwos.organization_display_name, fwos.organization_icon, fwos.organization_description, fwos.template_name, fwos.template_display_name, fwos.template_icon, fwos.template_description, fwos.template_version_id, fwos.template_version_name, fwos.latest_build_completed_at, fwos.latest_build_canceled_at, fwos.latest_build_error, fwos.latest_build_transition, fwos.latest_build_status,
+	fwos.id, fwos.created_at, fwos.updated_at, fwos.owner_id, fwos.organization_id, fwos.template_id, fwos.deleted, fwos.name, fwos.autostart_schedule, fwos.ttl, fwos.last_used_at, fwos.dormant_at, fwos.deleting_at, fwos.automatic_updates, fwos.favorite, fwos.next_start_at, fwos.owner_avatar_url, fwos.owner_username, fwos.owner_name, fwos.organization_name, fwos.organization_display_name, fwos.organization_icon, fwos.organization_description, fwos.template_name, fwos.template_display_name, fwos.template_icon, fwos.template_description, fwos.template_version_id, fwos.template_version_name, fwos.latest_build_completed_at, fwos.latest_build_canceled_at, fwos.latest_build_error, fwos.latest_build_transition, fwos.latest_build_status,
 	tc.count
 FROM
 	filtered_workspaces_order_with_summary fwos
@@ -18776,6 +18896,7 @@ type GetWorkspacesRow struct {
 	NextStartAt             sql.NullTime         `db:"next_start_at" json:"next_start_at"`
 	OwnerAvatarUrl          string               `db:"owner_avatar_url" json:"owner_avatar_url"`
 	OwnerUsername           string               `db:"owner_username" json:"owner_username"`
+	OwnerName               string               `db:"owner_name" json:"owner_name"`
 	OrganizationName        string               `db:"organization_name" json:"organization_name"`
 	OrganizationDisplayName string               `db:"organization_display_name" json:"organization_display_name"`
 	OrganizationIcon        string               `db:"organization_icon" json:"organization_icon"`
@@ -18848,6 +18969,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.NextStartAt,
 			&i.OwnerAvatarUrl,
 			&i.OwnerUsername,
+			&i.OwnerName,
 			&i.OrganizationName,
 			&i.OrganizationDisplayName,
 			&i.OrganizationIcon,

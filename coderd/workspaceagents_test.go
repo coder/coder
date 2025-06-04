@@ -1483,7 +1483,7 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 
 				ctx := testutil.Context(t, testutil.WaitLong)
 
-				err := client.WorkspaceAgentRecreateDevcontainer(ctx, agentID, devContainer.ID)
+				_, err := client.WorkspaceAgentRecreateDevcontainer(ctx, agentID, devContainer.ID)
 				if wantStatus > 0 {
 					cerr, ok := codersdk.AsError(err)
 					require.True(t, ok, "expected error to be a coder error")
@@ -2613,7 +2613,7 @@ func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCA
 }
 
 func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup *agentproto.Startup) error {
-	aAPI, _, err := client.ConnectRPC25(ctx)
+	aAPI, _, err := client.ConnectRPC26(ctx)
 	require.NoError(t, err)
 	defer func() {
 		cErr := aAPI.DRPCConn().Close()

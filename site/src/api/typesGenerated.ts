@@ -774,6 +774,7 @@ export const DisplayApps: DisplayApp[] = [
 export interface DynamicParametersRequest {
 	readonly id: number;
 	readonly inputs: Record<string, string>;
+	readonly owner_id?: string;
 }
 
 // From codersdk/parameters.go
@@ -826,6 +827,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
+	| "ai-tasks"
 	| "agentic-chat"
 	| "auto-fill-parameters"
 	| "dynamic-parameters"
@@ -2817,6 +2819,7 @@ export interface TemplateVersionParameter {
 	readonly description: string;
 	readonly description_plaintext: string;
 	readonly type: string;
+	readonly form_type: string;
 	readonly mutable: boolean;
 	readonly default_value: string;
 	readonly icon: string;
@@ -3351,6 +3354,7 @@ export interface WorkspaceAgentContainer {
 	readonly ports: readonly WorkspaceAgentContainerPort[];
 	readonly status: string;
 	readonly volumes: Record<string, string>;
+	readonly devcontainer_status?: WorkspaceAgentDevcontainerStatus;
 	readonly devcontainer_dirty: boolean;
 }
 
@@ -3554,6 +3558,7 @@ export interface WorkspaceApp {
 	readonly sharing_level: WorkspaceAppSharingLevel;
 	readonly healthcheck?: Healthcheck;
 	readonly health: WorkspaceAppHealth;
+	readonly group?: string;
 	readonly hidden: boolean;
 	readonly open_in: WorkspaceAppOpenIn;
 	readonly statuses: readonly WorkspaceAppStatus[];
