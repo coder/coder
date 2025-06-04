@@ -563,8 +563,8 @@ func (u *updater) stop() error {
 		return nil
 	}
 	err := u.conn.Close()
-	u.conn = nil
 	u.cancel()
+	u.conn = nil
 	return err
 }
 
@@ -630,6 +630,13 @@ func (u *updater) recordLatency() {
 				u.logger.Warn(u.ctx, "failed to ping agent", slog.F("agent_id", agentID), slog.Error(err))
 				return
 			}
+
+			u.mu.Lock()
+			defer u.mu.Unlock()
+			if u.conn == nil {
+				u.logger.Debug(u.ctx, "ignoring ping result as connection is closed", slog.F("agent_id", agentID))
+				return
+			}
 			node := u.conn.Node()
 			derpMap := u.conn.DERPMap()
 			derpLatencies := tailnet.ExtractDERPLatency(node, derpMap)
@@ -640,8 +647,6 @@ func (u *updater) recordLatency() {
 			} else {
 				u.logger.Debug(u.ctx, "preferred DERP not found in DERP latency map", slog.F("preferred_derp", preferredDerp))
 			}
-			u.mu.Lock()
-			defer u.mu.Unlock()
 			if agent, ok := u.agents[agentID]; ok {
 				agent.lastPing = &lastPing{
 					pingDur:              pingDur,
