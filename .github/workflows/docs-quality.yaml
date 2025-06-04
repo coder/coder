@@ -1,0 +1,261 @@
+name: Documentation Quality
+
+on:
+  pull_request:
+    paths:
+      - "docs/**"
+      - "*.md"
+      - ".vale.ini"
+      - ".vale/**"
+      - ".markdownlint.jsonc"
+      - ".github/workflows/docs-quality.yaml"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# Cancel in-progress runs for pull requests when developers push additional changes
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      docs-only: ${{ steps.scope.outputs.docs_only }}
+      check-mode: ${{ steps.analysis.outputs.check_mode }}
+      changed-files: ${{ steps.analysis.outputs.changed_files }}
+      full-check-reason: ${{ steps.analysis.outputs.full_check_reason }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0  # Need full history for accurate change detection
+
+      - name: Check if docs-only changes
+        id: scope
+        uses: tj-actions/changed-files@3981e4f74104e7a4c67a835e1e5dd5d9eb0f0a57 # v45.0.7
+        with:
+          files_yaml: |
+            docs:
+              - docs/**
+              - "*.md"
+            non_docs:
+              - "**"
+              - "!docs/**"
+              - "!*.md"
+              - "!.vale.ini"
+              - "!.vale/**"
+              - "!.markdownlint.jsonc"
+              - "!.github/workflows/docs-quality.yaml"
+
+      - name: Analyze documentation changes
+        id: analysis
+        if: steps.scope.outputs.docs_any_changed == 'true'
+        uses: tj-actions/changed-files@3981e4f74104e7a4c67a835e1e5dd5d9eb0f0a57 # v45.0.7
+        with:
+          files_yaml: |
+            # Files that trigger full checks
+            navigation:
+              - docs/manifest.json
+            shared_assets:
+              - docs/images/**
+            cross_reference_heavy:
+              - docs/admin/index.md
+              - docs/user-guides/index.md
+              - docs/tutorials/index.md
+              - docs/reference/index.md
+              - README.md
+            
+            # All markdown files for content analysis
+            all_markdown:
+              - docs/**/*.md
+              - "*.md"
+              
+          # Get detailed file information
+          include_all_old_new_renamed_files: true
+          files_separator: " "
+
+      - name: Determine check mode
+        id: determine-mode
+        if: steps.scope.outputs.docs_any_changed == 'true'
+        run: |
+          # Set docs_only output
+          if [[ "${{ steps.scope.outputs.non_docs_any_changed }}" == "false" ]]; then
+            echo "docs_only=true" >> $GITHUB_OUTPUT
+          else
+            echo "docs_only=false" >> $GITHUB_OUTPUT
+            exit 0  # Skip docs checks if not docs-only
+          fi
+          
+          # Initialize variables
+          CHECK_MODE="incremental"
+          FULL_CHECK_REASON=""
+          CHANGED_FILES="${{ steps.analysis.outputs.all_markdown_all_changed_files }}"
+          
+          # Check for full-check triggers
+          
+          # 1. Navigation/manifest changes
+          if [[ "${{ steps.analysis.outputs.navigation_any_changed }}" == "true" ]]; then
+            CHECK_MODE="full"
+            FULL_CHECK_REASON="Navigation structure changed (manifest.json)"
+          fi
+          
+          # 2. Shared assets changes  
+          if [[ "${{ steps.analysis.outputs.shared_assets_any_changed }}" == "true" ]]; then
+            CHECK_MODE="full"
+            FULL_CHECK_REASON="Shared assets changed (images)"
+          fi
+          
+          # 3. Cross-reference heavy files
+          if [[ "${{ steps.analysis.outputs.cross_reference_heavy_any_changed }}" == "true" ]]; then
+            CHECK_MODE="full"
+            FULL_CHECK_REASON="Cross-reference heavy files changed"
+          fi
+          
+          # 4. File renames or deletions
+          if [[ -n "${{ steps.analysis.outputs.all_markdown_deleted_files }}" ]] || \
+             [[ -n "${{ steps.analysis.outputs.all_markdown_renamed_files }}" ]]; then
+            CHECK_MODE="full"
+            FULL_CHECK_REASON="Files renamed or deleted"
+          fi
+          
+          # 5. Check for heading changes in modified files
+          if [[ "$CHECK_MODE" == "incremental" ]]; then
+            echo "Checking for heading changes..."
+            
+            # Get list of modified files (not added/deleted)
+            MODIFIED_FILES="${{ steps.analysis.outputs.all_markdown_modified_files }}"
+            
+            if [[ -n "$MODIFIED_FILES" ]]; then
+              # Check each modified file for heading changes
+              for file in $MODIFIED_FILES; do
+                if [[ -f "$file" ]]; then
+                  # Check if any lines starting with # were changed
+                  if git diff HEAD~1 HEAD -- "$file" | grep -E "^[+-]#+\s" > /dev/null; then
+                    CHECK_MODE="full"
+                    FULL_CHECK_REASON="Heading changes detected in $file"
+                    break
+                  fi
+                  
+                  # Check for anchor link changes [text](#anchor)
+                  if git diff HEAD~1 HEAD -- "$file" | grep -E "^[+-].*\[.*\]\(#.*\)" > /dev/null; then
+                    CHECK_MODE="full"
+                    FULL_CHECK_REASON="Anchor link changes detected in $file"
+                    break
+                  fi
+                fi
+              done
+            fi
+          fi
+          
+          # 6. Check for directory restructuring
+          if [[ "$CHECK_MODE" == "incremental" ]]; then
+            # If files moved between directories
+            RENAMED_FILES="${{ steps.analysis.outputs.all_markdown_renamed_files }}"
+            if [[ -n "$RENAMED_FILES" ]]; then
+              for rename_info in $RENAMED_FILES; do
+                old_file=$(echo "$rename_info" | cut -d',' -f1)
+                new_file=$(echo "$rename_info" | cut -d',' -f2)
+                old_dir=$(dirname "$old_file")
+                new_dir=$(dirname "$new_file")
+                
+                if [[ "$old_dir" != "$new_dir" ]]; then
+                  CHECK_MODE="full"
+                  FULL_CHECK_REASON="Directory restructuring detected"
+                  break
+                fi
+              done
+            fi
+          fi
+          
+          # Output results
+          echo "check_mode=$CHECK_MODE" >> $GITHUB_OUTPUT
+          echo "full_check_reason=$FULL_CHECK_REASON" >> $GITHUB_OUTPUT
+          echo "changed_files=$CHANGED_FILES" >> $GITHUB_OUTPUT
+          
+          # Debug output
+          echo "::notice::Check mode: $CHECK_MODE"
+          if [[ -n "$FULL_CHECK_REASON" ]]; then
+            echo "::notice::Full check reason: $FULL_CHECK_REASON"
+          fi
+
+  docs-check:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.docs-only == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Install Vale
+        run: |
+          wget -O vale.tar.gz https://github.com/errata-ai/vale/releases/download/v3.0.7/vale_3.0.7_Linux_64-bit.tar.gz
+          tar -xzf vale.tar.gz
+          sudo mv vale /usr/local/bin/
+          
+      - name: Install Vale styles
+        run: |
+          vale sync
+
+      - name: Run incremental checks
+        if: needs.detect-changes.outputs.check-mode == 'incremental'
+        run: |
+          echo "Running incremental checks on changed files only"
+          CHANGED_FILES="${{ needs.detect-changes.outputs.changed-files }}"
+          
+          if [[ -n "$CHANGED_FILES" ]]; then
+            echo "Changed files: $CHANGED_FILES"
+            
+            # Run markdownlint on changed files
+            echo "::group::Markdownlint (incremental)"
+            echo "$CHANGED_FILES" | tr ' ' '\n' | xargs pnpm exec markdownlint-cli2 --config .markdownlint.jsonc
+            echo "::endgroup::"
+            
+            # Run markdown-table-formatter on changed files
+            echo "::group::Table formatter (incremental)"
+            echo "$CHANGED_FILES" | tr ' ' '\n' | xargs pnpm exec markdown-table-formatter --check
+            echo "::endgroup::"
+            
+            # Run Vale on changed files (excluding generated docs)
+            echo "::group::Vale (incremental)"
+            echo "$CHANGED_FILES" | tr ' ' '\n' | grep -v -E "(docs/reference/api/|docs/changelogs/)" | xargs -r vale --config .vale.ini
+            echo "::endgroup::"
+          else
+            echo "No markdown files changed"
+          fi
+
+      - name: Run full checks
+        if: needs.detect-changes.outputs.check-mode == 'full'
+        run: |
+          echo "Running full documentation checks"
+          echo "Reason: ${{ needs.detect-changes.outputs.full-check-reason }}"
+          
+          # Run full markdownlint and Vale
+          echo "::group::Full documentation linting"
+          make lint/markdown
+          echo "::endgroup::"
+          
+          # Run full table formatting check
+          echo "::group::Table formatter (full)"
+          make fmt/markdown
+          echo "::endgroup::"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Documentation Check Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Scope**: Docs-only changes" >> $GITHUB_STEP_SUMMARY
+          echo "- **Check mode**: ${{ needs.detect-changes.outputs.check-mode }}" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ needs.detect-changes.outputs.check-mode }}" == "full" ]]; then
+            echo "- **Full check reason**: ${{ needs.detect-changes.outputs.full-check-reason }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "- **Changed files**: ${{ needs.detect-changes.outputs.changed-files }}" >> $GITHUB_STEP_SUMMARY

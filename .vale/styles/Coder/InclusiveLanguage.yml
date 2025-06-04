@@ -1,0 +1,11 @@
+extends: substitution
+message: "Consider using '%s' instead of '%s'"
+level: error
+swap:
+  # Inclusive language - these should error
+  whitelist: allowlist
+  blacklist: denylist
+  "master branch": "main branch"
+  "Master branch": "Main branch"
+  "slave": "replica"
+  "Slave": "Replica"

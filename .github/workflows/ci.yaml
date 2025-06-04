@@ -206,7 +206,8 @@ jobs:
 
       - name: make lint
         run: |
-          make --output-sync=line -j lint
+          # Exclude markdown linting since it's handled by docs-quality workflow
+          make --output-sync=line -j lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons
 
       - name: Check workflow files
         run: |
