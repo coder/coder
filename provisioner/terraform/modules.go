@@ -103,6 +103,13 @@ func GetModulesArchive(root fs.FS) ([]byte, error) {
 			if !fileMode.IsRegular() && !fileMode.IsDir() {
 				return nil
 			}
+
+			// .git directories are not needed in the archive and only cause
+			// hash differences for identical modules.
+			if fileMode.IsDir() && d.Name() == ".git" {
+				return fs.SkipDir
+			}
+
 			fileInfo, err := d.Info()
 			if err != nil {
 				return xerrors.Errorf("failed to archive module file %q: %w", filePath, err)
