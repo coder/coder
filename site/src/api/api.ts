@@ -234,7 +234,7 @@ export const watchWorkspaceAgentLogs = (
 	/**
 	 * WebSocket compression in Safari (confirmed in 16.5) is broken when
 	 * the server sends large messages. The following error is seen:
-	 * WebSocket connection to 'wss://...' failed: The operation couldn’t be completed.
+	 * WebSocket connection to 'wss://...' failed: The operation couldn't be completed.
 	 */
 	if (userAgentParser(navigator.userAgent).browser.name === "Safari") {
 		searchParams.set("no_compression", "");
@@ -2146,11 +2146,17 @@ class ApiMethods {
 		await this.axios.delete(`/api/v2/licenses/${licenseId}`);
 	};
 
-	getDynamicParameters = async (templateVersionId: string, ownerId: string) => {
+	getDynamicParameters = async (
+		templateVersionId: string,
+		ownerId: string,
+		oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
+	) => {
 		const request: DynamicParametersRequest = {
 			id: 1,
 			owner_id: ownerId,
-			inputs: {},
+			inputs: Object.fromEntries(
+				new Map(oldBuildParameters.map((param) => [param.name, param.value])),
+			),
 		};
 
 		const dynamicParametersResponse =
@@ -2196,6 +2202,7 @@ class ApiMethods {
 			templateParameters = await this.getDynamicParameters(
 				templateVersionId,
 				workspace.owner_id,
+				currentBuildParameters,
 			);
 		} else {
 			templateParameters =
@@ -2246,6 +2253,7 @@ class ApiMethods {
 			templateParameters = await this.getDynamicParameters(
 				activeVersionId,
 				workspace.owner_id,
+				oldBuildParameters,
 			);
 		} else {
 			templateParameters =
