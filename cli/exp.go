@@ -16,6 +16,7 @@ func (r *RootCmd) expCmd() *serpent.Command {
 			r.mcpCommand(),
 			r.promptExample(),
 			r.rptyCommand(),
+			r.taskCommand(),
 		},
 	}
 	return cmd
