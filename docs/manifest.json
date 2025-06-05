@@ -32,7 +32,7 @@
 				{
 					"title": "Contributing",
 					"description": "Learn how to contribute to Coder",
-					"path": "./CONTRIBUTING.md",
+					"path": "./about/contributing/CONTRIBUTING.md",
 					"icon_path": "./images/icons/contributing.svg",
 					"children": [
 						{
