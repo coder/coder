@@ -126,7 +126,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 			default:
 				return codersdk.ValidationError{
 					Field:  "share",
-					Detail: fmt.Sprint("%q is not a valid app sharing level"),
+					Detail: fmt.Sprintf("%q is not a valid app sharing level", app.GetShare()),
 				}
 			}
 
@@ -139,7 +139,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 			default:
 				return codersdk.ValidationError{
 					Field:  "open_in",
-					Detail: fmt.Sprint("%q is not an open in setting"),
+					Detail: fmt.Sprintf("%q is not an open in setting", app.GetOpenIn()),
 				}
 			}
 
