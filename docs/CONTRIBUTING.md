@@ -4,8 +4,8 @@
 
 <div class="tabs">
 
-We recommend that you use [Nix](https://nix.dev/) package manager to
-[maintain dependency versions](https://nixos.org/guides/how-nix-works).
+To get started with Coder, the easiest way to set up the required environment is to use the provided [Nix environment](https://github.com/coder/coder/tree/main/nix).
+Learn more [how Nix works](https://nixos.org/guides/how-nix-works).
 
 ### Nix
 
@@ -56,37 +56,9 @@ We recommend that you use [Nix](https://nix.dev/) package manager to
 
 ### Without Nix
 
-Alternatively if you do not want to use Nix then you'll need to install the need
-the following tools by hand:
+If you're not using the Nix environment, you can launch a local [DevContainer](https://github.com/coder/coder/tree/main/.devcontainer) to get a fully configured development environment.
 
-- Go 1.18+
-  - on macOS, run `brew install go`
-- Node 14+
-  - on macOS, run `brew install node`
-- GNU Make 4.0+
-  - on macOS, run `brew install make`
-- [`shfmt`](https://github.com/mvdan/sh#shfmt)
-  - on macOS, run `brew install shfmt`
-- [`nfpm`](https://nfpm.goreleaser.com/install)
-  - on macOS, run `brew install goreleaser/tap/nfpm && brew install nfpm`
-- [`pg_dump`](https://stackoverflow.com/a/49689589)
-  - on macOS, run `brew install libpq zstd`
-  - on Linux, install [`zstd`](https://github.com/horta/zstd.install)
-- PostgreSQL 13 (optional if Docker is available)
-  - *Note*: If you are using Docker, you can skip this step
-  - on macOS, run `brew install postgresql@13` and `brew services start postgresql@13`
-  - To enable schema generation with non-containerized PostgreSQL, set the following environment variable:
-    - `export DB_DUMP_CONNECTION_URL="postgres://postgres@localhost:5432/postgres?password=postgres&sslmode=disable"`
-- `pkg-config`
-  - on macOS, run `brew install pkg-config`
-- `pixman`
-  - on macOS, run `brew install pixman`
-- `cairo`
-  - on macOS, run `brew install cairo`
-- `pango`
-  - on macOS, run `brew install pango`
-- `pandoc`
-  - on macOS, run `brew install pandocomatic`
+DevContainers are supported in tools like **VS Code** and **GitHub Codespaces**, and come preloaded with all required dependencies: Docker, Go, Node.js with `pnpm`, and `make`.
 
 </div>
 
@@ -101,19 +73,40 @@ Use the following `make` commands and scripts in development:
 
 ### Running Coder on development mode
 
-- Run `./scripts/develop.sh`
-- Access `http://localhost:8080`
-- The default user is `admin@coder.com` and the default password is
-  `SomeSecurePassword!`
+1. Run the development script to spin up the local environment:
 
-### Running Coder using docker-compose
+   ```sh
+   ./scripts/develop.sh
+   ```
 
-This mode is useful for testing HA or validating more complex setups.
+   This will start two processes:
 
-- Generate a new image from your HEAD: `make build/coder_$(./scripts/version.sh)_$(go env GOOS)_$(go env GOARCH).tag`
-  - This will output the name of the new image, e.g.: `ghcr.io/coder/coder:v2.19.0-devel-22fa71d15-amd64`
-- Inject this image into docker-compose: `CODER_VERSION=v2.19.0-devel-22fa71d15-amd64 docker-compose up` (*note the prefix `ghcr.io/coder/coder:` was removed*)
-- To use Docker, determine your host's `docker` group ID with `getent group docker | cut -d: -f3`, then update the value of `group_add` and uncomment
+   - http://localhost:3000 — the backend API server. Primarily used for backend development and also serves the *static* frontend build.
+   - http://localhost:8080 — the Node.js frontend development server. Supports *hot reloading* and is useful if you're working on the frontend as well.
+
+   Additionally, it starts a local PostgreSQL instance, creates both an admin and a member user account, and installs a default Docker-based template.
+
+1. Verify Your Session
+
+   Confirm that you're logged in by running:
+
+   ```sh
+   ./scripts/coder-dev.sh list
+      ```
+
+   This should return an empty list of workspaces. If you encounter an error, review the output from the [develop.sh](https://github.com/coder/coder/blob/main/scripts/develop.sh) script for issues.
+
+   > `coder-dev.sh` is a helper script that behaves like the regular coder CLI, but uses the binary built from your local source and shares the same configuration directory set up by `develop.sh`. This ensures your local changes are reflected when testing.
+   >
+   > The default user is `admin@coder.com` and the default password is `SomeSecurePassword!`
+
+1. Create Your First Workspace
+
+   A template named `docker` is created automatically. To spin up a workspace quickly, use:
+
+   ```sh
+   ./scripts/coder-dev.sh create my-workspace -t docker
+   ```
 
 ### Deploying a PR
 
@@ -148,110 +141,11 @@ Once the deployment is finished, a unique link and credentials will be posted in
 the [#pr-deployments](https://codercom.slack.com/archives/C05DNE982E8) Slack
 channel.
 
-### Adding database migrations and fixtures
-
-#### Database migrations
-
-Database migrations are managed with
-[`migrate`](https://github.com/golang-migrate/migrate).
-
-To add new migrations, use the following command:
-
-```shell
-./coderd/database/migrations/create_migration.sh my name
-/home/coder/src/coder/coderd/database/migrations/000070_my_name.up.sql
-/home/coder/src/coder/coderd/database/migrations/000070_my_name.down.sql
-```
-
-Then write queries into the generated `.up.sql` and `.down.sql` files and commit
-them into the repository. The down script should make a best-effort to retain as
-much data as possible.
-
-Run `make gen` to generate models.
-
-#### Database fixtures (for testing migrations)
-
-There are two types of fixtures that are used to test that migrations don't
-break existing Coder deployments:
-
-- Partial fixtures
-  [`migrations/testdata/fixtures`](../coderd/database/migrations/testdata/fixtures)
-- Full database dumps
-  [`migrations/testdata/full_dumps`](../coderd/database/migrations/testdata/full_dumps)
-
-Both types behave like database migrations (they also
-[`migrate`](https://github.com/golang-migrate/migrate)). Their behavior mirrors
-Coder migrations such that when migration number `000022` is applied, fixture
-`000022` is applied afterwards.
-
-Partial fixtures are used to conveniently add data to newly created tables so
-that we can ensure that this data is migrated without issue.
-
-Full database dumps are for testing the migration of fully-fledged Coder
-deployments. These are usually done for a specific version of Coder and are
-often fixed in time. A full database dump may be necessary when testing the
-migration of multiple features or complex configurations.
-
-To add a new partial fixture, run the following command:
-
-```shell
-./coderd/database/migrations/create_fixture.sh my fixture
-/home/coder/src/coder/coderd/database/migrations/testdata/fixtures/000070_my_fixture.up.sql
-```
-
-Then add some queries to insert data and commit the file to the repo. See
-[`000024_example.up.sql`](../coderd/database/migrations/testdata/fixtures/000024_example.up.sql)
-for an example.
-
-To create a full dump, run a fully fledged Coder deployment and use it to
-generate data in the database. Then shut down the deployment and take a snapshot
-of the database.
-
-```shell
-mkdir -p coderd/database/migrations/testdata/full_dumps/v0.12.2 && cd $_
-pg_dump "postgres://coder@localhost:..." -a --inserts >000069_dump_v0.12.2.up.sql
-```
-
-Make sure sensitive data in the dump is desensitized, for instance names,
-emails, OAuth tokens and other secrets. Then commit the dump to the project.
-
-To find out what the latest migration for a version of Coder is, use the
-following command:
-
-```shell
-git ls-files v0.12.2 -- coderd/database/migrations/*.up.sql
-```
-
-This helps in naming the dump (e.g. `000069` above).
-
 ## Styling
-
-### Documentation
 
 Visit our [documentation style guide](./contributing/documentation.md).
 
-### Backend
-
-#### Use Go style
-
-Contributions must adhere to the guidelines outlined in
-[Effective Go](https://go.dev/doc/effective_go). We prefer linting rules over
-documenting styles (run ours with `make lint`); humans are error-prone!
-
-Read
-[Go's Code Review Comments Wiki](https://github.com/golang/go/wiki/CodeReviewComments)
-for information on common comments made during reviews of Go code.
-
-#### Avoid unused packages
-
-Coder writes packages that are used during implementation. It isn't easy to
-validate whether an abstraction is valid until it's checked against an
-implementation. This results in a larger changeset, but it provides reviewers
-with a holistic perspective regarding the contribution.
-
-### Frontend
-
-Our frontend guide can be found [here](./contributing/frontend.md).
+Frontend styling guide can be found [here](./contributing/frontend.md#styling).
 
 ## Reviews
 

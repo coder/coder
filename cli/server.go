@@ -651,9 +651,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				AppHostname:                 appHostname,
 				AppHostnameRegex:            appHostnameRegex,
 				Logger:                      logger.Named("coderd"),
-				Database:                    dbmem.New(),
+				Database:                    nil,
 				BaseDERPMap:                 derpMap,
-				Pubsub:                      pubsub.NewInMemory(),
+				Pubsub:                      nil,
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
 				ExternalAuthConfigs:         externalAuthConfigs,
@@ -2359,6 +2359,10 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	if err != nil {
 		return nil, xerrors.Errorf("get postgres version: %w", err)
 	}
+	defer version.Close()
+	if version.Err() != nil {
+		return nil, xerrors.Errorf("version select: %w", version.Err())
+	}
 	if !version.Next() {
 		return nil, xerrors.Errorf("no rows returned for version select")
 	}
@@ -2367,7 +2371,6 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	if err != nil {
 		return nil, xerrors.Errorf("scan version: %w", err)
 	}
-	_ = version.Close()
 
 	if versionNum < 130000 {
 		return nil, xerrors.Errorf("PostgreSQL version must be v13.0.0 or higher! Got: %d", versionNum)

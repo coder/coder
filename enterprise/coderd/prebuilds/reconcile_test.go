@@ -43,7 +43,7 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 	t.Parallel()
 
 	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
+		t.Skip("dbmem times out on nesting transactions, postgres ignores the inner ones")
 	}
 
 	clock := quartz.NewMock(t)
@@ -88,7 +88,7 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 	t.Parallel()
 
 	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
+		t.Skip("dbmem times out on nesting transactions, postgres ignores the inner ones")
 	}
 
 	clock := quartz.NewMock(t)
