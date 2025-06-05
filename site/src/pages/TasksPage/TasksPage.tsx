@@ -31,7 +31,6 @@ import {
 import { useAuthenticated } from "hooks";
 import { ExternalLinkIcon, RotateCcwIcon, SendIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
-import { AI_APP_CHAT_SLUG } from "../TaskPage/constants";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { type FC, type ReactNode, useState } from "react";
 import { Helmet } from "react-helmet-async";
@@ -40,6 +39,7 @@ import { Link as RouterLink } from "react-router-dom";
 import TextareaAutosize from "react-textarea-autosize";
 import { pageTitle } from "utils/page";
 import { relativeTime } from "utils/time";
+import { AI_APP_CHAT_SLUG } from "../TaskPage/constants";
 import { type UserOption, UsersCombobox } from "./UsersCombobox";
 
 type TasksFilter = {
