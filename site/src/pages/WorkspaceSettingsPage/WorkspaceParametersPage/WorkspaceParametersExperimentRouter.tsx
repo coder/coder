@@ -1,8 +1,11 @@
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import {
+	optOutKey,
+	useDynamicParametersOptOut,
+} from "modules/workspaces/DynamicParameter/useDynamicParametersOptOut";
 import type { FC } from "react";
-import { useQuery } from "react-query";
 import { ExperimentalFormContext } from "../../CreateWorkspacePage/ExperimentalFormContext";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import WorkspaceParametersPage from "./WorkspaceParametersPage";
@@ -11,45 +14,21 @@ import WorkspaceParametersPageExperimental from "./WorkspaceParametersPageExperi
 const WorkspaceParametersExperimentRouter: FC = () => {
 	const { experiments } = useDashboard();
 	const workspace = useWorkspaceSettings();
-	const dynamicParametersEnabled = experiments.includes("dynamic-parameters");
+	const isDynamicParametersEnabled = experiments.includes("dynamic-parameters");
 
-	const optOutQuery = useQuery({
-		enabled: dynamicParametersEnabled,
-		queryKey: [
-			"workspace",
-			workspace.id,
-			"template_id",
-			workspace.template_id,
-			"optOut",
-		],
-		queryFn: () => {
-			const templateId = workspace.template_id;
-			const workspaceId = workspace.id;
-			const localStorageKey = optOutKey(templateId);
-			const storedOptOutString = localStorage.getItem(localStorageKey);
-
-			let optOutResult: boolean;
-
-			if (storedOptOutString !== null) {
-				optOutResult = storedOptOutString === "true";
-			} else {
-				optOutResult = Boolean(workspace.template_use_classic_parameter_flow);
-			}
-
-			return {
-				templateId,
-				workspaceId,
-				optedOut: optOutResult,
-			};
-		},
+	const optOutQuery = useDynamicParametersOptOut({
+		templateId: workspace.template_id,
+		templateUsesClassicParameters:
+			workspace.template_use_classic_parameter_flow,
+		enabled: isDynamicParametersEnabled,
 	});
 
-	if (dynamicParametersEnabled) {
-		if (optOutQuery.isLoading) {
-			return <Loader />;
+	if (isDynamicParametersEnabled) {
+		if (optOutQuery.isError) {
+			return <ErrorAlert error={optOutQuery.error} />;
 		}
 		if (!optOutQuery.data) {
-			return <ErrorAlert error={optOutQuery.error} />;
+			return <Loader />;
 		}
 
 		const toggleOptedOut = () => {
@@ -79,5 +58,3 @@ const WorkspaceParametersExperimentRouter: FC = () => {
 };
 
 export default WorkspaceParametersExperimentRouter;
-
-const optOutKey = (id: string) => `parameters.${id}.optOut`;

@@ -45,7 +45,7 @@ export const DialogContent = forwardRef<
 		<DialogPrimitive.Content
 			ref={ref}
 			className={cn(
-				`fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg gap-4
+				`fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg gap-6
 				 border border-solid border-border bg-surface-primary p-8 shadow-lg duration-200 sm:rounded-lg
 				 translate-x-[-50%] translate-y-[-50%]
 				 data-[state=open]:animate-in data-[state=closed]:animate-out
@@ -68,7 +68,7 @@ export const DialogHeader: FC<HTMLAttributes<HTMLDivElement>> = ({
 }) => (
 	<div
 		className={cn(
-			"flex flex-col space-y-1.5 text-center sm:text-left",
+			"flex flex-col space-y-5 text-center sm:text-left",
 			className,
 		)}
 		{...props}
@@ -108,7 +108,7 @@ export const DialogDescription = forwardRef<
 >(({ className, ...props }, ref) => (
 	<DialogPrimitive.Description
 		ref={ref}
-		className={cn("text-sm text-content-secondary", className)}
+		className={cn("text-sm text-content-secondary font-medium", className)}
 		{...props}
 	/>
 ));
