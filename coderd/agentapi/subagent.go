@@ -3,6 +3,7 @@ package agentapi
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -54,59 +55,58 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 
 	createdAt := a.Clock.Now()
 
-	var subAgent database.WorkspaceAgent
+	subAgent, err := a.Database.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+		ID:                       uuid.New(),
+		ParentID:                 uuid.NullUUID{Valid: true, UUID: parentAgent.ID},
+		CreatedAt:                createdAt,
+		UpdatedAt:                createdAt,
+		Name:                     agentName,
+		ResourceID:               parentAgent.ResourceID,
+		AuthToken:                uuid.New(),
+		AuthInstanceID:           parentAgent.AuthInstanceID,
+		Architecture:             req.Architecture,
+		EnvironmentVariables:     pqtype.NullRawMessage{},
+		OperatingSystem:          req.OperatingSystem,
+		Directory:                req.Directory,
+		InstanceMetadata:         pqtype.NullRawMessage{},
+		ResourceMetadata:         pqtype.NullRawMessage{},
+		ConnectionTimeoutSeconds: parentAgent.ConnectionTimeoutSeconds,
+		TroubleshootingURL:       parentAgent.TroubleshootingURL,
+		MOTDFile:                 "",
+		DisplayApps:              []database.DisplayApp{},
+		DisplayOrder:             0,
+		APIKeyScope:              parentAgent.APIKeyScope,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("insert sub agent: %w", err)
+	}
 
-	if err := a.Database.InTx(func(tx database.Store) error {
-		var err error
+	var appCreationErrors []*agentproto.CreateSubAgentResponse_AppCreationError
+	appSlugs := make(map[string]struct{})
 
-		subAgent, err = tx.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
-			ID:                       uuid.New(),
-			ParentID:                 uuid.NullUUID{Valid: true, UUID: parentAgent.ID},
-			CreatedAt:                createdAt,
-			UpdatedAt:                createdAt,
-			Name:                     agentName,
-			ResourceID:               parentAgent.ResourceID,
-			AuthToken:                uuid.New(),
-			AuthInstanceID:           parentAgent.AuthInstanceID,
-			Architecture:             req.Architecture,
-			EnvironmentVariables:     pqtype.NullRawMessage{},
-			OperatingSystem:          req.OperatingSystem,
-			Directory:                req.Directory,
-			InstanceMetadata:         pqtype.NullRawMessage{},
-			ResourceMetadata:         pqtype.NullRawMessage{},
-			ConnectionTimeoutSeconds: parentAgent.ConnectionTimeoutSeconds,
-			TroubleshootingURL:       parentAgent.TroubleshootingURL,
-			MOTDFile:                 "",
-			DisplayApps:              []database.DisplayApp{},
-			DisplayOrder:             0,
-			APIKeyScope:              parentAgent.APIKeyScope,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert sub agent: %w", err)
-		}
-
-		appSlugs := make(map[string]struct{})
-		for i, app := range req.Apps {
+	for i, app := range req.Apps {
+		err := func() error {
 			slug := app.Slug
 			if slug == "" {
 				return codersdk.ValidationError{
-					Field:  fmt.Sprintf("apps[%d].slug", i),
-					Detail: "app must have a slug or name set",
+					Field:  "slug",
+					Detail: "must not be empty",
 				}
 			}
 			if !provisioner.AppSlugRegex.MatchString(slug) {
 				return codersdk.ValidationError{
-					Field:  fmt.Sprintf("apps[%d].slug", i),
-					Detail: fmt.Sprintf("app slug %q does not match regex %q", slug, provisioner.AppSlugRegex),
+					Field:  "slug",
+					Detail: fmt.Sprintf("%q does not match regex %q", slug, provisioner.AppSlugRegex),
 				}
 			}
 			if _, exists := appSlugs[slug]; exists {
 				return codersdk.ValidationError{
-					Field:  fmt.Sprintf("apps[%d].slug", i),
-					Detail: fmt.Sprintf("app slug %q is already in use", slug),
+					Field:  "slug",
+					Detail: fmt.Sprintf("%q is already in use", slug),
 				}
 			}
 			appSlugs[slug] = struct{}{}
+
 			health := database.WorkspaceAppHealthDisabled
 			if app.Healthcheck == nil {
 				app.Healthcheck = &agentproto.CreateSubAgentRequest_App_Healthcheck{}
@@ -128,7 +128,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 				openIn = database.WorkspaceAppOpenInTab
 			}
 
-			_, err := tx.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
+			_, err := a.Database.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
 				ID:          uuid.New(),
 				CreatedAt:   createdAt,
 				AgentID:     subAgent.ID,
@@ -161,11 +161,24 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 			if err != nil {
 				return xerrors.Errorf("insert workspace app: %w", err)
 			}
-		}
 
-		return nil
-	}, nil); err != nil {
-		return nil, err
+			return nil
+		}()
+
+		if err != nil {
+			appErr := &agentproto.CreateSubAgentResponse_AppCreationError{
+				Index: int32(i),
+				Error: err.Error(),
+			}
+
+			var validationErr codersdk.ValidationError
+			if errors.As(err, &validationErr) {
+				appErr.Field = &validationErr.Field
+				appErr.Error = validationErr.Detail
+			}
+
+			appCreationErrors = append(appCreationErrors, appErr)
+		}
 	}
 
 	return &agentproto.CreateSubAgentResponse{
@@ -174,6 +187,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 			Id:        subAgent.ID[:],
 			AuthToken: subAgent.AuthToken[:],
 		},
+		AppCreationErrors: appCreationErrors,
 	}, nil
 }
 

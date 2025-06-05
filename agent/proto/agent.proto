@@ -426,7 +426,14 @@ message CreateSubAgentRequest {
 }
 
 message CreateSubAgentResponse {
+	message AppCreationError {
+		int32 index = 1;
+		optional string field = 2;
+		string error = 3;
+	}
+
 	SubAgent agent = 1;
+	repeated AppCreationError app_creation_errors = 2;
 }
 
 message DeleteSubAgentRequest {

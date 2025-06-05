@@ -173,62 +173,22 @@ func TestSubAgentAPI(t *testing.T) {
 				}
 			})
 		}
-
-		t.Run("TransactionRollbackOnAppError", func(t *testing.T) {
-			t.Parallel()
-
-			// Skip test on in-memory database since transactions are not fully supported
-			if !dbtestutil.WillUsePostgres() {
-				t.Skip("Transaction behavior requires PostgreSQL")
-			}
-
-			log := testutil.Logger(t)
-			ctx := testutil.Context(t, testutil.WaitShort)
-			clock := quartz.NewMock(t)
-
-			db, org := newDatabaseWithOrg(t)
-			user, agent := newUserWithWorkspaceAgent(t, db, org)
-			api := newAgentAPI(t, log, db, clock, user, org, agent)
-
-			// When: We create a sub agent with valid name but invalid app that will cause transaction to fail
-			_, err := api.CreateSubAgent(ctx, &proto.CreateSubAgentRequest{
-				Name:            "test-agent",
-				Directory:       "/workspaces/test",
-				Architecture:    "amd64",
-				OperatingSystem: "linux",
-				Apps: []*proto.CreateSubAgentRequest_App{
-					{
-						Slug:        "valid-app",
-						DisplayName: ptr.Ref("Valid App"),
-					},
-					{
-						Slug:        "Invalid_App_Slug", // This will cause validation error inside transaction
-						DisplayName: ptr.Ref("Invalid App"),
-					},
-				},
-			})
-
-			// Then: The request should fail with validation error
-			require.Error(t, err)
-			var validationErr codersdk.ValidationError
-			require.ErrorAs(t, err, &validationErr)
-			require.Equal(t, "apps[1].slug", validationErr.Field)
-
-			// And: No sub agents should be created (transaction rolled back)
-			subAgents, err := db.GetWorkspaceAgentsByParentID(dbauthz.AsSystemRestricted(ctx), agent.ID) //nolint:gocritic // this is a test.
-			require.NoError(t, err)
-			require.Empty(t, subAgents, "Expected no sub agents to be created after transaction rollback")
-		})
 	})
+
+	type expectedAppError struct {
+		index int32
+		field string
+		error string
+	}
 
 	t.Run("CreateSubAgentWithApps", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name          string
-			apps          []*proto.CreateSubAgentRequest_App
-			expectApps    []database.WorkspaceApp
-			expectedError *codersdk.ValidationError
+			name              string
+			apps              []*proto.CreateSubAgentRequest_App
+			expectApps        []database.WorkspaceApp
+			expectedAppErrors []expectedAppError
 		}{
 			{
 				name: "OK",
@@ -292,9 +252,13 @@ func TestSubAgentAPI(t *testing.T) {
 						DisplayName: ptr.Ref("App"),
 					},
 				},
-				expectedError: &codersdk.ValidationError{
-					Field:  "apps[0].slug",
-					Detail: "app must have a slug or name set",
+				expectApps: []database.WorkspaceApp{},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 0,
+						field: "slug",
+						error: "must not be empty",
+					},
 				},
 			},
 			{
@@ -305,9 +269,13 @@ func TestSubAgentAPI(t *testing.T) {
 						DisplayName: ptr.Ref("App"),
 					},
 				},
-				expectedError: &codersdk.ValidationError{
-					Field:  "apps[0].slug",
-					Detail: "app slug \"invalid_slug_with_underscores\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+				expectApps: []database.WorkspaceApp{},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 0,
+						field: "slug",
+						error: "\"invalid_slug_with_underscores\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+					},
 				},
 			},
 			{
@@ -318,9 +286,13 @@ func TestSubAgentAPI(t *testing.T) {
 						DisplayName: ptr.Ref("App"),
 					},
 				},
-				expectedError: &codersdk.ValidationError{
-					Field:  "apps[0].slug",
-					Detail: "app slug \"InvalidSlug\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+				expectApps: []database.WorkspaceApp{},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 0,
+						field: "slug",
+						error: "\"InvalidSlug\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+					},
 				},
 			},
 			{
@@ -331,9 +303,13 @@ func TestSubAgentAPI(t *testing.T) {
 						DisplayName: ptr.Ref("App"),
 					},
 				},
-				expectedError: &codersdk.ValidationError{
-					Field:  "apps[0].slug",
-					Detail: "app slug \"-invalid-app\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+				expectApps: []database.WorkspaceApp{},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 0,
+						field: "slug",
+						error: "\"-invalid-app\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+					},
 				},
 			},
 			{
@@ -344,9 +320,13 @@ func TestSubAgentAPI(t *testing.T) {
 						DisplayName: ptr.Ref("App"),
 					},
 				},
-				expectedError: &codersdk.ValidationError{
-					Field:  "apps[0].slug",
-					Detail: "app slug \"invalid-app-\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+				expectApps: []database.WorkspaceApp{},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 0,
+						field: "slug",
+						error: "\"invalid-app-\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+					},
 				},
 			},
 			{
@@ -357,9 +337,13 @@ func TestSubAgentAPI(t *testing.T) {
 						DisplayName: ptr.Ref("App"),
 					},
 				},
-				expectedError: &codersdk.ValidationError{
-					Field:  "apps[0].slug",
-					Detail: "app slug \"invalid--app\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+				expectApps: []database.WorkspaceApp{},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 0,
+						field: "slug",
+						error: "\"invalid--app\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+					},
 				},
 			},
 			{
@@ -370,9 +354,13 @@ func TestSubAgentAPI(t *testing.T) {
 						DisplayName: ptr.Ref("App"),
 					},
 				},
-				expectedError: &codersdk.ValidationError{
-					Field:  "apps[0].slug",
-					Detail: "app slug \"invalid app\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+				expectApps: []database.WorkspaceApp{},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 0,
+						field: "slug",
+						error: "\"invalid app\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+					},
 				},
 			},
 			{
@@ -387,9 +375,21 @@ func TestSubAgentAPI(t *testing.T) {
 						DisplayName: ptr.Ref("Invalid App"),
 					},
 				},
-				expectedError: &codersdk.ValidationError{
-					Field:  "apps[1].slug",
-					Detail: "app slug \"Invalid_App\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+				expectApps: []database.WorkspaceApp{
+					{
+						Slug:         "valid-app",
+						DisplayName:  "Valid App",
+						SharingLevel: database.AppSharingLevelOwner,
+						Health:       database.WorkspaceAppHealthDisabled,
+						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+					},
+				},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 1,
+						field: "slug",
+						error: "\"Invalid_App\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+					},
 				},
 			},
 			{
@@ -529,9 +529,21 @@ func TestSubAgentAPI(t *testing.T) {
 						DisplayName: ptr.Ref("Second App"),
 					},
 				},
-				expectedError: &codersdk.ValidationError{
-					Field:  "apps[1].slug",
-					Detail: "app slug \"duplicate-app\" is already in use",
+				expectApps: []database.WorkspaceApp{
+					{
+						Slug:         "duplicate-app",
+						DisplayName:  "First App",
+						SharingLevel: database.AppSharingLevelOwner,
+						Health:       database.WorkspaceAppHealthDisabled,
+						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+					},
+				},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 1,
+						field: "slug",
+						error: "\"duplicate-app\" is already in use",
+					},
 				},
 			},
 			{
@@ -554,9 +566,33 @@ func TestSubAgentAPI(t *testing.T) {
 						DisplayName: ptr.Ref("Third Duplicate"),
 					},
 				},
-				expectedError: &codersdk.ValidationError{
-					Field:  "apps[2].slug",
-					Detail: "app slug \"duplicate-app\" is already in use",
+				expectApps: []database.WorkspaceApp{
+					{
+						Slug:         "duplicate-app",
+						DisplayName:  "First Duplicate",
+						SharingLevel: database.AppSharingLevelOwner,
+						Health:       database.WorkspaceAppHealthDisabled,
+						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+					},
+					{
+						Slug:         "valid-app",
+						DisplayName:  "Valid App",
+						SharingLevel: database.AppSharingLevelOwner,
+						Health:       database.WorkspaceAppHealthDisabled,
+						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+					},
+				},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 2,
+						field: "slug",
+						error: "\"duplicate-app\" is already in use",
+					},
+					{
+						index: 3,
+						field: "slug",
+						error: "\"duplicate-app\" is already in use",
+					},
 				},
 			},
 		}
@@ -580,50 +616,147 @@ func TestSubAgentAPI(t *testing.T) {
 					OperatingSystem: "linux",
 					Apps:            tt.apps,
 				})
-				if tt.expectedError != nil {
-					require.Error(t, err)
-					var validationErr codersdk.ValidationError
-					require.ErrorAs(t, err, &validationErr)
-					require.Equal(t, *tt.expectedError, validationErr)
-				} else {
-					require.NoError(t, err)
+				require.NoError(t, err)
 
-					agentID, err := uuid.FromBytes(createResp.Agent.Id)
-					require.NoError(t, err)
+				agentID, err := uuid.FromBytes(createResp.Agent.Id)
+				require.NoError(t, err)
 
-					apps, err := api.Database.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
-					require.NoError(t, err)
+				apps, err := api.Database.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
+				require.NoError(t, err)
 
-					// Sort the apps for determinism
-					slices.SortFunc(apps, func(a, b database.WorkspaceApp) int {
-						return cmp.Compare(a.Slug, b.Slug)
-					})
-					slices.SortFunc(tt.expectApps, func(a, b database.WorkspaceApp) int {
-						return cmp.Compare(a.Slug, b.Slug)
-					})
+				// Sort the apps for determinism
+				slices.SortFunc(apps, func(a, b database.WorkspaceApp) int {
+					return cmp.Compare(a.Slug, b.Slug)
+				})
+				slices.SortFunc(tt.expectApps, func(a, b database.WorkspaceApp) int {
+					return cmp.Compare(a.Slug, b.Slug)
+				})
 
-					require.Len(t, apps, len(tt.expectApps))
+				require.Len(t, apps, len(tt.expectApps))
 
-					for idx, app := range apps {
-						assert.Equal(t, tt.expectApps[idx].Slug, app.Slug)
-						assert.Equal(t, tt.expectApps[idx].Command, app.Command)
-						assert.Equal(t, tt.expectApps[idx].DisplayName, app.DisplayName)
-						assert.Equal(t, tt.expectApps[idx].External, app.External)
-						assert.Equal(t, tt.expectApps[idx].DisplayGroup, app.DisplayGroup)
-						assert.Equal(t, tt.expectApps[idx].HealthcheckInterval, app.HealthcheckInterval)
-						assert.Equal(t, tt.expectApps[idx].HealthcheckThreshold, app.HealthcheckThreshold)
-						assert.Equal(t, tt.expectApps[idx].HealthcheckUrl, app.HealthcheckUrl)
-						assert.Equal(t, tt.expectApps[idx].Hidden, app.Hidden)
-						assert.Equal(t, tt.expectApps[idx].Icon, app.Icon)
-						assert.Equal(t, tt.expectApps[idx].OpenIn, app.OpenIn)
-						assert.Equal(t, tt.expectApps[idx].DisplayOrder, app.DisplayOrder)
-						assert.Equal(t, tt.expectApps[idx].SharingLevel, app.SharingLevel)
-						assert.Equal(t, tt.expectApps[idx].Subdomain, app.Subdomain)
-						assert.Equal(t, tt.expectApps[idx].Url, app.Url)
-					}
+				for idx, app := range apps {
+					assert.Equal(t, tt.expectApps[idx].Slug, app.Slug)
+					assert.Equal(t, tt.expectApps[idx].Command, app.Command)
+					assert.Equal(t, tt.expectApps[idx].DisplayName, app.DisplayName)
+					assert.Equal(t, tt.expectApps[idx].External, app.External)
+					assert.Equal(t, tt.expectApps[idx].DisplayGroup, app.DisplayGroup)
+					assert.Equal(t, tt.expectApps[idx].HealthcheckInterval, app.HealthcheckInterval)
+					assert.Equal(t, tt.expectApps[idx].HealthcheckThreshold, app.HealthcheckThreshold)
+					assert.Equal(t, tt.expectApps[idx].HealthcheckUrl, app.HealthcheckUrl)
+					assert.Equal(t, tt.expectApps[idx].Hidden, app.Hidden)
+					assert.Equal(t, tt.expectApps[idx].Icon, app.Icon)
+					assert.Equal(t, tt.expectApps[idx].OpenIn, app.OpenIn)
+					assert.Equal(t, tt.expectApps[idx].DisplayOrder, app.DisplayOrder)
+					assert.Equal(t, tt.expectApps[idx].SharingLevel, app.SharingLevel)
+					assert.Equal(t, tt.expectApps[idx].Subdomain, app.Subdomain)
+					assert.Equal(t, tt.expectApps[idx].Url, app.Url)
+				}
+
+				// Verify expected app creation errors
+				require.Len(t, createResp.AppCreationErrors, len(tt.expectedAppErrors), "Number of app creation errors should match expected")
+
+				// Build a map of actual errors by index for easier testing
+				actualErrorMap := make(map[int32]*proto.CreateSubAgentResponse_AppCreationError)
+				for _, appErr := range createResp.AppCreationErrors {
+					actualErrorMap[appErr.Index] = appErr
+				}
+
+				// Verify each expected error
+				for _, expectedErr := range tt.expectedAppErrors {
+					actualErr, exists := actualErrorMap[expectedErr.index]
+					require.True(t, exists, "Expected app creation error at index %d", expectedErr.index)
+
+					require.NotNil(t, actualErr.Field, "Field should be set for validation error at index %d", expectedErr.index)
+					require.Equal(t, expectedErr.field, *actualErr.Field, "Field name should match for error at index %d", expectedErr.index)
+					require.Contains(t, actualErr.Error, expectedErr.error, "Error message should contain expected text for error at index %d", expectedErr.index)
 				}
 			})
 		}
+
+		t.Run("ValidationErrorFieldMapping", func(t *testing.T) {
+			t.Parallel()
+
+			log := testutil.Logger(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+
+			db, org := newDatabaseWithOrg(t)
+			user, agent := newUserWithWorkspaceAgent(t, db, org)
+			api := newAgentAPI(t, log, db, clock, user, org, agent)
+
+			// Test different types of validation errors to ensure field mapping works correctly
+			createResp, err := api.CreateSubAgent(ctx, &proto.CreateSubAgentRequest{
+				Name:            "validation-test-agent",
+				Directory:       "/workspace",
+				Architecture:    "amd64",
+				OperatingSystem: "linux",
+				Apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "", // Empty slug - should error on apps[0].slug
+						DisplayName: ptr.Ref("Empty Slug App"),
+					},
+					{
+						Slug:        "Invalid_Slug_With_Underscores", // Invalid characters - should error on apps[1].slug
+						DisplayName: ptr.Ref("Invalid Characters App"),
+					},
+					{
+						Slug:        "duplicate-slug", // First occurrence - should succeed
+						DisplayName: ptr.Ref("First Duplicate"),
+					},
+					{
+						Slug:        "duplicate-slug", // Duplicate - should error on apps[3].slug
+						DisplayName: ptr.Ref("Second Duplicate"),
+					},
+					{
+						Slug:        "-invalid-start", // Invalid start character - should error on apps[4].slug
+						DisplayName: ptr.Ref("Invalid Start App"),
+					},
+				},
+			})
+
+			// Agent should be created successfully
+			require.NoError(t, err)
+			require.NotNil(t, createResp.Agent)
+
+			// Should have 4 app creation errors (indices 0, 1, 3, 4)
+			require.Len(t, createResp.AppCreationErrors, 4)
+
+			errorMap := make(map[int32]*proto.CreateSubAgentResponse_AppCreationError)
+			for _, appErr := range createResp.AppCreationErrors {
+				errorMap[appErr.Index] = appErr
+			}
+
+			// Verify each specific validation error and its field
+			require.Contains(t, errorMap, int32(0))
+			require.NotNil(t, errorMap[0].Field)
+			require.Equal(t, "slug", *errorMap[0].Field)
+			require.Contains(t, errorMap[0].Error, "must not be empty")
+
+			require.Contains(t, errorMap, int32(1))
+			require.NotNil(t, errorMap[1].Field)
+			require.Equal(t, "slug", *errorMap[1].Field)
+			require.Contains(t, errorMap[1].Error, "Invalid_Slug_With_Underscores")
+
+			require.Contains(t, errorMap, int32(3))
+			require.NotNil(t, errorMap[3].Field)
+			require.Equal(t, "slug", *errorMap[3].Field)
+			require.Contains(t, errorMap[3].Error, "duplicate-slug")
+
+			require.Contains(t, errorMap, int32(4))
+			require.NotNil(t, errorMap[4].Field)
+			require.Equal(t, "slug", *errorMap[4].Field)
+			require.Contains(t, errorMap[4].Error, "-invalid-start")
+
+			// Verify only the valid app (index 2) was created
+			agentID, err := uuid.FromBytes(createResp.Agent.Id)
+			require.NoError(t, err)
+
+			apps, err := db.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
+			require.NoError(t, err)
+			require.Len(t, apps, 1)
+			require.Equal(t, "duplicate-slug", apps[0].Slug)
+			require.Equal(t, "First Duplicate", apps[0].DisplayName)
+		})
 	})
 
 	t.Run("DeleteSubAgent", func(t *testing.T) {
