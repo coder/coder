@@ -76,8 +76,10 @@ const getMissingParameters = (
 		if (templateParameter.options.length === 0) {
 			continue;
 		}
-
-		// Check if there is a new value
+		// For multi-select, extra steps are necessary to JSON parse the value.
+		if (templateParameter.form_type === "multi-select") {
+			continue;
+		}
 		let buildParameter = newBuildParameters.find(
 			(p) => p.name === templateParameter.name,
 		);
