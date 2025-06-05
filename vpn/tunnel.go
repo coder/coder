@@ -311,7 +311,7 @@ func (t *Tunnel) LogEntry(_ context.Context, e slog.SinkEntry) {
 	}
 }
 
-func (t *Tunnel) Sync() {}
+func (*Tunnel) Sync() {}
 
 func sinkEntryToPb(e slog.SinkEntry) *Log {
 	l := &Log{
