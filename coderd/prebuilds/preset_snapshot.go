@@ -87,8 +87,8 @@ func (ra *ReconciliationActions) IsNoop() bool {
 	return ra.Create == 0 && len(ra.DeleteIDs) == 0 && ra.BackoffUntil.IsZero()
 }
 
-// MatchesCron checks if the given time matches the cron expression
-// Assumes the time is already in the correct timezone
+// MatchesCron interprets a cron spec as a continuous time range,
+// and returns whether the provided time value falls within that range.
 func MatchesCron(cronExpression string, at time.Time) (bool, error) {
 	sched, err := cron.Weekly(cronExpression)
 	if err != nil {
@@ -98,6 +98,9 @@ func MatchesCron(cronExpression string, at time.Time) (bool, error) {
 	return sched.IsWithinRange(at), nil
 }
 
+// CalculateDesiredInstances returns the number of desired instances based on the provided time.
+// If the time matches any defined autoscaling schedule, the corresponding number of instances is returned.
+// Otherwise, it falls back to the default number of instances specified in the prebuild configuration.
 func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) (int32, error) {
 	if !p.Preset.AutoscalingEnabled {
 		return p.Preset.DesiredInstances.Int32, nil
@@ -105,7 +108,7 @@ func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) (int32, error) {
 
 	_, err := time.LoadLocation(p.Preset.AutoscalingTimezone)
 	if err != nil {
-		return 0, xerrors.Errorf("can't parse location %v: %w", p.Preset.AutoscalingTimezone, err)
+		return 0, xerrors.Errorf("failed to parse location %v: %w", p.Preset.AutoscalingTimezone, err)
 	}
 
 	// Check each schedule
