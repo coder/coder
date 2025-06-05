@@ -60,11 +60,17 @@ func newFakeConn(state tailnet.WorkspaceUpdate, hsTime time.Time) *fakeConn {
 	}
 }
 
+func (f *fakeConn) withManualPings() *fakeConn {
+	f.returnPing = make(chan struct{})
+	return f
+}
+
 type fakeConn struct {
-	state   tailnet.WorkspaceUpdate
-	hsTime  time.Time
-	closed  chan struct{}
-	doClose sync.Once
+	state      tailnet.WorkspaceUpdate
+	returnPing chan struct{}
+	hsTime     time.Time
+	closed     chan struct{}
+	doClose    sync.Once
 }
 
 func (*fakeConn) DERPMap() *tailcfg.DERPMap {
@@ -90,10 +96,22 @@ func (*fakeConn) Node() *tailnet.Node {
 
 var _ Conn = (*fakeConn)(nil)
 
-func (*fakeConn) Ping(ctx context.Context, agentID uuid.UUID) (time.Duration, bool, *ipnstate.PingResult, error) {
-	return time.Millisecond * 100, true, &ipnstate.PingResult{
-		DERPRegionID: 999,
-	}, nil
+func (f *fakeConn) Ping(ctx context.Context, agentID uuid.UUID) (time.Duration, bool, *ipnstate.PingResult, error) {
+	if f.returnPing == nil {
+		return time.Millisecond * 100, true, &ipnstate.PingResult{
+			DERPRegionID: 999,
+		}, nil
+	}
+
+	select {
+	case <-ctx.Done():
+		return 0, false, nil, ctx.Err()
+	case <-f.returnPing:
+		return time.Millisecond * 100, true, &ipnstate.PingResult{
+			DERPRegionID: 999,
+		}, nil
+	}
+
 }
 
 func (f *fakeConn) CurrentWorkspaceState() (tailnet.WorkspaceUpdate, error) {
@@ -757,6 +775,178 @@ func TestTunnel_sendAgentUpdateWorkspaceReconnect(t *testing.T) {
 
 	require.Equal(t, aID1[:], peerUpdate.DeletedAgents[0].Id)
 	require.Equal(t, wID1[:], peerUpdate.DeletedWorkspaces[0].Id)
+}
+
+func TestTunnel_slowPing(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	mClock := quartz.NewMock(t)
+
+	wID1 := uuid.UUID{1}
+	aID1 := uuid.UUID{2}
+	hsTime := time.Now().Add(-time.Minute).UTC()
+
+	client := newFakeClient(ctx, t)
+	conn := newFakeConn(tailnet.WorkspaceUpdate{}, hsTime).withManualPings()
+
+	tun, mgr := setupTunnel(t, ctx, client, mClock)
+	errCh := make(chan error, 1)
+	var resp *TunnelMessage
+	go func() {
+		r, err := mgr.unaryRPC(ctx, &ManagerMessage{
+			Msg: &ManagerMessage_Start{
+				Start: &StartRequest{
+					TunnelFileDescriptor: 2,
+					CoderUrl:             "https://coder.example.com",
+					ApiToken:             "fakeToken",
+				},
+			},
+		})
+		resp = r
+		errCh <- err
+	}()
+	testutil.RequireSend(ctx, t, client.ch, conn)
+	err := testutil.TryReceive(ctx, t, errCh)
+	require.NoError(t, err)
+	_, ok := resp.Msg.(*TunnelMessage_Start)
+	require.True(t, ok)
+
+	// Inform the tunnel of the initial state
+	err = tun.Update(tailnet.WorkspaceUpdate{
+		UpsertedWorkspaces: []*tailnet.Workspace{
+			{
+				ID: wID1, Name: "w1", Status: proto.Workspace_STARTING,
+			},
+		},
+		UpsertedAgents: []*tailnet.Agent{
+			{
+				ID:          aID1,
+				Name:        "agent1",
+				WorkspaceID: wID1,
+				Hosts: map[dnsname.FQDN][]netip.Addr{
+					"agent1.coder.": {netip.MustParseAddr("fd60:627a:a42b:0101::")},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	req := testutil.TryReceive(ctx, t, mgr.requests)
+	require.Nil(t, req.msg.Rpc)
+	require.NotNil(t, req.msg.GetPeerUpdate())
+	require.Len(t, req.msg.GetPeerUpdate().UpsertedAgents, 1)
+	require.Equal(t, aID1[:], req.msg.GetPeerUpdate().UpsertedAgents[0].Id)
+
+	// We can't check that it *never* pings, so the best we can do is
+	// check it doesn't ping even with 5 goroutines attempting to,
+	// and that updates are received as normal
+	for range 5 {
+		mClock.AdvanceNext()
+		require.Nil(t, req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing)
+	}
+
+	// Provided that it hasn't been 5 seconds since the last AdvanceNext call,
+	// there'll be a ping in-flight that will return with this message
+	testutil.RequireSend(ctx, t, conn.returnPing, struct{}{})
+	// Which will mean we'll eventually receive a PeerUpdate with the ping
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		mClock.AdvanceNext()
+		req = testutil.TryReceive(ctx, t, mgr.requests)
+		if len(req.msg.GetPeerUpdate().UpsertedAgents) == 0 {
+			return false
+		}
+		if req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing == nil {
+			return false
+		}
+		if req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing.Latency.AsDuration().Milliseconds() != 100 {
+			return false
+		}
+		return req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing.PreferredDerp == "Coder Region"
+	}, testutil.IntervalFast)
+}
+
+func TestTunnel_stopMidPing(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	mClock := quartz.NewMock(t)
+
+	wID1 := uuid.UUID{1}
+	aID1 := uuid.UUID{2}
+	hsTime := time.Now().Add(-time.Minute).UTC()
+
+	client := newFakeClient(ctx, t)
+	conn := newFakeConn(tailnet.WorkspaceUpdate{}, hsTime).withManualPings()
+
+	tun, mgr := setupTunnel(t, ctx, client, mClock)
+	errCh := make(chan error, 1)
+	var resp *TunnelMessage
+	go func() {
+		r, err := mgr.unaryRPC(ctx, &ManagerMessage{
+			Msg: &ManagerMessage_Start{
+				Start: &StartRequest{
+					TunnelFileDescriptor: 2,
+					CoderUrl:             "https://coder.example.com",
+					ApiToken:             "fakeToken",
+				},
+			},
+		})
+		resp = r
+		errCh <- err
+	}()
+	testutil.RequireSend(ctx, t, client.ch, conn)
+	err := testutil.TryReceive(ctx, t, errCh)
+	require.NoError(t, err)
+	_, ok := resp.Msg.(*TunnelMessage_Start)
+	require.True(t, ok)
+
+	// Inform the tunnel of the initial state
+	err = tun.Update(tailnet.WorkspaceUpdate{
+		UpsertedWorkspaces: []*tailnet.Workspace{
+			{
+				ID: wID1, Name: "w1", Status: proto.Workspace_STARTING,
+			},
+		},
+		UpsertedAgents: []*tailnet.Agent{
+			{
+				ID:          aID1,
+				Name:        "agent1",
+				WorkspaceID: wID1,
+				Hosts: map[dnsname.FQDN][]netip.Addr{
+					"agent1.coder.": {netip.MustParseAddr("fd60:627a:a42b:0101::")},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	req := testutil.TryReceive(ctx, t, mgr.requests)
+	require.Nil(t, req.msg.Rpc)
+	require.NotNil(t, req.msg.GetPeerUpdate())
+	require.Len(t, req.msg.GetPeerUpdate().UpsertedAgents, 1)
+	require.Equal(t, aID1[:], req.msg.GetPeerUpdate().UpsertedAgents[0].Id)
+
+	// We'll have some pings in flight when we stop
+	for range 5 {
+		mClock.AdvanceNext()
+		req = testutil.TryReceive(ctx, t, mgr.requests)
+		require.Nil(t, req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing)
+	}
+
+	// Stop the tunnel
+	go func() {
+		r, err := mgr.unaryRPC(ctx, &ManagerMessage{
+			Msg: &ManagerMessage_Stop{},
+		})
+		resp = r
+		errCh <- err
+	}()
+	testutil.TryReceive(ctx, t, conn.closed)
+	err = testutil.TryReceive(ctx, t, errCh)
+	require.NoError(t, err)
+	_, ok = resp.Msg.(*TunnelMessage_Stop)
+	require.True(t, ok)
 }
 
 //nolint:revive // t takes precedence

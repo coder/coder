@@ -619,47 +619,61 @@ func (u *updater) recordLatencies() {
 	for _, agent := range u.agents {
 		agentsIDsToPing = append(agentsIDsToPing, agent.ID)
 	}
+	conn := u.conn
 	u.mu.Unlock()
 
-	for _, agentID := range agentsIDsToPing {
-		go func() {
-			pingCtx, cancelFunc := context.WithTimeout(u.ctx, 5*time.Second)
-			defer cancelFunc()
-			pingDur, didP2p, pingResult, err := u.conn.Ping(pingCtx, agentID)
-			if err != nil {
-				u.logger.Warn(u.ctx, "failed to ping agent", slog.F("agent_id", agentID), slog.Error(err))
-				return
-			}
-
-			u.mu.Lock()
-			defer u.mu.Unlock()
-			if u.conn == nil {
-				u.logger.Debug(u.ctx, "ignoring ping result as connection is closed", slog.F("agent_id", agentID))
-				return
-			}
-			node := u.conn.Node()
-			derpMap := u.conn.DERPMap()
-			derpLatencies := tailnet.ExtractDERPLatency(node, derpMap)
-			preferredDerp := tailnet.ExtractPreferredDERPName(pingResult, node, derpMap)
-			var preferredDerpLatency *time.Duration
-			if derpLatency, ok := derpLatencies[preferredDerp]; ok {
-				preferredDerpLatency = &derpLatency
-			} else {
-				u.logger.Debug(u.ctx, "preferred DERP not found in DERP latency map", slog.F("preferred_derp", preferredDerp))
-			}
-			if agent, ok := u.agents[agentID]; ok {
-				agent.lastPing = &lastPing{
-					pingDur:              pingDur,
-					didP2p:               didP2p,
-					preferredDerp:        preferredDerp,
-					preferredDerpLatency: preferredDerpLatency,
-				}
-				u.agents[agentID] = agent
-			} else {
-				u.logger.Debug(u.ctx, "ignoring ping result for unknown agent", slog.F("agent_id", agentID))
-			}
-		}()
+	if conn == nil {
+		u.logger.Debug(u.ctx, "skipping pings as tunnel is not connected")
+		return
 	}
+
+	go func() {
+		// We need a waitgroup to cancel the context after all pings are done.
+		var wg sync.WaitGroup
+		pingCtx, cancelFunc := context.WithTimeout(u.ctx, 5*time.Second)
+		defer cancelFunc()
+		for _, agentID := range agentsIDsToPing {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				pingDur, didP2p, pingResult, err := conn.Ping(pingCtx, agentID)
+				if err != nil {
+					u.logger.Warn(u.ctx, "failed to ping agent", slog.F("agent_id", agentID), slog.Error(err))
+					return
+				}
+
+				// We fetch the Node and DERPMap after each ping, as it may have
+				// changed.
+				node := conn.Node()
+				derpMap := conn.DERPMap()
+				derpLatencies := tailnet.ExtractDERPLatency(node, derpMap)
+				preferredDerp := tailnet.ExtractPreferredDERPName(pingResult, node, derpMap)
+				var preferredDerpLatency *time.Duration
+				if derpLatency, ok := derpLatencies[preferredDerp]; ok {
+					preferredDerpLatency = &derpLatency
+				} else {
+					u.logger.Debug(u.ctx, "preferred DERP not found in DERP latency map", slog.F("preferred_derp", preferredDerp))
+				}
+
+				// Write back results
+				u.mu.Lock()
+				defer u.mu.Unlock()
+				if agent, ok := u.agents[agentID]; ok {
+					agent.lastPing = &lastPing{
+						pingDur:              pingDur,
+						didP2p:               didP2p,
+						preferredDerp:        preferredDerp,
+						preferredDerpLatency: preferredDerpLatency,
+					}
+					u.agents[agentID] = agent
+				} else {
+					u.logger.Debug(u.ctx, "ignoring ping result for unknown agent", slog.F("agent_id", agentID))
+				}
+			}()
+		}
+		wg.Wait()
+	}()
 }
 
 // processSnapshotUpdate handles the logic when a full state update is received.
