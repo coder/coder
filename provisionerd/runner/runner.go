@@ -773,7 +773,6 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 	// Ensure all metadata fields are set as they are all optional for dry-run.
 	metadata := r.job.GetTemplateDryRun().GetMetadata()
 	metadata.WorkspaceTransition = sdkproto.WorkspaceTransition_START
-	metadata.WorkspaceOwnerGroups = metadata.WorkspaceOwnerGroups
 	if metadata.CoderUrl == "" {
 		metadata.CoderUrl = "http://localhost:3000"
 	}
