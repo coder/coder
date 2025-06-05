@@ -176,7 +176,7 @@ describe("api.ts", () => {
 				.spyOn(API, "postWorkspaceBuild")
 				.mockResolvedValueOnce(MockWorkspaceBuild);
 			jest.spyOn(API, "getTemplate").mockResolvedValueOnce(MockTemplate);
-			await API.updateWorkspace(MockWorkspace);
+			await API.updateWorkspace(MockWorkspace, [], false);
 			expect(API.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
 				transition: "start",
 				template_version_id: MockTemplate.active_version_id,
@@ -199,7 +199,7 @@ describe("api.ts", () => {
 
 			let error = new Error();
 			try {
-				await API.updateWorkspace(MockWorkspace);
+				await API.updateWorkspace(MockWorkspace, [], false);
 			} catch (e) {
 				error = e as Error;
 			}
@@ -225,7 +225,7 @@ describe("api.ts", () => {
 				.mockResolvedValue([
 					{ ...MockTemplateVersionParameter1, required: true, mutable: false },
 				]);
-			await API.updateWorkspace(MockWorkspace);
+			await API.updateWorkspace(MockWorkspace, [], false);
 			expect(API.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
 				transition: "start",
 				template_version_id: MockTemplate.active_version_id,

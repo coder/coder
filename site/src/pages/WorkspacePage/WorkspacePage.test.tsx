@@ -314,7 +314,7 @@ describe("WorkspacePage", () => {
 					name: MockTemplateVersionParameter2.name,
 					value: "2",
 				},
-			]);
+			], false);
 		});
 	});
 
