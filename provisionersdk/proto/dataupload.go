@@ -97,7 +97,7 @@ func (b *DataBuilder) done() bool {
 	return b.chunkIndex >= b.ChunkCount
 }
 
-func BytesToDataUpload(data []byte) (*DataUpload, []*ChunkPiece) {
+func BytesToDataUpload(dataType DataUploadType, data []byte) (*DataUpload, []*ChunkPiece) {
 	fullHash := sha256.Sum256(data)
 	size := int64(len(data))
 	// basically ceiling division to get the number of chunks required to
@@ -108,7 +108,7 @@ func BytesToDataUpload(data []byte) (*DataUpload, []*ChunkPiece) {
 		DataHash:   fullHash[:],
 		FileSize:   size,
 		Chunks:     chunkCount,
-		UploadType: DataUploadType_UPLOAD_TYPE_MODULE_FILES,
+		UploadType: dataType,
 	}
 
 	chunks := make([]*ChunkPiece, 0, chunkCount)

@@ -517,46 +517,51 @@ func (p *Server) FailJob(ctx context.Context, in *proto.FailedJob) error {
 	return err
 }
 
-func (p *Server) CompleteJobWithModuleFiles(ctx context.Context, in *proto.CompletedJob, moduleFiles []byte) error {
+func (p *Server) UploadModuleFiles(ctx context.Context, moduleFiles []byte) error {
+	//Send the files separately if the message size is too large.
+	_, err := clientDoWithRetries(ctx, p.client, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (*proto.Empty, error) {
+		stream, err := client.UploadFile(ctx)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to start CompleteJobWithFiles stream: %w", err)
+		}
+		defer stream.Close()
+
+		dataUp, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleFiles)
+
+		err = stream.Send(&proto.UploadFileRequest{Type: &proto.UploadFileRequest_DataUpload{DataUpload: &proto.DataUpload{
+			UploadType: proto.DataUploadType(dataUp.UploadType),
+			DataHash:   dataUp.DataHash,
+			FileSize:   dataUp.FileSize,
+			Chunks:     dataUp.Chunks,
+		}}})
+		if err != nil {
+			if retryable(err) { // Do not retry
+				return nil, xerrors.Errorf("send data upload: %s", err.Error())
+			}
+			return nil, xerrors.Errorf("send data upload: %w", err)
+		}
+
+		for i, chunk := range chunks {
+			err = stream.Send(&proto.UploadFileRequest{Type: &proto.UploadFileRequest_ChunkPiece{ChunkPiece: &proto.ChunkPiece{
+				Data:         chunk.Data,
+				FullDataHash: chunk.FullDataHash,
+				PieceIndex:   chunk.PieceIndex,
+			}}})
+			if err != nil {
+				if retryable(err) { // Do not retry
+					return nil, xerrors.Errorf("send chunk piece: %s", err.Error())
+				}
+				return nil, xerrors.Errorf("send chunk piece %d: %w", i, err)
+			}
+		}
+
+		return &proto.Empty{}, nil
+	})
+	if err != nil {
+		return xerrors.Errorf("upload module files: %w", err)
+	}
+
 	return nil
-	// Send the files separately if the message size is too large.
-	//_, err := clientDoWithRetries(ctx, p.client, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (*proto.Empty, error) {
-	//	stream, err := client.CompleteJobWithFiles(ctx)
-	//	if err != nil {
-	//		return nil, xerrors.Errorf("failed to start CompleteJobWithFiles stream: %w", err)
-	//	}
-	//
-	//	dataUp, chunks := sdkproto.BytesToDataUpload(moduleFiles)
-	//
-	//	err = stream.Send(&proto.CompleteWithFilesRequest{Type: &proto.CompleteWithFilesRequest_DataUpload{DataUpload: &proto.DataUpload{
-	//		UploadType: proto.DataUploadType(dataUp.UploadType),
-	//		DataHash:   dataUp.DataHash,
-	//		FileSize:   dataUp.FileSize,
-	//		Chunks:     dataUp.Chunks,
-	//	}}})
-	//	if err != nil {
-	//		return nil, xerrors.Errorf("send data upload: %w", err)
-	//	}
-	//
-	//	for i, chunk := range chunks {
-	//		err = stream.Send(&proto.CompleteWithFilesRequest{Type: &proto.CompleteWithFilesRequest_ChunkPiece{ChunkPiece: &proto.ChunkPiece{
-	//			Data:         chunk.Data,
-	//			FullDataHash: chunk.FullDataHash,
-	//			PieceIndex:   chunk.PieceIndex,
-	//		}}})
-	//		if err != nil {
-	//			return nil, xerrors.Errorf("send chunk piece %d: %w", i, err)
-	//		}
-	//	}
-	//
-	//	err = stream.Send(&proto.CompleteWithFilesRequest{Type: &proto.CompleteWithFilesRequest_Complete{Complete: in}})
-	//	if err != nil {
-	//		return nil, xerrors.Errorf("send complete job: %w", err)
-	//	}
-	//
-	//	return &proto.Empty{}, nil
-	//})
-	//return err
 }
 
 func (p *Server) CompleteJob(ctx context.Context, in *proto.CompletedJob) error {
@@ -564,9 +569,14 @@ func (p *Server) CompleteJob(ctx context.Context, in *proto.CompletedJob) error 
 		messageSize := protobuf.Size(in)
 		if messageSize > drpcsdk.MaxMessageSize &&
 			messageSize-len(ti.TemplateImport.ModuleFiles) < drpcsdk.MaxMessageSize {
+
+			// Split the module files from the message if it exceeds the max size.
 			moduleFiles := ti.TemplateImport.ModuleFiles
 			ti.TemplateImport.ModuleFiles = nil // Clear the files in the final message
-			return p.CompleteJobWithModuleFiles(ctx, in, moduleFiles)
+			err := p.UploadModuleFiles(ctx, moduleFiles)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

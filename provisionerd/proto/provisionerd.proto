@@ -92,6 +92,7 @@ message CompletedJob {
         repeated provisioner.Preset presets = 8;
         bytes plan = 9;
         bytes module_files = 10;
+        bytes module_files_hash = 11;
     }
     message TemplateDryRun {
         repeated provisioner.Resource resources = 1;

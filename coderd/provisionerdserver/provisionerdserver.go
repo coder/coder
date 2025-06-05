@@ -1321,10 +1321,11 @@ func (s *server) prepareForNotifyWorkspaceManualBuildFailed(ctx context.Context,
 	return templateAdmins, template, templateVersion, workspaceOwner, nil
 }
 
-func (s *server) CompleteJobWithFiles(stream proto.DRPCProvisionerDaemon_CompleteJobWithFilesStream) error {
+func (s *server) UploadFile(stream proto.DRPCProvisionerDaemon_UploadFileStream) error {
 	var file *sdkproto.DataBuilder
+	defer stream.Close()
 
-	// stream expects files first
+UploadFileStream:
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
@@ -1332,10 +1333,24 @@ func (s *server) CompleteJobWithFiles(stream proto.DRPCProvisionerDaemon_Complet
 		}
 
 		switch typed := msg.Type.(type) {
-		case *proto.CompleteWithFilesRequest_Complete:
-		case *proto.CompleteWithFilesRequest_ChunkPiece:
+		case *proto.UploadFileRequest_ChunkPiece:
+			if file == nil {
+				return xerrors.New("unexpected chunk piece while waiting for file upload")
+			}
 
-		case *proto.CompleteWithFilesRequest_DataUpload:
+			done, err := file.Add(&sdkproto.ChunkPiece{
+				Data:         typed.ChunkPiece.Data,
+				FullDataHash: typed.ChunkPiece.FullDataHash,
+				PieceIndex:   typed.ChunkPiece.PieceIndex,
+			})
+			if err != nil {
+				return xerrors.Errorf("unable to add chunk piece: %w", err)
+			}
+
+			if done {
+				break UploadFileStream
+			}
+		case *proto.UploadFileRequest_DataUpload:
 			if file != nil {
 				return xerrors.New("unexpected file upload while waiting for file completion")
 			}
@@ -1352,6 +1367,39 @@ func (s *server) CompleteJobWithFiles(stream proto.DRPCProvisionerDaemon_Complet
 		}
 	}
 
+	fileData, err := file.Complete()
+	if err != nil {
+		return xerrors.Errorf("complete file upload: %w", err)
+	}
+
+	// Just rehash the data to be sure it is correct.
+	hashBytes := sha256.Sum256(fileData)
+	hash := hex.EncodeToString(hashBytes[:])
+
+	var insert database.InsertFileParams
+
+	switch file.Type {
+	case sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES:
+		insert = database.InsertFileParams{
+			ID:        uuid.New(),
+			Hash:      hash,
+			CreatedAt: dbtime.Now(),
+			CreatedBy: uuid.Nil,
+			Mimetype:  tarMimeType,
+			Data:      fileData,
+		}
+	default:
+		return xerrors.Errorf("unsupported file upload type: %s", file.Type)
+	}
+
+	_, err = s.Database.InsertFile(s.lifecycleCtx, insert)
+	if err != nil {
+		// Duplicated files already exist in the database, so we can ignore this error.
+		if !database.IsUniqueViolation(err, database.UniqueFilesHashCreatedByKey) {
+			return xerrors.Errorf("insert file: %w", err)
+		}
+	}
+	return nil
 }
 
 // CompleteJob is triggered by a provision daemon to mark a provisioner job as completed.
