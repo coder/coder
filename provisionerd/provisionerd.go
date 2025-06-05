@@ -2,6 +2,7 @@ package provisionerd
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -570,9 +571,11 @@ func (p *Server) CompleteJob(ctx context.Context, in *proto.CompletedJob) error 
 		if messageSize > drpcsdk.MaxMessageSize &&
 			messageSize-len(ti.TemplateImport.ModuleFiles) < drpcsdk.MaxMessageSize {
 
+			moduleFilesHash := sha256.Sum256(ti.TemplateImport.ModuleFiles)
 			// Split the module files from the message if it exceeds the max size.
 			moduleFiles := ti.TemplateImport.ModuleFiles
 			ti.TemplateImport.ModuleFiles = nil // Clear the files in the final message
+			ti.TemplateImport.ModuleFilesHash = moduleFilesHash[:]
 			err := p.UploadModuleFiles(ctx, moduleFiles)
 			if err != nil {
 				return err

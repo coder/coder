@@ -773,7 +773,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 	case database.ProvisionerStorageMethodFile:
 		file, err := s.Database.GetFileByID(ctx, job.FileID)
 		if err != nil {
-			return nil, failJob(fmt.Sprintf("get file by hash: %s", err))
+			return nil, failJob(fmt.Sprintf("get file by id: %s", err))
 		}
 		protoJob.TemplateSourceArchive = file.Data
 	default:
@@ -1399,6 +1399,7 @@ UploadFileStream:
 			return xerrors.Errorf("insert file: %w", err)
 		}
 	}
+
 	return nil
 }
 
@@ -1684,6 +1685,19 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 						Valid: true,
 						UUID:  file.ID,
 					}
+				}
+			}
+
+			if len(jobType.TemplateImport.ModuleFilesHash) > 0 {
+				hashString := hex.EncodeToString(jobType.TemplateImport.ModuleFilesHash)
+				file, err := db.GetFileByHashAndCreator(dbauthz.AsSystemRestricted(ctx), database.GetFileByHashAndCreatorParams{Hash: hashString, CreatedBy: uuid.Nil})
+				if err != nil {
+					return xerrors.Errorf("get file by hash, it should have been uploaded: %w", err)
+				}
+
+				fileID = uuid.NullUUID{
+					Valid: true,
+					UUID:  file.ID,
 				}
 			}
 
