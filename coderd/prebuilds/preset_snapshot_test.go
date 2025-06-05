@@ -1178,6 +1178,53 @@ func TestCalculateDesiredInstances(t *testing.T) {
 			at:                          mustParseTime(t, time.RFC1123, "Sat, 07 Jun 2025 14:00:00 UTC"),
 			expectedCalculatedInstances: 1,
 		},
+
+		// Test different timezones
+		{
+			name: "3PM UTC - 8AM America/Los_Angeles; An hour before the start of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "America/Los_Angeles"),
+				mkSchedule("* 9-13 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 15:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "4PM UTC - 9AM America/Los_Angeles; Start of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "America/Los_Angeles"),
+				mkSchedule("* 9-13 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 16:00:00 UTC"),
+			expectedCalculatedInstances: 3,
+		},
+		{
+			name: "8:58PM UTC - 1:58PM America/Los_Angeles; Right before the end of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "America/Los_Angeles"),
+				mkSchedule("* 9-13 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 20:58:00 UTC"),
+			expectedCalculatedInstances: 3,
+		},
+		{
+			name: "9PM UTC - 2PM America/Los_Angeles; Right after the end of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "America/Los_Angeles"),
+				mkSchedule("* 9-13 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 21:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "11PM UTC - 4PM America/Los_Angeles; Outside the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "America/Los_Angeles"),
+				mkSchedule("* 9-13 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 23:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
 	}
 
 	for _, tc := range testCases {

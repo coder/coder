@@ -1,6 +1,7 @@
 package prebuilds
 
 import (
+	"fmt"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"golang.org/x/xerrors"
 	"slices"
@@ -102,16 +103,15 @@ func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) (int32, error) {
 		return p.Preset.DesiredInstances.Int32, nil
 	}
 
-	loc, err := time.LoadLocation(p.Preset.AutoscalingTimezone)
+	_, err := time.LoadLocation(p.Preset.AutoscalingTimezone)
 	if err != nil {
 		return 0, xerrors.Errorf("can't parse location %v: %w", p.Preset.AutoscalingTimezone, err)
 	}
 
-	at = at.In(loc)
-
 	// Check each schedule
 	for _, schedule := range p.PrebuildSchedules {
-		matches, err := MatchesCron(schedule.CronExpression, at)
+		cronExprWithTimezone := fmt.Sprintf("CRON_TZ=%s %s", p.Preset.AutoscalingTimezone, schedule.CronExpression)
+		matches, err := MatchesCron(cronExprWithTimezone, at)
 		if err != nil {
 			return 0, xerrors.Errorf("failed to match cron expression: %w", err)
 		}
