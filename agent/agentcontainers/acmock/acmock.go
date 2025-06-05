@@ -130,8 +130,27 @@ func (m *MockDevcontainerCLI) EXPECT() *MockDevcontainerCLIMockRecorder {
 	return m.recorder
 }
 
+// Exec mocks base method.
+func (m *MockDevcontainerCLI) Exec(ctx context.Context, workspaceFolder, configPath, cmd string, cmdArgs []string, opts ...agentcontainers.DevcontainerCLIOptions) error {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, workspaceFolder, configPath, cmd, cmdArgs}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Exec", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Exec indicates an expected call of Exec.
+func (mr *MockDevcontainerCLIMockRecorder) Exec(ctx, workspaceFolder, configPath, cmd, cmdArgs any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, workspaceFolder, configPath, cmd, cmdArgs}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exec", reflect.TypeOf((*MockDevcontainerCLI)(nil).Exec), varargs...)
+}
+
 // Up mocks base method.
-func (m *MockDevcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath string, opts ...agentcontainers.DevcontainerCLIUpOptions) (string, error) {
+func (m *MockDevcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath string, opts ...agentcontainers.DevcontainerCLIOptions) (string, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, workspaceFolder, configPath}
 	for _, a := range opts {

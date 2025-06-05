@@ -58,20 +58,39 @@ func (f *fakeContainerCLI) ExecAs(ctx context.Context, name, user string, args .
 // fakeDevcontainerCLI implements the agentcontainers.DevcontainerCLI
 // interface for testing.
 type fakeDevcontainerCLI struct {
-	id         string
-	err        error
-	continueUp chan struct{}
+	upID     string
+	upErr    error
+	upErrC   chan error // If set, send to return err, close to return upErr.
+	execErr  error
+	execErrC chan error // If set, send to return err, close to return execErr.
 }
 
-func (f *fakeDevcontainerCLI) Up(ctx context.Context, _, _ string, _ ...agentcontainers.DevcontainerCLIUpOptions) (string, error) {
-	if f.continueUp != nil {
+func (f *fakeDevcontainerCLI) Up(ctx context.Context, _, _ string, _ ...agentcontainers.DevcontainerCLIOptions) (string, error) {
+	if f.upErrC != nil {
 		select {
 		case <-ctx.Done():
-			return "", xerrors.New("test timeout")
-		case <-f.continueUp:
+			return "", ctx.Err()
+		case err, ok := <-f.upErrC:
+			if ok {
+				return f.upID, err
+			}
 		}
 	}
-	return f.id, f.err
+	return f.upID, f.upErr
+}
+
+func (f *fakeDevcontainerCLI) Exec(ctx context.Context, _, _ string, _ string, _ []string, _ ...agentcontainers.DevcontainerCLIOptions) error {
+	if f.execErrC != nil {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case err, ok := <-f.execErrC:
+			if ok {
+				return err
+			}
+		}
+	}
+	return f.execErr
 }
 
 // fakeWatcher implements the watcher.Watcher interface for testing.
@@ -398,7 +417,7 @@ func TestAPI(t *testing.T) {
 					},
 				},
 				devcontainerCLI: &fakeDevcontainerCLI{
-					err: xerrors.New("devcontainer CLI error"),
+					upErr: xerrors.New("devcontainer CLI error"),
 				},
 				wantStatus: []int{http.StatusAccepted, http.StatusConflict},
 				wantBody:   []string{"Devcontainer recreation initiated", "Devcontainer recreation already in progress"},
@@ -432,7 +451,7 @@ func TestAPI(t *testing.T) {
 				nowRecreateErrorTrap := mClock.Trap().Now("recreate", "errorTimes")
 				nowRecreateSuccessTrap := mClock.Trap().Now("recreate", "successTimes")
 
-				tt.devcontainerCLI.continueUp = make(chan struct{})
+				tt.devcontainerCLI.upErrC = make(chan error)
 
 				// Setup router with the handler under test.
 				r := chi.NewRouter()
@@ -470,7 +489,7 @@ func TestAPI(t *testing.T) {
 				// because we must check what state the devcontainer ends up in
 				// after the recreation process is initiated and finished.
 				if tt.wantStatus[0] != http.StatusAccepted {
-					close(tt.devcontainerCLI.continueUp)
+					close(tt.devcontainerCLI.upErrC)
 					nowRecreateSuccessTrap.Close()
 					nowRecreateErrorTrap.Close()
 					return
@@ -497,10 +516,10 @@ func TestAPI(t *testing.T) {
 				assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusStarting, resp.Devcontainers[0].Container.DevcontainerStatus, "container dc status is not starting")
 
 				// Allow the devcontainer CLI to continue the up process.
-				close(tt.devcontainerCLI.continueUp)
+				close(tt.devcontainerCLI.upErrC)
 
 				// Ensure the devcontainer ends up in error state if the up call fails.
-				if tt.devcontainerCLI.err != nil {
+				if tt.devcontainerCLI.upErr != nil {
 					nowRecreateSuccessTrap.Close()
 					// The timestamp for the error will be stored, which gives
 					// us a good anchor point to know when to do our request.

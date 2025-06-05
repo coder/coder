@@ -16,37 +16,67 @@ import (
 
 // DevcontainerCLI is an interface for the devcontainer CLI.
 type DevcontainerCLI interface {
-	Up(ctx context.Context, workspaceFolder, configPath string, opts ...DevcontainerCLIUpOptions) (id string, err error)
+	Up(ctx context.Context, workspaceFolder, configPath string, opts ...DevcontainerCLIOptions) (id string, err error)
+	Exec(ctx context.Context, workspaceFolder, configPath string, cmd string, cmdArgs []string, opts ...DevcontainerCLIOptions) error
 }
 
-// DevcontainerCLIUpOptions are options for the devcontainer CLI up
-// command.
-type DevcontainerCLIUpOptions func(*devcontainerCLIUpConfig)
+// DevcontainerCLIOptions are options for the devcontainer CLI commands.
+type DevcontainerCLIOptions func(*devcontainerCLIUpConfig)
 
 // WithRemoveExistingContainer is an option to remove the existing
-// container.
-func WithRemoveExistingContainer() DevcontainerCLIUpOptions {
+// container. Can only be used with the Up command.
+func WithRemoveExistingContainer() DevcontainerCLIOptions {
 	return func(o *devcontainerCLIUpConfig) {
-		o.removeExistingContainer = true
+		if o.command != "up" {
+			panic("developer error: WithRemoveExistingContainer can only be used with the Up command")
+		}
+		o.args = append(o.args, "--remove-existing-container")
 	}
 }
 
-// WithOutput sets stdout and stderr writers for Up command logs.
-func WithOutput(stdout, stderr io.Writer) DevcontainerCLIUpOptions {
+// WithOutput sets additional stdout and stderr writers for logs.
+func WithOutput(stdout, stderr io.Writer) DevcontainerCLIOptions {
 	return func(o *devcontainerCLIUpConfig) {
 		o.stdout = stdout
 		o.stderr = stderr
 	}
 }
 
+// WithContainerID sets the container ID to target a specific container.
+// Can only be used with the Exec command.
+func WithContainerID(id string) DevcontainerCLIOptions {
+	return func(o *devcontainerCLIUpConfig) {
+		if o.command != "exec" {
+			panic("developer error: WithContainerID can only be used with the Exec command")
+		}
+		o.args = append(o.args, "--container-id", id)
+	}
+}
+
+// WithRemoteEnv sets environment variables for the Exec command.
+// Can only be used with the Exec command.
+func WithRemoteEnv(env ...string) DevcontainerCLIOptions {
+	return func(o *devcontainerCLIUpConfig) {
+		if o.command != "exec" {
+			panic("developer error: WithRemoteEnv can only be used with the Exec command")
+		}
+		for _, e := range env {
+			o.args = append(o.args, "--remote-env", e)
+		}
+	}
+}
+
 type devcontainerCLIUpConfig struct {
+	command                 string // The devcontainer CLI command to run, e.g. "up", "exec".
 	removeExistingContainer bool
+	args                    []string // Additional arguments for the command.
 	stdout                  io.Writer
 	stderr                  io.Writer
 }
 
-func applyDevcontainerCLIUpOptions(opts []DevcontainerCLIUpOptions) devcontainerCLIUpConfig {
+func applyDevcontainerCLIOptions(command string, opts []DevcontainerCLIOptions) devcontainerCLIUpConfig {
 	conf := devcontainerCLIUpConfig{
+		command:                 command,
 		removeExistingContainer: false,
 	}
 	for _, opt := range opts {
@@ -71,8 +101,8 @@ func NewDevcontainerCLI(logger slog.Logger, execer agentexec.Execer) Devcontaine
 	}
 }
 
-func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath string, opts ...DevcontainerCLIUpOptions) (string, error) {
-	conf := applyDevcontainerCLIUpOptions(opts)
+func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath string, opts ...DevcontainerCLIOptions) (string, error) {
+	conf := applyDevcontainerCLIOptions("up", opts)
 	logger := d.logger.With(slog.F("workspace_folder", workspaceFolder), slog.F("config_path", configPath), slog.F("recreate", conf.removeExistingContainer))
 
 	args := []string{
@@ -83,9 +113,7 @@ func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath st
 	if configPath != "" {
 		args = append(args, "--config", configPath)
 	}
-	if conf.removeExistingContainer {
-		args = append(args, "--remove-existing-container")
-	}
+	args = append(args, conf.args...)
 	cmd := d.execer.CommandContext(ctx, "devcontainer", args...)
 
 	// Capture stdout for parsing and stream logs for both default and provided writers.
@@ -115,6 +143,40 @@ func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath st
 	}
 
 	return result.ContainerID, nil
+}
+
+func (d *devcontainerCLI) Exec(ctx context.Context, workspaceFolder, configPath string, cmd string, cmdArgs []string, opts ...DevcontainerCLIOptions) error {
+	conf := applyDevcontainerCLIOptions("exec", opts)
+	logger := d.logger.With(slog.F("workspace_folder", workspaceFolder), slog.F("config_path", configPath))
+
+	args := []string{"exec"}
+	if workspaceFolder != "" {
+		args = append(args, "--workspace-folder", workspaceFolder)
+	}
+	if configPath != "" {
+		args = append(args, "--config", configPath)
+	}
+	args = append(args, conf.args...)
+	args = append(args, cmd)
+	args = append(args, cmdArgs...)
+	c := d.execer.CommandContext(ctx, "devcontainer", args...)
+
+	stdoutWriters := []io.Writer{&devcontainerCLILogWriter{ctx: ctx, logger: logger.With(slog.F("stdout", true))}}
+	if conf.stdout != nil {
+		stdoutWriters = append(stdoutWriters, conf.stdout)
+	}
+	c.Stdout = io.MultiWriter(stdoutWriters...)
+	stderrWriters := []io.Writer{&devcontainerCLILogWriter{ctx: ctx, logger: logger.With(slog.F("stderr", true))}}
+	if conf.stderr != nil {
+		stderrWriters = append(stderrWriters, conf.stderr)
+	}
+	c.Stderr = io.MultiWriter(stderrWriters...)
+
+	if err := c.Run(); err != nil {
+		return xerrors.Errorf("devcontainer exec failed: %w", err)
+	}
+
+	return nil
 }
 
 // parseDevcontainerCLILastLine parses the last line of the devcontainer CLI output
