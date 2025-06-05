@@ -187,7 +187,8 @@ const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
 	}
 
 	// If dynamic parameters experiment is not enabled, or if opted out, use classic dialog
-	const shouldUseClassicDialog = !isDynamicParametersEnabled || optOutQuery.data?.optedOut;
+	const shouldUseClassicDialog =
+		!isDynamicParametersEnabled || optOutQuery.data?.optedOut;
 
 	return shouldUseClassicDialog ? (
 		<UpdateBuildParametersDialog
