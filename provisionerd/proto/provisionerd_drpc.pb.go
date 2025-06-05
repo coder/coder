@@ -44,7 +44,7 @@ type DRPCProvisionerDaemonClient interface {
 	UpdateJob(ctx context.Context, in *UpdateJobRequest) (*UpdateJobResponse, error)
 	FailJob(ctx context.Context, in *FailedJob) (*Empty, error)
 	CompleteJob(ctx context.Context, in *CompletedJob) (*Empty, error)
-	CompleteJobWithFiles(ctx context.Context) (DRPCProvisionerDaemon_CompleteJobWithFilesClient, error)
+	UploadFile(ctx context.Context) (DRPCProvisionerDaemon_UploadFileClient, error)
 }
 
 type drpcProvisionerDaemonClient struct {
@@ -141,34 +141,34 @@ func (c *drpcProvisionerDaemonClient) CompleteJob(ctx context.Context, in *Compl
 	return out, nil
 }
 
-func (c *drpcProvisionerDaemonClient) CompleteJobWithFiles(ctx context.Context) (DRPCProvisionerDaemon_CompleteJobWithFilesClient, error) {
-	stream, err := c.cc.NewStream(ctx, "/provisionerd.ProvisionerDaemon/CompleteJobWithFiles", drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
+func (c *drpcProvisionerDaemonClient) UploadFile(ctx context.Context) (DRPCProvisionerDaemon_UploadFileClient, error) {
+	stream, err := c.cc.NewStream(ctx, "/provisionerd.ProvisionerDaemon/UploadFile", drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
 	if err != nil {
 		return nil, err
 	}
-	x := &drpcProvisionerDaemon_CompleteJobWithFilesClient{stream}
+	x := &drpcProvisionerDaemon_UploadFileClient{stream}
 	return x, nil
 }
 
-type DRPCProvisionerDaemon_CompleteJobWithFilesClient interface {
+type DRPCProvisionerDaemon_UploadFileClient interface {
 	drpc.Stream
-	Send(*CompleteWithFilesRequest) error
+	Send(*UploadFileRequest) error
 	CloseAndRecv() (*Empty, error)
 }
 
-type drpcProvisionerDaemon_CompleteJobWithFilesClient struct {
+type drpcProvisionerDaemon_UploadFileClient struct {
 	drpc.Stream
 }
 
-func (x *drpcProvisionerDaemon_CompleteJobWithFilesClient) GetStream() drpc.Stream {
+func (x *drpcProvisionerDaemon_UploadFileClient) GetStream() drpc.Stream {
 	return x.Stream
 }
 
-func (x *drpcProvisionerDaemon_CompleteJobWithFilesClient) Send(m *CompleteWithFilesRequest) error {
+func (x *drpcProvisionerDaemon_UploadFileClient) Send(m *UploadFileRequest) error {
 	return x.MsgSend(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
 }
 
-func (x *drpcProvisionerDaemon_CompleteJobWithFilesClient) CloseAndRecv() (*Empty, error) {
+func (x *drpcProvisionerDaemon_UploadFileClient) CloseAndRecv() (*Empty, error) {
 	if err := x.CloseSend(); err != nil {
 		return nil, err
 	}
@@ -179,7 +179,7 @@ func (x *drpcProvisionerDaemon_CompleteJobWithFilesClient) CloseAndRecv() (*Empt
 	return m, nil
 }
 
-func (x *drpcProvisionerDaemon_CompleteJobWithFilesClient) CloseAndRecvMsg(m *Empty) error {
+func (x *drpcProvisionerDaemon_UploadFileClient) CloseAndRecvMsg(m *Empty) error {
 	if err := x.CloseSend(); err != nil {
 		return err
 	}
@@ -193,7 +193,7 @@ type DRPCProvisionerDaemonServer interface {
 	UpdateJob(context.Context, *UpdateJobRequest) (*UpdateJobResponse, error)
 	FailJob(context.Context, *FailedJob) (*Empty, error)
 	CompleteJob(context.Context, *CompletedJob) (*Empty, error)
-	CompleteJobWithFiles(DRPCProvisionerDaemon_CompleteJobWithFilesStream) error
+	UploadFile(DRPCProvisionerDaemon_UploadFileStream) error
 }
 
 type DRPCProvisionerDaemonUnimplementedServer struct{}
@@ -222,7 +222,7 @@ func (s *DRPCProvisionerDaemonUnimplementedServer) CompleteJob(context.Context, 
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
-func (s *DRPCProvisionerDaemonUnimplementedServer) CompleteJobWithFiles(DRPCProvisionerDaemon_CompleteJobWithFilesStream) error {
+func (s *DRPCProvisionerDaemonUnimplementedServer) UploadFile(DRPCProvisionerDaemon_UploadFileStream) error {
 	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
@@ -286,13 +286,13 @@ func (DRPCProvisionerDaemonDescription) Method(n int) (string, drpc.Encoding, dr
 					)
 			}, DRPCProvisionerDaemonServer.CompleteJob, true
 	case 6:
-		return "/provisionerd.ProvisionerDaemon/CompleteJobWithFiles", drpcEncoding_File_provisionerd_proto_provisionerd_proto{},
+		return "/provisionerd.ProvisionerDaemon/UploadFile", drpcEncoding_File_provisionerd_proto_provisionerd_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return nil, srv.(DRPCProvisionerDaemonServer).
-					CompleteJobWithFiles(
-						&drpcProvisionerDaemon_CompleteJobWithFilesStream{in1.(drpc.Stream)},
+					UploadFile(
+						&drpcProvisionerDaemon_UploadFileStream{in1.(drpc.Stream)},
 					)
-			}, DRPCProvisionerDaemonServer.CompleteJobWithFiles, true
+			}, DRPCProvisionerDaemonServer.UploadFile, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -408,31 +408,31 @@ func (x *drpcProvisionerDaemon_CompleteJobStream) SendAndClose(m *Empty) error {
 	return x.CloseSend()
 }
 
-type DRPCProvisionerDaemon_CompleteJobWithFilesStream interface {
+type DRPCProvisionerDaemon_UploadFileStream interface {
 	drpc.Stream
 	SendAndClose(*Empty) error
-	Recv() (*CompleteWithFilesRequest, error)
+	Recv() (*UploadFileRequest, error)
 }
 
-type drpcProvisionerDaemon_CompleteJobWithFilesStream struct {
+type drpcProvisionerDaemon_UploadFileStream struct {
 	drpc.Stream
 }
 
-func (x *drpcProvisionerDaemon_CompleteJobWithFilesStream) SendAndClose(m *Empty) error {
+func (x *drpcProvisionerDaemon_UploadFileStream) SendAndClose(m *Empty) error {
 	if err := x.MsgSend(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{}); err != nil {
 		return err
 	}
 	return x.CloseSend()
 }
 
-func (x *drpcProvisionerDaemon_CompleteJobWithFilesStream) Recv() (*CompleteWithFilesRequest, error) {
-	m := new(CompleteWithFilesRequest)
+func (x *drpcProvisionerDaemon_UploadFileStream) Recv() (*UploadFileRequest, error) {
+	m := new(UploadFileRequest)
 	if err := x.MsgRecv(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{}); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-func (x *drpcProvisionerDaemon_CompleteJobWithFilesStream) RecvMsg(m *CompleteWithFilesRequest) error {
+func (x *drpcProvisionerDaemon_UploadFileStream) RecvMsg(m *UploadFileRequest) error {
 	return x.MsgRecv(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
 }
