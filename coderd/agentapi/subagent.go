@@ -164,10 +164,9 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 
 			return nil
 		}()
-
 		if err != nil {
 			appErr := &agentproto.CreateSubAgentResponse_AppCreationError{
-				Index: int32(i),
+				Index: int32(i), //nolint:gosec // This would only overflow if we created 2 billion apps.
 				Error: err.Error(),
 			}
 
