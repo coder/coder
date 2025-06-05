@@ -40,6 +40,8 @@ export const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
 		.flatMap((r) => r.agents)
 		.flatMap((a) => a?.apps)
 		.find((a) => a?.slug === AI_APP_CHAT_SLUG);
+	const showChatApp =
+		chatApp && (chatApp.health === "disabled" || chatApp.health === "healthy");
 
 	return (
 		<aside
@@ -49,7 +51,7 @@ export const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
 					"border-0 border-r border-solid border-border",
 				],
 				// We want to make the sidebar wider for chat apps
-				chatApp ? "w-[520px]" : "w-[320px]",
+				showChatApp ? "w-[520px]" : "w-[320px]",
 			])}
 		>
 			<header className="border-0 border-b border-solid border-border p-4 pt-0">
@@ -104,7 +106,7 @@ export const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
 				)}
 			</header>
 
-			{chatApp ? (
+			{showChatApp ? (
 				<TaskAppIFrame
 					active
 					key={chatApp.id}
