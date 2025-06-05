@@ -12,7 +12,6 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import { isEveryoneGroup } from "utils/groups";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import { Link } from "components/Link/Link";
@@ -33,6 +32,7 @@ import { useFormik } from "formik";
 import { Plus, Trash, TriangleAlert } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useId, useState } from "react";
 import { docs } from "utils/docs";
+import { isEveryoneGroup } from "utils/groups";
 import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
 import { ExportPolicyButton } from "./ExportPolicyButton";
