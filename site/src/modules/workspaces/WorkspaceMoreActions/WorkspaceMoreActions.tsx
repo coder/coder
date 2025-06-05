@@ -154,7 +154,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				onClose={() => setIsDownloadDialogOpen(false)}
 			/>
 
-			{optOutQuery.data?.optedOut ? (
+			{(!isDynamicParametersEnabled || optOutQuery.data?.optedOut) ? (
 				<UpdateBuildParametersDialog
 					missedParameters={
 						changeVersionMutation.error instanceof MissingBuildParameters

@@ -182,11 +182,14 @@ const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
 	if (optOutQuery.isError) {
 		return <ErrorAlert error={optOutQuery.error} />;
 	}
-	if (!optOutQuery.data) {
+	if (isDynamicParametersEnabled && !optOutQuery.data) {
 		return <Loader />;
 	}
 
-	return optOutQuery.data?.optedOut ? (
+	// If dynamic parameters experiment is not enabled, or if opted out, use classic dialog
+	const shouldUseClassicDialog = !isDynamicParametersEnabled || optOutQuery.data?.optedOut;
+
+	return shouldUseClassicDialog ? (
 		<UpdateBuildParametersDialog
 			missedParameters={missedParameters}
 			open={isOpen}
