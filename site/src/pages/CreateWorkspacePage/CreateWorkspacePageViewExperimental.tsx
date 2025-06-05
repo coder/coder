@@ -620,10 +620,12 @@ export const CreateWorkspacePageViewExperimental: FC<
 										creatingWorkspace ||
 										isPresetParameter;
 
-									// Hide preset parameters if showPresetParameters is false
 									// Always show preset parameters if they have any diagnostics
-									const hasParameterDiagnostics = parameter.diagnostics.length > 0;
-									if (!showPresetParameters && isPresetParameter && !hasParameterDiagnostics) {
+									if (
+										!showPresetParameters &&
+										isPresetParameter &&
+										parameter.diagnostics.length === 0
+									) {
 										return null;
 									}
 
