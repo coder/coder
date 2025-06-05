@@ -104,9 +104,9 @@ func GetModulesArchive(root fs.FS) ([]byte, error) {
 				return nil
 			}
 
+			// .git directories are not needed in the archive and only cause
+			// hash differences for identical modules.
 			if fileMode.IsDir() && d.Name() == ".git" {
-				// .git directories are not needed in the archive and only cause
-				// hash differences for identical modules.
 				return fs.SkipDir
 			}
 
