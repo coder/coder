@@ -378,6 +378,8 @@ func (api *API) updateContainers(ctx context.Context) error {
 
 		return xerrors.Errorf("list containers failed: %w", err)
 	}
+	// Clone to avoid test flakes due to data manipulation.
+	updated.Containers = slices.Clone(updated.Containers)
 
 	api.mu.Lock()
 	defer api.mu.Unlock()
