@@ -88,16 +88,16 @@ func (ra *ReconciliationActions) IsNoop() bool {
 
 // MatchesCron checks if the given time matches the cron expression
 // Assumes the time is already in the correct timezone
-func MatchesCron(cronExpression string, now time.Time) (bool, error) {
+func MatchesCron(cronExpression string, at time.Time) (bool, error) {
 	sched, err := cron.Weekly(cronExpression)
 	if err != nil {
 		return false, xerrors.Errorf("failed to parse cron expression: %w", err)
 	}
 
-	return sched.IsWithinRange(now), nil
+	return sched.IsWithinRange(at), nil
 }
 
-func (p PresetSnapshot) CalculateDesiredInstances(now time.Time) (int32, error) {
+func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) (int32, error) {
 	if !p.Preset.AutoscalingEnabled {
 		return p.Preset.DesiredInstances.Int32, nil
 	}
@@ -107,11 +107,11 @@ func (p PresetSnapshot) CalculateDesiredInstances(now time.Time) (int32, error) 
 		return 0, xerrors.Errorf("can't parse location %v: %w", p.Preset.AutoscalingTimezone, err)
 	}
 
-	now = now.In(loc)
+	at = at.In(loc)
 
 	// Check each schedule
 	for _, schedule := range p.PrebuildSchedules {
-		matches, err := MatchesCron(schedule.CronExpression, now)
+		matches, err := MatchesCron(schedule.CronExpression, at)
 		if err != nil {
 			return 0, xerrors.Errorf("failed to match cron expression: %w", err)
 		}
