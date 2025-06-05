@@ -568,8 +568,9 @@ func TestAcquireJob(t *testing.T) {
 			want, err := json.Marshal(&proto.AcquiredJob_TemplateDryRun_{
 				TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
 					Metadata: &sdkproto.Metadata{
-						CoderUrl:      (&url.URL{}).String(),
-						WorkspaceName: "testing",
+						CoderUrl:             (&url.URL{}).String(),
+						WorkspaceName:        "testing",
+						WorkspaceOwnerGroups: []string{database.EveryoneGroup},
 					},
 				},
 			})
@@ -600,7 +601,8 @@ func TestAcquireJob(t *testing.T) {
 			want, err := json.Marshal(&proto.AcquiredJob_TemplateImport_{
 				TemplateImport: &proto.AcquiredJob_TemplateImport{
 					Metadata: &sdkproto.Metadata{
-						CoderUrl: (&url.URL{}).String(),
+						CoderUrl:             (&url.URL{}).String(),
+						WorkspaceOwnerGroups: []string{database.EveryoneGroup},
 					},
 				},
 			})
@@ -643,7 +645,8 @@ func TestAcquireJob(t *testing.T) {
 						{Name: "first", Sensitive: true, Value: "first_value"},
 					},
 					Metadata: &sdkproto.Metadata{
-						CoderUrl: (&url.URL{}).String(),
+						CoderUrl:             (&url.URL{}).String(),
+						WorkspaceOwnerGroups: []string{database.EveryoneGroup},
 					},
 				},
 			})
