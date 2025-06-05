@@ -1225,6 +1225,26 @@ func TestCalculateDesiredInstances(t *testing.T) {
 			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 23:00:00 UTC"),
 			expectedCalculatedInstances: 1,
 		},
+
+		// Verify support for time values specified in non-UTC time zones.
+		{
+			name: "8AM - before the start of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123Z, "Mon, 02 Jun 2025 04:00:00 -0400"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "9AM - after the start of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123Z, "Mon, 02 Jun 2025 05:00:00 -0400"),
+			expectedCalculatedInstances: 3,
+		},
 	}
 
 	for _, tc := range testCases {
