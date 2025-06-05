@@ -46,9 +46,6 @@ type Tunnel struct {
 
 	logger slog.Logger
 
-	logMu sync.Mutex
-	logs  []*TunnelMessage
-
 	client Client
 
 	// clientLogger is a separate logger than `logger` when the `UseAsLogger`
@@ -300,28 +297,21 @@ func (t *Tunnel) stop(*StopRequest) error {
 var _ slog.Sink = &Tunnel{}
 
 func (t *Tunnel) LogEntry(_ context.Context, e slog.SinkEntry) {
-	t.logMu.Lock()
-	defer t.logMu.Unlock()
-	t.logs = append(t.logs, &TunnelMessage{
+	msg := &TunnelMessage{
 		Msg: &TunnelMessage_Log{
 			Log: sinkEntryToPb(e),
 		},
-	})
-}
-
-func (t *Tunnel) Sync() {
-	t.logMu.Lock()
-	logs := t.logs
-	t.logs = nil
-	t.logMu.Unlock()
-	for _, msg := range logs {
-		select {
-		case <-t.ctx.Done():
-			return
-		case t.sendCh <- msg:
-		}
+	}
+	select {
+	case <-t.updater.ctx.Done():
+		return
+	case <-t.ctx.Done():
+		return
+	case t.sendCh <- msg:
 	}
 }
+
+func (t *Tunnel) Sync() {}
 
 func sinkEntryToPb(e slog.SinkEntry) *Log {
 	l := &Log{
@@ -582,6 +572,8 @@ func (u *updater) sendAgentUpdate() {
 	if len(upsertedAgents) == 0 {
 		return
 	}
+
+	u.logger.Debug(u.ctx, "sending agent update")
 
 	msg := &TunnelMessage{
 		Msg: &TunnelMessage_PeerUpdate{
