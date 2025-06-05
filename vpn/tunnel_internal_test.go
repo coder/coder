@@ -111,7 +111,6 @@ func (f *fakeConn) Ping(ctx context.Context, agentID uuid.UUID) (time.Duration, 
 			DERPRegionID: 999,
 		}, nil
 	}
-
 }
 
 func (f *fakeConn) CurrentWorkspaceState() (tailnet.WorkspaceUpdate, error) {
