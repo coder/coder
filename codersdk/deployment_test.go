@@ -639,49 +639,48 @@ func TestCompileTokenLifetimeExpression(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
-		celExpression string
-		expectError   bool
+		name           string
+		exprExpression string
+		expectError    bool
 	}{
 		{
-			name:          "EmptyExpression",
-			celExpression: "",
-			expectError:   false,
+			name:           "EmptyExpression",
+			exprExpression: "",
+			expectError:    false,
 		},
 		{
-			name:          "ValidSimpleExpression",
-			celExpression: `duration(globalMaxDuration)`,
-			expectError:   false,
+			name:           "ValidSimpleExpression",
+			exprExpression: `globalMaxDuration`,
+			expectError:    false,
 		},
 		{
-			name:          "ValidRoleBasedExpression",
-			celExpression: `subject.roles.exists(r, r.name == "owner") ? duration("168h") : duration("24h")`,
-			expectError:   false,
+			name:           "ValidRoleBasedExpression",
+			exprExpression: `any(subject.Roles, .Name == "owner") ? duration("168h") : duration("24h")`,
+			expectError:    false,
 		},
 		{
-			name:          "ValidEmailBasedExpression",
-			celExpression: `subject.email.endsWith("@company.com") ? duration("720h") : duration("24h")`,
-			expectError:   false,
+			name:           "ValidEmailBasedExpression",
+			exprExpression: `subject.Email endsWith "@company.com" ? duration("720h") : duration("24h")`,
+			expectError:    false,
 		},
 		{
-			name:          "InvalidCELSyntax",
-			celExpression: `subject.roles.exists(r, r.name == "owner" ? duration("168h")`, // Missing closing parenthesis
-			expectError:   true,
+			name:           "InvalidExprSyntax",
+			exprExpression: `any(subject.Roles, .Name == "owner" ? duration("168h")`, // Missing closing parenthesis
+			expectError:    true,
 		},
 		{
-			name:          "InvalidCELFunction",
-			celExpression: `subject.roles.exists(r, r.name == "owner") ? invalid_function("168h") : duration("24h")`,
-			expectError:   true,
+			name:           "InvalidExprFunction",
+			exprExpression: `any(subject.Roles, .Name == "owner") ? invalid_function("168h") : duration("24h")`,
+			expectError:    true,
 		},
 		{
-			name:          "ReturnsString",
-			celExpression: `subject.roles.exists(r, r.name == "owner") ? "168h" : "24h"`,
-			expectError:   true,
+			name:           "ReturnsString",
+			exprExpression: `any(subject.Roles, .Name == "owner") ? "168h" : "24h"`,
+			expectError:    true,
 		},
 		{
-			name:          "ReturnsNumber",
-			celExpression: `subject.roles.exists(r, r.name == "owner") ? 168 : 24`,
-			expectError:   true,
+			name:           "ReturnsNumber",
+			exprExpression: `any(subject.Roles, .Name == "owner") ? 168 : 24`,
 		},
 	}
 
@@ -690,9 +689,9 @@ func TestCompileTokenLifetimeExpression(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Create deployment values with the test CEL expression
+			// Create deployment values with the test expr expression
 			sl := codersdk.SessionLifetime{
-				MaximumTokenDurationExpression: serpent.String(tt.celExpression),
+				MaximumTokenDurationExpression: serpent.String(tt.exprExpression),
 			}
 
 			// Execute
@@ -707,7 +706,7 @@ func TestCompileTokenLifetimeExpression(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify that a program was compiled if expression was not empty
-			if tt.celExpression != "" {
+			if tt.exprExpression != "" {
 				require.NotNil(t, program, "Expected compiled program to be set")
 			}
 		})

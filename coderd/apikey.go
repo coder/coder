@@ -9,15 +9,15 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/cel-go/common/types"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
+	"github.com/expr-lang/expr"
+
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
-	celtoken "github.com/coder/coder/v2/coderd/cel"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -392,7 +392,7 @@ func (api *API) validateAPIKeyLifetime(ctx context.Context, lifetime time.Durati
 }
 
 // getMaxTokenLifetimeForUser determines the maximum token lifetime a user is entitled to
-// based on their attributes and the CEL expression configuration.
+// based on their attributes and the expr expression configuration.
 func (api *API) getMaxTokenLifetimeForUser(ctx context.Context, subject rbac.Subject) time.Duration {
 	// Compiled at startup no need to recheck here.
 	program, _ := api.DeploymentValues.Sessions.CompiledMaximumTokenDurationProgram()
@@ -404,34 +404,27 @@ func (api *API) getMaxTokenLifetimeForUser(ctx context.Context, subject rbac.Sub
 	globalMax := api.DeploymentValues.Sessions.MaximumTokenDuration.Value()
 	defaultDuration := api.DeploymentValues.Sessions.DefaultTokenDuration.Value()
 
-	// Convert subject to CEL-friendly format
-	celSubject := celtoken.ConvertSubjectToCEL(subject)
-
-	// Evaluate CEL expression with typed struct
+	// Evaluate expr expression with typed struct
 	// TODO: Consider adding timeout protection in future iterations
-	out, _, err := program.Eval(map[string]interface{}{
-		"subject":           celSubject,
-		"globalMaxDuration": globalMax,
-		"defaultDuration":   defaultDuration,
+	out, err := expr.Run(program, map[string]interface{}{
+		"subject":           subject.ExprSubject(),
+		"globalMaxDuration": int64(globalMax),
+		"defaultDuration":   int64(defaultDuration),
 	})
 	if err != nil {
-		api.Logger.Error(ctx, "the CEL evaluation failed, using default duration", slog.Error(err))
+		api.Logger.Error(ctx, "the expr evaluation failed, using default duration", slog.Error(err))
 		return defaultDuration
 	}
 
-	// Convert result to time.Duration
-	// CEL returns types.Duration, not time.Duration directly
-	switch v := out.Value().(type) {
-	case types.Duration:
-		return v.Duration
-	case time.Duration:
-		return v
-	default:
-		api.Logger.Error(ctx, "the CEL expression did not return a duration, using default duration",
-			slog.F("result_type", fmt.Sprintf("%T", out.Value())),
-			slog.F("result_value", out.Value()))
+	// Convert result to time.Duration (expr returns int64 due to AsInt64 constraint)
+	intVal, ok := out.(int64)
+	if !ok {
+		api.Logger.Error(ctx, "the expr expression did not return an int64, using default duration",
+			slog.F("result_type", fmt.Sprintf("%T", out)),
+			slog.F("result_value", out))
 		return defaultDuration
 	}
+	return time.Duration(intVal)
 }
 
 func (api *API) createAPIKey(ctx context.Context, params apikey.CreateParams) (*http.Cookie, *database.APIKey, error) {

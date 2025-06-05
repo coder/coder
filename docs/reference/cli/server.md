@@ -918,7 +918,7 @@ The maximum lifetime duration users can specify when creating an API token.
 | Environment | <code>$CODER_MAX_TOKEN_LIFETIME_EXPRESSION</code> |
 | YAML        | <code>maxTokenLifetimeExpression</code>           |
 
-A CEL expression that determines the maximum token lifetime based on user attributes. The expression has access to 'subject' (rbac.Subject), 'globalMaxDuration' (time.Duration), and'defaultDuration' (time.Duration). Must return a duration string (e.g., duration("168h")). Example: 'subject.roles.exists(r, r.name == "owner") ? duration(globalMaxDuration) : duration(defaultDuration)'. See https://github.com/google/cel-spec for CEL expression syntax and examples.
+An expr expression that determines the maximum token lifetime based on user attributes. The expression has access to 'subject' (coderd/expr.Subject with fields: ID, Email, Groups, Roles), 'globalMaxDuration' (time.Duration as int64 nanoseconds), and 'defaultDuration' (time.Duration as int64 nanoseconds). Must return a duration as int64 nanoseconds (e.g., duration("168h")). Example: 'any(subject.Roles, .Name == "owner") ? duration("720h") : duration("168h")'. See https://github.com/expr-lang/expr for expr expression syntax and examples.
 
 ### --default-token-lifetime
 

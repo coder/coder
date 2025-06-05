@@ -14289,7 +14289,7 @@
 					"type": "integer"
 				},
 				"maximum_token_duration_expression": {
-					"description": "MaximumTokenDurationExpression is a CEL expression that determines the maximum token lifetime based on user attributes.\nThe expression has access to 'subject' (cel.Subject), 'globalMaxDuration' (time.Duration), and 'defaultDuration' (time.Duration).\nMust return a duration string (e.g., duration(\"168h\")).\nSee https://github.com/google/cel-spec for CEL expression syntax and examples.",
+					"description": "MaximumTokenDurationExpression is an expr expression that determines the maximum token lifetime based on user attributes.\nThe expression has access to:\n  - 'subject' (coderd/expr.Subject with fields: ID, Email, Groups, Roles)\n  - 'globalMaxDuration' (time.Duration as int64 nanoseconds)\n  - 'defaultDuration' (time.Duration as int64 nanoseconds)\nMust return a duration as int64 nanoseconds (e.g., duration(\"168h\")).\nSee https://github.com/expr-lang/expr for expr expression syntax and examples.",
 					"type": "string"
 				}
 			}

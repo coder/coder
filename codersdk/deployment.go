@@ -15,8 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/types"
 	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
@@ -25,9 +23,11 @@ import (
 
 	"github.com/coder/serpent"
 
+	"github.com/expr-lang/expr/vm"
+
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
-	cel2 "github.com/coder/coder/v2/coderd/cel"
+	exprtoken "github.com/coder/coder/v2/coderd/expr"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 )
 
@@ -470,53 +470,38 @@ type SessionLifetime struct {
 	DefaultTokenDuration serpent.Duration `json:"default_token_lifetime,omitempty" typescript:",notnull"`
 	MaximumTokenDuration serpent.Duration `json:"max_token_lifetime,omitempty" typescript:",notnull"`
 
-	// MaximumTokenDurationExpression is a CEL expression that determines the maximum token lifetime based on user attributes.
-	// The expression has access to 'subject' (cel.Subject), 'globalMaxDuration' (time.Duration), and 'defaultDuration' (time.Duration).
-	// Must return a duration string (e.g., duration("168h")).
-	// See https://github.com/google/cel-spec for CEL expression syntax and examples.
+	// MaximumTokenDurationExpression is an expr expression that determines the maximum token lifetime based on user attributes.
+	// The expression has access to:
+	//   - 'subject' (coderd/expr.Subject with fields: ID, Email, Groups, Roles)
+	//   - 'globalMaxDuration' (time.Duration as int64 nanoseconds)
+	//   - 'defaultDuration' (time.Duration as int64 nanoseconds)
+	// Must return a duration as int64 nanoseconds (e.g., duration("168h")).
+	// See https://github.com/expr-lang/expr for expr expression syntax and examples.
 	MaximumTokenDurationExpression serpent.String `json:"maximum_token_duration_expression,omitempty" typescript:",notnull"`
 
-	// compiledMaximumTokenDurationProgram stores the compiled CEL program.
-	compiledMaximumTokenDurationProgram     cel.Program // Internal, not serialized
+	// compiledMaximumTokenDurationProgram stores the compiled expr program.
+	compiledMaximumTokenDurationProgram     *vm.Program // Internal, not serialized
 	onceCompiledMaximumTokenDurationProgram sync.Once   // Internal, not serialized
 	compiledMaximumTokenDurationError       error       // Internal, not serialized
 }
 
-// CompiledMaximumTokenDurationProgram returns the compiled CEL program.
+// CompiledMaximumTokenDurationProgram returns the compiled expr program.
 // This function must be run at coderd startup.
-func (sl *SessionLifetime) CompiledMaximumTokenDurationProgram() (cel.Program, error) {
+func (sl *SessionLifetime) CompiledMaximumTokenDurationProgram() (*vm.Program, error) {
 	sl.onceCompiledMaximumTokenDurationProgram.Do(func() {
-		expr := strings.TrimSpace(sl.MaximumTokenDurationExpression.Value())
-		if expr == "" {
-			return
-		}
-
-		// Create CEL environment with duration function
-		env, err := cel2.NewTokenLifetimeEnvironment(cel2.EnvironmentOptions{})
-		if err != nil {
-			sl.compiledMaximumTokenDurationError = xerrors.Errorf("failed to create CEL environment: %w", err)
+		expression := strings.TrimSpace(sl.MaximumTokenDurationExpression.Value())
+		if expression == "" {
 			return
 		}
 
 		// Compile expression
-		ast, issues := env.Compile(expr)
-		if issues.Err() != nil {
-			sl.compiledMaximumTokenDurationError = xerrors.Errorf("CEL compilation failed: %w", issues.Err())
-			return
-		}
-
-		// Verify the return type is a duration
-		if !ast.OutputType().IsExactType(types.DurationType) {
-			sl.compiledMaximumTokenDurationError = xerrors.Errorf("CEL expression must return a duration, got %s", ast.OutputType())
-			return
-		}
-
-		// Create program
-		sl.compiledMaximumTokenDurationProgram, err = env.Program(ast)
+		program, err := exprtoken.CompileTokenLifetimeExpression(expression)
 		if err != nil {
-			sl.compiledMaximumTokenDurationError = xerrors.Errorf("CEL program creation failed: %w", err)
+			sl.compiledMaximumTokenDurationError = xerrors.Errorf("expr compilation failed: %w", err)
 			return
 		}
+
+		sl.compiledMaximumTokenDurationProgram = program
 	})
 
 	return sl.compiledMaximumTokenDurationProgram, sl.compiledMaximumTokenDurationError
@@ -2394,12 +2379,12 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name: "Max Token Lifetime Expression",
-			Description: "A CEL expression that determines the maximum token lifetime based on user attributes. " +
-				"The expression has access to 'subject' (rbac.Subject), 'globalMaxDuration' (time.Duration), and" +
-				"'defaultDuration' (time.Duration). " +
-				"Must return a duration string (e.g., duration(\"168h\")). " +
-				"Example: 'subject.roles.exists(r, r.name == \"owner\") ? duration(globalMaxDuration) : duration(defaultDuration)'. " +
-				"See https://github.com/google/cel-spec for CEL expression syntax and examples.",
+			Description: "An expr expression that determines the maximum token lifetime based on user attributes. " +
+				"The expression has access to 'subject' (coderd/expr.Subject with fields: ID, Email, Groups, Roles), 'globalMaxDuration' (time.Duration as int64 nanoseconds), and " +
+				"'defaultDuration' (time.Duration as int64 nanoseconds). " +
+				"Must return a duration as int64 nanoseconds (e.g., duration(\"168h\")). " +
+				"Example: 'any(subject.Roles, .Name == \"owner\") ? duration(\"720h\") : duration(\"168h\")'. " +
+				"See https://github.com/expr-lang/expr for expr expression syntax and examples.",
 			Flag:  "max-token-lifetime-expression",
 			Env:   "CODER_MAX_TOKEN_LIFETIME_EXPRESSION",
 			Value: &c.Sessions.MaximumTokenDurationExpression,

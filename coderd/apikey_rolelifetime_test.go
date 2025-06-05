@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/cel"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/expr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -39,9 +39,9 @@ func createClientWithRoleTokenLifetimes(t *testing.T, roleTokenLifetimeExpressio
 	t.Logf("MaximumTokenDuration: %v", api.DeploymentValues.Sessions.MaximumTokenDuration.Value())
 	// Check if we have a compiled program
 	if program != nil {
-		t.Logf("CEL expression compiled successfully")
+		t.Logf("expr expression compiled successfully")
 	} else {
-		t.Logf("No CEL expression configured")
+		t.Logf("No expr expression configured")
 	}
 
 	// Create the first user
@@ -53,29 +53,29 @@ func createClientWithRoleTokenLifetimes(t *testing.T, roleTokenLifetimeExpressio
 func TestRoleBasedTokenLifetimes_Integration(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ServerStartupWithValidCELExpressions", func(t *testing.T) {
+	t.Run("ServerStartupWithValidExprExpressions", func(t *testing.T) {
 		t.Parallel()
 
-		// Test server starts successfully with valid CEL expressions
+		// Test server starts successfully with valid expr expressions
 		testCases := []struct {
-			name          string
-			celExpression string
+			name           string
+			exprExpression string
 		}{
 			{
-				name:          "ValidRoleBasedExpression",
-				celExpression: `subject.roles.exists(r, r.name == "owner") ? duration("168h") : subject.roles.exists(r, r.name == "user-admin") ? duration("72h") : duration("24h")`,
+				name:           "ValidRoleBasedExpression",
+				exprExpression: `any(subject.Roles, .Name == "owner") ? duration("168h") : any(subject.Roles, .Name == "user-admin") ? duration("72h") : duration("24h")`,
 			},
 			{
-				name:          "ValidSimpleExpression",
-				celExpression: `duration(globalMaxDuration)`,
+				name:           "ValidSimpleExpression",
+				exprExpression: `duration(globalMaxDuration)`,
 			},
 			{
-				name:          "EmptyExpression",
-				celExpression: ``,
+				name:           "EmptyExpression",
+				exprExpression: ``,
 			},
 			{
-				name:          "EmailBasedExpression",
-				celExpression: `subject.email.endsWith("@company.com") ? duration("720h") : duration("24h")`,
+				name:           "EmailBasedExpression",
+				exprExpression: `subject.Email endsWith "@company.com") ? duration("720h") : duration("24h")`,
 			},
 		}
 
@@ -85,7 +85,7 @@ func TestRoleBasedTokenLifetimes_Integration(t *testing.T) {
 				t.Parallel()
 
 				dv := coderdtest.DeploymentValues(t)
-				dv.Sessions.MaximumTokenDurationExpression = serpent.String(tc.celExpression)
+				dv.Sessions.MaximumTokenDurationExpression = serpent.String(tc.exprExpression)
 
 				// Should create successfully
 				client := coderdtest.New(t, &coderdtest.Options{
@@ -96,21 +96,21 @@ func TestRoleBasedTokenLifetimes_Integration(t *testing.T) {
 		}
 	})
 
-	t.Run("InvalidCELExpressions", func(t *testing.T) {
+	t.Run("InvalidExprExpressions", func(t *testing.T) {
 		t.Parallel()
 
-		// Test that invalid CEL expressions fail validation
+		// Test that invalid expr expressions fail validation
 		testCases := []struct {
-			name          string
-			celExpression string
+			name           string
+			exprExpression string
 		}{
 			{
-				name:          "InvalidCELSyntax",
-				celExpression: `subject.roles.exists(r, r.name == "owner" ? duration("168h")`, // Missing closing parenthesis
+				name:           "InvalidExprSyntax",
+				exprExpression: `any(subject.Roles, .Name == "owner" ? duration("168h")`, // Missing closing parenthesis
 			},
 			{
-				name:          "UndefinedVariable",
-				celExpression: `unknownVariable ? duration("720h") : duration("168h")`,
+				name:           "UndefinedVariable",
+				exprExpression: `unknownVariable ? duration("720h") : duration("168h")`,
 			},
 		}
 
@@ -119,17 +119,14 @@ func TestRoleBasedTokenLifetimes_Integration(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				// For invalid CEL expressions, try to create the environment and compile
-				env, err := cel.NewTokenLifetimeEnvironment(cel.EnvironmentOptions{})
-				require.NoError(t, err)
-
-				_, issues := env.Compile(tc.celExpression)
-				if issues != nil && issues.Err() != nil {
-					// CEL compilation failed as expected
+				// For invalid expr expressions, try to compile
+				_, err := expr.CompileTokenLifetimeExpression(tc.exprExpression)
+				if err != nil {
+					// expr compilation failed as expected
 					return
 				}
 				// If compilation succeeded but we expected failure, that's also a test failure
-				t.Fatalf("Expected CEL expression to fail compilation but it succeeded: %s", tc.celExpression)
+				t.Fatalf("Expected expr expression to fail compilation but it succeeded: %s", tc.exprExpression)
 			})
 		}
 	})
@@ -139,8 +136,8 @@ func TestRoleBasedTokenLifetimes_Integration(t *testing.T) {
 
 		// Test actual token creation with various user role combinations
 		// Note: The first user created is an "Owner" (capital O)
-		// Global max is 720h (30 days), CEL expression provides role-specific rules
-		client := createClientWithRoleTokenLifetimes(t, `subject.roles.exists(r, r.name == "owner") ? duration("168h") : subject.roles.exists(r, r.name == "user-admin") ? duration("72h") : subject.roles.exists(r, r.name == "member") ? duration("24h") : duration(globalMaxDuration)`, 720*time.Hour)
+		// Global max is 720h (30 days), expr expression provides role-specific rules
+		client := createClientWithRoleTokenLifetimes(t, `any(subject.Roles, .Name == "owner") ? duration("168h") : any(subject.Roles, .Name == "user-admin") ? duration("72h") : any(subject.Roles, .Name == "member") ? duration("24h") : duration(globalMaxDuration)`, 720*time.Hour)
 
 		ctx := context.Background()
 
@@ -149,13 +146,13 @@ func TestRoleBasedTokenLifetimes_Integration(t *testing.T) {
 		require.NoError(t, err)
 		t.Logf("Token config max lifetime: %v (expected 720h - global max)", tokenConfig.MaxTokenLifetime)
 
-		// Test owner can create token up to what the CEL expression allows (168h)
+		// Test owner can create token up to what the expr expression allows (168h)
 		_, err = client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
 			Lifetime: 167 * time.Hour,
 		})
 		require.NoError(t, err)
 
-		// Test owner cannot exceed what the CEL expression allows (168h)
+		// Test owner cannot exceed what the expr expression allows (168h)
 		_, err = client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
 			Lifetime: 169 * time.Hour,
 		})
@@ -167,7 +164,7 @@ func TestRoleBasedTokenLifetimes_Integration(t *testing.T) {
 		t.Parallel()
 
 		// Test that users without specific role configs fall back to global max
-		client := createClientWithRoleTokenLifetimes(t, `subject.roles.exists(r, r.name == "user-admin") ? duration("168h") : duration(globalMaxDuration)`, 48*time.Hour)
+		client := createClientWithRoleTokenLifetimes(t, `any(subject.Roles, .Name == "user-admin") ? duration("168h") : duration(globalMaxDuration)`, 48*time.Hour)
 
 		ctx := context.Background()
 
@@ -198,9 +195,9 @@ func TestRoleBasedTokenLifetimes_Integration(t *testing.T) {
 	t.Run("RoleSpecificShorterThanGlobal", func(t *testing.T) {
 		t.Parallel()
 
-		// Test CEL expression that chooses between role-specific and global max
+		// Test expr expression that chooses between role-specific and global max
 		// Note: The first user created is an "Owner" (capital O)
-		client := createClientWithRoleTokenLifetimes(t, `subject.roles.exists(r, r.name == "owner") ? duration(globalMaxDuration) : duration("24h")`, 168*time.Hour) // 7 days global
+		client := createClientWithRoleTokenLifetimes(t, `any(subject.Roles, .Name == "owner") ? duration(globalMaxDuration) : duration("24h")`, 168*time.Hour) // 7 days global
 
 		ctx := context.Background()
 
@@ -214,7 +211,7 @@ func TestRoleBasedTokenLifetimes_Integration(t *testing.T) {
 		require.NoError(t, err)
 		t.Logf("User roles: %v", user.Roles)
 
-		// Owner gets the global max (168h) because the CEL expression returns globalMaxDuration
+		// Owner gets the global max (168h) because the expr expression returns globalMaxDuration
 		_, err = client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
 			Lifetime: 167 * time.Hour,
 		})
@@ -231,20 +228,20 @@ func TestRoleBasedTokenLifetimes_Integration(t *testing.T) {
 	t.Run("OrganizationSpecificRoles", func(t *testing.T) {
 		t.Parallel()
 
-		// This test verifies that organization-specific role configurations work with CEL expressions
+		// This test verifies that organization-specific role configurations work with expr expressions
 
-		// Set up a client with organization-specific role configurations using CEL
-		celExpression := `
-			subject.roles.exists(r, r.name == "owner" && r.orgID == "") ? duration("720h") :
-			subject.roles.exists(r, r.name == "member" && r.orgID == "") ? duration("24h") :
-			subject.roles.exists(r, r.name == "organization-member" && r.orgID != "") ? duration("48h") :
-			subject.roles.exists(r, r.name == "organization-admin" && r.orgID != "") ? duration("168h") :
+		// Set up a client with organization-specific role configurations using expr
+		exprExpression := `
+			any(subject.Roles, .Name == "owner" && .OrgID == "") ? duration("720h") :
+			any(subject.Roles, .Name == "member" && .OrgID == "") ? duration("24h") :
+			any(subject.Roles, .Name == "organization-member" && .OrgID != "") ? duration("48h") :
+			any(subject.Roles, .Name == "organization-admin" && .OrgID != "") ? duration("168h") :
 			duration(defaultDuration)
 		`
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.Sessions.MaximumTokenDuration = serpent.Duration(720 * time.Hour)
-		dv.Sessions.MaximumTokenDurationExpression = serpent.String(celExpression)
+		dv.Sessions.MaximumTokenDurationExpression = serpent.String(exprExpression)
 
 		// Create the client, database, and get the API instance
 		client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
@@ -254,7 +251,7 @@ func TestRoleBasedTokenLifetimes_Integration(t *testing.T) {
 			_ = closer.Close()
 		})
 
-		// Compile the CEL expression
+		// Compile the expr expression
 		ctx := context.Background()
 		_, err := api.DeploymentValues.Sessions.CompiledMaximumTokenDurationProgram()
 		require.NoError(t, err)
@@ -262,7 +259,7 @@ func TestRoleBasedTokenLifetimes_Integration(t *testing.T) {
 		// Create the first user
 		_ = coderdtest.CreateFirstUser(t, client)
 
-		// Test that the CEL expression is working for the site-wide owner role
+		// Test that the expr expression is working for the site-wide owner role
 		// The first user gets site-wide owner role, so should get 720h
 		_, err = client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
 			Lifetime: 719 * time.Hour,
@@ -280,21 +277,21 @@ func TestRoleBasedTokenLifetimes_Integration(t *testing.T) {
 	t.Run("OrganizationRoleWithoutConfig", func(t *testing.T) {
 		t.Parallel()
 
-		// Test CEL expression with fallback behavior for unconfigured roles
+		// Test expr expression with fallback behavior for unconfigured roles
 
 		// Set up a client with only site-wide role configurations (no org-specific roles)
-		client := createClientWithRoleTokenLifetimes(t, `subject.roles.exists(r, r.name == "owner") ? duration("720h") : subject.roles.exists(r, r.name == "member") ? duration("24h") : duration(globalMaxDuration)`, 168*time.Hour)
+		client := createClientWithRoleTokenLifetimes(t, `any(subject.Roles, .Name == "owner") ? duration("720h") : any(subject.Roles, .Name == "member") ? duration("24h") : duration(globalMaxDuration)`, 168*time.Hour)
 
 		ctx := context.Background()
 
-		// Test that the first user (owner) gets 720h according to the CEL expression,
+		// Test that the first user (owner) gets 720h according to the expr expression,
 		// not the global max (168h)
 		_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
 			Lifetime: 719 * time.Hour,
 		})
 		require.NoError(t, err)
 
-		// Test that owner cannot exceed what CEL expression allows (720h)
+		// Test that owner cannot exceed what expr expression allows (720h)
 		_, err = client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
 			Lifetime: 721 * time.Hour,
 		})

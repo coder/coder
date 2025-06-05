@@ -52,14 +52,15 @@ OPTIONS:
           all available experiments.
 
       --max-token-lifetime-expression string, $CODER_MAX_TOKEN_LIFETIME_EXPRESSION
-          A CEL expression that determines the maximum token lifetime based on
+          An expr expression that determines the maximum token lifetime based on
           user attributes. The expression has access to 'subject'
-          (rbac.Subject), 'globalMaxDuration' (time.Duration),
-          and'defaultDuration' (time.Duration). Must return a duration string
-          (e.g., duration("168h")). Example: 'subject.roles.exists(r, r.name ==
-          "owner") ? duration(globalMaxDuration) : duration(defaultDuration)'.
-          See https://github.com/google/cel-spec for CEL expression syntax and
-          examples.
+          (coderd/expr.Subject with fields: ID, Email, Groups, Roles),
+          'globalMaxDuration' (time.Duration as int64 nanoseconds), and
+          'defaultDuration' (time.Duration as int64 nanoseconds). Must return a
+          duration as int64 nanoseconds (e.g., duration("168h")). Example:
+          'any(subject.Roles, .Name == "owner") ? duration("720h") :
+          duration("168h")'. See https://github.com/expr-lang/expr for expr
+          expression syntax and examples.
 
       --postgres-auth password|awsiamrds, $CODER_PG_AUTH (default: password)
           Type of auth to use when connecting to postgres. For AWS RDS, using
