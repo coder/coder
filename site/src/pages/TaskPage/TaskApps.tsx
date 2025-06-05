@@ -32,8 +32,11 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 		.flatMap((a) => a?.apps)
 		.filter((a) => !!a && a.slug !== AI_APP_CHAT_SLUG);
 
+	const embeddedApps = apps.filter((app) => !app.external);
+	const externalApps = apps.filter((app) => app.external);
+
 	const [activeAppId, setActiveAppId] = useState<string>(() => {
-		const appId = apps[0]?.id;
+		const appId = embeddedApps[0]?.id;
 		if (!appId) {
 			throw new Error("No apps found in task");
 		}
@@ -51,9 +54,6 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	if (!agent) {
 		throw new Error(`Agent for app ${activeAppId} not found in task workspace`);
 	}
-
-	const embeddedApps = apps.filter((app) => !app.external);
-	const externalApps = apps.filter((app) => app.external);
 
 	return (
 		<main className="flex-1 flex flex-col">
