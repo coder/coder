@@ -329,30 +329,32 @@ const TasksTable: FC<TasksTableProps> = ({ templates, filter }) => {
 				tasks.map(({ workspace, prompt }) => {
 					const templateDisplayName =
 						workspace.template_display_name ?? workspace.template_name;
-					
+
 					// Get all apps from all agents, excluding the chat UI app
 					const allApps = workspace.latest_build.resources
 						.flatMap((r) => r.agents)
 						.filter((a) => !!a)
 						.flatMap((a) => a.apps)
 						.filter((app) => app.slug !== AI_APP_CHAT_SLUG);
-					
+
 					// Use the first app in order instead of the most recently active app
 					const focusedApp = allApps[0];
-					
+
 					// Find the agent that contains the focused app
 					const agent = workspace.latest_build.resources
 						.flatMap((r) => r.agents)
 						.filter((a) => !!a)
 						.find((a) => a.apps.some((app) => app.id === focusedApp?.id));
-					
+
 					// Create a status object for the focused app, or fall back to latest_app_status
-					const status = focusedApp ? {
-						...workspace.latest_app_status,
-						app_id: focusedApp.id,
-						agent_id: agent?.id || workspace.latest_app_status?.agent_id,
-					} : workspace.latest_app_status;
-					
+					const status = focusedApp
+						? {
+								...workspace.latest_app_status,
+								app_id: focusedApp.id,
+								agent_id: agent?.id || workspace.latest_app_status?.agent_id,
+							}
+						: workspace.latest_app_status;
+
 					const app = focusedApp;
 
 					return (
