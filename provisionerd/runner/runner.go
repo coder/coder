@@ -552,8 +552,9 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		CreatedAt: time.Now().UnixMilli(),
 	})
 	startProvision, err := r.runTemplateImportProvision(ctx, updateResponse.VariableValues, &sdkproto.Metadata{
-		CoderUrl:            r.job.GetTemplateImport().Metadata.CoderUrl,
-		WorkspaceTransition: sdkproto.WorkspaceTransition_START,
+		CoderUrl:             r.job.GetTemplateImport().Metadata.CoderUrl,
+		WorkspaceOwnerGroups: r.job.GetTemplateImport().Metadata.WorkspaceOwnerGroups,
+		WorkspaceTransition:  sdkproto.WorkspaceTransition_START,
 	})
 	if err != nil {
 		return nil, r.failedJobf("template import provision for start: %s", err)
@@ -567,8 +568,9 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		CreatedAt: time.Now().UnixMilli(),
 	})
 	stopProvision, err := r.runTemplateImportProvision(ctx, updateResponse.VariableValues, &sdkproto.Metadata{
-		CoderUrl:            r.job.GetTemplateImport().Metadata.CoderUrl,
-		WorkspaceTransition: sdkproto.WorkspaceTransition_STOP,
+		CoderUrl:             r.job.GetTemplateImport().Metadata.CoderUrl,
+		WorkspaceOwnerGroups: r.job.GetTemplateImport().Metadata.WorkspaceOwnerGroups,
+		WorkspaceTransition:  sdkproto.WorkspaceTransition_STOP,
 	})
 	if err != nil {
 		return nil, r.failedJobf("template import provision for stop: %s", err)
@@ -771,6 +773,7 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 	// Ensure all metadata fields are set as they are all optional for dry-run.
 	metadata := r.job.GetTemplateDryRun().GetMetadata()
 	metadata.WorkspaceTransition = sdkproto.WorkspaceTransition_START
+	metadata.WorkspaceOwnerGroups = metadata.WorkspaceOwnerGroups
 	if metadata.CoderUrl == "" {
 		metadata.CoderUrl = "http://localhost:3000"
 	}
