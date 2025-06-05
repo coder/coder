@@ -33,9 +33,9 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 		.filter((a) => !!a && a.slug !== AI_APP_CHAT_SLUG);
 
 	const [activeAppId, setActiveAppId] = useState<string>(() => {
-		const appId = task.workspace.latest_app_status?.app_id;
+		const appId = apps[0]?.id;
 		if (!appId) {
-			throw new Error("No active app found in task");
+			throw new Error("No apps found in task");
 		}
 		return appId;
 	});
