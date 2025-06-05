@@ -647,6 +647,10 @@ func (u *updater) recordLatencies() {
 				// changed.
 				node := conn.Node()
 				derpMap := conn.DERPMap()
+				if node == nil || derpMap == nil {
+					u.logger.Warn(u.ctx, "failed to get DERP map or node after ping")
+					return
+				}
 				derpLatencies := tailnet.ExtractDERPLatency(node, derpMap)
 				preferredDerp := tailnet.ExtractPreferredDERPName(pingResult, node, derpMap)
 				var preferredDerpLatency *time.Duration
