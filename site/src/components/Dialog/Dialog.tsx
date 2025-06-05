@@ -16,9 +16,9 @@ export const Dialog = DialogPrimitive.Root;
 
 export const DialogTrigger = DialogPrimitive.Trigger;
 
-export const DialogPortal = DialogPrimitive.Portal;
+const DialogPortal = DialogPrimitive.Portal;
 
-export const DialogClose = DialogPrimitive.Close;
+const DialogClose = DialogPrimitive.Close;
 
 const DialogOverlay = forwardRef<
 	ElementRef<typeof DialogPrimitive.Overlay>,
