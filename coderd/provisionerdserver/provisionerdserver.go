@@ -739,6 +739,9 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				Metadata: &sdkproto.Metadata{
 					CoderUrl:      s.AccessURL.String(),
 					WorkspaceName: input.WorkspaceName,
+					// There is no owner for a template import, but we can assume
+					// the "Everyone" group as a placeholder.
+					WorkspaceOwnerGroups: []string{database.EveryoneGroup},
 				},
 			},
 		}
@@ -759,6 +762,9 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				UserVariableValues: convertVariableValues(userVariableValues),
 				Metadata: &sdkproto.Metadata{
 					CoderUrl: s.AccessURL.String(),
+					// There is no owner for a template import, but we can assume
+					// the "Everyone" group as a placeholder.
+					WorkspaceOwnerGroups: []string{database.EveryoneGroup},
 				},
 			},
 		}
