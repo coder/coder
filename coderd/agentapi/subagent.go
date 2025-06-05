@@ -115,17 +115,32 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 				health = database.WorkspaceAppHealthInitializing
 			}
 
-			sharingLevel := database.AppSharingLevelOwner
+			var sharingLevel database.AppSharingLevel
 			switch app.GetShare() {
+			case agentproto.CreateSubAgentRequest_App_OWNER:
+				sharingLevel = database.AppSharingLevelOwner
 			case agentproto.CreateSubAgentRequest_App_AUTHENTICATED:
 				sharingLevel = database.AppSharingLevelAuthenticated
 			case agentproto.CreateSubAgentRequest_App_PUBLIC:
 				sharingLevel = database.AppSharingLevelPublic
+			default:
+				return codersdk.ValidationError{
+					Field:  "share",
+					Detail: fmt.Sprint("%q is not a valid app sharing level"),
+				}
 			}
 
-			openIn := database.WorkspaceAppOpenInSlimWindow
-			if app.GetOpenIn() == agentproto.CreateSubAgentRequest_App_TAB {
+			var openIn database.WorkspaceAppOpenIn
+			switch app.GetOpenIn() {
+			case agentproto.CreateSubAgentRequest_App_SLIM_WINDOW:
+				openIn = database.WorkspaceAppOpenInSlimWindow
+			case agentproto.CreateSubAgentRequest_App_TAB:
 				openIn = database.WorkspaceAppOpenInTab
+			default:
+				return codersdk.ValidationError{
+					Field:  "open_in",
+					Detail: fmt.Sprint("%q is not an open in setting"),
+				}
 			}
 
 			_, err := a.Database.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
