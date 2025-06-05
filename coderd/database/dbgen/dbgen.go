@@ -799,6 +799,24 @@ func WorkspaceAppStat(t testing.TB, db database.Store, orig database.WorkspaceAp
 	return scheme
 }
 
+func WorkspaceAppStatus(t testing.TB, db database.Store, orig database.WorkspaceAppStatus) database.WorkspaceAppStatus {
+	status, err := db.InsertWorkspaceAppStatus(genCtx, database.InsertWorkspaceAppStatusParams{
+		ID:          takeFirst(orig.ID, uuid.New()),
+		CreatedAt:   takeFirst(orig.CreatedAt, dbtime.Now()),
+		WorkspaceID: takeFirst(orig.WorkspaceID, uuid.New()),
+		AgentID:     takeFirst(orig.AgentID, uuid.New()),
+		AppID:       takeFirst(orig.AppID, uuid.New()),
+		Uri: sql.NullString{
+			String: takeFirst(orig.Uri.String, ""),
+			Valid:  takeFirst(orig.Uri.Valid, false),
+		},
+		Message: takeFirst(orig.Message, ""),
+		State:   takeFirst(orig.State, database.WorkspaceAppStatusStateWorking),
+	})
+	require.NoError(t, err, "insert workspace agent status")
+	return status
+}
+
 func WorkspaceResource(t testing.TB, db database.Store, orig database.WorkspaceResource) database.WorkspaceResource {
 	resource, err := db.InsertWorkspaceResource(genCtx, database.InsertWorkspaceResourceParams{
 		ID:         takeFirst(orig.ID, uuid.New()),

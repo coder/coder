@@ -58,3 +58,7 @@ SELECT DISTINCT ON (workspace_id)
 FROM workspace_app_statuses
 WHERE workspace_id = ANY(@ids :: uuid[])
 ORDER BY workspace_id, created_at DESC;
+
+-- name: GetLatestWorkspaceAppStatusByAppID :one
+SELECT * FROM workspace_app_statuses WHERE app_id = $1
+ORDER BY created_at DESC LIMIT 1;

@@ -3777,6 +3777,22 @@ func (q *FakeQuerier) GetLatestCryptoKeyByFeature(_ context.Context, feature dat
 	return latestKey, nil
 }
 
+func (q *FakeQuerier) GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (database.WorkspaceAppStatus, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var current *database.WorkspaceAppStatus = nil
+	for _, appStatus := range q.workspaceAppStatuses {
+		if appStatus.AppID == appID && (current == nil || appStatus.CreatedAt.After(current.CreatedAt)) {
+			current = &appStatus
+		}
+	}
+	if current == nil {
+		return database.WorkspaceAppStatus{}, sql.ErrNoRows
+	}
+	return *current, nil
+}
+
 func (q *FakeQuerier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
