@@ -426,7 +426,7 @@ func TestAPI(t *testing.T) {
 			FriendlyName: "container-name",
 			Running:      true,
 			Labels: map[string]string{
-				agentcontainers.DevcontainerLocalFolderLabel: "/workspace",
+				agentcontainers.DevcontainerLocalFolderLabel: "/workspaces",
 				agentcontainers.DevcontainerConfigFileLabel:  "/workspace/.devcontainer/devcontainer.json",
 			},
 		}
@@ -1256,7 +1256,7 @@ func TestAPI(t *testing.T) {
 				Running:      true,
 				CreatedAt:    time.Now(),
 				Labels: map[string]string{
-					agentcontainers.DevcontainerLocalFolderLabel: "/workspace",
+					agentcontainers.DevcontainerLocalFolderLabel: "/workspaces",
 					agentcontainers.DevcontainerConfigFileLabel:  "/workspace/.devcontainer/devcontainer.json",
 				},
 			}
@@ -1311,7 +1311,7 @@ func TestAPI(t *testing.T) {
 			// Verify agent was created.
 			require.Len(t, fakeSAC.created, 1)
 			assert.Equal(t, "test-container", fakeSAC.created[0].Name)
-			assert.Equal(t, "/workspace", fakeSAC.created[0].Directory)
+			assert.Equal(t, "/workspaces", fakeSAC.created[0].Directory)
 			assert.Len(t, fakeSAC.deleted, 0)
 		}
 
