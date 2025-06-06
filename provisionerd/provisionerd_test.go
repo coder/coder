@@ -1269,6 +1269,10 @@ func (p *provisionerTestServer) Apply(s *provisionersdk.Session, r *sdkproto.App
 	return p.apply(s, r, canceledOrComplete)
 }
 
+func (p *provisionerDaemonTestServer) UploadFile(stream proto.DRPCProvisionerDaemon_UploadFileStream) error {
+	return p.uploadFile(stream)
+}
+
 // Fulfills the protobuf interface for a ProvisionerDaemon with
 // passable functions for dynamic functionality.
 type provisionerDaemonTestServer struct {
@@ -1277,6 +1281,7 @@ type provisionerDaemonTestServer struct {
 	updateJob            func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error)
 	failJob              func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error)
 	completeJob          func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error)
+	uploadFile           func(stream proto.DRPCProvisionerDaemon_UploadFileStream) error
 }
 
 func (*provisionerDaemonTestServer) AcquireJob(context.Context, *proto.Empty) (*proto.AcquiredJob, error) {
