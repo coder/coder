@@ -1272,10 +1272,10 @@ func TestAPI(t *testing.T) {
 		}, nil).AnyTimes()
 		gomock.InOrder(
 			mCCLI.EXPECT().DetectArchitecture(gomock.Any(), "test-container-id").Return(runtime.GOARCH, nil),
-			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "mkdir", "-p", "/.coder-agent").Return(nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
 			mCCLI.EXPECT().Copy(gomock.Any(), "test-container-id", coderBin, "/.coder-agent/coder").Return(nil),
-			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "chmod", "+x", "/.coder-agent/coder").Return(nil),
-			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "setcap", "cap_net_admin+ep", "/.coder-agent/coder").Return(nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "chmod", "+x", "/.coder-agent/coder").Return(nil, nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "setcap", "cap_net_admin+ep", "/.coder-agent/coder").Return(nil, nil),
 		)
 
 		mClock.Set(time.Now()).MustWait(ctx)
@@ -1285,6 +1285,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithClock(mClock),
 			agentcontainers.WithContainerCLI(mCCLI),
 			agentcontainers.WithSubAgentClient(fakeSAC),
+			agentcontainers.WithSubAgentURL("test-subagent-url"),
 			agentcontainers.WithDevcontainerCLI(fakeDCCLI),
 		)
 		defer api.Close()
@@ -1317,10 +1318,10 @@ func TestAPI(t *testing.T) {
 		// Expect the agent to be reinjected.
 		gomock.InOrder(
 			mCCLI.EXPECT().DetectArchitecture(gomock.Any(), "test-container-id").Return(runtime.GOARCH, nil),
-			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "mkdir", "-p", "/.coder-agent").Return(nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
 			mCCLI.EXPECT().Copy(gomock.Any(), "test-container-id", coderBin, "/.coder-agent/coder").Return(nil),
-			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "chmod", "+x", "/.coder-agent/coder").Return(nil),
-			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "setcap", "cap_net_admin+ep", "/.coder-agent/coder").Return(nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "chmod", "+x", "/.coder-agent/coder").Return(nil, nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "setcap", "cap_net_admin+ep", "/.coder-agent/coder").Return(nil, nil),
 		)
 
 		// Terminate the agent and verify it is deleted.

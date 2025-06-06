@@ -57,6 +57,7 @@ type API struct {
 	clock             quartz.Clock
 	scriptLogger      func(logSourceID uuid.UUID) ScriptLogger
 	subAgentClient    SubAgentClient
+	subAgentURL       string
 
 	mu                      sync.RWMutex
 	closed                  bool
@@ -118,6 +119,14 @@ func WithDevcontainerCLI(dccli DevcontainerCLI) Option {
 func WithSubAgentClient(client SubAgentClient) Option {
 	return func(api *API) {
 		api.subAgentClient = client
+	}
+}
+
+// WithSubAgentURL sets the agent URL for the sub-agent for
+// communicating with the control plane.
+func WithSubAgentURL(url string) Option {
+	return func(api *API) {
+		api.subAgentURL = url
 	}
 }
 
@@ -1075,8 +1084,7 @@ func (api *API) runSubAgentInContainer(ctx context.Context, dc codersdk.Workspac
 	err := api.dccli.Exec(agentCtx, dc.WorkspaceFolder, dc.ConfigPath, agentPath, []string{"agent"},
 		WithContainerID(container.ID),
 		WithRemoteEnv(
-			// TODO(mafredri): Use the correct URL here.
-			"CODER_AGENT_URL="+"http://172.20.0.8:3000/",
+			"CODER_AGENT_URL="+api.subAgentURL,
 			"CODER_AGENT_TOKEN="+agent.AuthToken.String(),
 		),
 	)
