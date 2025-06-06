@@ -64,7 +64,7 @@ func TestIntegrationDockerCLI(t *testing.T) {
 		arch, err := dcli.DetectArchitecture(ctx, containerName)
 		require.NoError(t, err, "DetectArchitecture failed")
 		require.NotEmpty(t, arch, "arch has no content")
-		require.Equal(t, runtime.GOARCH, arch, "architecture does not match runtime")
+		require.Equal(t, runtime.GOARCH, arch, "architecture does not match runtime, did you run this test with a remote Docker socket?")
 
 		t.Logf("Detected architecture: %s", arch)
 	})
@@ -92,21 +92,26 @@ func TestIntegrationDockerCLI(t *testing.T) {
 		t.Parallel()
 
 		// Test ExecAs without specifying user (should use container's default).
-		want := "hello without user"
-		got, err := dcli.ExecAs(ctx, containerName, "", "echo", want)
+		want := "root"
+		got, err := dcli.ExecAs(ctx, containerName, "", "whoami")
 		require.NoError(t, err, "ExecAs without user should succeed")
 		require.Equal(t, want, string(got), "ExecAs without user should output expected string")
-		t.Logf("ExecAs without user output: %s", got)
 
-		// Test ExecAs with root user (should convert "root" to "0").
-		want = "hello as root"
-		got, err = dcli.ExecAs(ctx, containerName, "root", "echo", want)
+		// Test ExecAs with numeric UID (non root).
+		want = "1000"
+		_, err = dcli.ExecAs(ctx, containerName, want, "whoami")
+		require.Error(t, err, "ExecAs with UID 1000 should fail as user does not exist in busybox")
+		require.Contains(t, err.Error(), "whoami: unknown uid 1000", "ExecAs with UID 1000 should return 'unknown uid' error")
+
+		// Test ExecAs with root user (should convert "root" to "0", which still outputs root due to passwd).
+		want = "root"
+		got, err = dcli.ExecAs(ctx, containerName, "root", "whoami")
 		require.NoError(t, err, "ExecAs with root user should succeed")
 		require.Equal(t, want, string(got), "ExecAs with root user should output expected string")
 
 		// Test ExecAs with numeric UID.
-		want = "hello as uid 0"
-		got, err = dcli.ExecAs(ctx, containerName, "0", "echo", want)
+		want = "root"
+		got, err = dcli.ExecAs(ctx, containerName, "0", "whoami")
 		require.NoError(t, err, "ExecAs with UID 0 should succeed")
 		require.Equal(t, want, string(got), "ExecAs with UID 0 should output expected string")
 
