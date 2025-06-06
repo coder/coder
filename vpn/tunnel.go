@@ -630,7 +630,7 @@ func (u *updater) recordLatencies() {
 	go func() {
 		// We need a waitgroup to cancel the context after all pings are done.
 		var wg sync.WaitGroup
-		pingCtx, cancelFunc := context.WithTimeout(u.ctx, 5*time.Second)
+		pingCtx, cancelFunc := context.WithTimeout(u.ctx, netStatusInterval)
 		defer cancelFunc()
 		for _, agentID := range agentsIDsToPing {
 			wg.Add(1)
