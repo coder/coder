@@ -200,7 +200,7 @@ func Test_sshConfigMatchExecEscape(t *testing.T) {
 	}{
 		{"no spaces", "simple", false, false},
 		{"spaces", "path with spaces", false, false},
-		{"quotes", "path with \"quotes\"", false, true},
+		{"quotes", "path with \"quotes\"", true, true},
 		{"backslashes", "path with\\backslashes", false, false},
 		{"tabs", "path with \ttabs", false, true},
 		{"newline fails", "path with \nnewline", true, true},
