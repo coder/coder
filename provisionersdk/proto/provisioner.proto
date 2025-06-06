@@ -76,12 +76,12 @@ message RichParameterValue {
 // If a prebuild remains unclaimed for longer than ttl seconds, it is deleted and
 // recreated to prevent staleness.
 message ExpirationPolicy {
-	int32 ttl = 1;
+    int32 ttl = 1;
 }
 
 message Prebuild {
     int32 instances = 1;
-	ExpirationPolicy expiration_policy = 2;
+    ExpirationPolicy expiration_policy = 2;
 }
 
 // Preset represents a set of preset parameters for a template version.
@@ -153,7 +153,7 @@ message Agent {
     string id = 1;
     string name = 2;
     map<string, string> env = 3;
-	// Field 4 was startup_script, now removed.
+    // Field 4 was startup_script, now removed.
     string operating_system = 5;
     string architecture = 6;
     string directory = 7;
@@ -166,16 +166,16 @@ message Agent {
     string troubleshooting_url = 12;
     string motd_file = 13;
     // Field 14 was bool login_before_ready = 14, now removed.
-	// Field 15, 16, 17 were related to scripts, which are now removed.
+    // Field 15, 16, 17 were related to scripts, which are now removed.
     repeated Metadata metadata = 18;
-	// Field 19 was startup_script_behavior, now removed.
+    // Field 19 was startup_script_behavior, now removed.
     DisplayApps display_apps = 20;
-	repeated Script scripts = 21;
-	repeated Env extra_envs = 22;
-	int64 order = 23;
-	ResourcesMonitoring resources_monitoring = 24;
-	repeated Devcontainer devcontainers = 25;
-	string api_key_scope = 26;
+    repeated Script scripts = 21;
+    repeated Env extra_envs = 22;
+    int64 order = 23;
+    ResourcesMonitoring resources_monitoring = 24;
+    repeated Devcontainer devcontainers = 25;
+    string api_key_scope = 26;
 }
 
 enum AppSharingLevel {
@@ -185,19 +185,19 @@ enum AppSharingLevel {
 }
 
 message ResourcesMonitoring {
-	MemoryResourceMonitor memory = 1;
-	repeated VolumeResourceMonitor volumes = 2;
+    MemoryResourceMonitor memory = 1;
+    repeated VolumeResourceMonitor volumes = 2;
 }
 
 message MemoryResourceMonitor {
-	bool enabled = 1;
-	int32 threshold = 2;
+    bool enabled = 1;
+    int32 threshold = 2;
 }
 
 message VolumeResourceMonitor {
-	string path = 1;
-	bool enabled = 2;
-	int32 threshold = 3;
+    string path = 1;
+    bool enabled = 2;
+    int32 threshold = 3;
 }
 
 message DisplayApps {
@@ -209,27 +209,27 @@ message DisplayApps {
 }
 
 message Env {
-	string name = 1;
-	string value = 2;
+    string name = 1;
+    string value = 2;
 }
 
 // Script represents a script to be run on the workspace.
 message Script {
-	string display_name = 1;
-	string icon = 2;
-	string script = 3;
-	string cron = 4;
-	bool start_blocks_login = 5;
-	bool run_on_start = 6;
-	bool run_on_stop = 7;
-	int32 timeout_seconds = 8;
-	string log_path = 9;
+    string display_name = 1;
+    string icon = 2;
+    string script = 3;
+    string cron = 4;
+    bool start_blocks_login = 5;
+    bool run_on_start = 6;
+    bool run_on_stop = 7;
+    int32 timeout_seconds = 8;
+    string log_path = 9;
 }
 
 message Devcontainer {
-	string workspace_folder = 1;
-	string config_path = 2;
-	string name = 3;
+    string workspace_folder = 1;
+    string config_path = 2;
+    string name = 3;
 }
 
 enum AppOpenIn {
@@ -308,9 +308,9 @@ message RunningAgentAuthToken {
     string token = 2;
 }
 enum PrebuiltWorkspaceBuildStage {
-	NONE = 0;   // Default value for builds unrelated to prebuilds.
-	CREATE = 1; // A prebuilt workspace is being provisioned.
-	CLAIM = 2;  // A prebuilt workspace is being claimed.
+    NONE = 0;   // Default value for builds unrelated to prebuilds.
+    CREATE = 1; // A prebuilt workspace is being provisioned.
+    CLAIM = 2;  // A prebuilt workspace is being claimed.
 }
 
 // Metadata is information about a workspace used in the execution of a build
