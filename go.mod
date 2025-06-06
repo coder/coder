@@ -486,6 +486,7 @@ require (
 require (
 	github.com/anthropics/anthropic-sdk-go v0.2.0-beta.3
 	github.com/coder/preview v0.0.2-0.20250604144457-c9862a17f652
+	github.com/expr-lang/expr v1.17.5
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/kylecarbs/aisdk-go v0.0.8
 	github.com/mark3labs/mcp-go v0.31.0
@@ -494,7 +495,7 @@ require (
 )
 
 require (
-	cel.dev/expr v0.20.0 // indirect
+	cel.dev/expr v0.23.1 // indirect
 	cloud.google.com/go v0.120.0 // indirect
 	cloud.google.com/go/iam v1.4.1 // indirect
 	cloud.google.com/go/monitoring v1.24.0 // indirect

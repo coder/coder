@@ -454,7 +454,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "default_duration": 0,
       "default_token_lifetime": 0,
       "disable_expiry_refresh": true,
-      "max_token_lifetime": 0
+      "max_token_lifetime": 0,
+      "maximum_token_duration_expression": "string"
     },
     "ssh_keygen_algorithm": "string",
     "strict_transport_security": 0,

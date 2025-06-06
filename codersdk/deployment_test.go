@@ -634,3 +634,81 @@ func TestNotificationsCanBeDisabled(t *testing.T) {
 		})
 	}
 }
+
+func TestCompileTokenLifetimeExpression(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		exprExpression string
+		expectError    bool
+	}{
+		{
+			name:           "EmptyExpression",
+			exprExpression: "",
+			expectError:    false,
+		},
+		{
+			name:           "ValidSimpleExpression",
+			exprExpression: `globalMaxDuration`,
+			expectError:    false,
+		},
+		{
+			name:           "ValidRoleBasedExpression",
+			exprExpression: `any(subject.Roles, .Name == "owner") ? duration("168h") : duration("24h")`,
+			expectError:    false,
+		},
+		{
+			name:           "ValidEmailBasedExpression",
+			exprExpression: `subject.Email endsWith "@company.com" ? duration("720h") : duration("24h")`,
+			expectError:    false,
+		},
+		{
+			name:           "InvalidExprSyntax",
+			exprExpression: `any(subject.Roles, .Name == "owner" ? duration("168h")`, // Missing closing parenthesis
+			expectError:    true,
+		},
+		{
+			name:           "InvalidExprFunction",
+			exprExpression: `any(subject.Roles, .Name == "owner") ? invalid_function("168h") : duration("24h")`,
+			expectError:    true,
+		},
+		{
+			name:           "ReturnsString",
+			exprExpression: `any(subject.Roles, .Name == "owner") ? "168h" : "24h"`,
+			expectError:    true,
+		},
+		{
+			name:           "ReturnsNumber",
+			exprExpression: `any(subject.Roles, .Name == "owner") ? 168 : 24`,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create deployment values with the test expr expression
+			sl := codersdk.SessionLifetime{
+				MaximumTokenDurationExpression: serpent.String(tt.exprExpression),
+			}
+
+			// Execute
+			program, err := sl.CompiledMaximumTokenDurationProgram()
+
+			// Verify
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Verify that a program was compiled if expression was not empty
+			if tt.exprExpression != "" {
+				require.NotNil(t, program, "Expected compiled program to be set")
+			}
+		})
+	}
+}

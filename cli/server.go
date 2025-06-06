@@ -813,6 +813,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("set deployment id: %w", err)
 			}
 
+			// Compile the role token lifetime CEL expression
+			if _, err := vals.Sessions.CompiledMaximumTokenDurationProgram(); err != nil {
+				return xerrors.Errorf("failed to compile token lifetime expression: %w", err)
+			}
+
 			// Manage push notifications.
 			experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
 			if experiments.Enabled(codersdk.ExperimentWebPush) {

@@ -141,7 +141,7 @@ func TestTokenUserSetMaxLifetime(t *testing.T) {
 	_, err = client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
 		Lifetime: time.Hour * 24 * 8,
 	})
-	require.ErrorContains(t, err, "lifetime must be less")
+	require.ErrorContains(t, err, "exceeds the maximum allowed")
 }
 
 func TestTokenCustomDefaultLifetime(t *testing.T) {

@@ -910,6 +910,16 @@ Periodically check for new releases of Coder and inform the owner. The check is 
 
 The maximum lifetime duration users can specify when creating an API token.
 
+### --max-token-lifetime-expression
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>string</code>                               |
+| Environment | <code>$CODER_MAX_TOKEN_LIFETIME_EXPRESSION</code> |
+| YAML        | <code>maxTokenLifetimeExpression</code>           |
+
+An expr expression that determines the maximum token lifetime based on user attributes. The expression has access to 'subject' (coderd/expr.Subject with fields: ID, Email, Groups, Roles), 'globalMaxDuration' (time.Duration as int64 nanoseconds), and 'defaultDuration' (time.Duration as int64 nanoseconds). Must return a duration as int64 nanoseconds (e.g., duration("168h")). Example: 'any(subject.Roles, .Name == "owner") ? duration("720h") : duration("168h")'. See https://github.com/expr-lang/expr for expr expression syntax and examples.
+
 ### --default-token-lifetime
 
 |             |                                            |

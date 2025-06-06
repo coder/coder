@@ -2926,6 +2926,7 @@
 						"items": {
 							"type": "string"
 						},
+						"collectionFormat": "csv",
 						"description": "Filter results by job IDs",
 						"name": "ids",
 						"in": "query"
@@ -3030,6 +3031,7 @@
 						"items": {
 							"type": "string"
 						},
+						"collectionFormat": "csv",
 						"description": "Filter results by job IDs",
 						"name": "ids",
 						"in": "query"
@@ -14285,6 +14287,10 @@
 				},
 				"max_token_lifetime": {
 					"type": "integer"
+				},
+				"maximum_token_duration_expression": {
+					"description": "MaximumTokenDurationExpression is an expr expression that determines the maximum token lifetime based on user attributes.\nThe expression has access to:\n  - 'subject' (coderd/expr.Subject with fields: ID, Email, Groups, Roles)\n  - 'globalMaxDuration' (time.Duration as int64 nanoseconds)\n  - 'defaultDuration' (time.Duration as int64 nanoseconds)\nMust return a duration as int64 nanoseconds (e.g., duration(\"168h\")).\nSee https://github.com/expr-lang/expr for expr expression syntax and examples.",
+					"type": "string"
 				}
 			}
 		},

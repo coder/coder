@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,8 +23,11 @@ import (
 
 	"github.com/coder/serpent"
 
+	"github.com/expr-lang/expr/vm"
+
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
+	exprtoken "github.com/coder/coder/v2/coderd/expr"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 )
 
@@ -461,13 +465,46 @@ type SessionLifetime struct {
 	// keys when they are used from the api. This means the api key lifetime at
 	// creation is the lifetime of the api key.
 	DisableExpiryRefresh serpent.Bool `json:"disable_expiry_refresh,omitempty" typescript:",notnull"`
-
 	// DefaultDuration is only for browser, workspace app and oauth sessions.
-	DefaultDuration serpent.Duration `json:"default_duration" typescript:",notnull"`
-
+	DefaultDuration      serpent.Duration `json:"default_duration" typescript:",notnull"`
 	DefaultTokenDuration serpent.Duration `json:"default_token_lifetime,omitempty" typescript:",notnull"`
-
 	MaximumTokenDuration serpent.Duration `json:"max_token_lifetime,omitempty" typescript:",notnull"`
+
+	// MaximumTokenDurationExpression is an expr expression that determines the maximum token lifetime based on user attributes.
+	// The expression has access to:
+	//   - 'subject' (coderd/expr.Subject with fields: ID, Email, Groups, Roles)
+	//   - 'globalMaxDuration' (time.Duration as int64 nanoseconds)
+	//   - 'defaultDuration' (time.Duration as int64 nanoseconds)
+	// Must return a duration as int64 nanoseconds (e.g., duration("168h")).
+	// See https://github.com/expr-lang/expr for expr expression syntax and examples.
+	MaximumTokenDurationExpression serpent.String `json:"maximum_token_duration_expression,omitempty" typescript:",notnull"`
+
+	// compiledMaximumTokenDurationProgram stores the compiled expr program.
+	compiledMaximumTokenDurationProgram     *vm.Program // Internal, not serialized
+	onceCompiledMaximumTokenDurationProgram sync.Once   // Internal, not serialized
+	compiledMaximumTokenDurationError       error       // Internal, not serialized
+}
+
+// CompiledMaximumTokenDurationProgram returns the compiled expr program.
+// This function must be run at coderd startup.
+func (sl *SessionLifetime) CompiledMaximumTokenDurationProgram() (*vm.Program, error) {
+	sl.onceCompiledMaximumTokenDurationProgram.Do(func() {
+		expression := strings.TrimSpace(sl.MaximumTokenDurationExpression.Value())
+		if expression == "" {
+			return
+		}
+
+		// Compile expression
+		program, err := exprtoken.CompileTokenLifetimeExpression(expression)
+		if err != nil {
+			sl.compiledMaximumTokenDurationError = xerrors.Errorf("expr compilation failed: %w", err)
+			return
+		}
+
+		sl.compiledMaximumTokenDurationProgram = program
+	})
+
+	return sl.compiledMaximumTokenDurationProgram, sl.compiledMaximumTokenDurationError
 }
 
 type DERP struct {
@@ -2339,6 +2376,19 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "maxTokenLifetime",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name: "Max Token Lifetime Expression",
+			Description: "An expr expression that determines the maximum token lifetime based on user attributes. " +
+				"The expression has access to 'subject' (coderd/expr.Subject with fields: ID, Email, Groups, Roles), 'globalMaxDuration' (time.Duration as int64 nanoseconds), and " +
+				"'defaultDuration' (time.Duration as int64 nanoseconds). " +
+				"Must return a duration as int64 nanoseconds (e.g., duration(\"168h\")). " +
+				"Example: 'any(subject.Roles, .Name == \"owner\") ? duration(\"720h\") : duration(\"168h\")'. " +
+				"See https://github.com/expr-lang/expr for expr expression syntax and examples.",
+			Flag:  "max-token-lifetime-expression",
+			Env:   "CODER_MAX_TOKEN_LIFETIME_EXPRESSION",
+			Value: &c.Sessions.MaximumTokenDurationExpression,
+			YAML:  "maxTokenLifetimeExpression",
 		},
 		{
 			Name:        "Default Token Lifetime",

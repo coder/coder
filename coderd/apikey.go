@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -12,12 +13,16 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
+	"github.com/expr-lang/expr"
+
+	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
@@ -75,8 +80,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if createToken.Lifetime != 0 {
-		err := api.validateAPIKeyLifetime(createToken.Lifetime)
-		if err != nil {
+		if err := api.validateAPIKeyLifetime(ctx, createToken.Lifetime, user.ID); err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Failed to validate create API key request.",
 				Detail:  err.Error(),
@@ -338,33 +342,89 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.TokenConfig
 // @Router /users/{user}/keys/tokens/tokenconfig [get]
 func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
-	values, err := api.DeploymentValues.WithoutSecrets()
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
+	ctx := r.Context()
+
+	maxLifetime := api.DeploymentValues.Sessions.MaximumTokenDuration.Value()
+
+	user := httpmw.UserParam(r)
+	subject, _, err := httpmw.UserRBACSubject(ctx, api.Database, user.ID, rbac.ScopeAll)
+	if err == nil {
+		maxLifetime = api.getMaxTokenLifetimeForUser(ctx, subject)
 	}
 
 	httpapi.Write(
-		r.Context(), rw, http.StatusOK,
+		ctx, rw, http.StatusOK,
 		codersdk.TokenConfig{
-			MaxTokenLifetime: values.Sessions.MaximumTokenDuration.Value(),
+			MaxTokenLifetime: maxLifetime,
 		},
 	)
 }
 
-func (api *API) validateAPIKeyLifetime(lifetime time.Duration) error {
+func (api *API) validateAPIKeyLifetime(ctx context.Context, lifetime time.Duration, userID uuid.UUID) error {
 	if lifetime <= 0 {
 		return xerrors.New("lifetime must be positive number greater than 0")
 	}
 
-	if lifetime > api.DeploymentValues.Sessions.MaximumTokenDuration.Value() {
-		return xerrors.Errorf(
-			"lifetime must be less than %v",
-			api.DeploymentValues.Sessions.MaximumTokenDuration,
-		)
+	subject, userStatus, err := httpmw.UserRBACSubject(ctx, api.Database, userID, rbac.ScopeAll)
+	if err != nil {
+		api.Logger.Error(ctx, "failed to get user RBAC subject during token validation", slog.F("user_id", userID.String()), slog.Error(err))
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("user %s not found", userID)
+		}
+		return xerrors.Errorf("internal server error validating token lifetime for user %s", userID)
 	}
 
+	if userStatus != database.UserStatusActive {
+		return xerrors.Errorf("user %s is suspended or inactive, and cannot create tokens", userID)
+	}
+
+	// Get the maximum token lifetime for this user based on CEL expression
+	maxAllowedLifetime := api.getMaxTokenLifetimeForUser(ctx, subject)
+
+	if lifetime > maxAllowedLifetime {
+		return xerrors.Errorf(
+			"requested lifetime of %v exceeds the maximum allowed %v based on your roles",
+			lifetime,
+			maxAllowedLifetime,
+		)
+	}
 	return nil
+}
+
+// getMaxTokenLifetimeForUser determines the maximum token lifetime a user is entitled to
+// based on their attributes and the expr expression configuration.
+func (api *API) getMaxTokenLifetimeForUser(ctx context.Context, subject rbac.Subject) time.Duration {
+	// Compiled at startup no need to recheck here.
+	program, _ := api.DeploymentValues.Sessions.CompiledMaximumTokenDurationProgram()
+	if program == nil {
+		// No expression configured, use global max
+		return api.DeploymentValues.Sessions.MaximumTokenDuration.Value()
+	}
+
+	globalMax := api.DeploymentValues.Sessions.MaximumTokenDuration.Value()
+	defaultDuration := api.DeploymentValues.Sessions.DefaultTokenDuration.Value()
+
+	// Evaluate expr expression with typed struct
+	// TODO: Consider adding timeout protection in future iterations
+	out, err := expr.Run(program, map[string]interface{}{
+		"subject":           subject.ExprSubject(),
+		"globalMaxDuration": int64(globalMax),
+		"defaultDuration":   int64(defaultDuration),
+	})
+	if err != nil {
+		api.Logger.Error(ctx, "the expr evaluation failed, using default duration", slog.Error(err))
+		return defaultDuration
+	}
+
+	// Convert result to time.Duration (expr returns int64 due to AsInt64 constraint)
+	intVal, ok := out.(int64)
+	if !ok {
+		api.Logger.Error(ctx, "the expr expression did not return an int64, using default duration",
+			slog.F("result_type", fmt.Sprintf("%T", out)),
+			slog.F("result_value", out))
+		return defaultDuration
+	}
+	return time.Duration(intVal)
 }
 
 func (api *API) createAPIKey(ctx context.Context, params apikey.CreateParams) (*http.Cookie, *database.APIKey, error) {

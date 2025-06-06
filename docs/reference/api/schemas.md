@@ -2625,7 +2625,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "default_duration": 0,
       "default_token_lifetime": 0,
       "disable_expiry_refresh": true,
-      "max_token_lifetime": 0
+      "max_token_lifetime": 0,
+      "maximum_token_duration_expression": "string"
     },
     "ssh_keygen_algorithm": "string",
     "strict_transport_security": 0,
@@ -3124,7 +3125,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "default_duration": 0,
     "default_token_lifetime": 0,
     "disable_expiry_refresh": true,
-    "max_token_lifetime": 0
+    "max_token_lifetime": 0,
+    "maximum_token_duration_expression": "string"
   },
   "ssh_keygen_algorithm": "string",
   "strict_transport_security": 0,
@@ -6767,18 +6769,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "default_duration": 0,
   "default_token_lifetime": 0,
   "disable_expiry_refresh": true,
-  "max_token_lifetime": 0
+  "max_token_lifetime": 0,
+  "maximum_token_duration_expression": "string"
 }
 ```
 
 ### Properties
 
-| Name                     | Type    | Required | Restrictions | Description                                                                                                                                                                        |
-|--------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `default_duration`       | integer | false    |              | Default duration is only for browser, workspace app and oauth sessions.                                                                                                            |
-| `default_token_lifetime` | integer | false    |              |                                                                                                                                                                                    |
-| `disable_expiry_refresh` | boolean | false    |              | Disable expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key. |
-| `max_token_lifetime`     | integer | false    |              |                                                                                                                                                                                    |
+| Name                                | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+|-------------------------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `default_duration`                  | integer | false    |              | Default duration is only for browser, workspace app and oauth sessions.                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `default_token_lifetime`            | integer | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `disable_expiry_refresh`            | boolean | false    |              | Disable expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key.                                                                                                                                                                                                                                                                                                                                |
+| `max_token_lifetime`                | integer | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `maximum_token_duration_expression` | string  | false    |              | Maximum token duration expression is an expr expression that determines the maximum token lifetime based on user attributes. The expression has access to:   - 'subject' (coderd/expr.Subject with fields: ID, Email, Groups, Roles)   - 'globalMaxDuration' (time.Duration as int64 nanoseconds)   - 'defaultDuration' (time.Duration as int64 nanoseconds) Must return a duration as int64 nanoseconds (e.g., duration("168h")). See https://github.com/expr-lang/expr for expr expression syntax and examples. |
 
 ## codersdk.SlimRole
 
