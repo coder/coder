@@ -193,16 +193,17 @@ func Test_sshConfigMatchExecEscape(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		path    string
-		wantErr bool
+		name           string
+		path           string
+		wantErrOther   bool
+		wantErrWindows bool
 	}{
-		{"no spaces", "simple", false},
-		{"spaces", "path with spaces", false},
-		{"quotes fails", "path with \"quotes\"", true},
-		{"backslashes", "path with \\backslashes", false},
-		{"tabs", "path with \ttabs", false},
-		{"newline fails", "path with \nnewline", true},
+		{"no spaces", "simple", false, false},
+		{"spaces", "path with spaces", false, false},
+		{"quotes", "path with \"quotes\"", false, true},
+		{"backslashes", "path with\\backslashes", false, false},
+		{"tabs", "path with \ttabs", false, true},
+		{"newline fails", "path with \nnewline", true, true},
 	}
 	// nolint:paralleltest // Fixes a flake
 	for _, tt := range tests {
@@ -214,24 +215,26 @@ func Test_sshConfigMatchExecEscape(t *testing.T) {
 			if runtime.GOOS == "windows" {
 				cmd = "cmd.exe"
 				arg = "/c"
-				contents = []byte("echo yay\n")
+				contents = []byte("@echo yay\n")
 			}
 
 			dir := filepath.Join(t.TempDir(), tt.path)
-			err := os.MkdirAll(dir, 0o755)
-			require.NoError(t, err)
 			bin := filepath.Join(dir, "coder.bat") // Windows will treat it as batch, Linux doesn't care
-
-			err = os.WriteFile(bin, contents, 0o755) //nolint:gosec
-			require.NoError(t, err)
-
 			escaped, err := sshConfigMatchExecEscape(bin)
-			if tt.wantErr {
+			if (runtime.GOOS == "windows" && tt.wantErrWindows) || (runtime.GOOS != "windows" && tt.wantErrOther) {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
 
+			err = os.MkdirAll(dir, 0o755)
+			require.NoError(t, err)
+
+			err = os.WriteFile(bin, contents, 0o755) //nolint:gosec
+			require.NoError(t, err)
+
+			// OpenSSH processes %% escape sequences into %
+			escaped = strings.ReplaceAll(escaped, "%%", "%")
 			b, err := exec.Command(cmd, arg, escaped).CombinedOutput() //nolint:gosec
 			require.NoError(t, err)
 			got := strings.TrimSpace(string(b))

@@ -34,25 +34,24 @@ var hideForceUnixSlashes = false
 //
 // Other notes:
 //   - @ in `@cmd.exe` suppresses echoing it, so you don't get this command printed
-//   - without another invocation of cmd.exe (e.g. `do @cmd.exe /c %%aC:\Program Files\Coder\bin\coder.exe%%a`) then
-//     the double-quote gets interpreted as part of the path and you get: '"C:\Program' is not recognized. Constructing
-//     the string and then passing it to another instance of cmd.exe does this trick here.
+//   - we need another invocation of cmd.exe (e.g. `do @cmd.exe /c %%aC:\Program Files\Coder\bin\coder.exe%%a`). Without
+//     it the double-quote gets interpreted as part of the path, and you get: '"C:\Program' is not recognized.
+//     Constructing the string and then passing it to another instance of cmd.exe does this trick here.
 //   - OpenSSH passes the `Match exec` command to cmd.exe regardless of whether the user has a unix-like shell like
 //     git bash, so we don't have a `forceUnixPath` option like for the ProxyCommand which does respect the user's
-//     configured shell.
+//     configured shell on Windows.
 func sshConfigMatchExecEscape(path string) (string, error) {
 	// This is unlikely to ever happen, but newlines are allowed on
 	// certain filesystems, but cannot be used inside ssh config.
 	if strings.ContainsAny(path, "\n") {
 		return "", xerrors.Errorf("invalid path: %s", path)
 	}
-	// Windows does not allow double-quotes in paths. If we get one it is an error.
-	if strings.Contains(path, `"`) {
-		return "", xerrors.Errorf("path must not contain quotes: %q", path)
+	// Windows does not allow double-quotes or tabs in paths. If we get one it is an error.
+	if strings.ContainsAny(path, "\"\t") {
+		return "", xerrors.Errorf("path must not contain quotes or tabs: %q", path)
 	}
-	// A space or a tab requires quoting, but tabs must not be escaped
-	// (\t) since OpenSSH interprets it as a literal \t, not a tab.
-	if strings.ContainsAny(path, " \t") {
+
+	if strings.ContainsAny(path, " ") {
 		// c.f. function comment for how this works.
 		path = fmt.Sprintf("for /f %%%%a in ('powershell.exe -Command [char]34') do @cmd.exe /c %%%%a%s%%%%a", path) //nolint:gocritic // We don't want %q here.
 	}
