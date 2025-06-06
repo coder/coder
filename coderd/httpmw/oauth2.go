@@ -70,15 +70,12 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 			errorURI := r.URL.Query().Get("error_uri")
 			if errorMsg != "" {
 				// Combine the errors into a single string if either is provided.
-				var fullErrorMsg string
-				if errorDescription == "" && errorURI != "" {
-					fullErrorMsg = fmt.Sprintf("Authentication failed: %s (error_uri: %s)", errorMsg, errorURI)
-				} else if errorDescription != "" && errorURI != "" {
-					fullErrorMsg = fmt.Sprintf("Authentication failed: %s - %s (error_uri: %s)", errorMsg, errorDescription, errorURI)
-				} else if errorDescription != "" {
+				fullErrorMsg := fmt.Sprintf("Authentication failed: %s", errorMsg)
+				if errorDescription != "" {
 					fullErrorMsg = fmt.Sprintf("Authentication failed: %s - %s", errorMsg, errorDescription)
-				} else {
-					fullErrorMsg = fmt.Sprintf("Authentication failed: %s", errorMsg)
+				}
+				if errorURI != "" {
+					fullErrorMsg += fmt.Sprintf(" (error_uri: %s)", errorURI)
 				}
 
 				// Instead of returning a raw JSON error, redirect to login page with error message
