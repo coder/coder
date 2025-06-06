@@ -53,7 +53,6 @@ type Manager struct {
 	success, failure chan dispatchResult
 
 	mu       sync.Mutex // Protects following.
-	closed   bool
 	notifier *notifier
 
 	runOnce sync.Once
@@ -161,11 +160,6 @@ func (m *Manager) loop(ctx context.Context) error {
 	}()
 
 	m.mu.Lock()
-	if m.closed {
-		m.mu.Unlock()
-		return xerrors.New("manager already closed")
-	}
-
 	var eg errgroup.Group
 
 	m.notifier = newNotifier(ctx, m.cfg, uuid.New(), m.log, m.store, m.handlers, m.helpers, m.metrics, m.clock)
@@ -354,12 +348,13 @@ func (m *Manager) Stop(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.closed {
-		return nil
-	}
-	m.closed = true
-
 	m.log.Debug(context.Background(), "graceful stop requested")
+
+	select {
+	case <-m.stop:
+		return nil
+	default:
+	}
 
 	// If the notifier hasn't been started, we don't need to wait for anything.
 	// This is only really during testing when we want to enqueue messages only but not deliver them.
