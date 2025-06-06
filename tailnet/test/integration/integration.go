@@ -28,8 +28,10 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
+	"tailscale.com/net/packet"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
+	"tailscale.com/wgengine/capture"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -54,6 +56,7 @@ type Client struct {
 	ID             uuid.UUID
 	ListenPort     uint16
 	ShouldRunTests bool
+	TunnelSrc      bool
 }
 
 var Client1 = Client{
@@ -61,6 +64,7 @@ var Client1 = Client{
 	ID:             uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 	ListenPort:     client1Port,
 	ShouldRunTests: true,
+	TunnelSrc:      true,
 }
 
 var Client2 = Client{
@@ -68,21 +72,20 @@ var Client2 = Client{
 	ID:             uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 	ListenPort:     client2Port,
 	ShouldRunTests: false,
+	TunnelSrc:      false,
 }
 
 type TestTopology struct {
 	Name string
-	// SetupNetworking creates interfaces and network namespaces for the test.
-	// The most simple implementation is NetworkSetupDefault, which only creates
-	// a network namespace shared for all tests.
-	SetupNetworking func(t *testing.T, logger slog.Logger) TestNetworking
+
+	NetworkingProvider NetworkingProvider
 
 	// Server is the server starter for the test. It is executed in the server
 	// subprocess.
 	Server ServerStarter
-	// StartClient gets called in each client subprocess. It's expected to
+	// ClientStarter.StartClient gets called in each client subprocess. It's expected to
 	// create the tailnet.Conn and ensure connectivity to it's peer.
-	StartClient func(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, me Client, peer Client) *tailnet.Conn
+	ClientStarter ClientStarter
 
 	// RunTests is the main test function. It's called in each of the client
 	// subprocesses. If tests can only run once, they should check the client ID
@@ -95,6 +98,17 @@ type ServerStarter interface {
 	// should not block once it's listening. Cleanup should be handled by
 	// t.Cleanup.
 	StartServer(t *testing.T, logger slog.Logger, listenAddr string)
+}
+
+type NetworkingProvider interface {
+	// SetupNetworking creates interfaces and network namespaces for the test.
+	// The most simple implementation is NetworkSetupDefault, which only creates
+	// a network namespace shared for all tests.
+	SetupNetworking(t *testing.T, logger slog.Logger) TestNetworking
+}
+
+type ClientStarter interface {
+	StartClient(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, me Client, peer Client) *tailnet.Conn
 }
 
 type SimpleServerOptions struct {
@@ -369,77 +383,107 @@ http {
 	_, _ = ExecBackground(t, "server.nginx", nil, "nginx", []string{"-c", cfgPath})
 }
 
-// StartClientDERP creates a client connection to the server for coordination
-// and creates a tailnet.Conn which will only use DERP to connect to the peer.
-func StartClientDERP(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, me, peer Client) *tailnet.Conn {
-	return startClientOptions(t, logger, serverURL, me, peer, &tailnet.Options{
-		Addresses:           []netip.Prefix{tailnet.TailscaleServicePrefix.PrefixFromUUID(me.ID)},
-		DERPMap:             derpMap,
-		BlockEndpoints:      true,
-		Logger:              logger,
-		DERPForceWebSockets: false,
-		ListenPort:          me.ListenPort,
-		// These tests don't have internet connection, so we need to force
-		// magicsock to do anything.
-		ForceNetworkUp: true,
-	})
+type BasicClientStarter struct {
+	BlockEndpoints      bool
+	DERPForceWebsockets bool
+	// WaitForConnection means wait for (any) peer connection before returning from StartClient
+	WaitForConnection bool
+	// WaitForConnection means wait for a direct peer connection before returning from StartClient
+	WaitForDirect bool
+	// Service is a network service (e.g. an echo server) to start on the client. If Wait* is set, the service is
+	// started prior to waiting.
+	Service    NetworkService
+	LogPackets bool
 }
 
-// StartClientDERPWebSockets does the same thing as StartClientDERP but will
-// only use DERP WebSocket fallback.
-func StartClientDERPWebSockets(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, me, peer Client) *tailnet.Conn {
-	return startClientOptions(t, logger, serverURL, me, peer, &tailnet.Options{
-		Addresses:           []netip.Prefix{tailnet.TailscaleServicePrefix.PrefixFromUUID(me.ID)},
-		DERPMap:             derpMap,
-		BlockEndpoints:      true,
-		Logger:              logger,
-		DERPForceWebSockets: true,
-		ListenPort:          me.ListenPort,
-		// These tests don't have internet connection, so we need to force
-		// magicsock to do anything.
-		ForceNetworkUp: true,
-	})
+type NetworkService interface {
+	StartService(t *testing.T, logger slog.Logger, conn *tailnet.Conn)
 }
 
-// StartClientDirect does the same thing as StartClientDERP but disables
-// BlockEndpoints (which enables Direct connections), and waits for a direct
-// connection to be established between the two peers.
-func StartClientDirect(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, me, peer Client) *tailnet.Conn {
+func (b BasicClientStarter) StartClient(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, me, peer Client) *tailnet.Conn {
+	var hook capture.Callback
+	if b.LogPackets {
+		pktLogger := packetLogger{logger}
+		hook = pktLogger.LogPacket
+	}
 	conn := startClientOptions(t, logger, serverURL, me, peer, &tailnet.Options{
 		Addresses:           []netip.Prefix{tailnet.TailscaleServicePrefix.PrefixFromUUID(me.ID)},
 		DERPMap:             derpMap,
-		BlockEndpoints:      false,
+		BlockEndpoints:      b.BlockEndpoints,
 		Logger:              logger,
-		DERPForceWebSockets: true,
+		DERPForceWebSockets: b.DERPForceWebsockets,
 		ListenPort:          me.ListenPort,
 		// These tests don't have internet connection, so we need to force
 		// magicsock to do anything.
 		ForceNetworkUp: true,
+		CaptureHook:    hook,
 	})
 
-	// Wait for direct connection to be established.
-	peerIP := tailnet.TailscaleServicePrefix.AddrFromUUID(peer.ID)
-	require.Eventually(t, func() bool {
-		t.Log("attempting ping to peer to judge direct connection")
-		ctx := testutil.Context(t, testutil.WaitShort)
-		_, p2p, pong, err := conn.Ping(ctx, peerIP)
-		if err != nil {
-			t.Logf("ping failed: %v", err)
-			return false
-		}
-		if !p2p {
-			t.Log("ping succeeded, but not direct yet")
-			return false
-		}
-		t.Logf("ping succeeded, direct connection established via %s", pong.Endpoint)
-		return true
-	}, testutil.WaitLong, testutil.IntervalMedium)
+	if b.Service != nil {
+		b.Service.StartService(t, logger, conn)
+	}
+
+	if b.WaitForConnection || b.WaitForDirect {
+		// Wait for connection to be established.
+		peerIP := tailnet.TailscaleServicePrefix.AddrFromUUID(peer.ID)
+		require.Eventually(t, func() bool {
+			t.Log("attempting ping to peer to judge direct connection")
+			ctx := testutil.Context(t, testutil.WaitShort)
+			_, p2p, pong, err := conn.Ping(ctx, peerIP)
+			if err != nil {
+				t.Logf("ping failed: %v", err)
+				return false
+			}
+			if !p2p && b.WaitForDirect {
+				t.Log("ping succeeded, but not direct yet")
+				return false
+			}
+			t.Logf("ping succeeded, p2p=%t, endpoint=%s", p2p, pong.Endpoint)
+			return true
+		}, testutil.WaitLong, testutil.IntervalMedium)
+	}
 
 	return conn
 }
 
-type ClientStarter struct {
-	Options *tailnet.Options
+const EchoPort = 2381
+
+type UDPEchoService struct{}
+
+func (UDPEchoService) StartService(t *testing.T, logger slog.Logger, _ *tailnet.Conn) {
+	// tailnet doesn't handle UDP connections "in-process" the way we do for TCP, so we need to listen in the OS,
+	// and tailnet will forward packets.
+	l, err := net.ListenUDP("udp", &net.UDPAddr{
+		IP:   net.IPv6zero, // all interfaces
+		Port: EchoPort,
+	})
+	require.NoError(t, err)
+	logger.Info(context.Background(), "started UDPEcho server")
+	t.Cleanup(func() {
+		lCloseErr := l.Close()
+		if lCloseErr != nil {
+			t.Logf("error closing UDPEcho listener: %v", lCloseErr)
+		}
+	})
+	go func() {
+		buf := make([]byte, 1500)
+		for {
+			n, remote, readErr := l.ReadFromUDP(buf)
+			if readErr != nil {
+				logger.Info(context.Background(), "error reading UDPEcho listener", slog.Error(readErr))
+				return
+			}
+			logger.Info(context.Background(), "received UDPEcho packet",
+				slog.F("len", n), slog.F("remote", remote))
+			n, writeErr := l.WriteToUDP(buf[:n], remote)
+			if writeErr != nil {
+				logger.Info(context.Background(), "error writing UDPEcho listener", slog.Error(writeErr))
+				return
+			}
+			logger.Info(context.Background(), "wrote UDPEcho packet",
+				slog.F("len", n), slog.F("remote", remote))
+		}
+	}()
 }
 
 func startClientOptions(t *testing.T, logger slog.Logger, serverURL *url.URL, me, peer Client, options *tailnet.Options) *tailnet.Conn {
@@ -467,9 +511,16 @@ func startClientOptions(t *testing.T, logger slog.Logger, serverURL *url.URL, me
 		_ = conn.Close()
 	})
 
-	ctrl := tailnet.NewTunnelSrcCoordController(logger, conn)
-	ctrl.AddDestination(peer.ID)
-	coordination := ctrl.New(coord)
+	var coordination tailnet.CloserWaiter
+	if me.TunnelSrc {
+		ctrl := tailnet.NewTunnelSrcCoordController(logger, conn)
+		ctrl.AddDestination(peer.ID)
+		coordination = ctrl.New(coord)
+	} else {
+		// use the "Agent" controller so that we act as a tunnel destination and send "ReadyForHandshake" acks.
+		ctrl := tailnet.NewAgentCoordinationController(logger, conn)
+		coordination = ctrl.New(coord)
+	}
 	t.Cleanup(func() {
 		cctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
@@ -492,11 +543,17 @@ func basicDERPMap(serverURLStr string) (*tailcfg.DERPMap, error) {
 	}
 
 	hostname := serverURL.Hostname()
-	ipv4 := ""
+	ipv4 := "none"
+	ipv6 := "none"
 	ip, err := netip.ParseAddr(hostname)
 	if err == nil {
 		hostname = ""
-		ipv4 = ip.String()
+		if ip.Is4() {
+			ipv4 = ip.String()
+		}
+		if ip.Is6() {
+			ipv6 = ip.String()
+		}
 	}
 
 	return &tailcfg.DERPMap{
@@ -511,7 +568,7 @@ func basicDERPMap(serverURLStr string) (*tailcfg.DERPMap, error) {
 						RegionID:         1,
 						HostName:         hostname,
 						IPv4:             ipv4,
-						IPv6:             "none",
+						IPv6:             ipv6,
 						DERPPort:         port,
 						STUNPort:         -1,
 						ForceHTTP:        true,
@@ -647,4 +704,36 @@ func (w *testWriter) Flush() {
 		w.t.Logf("%s output: \t%s", w.name, s)
 	}
 	w.capturedLines = nil
+}
+
+type packetLogger struct {
+	l slog.Logger
+}
+
+func (p packetLogger) LogPacket(path capture.Path, when time.Time, pkt []byte, _ packet.CaptureMeta) {
+	q := new(packet.Parsed)
+	q.Decode(pkt)
+	p.l.Info(context.Background(), "Packet",
+		slog.F("path", pathString(path)),
+		slog.F("when", when),
+		slog.F("decode", q.String()),
+		slog.F("len", len(pkt)),
+	)
+}
+
+func pathString(path capture.Path) string {
+	switch path {
+	case capture.FromLocal:
+		return "Local"
+	case capture.FromPeer:
+		return "Peer"
+	case capture.SynthesizedToLocal:
+		return "SynthesizedToLocal"
+	case capture.SynthesizedToPeer:
+		return "SynthesizedToPeer"
+	case capture.PathDisco:
+		return "Disco"
+	default:
+		return "<<UNKNOWN>>"
+	}
 }
