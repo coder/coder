@@ -74,6 +74,7 @@ import {
 	type PropsWithChildren,
 	type ReactNode,
 	useMemo,
+	useRef,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
@@ -109,6 +110,8 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	onActionError,
 }) => {
 	const dashboard = useDashboard();
+	const lastCheckedWorkspaceIdRef = useRef<string | null>(null);
+
 	const workspaceIDToAppByStatus = useMemo(() => {
 		return (
 			workspaces?.reduce(
@@ -147,6 +150,70 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 		template: hasActivity ? "w-1/6" : "w-2/6",
 		status: hasActivity ? "w-1/6" : "w-2/6",
 		activity: "w-2/6",
+	};
+
+	const handleWorkspaceCheckChange = (
+		workspace: Workspace,
+		isChecked: boolean,
+		isShiftKey: boolean
+	) => {
+		if (!workspaces) return;
+
+		if (isShiftKey && lastCheckedWorkspaceIdRef.current && isChecked) {
+			const newWorkspaces = getWorkspacesForShiftClick(
+				workspaces,
+				checkedWorkspaces,
+				lastCheckedWorkspaceIdRef.current,
+				workspace.id
+			);
+
+			onCheckChange(newWorkspaces);
+		} else {
+			if (isChecked) {
+				onCheckChange([...checkedWorkspaces, workspace]);
+			} else {
+				onCheckChange(checkedWorkspaces.filter(w => w.id !== workspace.id));
+			}
+		}
+
+		lastCheckedWorkspaceIdRef.current = workspace.id;
+	};
+
+	/**
+	 * Handles shift+click multi-selection logic to select a range of workspaces
+	 */
+	const getWorkspacesForShiftClick = (
+		allWorkspaces: readonly Workspace[],
+		selectedWorkspaces: readonly Workspace[],
+		lastCheckedId: string | null,
+		currentId: string
+	): readonly Workspace[] => {
+		const lastIndex = allWorkspaces.findIndex(w => w.id === lastCheckedId);
+		const currentIndex = allWorkspaces.findIndex(w => w.id === currentId);
+
+		if (lastIndex === -1 || currentIndex === -1) {
+			return selectedWorkspaces;
+		}
+
+		const startIndex = Math.min(lastIndex, currentIndex);
+		const endIndex = Math.max(lastIndex, currentIndex);
+
+		const workspacesToAdd = allWorkspaces
+			.slice(startIndex, endIndex + 1)
+			.filter(w => !cantBeChecked(w));
+
+		const existingIds = new Set(selectedWorkspaces.map(w => w.id));
+		return [
+			...selectedWorkspaces,
+			...workspacesToAdd.filter(w => !existingIds.has(w.id)),
+		];
+	};
+
+	/**
+	 * Detects if the shift key was pressed during a mouse event
+	 */
+	const isShiftKeyPressed = (event: React.SyntheticEvent): boolean => {
+		return event.nativeEvent instanceof MouseEvent && event.nativeEvent.shiftKey;
 	};
 
 	return (
@@ -215,26 +282,33 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							<TableCell>
 								<div className="flex items-center gap-2">
 									{canCheckWorkspaces && (
-										<Checkbox
-											data-testid={`checkbox-${workspace.id}`}
-											size="xsmall"
-											disabled={cantBeChecked(workspace)}
-											checked={checked}
-											onClick={(e) => {
-												e.stopPropagation();
-											}}
-											onChange={(e) => {
-												if (e.currentTarget.checked) {
-													onCheckChange([...checkedWorkspaces, workspace]);
-												} else {
-													onCheckChange(
-														checkedWorkspaces.filter(
-															(w) => w.id !== workspace.id,
-														),
-													);
-												}
-											}}
-										/>
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<span>
+														<Checkbox
+															data-testid={`checkbox-${workspace.id}`}
+															size="xsmall"
+															disabled={cantBeChecked(workspace)}
+															checked={checked}
+															onClick={(e) => {
+																e.stopPropagation();
+															}}
+															onChange={(e) => {
+																handleWorkspaceCheckChange(
+																	workspace,
+																	e.currentTarget.checked,
+																	isShiftKeyPressed(e)
+																);
+															}}
+														/>
+													</span>
+												</TooltipTrigger>
+												<TooltipContent>
+													Select this workspace. Use Shift+Click to select a range.
+												</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
 									)}
 									<AvatarData
 										title={
