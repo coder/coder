@@ -46,6 +46,7 @@ type PresetSnapshot struct {
 	InProgress        []database.CountInProgressPrebuildsRow
 	Backoff           *database.GetPresetsBackoffRow
 	IsHardLimited     bool
+	clock             quartz.Clock
 }
 
 // ReconciliationState represents the processed state of a preset's prebuilds,
@@ -155,9 +156,10 @@ func (p PresetSnapshot) CalculateState() *ReconciliationState {
 
 	if p.isActive() {
 		var err error
-		desired, err = p.CalculateDesiredInstances(time.Now())
+		desired, err = p.CalculateDesiredInstances(p.clock.Now())
 		if err != nil {
 			// TODO: handle error
+			panic(err)
 		}
 		eligible = p.countEligible()
 		extraneous = max(actual-expired-desired, 0)
@@ -318,7 +320,7 @@ func (p PresetSnapshot) countEligible() int32 {
 }
 
 // countInProgress returns counts of prebuilds in transition states (starting, stopping, deleting).
-// These counts are tracked at the template level, so all presets sharing the same template see the same values.
+// These counts are tracked now the template level, so all presets sharing the same template see the same values.
 func (p PresetSnapshot) countInProgress() (starting int32, stopping int32, deleting int32) {
 	for _, progress := range p.InProgress {
 		num := progress.Count

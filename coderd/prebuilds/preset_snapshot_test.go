@@ -84,7 +84,7 @@ func TestNoPrebuilds(t *testing.T) {
 		preset(true, 0, current),
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, quartz.NewMock(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -106,7 +106,7 @@ func TestNetNew(t *testing.T) {
 		preset(true, 1, current),
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, quartz.NewMock(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -148,7 +148,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the outdated preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t))
 	ps, err := snapshot.FilterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
@@ -214,7 +214,7 @@ func TestDeleteOutdatedPrebuilds(t *testing.T) {
 	}
 
 	// WHEN: calculating the outdated preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t))
 	ps, err := snapshot.FilterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
@@ -459,7 +459,7 @@ func TestInProgressActions(t *testing.T) {
 			}
 
 			// WHEN: calculating the current preset's state.
-			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil)
+			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t))
 			ps, err := snapshot.FilterByPreset(current.presetID)
 			require.NoError(t, err)
 
@@ -502,7 +502,7 @@ func TestExtraneous(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -683,7 +683,7 @@ func TestExpiredPrebuilds(t *testing.T) {
 			}
 
 			// WHEN: calculating the current preset's state.
-			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, nil, nil, nil)
+			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, nil, nil, nil, quartz.NewMock(t))
 			ps, err := snapshot.FilterByPreset(current.presetID)
 			require.NoError(t, err)
 
@@ -719,7 +719,7 @@ func TestDeprecated(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -772,7 +772,7 @@ func TestLatestBuildFailed(t *testing.T) {
 	}
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, backoffs, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, backoffs, nil, quartz.NewMock(t))
 	psCurrent, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -865,7 +865,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		},
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, inProgress, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, inProgress, nil, nil, quartz.NewMock(t))
 
 	// Nothing has to be created for preset 1.
 	{
@@ -902,6 +902,134 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 				Create:     1,
 			},
 		}, actions)
+	}
+}
+
+func TestPrebuildAutoscaling(t *testing.T) {
+	t.Parallel()
+
+	// The test includes 2 presets, each with 2 schedules.
+	// It checks that the calculated actions match expectations for various provided times,
+	// based on the corresponding schedules.
+	testCases := []struct {
+		name string
+		// now specifies the current time.
+		now time.Time
+		// expected instances for preset1 and preset2, respectively.
+		expectedInstances []int32
+	}{
+		{
+			name:              "Before the 1st schedule",
+			now:               mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 01:00:00 UTC"),
+			expectedInstances: []int32{1, 1},
+		},
+		{
+			name:              "1st schedule",
+			now:               mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 03:00:00 UTC"),
+			expectedInstances: []int32{2, 1},
+		},
+		{
+			name:              "2nd schedule",
+			now:               mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 07:00:00 UTC"),
+			expectedInstances: []int32{3, 1},
+		},
+		{
+			name:              "3rd schedule",
+			now:               mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 11:00:00 UTC"),
+			expectedInstances: []int32{1, 4},
+		},
+		{
+			name:              "4th schedule",
+			now:               mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 15:00:00 UTC"),
+			expectedInstances: []int32{1, 5},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			templateID := uuid.New()
+			templateVersionID := uuid.New()
+			presetOpts1 := options{
+				templateID:          templateID,
+				templateVersionID:   templateVersionID,
+				presetID:            uuid.New(),
+				presetName:          "my-preset-1",
+				prebuiltWorkspaceID: uuid.New(),
+				workspaceName:       "prebuilds1",
+			}
+			presetOpts2 := options{
+				templateID:          templateID,
+				templateVersionID:   templateVersionID,
+				presetID:            uuid.New(),
+				presetName:          "my-preset-2",
+				prebuiltWorkspaceID: uuid.New(),
+				workspaceName:       "prebuilds2",
+			}
+
+			clock := quartz.NewMock(t)
+			clock.Set(tc.now)
+			enableAutoscaling := func(preset database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow {
+				preset.AutoscalingEnabled = true
+				preset.AutoscalingTimezone = "UTC"
+				return preset
+			}
+			presets := []database.GetTemplatePresetsWithPrebuildsRow{
+				preset(true, 1, presetOpts1, enableAutoscaling),
+				preset(true, 1, presetOpts2, enableAutoscaling),
+			}
+			schedules := []database.TemplateVersionPresetPrebuildSchedule{
+				schedule(presets[0].ID, "* 2-4 * * 1-5", 2),
+				schedule(presets[0].ID, "* 6-8 * * 1-5", 3),
+				schedule(presets[1].ID, "* 10-12 * * 1-5", 4),
+				schedule(presets[1].ID, "* 14-16 * * 1-5", 5),
+			}
+
+			snapshot := prebuilds.NewGlobalSnapshot(presets, schedules, nil, nil, nil, nil, clock)
+
+			// Check 1st preset.
+			{
+				ps, err := snapshot.FilterByPreset(presetOpts1.presetID)
+				require.NoError(t, err)
+
+				state := ps.CalculateState()
+				actions, err := ps.CalculateActions(clock, backoffInterval)
+				require.NoError(t, err)
+
+				validateState(t, prebuilds.ReconciliationState{
+					Starting: 0,
+					Desired:  tc.expectedInstances[0],
+				}, *state)
+				validateActions(t, []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+						Create:     tc.expectedInstances[0],
+					},
+				}, actions)
+			}
+
+			// Check 2nd preset.
+			{
+				ps, err := snapshot.FilterByPreset(presetOpts2.presetID)
+				require.NoError(t, err)
+
+				state := ps.CalculateState()
+				actions, err := ps.CalculateActions(clock, backoffInterval)
+				require.NoError(t, err)
+
+				validateState(t, prebuilds.ReconciliationState{
+					Starting: 0,
+					Desired:  tc.expectedInstances[1],
+				}, *state)
+				validateActions(t, []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+						Create:     tc.expectedInstances[1],
+					},
+				}, actions)
+			}
+		})
 	}
 }
 
@@ -1292,6 +1420,15 @@ func preset(active bool, instances int32, opts options, muts ...func(row databas
 		entry = mut(entry)
 	}
 	return entry
+}
+
+func schedule(presetID uuid.UUID, cronExpr string, instances int32) database.TemplateVersionPresetPrebuildSchedule {
+	return database.TemplateVersionPresetPrebuildSchedule{
+		ID:             uuid.New(),
+		PresetID:       presetID,
+		CronExpression: cronExpr,
+		Instances:      instances,
+	}
 }
 
 func prebuiltWorkspace(

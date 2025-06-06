@@ -1,6 +1,7 @@
 package prebuilds
 
 import (
+	"github.com/coder/quartz"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,6 +19,7 @@ type GlobalSnapshot struct {
 	PrebuildsInProgress   []database.CountInProgressPrebuildsRow
 	Backoffs              []database.GetPresetsBackoffRow
 	HardLimitedPresetsMap map[uuid.UUID]database.GetPresetsAtFailureLimitRow
+	clock                 quartz.Clock
 }
 
 func NewGlobalSnapshot(
@@ -27,6 +29,7 @@ func NewGlobalSnapshot(
 	prebuildsInProgress []database.CountInProgressPrebuildsRow,
 	backoffs []database.GetPresetsBackoffRow,
 	hardLimitedPresets []database.GetPresetsAtFailureLimitRow,
+	clock quartz.Clock,
 ) GlobalSnapshot {
 	hardLimitedPresetsMap := make(map[uuid.UUID]database.GetPresetsAtFailureLimitRow, len(hardLimitedPresets))
 	for _, preset := range hardLimitedPresets {
@@ -40,6 +43,7 @@ func NewGlobalSnapshot(
 		PrebuildsInProgress:   prebuildsInProgress,
 		Backoffs:              backoffs,
 		HardLimitedPresetsMap: hardLimitedPresetsMap,
+		clock:                 clock,
 	}
 }
 
@@ -88,6 +92,7 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 		InProgress:        inProgress,
 		Backoff:           backoffPtr,
 		IsHardLimited:     isHardLimited,
+		clock:             s.clock,
 	}, nil
 }
 

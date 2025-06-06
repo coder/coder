@@ -392,6 +392,7 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			allPrebuildsInProgress,
 			presetsBackoff,
 			hardLimitedPresets,
+			c.clock,
 		)
 		return nil
 	}, &database.TxOptions{
