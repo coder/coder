@@ -317,11 +317,11 @@ export interface ChatMessage {
 	readonly createdAt?: Record<string, string>;
 	readonly content: string;
 	readonly role: string;
-	// external type "github.com/kylecarbs/aisdk-go.Part", to include this type the package must be explicitly included in the parsing
+	// external type "github.com/coder/aisdk-go.Part", to include this type the package must be explicitly included in the parsing
 	readonly parts?: readonly unknown[];
 	// empty interface{} type, falling back to unknown
 	readonly annotations?: readonly unknown[];
-	// external type "github.com/kylecarbs/aisdk-go.Attachment", to include this type the package must be explicitly included in the parsing
+	// external type "github.com/coder/aisdk-go.Attachment", to include this type the package must be explicitly included in the parsing
 	readonly experimental_attachments?: readonly unknown[];
 }
 
@@ -349,7 +349,7 @@ export interface ConvertLoginRequest {
 // From codersdk/chat.go
 export interface CreateChatMessageRequest {
 	readonly model: string;
-	// external type "github.com/kylecarbs/aisdk-go.Message", to include this type the package must be explicitly included in the parsing
+	// external type "github.com/coder/aisdk-go.Message", to include this type the package must be explicitly included in the parsing
 	readonly message: unknown;
 	readonly thinking: boolean;
 }

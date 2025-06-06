@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/kylecarbs/aisdk-go"
+	"github.com/coder/aisdk-go"
 
 	"github.com/coder/coder/v2/coderd/ai"
 	"github.com/coder/coder/v2/coderd/database"
@@ -301,7 +301,7 @@ You are running as an agent - please keep going until the user's query is comple
 			})
 			return
 		}
-		stream = stream.WithToolCalling(func(toolCall aisdk.ToolCall) aisdk.ToolCallResult {
+		stream = stream.WithToolCalling(func(toolCall aisdk.ToolCall) any {
 			tool, ok := handlers[toolCall.Name]
 			if !ok {
 				return nil

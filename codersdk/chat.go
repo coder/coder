@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/kylecarbs/aisdk-go"
+	"github.com/coder/aisdk-go"
 	"golang.org/x/xerrors"
 )
 

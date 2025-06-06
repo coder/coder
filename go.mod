@@ -484,13 +484,13 @@ require (
 )
 
 require (
-	github.com/anthropics/anthropic-sdk-go v0.2.0-beta.3
+	github.com/anthropics/anthropic-sdk-go v1.4.0
+	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/preview v0.0.2-0.20250604144457-c9862a17f652
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/kylecarbs/aisdk-go v0.0.8
 	github.com/mark3labs/mcp-go v0.31.0
-	github.com/openai/openai-go v0.1.0-beta.10
-	google.golang.org/genai v0.7.0
+	github.com/openai/openai-go v1.3.0
+	google.golang.org/genai v1.10.0
 )
 
 require (
