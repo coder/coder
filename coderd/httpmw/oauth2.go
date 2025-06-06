@@ -70,17 +70,20 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 			errorURI := r.URL.Query().Get("error_uri")
 			if errorMsg != "" {
 				// Combine the errors into a single string if either is provided.
+				var fullErrorMsg string
 				if errorDescription == "" && errorURI != "" {
-					errorDescription = fmt.Sprintf("error_uri: %s", errorURI)
+					fullErrorMsg = fmt.Sprintf("Authentication failed: %s (error_uri: %s)", errorMsg, errorURI)
 				} else if errorDescription != "" && errorURI != "" {
-					errorDescription = fmt.Sprintf("%s, error_uri: %s", errorDescription, errorURI)
+					fullErrorMsg = fmt.Sprintf("Authentication failed: %s - %s (error_uri: %s)", errorMsg, errorDescription, errorURI)
+				} else if errorDescription != "" {
+					fullErrorMsg = fmt.Sprintf("Authentication failed: %s - %s", errorMsg, errorDescription)
+				} else {
+					fullErrorMsg = fmt.Sprintf("Authentication failed: %s", errorMsg)
 				}
-				errorMsg = fmt.Sprintf("Encountered error in oidc process: %s", errorMsg)
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: errorMsg,
-					// This message might be blank. This is ok.
-					Detail: errorDescription,
-				})
+
+				// Instead of returning a raw JSON error, redirect to login page with error message
+				loginURL := "/login?message=" + url.QueryEscape(fullErrorMsg)
+				http.Redirect(rw, r, loginURL, http.StatusTemporaryRedirect)
 				return
 			}
 
@@ -138,23 +141,26 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 			}
 
 			if state == "" {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "State must be provided.",
-				})
+				// Redirect to login with error message for missing state
+				errorMsg := "Authentication failed: Invalid authentication state"
+				loginURL := "/login?message=" + url.QueryEscape(errorMsg)
+				http.Redirect(rw, r, loginURL, http.StatusTemporaryRedirect)
 				return
 			}
 
 			stateCookie, err := r.Cookie(codersdk.OAuth2StateCookie)
 			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf("Cookie %q must be provided.", codersdk.OAuth2StateCookie),
-				})
+				// Redirect to login with error message for missing cookie (likely expired session)
+				errorMsg := "Authentication failed: Session expired, please sign in again"
+				loginURL := "/login?message=" + url.QueryEscape(errorMsg)
+				http.Redirect(rw, r, loginURL, http.StatusTemporaryRedirect)
 				return
 			}
 			if stateCookie.Value != state {
-				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-					Message: "State mismatched.",
-				})
+				// Redirect to login with error message for state mismatch (likely expired session)
+				errorMsg := "Authentication failed: Session expired, please sign in again"
+				loginURL := "/login?message=" + url.QueryEscape(errorMsg)
+				http.Redirect(rw, r, loginURL, http.StatusTemporaryRedirect)
 				return
 			}
 
@@ -165,17 +171,22 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 
 			oauthToken, err := config.Exchange(ctx, code)
 			if err != nil {
-				errorCode := http.StatusInternalServerError
 				detail := err.Error()
 				if detail == "authorization_pending" {
 					// In the device flow, the token may not be immediately
 					// available. This is expected, and the client will retry.
-					errorCode = http.StatusBadRequest
+					// For device flow, we still return JSON as this is expected by the client
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: "Failed exchanging Oauth code.",
+						Detail:  detail,
+					})
+					return
 				}
-				httpapi.Write(ctx, rw, errorCode, codersdk.Response{
-					Message: "Failed exchanging Oauth code.",
-					Detail:  detail,
-				})
+
+				// For other OAuth exchange errors (like expired tokens), redirect to login with error
+				errorMsg := fmt.Sprintf("Authentication failed: %s", detail)
+				loginURL := "/login?message=" + url.QueryEscape(errorMsg)
+				http.Redirect(rw, r, loginURL, http.StatusTemporaryRedirect)
 				return
 			}
 

@@ -98,7 +98,8 @@ func TestOAuth2(t *testing.T) {
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
 		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil)(nil).ServeHTTP(res, req)
-		require.Equal(t, http.StatusBadRequest, res.Result().StatusCode)
+		// Now redirects to login instead of returning JSON error
+		require.Equal(t, http.StatusTemporaryRedirect, res.Result().StatusCode)
 	})
 	t.Run("NoStateCookie", func(t *testing.T) {
 		t.Parallel()
@@ -106,7 +107,8 @@ func TestOAuth2(t *testing.T) {
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
 		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil)(nil).ServeHTTP(res, req)
-		require.Equal(t, http.StatusUnauthorized, res.Result().StatusCode)
+		// Now redirects to login instead of returning JSON error
+		require.Equal(t, http.StatusTemporaryRedirect, res.Result().StatusCode)
 	})
 	t.Run("MismatchedState", func(t *testing.T) {
 		t.Parallel()
@@ -118,7 +120,8 @@ func TestOAuth2(t *testing.T) {
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
 		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil)(nil).ServeHTTP(res, req)
-		require.Equal(t, http.StatusUnauthorized, res.Result().StatusCode)
+		// Now redirects to login instead of returning JSON error
+		require.Equal(t, http.StatusTemporaryRedirect, res.Result().StatusCode)
 	})
 	t.Run("ExchangeCodeAndState", func(t *testing.T) {
 		t.Parallel()
@@ -172,5 +175,66 @@ func TestOAuth2(t *testing.T) {
 			}
 		}
 		require.True(t, found, "expected state cookie")
+	})
+
+	// Test our new redirect functionality for OIDC errors
+	t.Run("OIDCErrorRedirectsToLogin", func(t *testing.T) {
+		t.Parallel()
+		req := httptest.NewRequest("GET", "/?error=invalid_request&error_description=The+request+is+missing+a+required+parameter", nil)
+		res := httptest.NewRecorder()
+		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil)(nil).ServeHTTP(res, req)
+		
+		// Should redirect instead of returning JSON error
+		require.Equal(t, http.StatusTemporaryRedirect, res.Result().StatusCode)
+		location := res.Header().Get("Location")
+		require.Contains(t, location, "/login?message=")
+		require.Contains(t, location, "Authentication+failed")
+	})
+
+	t.Run("NoStateRedirectsToLogin", func(t *testing.T) {
+		t.Parallel()
+		req := httptest.NewRequest("GET", "/?code=something", nil)
+		res := httptest.NewRecorder()
+		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil)(nil).ServeHTTP(res, req)
+		
+		// Should redirect instead of returning JSON error
+		require.Equal(t, http.StatusTemporaryRedirect, res.Result().StatusCode)
+		location := res.Header().Get("Location")
+		require.Contains(t, location, "/login?message=")
+		require.Contains(t, location, "Authentication+failed")
+	})
+
+	t.Run("NoStateCookieRedirectsToLogin", func(t *testing.T) {
+		t.Parallel()
+		req := httptest.NewRequest("GET", "/?code=something&state=test", nil)
+		res := httptest.NewRecorder()
+		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil)(nil).ServeHTTP(res, req)
+		
+		// Should redirect instead of returning JSON error
+		require.Equal(t, http.StatusTemporaryRedirect, res.Result().StatusCode)
+		location := res.Header().Get("Location")
+		require.Contains(t, location, "/login?message=")
+		require.Contains(t, location, "Session+expired")
+	})
+
+	t.Run("MismatchedStateRedirectsToLogin", func(t *testing.T) {
+		t.Parallel()
+		req := httptest.NewRequest("GET", "/?code=something&state=test", nil)
+		req.AddCookie(&http.Cookie{
+			Name:  codersdk.OAuth2StateCookie,
+			Value: "mismatch",
+		})
+		res := httptest.NewRecorder()
+		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil)(nil).ServeHTTP(res, req)
+		
+		// Should redirect instead of returning JSON error
+		require.Equal(t, http.StatusTemporaryRedirect, res.Result().StatusCode)
+		location := res.Header().Get("Location")
+		require.Contains(t, location, "/login?message=")
+		require.Contains(t, location, "Session+expired")
 	})
 }
