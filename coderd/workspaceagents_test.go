@@ -387,6 +387,81 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		require.False(t, agent.Apps[0].Statuses[0].NeedsUserAttention)
 	})
 
+	t.Run("Patch", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		ws := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user2.ID,
+		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+			a[0].Apps = []*proto.App{
+				{
+					Slug: "vscode",
+				},
+			}
+			return a
+		}).Do()
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(ws.AgentToken)
+
+		err := agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			AppSlug: "vscode",
+			Message: "testing",
+			URI:     "https://example.com",
+			State:   codersdk.WorkspaceAppStatusStateComplete,
+		})
+		require.NoError(t, err)
+
+		// Duplicate should be a no-op.
+		err = agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			AppSlug: "vscode",
+			Message: "testing",
+			URI:     "https://example.com",
+			State:   codersdk.WorkspaceAppStatusStateComplete,
+		})
+		require.NoError(t, err)
+
+		// If no message, both the old message and URI are preserved, and this ends
+		// up being a duplicate as well.
+		err = agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			AppSlug: "vscode",
+			State:   codersdk.WorkspaceAppStatusStateComplete,
+		})
+		require.NoError(t, err)
+
+		// Same, but the status updated so it will not be a duplicate.
+		err = agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			AppSlug: "vscode",
+			State:   codersdk.WorkspaceAppStatusStateWorking,
+		})
+		require.NoError(t, err)
+
+		// Message update, so nothing is preserved.
+		err = agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			AppSlug: "vscode",
+			Message: "updated",
+			State:   codersdk.WorkspaceAppStatusStateWorking,
+		})
+		require.NoError(t, err)
+
+		workspace, err := client.Workspace(ctx, ws.Workspace.ID)
+		require.NoError(t, err)
+		agent, err := client.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
+		require.NoError(t, err)
+		require.Len(t, agent.Apps[0].Statuses, 3)
+		require.Equal(t, agent.Apps[0].Statuses[0].State, codersdk.WorkspaceAppStatusStateComplete)
+		require.Equal(t, agent.Apps[0].Statuses[0].Message, "testing")
+		require.Equal(t, agent.Apps[0].Statuses[0].URI, "https://example.com")
+		require.Equal(t, agent.Apps[0].Statuses[1].State, codersdk.WorkspaceAppStatusStateWorking)
+		require.Equal(t, agent.Apps[0].Statuses[1].Message, "testing")
+		require.Equal(t, agent.Apps[0].Statuses[1].URI, "https://example.com")
+		require.Equal(t, agent.Apps[0].Statuses[2].State, codersdk.WorkspaceAppStatusStateWorking)
+		require.Equal(t, agent.Apps[0].Statuses[2].Message, "updated")
+		require.Equal(t, agent.Apps[0].Statuses[2].URI, "")
+	})
+
 	t.Run("FailUnknownApp", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)

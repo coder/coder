@@ -156,7 +156,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 							<div className="flex items-center justify-between w-full text-content-secondary">
 								<span className="text-xs flex items-center gap-2">
 									<AppStatusStateIcon
-										state={latestStatus.state}
+										state={status.state}
 										latest={false}
 										className="size-icon-xs w-[18px]"
 									/>

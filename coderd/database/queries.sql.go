@@ -16262,6 +16262,27 @@ func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg Ups
 	return new_or_stale, err
 }
 
+const getLatestWorkspaceAppStatusByAppID = `-- name: GetLatestWorkspaceAppStatusByAppID :one
+SELECT id, created_at, agent_id, app_id, workspace_id, state, message, uri FROM workspace_app_statuses WHERE app_id = $1
+ORDER BY created_at DESC LIMIT 1
+`
+
+func (q *sqlQuerier) GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (WorkspaceAppStatus, error) {
+	row := q.db.QueryRowContext(ctx, getLatestWorkspaceAppStatusByAppID, appID)
+	var i WorkspaceAppStatus
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.AgentID,
+		&i.AppID,
+		&i.WorkspaceID,
+		&i.State,
+		&i.Message,
+		&i.Uri,
+	)
+	return i, err
+}
+
 const getLatestWorkspaceAppStatusesByWorkspaceIDs = `-- name: GetLatestWorkspaceAppStatusesByWorkspaceIDs :many
 SELECT DISTINCT ON (workspace_id)
   id, created_at, agent_id, app_id, workspace_id, state, message, uri

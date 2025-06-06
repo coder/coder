@@ -3801,6 +3801,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			LoginType: database.LoginTypeGithub,
 		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(l)
 	}))
+	s.Run("GetLatestWorkspaceAppStatusByAppID", s.Subtest(func(db database.Store, check *expects) {
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
+		status := dbgen.WorkspaceAppStatus(s.T(), db, database.WorkspaceAppStatus{})
+		check.Args(status.AppID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(status)
+	}))
 	s.Run("GetLatestWorkspaceAppStatusesByWorkspaceIDs", s.Subtest(func(db database.Store, check *expects) {
 		check.Args([]uuid.UUID{}).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))

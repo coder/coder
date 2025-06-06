@@ -1817,6 +1817,21 @@ func (mr *MockStoreMockRecorder) GetLatestCryptoKeyByFeature(ctx, feature any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestCryptoKeyByFeature", reflect.TypeOf((*MockStore)(nil).GetLatestCryptoKeyByFeature), ctx, feature)
 }
 
+// GetLatestWorkspaceAppStatusByAppID mocks base method.
+func (m *MockStore) GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (database.WorkspaceAppStatus, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLatestWorkspaceAppStatusByAppID", ctx, appID)
+	ret0, _ := ret[0].(database.WorkspaceAppStatus)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLatestWorkspaceAppStatusByAppID indicates an expected call of GetLatestWorkspaceAppStatusByAppID.
+func (mr *MockStoreMockRecorder) GetLatestWorkspaceAppStatusByAppID(ctx, appID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestWorkspaceAppStatusByAppID", reflect.TypeOf((*MockStore)(nil).GetLatestWorkspaceAppStatusByAppID), ctx, appID)
+}
+
 // GetLatestWorkspaceAppStatusesByWorkspaceIDs mocks base method.
 func (m *MockStore) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
 	m.ctrl.T.Helper()

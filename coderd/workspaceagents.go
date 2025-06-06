@@ -381,13 +381,42 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 	}
 
 	// nolint:gocritic // This is a system restricted operation.
+	status, err := api.Database.GetLatestWorkspaceAppStatusByAppID(dbauthz.AsSystemRestricted(ctx), app.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace app statuses.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	// Preserve the existing message, which allows partial updates where we change
+	// the status but keep the message.
+	// TODO: What if another status is added while we are doing these checks?
+	// This would essentially revert the message to the previous one.  We could
+	// maybe do this in the query instead?
+	if req.Message == "" {
+		req.Message = status.Message
+		// Only preserve the URI if there was no message.  If there is a message and
+		// a blank URI, we assume the intent is to remove the URI, not preserve it.
+		if req.URI == "" {
+			req.URI = status.Uri.String
+		}
+	}
+	// Skip duplicate status updates.
+	newState := database.WorkspaceAppStatusState(req.State)
+	if status.State == newState && status.Message == req.Message && status.Uri.String == req.URI {
+		httpapi.Write(ctx, rw, http.StatusOK, nil)
+		return
+	}
+
+	// nolint:gocritic // This is a system restricted operation.
 	_, err = api.Database.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
 		ID:          uuid.New(),
 		CreatedAt:   dbtime.Now(),
 		WorkspaceID: workspace.ID,
 		AgentID:     workspaceAgent.ID,
 		AppID:       app.ID,
-		State:       database.WorkspaceAppStatusState(req.State),
+		State:       newState,
 		Message:     req.Message,
 		Uri: sql.NullString{
 			String: req.URI,
