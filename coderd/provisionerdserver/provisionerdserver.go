@@ -1400,7 +1400,7 @@ UploadFileStream:
 			return xerrors.Errorf("insert file: %w", err)
 		}
 	}
-	s.Logger.Info(s.lifecycleCtx, "file uploaded",
+	s.Logger.Info(s.lifecycleCtx, "file uploaded to database",
 		slog.F("type", file.Type.String()),
 		slog.F("hash", hash),
 		slog.F("size", len(fileData)),
@@ -1696,7 +1696,7 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 
 			if len(jobType.TemplateImport.ModuleFilesHash) > 0 {
 				hashString := hex.EncodeToString(jobType.TemplateImport.ModuleFilesHash)
-				file, err := db.GetFileByHashAndCreator(dbauthz.AsSystemRestricted(ctx), database.GetFileByHashAndCreatorParams{Hash: hashString, CreatedBy: uuid.Nil})
+				file, err := db.GetFileByHashAndCreator(dbauthz.AsProvisionerd(ctx), database.GetFileByHashAndCreatorParams{Hash: hashString, CreatedBy: uuid.Nil})
 				if err != nil {
 					return xerrors.Errorf("get file by hash, it should have been uploaded: %w", err)
 				}
