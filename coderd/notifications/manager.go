@@ -348,13 +348,13 @@ func (m *Manager) Stop(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.log.Debug(context.Background(), "graceful stop requested")
-
 	select {
 	case <-m.stop:
 		return nil
 	default:
 	}
+
+	m.log.Debug(context.Background(), "graceful stop requested")
 
 	// If the notifier hasn't been started, we don't need to wait for anything.
 	// This is only really during testing when we want to enqueue messages only but not deliver them.
