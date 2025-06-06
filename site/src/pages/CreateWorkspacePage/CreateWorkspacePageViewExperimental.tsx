@@ -608,15 +608,15 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 							<div className="flex flex-col gap-9">
 								{parameters.map((parameter, index) => {
-									// Find the current parameter's value by name instead of index
-								// to ensure values persist correctly when parameter order changes
-								const currentParameterValueIndex = form.values.rich_parameter_values?.findIndex(
-									(p) => p.name === parameter.name
-								) ?? -1;
-								
-								// Use the found index for the parameter field, or fallback to current index
-								const parameterFieldIndex = currentParameterValueIndex !== -1 ? currentParameterValueIndex : index;
-								const parameterField = `rich_parameter_values.${parameterFieldIndex}`;
+									const currentParameterValueIndex =
+										form.values.rich_parameter_values?.findIndex(
+											(p) => p.name === parameter.name,
+										) ?? -1;
+									const parameterFieldIndex =
+										currentParameterValueIndex !== -1
+											? currentParameterValueIndex
+											: index;
+									const parameterField = `rich_parameter_values.${parameterFieldIndex}`;
 									const isPresetParameter = presetParameterNames.includes(
 										parameter.name,
 									);
@@ -638,9 +638,12 @@ export const CreateWorkspacePageViewExperimental: FC<
 									}
 
 									// Get the form value by parameter name to ensure correct value mapping
-									const formValue = currentParameterValueIndex !== -1 
-										? form.values?.rich_parameter_values?.[currentParameterValueIndex]?.value || ""
-										: "";
+									const formValue =
+										currentParameterValueIndex !== -1
+											? form.values?.rich_parameter_values?.[
+													currentParameterValueIndex
+												]?.value || ""
+											: "";
 
 									return (
 										<DynamicParameter
