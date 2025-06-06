@@ -5,7 +5,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
-	"github.com/kylecarbs/aisdk-go"
+	"github.com/coder/aisdk-go"
 	"github.com/openai/openai-go"
 	openaioption "github.com/openai/openai-go/option"
 	"golang.org/x/xerrors"
@@ -85,12 +85,12 @@ func ModelsFromConfig(ctx context.Context, configs []codersdk.AIProviderConfig) 
 				}
 				if options.SystemPrompt != "" {
 					systemMessage = []anthropic.TextBlockParam{
-						*anthropic.NewTextBlock(options.SystemPrompt).OfRequestTextBlock,
+						*anthropic.NewTextBlock(options.SystemPrompt).OfText,
 					}
 				}
 				return aisdk.AnthropicToDataStream(client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
 					Messages:  anthropicMessages,
-					Model:     options.Model,
+					Model:     anthropic.Model(options.Model),
 					System:    systemMessage,
 					Tools:     aisdk.ToolsToAnthropic(options.Tools),
 					MaxTokens: 8192,
