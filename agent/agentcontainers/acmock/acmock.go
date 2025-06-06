@@ -131,7 +131,7 @@ func (m *MockDevcontainerCLI) EXPECT() *MockDevcontainerCLIMockRecorder {
 }
 
 // Exec mocks base method.
-func (m *MockDevcontainerCLI) Exec(ctx context.Context, workspaceFolder, configPath, cmd string, cmdArgs []string, opts ...agentcontainers.DevcontainerCLIOptions) error {
+func (m *MockDevcontainerCLI) Exec(ctx context.Context, workspaceFolder, configPath, cmd string, cmdArgs []string, opts ...agentcontainers.DevcontainerCLIExecOptions) error {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, workspaceFolder, configPath, cmd, cmdArgs}
 	for _, a := range opts {
@@ -150,7 +150,7 @@ func (mr *MockDevcontainerCLIMockRecorder) Exec(ctx, workspaceFolder, configPath
 }
 
 // Up mocks base method.
-func (m *MockDevcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath string, opts ...agentcontainers.DevcontainerCLIOptions) (string, error) {
+func (m *MockDevcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath string, opts ...agentcontainers.DevcontainerCLIUpOptions) (string, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, workspaceFolder, configPath}
 	for _, a := range opts {

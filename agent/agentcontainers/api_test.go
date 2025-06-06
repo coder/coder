@@ -65,7 +65,7 @@ type fakeDevcontainerCLI struct {
 	execErrC chan error // If set, send to return err, close to return execErr.
 }
 
-func (f *fakeDevcontainerCLI) Up(ctx context.Context, _, _ string, _ ...agentcontainers.DevcontainerCLIOptions) (string, error) {
+func (f *fakeDevcontainerCLI) Up(ctx context.Context, _, _ string, _ ...agentcontainers.DevcontainerCLIUpOptions) (string, error) {
 	if f.upErrC != nil {
 		select {
 		case <-ctx.Done():
@@ -79,7 +79,7 @@ func (f *fakeDevcontainerCLI) Up(ctx context.Context, _, _ string, _ ...agentcon
 	return f.upID, f.upErr
 }
 
-func (f *fakeDevcontainerCLI) Exec(ctx context.Context, _, _ string, _ string, _ []string, _ ...agentcontainers.DevcontainerCLIOptions) error {
+func (f *fakeDevcontainerCLI) Exec(ctx context.Context, _, _ string, _ string, _ []string, _ ...agentcontainers.DevcontainerCLIExecOptions) error {
 	if f.execErrC != nil {
 		select {
 		case <-ctx.Done():

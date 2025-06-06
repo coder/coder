@@ -684,7 +684,7 @@ func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, con
 
 	logger.Debug(ctx, "starting devcontainer recreation")
 
-	_, err = api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, WithOutput(infoW, errW), WithRemoveExistingContainer())
+	_, err = api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, WithUpOutput(infoW, errW), WithRemoveExistingContainer())
 	if err != nil {
 		// No need to log if the API is closing (context canceled), as this
 		// is expected behavior when the API is shutting down.
