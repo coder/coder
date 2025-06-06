@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	agentapi "github.com/coder/agentapi-sdk-go"
-	agentapigen "github.com/coder/agentapi-sdk-go/gen"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
@@ -34,7 +33,7 @@ func TestExpTask(t *testing.T) {
 			name: "ReportWorking",
 			resp: nil,
 			status: &agentapi.GetStatusResponse{
-				Status: agentapigen.Running,
+				Status: agentapi.StatusRunning,
 			},
 			expected: codersdk.WorkspaceAppStatusStateWorking,
 		},
@@ -42,7 +41,7 @@ func TestExpTask(t *testing.T) {
 			name: "ReportComplete",
 			resp: nil,
 			status: &agentapi.GetStatusResponse{
-				Status: agentapigen.Stable,
+				Status: agentapi.StatusStable,
 			},
 			expected: codersdk.WorkspaceAppStatusStateComplete,
 		},
@@ -53,7 +52,7 @@ func TestExpTask(t *testing.T) {
 				Detail:  "This is a test failure.",
 			},
 			status: &agentapi.GetStatusResponse{
-				Status: agentapigen.Stable,
+				Status: agentapi.StatusStable,
 			},
 			expected: codersdk.WorkspaceAppStatusStateComplete,
 		},

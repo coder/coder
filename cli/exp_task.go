@@ -7,7 +7,6 @@ import (
 	"time"
 
 	agentapi "github.com/coder/agentapi-sdk-go"
-	agentapigen "github.com/coder/agentapi-sdk-go/gen"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -67,9 +66,9 @@ func (r *RootCmd) taskReportStatus() *serpent.Command {
 					// will need to fetch the messages and generate one.
 					status := codersdk.WorkspaceAppStatusStateWorking
 					switch res.Status {
-					case agentapigen.Stable: // Stable == idle == done
+					case agentapi.StatusStable: // Stable == idle == done
 						status = codersdk.WorkspaceAppStatusStateComplete
-					case agentapigen.Running: // Running == working
+					case agentapi.StatusRunning: // Running == working
 					}
 					err = agentClient.PatchAppStatus(notifyCtx, agentsdk.PatchAppStatus{
 						AppSlug: slug,
