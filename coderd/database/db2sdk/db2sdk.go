@@ -16,6 +16,8 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
+	previewtypes "github.com/coder/preview/types"
+
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -25,7 +27,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
-	previewtypes "github.com/coder/preview/types"
 )
 
 // List is a helper function to reduce boilerplate when converting slices of

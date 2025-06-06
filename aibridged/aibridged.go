@@ -15,7 +15,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/aibridged/proto"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -49,16 +48,17 @@ type Server struct {
 	// shuttingDownCh will receive when we start graceful shutdown
 	shuttingDownCh chan struct{}
 
-	bridge *Bridge
+	bridge   *Bridge
 }
 
-func New(store database.Store, rpcDialer Dialer, httpAddr string, logger slog.Logger) (*Server, error) {
+var _ proto.DRPCAIBridgeDaemonServer = &Server{}
+
+func New(rpcDialer Dialer, httpAddr string, logger slog.Logger) (*Server, error) {
 	if rpcDialer == nil {
 		return nil, xerrors.Errorf("nil rpcDialer given")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	bridge := NewBridge(httpAddr, store)
 	daemon := &Server{
 		logger:           logger,
 		clientDialer:     rpcDialer,
@@ -68,9 +68,11 @@ func New(store database.Store, rpcDialer Dialer, httpAddr string, logger slog.Lo
 		closedCh:         make(chan struct{}),
 		shuttingDownCh:   make(chan struct{}),
 		initConnectionCh: make(chan struct{}),
-
-		bridge: bridge,
 	}
+
+	bridge := NewBridge(httpAddr, daemon.client)
+	daemon.bridge = bridge
+
 	go daemon.connect()
 	go func() {
 		err := bridge.Serve()
@@ -157,6 +159,26 @@ func (s *Server) client() (proto.DRPCAIBridgeDaemonClient, bool) {
 func (s *Server) AuditPrompt(ctx context.Context, in *proto.AuditPromptRequest) (*proto.AuditPromptResponse, error) {
 	out, err := clientDoWithRetries(ctx, s.client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.AuditPromptResponse, error) {
 		return client.AuditPrompt(ctx, in)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (s *Server) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageRequest) (*proto.TrackTokenUsageResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.TrackTokenUsageResponse, error) {
+		return client.TrackTokenUsage(ctx, in)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (s *Server) TrackUserPrompts(ctx context.Context, in *proto.TrackUserPromptsRequest) (*proto.TrackUserPromptsResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.TrackUserPromptsResponse, error) {
+		return client.TrackUserPrompts(ctx, in)
 	})
 	if err != nil {
 		return nil, err

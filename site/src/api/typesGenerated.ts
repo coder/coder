@@ -9,6 +9,8 @@ export interface ACLAvailable {
 // From codersdk/deployment.go
 export interface AIConfig {
 	readonly providers?: readonly AIProviderConfig[];
+	// embedded anonymous struct, please fix by naming it
+	readonly bridge?: unknown;
 }
 
 // From codersdk/deployment.go

@@ -484,7 +484,7 @@ require (
 )
 
 require (
-	github.com/anthropics/anthropic-sdk-go v0.2.0-beta.3
+	github.com/anthropics/anthropic-sdk-go v1.4.0
 	github.com/charmbracelet/log v0.4.1
 	github.com/coder/freeway v0.0.0-20250514145842-67c0cca1dc72
 	github.com/coder/preview v0.0.2-0.20250527172548-ab173d35040c
@@ -516,12 +516,12 @@ require (
 	github.com/envoyproxy/go-control-plane/envoy v1.32.4 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
-	github.com/goccy/go-yaml v1.17.1 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/hashicorp/go-getter v1.7.8 // indirect
 	github.com/hashicorp/go-safetemp v1.0.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/moby/sys/user v0.4.0 // indirect
+	github.com/openai/openai-go v1.3.0 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/samber/lo v1.50.0 // indirect
