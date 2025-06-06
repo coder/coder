@@ -32,6 +32,7 @@ import { useFormik } from "formik";
 import { Plus, Trash, TriangleAlert } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useId, useState } from "react";
 import { docs } from "utils/docs";
+import { isEveryoneGroup } from "utils/groups";
 import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
 import { ExportPolicyButton } from "./ExportPolicyButton";
@@ -259,15 +260,17 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 							className="min-w-60 max-w-3xl"
 							value={coderGroups}
 							onChange={setCoderGroups}
-							options={groups.map((group) => ({
-								label: group.display_name || group.name,
-								value: group.id,
-							}))}
+							options={groups
+								.filter((group) => !isEveryoneGroup(group))
+								.map((group) => ({
+									label: group.display_name || group.name,
+									value: group.id,
+								}))}
 							hidePlaceholderWhenSelected
 							placeholder="Select group"
 							emptyIndicator={
 								<p className="text-center text-md text-content-primary">
-									All groups selected
+									No more groups to select
 								</p>
 							}
 						/>
