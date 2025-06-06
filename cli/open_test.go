@@ -306,8 +306,8 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 	containerFolder := "/workspace/coder"
 
 	ctrl := gomock.NewController(t)
-	mcl := acmock.NewMockContainerCLI(ctrl)
-	mcl.EXPECT().List(gomock.Any()).Return(
+	mccli := acmock.NewMockContainerCLI(ctrl)
+	mccli.EXPECT().List(gomock.Any()).Return(
 		codersdk.WorkspaceAgentListContainersResponse{
 			Containers: []codersdk.WorkspaceAgentContainer{
 				{
@@ -327,6 +327,8 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 			},
 		}, nil,
 	).AnyTimes()
+	// DetectArchitecture always returns "<none>" for this test to disable agent injection.
+	mccli.EXPECT().DetectArchitecture(gomock.Any(), gomock.Any()).Return("<none>", nil).AnyTimes()
 
 	client, workspace, agentToken := setupWorkspaceForAgent(t, func(agents []*proto.Agent) []*proto.Agent {
 		agents[0].Directory = agentDir
@@ -337,7 +339,7 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 
 	_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
 		o.ExperimentalDevcontainersEnabled = true
-		o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithContainerCLI(mcl))
+		o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithContainerCLI(mccli))
 	})
 	_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
@@ -481,8 +483,8 @@ func TestOpenVSCodeDevContainer_NoAgentDirectory(t *testing.T) {
 	containerFolder := "/workspace/coder"
 
 	ctrl := gomock.NewController(t)
-	mcl := acmock.NewMockContainerCLI(ctrl)
-	mcl.EXPECT().List(gomock.Any()).Return(
+	mccli := acmock.NewMockContainerCLI(ctrl)
+	mccli.EXPECT().List(gomock.Any()).Return(
 		codersdk.WorkspaceAgentListContainersResponse{
 			Containers: []codersdk.WorkspaceAgentContainer{
 				{
@@ -502,6 +504,8 @@ func TestOpenVSCodeDevContainer_NoAgentDirectory(t *testing.T) {
 			},
 		}, nil,
 	).AnyTimes()
+	// DetectArchitecture always returns "<none>" for this test to disable agent injection.
+	mccli.EXPECT().DetectArchitecture(gomock.Any(), gomock.Any()).Return("<none>", nil).AnyTimes()
 
 	client, workspace, agentToken := setupWorkspaceForAgent(t, func(agents []*proto.Agent) []*proto.Agent {
 		agents[0].Name = agentName
@@ -511,7 +515,7 @@ func TestOpenVSCodeDevContainer_NoAgentDirectory(t *testing.T) {
 
 	_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
 		o.ExperimentalDevcontainersEnabled = true
-		o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithContainerCLI(mcl))
+		o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithContainerCLI(mccli))
 	})
 	_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
