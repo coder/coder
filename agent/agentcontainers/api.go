@@ -1010,9 +1010,15 @@ func (api *API) injectSubAgentIntoContainerLocked(ctx context.Context, dc coders
 	// The preparation of the subagent is done, now we can create the
 	// subagent record in the database to receive the auth token.
 	createdAgent, err := api.subAgentClient.Create(ctx, SubAgent{
-		Name:            dc.Name,
-		Directory:       "/workspace", // TODO(mafredri): Use a more appropriate directory.
-		OperatingSystem: "linux",      // Assuming Linux for dev containers.
+		Name: dc.Name,
+		// The default workspaceFolder for devcontainers is /workspaces.
+		// However, it can be changed by setting {"workspaceFolder": "/src"}
+		// in the devcontainer.json. This information is not encoded into
+		// the container labels, so we must rely on the values parsed from
+		// the devcontainer.json file on disk.
+		// TODO(mafredri): Support custom workspace folders in the future.
+		Directory:       DevcontainerDefaultContainerWorkspaceFolder,
+		OperatingSystem: "linux", // Assuming Linux for dev containers.
 		Architecture:    arch,
 	})
 	if err != nil {
