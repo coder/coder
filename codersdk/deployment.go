@@ -468,6 +468,8 @@ type SessionLifetime struct {
 	DefaultTokenDuration serpent.Duration `json:"default_token_lifetime,omitempty" typescript:",notnull"`
 
 	MaximumTokenDuration serpent.Duration `json:"max_token_lifetime,omitempty" typescript:",notnull"`
+
+	MaximumAdminTokenDuration serpent.Duration `json:"max_admin_token_lifetime,omitempty" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -2338,6 +2340,17 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.Sessions.MaximumTokenDuration,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "maxTokenLifetime",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Maximum Admin Token Lifetime",
+			Description: "The maximum lifetime duration administrators can specify when creating an API token.",
+			Flag:        "max-admin-token-lifetime",
+			Env:         "CODER_MAX_ADMIN_TOKEN_LIFETIME",
+			Default:     (7 * 24 * time.Hour).String(),
+			Value:       &c.Sessions.MaximumAdminTokenDuration,
+			Group:       &deploymentGroupNetworkingHTTP,
+			YAML:        "maxAdminTokenLifetime",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
