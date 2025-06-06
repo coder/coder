@@ -869,6 +869,9 @@ func (api *API) cleanupSubAgents(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("list agents: %w", err)
 	}
+	if len(agents) == 0 {
+		return nil
+	}
 
 	api.mu.Lock()
 	defer api.mu.Unlock()
