@@ -207,7 +207,7 @@ func TestConfigSSH_MissingDirectory(t *testing.T) {
 	// Check that the directory has proper permissions (0700)
 	sshDirInfo, err := os.Stat(sshDir)
 	require.NoError(t, err)
-	require.Equal(t, os.FileMode(0700), sshDirInfo.Mode().Perm(), "directory should have 0700 permissions")
+	require.Equal(t, os.FileMode(0o700), sshDirInfo.Mode().Perm(), "directory should have 0700 permissions")
 }
 
 func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
@@ -358,7 +358,8 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 					strings.Join([]string{
 						headerEnd,
 						"",
-					}, "\n")},
+					}, "\n"),
+				},
 			},
 			args: []string{"--ssh-option", "ForwardAgent=yes"},
 			matches: []match{
@@ -383,7 +384,8 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 					strings.Join([]string{
 						headerEnd,
 						"",
-					}, "\n")},
+					}, "\n"),
+				},
 			},
 			args: []string{"--ssh-option", "ForwardAgent=yes"},
 			matches: []match{

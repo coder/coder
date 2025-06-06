@@ -184,7 +184,7 @@ func TestOAuth2(t *testing.T) {
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
 		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil)(nil).ServeHTTP(res, req)
-		
+
 		// Should redirect instead of returning JSON error
 		require.Equal(t, http.StatusTemporaryRedirect, res.Result().StatusCode)
 		location := res.Header().Get("Location")
@@ -198,7 +198,7 @@ func TestOAuth2(t *testing.T) {
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
 		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil)(nil).ServeHTTP(res, req)
-		
+
 		// Should redirect instead of returning JSON error
 		require.Equal(t, http.StatusTemporaryRedirect, res.Result().StatusCode)
 		location := res.Header().Get("Location")
@@ -212,7 +212,7 @@ func TestOAuth2(t *testing.T) {
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
 		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil)(nil).ServeHTTP(res, req)
-		
+
 		// Should redirect instead of returning JSON error
 		require.Equal(t, http.StatusTemporaryRedirect, res.Result().StatusCode)
 		location := res.Header().Get("Location")
@@ -230,7 +230,7 @@ func TestOAuth2(t *testing.T) {
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
 		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil)(nil).ServeHTTP(res, req)
-		
+
 		// Should redirect instead of returning JSON error
 		require.Equal(t, http.StatusTemporaryRedirect, res.Result().StatusCode)
 		location := res.Header().Get("Location")
