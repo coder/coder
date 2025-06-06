@@ -63,6 +63,9 @@ type Template struct {
 	MaxPortShareLevel    WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
 
 	UseClassicParameterFlow bool `json:"use_classic_parameter_flow"`
+
+	// Deleted indicates whether the template has been deleted.
+	Deleted bool `json:"deleted"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with

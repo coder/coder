@@ -42,6 +42,7 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 			presets={[
 				{ query: "", name: "All templates" },
 				{ query: "deprecated:true", name: "Deprecated templates" },
+				{ query: "deleted:true", name: "Deleted templates" },
 			]}
 			// TODO: Add docs for this
 			// learnMoreLink={docs("/templates#template-filtering")}
