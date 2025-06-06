@@ -171,7 +171,7 @@ func Test_sshConfigExecEscape(t *testing.T) {
 			err = os.WriteFile(bin, contents, 0o755) //nolint:gosec
 			require.NoError(t, err)
 
-			escaped, err := sshConfigExecEscape(bin, false)
+			escaped, err := sshConfigProxyCommandEscape(bin, false)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -236,7 +236,7 @@ func Test_sshConfigExecEscapeSeparatorForce(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			found, err := sshConfigExecEscape(tt.path, tt.forceUnix)
+			found, err := sshConfigProxyCommandEscape(tt.path, tt.forceUnix)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
