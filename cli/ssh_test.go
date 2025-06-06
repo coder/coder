@@ -2057,7 +2057,7 @@ func TestSSH_Container(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		ctrl := gomock.NewController(t)
-		mLister := acmock.NewMockLister(ctrl)
+		mLister := acmock.NewMockContainerCLI(ctrl)
 		mLister.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
 			Containers: []codersdk.WorkspaceAgentContainer{
 				{
@@ -2069,7 +2069,7 @@ func TestSSH_Container(t *testing.T) {
 		}, nil).AnyTimes()
 		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
 			o.ExperimentalDevcontainersEnabled = true
-			o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithLister(mLister))
+			o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithContainerCLI(mLister))
 		})
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
