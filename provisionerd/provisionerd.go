@@ -556,7 +556,14 @@ func (p *Server) UploadModuleFiles(ctx context.Context, moduleFiles []byte) erro
 			}
 		}
 
-		return &proto.Empty{}, nil
+		resp, err := stream.CloseAndRecv()
+		if err != nil {
+			if retryable(err) { // Do not retry
+				return nil, xerrors.Errorf("close stream: %s", err.Error())
+			}
+			return nil, xerrors.Errorf("close stream: %w", err)
+		}
+		return resp, nil
 	})
 	if err != nil {
 		return xerrors.Errorf("upload module files: %w", err)
@@ -566,13 +573,14 @@ func (p *Server) UploadModuleFiles(ctx context.Context, moduleFiles []byte) erro
 }
 
 func (p *Server) CompleteJob(ctx context.Context, in *proto.CompletedJob) error {
+	// If the moduleFiles exceed the max message size, we need to upload them separately.
 	if ti, ok := in.Type.(*proto.CompletedJob_TemplateImport_); ok {
 		messageSize := protobuf.Size(in)
 		if messageSize > drpcsdk.MaxMessageSize &&
 			messageSize-len(ti.TemplateImport.ModuleFiles) < drpcsdk.MaxMessageSize {
-
+			// Hashing the module files to reference them in the CompletedJob message.
 			moduleFilesHash := sha256.Sum256(ti.TemplateImport.ModuleFiles)
-			// Split the module files from the message if it exceeds the max size.
+
 			moduleFiles := ti.TemplateImport.ModuleFiles
 			ti.TemplateImport.ModuleFiles = nil // Clear the files in the final message
 			ti.TemplateImport.ModuleFilesHash = moduleFilesHash[:]

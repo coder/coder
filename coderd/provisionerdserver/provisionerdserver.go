@@ -1323,7 +1323,8 @@ func (s *server) prepareForNotifyWorkspaceManualBuildFailed(ctx context.Context,
 
 func (s *server) UploadFile(stream proto.DRPCProvisionerDaemon_UploadFileStream) error {
 	var file *sdkproto.DataBuilder
-	defer stream.Close()
+	// Always terminate the stream with an empty response.
+	defer stream.SendAndClose(&proto.Empty{})
 
 UploadFileStream:
 	for {

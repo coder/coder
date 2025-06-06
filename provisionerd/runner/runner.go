@@ -555,7 +555,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		CoderUrl:             r.job.GetTemplateImport().Metadata.CoderUrl,
 		WorkspaceOwnerGroups: r.job.GetTemplateImport().Metadata.WorkspaceOwnerGroups,
 		WorkspaceTransition:  sdkproto.WorkspaceTransition_START,
-	})
+	}, false)
 	if err != nil {
 		return nil, r.failedJobf("template import provision for start: %s", err)
 	}
@@ -571,7 +571,8 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		CoderUrl:             r.job.GetTemplateImport().Metadata.CoderUrl,
 		WorkspaceOwnerGroups: r.job.GetTemplateImport().Metadata.WorkspaceOwnerGroups,
 		WorkspaceTransition:  sdkproto.WorkspaceTransition_STOP,
-	})
+	}, true, // Modules downloded on the start provision
+	)
 	if err != nil {
 		return nil, r.failedJobf("template import provision for stop: %s", err)
 	}
@@ -597,7 +598,8 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				StopModules:                stopProvision.Modules,
 				Presets:                    startProvision.Presets,
 				Plan:                       startProvision.Plan,
-				ModuleFiles:                startProvision.ModuleFiles,
+				// ModuleFiles are not on the stopProvision. So grab from the startProvision.
+				ModuleFiles: startProvision.ModuleFiles,
 			},
 		},
 	}, nil
@@ -666,8 +668,8 @@ type templateImportProvision struct {
 // Performs a dry-run provision when importing a template.
 // This is used to detect resources that would be provisioned for a workspace in various states.
 // It doesn't define values for rich parameters as they're unknown during template import.
-func (r *Runner) runTemplateImportProvision(ctx context.Context, variableValues []*sdkproto.VariableValue, metadata *sdkproto.Metadata) (*templateImportProvision, error) {
-	return r.runTemplateImportProvisionWithRichParameters(ctx, variableValues, nil, metadata)
+func (r *Runner) runTemplateImportProvision(ctx context.Context, variableValues []*sdkproto.VariableValue, metadata *sdkproto.Metadata, omitModules bool) (*templateImportProvision, error) {
+	return r.runTemplateImportProvisionWithRichParameters(ctx, variableValues, nil, metadata, omitModules)
 }
 
 // Performs a dry-run provision with provided rich parameters.
@@ -677,6 +679,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 	variableValues []*sdkproto.VariableValue,
 	richParameterValues []*sdkproto.RichParameterValue,
 	metadata *sdkproto.Metadata,
+	omitModules bool,
 ) (*templateImportProvision, error) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
@@ -696,6 +699,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 		// Template import has no previous values
 		PreviousParameterValues: make([]*sdkproto.RichParameterValue, 0),
 		VariableValues:          variableValues,
+		OmitModuleFiles:         omitModules,
 	}}})
 	if err != nil {
 		return nil, xerrors.Errorf("start provision: %w", err)
@@ -849,6 +853,7 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 		r.job.GetTemplateDryRun().GetVariableValues(),
 		r.job.GetTemplateDryRun().GetRichParameterValues(),
 		metadata,
+		false,
 	)
 	if err != nil {
 		return nil, r.failedJobf("run dry-run provision job: %s", err)
@@ -911,6 +916,10 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 				Output:    msgType.Log.Output,
 				Stage:     stage,
 			})
+		case *sdkproto.Response_DataUpload:
+			continue // Only for template imports
+		case *sdkproto.Response_ChunkPiece:
+			continue // Only for template imports
 		default:
 			// Stop looping!
 			return msg, nil
@@ -1003,6 +1012,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	resp, failed := r.buildWorkspace(ctx, "Planning infrastructure", &sdkproto.Request{
 		Type: &sdkproto.Request_Plan{
 			Plan: &sdkproto.PlanRequest{
+				OmitModuleFiles:         true, // Only useful for template imports
 				Metadata:                r.job.GetWorkspaceBuild().Metadata,
 				RichParameterValues:     r.job.GetWorkspaceBuild().RichParameterValues,
 				PreviousParameterValues: r.job.GetWorkspaceBuild().PreviousParameterValues,
