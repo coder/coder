@@ -26,9 +26,10 @@ func sshConfigMatchExecEscape(path string) (string, error) {
 		return "", xerrors.Errorf("path must not contain quotes: %q", path)
 	}
 
-	// OpenSSH passes the match exec string directly to the user's shell. sh, bash and zsh accept spaces and tabs
-	// simply escaped by a `\`. It's hard to predict exactly what more exotic shells might do, but this should work for
-	// macOS and most Linux distros in their default configuration.
+	// OpenSSH passes the match exec string directly to the user's shell. sh, bash and zsh accept spaces, tabs and
+	// backslashes simply escaped by a `\`. It's hard to predict exactly what more exotic shells might do, but this
+	// should work for macOS and most Linux distros in their default configuration.
+	path = strings.ReplaceAll(path, `\`, `\\`) // must be first, since later replacements add backslashes.
 	path = strings.ReplaceAll(path, " ", "\\ ")
 	path = strings.ReplaceAll(path, "\t", "\\\t")
 	return path, nil
