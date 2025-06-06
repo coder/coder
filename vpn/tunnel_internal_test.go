@@ -15,10 +15,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"tailscale.com/ipn/ipnstate"
+	"tailscale.com/tailcfg"
 	"tailscale.com/util/dnsname"
 
 	"github.com/coder/quartz"
 
+	maputil "github.com/coder/coder/v2/coderd/util/maps"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -57,14 +60,58 @@ func newFakeConn(state tailnet.WorkspaceUpdate, hsTime time.Time) *fakeConn {
 	}
 }
 
+func (f *fakeConn) withManualPings() *fakeConn {
+	f.returnPing = make(chan struct{})
+	return f
+}
+
 type fakeConn struct {
-	state   tailnet.WorkspaceUpdate
-	hsTime  time.Time
-	closed  chan struct{}
-	doClose sync.Once
+	state      tailnet.WorkspaceUpdate
+	returnPing chan struct{}
+	hsTime     time.Time
+	closed     chan struct{}
+	doClose    sync.Once
+}
+
+func (*fakeConn) DERPMap() *tailcfg.DERPMap {
+	return &tailcfg.DERPMap{
+		Regions: map[int]*tailcfg.DERPRegion{
+			999: {
+				RegionID:   999,
+				RegionCode: "zzz",
+				RegionName: "Coder Region",
+			},
+		},
+	}
+}
+
+func (*fakeConn) Node() *tailnet.Node {
+	return &tailnet.Node{
+		PreferredDERP: 999,
+		DERPLatency: map[string]float64{
+			"999": 0.1,
+		},
+	}
 }
 
 var _ Conn = (*fakeConn)(nil)
+
+func (f *fakeConn) Ping(ctx context.Context, agentID uuid.UUID) (time.Duration, bool, *ipnstate.PingResult, error) {
+	if f.returnPing == nil {
+		return time.Millisecond * 100, true, &ipnstate.PingResult{
+			DERPRegionID: 999,
+		}, nil
+	}
+
+	select {
+	case <-ctx.Done():
+		return 0, false, nil, ctx.Err()
+	case <-f.returnPing:
+		return time.Millisecond * 100, true, &ipnstate.PingResult{
+			DERPRegionID: 999,
+		}, nil
+	}
+}
 
 func (f *fakeConn) CurrentWorkspaceState() (tailnet.WorkspaceUpdate, error) {
 	return f.state, nil
@@ -292,7 +339,7 @@ func TestUpdater_createPeerUpdate(t *testing.T) {
 	updater := updater{
 		ctx:         ctx,
 		netLoopDone: make(chan struct{}),
-		agents:      map[uuid.UUID]tailnet.Agent{},
+		agents:      map[uuid.UUID]agentWithPing{},
 		workspaces:  map[uuid.UUID]tailnet.Workspace{},
 		conn:        newFakeConn(tailnet.WorkspaceUpdate{}, hsTime),
 	}
@@ -430,6 +477,22 @@ func TestTunnel_sendAgentUpdate(t *testing.T) {
 		require.Equal(t, hsTime, req.msg.GetPeerUpdate().UpsertedAgents[0].LastHandshake.AsTime())
 	}
 
+	// Latency is gathered in the background, so it'll eventually be sent
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		mClock.AdvanceNext()
+		req = testutil.TryReceive(ctx, t, mgr.requests)
+		if len(req.msg.GetPeerUpdate().UpsertedAgents) == 0 {
+			return false
+		}
+		if req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing == nil {
+			return false
+		}
+		if req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing.Latency.AsDuration().Milliseconds() != 100 {
+			return false
+		}
+		return req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing.PreferredDerp == "Coder Region"
+	}, testutil.IntervalFast)
+
 	// Upsert a new agent
 	err = tun.Update(tailnet.WorkspaceUpdate{
 		UpsertedWorkspaces: []*tailnet.Workspace{},
@@ -459,6 +522,10 @@ func TestTunnel_sendAgentUpdate(t *testing.T) {
 
 	require.Equal(t, aID1[:], req.msg.GetPeerUpdate().UpsertedAgents[0].Id)
 	require.Equal(t, hsTime, req.msg.GetPeerUpdate().UpsertedAgents[0].LastHandshake.AsTime())
+	// The latency of the first agent is still set
+	require.NotNil(t, req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing)
+	require.EqualValues(t, 100, req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing.Latency.AsDuration().Milliseconds())
+
 	require.Equal(t, aID2[:], req.msg.GetPeerUpdate().UpsertedAgents[1].Id)
 	require.Equal(t, hsTime, req.msg.GetPeerUpdate().UpsertedAgents[1].LastHandshake.AsTime())
 
@@ -486,6 +553,22 @@ func TestTunnel_sendAgentUpdate(t *testing.T) {
 	require.Len(t, req.msg.GetPeerUpdate().UpsertedAgents, 1)
 	require.Equal(t, aID2[:], req.msg.GetPeerUpdate().UpsertedAgents[0].Id)
 	require.Equal(t, hsTime, req.msg.GetPeerUpdate().UpsertedAgents[0].LastHandshake.AsTime())
+
+	// Eventually the second agent's latency is set
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		mClock.AdvanceNext()
+		req = testutil.TryReceive(ctx, t, mgr.requests)
+		if len(req.msg.GetPeerUpdate().UpsertedAgents) == 0 {
+			return false
+		}
+		if req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing == nil {
+			return false
+		}
+		if req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing.Latency.AsDuration().Milliseconds() != 100 {
+			return false
+		}
+		return req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing.PreferredDerp == "Coder Region"
+	}, testutil.IntervalFast)
 }
 
 func TestTunnel_sendAgentUpdateReconnect(t *testing.T) {
@@ -691,6 +774,178 @@ func TestTunnel_sendAgentUpdateWorkspaceReconnect(t *testing.T) {
 
 	require.Equal(t, aID1[:], peerUpdate.DeletedAgents[0].Id)
 	require.Equal(t, wID1[:], peerUpdate.DeletedWorkspaces[0].Id)
+}
+
+func TestTunnel_slowPing(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	mClock := quartz.NewMock(t)
+
+	wID1 := uuid.UUID{1}
+	aID1 := uuid.UUID{2}
+	hsTime := time.Now().Add(-time.Minute).UTC()
+
+	client := newFakeClient(ctx, t)
+	conn := newFakeConn(tailnet.WorkspaceUpdate{}, hsTime).withManualPings()
+
+	tun, mgr := setupTunnel(t, ctx, client, mClock)
+	errCh := make(chan error, 1)
+	var resp *TunnelMessage
+	go func() {
+		r, err := mgr.unaryRPC(ctx, &ManagerMessage{
+			Msg: &ManagerMessage_Start{
+				Start: &StartRequest{
+					TunnelFileDescriptor: 2,
+					CoderUrl:             "https://coder.example.com",
+					ApiToken:             "fakeToken",
+				},
+			},
+		})
+		resp = r
+		errCh <- err
+	}()
+	testutil.RequireSend(ctx, t, client.ch, conn)
+	err := testutil.TryReceive(ctx, t, errCh)
+	require.NoError(t, err)
+	_, ok := resp.Msg.(*TunnelMessage_Start)
+	require.True(t, ok)
+
+	// Inform the tunnel of the initial state
+	err = tun.Update(tailnet.WorkspaceUpdate{
+		UpsertedWorkspaces: []*tailnet.Workspace{
+			{
+				ID: wID1, Name: "w1", Status: proto.Workspace_STARTING,
+			},
+		},
+		UpsertedAgents: []*tailnet.Agent{
+			{
+				ID:          aID1,
+				Name:        "agent1",
+				WorkspaceID: wID1,
+				Hosts: map[dnsname.FQDN][]netip.Addr{
+					"agent1.coder.": {netip.MustParseAddr("fd60:627a:a42b:0101::")},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	req := testutil.TryReceive(ctx, t, mgr.requests)
+	require.Nil(t, req.msg.Rpc)
+	require.NotNil(t, req.msg.GetPeerUpdate())
+	require.Len(t, req.msg.GetPeerUpdate().UpsertedAgents, 1)
+	require.Equal(t, aID1[:], req.msg.GetPeerUpdate().UpsertedAgents[0].Id)
+
+	// We can't check that it *never* pings, so the best we can do is
+	// check it doesn't ping even with 5 goroutines attempting to,
+	// and that updates are received as normal
+	for range 5 {
+		mClock.AdvanceNext()
+		require.Nil(t, req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing)
+	}
+
+	// Provided that it hasn't been 5 seconds since the last AdvanceNext call,
+	// there'll be a ping in-flight that will return with this message
+	testutil.RequireSend(ctx, t, conn.returnPing, struct{}{})
+	// Which will mean we'll eventually receive a PeerUpdate with the ping
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		mClock.AdvanceNext()
+		req = testutil.TryReceive(ctx, t, mgr.requests)
+		if len(req.msg.GetPeerUpdate().UpsertedAgents) == 0 {
+			return false
+		}
+		if req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing == nil {
+			return false
+		}
+		if req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing.Latency.AsDuration().Milliseconds() != 100 {
+			return false
+		}
+		return req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing.PreferredDerp == "Coder Region"
+	}, testutil.IntervalFast)
+}
+
+func TestTunnel_stopMidPing(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	mClock := quartz.NewMock(t)
+
+	wID1 := uuid.UUID{1}
+	aID1 := uuid.UUID{2}
+	hsTime := time.Now().Add(-time.Minute).UTC()
+
+	client := newFakeClient(ctx, t)
+	conn := newFakeConn(tailnet.WorkspaceUpdate{}, hsTime).withManualPings()
+
+	tun, mgr := setupTunnel(t, ctx, client, mClock)
+	errCh := make(chan error, 1)
+	var resp *TunnelMessage
+	go func() {
+		r, err := mgr.unaryRPC(ctx, &ManagerMessage{
+			Msg: &ManagerMessage_Start{
+				Start: &StartRequest{
+					TunnelFileDescriptor: 2,
+					CoderUrl:             "https://coder.example.com",
+					ApiToken:             "fakeToken",
+				},
+			},
+		})
+		resp = r
+		errCh <- err
+	}()
+	testutil.RequireSend(ctx, t, client.ch, conn)
+	err := testutil.TryReceive(ctx, t, errCh)
+	require.NoError(t, err)
+	_, ok := resp.Msg.(*TunnelMessage_Start)
+	require.True(t, ok)
+
+	// Inform the tunnel of the initial state
+	err = tun.Update(tailnet.WorkspaceUpdate{
+		UpsertedWorkspaces: []*tailnet.Workspace{
+			{
+				ID: wID1, Name: "w1", Status: proto.Workspace_STARTING,
+			},
+		},
+		UpsertedAgents: []*tailnet.Agent{
+			{
+				ID:          aID1,
+				Name:        "agent1",
+				WorkspaceID: wID1,
+				Hosts: map[dnsname.FQDN][]netip.Addr{
+					"agent1.coder.": {netip.MustParseAddr("fd60:627a:a42b:0101::")},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	req := testutil.TryReceive(ctx, t, mgr.requests)
+	require.Nil(t, req.msg.Rpc)
+	require.NotNil(t, req.msg.GetPeerUpdate())
+	require.Len(t, req.msg.GetPeerUpdate().UpsertedAgents, 1)
+	require.Equal(t, aID1[:], req.msg.GetPeerUpdate().UpsertedAgents[0].Id)
+
+	// We'll have some pings in flight when we stop
+	for range 5 {
+		mClock.AdvanceNext()
+		req = testutil.TryReceive(ctx, t, mgr.requests)
+		require.Nil(t, req.msg.GetPeerUpdate().UpsertedAgents[0].LastPing)
+	}
+
+	// Stop the tunnel
+	go func() {
+		r, err := mgr.unaryRPC(ctx, &ManagerMessage{
+			Msg: &ManagerMessage_Stop{},
+		})
+		resp = r
+		errCh <- err
+	}()
+	testutil.TryReceive(ctx, t, conn.closed)
+	err = testutil.TryReceive(ctx, t, errCh)
+	require.NoError(t, err)
+	_, ok = resp.Msg.(*TunnelMessage_Stop)
+	require.True(t, ok)
 }
 
 //nolint:revive // t takes precedence
@@ -902,11 +1157,13 @@ func TestProcessFreshState(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			agentsCopy := make(map[uuid.UUID]tailnet.Agent)
-			maps.Copy(agentsCopy, tt.initialAgents)
-
-			workspaceCopy := make(map[uuid.UUID]tailnet.Workspace)
-			maps.Copy(workspaceCopy, tt.initialWorkspaces)
+			agentsCopy := maputil.Map(tt.initialAgents, func(a tailnet.Agent) agentWithPing {
+				return agentWithPing{
+					Agent:    a.Clone(),
+					lastPing: nil,
+				}
+			})
+			workspaceCopy := maps.Clone(tt.initialWorkspaces)
 
 			processSnapshotUpdate(tt.update, agentsCopy, workspaceCopy)
 

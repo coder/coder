@@ -16,7 +16,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -31,7 +30,6 @@ import (
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
-	"tailscale.com/tailcfg"
 	"tailscale.com/types/netlogtype"
 
 	"cdr.dev/slog"
@@ -40,11 +38,13 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/autobuild/notify"
+	"github.com/coder/coder/v2/coderd/util/maps"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/pty"
+	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/quartz"
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
@@ -1456,28 +1456,6 @@ func collectNetworkStats(ctx context.Context, agentConn *workspacesdk.AgentConn,
 	}
 	node := agentConn.Node()
 	derpMap := agentConn.DERPMap()
-	derpLatency := map[string]float64{}
-
-	// Convert DERP region IDs to friendly names for display in the UI.
-	for rawRegion, latency := range node.DERPLatency {
-		regionParts := strings.SplitN(rawRegion, "-", 2)
-		regionID, err := strconv.Atoi(regionParts[0])
-		if err != nil {
-			continue
-		}
-		region, found := derpMap.Regions[regionID]
-		if !found {
-			// It's possible that a workspace agent is using an old DERPMap
-			// and reports regions that do not exist. If that's the case,
-			// report the region as unknown!
-			region = &tailcfg.DERPRegion{
-				RegionID:   regionID,
-				RegionName: fmt.Sprintf("Unnamed %d", regionID),
-			}
-		}
-		// Convert the microseconds to milliseconds.
-		derpLatency[region.RegionName] = latency * 1000
-	}
 
 	totalRx := uint64(0)
 	totalTx := uint64(0)
@@ -1491,27 +1469,20 @@ func collectNetworkStats(ctx context.Context, agentConn *workspacesdk.AgentConn,
 	uploadSecs := float64(totalTx) / dur.Seconds()
 	downloadSecs := float64(totalRx) / dur.Seconds()
 
-	// Sometimes the preferred DERP doesn't match the one we're actually
-	// connected with. Perhaps because the agent prefers a different DERP and
-	// we're using that server instead.
-	preferredDerpID := node.PreferredDERP
-	if pingResult.DERPRegionID != 0 {
-		preferredDerpID = pingResult.DERPRegionID
-	}
-	preferredDerp, ok := derpMap.Regions[preferredDerpID]
-	preferredDerpName := fmt.Sprintf("Unnamed %d", preferredDerpID)
-	if ok {
-		preferredDerpName = preferredDerp.RegionName
-	}
+	preferredDerpName := tailnet.ExtractPreferredDERPName(pingResult, node, derpMap)
+	derpLatency := tailnet.ExtractDERPLatency(node, derpMap)
 	if _, ok := derpLatency[preferredDerpName]; !ok {
 		derpLatency[preferredDerpName] = 0
 	}
+	derpLatencyMs := maps.Map(derpLatency, func(dur time.Duration) float64 {
+		return float64(dur) / float64(time.Millisecond)
+	})
 
 	return &sshNetworkStats{
 		P2P:              p2p,
 		Latency:          float64(latency.Microseconds()) / 1000,
 		PreferredDERP:    preferredDerpName,
-		DERPLatency:      derpLatency,
+		DERPLatency:      derpLatencyMs,
 		UploadBytesSec:   int64(uploadSecs),
 		DownloadBytesSec: int64(downloadSecs),
 	}, nil
