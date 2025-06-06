@@ -53,6 +53,7 @@ type Manager struct {
 	success, failure chan dispatchResult
 
 	mu       sync.Mutex // Protects following.
+	closed   bool
 	notifier *notifier
 
 	runOnce sync.Once
@@ -134,6 +135,8 @@ func (m *Manager) WithHandlers(reg map[database.NotificationMethod]Handler) {
 	m.handlers = reg
 }
 
+var ErrManagerAlreadyClosed = xerrors.New("manager already closed")
+
 // Run initiates the control loop in the background, which spawns a given number of notifier goroutines.
 // Manager requires system-level permissions to interact with the store.
 // Run is only intended to be run once.
@@ -145,7 +148,11 @@ func (m *Manager) Run(ctx context.Context) {
 		go func() {
 			err := m.loop(ctx)
 			if err != nil {
-				m.log.Error(ctx, "notification manager stopped with error", slog.Error(err))
+				if xerrors.Is(err, ErrManagerAlreadyClosed) {
+					m.log.Warn(ctx, "notification manager stopped with error", slog.Error(err))
+				} else {
+					m.log.Error(ctx, "notification manager stopped with error", slog.Error(err))
+				}
 			}
 		}()
 	})
@@ -160,6 +167,11 @@ func (m *Manager) loop(ctx context.Context) error {
 	}()
 
 	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return ErrManagerAlreadyClosed
+	}
+
 	var eg errgroup.Group
 
 	m.notifier = newNotifier(ctx, m.cfg, uuid.New(), m.log, m.store, m.handlers, m.helpers, m.metrics, m.clock)
@@ -348,11 +360,10 @@ func (m *Manager) Stop(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	select {
-	case <-m.stop:
+	if m.closed {
 		return nil
-	default:
 	}
+	m.closed = true
 
 	m.log.Debug(context.Background(), "graceful stop requested")
 
