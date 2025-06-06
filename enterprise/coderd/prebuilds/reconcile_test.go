@@ -1437,7 +1437,6 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 		t.Skip("This test requires postgres")
 	}
 
-	// Test cases verify the behavior of prebuild creation depending on configured failure limits.
 	testCases := []struct {
 		name       string
 		running    int
