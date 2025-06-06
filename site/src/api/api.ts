@@ -24,7 +24,10 @@ import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
 import { OneWayWebSocket } from "../utils/OneWayWebSocket";
 import { delay } from "../utils/delay";
-import type { PostWorkspaceUsageRequest } from "./typesGenerated";
+import type {
+	DynamicParametersRequest,
+	PostWorkspaceUsageRequest,
+} from "./typesGenerated";
 import * as TypesGen from "./typesGenerated";
 
 const getMissingParameters = (
@@ -73,8 +76,10 @@ const getMissingParameters = (
 		if (templateParameter.options.length === 0) {
 			continue;
 		}
-
-		// Check if there is a new value
+		// For multi-select, extra steps are necessary to JSON parse the value.
+		if (templateParameter.form_type === "multi-select") {
+			continue;
+		}
 		let buildParameter = newBuildParameters.find(
 			(p) => p.name === templateParameter.name,
 		);
@@ -231,7 +236,7 @@ export const watchWorkspaceAgentLogs = (
 	/**
 	 * WebSocket compression in Safari (confirmed in 16.5) is broken when
 	 * the server sends large messages. The following error is seen:
-	 * WebSocket connection to 'wss://...' failed: The operation couldn’t be completed.
+	 * WebSocket connection to 'wss://...' failed: The operation couldn't be completed.
 	 */
 	if (userAgentParser(navigator.userAgent).browser.name === "Safari") {
 		searchParams.set("no_compression", "");
@@ -990,6 +995,17 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getTemplateVersionDynamicParameters = async (
+		versionId: string,
+		data: TypesGen.DynamicParametersRequest,
+	): Promise<TypesGen.DynamicParametersResponse> => {
+		const response = await this.axios.post(
+			`/api/v2/templateversions/${versionId}/dynamic-parameters/evaluate`,
+			data,
+		);
+		return response.data;
+	};
+
 	getTemplateVersionRichParameters = async (
 		versionId: string,
 	): Promise<TypesGen.TemplateVersionParameter[]> => {
@@ -1081,6 +1097,31 @@ class ApiMethods {
 		const response = await this.axios.post<TypesGen.TemplateVersion>(
 			`/api/v2/templateversions/${templateVersionId}/unarchive`,
 		);
+		return response.data;
+	};
+
+	/**
+	 * Downloads a template version as a tar or zip archive
+	 * @param fileId The file ID from the template version's job
+	 * @param format Optional format: "zip" for zip archive, empty/undefined for tar
+	 * @returns Promise that resolves to a Blob containing the archive
+	 */
+	downloadTemplateVersion = async (
+		fileId: string,
+		format?: "zip",
+	): Promise<Blob> => {
+		const params = new URLSearchParams();
+		if (format) {
+			params.set("format", format);
+		}
+
+		const response = await this.axios.get(
+			`/api/v2/files/${fileId}?${params.toString()}`,
+			{
+				responseType: "blob",
+			},
+		);
+
 		return response.data;
 	};
 
@@ -2107,6 +2148,38 @@ class ApiMethods {
 		await this.axios.delete(`/api/v2/licenses/${licenseId}`);
 	};
 
+	getDynamicParameters = async (
+		templateVersionId: string,
+		ownerId: string,
+		oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
+	) => {
+		const request: DynamicParametersRequest = {
+			id: 1,
+			owner_id: ownerId,
+			inputs: Object.fromEntries(
+				new Map(oldBuildParameters.map((param) => [param.name, param.value])),
+			),
+		};
+
+		const dynamicParametersResponse =
+			await this.getTemplateVersionDynamicParameters(
+				templateVersionId,
+				request,
+			);
+
+		return dynamicParametersResponse.parameters.map((p) => ({
+			...p,
+			description_plaintext: p.description || "",
+			default_value: p.default_value?.valid ? p.default_value.value : "",
+			options: p.options
+				? p.options.map((opt) => ({
+						...opt,
+						value: opt.value?.valid ? opt.value.value : "",
+					}))
+				: [],
+		}));
+	};
+
 	/** Steps to change the workspace version
 	 * - Get the latest template to access the latest active version
 	 * - Get the current build parameters
@@ -2120,11 +2193,23 @@ class ApiMethods {
 		workspace: TypesGen.Workspace,
 		templateVersionId: string,
 		newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
+		isDynamicParametersEnabled = false,
 	): Promise<TypesGen.WorkspaceBuild> => {
-		const [currentBuildParameters, templateParameters] = await Promise.all([
-			this.getWorkspaceBuildParameters(workspace.latest_build.id),
-			this.getTemplateVersionRichParameters(templateVersionId),
-		]);
+		const currentBuildParameters = await this.getWorkspaceBuildParameters(
+			workspace.latest_build.id,
+		);
+
+		let templateParameters: TypesGen.TemplateVersionParameter[] = [];
+		if (isDynamicParametersEnabled) {
+			templateParameters = await this.getDynamicParameters(
+				templateVersionId,
+				workspace.owner_id,
+				currentBuildParameters,
+			);
+		} else {
+			templateParameters =
+				await this.getTemplateVersionRichParameters(templateVersionId);
+		}
 
 		const missingParameters = getMissingParameters(
 			currentBuildParameters,
@@ -2155,6 +2240,7 @@ class ApiMethods {
 	updateWorkspace = async (
 		workspace: TypesGen.Workspace,
 		newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
+		isDynamicParametersEnabled = false,
 	): Promise<TypesGen.WorkspaceBuild> => {
 		const [template, oldBuildParameters] = await Promise.all([
 			this.getTemplate(workspace.template_id),
@@ -2162,8 +2248,19 @@ class ApiMethods {
 		]);
 
 		const activeVersionId = template.active_version_id;
-		const templateParameters =
-			await this.getTemplateVersionRichParameters(activeVersionId);
+
+		let templateParameters: TypesGen.TemplateVersionParameter[] = [];
+
+		if (isDynamicParametersEnabled) {
+			templateParameters = await this.getDynamicParameters(
+				activeVersionId,
+				workspace.owner_id,
+				oldBuildParameters,
+			);
+		} else {
+			templateParameters =
+				await this.getTemplateVersionRichParameters(activeVersionId);
+		}
 
 		const missingParameters = getMissingParameters(
 			oldBuildParameters,

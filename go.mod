@@ -98,10 +98,10 @@ require (
 	github.com/coder/flog v1.1.0
 	github.com/coder/guts v1.5.0
 	github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0
-	github.com/coder/quartz v0.2.1-0.20250527113331-b71761ce32df
+	github.com/coder/quartz v0.2.1
 	github.com/coder/retry v1.5.1
 	github.com/coder/serpent v0.10.0
-	github.com/coder/terraform-provider-coder/v2 v2.5.2
+	github.com/coder/terraform-provider-coder/v2 v2.5.3
 	github.com/coder/websocket v1.8.13
 	github.com/coder/wgtunnel v0.1.13-0.20240522110300-ade90dfb2da0
 	github.com/coreos/go-oidc/v3 v3.14.1
@@ -116,7 +116,7 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/fatih/structs v1.1.0
 	github.com/fatih/structtag v1.2.0
-	github.com/fergusstrange/embedded-postgres v1.30.0
+	github.com/fergusstrange/embedded-postgres v1.31.0
 	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
 	github.com/gen2brain/beeep v0.0.0-20220402123239-6a3042f4b71a
 	github.com/gliderlabs/ssh v0.3.4
@@ -154,8 +154,8 @@ require (
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
-	github.com/moby/moby v28.1.1+incompatible
-	github.com/mocktools/go-smtp-mock/v2 v2.4.0
+	github.com/moby/moby v28.2.2+incompatible
+	github.com/mocktools/go-smtp-mock/v2 v2.5.0
 	github.com/muesli/termenv v0.16.0
 	github.com/natefinch/atomic v1.0.1
 	github.com/open-policy-agent/opa v1.4.2
@@ -486,12 +486,11 @@ require (
 require (
 	github.com/anthropics/anthropic-sdk-go v1.4.0
 	github.com/charmbracelet/log v0.4.1
-	github.com/coder/freeway v0.0.0-20250514145842-67c0cca1dc72
-	github.com/coder/preview v0.0.2-0.20250527172548-ab173d35040c
+	github.com/coder/preview v0.0.2-0.20250604144457-c9862a17f652
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/kylecarbs/aisdk-go v0.0.8
-	github.com/mark3labs/mcp-go v0.30.0
-	github.com/openai/openai-go v0.1.0-beta.10
+	github.com/mark3labs/mcp-go v0.31.0
+	github.com/openai/openai-go v1.3.0
 	google.golang.org/genai v0.7.0
 )
 
@@ -521,7 +520,6 @@ require (
 	github.com/hashicorp/go-safetemp v1.0.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/moby/sys/user v0.4.0 // indirect
-	github.com/openai/openai-go v1.3.0 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/samber/lo v1.50.0 // indirect

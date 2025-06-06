@@ -100,7 +100,11 @@ func (s *Session) requestReader(done <-chan struct{}) <-chan *proto.Request {
 		for {
 			req, err := s.stream.Recv()
 			if err != nil {
-				s.Logger.Info(s.Context(), "recv done on Session", slog.Error(err))
+				if !xerrors.Is(err, io.EOF) {
+					s.Logger.Warn(s.Context(), "recv done on Session", slog.Error(err))
+				} else {
+					s.Logger.Info(s.Context(), "recv done on Session")
+				}
 				return
 			}
 			select {

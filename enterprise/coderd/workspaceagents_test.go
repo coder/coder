@@ -11,7 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/serpent"
 
 	"github.com/google/uuid"
@@ -84,8 +87,6 @@ func TestBlockNonBrowser(t *testing.T) {
 func TestReinitializeAgent(t *testing.T) {
 	t.Parallel()
 
-	tempAgentLog := testutil.CreateTemp(t, "", "testReinitializeAgent")
-
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("dbmem cannot currently claim a workspace")
 	}
@@ -94,79 +95,98 @@ func TestReinitializeAgent(t *testing.T) {
 		t.Skip("test startup script is not supported on windows")
 	}
 
-	startupScript := fmt.Sprintf("printenv >> %s; echo '---\n' >> %s", tempAgentLog.Name(), tempAgentLog.Name())
+	// Ensure that workspace agents can reinitialize against claimed prebuilds in non-default organizations:
+	for _, useDefaultOrg := range []bool{true, false} {
+		t.Run("", func(t *testing.T) {
+			t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t)
-	// GIVEN a live enterprise API with the prebuilds feature enabled
-	client, user := coderdenttest.New(t, &coderdenttest.Options{
-		Options: &coderdtest.Options{
-			Database: db,
-			Pubsub:   ps,
-			DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-				dv.Prebuilds.ReconciliationInterval = serpent.Duration(time.Second)
-				dv.Experiments.Append(string(codersdk.ExperimentWorkspacePrebuilds))
-			}),
-			IncludeProvisionerDaemon: true,
-		},
-		LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureWorkspacePrebuilds: 1,
-			},
-		},
-	})
+			tempAgentLog := testutil.CreateTemp(t, "", "testReinitializeAgent")
 
-	// GIVEN a template, template version, preset and a prebuilt workspace that uses them all
-	agentToken := uuid.UUID{3}
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{
-			{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
-						Presets: []*proto.Preset{
-							{
-								Name: "test-preset",
-								Prebuild: &proto.Prebuild{
-									Instances: 1,
-								},
-							},
-						},
-						Resources: []*proto.Resource{
-							{
-								Agents: []*proto.Agent{
-									{
-										Name:            "smith",
-										OperatingSystem: "linux",
-										Architecture:    "i386",
-									},
-								},
-							},
-						},
+			startupScript := fmt.Sprintf("printenv >> %s; echo '---\n' >> %s", tempAgentLog.Name(), tempAgentLog.Name())
+
+			db, ps := dbtestutil.NewDB(t)
+			// GIVEN a live enterprise API with the prebuilds feature enabled
+			client, user := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					Database: db,
+					Pubsub:   ps,
+					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+						dv.Prebuilds.ReconciliationInterval = serpent.Duration(time.Second)
+						dv.Experiments.Append(string(codersdk.ExperimentWorkspacePrebuilds))
+					}),
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureWorkspacePrebuilds:         1,
+						codersdk.FeatureExternalProvisionerDaemons: 1,
 					},
 				},
-			},
-		},
-		ProvisionApply: []*proto.Response{
-			{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
-						Resources: []*proto.Resource{
-							{
-								Type: "compute",
-								Name: "main",
-								Agents: []*proto.Agent{
+			})
+
+			orgID := user.OrganizationID
+			if !useDefaultOrg {
+				secondOrg := dbgen.Organization(t, db, database.Organization{})
+				orgID = secondOrg.ID
+			}
+			provisionerCloser := coderdenttest.NewExternalProvisionerDaemon(t, client, orgID, map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			})
+			defer provisionerCloser.Close()
+
+			// GIVEN a template, template version, preset and a prebuilt workspace that uses them all
+			agentToken := uuid.UUID{3}
+			version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
+				Parse: echo.ParseComplete,
+				ProvisionPlan: []*proto.Response{
+					{
+						Type: &proto.Response_Plan{
+							Plan: &proto.PlanComplete{
+								Presets: []*proto.Preset{
 									{
-										Name:            "smith",
-										OperatingSystem: "linux",
-										Architecture:    "i386",
-										Scripts: []*proto.Script{
+										Name: "test-preset",
+										Prebuild: &proto.Prebuild{
+											Instances: 1,
+										},
+									},
+								},
+								Resources: []*proto.Resource{
+									{
+										Agents: []*proto.Agent{
 											{
-												RunOnStart: true,
-												Script:     startupScript,
+												Name:            "smith",
+												OperatingSystem: "linux",
+												Architecture:    "i386",
 											},
 										},
-										Auth: &proto.Agent_Token{
-											Token: agentToken.String(),
+									},
+								},
+							},
+						},
+					},
+				},
+				ProvisionApply: []*proto.Response{
+					{
+						Type: &proto.Response_Apply{
+							Apply: &proto.ApplyComplete{
+								Resources: []*proto.Resource{
+									{
+										Type: "compute",
+										Name: "main",
+										Agents: []*proto.Agent{
+											{
+												Name:            "smith",
+												OperatingSystem: "linux",
+												Architecture:    "i386",
+												Scripts: []*proto.Script{
+													{
+														RunOnStart: true,
+														Script:     startupScript,
+													},
+												},
+												Auth: &proto.Agent_Token{
+													Token: agentToken.String(),
+												},
+											},
 										},
 									},
 								},
@@ -174,79 +194,76 @@ func TestReinitializeAgent(t *testing.T) {
 						},
 					},
 				},
-			},
-		},
-	})
-	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			})
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
-	coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			coderdtest.CreateTemplate(t, client, orgID, version.ID)
 
-	// Wait for prebuilds to create a prebuilt workspace
-	ctx := context.Background()
-	// ctx := testutil.Context(t, testutil.WaitLong)
-	var (
-		prebuildID uuid.UUID
-	)
-	require.Eventually(t, func() bool {
-		agentAndBuild, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, agentToken)
-		if err != nil {
-			return false
-		}
-		prebuildID = agentAndBuild.WorkspaceBuild.ID
-		return true
-	}, testutil.WaitLong, testutil.IntervalFast)
+			// Wait for prebuilds to create a prebuilt workspace
+			ctx := testutil.Context(t, testutil.WaitLong)
+			var prebuildID uuid.UUID
+			require.Eventually(t, func() bool {
+				agentAndBuild, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, agentToken)
+				if err != nil {
+					return false
+				}
+				prebuildID = agentAndBuild.WorkspaceBuild.ID
+				return true
+			}, testutil.WaitLong, testutil.IntervalFast)
 
-	prebuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, prebuildID)
+			prebuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, prebuildID)
 
-	preset, err := db.GetPresetByWorkspaceBuildID(ctx, prebuildID)
-	require.NoError(t, err)
+			preset, err := db.GetPresetByWorkspaceBuildID(ctx, prebuildID)
+			require.NoError(t, err)
 
-	// GIVEN a running agent
-	logDir := t.TempDir()
-	inv, _ := clitest.New(t,
-		"agent",
-		"--auth", "token",
-		"--agent-token", agentToken.String(),
-		"--agent-url", client.URL.String(),
-		"--log-dir", logDir,
-	)
-	clitest.Start(t, inv)
+			// GIVEN a running agent
+			logDir := t.TempDir()
+			inv, _ := clitest.New(t,
+				"agent",
+				"--auth", "token",
+				"--agent-token", agentToken.String(),
+				"--agent-url", client.URL.String(),
+				"--log-dir", logDir,
+			)
+			clitest.Start(t, inv)
 
-	// GIVEN the agent is in a happy steady state
-	waiter := coderdtest.NewWorkspaceAgentWaiter(t, client, prebuild.WorkspaceID)
-	waiter.WaitFor(coderdtest.AgentsReady)
+			// GIVEN the agent is in a happy steady state
+			waiter := coderdtest.NewWorkspaceAgentWaiter(t, client, prebuild.WorkspaceID)
+			waiter.WaitFor(coderdtest.AgentsReady)
 
-	// WHEN a workspace is created that can benefit from prebuilds
-	anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-	workspace, err := anotherClient.CreateUserWorkspace(ctx, anotherUser.ID.String(), codersdk.CreateWorkspaceRequest{
-		TemplateVersionID:       version.ID,
-		TemplateVersionPresetID: preset.ID,
-		Name:                    "claimed-workspace",
-	})
-	require.NoError(t, err)
+			// WHEN a workspace is created that can benefit from prebuilds
+			anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, orgID)
+			workspace, err := anotherClient.CreateUserWorkspace(ctx, anotherUser.ID.String(), codersdk.CreateWorkspaceRequest{
+				TemplateVersionID:       version.ID,
+				TemplateVersionPresetID: preset.ID,
+				Name:                    "claimed-workspace",
+			})
+			require.NoError(t, err)
 
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-	// THEN reinitialization completes
-	waiter.WaitFor(coderdtest.AgentsReady)
+			// THEN reinitialization completes
+			waiter.WaitFor(coderdtest.AgentsReady)
 
-	var matches [][]byte
-	require.Eventually(t, func() bool {
-		// THEN the agent script ran again and reused the same agent token
-		contents, err := os.ReadFile(tempAgentLog.Name())
-		if err != nil {
-			return false
-		}
-		// UUID regex pattern (matches UUID v4-like strings)
-		uuidRegex := regexp.MustCompile(`\bCODER_AGENT_TOKEN=(.+)\b`)
+			var matches [][]byte
+			require.Eventually(t, func() bool {
+				// THEN the agent script ran again and reused the same agent token
+				contents, err := os.ReadFile(tempAgentLog.Name())
+				if err != nil {
+					return false
+				}
+				// UUID regex pattern (matches UUID v4-like strings)
+				uuidRegex := regexp.MustCompile(`\bCODER_AGENT_TOKEN=(.+)\b`)
 
-		matches = uuidRegex.FindAll(contents, -1)
-		// When an agent reinitializes, we expect it to run startup scripts again.
-		// As such, we expect to have written the agent environment to the temp file twice.
-		// Once on initial startup and then once on reinitialization.
-		return len(matches) == 2
-	}, testutil.WaitLong, testutil.IntervalMedium)
-	require.Equal(t, matches[0], matches[1])
+				matches = uuidRegex.FindAll(contents, -1)
+				// When an agent reinitializes, we expect it to run startup scripts again.
+				// As such, we expect to have written the agent environment to the temp file twice.
+				// Once on initial startup and then once on reinitialization.
+				return len(matches) == 2
+			}, testutil.WaitLong, testutil.IntervalMedium)
+			require.Equal(t, matches[0], matches[1])
+		})
+	}
 }
 
 type setupResp struct {

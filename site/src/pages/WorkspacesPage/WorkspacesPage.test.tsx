@@ -123,8 +123,8 @@ describe("WorkspacesPage", () => {
 			await waitFor(() => {
 				expect(updateWorkspace).toHaveBeenCalledTimes(2);
 			});
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2]);
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[3]);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2], [], false);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[3], [], false);
 		});
 
 		it("warns about and updates running workspaces", async () => {
@@ -160,9 +160,9 @@ describe("WorkspacesPage", () => {
 			await waitFor(() => {
 				expect(updateWorkspace).toHaveBeenCalledTimes(3);
 			});
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[0]);
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[1]);
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2]);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[0], [], false);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[1], [], false);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2], [], false);
 		});
 
 		it("warns about and ignores dormant workspaces", async () => {
@@ -199,8 +199,8 @@ describe("WorkspacesPage", () => {
 			await waitFor(() => {
 				expect(updateWorkspace).toHaveBeenCalledTimes(2);
 			});
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[1]);
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2]);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[1], [], false);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2], [], false);
 		});
 
 		it("warns about running workspaces and then dormant workspaces", async () => {
@@ -241,9 +241,9 @@ describe("WorkspacesPage", () => {
 			await waitFor(() => {
 				expect(updateWorkspace).toHaveBeenCalledTimes(3);
 			});
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[0]);
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2]);
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[3]);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[0], [], false);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2], [], false);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[3], [], false);
 		});
 	});
 

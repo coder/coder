@@ -333,7 +333,7 @@ var (
 						orgID.String(): {},
 					},
 					User: rbac.Permissions(map[string][]policy.Action{
-						rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionCreateAgent, policy.ActionDeleteAgent},
+						rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionCreateAgent, policy.ActionDeleteAgent},
 					}),
 				},
 			}),
@@ -411,6 +411,21 @@ var (
 					rbac.ResourceWorkspace.Type: {
 						policy.ActionCreate, policy.ActionDelete, policy.ActionRead, policy.ActionUpdate,
 						policy.ActionWorkspaceStart, policy.ActionWorkspaceStop,
+					},
+					// Should be able to add the prebuilds system user as a member to any organization that needs prebuilds.
+					rbac.ResourceOrganizationMember.Type: {
+						policy.ActionCreate,
+					},
+					// Needs to be able to assign roles to the system user in order to make it a member of an organization.
+					rbac.ResourceAssignOrgRole.Type: {
+						policy.ActionAssign,
+					},
+					// Needs to be able to read users to determine which organizations the prebuild system user is a member of.
+					rbac.ResourceUser.Type: {
+						policy.ActionRead,
+					},
+					rbac.ResourceOrganization.Type: {
+						policy.ActionRead,
 					},
 				}),
 			},
@@ -3851,9 +3866,19 @@ func (q *querier) InsertWorkspaceAgentStats(ctx context.Context, arg database.In
 }
 
 func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+	// NOTE(DanielleMaywood):
+	// It is possible for there to exist an agent without a workspace.
+	// This means that we want to allow execution to continue if
+	// there isn't a workspace found to allow this behavior to continue.
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.AgentID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return database.WorkspaceApp{}, err
 	}
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
+		return database.WorkspaceApp{}, err
+	}
+
 	return q.db.InsertWorkspaceApp(ctx, arg)
 }
 

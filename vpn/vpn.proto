@@ -3,6 +3,7 @@ option go_package = "github.com/coder/coder/v2/vpn";
 option csharp_namespace = "Coder.Desktop.Vpn.Proto";
 
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
 
 package vpn;
 
@@ -130,6 +131,21 @@ message Agent {
 	// last_handshake is the primary indicator of whether we are connected to a peer. Zero value or
 	// anything longer than 5 minutes ago means there is a problem.
 	google.protobuf.Timestamp last_handshake = 6;
+	// If unset, a successful ping has not yet been made.
+	optional LastPing last_ping = 7;
+}
+
+message LastPing {
+	// latency is the RTT of the ping to the agent.
+	google.protobuf.Duration latency = 1;
+	// did_p2p indicates whether the ping was sent P2P, or over DERP.
+	bool did_p2p = 2;
+	// preferred_derp is the human readable name of the preferred DERP region,
+	// or the region used for the last ping, if it was sent over DERP.
+	string preferred_derp = 3;
+	// preferred_derp_latency is the last known latency to the preferred DERP
+	// region. Unset if the region does not appear in the DERP map.
+	optional google.protobuf.Duration preferred_derp_latency = 4;
 }
 
 // NetworkSettingsRequest is based on

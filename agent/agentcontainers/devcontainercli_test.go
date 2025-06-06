@@ -126,9 +126,116 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("Exec", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name            string
+			workspaceFolder string
+			configPath      string
+			cmd             string
+			cmdArgs         []string
+			opts            []agentcontainers.DevcontainerCLIExecOptions
+			wantArgs        string
+			wantError       bool
+		}{
+			{
+				name:            "simple command",
+				workspaceFolder: "/test/workspace",
+				configPath:      "",
+				cmd:             "echo",
+				cmdArgs:         []string{"hello"},
+				wantArgs:        "exec --workspace-folder /test/workspace echo hello",
+				wantError:       false,
+			},
+			{
+				name:            "command with multiple args",
+				workspaceFolder: "/test/workspace",
+				configPath:      "/test/config.json",
+				cmd:             "ls",
+				cmdArgs:         []string{"-la", "/workspace"},
+				wantArgs:        "exec --workspace-folder /test/workspace --config /test/config.json ls -la /workspace",
+				wantError:       false,
+			},
+			{
+				name:            "empty command args",
+				workspaceFolder: "/test/workspace",
+				configPath:      "",
+				cmd:             "bash",
+				cmdArgs:         nil,
+				wantArgs:        "exec --workspace-folder /test/workspace bash",
+				wantError:       false,
+			},
+			{
+				name:            "workspace not found",
+				workspaceFolder: "/nonexistent/workspace",
+				configPath:      "",
+				cmd:             "echo",
+				cmdArgs:         []string{"test"},
+				wantArgs:        "exec --workspace-folder /nonexistent/workspace echo test",
+				wantError:       true,
+			},
+			{
+				name:            "with container ID",
+				workspaceFolder: "/test/workspace",
+				configPath:      "",
+				cmd:             "echo",
+				cmdArgs:         []string{"hello"},
+				opts:            []agentcontainers.DevcontainerCLIExecOptions{agentcontainers.WithContainerID("test-container-123")},
+				wantArgs:        "exec --workspace-folder /test/workspace --container-id test-container-123 echo hello",
+				wantError:       false,
+			},
+			{
+				name:            "with container ID and config",
+				workspaceFolder: "/test/workspace",
+				configPath:      "/test/config.json",
+				cmd:             "bash",
+				cmdArgs:         []string{"-c", "ls -la"},
+				opts:            []agentcontainers.DevcontainerCLIExecOptions{agentcontainers.WithContainerID("my-container")},
+				wantArgs:        "exec --workspace-folder /test/workspace --config /test/config.json --container-id my-container bash -c ls -la",
+				wantError:       false,
+			},
+			{
+				name:            "with container ID and output capture",
+				workspaceFolder: "/test/workspace",
+				configPath:      "",
+				cmd:             "cat",
+				cmdArgs:         []string{"/etc/hostname"},
+				opts: []agentcontainers.DevcontainerCLIExecOptions{
+					agentcontainers.WithContainerID("test-container-789"),
+				},
+				wantArgs:  "exec --workspace-folder /test/workspace --container-id test-container-789 cat /etc/hostname",
+				wantError: false,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitMedium)
+
+				testExecer := &testDevcontainerExecer{
+					testExePath: testExePath,
+					wantArgs:    tt.wantArgs,
+					wantError:   tt.wantError,
+					logFile:     "", // Exec doesn't need log file parsing
+				}
+
+				dccli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
+				err := dccli.Exec(ctx, tt.workspaceFolder, tt.configPath, tt.cmd, tt.cmdArgs, tt.opts...)
+				if tt.wantError {
+					assert.Error(t, err, "want error")
+				} else {
+					assert.NoError(t, err, "want no error")
+				}
+			})
+		}
+	})
 }
 
-// TestDevcontainerCLI_WithOutput tests that WithOutput captures CLI
+// TestDevcontainerCLI_WithOutput tests that WithUpOutput and WithExecOutput capture CLI
 // logs to provided writers.
 func TestDevcontainerCLI_WithOutput(t *testing.T) {
 	t.Parallel()
@@ -136,35 +243,77 @@ func TestDevcontainerCLI_WithOutput(t *testing.T) {
 	// Prepare test executable and logger.
 	testExePath, err := os.Executable()
 	require.NoError(t, err, "get test executable path")
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ctx := testutil.Context(t, testutil.WaitMedium)
 
-	// Buffers to capture stdout and stderr.
-	outBuf := &bytes.Buffer{}
-	errBuf := &bytes.Buffer{}
+	t.Run("Up", func(t *testing.T) {
+		t.Parallel()
 
-	// Simulate CLI execution with a standard up.log file.
-	wantArgs := "up --log-format json --workspace-folder /test/workspace"
-	testExecer := &testDevcontainerExecer{
-		testExePath: testExePath,
-		wantArgs:    wantArgs,
-		wantError:   false,
-		logFile:     filepath.Join("testdata", "devcontainercli", "parse", "up.log"),
-	}
-	dccli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
+		// Buffers to capture stdout and stderr.
+		outBuf := &bytes.Buffer{}
+		errBuf := &bytes.Buffer{}
 
-	// Call Up with WithOutput to capture CLI logs.
-	containerID, err := dccli.Up(ctx, "/test/workspace", "", agentcontainers.WithOutput(outBuf, errBuf))
-	require.NoError(t, err, "Up should succeed")
-	require.NotEmpty(t, containerID, "expected non-empty container ID")
+		// Simulate CLI execution with a standard up.log file.
+		wantArgs := "up --log-format json --workspace-folder /test/workspace"
+		testExecer := &testDevcontainerExecer{
+			testExePath: testExePath,
+			wantArgs:    wantArgs,
+			wantError:   false,
+			logFile:     filepath.Join("testdata", "devcontainercli", "parse", "up.log"),
+		}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		dccli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
 
-	// Read expected log content.
-	expLog, err := os.ReadFile(filepath.Join("testdata", "devcontainercli", "parse", "up.log"))
-	require.NoError(t, err, "reading expected log file")
+		// Call Up with WithUpOutput to capture CLI logs.
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		containerID, err := dccli.Up(ctx, "/test/workspace", "", agentcontainers.WithUpOutput(outBuf, errBuf))
+		require.NoError(t, err, "Up should succeed")
+		require.NotEmpty(t, containerID, "expected non-empty container ID")
 
-	// Verify stdout buffer contains the CLI logs and stderr is empty.
-	assert.Equal(t, string(expLog), outBuf.String(), "stdout buffer should match CLI logs")
-	assert.Empty(t, errBuf.String(), "stderr buffer should be empty on success")
+		// Read expected log content.
+		expLog, err := os.ReadFile(filepath.Join("testdata", "devcontainercli", "parse", "up.log"))
+		require.NoError(t, err, "reading expected log file")
+
+		// Verify stdout buffer contains the CLI logs and stderr is empty.
+		assert.Equal(t, string(expLog), outBuf.String(), "stdout buffer should match CLI logs")
+		assert.Empty(t, errBuf.String(), "stderr buffer should be empty on success")
+	})
+
+	t.Run("Exec", func(t *testing.T) {
+		t.Parallel()
+
+		logFile := filepath.Join(t.TempDir(), "exec.log")
+		f, err := os.Create(logFile)
+		require.NoError(t, err, "create exec log file")
+		_, err = f.WriteString("exec command log\n")
+		require.NoError(t, err, "write to exec log file")
+		err = f.Close()
+		require.NoError(t, err, "close exec log file")
+
+		// Buffers to capture stdout and stderr.
+		outBuf := &bytes.Buffer{}
+		errBuf := &bytes.Buffer{}
+
+		// Simulate CLI execution for exec command with container ID.
+		wantArgs := "exec --workspace-folder /test/workspace --container-id test-container-456 echo hello"
+		testExecer := &testDevcontainerExecer{
+			testExePath: testExePath,
+			wantArgs:    wantArgs,
+			wantError:   false,
+			logFile:     logFile,
+		}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		dccli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
+
+		// Call Exec with WithExecOutput and WithContainerID to capture any command output.
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err = dccli.Exec(ctx, "/test/workspace", "", "echo", []string{"hello"},
+			agentcontainers.WithContainerID("test-container-456"),
+			agentcontainers.WithExecOutput(outBuf, errBuf),
+		)
+		require.NoError(t, err, "Exec should succeed")
+
+		assert.NotEmpty(t, outBuf.String(), "stdout buffer should not be empty for exec with log file")
+		assert.Empty(t, errBuf.String(), "stderr buffer should be empty")
+	})
 }
 
 // testDevcontainerExecer implements the agentexec.Execer interface for testing.
@@ -243,13 +392,16 @@ func TestDevcontainerHelperProcess(t *testing.T) {
 	}
 
 	logFilePath := os.Getenv("TEST_DEVCONTAINER_LOG_FILE")
-	output, err := os.ReadFile(logFilePath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Reading log file %s failed: %v\n", logFilePath, err)
-		os.Exit(2)
+	if logFilePath != "" {
+		// Read and output log file for commands that need it (like "up")
+		output, err := os.ReadFile(logFilePath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Reading log file %s failed: %v\n", logFilePath, err)
+			os.Exit(2)
+		}
+		_, _ = io.Copy(os.Stdout, bytes.NewReader(output))
 	}
 
-	_, _ = io.Copy(os.Stdout, bytes.NewReader(output))
 	if os.Getenv("TEST_DEVCONTAINER_WANT_ERROR") == "true" {
 		os.Exit(1)
 	}

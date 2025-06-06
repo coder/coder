@@ -5,6 +5,7 @@ package integration
 
 import (
 	"net/http"
+	"net/netip"
 	"net/url"
 	"testing"
 	"time"
@@ -78,5 +79,42 @@ func TestSuite(t *testing.T, _ slog.Logger, serverURL *url.URL, conn *tailnet.Co
 		sendRestart(t, serverURL, true, true)
 		_, _, _, err = conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
 		require.NoError(t, err, "ping peer after restart")
+	})
+}
+
+func TestBigUDP(t *testing.T, logger slog.Logger, _ *url.URL, conn *tailnet.Conn, _, peer Client) {
+	t.Run("UDPEcho", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		peerIP := tailnet.TailscaleServicePrefix.AddrFromUUID(peer.ID)
+		udpConn, err := conn.DialContextUDP(ctx, netip.AddrPortFrom(peerIP, uint16(EchoPort)))
+		require.NoError(t, err)
+		defer udpConn.Close()
+
+		// 1280 max tunnel packet size
+		//  -40
+		//   -8 UDP header
+		// ----------------------------
+		// 1232 data size
+		logger.Info(ctx, "sending UDP test packet")
+		packet := make([]byte, 1232)
+		for i := range packet {
+			packet[i] = byte(i % 256)
+		}
+		err = udpConn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+		require.NoError(t, err)
+		n, err := udpConn.Write(packet)
+		require.NoError(t, err)
+		require.Equal(t, len(packet), n)
+
+		// read the echo
+		logger.Info(ctx, "attempting to read UDP reply")
+		buf := make([]byte, 1280)
+		err = udpConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		require.NoError(t, err)
+		n, err = udpConn.Read(buf)
+		require.NoError(t, err)
+		require.Equal(t, len(packet), n)
+		require.Equal(t, packet, buf[:n])
 	})
 }
