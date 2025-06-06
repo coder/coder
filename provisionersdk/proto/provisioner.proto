@@ -366,6 +366,13 @@ message PlanRequest {
     repeated VariableValue variable_values = 3;
     repeated ExternalAuthProvider external_auth_providers = 4;
     repeated RichParameterValue previous_parameter_values = 5;
+
+    // If true, the provisioner can safely assume the caller does not need the
+    // module files downloaded by the `terraform init` command.
+    // Ideally this boolean would be flipped in its truthy value, however for
+    // backwards compatibility reasons, the zero value should be the previous
+    // behavior of downloading the module files.
+    bool omit_module_files = 6;
 }
 
 // PlanComplete indicates a request to plan completed.
