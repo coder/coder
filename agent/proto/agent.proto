@@ -423,6 +423,16 @@ message CreateSubAgentRequest {
 	}
 
 	repeated App apps = 5;
+
+	enum DisplayApp {
+		VSCODE = 0;
+		VSCODE_INSIDERS = 1;
+		WEB_TERMINAL = 2;
+		SSH_HELPER = 3;
+		PORT_FORWARDING_HELPER = 4;
+	}
+
+	repeated DisplayApp display_apps = 6;
 }
 
 message CreateSubAgentResponse {
