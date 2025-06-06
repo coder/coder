@@ -519,7 +519,7 @@ func (p *Server) FailJob(ctx context.Context, in *proto.FailedJob) error {
 }
 
 func (p *Server) UploadModuleFiles(ctx context.Context, moduleFiles []byte) error {
-	//Send the files separately if the message size is too large.
+	// Send the files separately if the message size is too large.
 	_, err := clientDoWithRetries(ctx, p.client, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (*proto.Empty, error) {
 		stream, err := client.UploadFile(ctx)
 		if err != nil {
