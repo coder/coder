@@ -1392,7 +1392,8 @@ UploadFileStream:
 		return xerrors.Errorf("unsupported file upload type: %s", file.Type)
 	}
 
-	_, err = s.Database.InsertFile(s.lifecycleCtx, insert)
+	//nolint:gocritic // Provisionerd actor
+	_, err = s.Database.InsertFile(dbauthz.AsProvisionerd(s.lifecycleCtx), insert)
 	if err != nil {
 		// Duplicated files already exist in the database, so we can ignore this error.
 		if !database.IsUniqueViolation(err, database.UniqueFilesHashCreatedByKey) {
