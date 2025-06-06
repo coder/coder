@@ -405,6 +405,14 @@ export interface PlanRequest {
   variableValues: VariableValue[];
   externalAuthProviders: ExternalAuthProvider[];
   previousParameterValues: RichParameterValue[];
+  /**
+   * If true, the provisioner can safely assume the caller does not need the
+   * module files downloaded by the `terraform init` command.
+   * Ideally this boolean would be flipped in its truthy value, however for
+   * backwards compatibility reasons, the zero value should be the previous
+   * behavior of downloading the module files.
+   */
+  omitModuleFiles: boolean;
 }
 
 /** PlanComplete indicates a request to plan completed. */
@@ -1242,6 +1250,9 @@ export const PlanRequest = {
     }
     for (const v of message.previousParameterValues) {
       RichParameterValue.encode(v!, writer.uint32(42).fork()).ldelim();
+    }
+    if (message.omitModuleFiles === true) {
+      writer.uint32(48).bool(message.omitModuleFiles);
     }
     return writer;
   },
