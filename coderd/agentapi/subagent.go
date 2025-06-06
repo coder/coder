@@ -11,7 +11,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/agent/proto"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -61,15 +60,15 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		var app database.DisplayApp
 
 		switch displayApp {
-		case proto.CreateSubAgentRequest_PORT_FORWARDING_HELPER:
+		case agentproto.CreateSubAgentRequest_PORT_FORWARDING_HELPER:
 			app = database.DisplayAppPortForwardingHelper
-		case proto.CreateSubAgentRequest_SSH_HELPER:
+		case agentproto.CreateSubAgentRequest_SSH_HELPER:
 			app = database.DisplayAppSSHHelper
-		case proto.CreateSubAgentRequest_VSCODE:
+		case agentproto.CreateSubAgentRequest_VSCODE:
 			app = database.DisplayAppVscode
-		case proto.CreateSubAgentRequest_VSCODE_INSIDERS:
+		case agentproto.CreateSubAgentRequest_VSCODE_INSIDERS:
 			app = database.DisplayAppVscodeInsiders
-		case proto.CreateSubAgentRequest_WEB_TERMINAL:
+		case agentproto.CreateSubAgentRequest_WEB_TERMINAL:
 			app = database.DisplayAppWebTerminal
 		default:
 			return nil, codersdk.ValidationError{
