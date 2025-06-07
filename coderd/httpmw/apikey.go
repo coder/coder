@@ -303,7 +303,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 			if link.OAuthRefreshToken == "" {
 				return optionalWrite(http.StatusUnauthorized, codersdk.Response{
 					Message: SignedOutErrorMessage,
-					Detail:  fmt.Sprintf("%s session expired at %q. Try signing in again.", friendlyName, link.OAuthExpiry.String()),
+					Detail:  fmt.Sprintf("Your %s session has expired. Please sign in again to continue.", friendlyName),
 				})
 			}
 			// We have a refresh token, so let's try it
