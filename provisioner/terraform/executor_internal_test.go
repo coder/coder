@@ -197,7 +197,7 @@ func TestCalculateFileChecksum(t *testing.T) {
 	testFile := filepath.Join(tmpDir, "test.txt")
 	testContent := "test content for checksum"
 
-	err := os.WriteFile(testFile, []byte(testContent), 0o644)
+	err := os.WriteFile(testFile, []byte(testContent), 0o600)
 	require.NoError(t, err)
 
 	checksum1 := calculateFileChecksum(testFile)
@@ -209,7 +209,7 @@ func TestCalculateFileChecksum(t *testing.T) {
 	require.Equal(t, checksum1, checksum2)
 
 	// Different content should produce different checksum
-	err = os.WriteFile(testFile, []byte("different content"), 0o644)
+	err = os.WriteFile(testFile, []byte("different content"), 0o600)
 	require.NoError(t, err)
 
 	checksum3 := calculateFileChecksum(testFile)
