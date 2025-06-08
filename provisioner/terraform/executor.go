@@ -257,7 +257,7 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 			"This may indicate that provider hashes are missing for your target architecture. " +
 			"Consider regenerating the lock file on the same OS/architecture as your Coder instance " +
 			"to improve provisioning performance and avoid unnecessary provider downloads."
-		
+
 		// Write warning to both debug and error streams to ensure visibility
 		if outWriter != nil {
 			_, _ = outWriter.Write([]byte(warningMsg + "\n"))
@@ -265,7 +265,7 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 		if errWriter != nil {
 			_, _ = errWriter.Write([]byte(warningMsg + "\n"))
 		}
-		
+
 		e.logger.Warn(ctx, "terraform lock file modified during init",
 			slog.F("lock_file_path", lockFilePath),
 			slog.F("pre_init_checksum", preInitChecksum),
