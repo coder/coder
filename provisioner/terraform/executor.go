@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -222,6 +224,10 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 	e.mut.Lock()
 	defer e.mut.Unlock()
 
+	// Calculate checksum of .terraform.lock.hcl before running terraform init
+	lockFilePath := getTerraformLockFilePath(e.workdir)
+	preInitChecksum := calculateFileChecksum(lockFilePath)
+
 	outWriter, doneOut := logWriter(logr, proto.LogLevel_DEBUG)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
@@ -242,6 +248,31 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 	}
 
 	err := e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outWriter, errBuf)
+
+	// Check if .terraform.lock.hcl was modified after terraform init
+	postInitChecksum := calculateFileChecksum(lockFilePath)
+	if preInitChecksum != "" && postInitChecksum != "" && preInitChecksum != postInitChecksum {
+		// Log warning about lock file changes
+		warningMsg := "WARNING: .terraform.lock.hcl was modified during 'terraform init'. " +
+			"This may indicate that provider hashes are missing for your target architecture. " +
+			"Consider regenerating the lock file on the same OS/architecture as your Coder instance " +
+			"to improve provisioning performance and avoid unnecessary provider downloads."
+		
+		// Write warning to both debug and error streams to ensure visibility
+		if outWriter != nil {
+			_, _ = outWriter.Write([]byte(warningMsg + "\n"))
+		}
+		if errWriter != nil {
+			_, _ = errWriter.Write([]byte(warningMsg + "\n"))
+		}
+		
+		e.logger.Warn(ctx, "terraform lock file modified during init",
+			slog.F("lock_file_path", lockFilePath),
+			slog.F("pre_init_checksum", preInitChecksum),
+			slog.F("post_init_checksum", postInitChecksum),
+		)
+	}
+
 	var exitErr *exec.ExitError
 	if xerrors.As(err, &exitErr) {
 		if bytes.Contains(errBuf.b.Bytes(), []byte("text file busy")) {
@@ -257,6 +288,21 @@ func getPlanFilePath(workdir string) string {
 
 func getStateFilePath(workdir string) string {
 	return filepath.Join(workdir, "terraform.tfstate")
+}
+
+func getTerraformLockFilePath(workdir string) string {
+	return filepath.Join(workdir, ".terraform.lock.hcl")
+}
+
+// calculateFileChecksum calculates the SHA256 checksum of a file.
+// Returns empty string if file doesn't exist or can't be read.
+func calculateFileChecksum(filePath string) string {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return ""
+	}
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:])
 }
 
 // revive:disable-next-line:flag-parameter

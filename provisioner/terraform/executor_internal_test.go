@@ -2,6 +2,8 @@ package terraform
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	tfjson "github.com/hashicorp/terraform-json"
@@ -172,4 +174,45 @@ func TestOnlyDataResources(t *testing.T) {
 			require.Equal(t, string(expected), string(got))
 		})
 	}
+}
+
+func TestGetTerraformLockFilePath(t *testing.T) {
+	t.Parallel()
+
+	workdir := "/tmp/test"
+	expected := filepath.Join(workdir, ".terraform.lock.hcl")
+	got := getTerraformLockFilePath(workdir)
+	require.Equal(t, expected, got)
+}
+
+func TestCalculateFileChecksum(t *testing.T) {
+	t.Parallel()
+
+	// Test with non-existent file
+	checksum := calculateFileChecksum("/non/existent/file")
+	require.Equal(t, "", checksum)
+
+	// Test with actual file
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "test.txt")
+	testContent := "test content for checksum"
+
+	err := os.WriteFile(testFile, []byte(testContent), 0644)
+	require.NoError(t, err)
+
+	checksum1 := calculateFileChecksum(testFile)
+	require.NotEmpty(t, checksum1)
+	require.Len(t, checksum1, 64) // SHA256 hex string length
+
+	// Same content should produce same checksum
+	checksum2 := calculateFileChecksum(testFile)
+	require.Equal(t, checksum1, checksum2)
+
+	// Different content should produce different checksum
+	err = os.WriteFile(testFile, []byte("different content"), 0644)
+	require.NoError(t, err)
+
+	checksum3 := calculateFileChecksum(testFile)
+	require.NotEqual(t, checksum1, checksum3)
+	require.Len(t, checksum3, 64)
 }
