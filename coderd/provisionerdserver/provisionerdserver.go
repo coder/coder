@@ -1334,6 +1334,20 @@ UploadFileStream:
 		}
 
 		switch typed := msg.Type.(type) {
+		case *proto.UploadFileRequest_DataUpload:
+			if file != nil {
+				return xerrors.New("unexpected file upload while waiting for file completion")
+			}
+
+			file, err = sdkproto.NewDataBuilder(&sdkproto.DataUpload{
+				UploadType: sdkproto.DataUploadType(typed.DataUpload.UploadType),
+				DataHash:   typed.DataUpload.DataHash,
+				FileSize:   typed.DataUpload.FileSize,
+				Chunks:     typed.DataUpload.Chunks,
+			})
+			if err != nil {
+				return xerrors.Errorf("unable to create file upload: %w", err)
+			}
 		case *proto.UploadFileRequest_ChunkPiece:
 			if file == nil {
 				return xerrors.New("unexpected chunk piece while waiting for file upload")
@@ -1350,20 +1364,6 @@ UploadFileStream:
 
 			if done {
 				break UploadFileStream
-			}
-		case *proto.UploadFileRequest_DataUpload:
-			if file != nil {
-				return xerrors.New("unexpected file upload while waiting for file completion")
-			}
-
-			file, err = sdkproto.NewDataBuilder(&sdkproto.DataUpload{
-				UploadType: sdkproto.DataUploadType(typed.DataUpload.UploadType),
-				DataHash:   typed.DataUpload.DataHash,
-				FileSize:   typed.DataUpload.FileSize,
-				Chunks:     typed.DataUpload.Chunks,
-			})
-			if err != nil {
-				return xerrors.Errorf("unable to create file upload: %w", err)
 			}
 		}
 	}
@@ -1405,6 +1405,8 @@ UploadFileStream:
 		slog.F("type", file.Type.String()),
 		slog.F("hash", hash),
 		slog.F("size", len(fileData)),
+		// new_insert indicates whether the file was newly inserted or already existed.
+		slog.F("new_insert", err == nil),
 	)
 
 	return nil

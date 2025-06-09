@@ -166,8 +166,11 @@ func (s *Session) handleRequests() error {
 			resp.Type = &proto.Response_Plan{Plan: complete}
 
 			if protobuf.Size(resp) > drpcsdk.MaxMessageSize {
-				// Send the modules over as a stream
-				s.Logger.Info(s.Context(), "plan response too large, sending modules as stream")
+				// It is likely the modules that is pushing the message size over the limit.
+				// Send the modules over a stream of messages instead.
+				s.Logger.Info(s.Context(), "plan response too large, sending modules as stream",
+					slog.F("size_bytes", len(complete.ModuleFiles)),
+				)
 				dataUp, chunks := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, complete.ModuleFiles)
 
 				complete.ModuleFiles = nil // sent over the stream

@@ -315,7 +315,9 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	graphTimings.ingest(createGraphTimingsEvent(timingGraphComplete))
 
 	var moduleFiles []byte
-	// Skipping modules archiving is useful if the caller does not need it, eg during a workspace build.
+	// Skipping modules archiving is useful if the caller does not need it, eg during
+	// a workspace build. This removes some added costs of sending the modules
+	// payload back to coderd if coderd is just going to ignore it.
 	if !req.OmitModuleFiles {
 		moduleFiles, err = GetModulesArchive(os.DirFS(e.workdir))
 		if err != nil {

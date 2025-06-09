@@ -87,8 +87,11 @@ func GetModulesArchive(root fs.FS) ([]byte, error) {
 	empty := true
 	var b bytes.Buffer
 
-	// Limit to 20MB for now.
+	// Limit to 20MB for now. This is the total size of a modules archive.
 	// TODO: Determine what a reasonable limit is for modules
+	//  If we start hitting this limit, we might want to consider adding
+	//  configurable filters? Files like images could blow up the size of a
+	//  module.
 	lw := xio.NewLimitWriter(&b, 20<<20)
 	w := tar.NewWriter(lw)
 

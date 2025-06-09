@@ -518,9 +518,14 @@ func (p *Server) FailJob(ctx context.Context, in *proto.FailedJob) error {
 	return err
 }
 
+// UploadModuleFiles will insert a file into the database of coderd.
 func (p *Server) UploadModuleFiles(ctx context.Context, moduleFiles []byte) error {
 	// Send the files separately if the message size is too large.
 	_, err := clientDoWithRetries(ctx, p.client, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (*proto.Empty, error) {
+		// Add some timeout to prevent the stream from hanging indefinitely.
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+		defer cancel()
+
 		stream, err := client.UploadFile(ctx)
 		if err != nil {
 			return nil, xerrors.Errorf("failed to start CompleteJobWithFiles stream: %w", err)
