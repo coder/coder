@@ -68,11 +68,10 @@ func WithExecOutput(stdout, stderr io.Writer) DevcontainerCLIExecOptions {
 }
 
 // WithExecContainerID sets the container ID to target a specific
-// container. Note that this option will unset the workspace folder to
-// ensure properties from the container are inherited correctly.
+// container.
 func WithExecContainerID(id string) DevcontainerCLIExecOptions {
 	return func(o *devcontainerCLIExecConfig) {
-		o.containerID = id
+		o.args = append(o.args, "--container-id", id)
 	}
 }
 
@@ -168,10 +167,12 @@ func (d *devcontainerCLI) Exec(ctx context.Context, workspaceFolder, configPath 
 	logger := d.logger.With(slog.F("workspace_folder", workspaceFolder), slog.F("config_path", configPath))
 
 	args := []string{"exec"}
-	switch {
-	case conf.containerID != "":
-		args = append(args, "--container-id", conf.containerID)
-	case workspaceFolder != "":
+	// For now, always set workspace folder even if --container-id is provided.
+	// Otherwise the environment of exec will be incomplete, like `pwd` will be
+	// /home/coder instead of /workspaces/coder. The downside is that the local
+	// `devcontainer.json` config will overwrite settings serialized in the
+	// container label.
+	if workspaceFolder != "" {
 		args = append(args, "--workspace-folder", workspaceFolder)
 	}
 	if configPath != "" {

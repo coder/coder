@@ -59,6 +59,7 @@ type API struct {
 	scriptLogger                func(logSourceID uuid.UUID) ScriptLogger
 	subAgentClient              SubAgentClient
 	subAgentURL                 string
+	subAgentEnv                 []string
 
 	mu                      sync.RWMutex
 	closed                  bool
@@ -138,6 +139,13 @@ func WithSubAgentClient(client SubAgentClient) Option {
 func WithSubAgentURL(url string) Option {
 	return func(api *API) {
 		api.subAgentURL = url
+	}
+}
+
+// WithSubAgent sets the environment variables for the sub-agent.
+func WithSubAgentEnv(env ...string) Option {
+	return func(api *API) {
+		api.subAgentEnv = env
 	}
 }
 
@@ -1147,12 +1155,14 @@ func (api *API) runSubAgentInContainer(ctx context.Context, dc codersdk.Workspac
 
 	logger.Info(ctx, "starting subagent in dev container")
 
+	env := []string{
+		"CODER_AGENT_URL=" + api.subAgentURL,
+		"CODER_AGENT_TOKEN=" + agent.AuthToken.String(),
+	}
+	env = append(env, api.subAgentEnv...)
 	err := api.dccli.Exec(agentCtx, dc.WorkspaceFolder, dc.ConfigPath, agentPath, []string{"agent"},
 		WithExecContainerID(container.ID),
-		WithRemoteEnv(
-			"CODER_AGENT_URL="+api.subAgentURL,
-			"CODER_AGENT_TOKEN="+agent.AuthToken.String(),
-		),
+		WithRemoteEnv(env...),
 	)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		logger.Error(ctx, "subagent process failed", slog.Error(err))
