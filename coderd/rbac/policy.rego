@@ -45,16 +45,19 @@ bool_flip(b) := flipped if {
 #  -1: {false, true} or {false}
 #   0: {}
 #   1: {true}
+# Return 0 if the set is empty (no matching permissions)
 number(set) := c if {
 	count(set) == 0
 	c := 0
 }
 
+# Return -1 if the set contains any 'false' (i.e., an explicit deny)
 number(set) := c if {
 	false in set
 	c := -1
 }
 
+# Return 1 if the set is non-empty and contains no 'false' (i.e., only allows)
 number(set) := c if {
 	not false in set
 	set[_]
@@ -79,16 +82,14 @@ site := num if {
 	num := site_allow(input.subject.roles, default_object_set)
 }
 
+# test := number({1, 1, -1})
+prebuild_object_set := ["*", prebuild_workspace_type]
 site := num if {
 	is_prebuild_workspace
-	num := number([
-		site_allow(input.subject.roles, default_object_set),
-		site_allow(input.subject.roles, [prebuild_workspace_type])
-	])
+	num := site_allow(input.subject.roles, prebuild_object_set)
 }
 
 default scope_site := 0
-
 
 scope_site := num if {
 	not is_prebuild_workspace
