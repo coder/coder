@@ -63,7 +63,6 @@ export interface TemplateSettingsForm {
 	accessControlEnabled: boolean;
 	advancedSchedulingEnabled: boolean;
 	portSharingControlsEnabled: boolean;
-	isDynamicParametersEnabled: boolean;
 }
 
 export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
@@ -76,7 +75,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 	accessControlEnabled,
 	advancedSchedulingEnabled,
 	portSharingControlsEnabled,
-	isDynamicParametersEnabled,
 }) => {
 	const form = useFormik<UpdateTemplateMeta>({
 		initialValues: {
@@ -226,7 +224,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 							</StackLabel>
 						}
 					/>
-					{isDynamicParametersEnabled && (
 						<FormControlLabel
 							control={
 								<Checkbox
@@ -256,7 +253,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 								</StackLabel>
 							}
 						/>
-					)}
 				</FormFields>
 			</FormSection>
 

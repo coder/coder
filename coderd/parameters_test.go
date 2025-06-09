@@ -29,9 +29,7 @@ import (
 func TestDynamicParametersOwnerSSHPublicKey(t *testing.T) {
 	t.Parallel()
 
-	cfg := coderdtest.DeploymentValues(t)
-	cfg.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
-	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: cfg})
+	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
@@ -354,14 +352,11 @@ type dynamicParamsTest struct {
 }
 
 func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dynamicParamsTest {
-	cfg := coderdtest.DeploymentValues(t)
-	cfg.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
 	ownerClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		Database:                 args.db,
 		Pubsub:                   args.ps,
 		IncludeProvisionerDaemon: true,
 		ProvisionerDaemonVersion: args.provisionerDaemonVersion,
-		DeploymentValues:         cfg,
 	})
 
 	owner := coderdtest.CreateFirstUser(t, ownerClient)

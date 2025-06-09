@@ -1698,7 +1698,7 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false})
 	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
+
 	client, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			Logger: &logger,

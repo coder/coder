@@ -43,14 +43,12 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	disabled,
 }) => {
 	const queryClient = useQueryClient();
-	const { experiments } = useDashboard();
-	const isDynamicParametersEnabled = experiments.includes("dynamic-parameters");
 
 	const optOutQuery = useDynamicParametersOptOut({
 		templateId: workspace.template_id,
 		templateUsesClassicParameters:
 			workspace.template_use_classic_parameter_flow,
-		enabled: isDynamicParametersEnabled,
+		enabled: true,
 	});
 
 	// Permissions
@@ -154,7 +152,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				onClose={() => setIsDownloadDialogOpen(false)}
 			/>
 
-			{!isDynamicParametersEnabled || optOutQuery.data?.optedOut ? (
+			{optOutQuery.data?.optedOut ? (
 				<UpdateBuildParametersDialog
 					missedParameters={
 						changeVersionMutation.error instanceof MissingBuildParameters

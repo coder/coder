@@ -1042,11 +1042,6 @@ func (b *Builder) checkRunningBuild() error {
 }
 
 func (b *Builder) usingDynamicParameters() bool {
-	if !b.experiments.Enabled(codersdk.ExperimentDynamicParameters) {
-		// Experiment required
-		return false
-	}
-
 	vals, err := b.getTemplateTerraformValues()
 	if err != nil {
 		return false
