@@ -571,7 +571,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		CoderUrl:             r.job.GetTemplateImport().Metadata.CoderUrl,
 		WorkspaceOwnerGroups: r.job.GetTemplateImport().Metadata.WorkspaceOwnerGroups,
 		WorkspaceTransition:  sdkproto.WorkspaceTransition_STOP,
-	}, true, // Modules downloded on the start provision
+	}, true, // Modules downloaded on the start provision
 	)
 	if err != nil {
 		return nil, r.failedJobf("template import provision for stop: %s", err)
