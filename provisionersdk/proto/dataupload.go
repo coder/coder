@@ -3,7 +3,6 @@ package proto
 import (
 	"bytes"
 	"crypto/sha256"
-	"fmt"
 	"sync"
 
 	"golang.org/x/xerrors"
@@ -27,7 +26,7 @@ type DataBuilder struct {
 
 func NewDataBuilder(req *DataUpload) (*DataBuilder, error) {
 	if len(req.DataHash) != 32 {
-		return nil, fmt.Errorf("data hash must be 32 bytes, got %d bytes", len(req.DataHash))
+		return nil, xerrors.Errorf("data hash must be 32 bytes, got %d bytes", len(req.DataHash))
 	}
 
 	return &DataBuilder{
@@ -46,7 +45,7 @@ func (b *DataBuilder) Add(chunk *ChunkPiece) (bool, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if bytes.Compare(b.Hash, chunk.FullDataHash) != 0 {
+	if !bytes.Equal(b.Hash, chunk.FullDataHash) {
 		return b.done(), xerrors.Errorf("data hash does not match, this chunk is for a different data upload")
 	}
 
@@ -83,7 +82,7 @@ func (b *DataBuilder) Complete() ([]byte, error) {
 	}
 
 	hash := sha256.Sum256(b.data)
-	if bytes.Compare(hash[:], b.Hash) != 0 {
+	if !bytes.Equal(hash[:], b.Hash) {
 		return nil, xerrors.Errorf("data hash mismatch, expected %x, got %x", b.Hash, hash[:])
 	}
 
