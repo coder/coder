@@ -163,6 +163,10 @@ func (c *Client) GetConnectionReports() []*agentproto.ReportConnectionRequest {
 	return c.fakeAgentAPI.GetConnectionReports()
 }
 
+func (c *Client) GetSubAgents() []*agentproto.SubAgent {
+	return c.fakeAgentAPI.GetSubAgents()
+}
+
 type FakeAgentAPI struct {
 	sync.Mutex
 	t      testing.TB
@@ -177,6 +181,7 @@ type FakeAgentAPI struct {
 	metadata          map[string]agentsdk.Metadata
 	timings           []*agentproto.Timing
 	connectionReports []*agentproto.ReportConnectionRequest
+	subAgents         map[uuid.UUID]*agentproto.SubAgent
 
 	getAnnouncementBannersFunc              func() ([]codersdk.BannerConfig, error)
 	getResourcesMonitoringConfigurationFunc func() (*agentproto.GetResourcesMonitoringConfigurationResponse, error)
@@ -365,16 +370,86 @@ func (f *FakeAgentAPI) GetConnectionReports() []*agentproto.ReportConnectionRequ
 	return slices.Clone(f.connectionReports)
 }
 
-func (*FakeAgentAPI) CreateSubAgent(_ context.Context, _ *agentproto.CreateSubAgentRequest) (*agentproto.CreateSubAgentResponse, error) {
-	panic("unimplemented")
+func (f *FakeAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.CreateSubAgentRequest) (*agentproto.CreateSubAgentResponse, error) {
+	f.Lock()
+	defer f.Unlock()
+
+	f.logger.Debug(ctx, "create sub agent called", slog.F("req", req))
+
+	// Generate IDs for the new sub-agent.
+	subAgentID := uuid.New()
+	authToken := uuid.New()
+
+	// Create the sub-agent proto object.
+	subAgent := &agentproto.SubAgent{
+		Id:        subAgentID[:],
+		Name:      req.Name,
+		AuthToken: authToken[:],
+	}
+
+	// Store the sub-agent in our map.
+	if f.subAgents == nil {
+		f.subAgents = make(map[uuid.UUID]*agentproto.SubAgent)
+	}
+	f.subAgents[subAgentID] = subAgent
+
+	// For a fake implementation, we don't create workspace apps.
+	// Real implementations would handle req.Apps here.
+	return &agentproto.CreateSubAgentResponse{
+		Agent:             subAgent,
+		AppCreationErrors: nil,
+	}, nil
 }
 
-func (*FakeAgentAPI) DeleteSubAgent(_ context.Context, _ *agentproto.DeleteSubAgentRequest) (*agentproto.DeleteSubAgentResponse, error) {
-	panic("unimplemented")
+func (f *FakeAgentAPI) DeleteSubAgent(ctx context.Context, req *agentproto.DeleteSubAgentRequest) (*agentproto.DeleteSubAgentResponse, error) {
+	f.Lock()
+	defer f.Unlock()
+
+	f.logger.Debug(ctx, "delete sub agent called", slog.F("req", req))
+
+	subAgentID, err := uuid.FromBytes(req.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Remove the sub-agent from our map.
+	if f.subAgents != nil {
+		delete(f.subAgents, subAgentID)
+	}
+
+	return &agentproto.DeleteSubAgentResponse{}, nil
 }
 
-func (*FakeAgentAPI) ListSubAgents(_ context.Context, _ *agentproto.ListSubAgentsRequest) (*agentproto.ListSubAgentsResponse, error) {
-	panic("unimplemented")
+func (f *FakeAgentAPI) ListSubAgents(ctx context.Context, req *agentproto.ListSubAgentsRequest) (*agentproto.ListSubAgentsResponse, error) {
+	f.Lock()
+	defer f.Unlock()
+
+	f.logger.Debug(ctx, "list sub agents called", slog.F("req", req))
+
+	var agents []*agentproto.SubAgent
+	if f.subAgents != nil {
+		agents = make([]*agentproto.SubAgent, 0, len(f.subAgents))
+		for _, agent := range f.subAgents {
+			agents = append(agents, agent)
+		}
+	}
+
+	return &agentproto.ListSubAgentsResponse{
+		Agents: agents,
+	}, nil
+}
+
+func (f *FakeAgentAPI) GetSubAgents() []*agentproto.SubAgent {
+	f.Lock()
+	defer f.Unlock()
+	var agents []*agentproto.SubAgent
+	if f.subAgents != nil {
+		agents = make([]*agentproto.SubAgent, 0, len(f.subAgents))
+		for _, agent := range f.subAgents {
+			agents = append(agents, agent)
+		}
+	}
+	return agents
 }
 
 func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest, statsCh chan *agentproto.Stats) *FakeAgentAPI {
