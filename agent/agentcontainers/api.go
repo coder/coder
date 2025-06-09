@@ -296,7 +296,7 @@ func (api *API) updaterLoop() {
 	if err := api.cleanupSubAgents(api.ctx); err != nil {
 		api.logger.Error(api.ctx, "cleanup subagents failed", slog.Error(err))
 	} else {
-		api.logger.Debug(api.ctx, "subagent cleanup complete")
+		api.logger.Debug(api.ctx, "cleanup subagents complete")
 	}
 
 	// Perform an initial update to populate the container list, this
@@ -440,6 +440,20 @@ func (api *API) updateContainers(ctx context.Context) error {
 // on the latest list of containers. This method assumes that api.mu is
 // held.
 func (api *API) processUpdatedContainersLocked(ctx context.Context, updated codersdk.WorkspaceAgentListContainersResponse) {
+	dcFields := func(dc codersdk.WorkspaceAgentDevcontainer) []slog.Field {
+		f := []slog.Field{
+			slog.F("devcontainer_id", dc.ID),
+			slog.F("devcontainer_name", dc.Name),
+			slog.F("workspace_folder", dc.WorkspaceFolder),
+			slog.F("config_path", dc.ConfigPath),
+		}
+		if dc.Container != nil {
+			f = append(f, slog.F("container_id", dc.Container.ID))
+			f = append(f, slog.F("container_name", dc.Container.FriendlyName))
+		}
+		return f
+	}
+
 	// Reset the container links in known devcontainers to detect if
 	// they still exist.
 	for _, dc := range api.knownDevcontainers {
@@ -460,6 +474,13 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 			continue
 		}
 
+		logger := api.logger.With(
+			slog.F("container_id", updated.Containers[i].ID),
+			slog.F("container_name", updated.Containers[i].FriendlyName),
+			slog.F("workspace_folder", workspaceFolder),
+			slog.F("config_file", configFile),
+		)
+
 		if dc, ok := api.knownDevcontainers[workspaceFolder]; ok {
 			// If no config path is set, this devcontainer was defined
 			// in Terraform without the optional config file. Assume the
@@ -468,7 +489,7 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 			if dc.ConfigPath == "" && configFile != "" {
 				dc.ConfigPath = configFile
 				if err := api.watcher.Add(configFile); err != nil {
-					api.logger.Error(ctx, "watch devcontainer config file failed", slog.Error(err), slog.F("file", configFile))
+					logger.With(dcFields(dc)...).Error(ctx, "watch devcontainer config file failed", slog.Error(err))
 				}
 			}
 
@@ -477,13 +498,7 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 			continue
 		}
 
-		if configFile != "" {
-			if err := api.watcher.Add(configFile); err != nil {
-				api.logger.Error(ctx, "watch devcontainer config file failed", slog.Error(err), slog.F("file", configFile))
-			}
-		}
-
-		api.knownDevcontainers[workspaceFolder] = codersdk.WorkspaceAgentDevcontainer{
+		dc := codersdk.WorkspaceAgentDevcontainer{
 			ID:              uuid.New(),
 			Name:            "", // Updated later based on container state.
 			WorkspaceFolder: workspaceFolder,
@@ -492,11 +507,21 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 			Dirty:           false, // Updated later based on config file changes.
 			Container:       container,
 		}
+
+		if configFile != "" {
+			if err := api.watcher.Add(configFile); err != nil {
+				logger.With(dcFields(dc)...).Error(ctx, "watch devcontainer config file failed", slog.Error(err))
+			}
+		}
+
+		api.knownDevcontainers[workspaceFolder] = dc
 	}
 
 	// Iterate through all known devcontainers and update their status
 	// based on the current state of the containers.
 	for _, dc := range api.knownDevcontainers {
+		logger := api.logger.With(dcFields(dc)...)
+
 		if dc.Container != nil {
 			if !api.devcontainerNames[dc.Name] {
 				// If the devcontainer name wasn't set via terraform, we
@@ -532,7 +557,7 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 			if _, injected := api.injectedSubAgentProcs[dc.Container.ID]; !injected && dc.Status == codersdk.WorkspaceAgentDevcontainerStatusRunning {
 				err := api.injectSubAgentIntoContainerLocked(ctx, dc)
 				if err != nil {
-					api.logger.Error(ctx, "inject subagent into container failed", slog.Error(err))
+					logger.Error(ctx, "inject subagent into container failed", slog.Error(err))
 				}
 			}
 
