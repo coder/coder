@@ -1736,6 +1736,13 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	require.NoError(t, err, "failed to create template version")
 	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
 	tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
+
+	// Set to dynamic params
+	tpl, err = client.UpdateTemplateMeta(ctx, tpl.ID, codersdk.UpdateTemplateMeta{
+		UseClassicParameterFlow: ptr.Ref(false),
+	})
+	require.NoError(t, err, "failed to update template meta")
+
 	require.False(t, tpl.UseClassicParameterFlow, "template to use dynamic parameters")
 
 	// When: we create a workspace build using the above template but with
