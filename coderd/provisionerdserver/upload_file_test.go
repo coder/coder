@@ -41,6 +41,8 @@ func TestUploadFileLargeModuleFiles(t *testing.T) {
 
 	for _, size := range testSizes {
 		t.Run(fmt.Sprintf("size_%d_bytes", size), func(t *testing.T) {
+			t.Parallel()
+
 			// Generate test module files data
 			moduleData := make([]byte, size)
 			_, err := crand.Read(moduleData)
@@ -82,6 +84,7 @@ func TestUploadFileLargeModuleFiles(t *testing.T) {
 func TestUploadFileErrorScenarios(t *testing.T) {
 	t.Parallel()
 
+	//nolint:dogsled
 	server, _, _, _ := setup(t, false, &overrides{
 		externalAuthConfigs: []*externalauth.Config{{}},
 	})
@@ -92,9 +95,10 @@ func TestUploadFileErrorScenarios(t *testing.T) {
 	require.NoError(t, err)
 
 	upload, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleData)
-	var _ = upload
 
 	t.Run("chunk_before_upload", func(t *testing.T) {
+		t.Parallel()
+
 		stream := newMockUploadStream(nil, chunks[0])
 
 		err := server.UploadFile(stream)
@@ -103,6 +107,8 @@ func TestUploadFileErrorScenarios(t *testing.T) {
 	})
 
 	t.Run("duplicate_upload", func(t *testing.T) {
+		t.Parallel()
+
 		stream := &mockUploadStream{
 			done:     make(chan struct{}),
 			messages: make(chan *proto.UploadFileRequest, 2),
@@ -125,6 +131,9 @@ func TestUploadFileErrorScenarios(t *testing.T) {
 	})
 
 	t.Run("unsupported_upload_type", func(t *testing.T) {
+		t.Parallel()
+
+		//nolint:govet // Ignore lock copy
 		cpy := *upload
 		cpy.UploadType = sdkproto.DataUploadType_UPLOAD_TYPE_UNKNOWN // Set to an unsupported type
 		stream := newMockUploadStream(&cpy, chunks...)
@@ -152,15 +161,15 @@ func (m mockUploadStream) Recv() (*proto.UploadFileRequest, error) {
 	}
 	return msg, nil
 }
-func (m *mockUploadStream) Context() context.Context { panic(errUnimplemented) }
-func (m *mockUploadStream) MsgSend(msg drpc.Message, enc drpc.Encoding) error {
+func (*mockUploadStream) Context() context.Context { panic(errUnimplemented) }
+func (*mockUploadStream) MsgSend(msg drpc.Message, enc drpc.Encoding) error {
 	panic(errUnimplemented)
 }
-func (m *mockUploadStream) MsgRecv(msg drpc.Message, enc drpc.Encoding) error {
+func (*mockUploadStream) MsgRecv(msg drpc.Message, enc drpc.Encoding) error {
 	panic(errUnimplemented)
 }
-func (m *mockUploadStream) CloseSend() error { panic(errUnimplemented) }
-func (m *mockUploadStream) Close() error     { panic(errUnimplemented) }
+func (*mockUploadStream) CloseSend() error { panic(errUnimplemented) }
+func (*mockUploadStream) Close() error     { panic(errUnimplemented) }
 func (m *mockUploadStream) isDone() bool {
 	select {
 	case <-m.done:
