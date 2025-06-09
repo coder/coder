@@ -183,7 +183,7 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				cmd:             "echo",
 				cmdArgs:         []string{"hello"},
 				opts:            []agentcontainers.DevcontainerCLIExecOptions{agentcontainers.WithExecContainerID("test-container-123")},
-				wantArgs:        "exec --container-id test-container-123 echo hello",
+				wantArgs:        "exec --workspace-folder /test/workspace --container-id test-container-123 echo hello",
 				wantError:       false,
 			},
 			{
@@ -193,7 +193,7 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				cmd:             "bash",
 				cmdArgs:         []string{"-c", "ls -la"},
 				opts:            []agentcontainers.DevcontainerCLIExecOptions{agentcontainers.WithExecContainerID("my-container")},
-				wantArgs:        "exec --container-id my-container --config /test/config.json bash -c ls -la",
+				wantArgs:        "exec --workspace-folder /test/workspace --config /test/config.json --container-id my-container bash -c ls -la",
 				wantError:       false,
 			},
 			{
@@ -205,7 +205,7 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				opts: []agentcontainers.DevcontainerCLIExecOptions{
 					agentcontainers.WithExecContainerID("test-container-789"),
 				},
-				wantArgs:  "exec --container-id test-container-789 cat /etc/hostname",
+				wantArgs:  "exec --workspace-folder /test/workspace --container-id test-container-789 cat /etc/hostname",
 				wantError: false,
 			},
 		}
@@ -293,7 +293,7 @@ func TestDevcontainerCLI_WithOutput(t *testing.T) {
 		errBuf := &bytes.Buffer{}
 
 		// Simulate CLI execution for exec command with container ID.
-		wantArgs := "exec --container-id test-container-456 echo hello"
+		wantArgs := "exec --workspace-folder /test/workspace --container-id test-container-456 echo hello"
 		testExecer := &testDevcontainerExecer{
 			testExePath: testExePath,
 			wantArgs:    wantArgs,
