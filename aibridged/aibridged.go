@@ -70,7 +70,7 @@ func New(rpcDialer Dialer, httpAddr string, logger slog.Logger) (*Server, error)
 		initConnectionCh: make(chan struct{}),
 	}
 
-	bridge := NewBridge(httpAddr, daemon.client)
+	bridge := NewBridge(httpAddr, logger.Named("ai_bridge"), daemon.client)
 	daemon.bridge = bridge
 
 	go daemon.connect()
