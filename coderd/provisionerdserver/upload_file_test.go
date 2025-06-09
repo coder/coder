@@ -12,7 +12,6 @@ import (
 	"storj.io/drpc"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	proto "github.com/coder/coder/v2/provisionerd/proto"
@@ -25,7 +24,6 @@ func TestUploadFileLargeModuleFiles(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
-	db := dbmem.New()
 
 	// Create server
 	server, db, _, _ := setup(t, false, &overrides{

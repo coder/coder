@@ -56,6 +56,7 @@ func TestBytesToDataUpload(t *testing.T) {
 		// Generate random data
 		//nolint:gosec // Just a unit test
 		chunkCount := 1 + rand.Intn(3)
+		//nolint:gosec // Just a unit test
 		size := (chunkCount * proto.ChunkSize) + (rand.Int() % proto.ChunkSize)
 		data := make([]byte, size)
 		_, err := crand.Read(data)

@@ -99,6 +99,7 @@ func (b *DataBuilder) done() bool {
 
 func BytesToDataUpload(dataType DataUploadType, data []byte) (*DataUpload, []*ChunkPiece) {
 	fullHash := sha256.Sum256(data)
+	//nolint:gosec // not going over int32
 	size := int32(len(data))
 	// basically ceiling division to get the number of chunks required to
 	// hold the data, each chunk is ChunkSize bytes.
