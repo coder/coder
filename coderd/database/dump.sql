@@ -1626,7 +1626,7 @@ CREATE TABLE templates (
     deprecated text DEFAULT ''::text NOT NULL,
     activity_bump bigint DEFAULT '3600000000000'::bigint NOT NULL,
     max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
-    use_classic_parameter_flow boolean DEFAULT false NOT NULL
+    use_classic_parameter_flow boolean DEFAULT true NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
