@@ -8,10 +8,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
+	"storj.io/drpc"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
-	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	proto "github.com/coder/coder/v2/provisionerd/proto"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
@@ -23,18 +25,17 @@ func TestUploadFileLargeModuleFiles(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
-	logger := testutil.Logger(t)
 	db := dbmem.New()
 
 	// Create server
-	server := provisionerdserver.New(ctx, &provisionerdserver.Options{
-		Database: db,
-		Logger:   logger,
+	server, db, _, _ := setup(t, false, &overrides{
+		externalAuthConfigs: []*externalauth.Config{{}},
 	})
 
 	testSizes := []int{
-		drpcsdk.MaxMessageSize + 1024, // Just over 4MB
-		drpcsdk.MaxMessageSize * 2,    // 8MB
+		512,                           // A small file
+		drpcsdk.MaxMessageSize + 1024, // Just over the limit
+		drpcsdk.MaxMessageSize * 2,    // 2x the limit
 		sdkproto.ChunkSize*3 + 512,    // Multiple chunks with partial last
 	}
 
@@ -48,40 +49,14 @@ func TestUploadFileLargeModuleFiles(t *testing.T) {
 			// Convert to upload format
 			upload, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleData)
 
-			// Create mock stream
-			stream := &mockUploadStream{
-				requests: make([]*proto.UploadFileRequest, 0),
-				response: &proto.Empty{},
-			}
-
-			// Add DataUpload request
-			stream.requests = append(stream.requests, &proto.UploadFileRequest{
-				Type: &proto.UploadFileRequest_DataUpload{
-					DataUpload: &proto.DataUpload{
-						UploadType: proto.DataUploadType(upload.UploadType),
-						DataHash:   upload.DataHash,
-						FileSize:   upload.FileSize,
-						Chunks:     upload.Chunks,
-					},
-				},
-			})
-
-			// Add chunk requests
-			for _, chunk := range chunks {
-				stream.requests = append(stream.requests, &proto.UploadFileRequest{
-					Type: &proto.UploadFileRequest_ChunkPiece{
-						ChunkPiece: &proto.ChunkPiece{
-							Data:         chunk.Data,
-							FullDataHash: chunk.FullDataHash,
-							PieceIndex:   chunk.PieceIndex,
-						},
-					},
-				})
-			}
+			stream := newMockUploadStream(upload, chunks...)
 
 			// Execute upload
 			err = server.UploadFile(stream)
 			require.NoError(t, err)
+
+			// Upload should be done
+			require.True(t, stream.isDone(), "stream should be done after upload")
 
 			// Verify file was stored in database
 			hashString := fmt.Sprintf("%x", upload.DataHash)
@@ -93,6 +68,12 @@ func TestUploadFileLargeModuleFiles(t *testing.T) {
 			require.Equal(t, hashString, file.Hash)
 			require.Equal(t, moduleData, file.Data)
 			require.Equal(t, "application/x-tar", file.Mimetype)
+
+			// Try to upload it again, and it should still be successful
+			stream = newMockUploadStream(upload, chunks...)
+			err = server.UploadFile(stream)
+			require.NoError(t, err, "re-upload should succeed without error")
+			require.True(t, stream.isDone(), "stream should be done after re-upload")
 		})
 	}
 }
@@ -101,13 +82,8 @@ func TestUploadFileLargeModuleFiles(t *testing.T) {
 func TestUploadFileErrorScenarios(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := testutil.Logger(t)
-	db := dbmem.New()
-
-	server := provisionerdserver.New(ctx, &provisionerdserver.Options{
-		Database: db,
-		Logger:   logger,
+	server, _, _, _ := setup(t, false, &overrides{
+		externalAuthConfigs: []*externalauth.Config{{}},
 	})
 
 	// Generate test data
@@ -116,186 +92,105 @@ func TestUploadFileErrorScenarios(t *testing.T) {
 	require.NoError(t, err)
 
 	upload, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleData)
+	var _ = upload
 
 	t.Run("chunk_before_upload", func(t *testing.T) {
-		stream := &mockUploadStream{
-			requests: []*proto.UploadFileRequest{
-				// Send chunk before DataUpload
-				{
-					Type: &proto.UploadFileRequest_ChunkPiece{
-						ChunkPiece: &proto.ChunkPiece{
-							Data:         chunks[0].Data,
-							FullDataHash: chunks[0].FullDataHash,
-							PieceIndex:   chunks[0].PieceIndex,
-						},
-					},
-				},
-			},
-			response: &proto.Empty{},
-		}
+		stream := newMockUploadStream(nil, chunks[0])
 
 		err := server.UploadFile(stream)
 		require.ErrorContains(t, err, "unexpected chunk piece while waiting for file upload")
+		require.True(t, stream.isDone(), "stream should be done after error")
 	})
 
 	t.Run("duplicate_upload", func(t *testing.T) {
 		stream := &mockUploadStream{
-			requests: []*proto.UploadFileRequest{
-				{
-					Type: &proto.UploadFileRequest_DataUpload{
-						DataUpload: &proto.DataUpload{
-							UploadType: proto.DataUploadType(upload.UploadType),
-							DataHash:   upload.DataHash,
-							FileSize:   upload.FileSize,
-							Chunks:     upload.Chunks,
-						},
-					},
-				},
-				// Send another DataUpload
-				{
-					Type: &proto.UploadFileRequest_DataUpload{
-						DataUpload: &proto.DataUpload{
-							UploadType: proto.DataUploadType(upload.UploadType),
-							DataHash:   upload.DataHash,
-							FileSize:   upload.FileSize,
-							Chunks:     upload.Chunks,
-						},
-					},
-				},
-			},
-			response: &proto.Empty{},
+			done:     make(chan struct{}),
+			messages: make(chan *proto.UploadFileRequest, 2),
 		}
+
+		up := &proto.UploadFileRequest{Type: &proto.UploadFileRequest_DataUpload{&proto.DataUpload{
+			UploadType: proto.DataUploadType(upload.UploadType),
+			DataHash:   upload.DataHash,
+			FileSize:   upload.FileSize,
+			Chunks:     upload.Chunks,
+		}}}
+
+		// Send it twice
+		stream.messages <- up
+		stream.messages <- up
 
 		err := server.UploadFile(stream)
 		require.ErrorContains(t, err, "unexpected file upload while waiting for file completion")
+		require.True(t, stream.isDone(), "stream should be done after error")
 	})
 
 	t.Run("unsupported_upload_type", func(t *testing.T) {
-		stream := &mockUploadStream{
-			requests: []*proto.UploadFileRequest{
-				{
-					Type: &proto.UploadFileRequest_DataUpload{
-						DataUpload: &proto.DataUpload{
-							UploadType: proto.DataUploadType_UPLOAD_TYPE_UNKNOWN,
-							DataHash:   upload.DataHash,
-							FileSize:   upload.FileSize,
-							Chunks:     upload.Chunks,
-						},
-					},
-				},
-			},
-			response: &proto.Empty{},
-		}
-
-		// Add all chunks
-		for _, chunk := range chunks {
-			stream.requests = append(stream.requests, &proto.UploadFileRequest{
-				Type: &proto.UploadFileRequest_ChunkPiece{
-					ChunkPiece: &proto.ChunkPiece{
-						Data:         chunk.Data,
-						FullDataHash: chunk.FullDataHash,
-						PieceIndex:   chunk.PieceIndex,
-					},
-				},
-			})
-		}
+		cpy := *upload
+		cpy.UploadType = sdkproto.DataUploadType_UPLOAD_TYPE_UNKNOWN // Set to an unsupported type
+		stream := newMockUploadStream(&cpy, chunks...)
 
 		err := server.UploadFile(stream)
 		require.ErrorContains(t, err, "unsupported file upload type")
+		require.True(t, stream.isDone(), "stream should be done after error")
 	})
 }
 
-// TestUploadFileDuplicateHandling tests that duplicate files are handled correctly
-func TestUploadFileDuplicateHandling(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := testutil.Logger(t)
-	db := dbmem.New()
-
-	server := provisionerdserver.New(ctx, &provisionerdserver.Options{
-		Database: db,
-		Logger:   logger,
-	})
-
-	// Generate test data
-	moduleData := make([]byte, 1024)
-	_, err := crand.Read(moduleData)
-	require.NoError(t, err)
-
-	upload, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleData)
-
-	// Create upload request
-	createUploadStream := func() *mockUploadStream {
-		stream := &mockUploadStream{
-			requests: []*proto.UploadFileRequest{
-				{
-					Type: &proto.UploadFileRequest_DataUpload{
-						DataUpload: &proto.DataUpload{
-							UploadType: proto.DataUploadType(upload.UploadType),
-							DataHash:   upload.DataHash,
-							FileSize:   upload.FileSize,
-							Chunks:     upload.Chunks,
-						},
-					},
-				},
-			},
-			response: &proto.Empty{},
-		}
-
-		for _, chunk := range chunks {
-			stream.requests = append(stream.requests, &proto.UploadFileRequest{
-				Type: &proto.UploadFileRequest_ChunkPiece{
-					ChunkPiece: &proto.ChunkPiece{
-						Data:         chunk.Data,
-						FullDataHash: chunk.FullDataHash,
-						PieceIndex:   chunk.PieceIndex,
-					},
-				},
-			})
-		}
-		return stream
-	}
-
-	// Upload file first time
-	err = server.UploadFile(createUploadStream())
-	require.NoError(t, err)
-
-	// Upload same file again - should not error (duplicate handling)
-	err = server.UploadFile(createUploadStream())
-	require.NoError(t, err)
-
-	// Verify only one file exists in database
-	hashString := fmt.Sprintf("%x", upload.DataHash)
-	file, err := db.GetFileByHashAndCreator(ctx, database.GetFileByHashAndCreatorParams{
-		Hash:      hashString,
-		CreatedBy: uuid.Nil,
-	})
-	require.NoError(t, err)
-	require.Equal(t, moduleData, file.Data)
-}
-
-// mockUploadStream implements the upload stream interface for testing
 type mockUploadStream struct {
-	requests []*proto.UploadFileRequest
-	response *proto.Empty
-	index    int
+	done     chan struct{}
+	messages chan *proto.UploadFileRequest
 }
 
-func (m *mockUploadStream) Recv() (*proto.UploadFileRequest, error) {
-	if m.index >= len(m.requests) {
-		return nil, context.Canceled // EOF
-	}
-	req := m.requests[m.index]
-	m.index++
-	return req, nil
-}
-
-func (m *mockUploadStream) SendAndClose(resp *proto.Empty) error {
-	m.response = resp
+func (m mockUploadStream) SendAndClose(empty *proto.Empty) error {
+	close(m.done)
 	return nil
 }
 
-func (m *mockUploadStream) Context() context.Context {
-	return context.Background()
+func (m mockUploadStream) Recv() (*proto.UploadFileRequest, error) {
+	msg, ok := <-m.messages
+	if !ok {
+		return nil, xerrors.New("no more messages to receive")
+	}
+	return msg, nil
+}
+func (m *mockUploadStream) Context() context.Context { panic(errUnimplemented) }
+func (m *mockUploadStream) MsgSend(msg drpc.Message, enc drpc.Encoding) error {
+	panic(errUnimplemented)
+}
+func (m *mockUploadStream) MsgRecv(msg drpc.Message, enc drpc.Encoding) error {
+	panic(errUnimplemented)
+}
+func (m *mockUploadStream) CloseSend() error { panic(errUnimplemented) }
+func (m *mockUploadStream) Close() error     { panic(errUnimplemented) }
+func (m *mockUploadStream) isDone() bool {
+	select {
+	case <-m.done:
+		return true
+	default:
+		return false
+	}
+}
+
+func newMockUploadStream(up *sdkproto.DataUpload, chunks ...*sdkproto.ChunkPiece) *mockUploadStream {
+	stream := &mockUploadStream{
+		done:     make(chan struct{}),
+		messages: make(chan *proto.UploadFileRequest, 1+len(chunks)),
+	}
+	if up != nil {
+		stream.messages <- &proto.UploadFileRequest{Type: &proto.UploadFileRequest_DataUpload{&proto.DataUpload{
+			UploadType: proto.DataUploadType(up.UploadType),
+			DataHash:   up.DataHash,
+			FileSize:   up.FileSize,
+			Chunks:     up.Chunks,
+		}}}
+	}
+
+	for _, chunk := range chunks {
+		stream.messages <- &proto.UploadFileRequest{Type: &proto.UploadFileRequest_ChunkPiece{&proto.ChunkPiece{
+			Data:         chunk.Data,
+			FullDataHash: chunk.FullDataHash,
+			PieceIndex:   chunk.PieceIndex,
+		}}}
+	}
+	close(stream.messages)
+	return stream
 }
