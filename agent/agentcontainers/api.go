@@ -1025,8 +1025,12 @@ func (api *API) injectSubAgentIntoContainerLocked(ctx context.Context, dc coders
 	logger.Info(ctx, "copied agent binary to container")
 
 	// Make sure the agent binary is executable so we can run it.
-	if _, err := api.ccli.ExecAs(ctx, container.ID, "root", "chmod", "+x", coderPathInsideContainer); err != nil {
+	if _, err := api.ccli.ExecAs(ctx, container.ID, "root", "chmod", "0755", path.Dir(coderPathInsideContainer), coderPathInsideContainer); err != nil {
 		return xerrors.Errorf("set agent binary executable: %w", err)
+	}
+	// Set the owner of the agent binary to root:root (UID 0, GID 0).
+	if _, err := api.ccli.ExecAs(ctx, container.ID, "root", "chown", "0:0", path.Dir(coderPathInsideContainer), coderPathInsideContainer); err != nil {
+		return xerrors.Errorf("set agent binary owner: %w", err)
 	}
 
 	// Attempt to add CAP_NET_ADMIN to the binary to improve network
