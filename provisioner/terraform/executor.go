@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/go-version"
 	tfjson "github.com/hashicorp/terraform-json"
 	"go.opentelemetry.io/otel/attribute"
@@ -249,21 +250,22 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 
 	// Check if .terraform.lock.hcl was modified after terraform init
 	postInitLockFileContent, _ := os.ReadFile(lockFilePath)
-	diff := generateFileDiff(preInitLockFileContent, postInitLockFileContent)
-	if diff != "" {
-		// Log informational message about lock file changes with diff
-		infoMsg := "INFO: .terraform.lock.hcl was modified during 'terraform init'. " +
-			"This is normal when Terraform downloads providers or updates dependencies. " +
+	if !bytes.Equal(preInitLockFileContent, postInitLockFileContent) {
+		diff := cmp.Diff(string(preInitLockFileContent), string(postInitLockFileContent))
+		// Log warning message about lock file changes with diff
+		warnMsg := "WARN: .terraform.lock.hcl was modified during 'terraform init'. " +
+			"This may indicate that provider hashes are missing for your target architecture, " +
+			"which can cause unnecessary provider downloads and slower workspace builds. " +
 			"See https://developer.hashicorp.com/terraform/language/files/dependency-lock#understanding-lock-file-changes " +
 			"for more information about lock file changes."
 
-		// Write info message to debug stream
-		if outWriter != nil {
-			_, _ = outWriter.Write([]byte(infoMsg + "\n"))
-			_, _ = outWriter.Write([]byte("\nLock file changes:\n" + diff + "\n"))
+		// Write warning message to error stream for visibility
+		if errWriter != nil {
+			_, _ = errWriter.Write([]byte(warnMsg + "\n"))
+			_, _ = errWriter.Write([]byte("\nLock file changes:\n" + diff + "\n"))
 		}
 
-		e.logger.Info(ctx, "terraform lock file modified during init",
+		e.logger.Warn(ctx, "terraform lock file modified during init",
 			slog.F("lock_file_path", lockFilePath),
 			slog.F("diff", diff),
 		)
@@ -290,48 +292,7 @@ func getTerraformLockFilePath(workdir string) string {
 	return filepath.Join(workdir, ".terraform.lock.hcl")
 }
 
-// generateFileDiff generates a simple diff between two file contents.
-// Returns empty string if files are identical.
-func generateFileDiff(beforeContent, afterContent []byte) string {
-	if bytes.Equal(beforeContent, afterContent) {
-		return ""
-	}
 
-	// Simple line-by-line diff
-	beforeLines := strings.Split(string(beforeContent), "\n")
-	afterLines := strings.Split(string(afterContent), "\n")
-
-	var diff strings.Builder
-	diff.WriteString("--- .terraform.lock.hcl (before terraform init)\n")
-	diff.WriteString("+++ .terraform.lock.hcl (after terraform init)\n")
-
-	// Simple diff showing added/removed lines
-	beforeMap := make(map[string]bool)
-	for _, line := range beforeLines {
-		beforeMap[line] = true
-	}
-
-	afterMap := make(map[string]bool)
-	for _, line := range afterLines {
-		afterMap[line] = true
-	}
-
-	// Show removed lines
-	for _, line := range beforeLines {
-		if !afterMap[line] && strings.TrimSpace(line) != "" {
-			diff.WriteString("- " + line + "\n")
-		}
-	}
-
-	// Show added lines
-	for _, line := range afterLines {
-		if !beforeMap[line] && strings.TrimSpace(line) != "" {
-			diff.WriteString("+ " + line + "\n")
-		}
-	}
-
-	return diff.String()
-}
 
 // revive:disable-next-line:flag-parameter
 func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, metadata *proto.Metadata) (*proto.PlanComplete, error) {

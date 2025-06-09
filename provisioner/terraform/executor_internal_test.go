@@ -184,31 +184,4 @@ func TestGetTerraformLockFilePath(t *testing.T) {
 	require.Equal(t, expected, got)
 }
 
-func TestGenerateFileDiff(t *testing.T) {
-	t.Parallel()
 
-	// Test with identical content
-	content := []byte("line1\nline2\nline3")
-	diff := generateFileDiff(content, content)
-	require.Equal(t, "", diff)
-
-	// Test with different content
-	content1 := []byte("line1\nline2\nline3")
-	content2 := []byte("line1\nmodified line2\nline3\nnew line4")
-	diff = generateFileDiff(content1, content2)
-	require.NotEmpty(t, diff)
-	require.Contains(t, diff, "--- .terraform.lock.hcl (before terraform init)")
-	require.Contains(t, diff, "+++ .terraform.lock.hcl (after terraform init)")
-	require.Contains(t, diff, "- line2")
-	require.Contains(t, diff, "+ modified line2")
-	require.Contains(t, diff, "+ new line4")
-
-	// Test with empty before content (new file)
-	emptyContent := []byte("")
-	newContent := []byte("provider \"aws\" {\n  version = \"5.0.0\"\n}")
-	diff = generateFileDiff(emptyContent, newContent)
-	require.NotEmpty(t, diff)
-	require.Contains(t, diff, "+ provider \"aws\" {")
-	require.Contains(t, diff, "+   version = \"5.0.0\"")
-	require.Contains(t, diff, "+ }")
-}
