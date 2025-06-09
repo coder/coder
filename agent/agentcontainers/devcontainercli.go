@@ -52,10 +52,9 @@ func WithUpOutput(stdout, stderr io.Writer) DevcontainerCLIUpOptions {
 type DevcontainerCLIExecOptions func(*devcontainerCLIExecConfig)
 
 type devcontainerCLIExecConfig struct {
-	args        []string // Additional arguments for the Exec command.
-	containerID string
-	stdout      io.Writer
-	stderr      io.Writer
+	args   []string // Additional arguments for the Exec command.
+	stdout io.Writer
+	stderr io.Writer
 }
 
 // WithExecOutput sets additional stdout and stderr writers for logs
