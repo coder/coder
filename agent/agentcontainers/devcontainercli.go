@@ -52,9 +52,10 @@ func WithUpOutput(stdout, stderr io.Writer) DevcontainerCLIUpOptions {
 type DevcontainerCLIExecOptions func(*devcontainerCLIExecConfig)
 
 type devcontainerCLIExecConfig struct {
-	args   []string // Additional arguments for the Exec command.
-	stdout io.Writer
-	stderr io.Writer
+	args        []string // Additional arguments for the Exec command.
+	containerID string
+	stdout      io.Writer
+	stderr      io.Writer
 }
 
 // WithExecOutput sets additional stdout and stderr writers for logs
@@ -66,10 +67,12 @@ func WithExecOutput(stdout, stderr io.Writer) DevcontainerCLIExecOptions {
 	}
 }
 
-// WithContainerID sets the container ID to target a specific container.
-func WithContainerID(id string) DevcontainerCLIExecOptions {
+// WithExecContainerID sets the container ID to target a specific
+// container. Note that this option will unset the workspace folder to
+// ensure properties from the container are inherited correctly.
+func WithExecContainerID(id string) DevcontainerCLIExecOptions {
 	return func(o *devcontainerCLIExecConfig) {
-		o.args = append(o.args, "--container-id", id)
+		o.containerID = id
 	}
 }
 
@@ -165,7 +168,10 @@ func (d *devcontainerCLI) Exec(ctx context.Context, workspaceFolder, configPath 
 	logger := d.logger.With(slog.F("workspace_folder", workspaceFolder), slog.F("config_path", configPath))
 
 	args := []string{"exec"}
-	if workspaceFolder != "" {
+	switch {
+	case conf.containerID != "":
+		args = append(args, "--container-id", conf.containerID)
+	case workspaceFolder != "":
 		args = append(args, "--workspace-folder", workspaceFolder)
 	}
 	if configPath != "" {

@@ -1120,7 +1120,7 @@ func (api *API) runSubAgentInContainer(ctx context.Context, dc codersdk.Workspac
 	logger.Info(ctx, "starting subagent in dev container")
 
 	err := api.dccli.Exec(agentCtx, dc.WorkspaceFolder, dc.ConfigPath, agentPath, []string{"agent"},
-		WithContainerID(container.ID),
+		WithExecContainerID(container.ID),
 		WithRemoteEnv(
 			"CODER_AGENT_URL="+api.subAgentURL,
 			"CODER_AGENT_TOKEN="+agent.AuthToken.String(),

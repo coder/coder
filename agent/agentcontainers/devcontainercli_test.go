@@ -182,8 +182,8 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				configPath:      "",
 				cmd:             "echo",
 				cmdArgs:         []string{"hello"},
-				opts:            []agentcontainers.DevcontainerCLIExecOptions{agentcontainers.WithContainerID("test-container-123")},
-				wantArgs:        "exec --workspace-folder /test/workspace --container-id test-container-123 echo hello",
+				opts:            []agentcontainers.DevcontainerCLIExecOptions{agentcontainers.WithExecContainerID("test-container-123")},
+				wantArgs:        "exec --container-id test-container-123 echo hello",
 				wantError:       false,
 			},
 			{
@@ -192,8 +192,8 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				configPath:      "/test/config.json",
 				cmd:             "bash",
 				cmdArgs:         []string{"-c", "ls -la"},
-				opts:            []agentcontainers.DevcontainerCLIExecOptions{agentcontainers.WithContainerID("my-container")},
-				wantArgs:        "exec --workspace-folder /test/workspace --config /test/config.json --container-id my-container bash -c ls -la",
+				opts:            []agentcontainers.DevcontainerCLIExecOptions{agentcontainers.WithExecContainerID("my-container")},
+				wantArgs:        "exec --container-id my-container --config /test/config.json bash -c ls -la",
 				wantError:       false,
 			},
 			{
@@ -203,9 +203,9 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				cmd:             "cat",
 				cmdArgs:         []string{"/etc/hostname"},
 				opts: []agentcontainers.DevcontainerCLIExecOptions{
-					agentcontainers.WithContainerID("test-container-789"),
+					agentcontainers.WithExecContainerID("test-container-789"),
 				},
-				wantArgs:  "exec --workspace-folder /test/workspace --container-id test-container-789 cat /etc/hostname",
+				wantArgs:  "exec --container-id test-container-789 cat /etc/hostname",
 				wantError: false,
 			},
 		}
@@ -293,7 +293,7 @@ func TestDevcontainerCLI_WithOutput(t *testing.T) {
 		errBuf := &bytes.Buffer{}
 
 		// Simulate CLI execution for exec command with container ID.
-		wantArgs := "exec --workspace-folder /test/workspace --container-id test-container-456 echo hello"
+		wantArgs := "exec --container-id test-container-456 echo hello"
 		testExecer := &testDevcontainerExecer{
 			testExePath: testExePath,
 			wantArgs:    wantArgs,
@@ -306,7 +306,7 @@ func TestDevcontainerCLI_WithOutput(t *testing.T) {
 		// Call Exec with WithExecOutput and WithContainerID to capture any command output.
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		err = dccli.Exec(ctx, "/test/workspace", "", "echo", []string{"hello"},
-			agentcontainers.WithContainerID("test-container-456"),
+			agentcontainers.WithExecContainerID("test-container-456"),
 			agentcontainers.WithExecOutput(outBuf, errBuf),
 		)
 		require.NoError(t, err, "Exec should succeed")
