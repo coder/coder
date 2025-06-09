@@ -1434,6 +1434,8 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 					mccli.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
 						Containers: []codersdk.WorkspaceAgentContainer{devContainer},
 					}, nil).AnyTimes()
+					// DetectArchitecture always returns "<none>" for this test to disable agent injection.
+					mccli.EXPECT().DetectArchitecture(gomock.Any(), devContainer.ID).Return("<none>", nil).AnyTimes()
 					mdccli.EXPECT().Up(gomock.Any(), workspaceFolder, configFile, gomock.Any()).Return("someid", nil).Times(1)
 					return 0
 				},
@@ -1481,7 +1483,7 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 						agentcontainers.WithContainerCLI(mccli),
 						agentcontainers.WithDevcontainerCLI(mdccli),
 						agentcontainers.WithWatcher(watcher.NewNoop()),
-						agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
+						agentcontainers.WithContainerLabelIncludeFilter(agentcontainers.DevcontainerLocalFolderLabel, workspaceFolder),
 					)
 				})
 				resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
