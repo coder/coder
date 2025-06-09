@@ -224,9 +224,15 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 	e.mut.Lock()
 	defer e.mut.Unlock()
 
-	// Calculate checksum of .terraform.lock.hcl before running terraform init
+	// Save .terraform.lock.hcl content before running terraform init
 	lockFilePath := getTerraformLockFilePath(e.workdir)
-	preInitChecksum := calculateFileChecksum(lockFilePath)
+	preInitLockFile := lockFilePath + ".pre-init"
+
+	// Copy the lock file if it exists
+	if lockFileData, err := os.ReadFile(lockFilePath); err == nil {
+		_ = os.WriteFile(preInitLockFile, lockFileData, 0644)
+		defer os.Remove(preInitLockFile) // Clean up temporary file
+	}
 
 	outWriter, doneOut := logWriter(logr, proto.LogLevel_DEBUG)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
@@ -250,26 +256,23 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 	err := e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outWriter, errBuf)
 
 	// Check if .terraform.lock.hcl was modified after terraform init
-	postInitChecksum := calculateFileChecksum(lockFilePath)
-	if preInitChecksum != "" && postInitChecksum != "" && preInitChecksum != postInitChecksum {
-		// Log warning about lock file changes
-		warningMsg := "WARNING: .terraform.lock.hcl was modified during 'terraform init'. " +
-			"This may indicate that provider hashes are missing for your target architecture. " +
-			"Consider regenerating the lock file on the same OS/architecture as your Coder instance " +
-			"to improve provisioning performance and avoid unnecessary provider downloads."
+	diff := generateFileDiff(preInitLockFile, lockFilePath)
+	if diff != "" {
+		// Log informational message about lock file changes with diff
+		infoMsg := "INFO: .terraform.lock.hcl was modified during 'terraform init'. " +
+			"This is normal when Terraform downloads providers or updates dependencies. " +
+			"See https://developer.hashicorp.com/terraform/language/files/dependency-lock#understanding-lock-file-changes " +
+			"for more information about lock file changes."
 
-		// Write warning to both debug and error streams to ensure visibility
+		// Write info message to debug stream
 		if outWriter != nil {
-			_, _ = outWriter.Write([]byte(warningMsg + "\n"))
-		}
-		if errWriter != nil {
-			_, _ = errWriter.Write([]byte(warningMsg + "\n"))
+			_, _ = outWriter.Write([]byte(infoMsg + "\n"))
+			_, _ = outWriter.Write([]byte("\nLock file changes:\n" + diff + "\n"))
 		}
 
-		e.logger.Warn(ctx, "terraform lock file modified during init",
+		e.logger.Info(ctx, "terraform lock file modified during init",
 			slog.F("lock_file_path", lockFilePath),
-			slog.F("pre_init_checksum", preInitChecksum),
-			slog.F("post_init_checksum", postInitChecksum),
+			slog.F("diff", diff),
 		)
 	}
 
@@ -303,6 +306,58 @@ func calculateFileChecksum(filePath string) string {
 	}
 	hash := sha256.Sum256(data)
 	return hex.EncodeToString(hash[:])
+}
+
+// generateFileDiff generates a simple diff between two file contents.
+// Returns empty string if files can't be read or are identical.
+func generateFileDiff(beforePath, afterPath string) string {
+	beforeData, err := os.ReadFile(beforePath)
+	if err != nil {
+		return ""
+	}
+	afterData, err := os.ReadFile(afterPath)
+	if err != nil {
+		return ""
+	}
+
+	if bytes.Equal(beforeData, afterData) {
+		return ""
+	}
+
+	// Simple line-by-line diff
+	beforeLines := strings.Split(string(beforeData), "\n")
+	afterLines := strings.Split(string(afterData), "\n")
+
+	var diff strings.Builder
+	diff.WriteString("--- .terraform.lock.hcl (before terraform init)\n")
+	diff.WriteString("+++ .terraform.lock.hcl (after terraform init)\n")
+
+	// Simple diff showing added/removed lines
+	beforeMap := make(map[string]bool)
+	for _, line := range beforeLines {
+		beforeMap[line] = true
+	}
+
+	afterMap := make(map[string]bool)
+	for _, line := range afterLines {
+		afterMap[line] = true
+	}
+
+	// Show removed lines
+	for _, line := range beforeLines {
+		if !afterMap[line] && strings.TrimSpace(line) != "" {
+			diff.WriteString("- " + line + "\n")
+		}
+	}
+
+	// Show added lines
+	for _, line := range afterLines {
+		if !beforeMap[line] && strings.TrimSpace(line) != "" {
+			diff.WriteString("+ " + line + "\n")
+		}
+	}
+
+	return diff.String()
 }
 
 // revive:disable-next-line:flag-parameter

@@ -216,3 +216,41 @@ func TestCalculateFileChecksum(t *testing.T) {
 	require.NotEqual(t, checksum1, checksum3)
 	require.Len(t, checksum3, 64)
 }
+
+func TestGenerateFileDiff(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	file1 := filepath.Join(tmpDir, "file1.txt")
+	file2 := filepath.Join(tmpDir, "file2.txt")
+
+	// Test with non-existent files
+	diff := generateFileDiff("/non/existent/file1", "/non/existent/file2")
+	require.Equal(t, "", diff)
+
+	// Test with identical files
+	content := "line1\nline2\nline3"
+	err := os.WriteFile(file1, []byte(content), 0644)
+	require.NoError(t, err)
+	err = os.WriteFile(file2, []byte(content), 0644)
+	require.NoError(t, err)
+
+	diff = generateFileDiff(file1, file2)
+	require.Equal(t, "", diff)
+
+	// Test with different files
+	content1 := "line1\nline2\nline3"
+	content2 := "line1\nmodified line2\nline3\nnew line4"
+	err = os.WriteFile(file1, []byte(content1), 0644)
+	require.NoError(t, err)
+	err = os.WriteFile(file2, []byte(content2), 0644)
+	require.NoError(t, err)
+
+	diff = generateFileDiff(file1, file2)
+	require.NotEmpty(t, diff)
+	require.Contains(t, diff, "--- .terraform.lock.hcl (before terraform init)")
+	require.Contains(t, diff, "+++ .terraform.lock.hcl (after terraform init)")
+	require.Contains(t, diff, "- line2")
+	require.Contains(t, diff, "+ modified line2")
+	require.Contains(t, diff, "+ new line4")
+}
