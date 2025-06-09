@@ -25,13 +25,8 @@ export const useDynamicParametersOptOut = ({
 			const localStorageKey = optOutKey(templateId);
 			const storedOptOutString = localStorage.getItem(localStorageKey);
 
-			let optedOut: boolean;
-
-			if (storedOptOutString !== null) {
-				optedOut = storedOptOutString === "true";
-			} else {
-				optedOut = Boolean(templateUsesClassicParameters);
-			}
+			// Since the dynamic-parameters experiment was removed, always use classic parameters
+			const optedOut = true;
 
 			return {
 				templateId,
