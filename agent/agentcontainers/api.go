@@ -42,22 +42,23 @@ const (
 // API is responsible for container-related operations in the agent.
 // It provides methods to list and manage containers.
 type API struct {
-	ctx               context.Context
-	cancel            context.CancelFunc
-	watcherDone       chan struct{}
-	updaterDone       chan struct{}
-	initialUpdateDone chan struct{}   // Closed after first update in updaterLoop.
-	updateTrigger     chan chan error // Channel to trigger manual refresh.
-	updateInterval    time.Duration   // Interval for periodic container updates.
-	logger            slog.Logger
-	watcher           watcher.Watcher
-	execer            agentexec.Execer
-	ccli              ContainerCLI
-	dccli             DevcontainerCLI
-	clock             quartz.Clock
-	scriptLogger      func(logSourceID uuid.UUID) ScriptLogger
-	subAgentClient    SubAgentClient
-	subAgentURL       string
+	ctx                         context.Context
+	cancel                      context.CancelFunc
+	watcherDone                 chan struct{}
+	updaterDone                 chan struct{}
+	initialUpdateDone           chan struct{}   // Closed after first update in updaterLoop.
+	updateTrigger               chan chan error // Channel to trigger manual refresh.
+	updateInterval              time.Duration   // Interval for periodic container updates.
+	logger                      slog.Logger
+	watcher                     watcher.Watcher
+	execer                      agentexec.Execer
+	ccli                        ContainerCLI
+	containerLabelIncludeFilter map[string]string // Labels to filter containers by.
+	dccli                       DevcontainerCLI
+	clock                       quartz.Clock
+	scriptLogger                func(logSourceID uuid.UUID) ScriptLogger
+	subAgentClient              SubAgentClient
+	subAgentURL                 string
 
 	mu                      sync.RWMutex
 	closed                  bool
@@ -103,6 +104,16 @@ func WithExecer(execer agentexec.Execer) Option {
 func WithContainerCLI(ccli ContainerCLI) Option {
 	return func(api *API) {
 		api.ccli = ccli
+	}
+}
+
+// WithContainerLabelIncludeFilter sets a label filter for containers.
+// This option can be given multiple times to filter by multiple labels.
+// The behavior is such that only containers matching one or more of the
+// provided labels will be included.
+func WithContainerLabelIncludeFilter(label, value string) Option {
+	return func(api *API) {
+		api.containerLabelIncludeFilter[label] = value
 	}
 }
 
@@ -198,24 +209,25 @@ func WithScriptLogger(scriptLogger func(logSourceID uuid.UUID) ScriptLogger) Opt
 func NewAPI(logger slog.Logger, options ...Option) *API {
 	ctx, cancel := context.WithCancel(context.Background())
 	api := &API{
-		ctx:                     ctx,
-		cancel:                  cancel,
-		watcherDone:             make(chan struct{}),
-		updaterDone:             make(chan struct{}),
-		initialUpdateDone:       make(chan struct{}),
-		updateTrigger:           make(chan chan error),
-		updateInterval:          defaultUpdateInterval,
-		logger:                  logger,
-		clock:                   quartz.NewReal(),
-		execer:                  agentexec.DefaultExecer,
-		subAgentClient:          noopSubAgentClient{},
-		devcontainerNames:       make(map[string]bool),
-		knownDevcontainers:      make(map[string]codersdk.WorkspaceAgentDevcontainer),
-		configFileModifiedTimes: make(map[string]time.Time),
-		recreateSuccessTimes:    make(map[string]time.Time),
-		recreateErrorTimes:      make(map[string]time.Time),
-		scriptLogger:            func(uuid.UUID) ScriptLogger { return noopScriptLogger{} },
-		injectedSubAgentProcs:   make(map[string]subAgentProcess),
+		ctx:                         ctx,
+		cancel:                      cancel,
+		watcherDone:                 make(chan struct{}),
+		updaterDone:                 make(chan struct{}),
+		initialUpdateDone:           make(chan struct{}),
+		updateTrigger:               make(chan chan error),
+		updateInterval:              defaultUpdateInterval,
+		logger:                      logger,
+		clock:                       quartz.NewReal(),
+		execer:                      agentexec.DefaultExecer,
+		subAgentClient:              noopSubAgentClient{},
+		containerLabelIncludeFilter: make(map[string]string),
+		devcontainerNames:           make(map[string]bool),
+		knownDevcontainers:          make(map[string]codersdk.WorkspaceAgentDevcontainer),
+		configFileModifiedTimes:     make(map[string]time.Time),
+		recreateSuccessTimes:        make(map[string]time.Time),
+		recreateErrorTimes:          make(map[string]time.Time),
+		scriptLogger:                func(uuid.UUID) ScriptLogger { return noopScriptLogger{} },
+		injectedSubAgentProcs:       make(map[string]subAgentProcess),
 	}
 	// The ctx and logger must be set before applying options to avoid
 	// nil pointer dereference.
@@ -266,7 +278,7 @@ func (api *API) watcherLoop() {
 			continue
 		}
 
-		now := api.clock.Now("watcherLoop")
+		now := api.clock.Now("agentcontainers", "watcherLoop")
 		switch {
 		case event.Has(fsnotify.Create | fsnotify.Write):
 			api.logger.Debug(api.ctx, "devcontainer config file changed", slog.F("file", event.Name))
@@ -333,9 +345,9 @@ func (api *API) updaterLoop() {
 		}
 
 		return nil // Always nil to keep the ticker going.
-	}, "updaterLoop")
+	}, "agentcontainers", "updaterLoop")
 	defer func() {
-		if err := ticker.Wait("updaterLoop"); err != nil && !errors.Is(err, context.Canceled) {
+		if err := ticker.Wait("agentcontainers", "updaterLoop"); err != nil && !errors.Is(err, context.Canceled) {
 			api.logger.Error(api.ctx, "updater loop ticker failed", slog.Error(err))
 		}
 	}()
@@ -480,6 +492,22 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 			slog.F("workspace_folder", workspaceFolder),
 			slog.F("config_file", configFile),
 		)
+
+		if len(api.containerLabelIncludeFilter) > 0 {
+			var ok bool
+			for label, value := range api.containerLabelIncludeFilter {
+				if v, found := container.Labels[label]; found && v == value {
+					ok = true
+				}
+			}
+			// Verbose debug logging is fine here since typically filters
+			// are only used in development or testing environments.
+			if !ok {
+				logger.Debug(ctx, "container does not match include filter, ignoring dev container", slog.F("container_labels", container.Labels), slog.F("include_filter", api.containerLabelIncludeFilter))
+				continue
+			}
+			logger.Debug(ctx, "container matches include filter, processing dev container", slog.F("container_labels", container.Labels), slog.F("include_filter", api.containerLabelIncludeFilter))
+		}
 
 		if dc, ok := api.knownDevcontainers[workspaceFolder]; ok {
 			// If no config path is set, this devcontainer was defined
@@ -781,7 +809,7 @@ func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, con
 			dc.Container.DevcontainerStatus = dc.Status
 		}
 		api.knownDevcontainers[dc.WorkspaceFolder] = dc
-		api.recreateErrorTimes[dc.WorkspaceFolder] = api.clock.Now("recreate", "errorTimes")
+		api.recreateErrorTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "errorTimes")
 		api.mu.Unlock()
 		return
 	}
@@ -803,7 +831,7 @@ func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, con
 		dc.Container.DevcontainerStatus = dc.Status
 	}
 	dc.Dirty = false
-	api.recreateSuccessTimes[dc.WorkspaceFolder] = api.clock.Now("recreate", "successTimes")
+	api.recreateSuccessTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "successTimes")
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	api.mu.Unlock()
 
