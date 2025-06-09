@@ -1697,6 +1697,7 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 
 			if len(jobType.TemplateImport.ModuleFilesHash) > 0 {
 				hashString := hex.EncodeToString(jobType.TemplateImport.ModuleFilesHash)
+				//nolint:gocritic // Acting as provisioner
 				file, err := db.GetFileByHashAndCreator(dbauthz.AsProvisionerd(ctx), database.GetFileByHashAndCreatorParams{Hash: hashString, CreatedBy: uuid.Nil})
 				if err != nil {
 					return xerrors.Errorf("get file by hash, it should have been uploaded: %w", err)
