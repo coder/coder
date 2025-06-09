@@ -33,9 +33,9 @@ func TestUploadFileLargeModuleFiles(t *testing.T) {
 	})
 
 	testSizes := []int{
-		drpcsdk.MaxMessageSize + 1024,     // Just over 4MB
-		drpcsdk.MaxMessageSize * 2,        // 8MB
-		sdkproto.ChunkSize * 3 + 512,      // Multiple chunks with partial last
+		drpcsdk.MaxMessageSize + 1024, // Just over 4MB
+		drpcsdk.MaxMessageSize * 2,    // 8MB
+		sdkproto.ChunkSize*3 + 512,    // Multiple chunks with partial last
 	}
 
 	for _, size := range testSizes {
