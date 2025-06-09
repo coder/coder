@@ -1034,7 +1034,7 @@ func (api *API) injectSubAgentIntoContainerLocked(ctx context.Context, dc coders
 	}
 
 	// Attempt to add CAP_NET_ADMIN to the binary to improve network
-	// performance (optional, allow to fail).
+	// performance (optional, allow to fail). See `bootstrap_linux.sh`.
 	if _, err := api.ccli.ExecAs(ctx, container.ID, "root", "setcap", "cap_net_admin+ep", coderPathInsideContainer); err != nil {
 		logger.Warn(ctx, "set CAP_NET_ADMIN on agent binary failed", slog.Error(err))
 	}
