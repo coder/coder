@@ -1742,7 +1742,6 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 		UseClassicParameterFlow: ptr.Ref(false),
 	})
 	require.NoError(t, err, "failed to update template meta")
-
 	require.False(t, tpl.UseClassicParameterFlow, "template to use dynamic parameters")
 
 	// When: we create a workspace build using the above template but with
