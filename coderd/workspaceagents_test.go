@@ -1252,6 +1252,9 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 		}).Do()
 		_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
 			o.ExperimentalDevcontainersEnabled = true
+			o.ContainerAPIOptions = append(o.ContainerAPIOptions,
+				agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
+			)
 		})
 		resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
 		require.Len(t, resources, 1, "expected one resource")
@@ -1358,7 +1361,10 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 				_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
 					o.Logger = logger.Named("agent")
 					o.ExperimentalDevcontainersEnabled = true
-					o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithContainerCLI(mcl))
+					o.ContainerAPIOptions = append(o.ContainerAPIOptions,
+						agentcontainers.WithContainerCLI(mcl),
+						agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
+					)
 				})
 				resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
 				require.Len(t, resources, 1, "expected one resource")
@@ -1428,8 +1434,6 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 					mccli.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
 						Containers: []codersdk.WorkspaceAgentContainer{devContainer},
 					}, nil).AnyTimes()
-					// DetectArchitecture always returns "<none>" for this test to disable agent injection.
-					mccli.EXPECT().DetectArchitecture(gomock.Any(), devContainer.ID).Return("<none>", nil).AnyTimes()
 					mdccli.EXPECT().Up(gomock.Any(), workspaceFolder, configFile, gomock.Any()).Return("someid", nil).Times(1)
 					return 0
 				},
@@ -1477,6 +1481,7 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 						agentcontainers.WithContainerCLI(mccli),
 						agentcontainers.WithDevcontainerCLI(mdccli),
 						agentcontainers.WithWatcher(watcher.NewNoop()),
+						agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
 					)
 				})
 				resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()

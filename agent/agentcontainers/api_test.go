@@ -302,7 +302,6 @@ func TestAPI(t *testing.T) {
 				initialData: initialDataPayload{makeResponse(), nil},
 				setupMock: func(mcl *acmock.MockContainerCLI, preReq *gomock.Call) {
 					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(fakeCt), nil).After(preReq).AnyTimes()
-					mcl.EXPECT().DetectArchitecture(gomock.Any(), gomock.Any()).Return("<none>", nil).AnyTimes()
 				},
 				expected: makeResponse(fakeCt),
 			},
@@ -321,7 +320,6 @@ func TestAPI(t *testing.T) {
 				initialData: initialDataPayload{makeResponse(), assert.AnError},
 				setupMock: func(mcl *acmock.MockContainerCLI, preReq *gomock.Call) {
 					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(fakeCt), nil).After(preReq).AnyTimes()
-					mcl.EXPECT().DetectArchitecture(gomock.Any(), gomock.Any()).Return("<none>", nil).AnyTimes()
 				},
 				expected: makeResponse(fakeCt),
 			},
@@ -338,7 +336,6 @@ func TestAPI(t *testing.T) {
 				initialData: initialDataPayload{makeResponse(fakeCt), nil},
 				setupMock: func(mcl *acmock.MockContainerCLI, preReq *gomock.Call) {
 					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(fakeCt2), nil).After(preReq).AnyTimes()
-					mcl.EXPECT().DetectArchitecture(gomock.Any(), gomock.Any()).Return("<none>", nil).AnyTimes()
 				},
 				expected: makeResponse(fakeCt2),
 			},
@@ -365,6 +362,7 @@ func TestAPI(t *testing.T) {
 				api := agentcontainers.NewAPI(logger,
 					agentcontainers.WithClock(mClock),
 					agentcontainers.WithContainerCLI(mLister),
+					agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
 				)
 				defer api.Close()
 				r.Mount("/", api.Routes())
