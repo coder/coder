@@ -364,21 +364,3 @@ func (p *SSEProxy) ServeHTTPWithContext(ctx context.Context, w http.ResponseWrit
 	p.ServeHTTP(w, r)
 	close(done)
 }
-
-// NewGenericProxy creates a proxy for any target URL
-func NewGenericProxy(targetURL string, responseInterceptFunc ResponseInterceptFunc) (*SSEProxy, error) {
-	target, err := url.Parse(targetURL)
-	if err != nil {
-		return nil, xerrors.Errorf("parse target URL: %w", err)
-	}
-	return NewSSEProxy(target, responseInterceptFunc), nil
-}
-
-// NewGenericProxyWithRequestIntercept creates a proxy for any target URL with request interception
-func NewGenericProxyWithRequestIntercept(targetURL string, responseInterceptFunc ResponseInterceptFunc, requestInterceptFunc RequestInterceptFunc) (*SSEProxy, error) {
-	target, err := url.Parse(targetURL)
-	if err != nil {
-		return nil, xerrors.Errorf("parse target URL: %w", err)
-	}
-	return NewSSEProxyWithRequestIntercept(target, responseInterceptFunc, requestInterceptFunc), nil
-}

@@ -178,8 +178,52 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var acc openai.ChatCompletionAccumulator
 	proxy, err := NewSSEProxyWithConfig(ProxyConfig{
 		Target: target,
+		ModifyRequest: func(req *http.Request) {
+			var in ChatCompletionNewParamsWrapper
+
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				b.logger.Error(req.Context(), "failed to read body", slog.Error(err))
+				http.Error(w, "failed to read body", http.StatusInternalServerError)
+				return
+			}
+
+			if err = json.Unmarshal(body, &in); err != nil {
+				b.logger.Error(req.Context(), "failed to unmarshal request", slog.Error(err))
+				http.Error(w, "failed to unmarshal request", http.StatusInternalServerError)
+				return
+			}
+
+			in.Tools = []openai.ChatCompletionToolParam{
+				{
+					Function: openai.FunctionDefinitionParam{
+						Name:        "get_weather",
+						Description: openai.String("Get weather at the given location"),
+						Parameters: openai.FunctionParameters{
+							"type": "object",
+							"properties": map[string]interface{}{
+								"location": map[string]string{
+									"type": "string",
+								},
+							},
+							"required": []string{"location"},
+						},
+					},
+				},
+			}
+
+			newBody, err := json.Marshal(in)
+			if err != nil {
+				b.logger.Error(req.Context(), "failed to marshal request", slog.Error(err))
+				http.Error(w, "failed to marshal request", http.StatusInternalServerError)
+				return
+			}
+
+			req.Body = io.NopCloser(bytes.NewReader(newBody))
+		},
 		RequestInterceptFunc: func(req *http.Request, body []byte) error {
 			var msg ChatCompletionNewParamsWrapper
 			err = json.NewDecoder(bytes.NewReader(body)).Decode(&msg)
@@ -215,23 +259,41 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 			var (
 				inputToks, outputToks int64
 			)
-			var msg openai.ChatCompletionAccumulator
 			for stream.Next() {
-				msg.AddChunk(stream.Current())
-				b.logger.Info(r.Context(), "openai chunk", slog.F("msgID", msg.ID), slog.F("contents", fmt.Sprintf("%+v", msg)))
+				acc.AddChunk(stream.Current())
+				b.logger.Info(r.Context(), "openai chunk", slog.F("msgID", acc.ID), slog.F("contents", fmt.Sprintf("%+v", acc)))
 
-				if msg.Usage.PromptTokens+msg.Usage.CompletionTokens > 0 {
-					inputToks = msg.Usage.PromptTokens
-					outputToks = msg.Usage.CompletionTokens
+				if acc.Usage.PromptTokens+acc.Usage.CompletionTokens > 0 {
+					inputToks = acc.Usage.PromptTokens
+					outputToks = acc.Usage.CompletionTokens
 				}
+
+				//for _, c := range msg.ChatCompletion.Choices {
+				//	for _, t := range c.Message.ToolCalls {
+				//		fmt.Println(t.Function.Name, t.Function.Arguments)
+				//	}
+				//}
+			}
+			if err := stream.Err(); err != nil {
+				panic(err)
 			}
 
 			if inputToks+outputToks > 0 {
 				_, _ = coderdClient.TrackTokenUsage(r.Context(), &proto.TrackTokenUsageRequest{
-					MsgId:        msg.ID,
+					MsgId:        acc.ID,
 					InputTokens:  inputToks,
 					OutputTokens: outputToks,
 				})
+			}
+
+			if len(acc.Choices) < 0 {
+				return nil
+			}
+
+			for _, c := range acc.Choices {
+				for _, t := range c.Message.ToolCalls {
+					// Now that we can execute tools and add new messages, we'll need to append these to the stream (?)
+				}
 			}
 
 			return nil
