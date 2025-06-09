@@ -104,8 +104,8 @@ func TestLargeModulePayload(t *testing.T) {
 
 	// Test with data larger than MaxMessageSize (4MB)
 	testSizes := []int{
-		drpcsdk.MaxMessageSize + 1,           // Just over the limit
-		drpcsdk.MaxMessageSize * 2,           // Double the limit
+		drpcsdk.MaxMessageSize + 1,                 // Just over the limit
+		drpcsdk.MaxMessageSize * 2,                 // Double the limit
 		drpcsdk.MaxMessageSize + proto.ChunkSize/2, // Partial chunk over limit
 	}
 
