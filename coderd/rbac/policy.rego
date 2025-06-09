@@ -86,7 +86,7 @@ site := num if {
 prebuild_object_set := ["*", prebuild_workspace_type]
 site := num if {
 	is_prebuild_workspace
-	num := site_allow(input.subject.roles, prebuild_object_set)
+	num := site_allow(input.subject.roles, [input.object.type, "*", prebuild_workspace_type])
 }
 
 default scope_site := 0
@@ -98,10 +98,7 @@ scope_site := num if {
 
 scope_site := num if {
 	is_prebuild_workspace
-	num := number([
-		site_allow(input.subject.scope, default_object_set),
-		site_allow(input.subject.scope, [prebuild_workspace_type])
-	])
+	num := site_allow(input.subject.scope, [input.object.type, "*", prebuild_workspace_type])
 }
 
 site_allow(roles, object_set) := num if {
