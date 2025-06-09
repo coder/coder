@@ -51,13 +51,15 @@ export const useAppLink = (
 			const openAppExternallyFailedTimeout = 500;
 			const openAppExternallyFailed = setTimeout(() => {
 				// Check if this is a JetBrains IDE app
-				const isJetBrainsApp = app.url && (
-					app.url.startsWith("jetbrains-gateway:") ||
-					app.url.startsWith("jetbrains:")
-				);
-				
+				const isJetBrainsApp =
+					app.url &&
+					(app.url.startsWith("jetbrains-gateway:") ||
+						app.url.startsWith("jetbrains:"));
+
 				if (isJetBrainsApp) {
-					displayError(`To use ${label}, you need to have JetBrains Toolbox installed.`);
+					displayError(
+						`To use ${label}, you need to have JetBrains Toolbox installed.`,
+					);
 				} else {
 					displayError(`${label} must be installed first.`);
 				}
