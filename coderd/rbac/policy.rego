@@ -67,7 +67,7 @@ number(set) := c if {
 
 prebuild_workspace_type := "prebuilt_workspace"
 default_object_set := [input.object.type, "*"]
-is_prebuild_workspace if {
+is_prebuild_workspace := true if {
 	input.object.type = "workspace"
 	input.object.owner = "c42fdf75-3097-471c-8c33-fb52454d81c0"
 }
@@ -91,15 +91,7 @@ site := num if {
 
 default scope_site := 0
 
-scope_site := num if {
-	not is_prebuild_workspace
-	num := site_allow(input.subject.scope, default_object_set)
-}
-
-scope_site := num if {
-	is_prebuild_workspace
-	num := site_allow(input.subject.scope, [input.object.type, "*", prebuild_workspace_type])
-}
+scope_site := site_allow([input.subject.scope], [input.object.type, "*", prebuild_workspace_type])
 
 site_allow(roles, object_set) := num if {
 	# allow is a set of boolean values without duplicates.
