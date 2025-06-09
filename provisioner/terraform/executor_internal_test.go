@@ -2,6 +2,7 @@ package terraform
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"testing"
 
 	tfjson "github.com/hashicorp/terraform-json"
