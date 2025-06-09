@@ -2,7 +2,6 @@ package proto_test
 
 import (
 	crand "crypto/rand"
-	"fmt"
 	"math/rand"
 	"testing"
 
@@ -16,13 +15,18 @@ import (
 // go test -fuzz=FuzzBytesToDataUpload
 func FuzzBytesToDataUpload(f *testing.F) {
 	// Cases to always run in standard `go test` runs.
-	f.Add([]byte{})
-	f.Add()
+	always := [][]byte{
+		{},
+		[]byte("1"),
+		[]byte("small"),
+	}
+	for _, data := range always {
+		f.Add(data)
+	}
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		first, chunks := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, data)
 
-		fmt.Println(len(data))
 		builder, err := proto.NewDataBuilder(first)
 		require.NoError(t, err)
 
