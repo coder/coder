@@ -165,6 +165,7 @@ func (*mockUploadStream) Context() context.Context { panic(errUnimplemented) }
 func (*mockUploadStream) MsgSend(msg drpc.Message, enc drpc.Encoding) error {
 	panic(errUnimplemented)
 }
+
 func (*mockUploadStream) MsgRecv(msg drpc.Message, enc drpc.Encoding) error {
 	panic(errUnimplemented)
 }
