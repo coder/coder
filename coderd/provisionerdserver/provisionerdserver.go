@@ -1401,6 +1401,7 @@ UploadFileStream:
 			return xerrors.Errorf("insert file: %w", err)
 		}
 	}
+
 	s.Logger.Info(s.lifecycleCtx, "file uploaded to database",
 		slog.F("type", file.Type.String()),
 		slog.F("hash", hash),
