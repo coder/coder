@@ -15,7 +15,9 @@ import { ExperimentalFormContext } from "./ExperimentalFormContext";
 const CreateWorkspaceExperimentRouter: FC = () => {
 	const { organization: organizationName = "default", template: templateName } =
 		useParams() as { organization?: string; template: string };
-	const templateQuery = useQuery(templateByName(organizationName, templateName));
+	const templateQuery = useQuery(
+		templateByName(organizationName, templateName),
+	);
 
 	const optOutQuery = useDynamicParametersOptOut({
 		templateId: templateQuery.data?.id,
@@ -45,7 +47,7 @@ const CreateWorkspaceExperimentRouter: FC = () => {
 		localStorage.setItem(key, (!current).toString());
 		optOutQuery.refetch();
 	};
-	
+
 	return (
 		<ExperimentalFormContext.Provider value={{ toggleOptedOut }}>
 			{optOutQuery.data.optedOut ? (

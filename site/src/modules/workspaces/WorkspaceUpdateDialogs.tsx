@@ -10,7 +10,6 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Loader } from "components/Loader/Loader";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { useDynamicParametersOptOut } from "modules/workspaces/DynamicParameter/useDynamicParametersOptOut";
 import { UpdateBuildParametersDialog } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialog";
 import { UpdateBuildParametersDialogExperimental } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialogExperimental";

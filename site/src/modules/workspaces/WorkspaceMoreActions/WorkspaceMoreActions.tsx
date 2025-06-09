@@ -21,7 +21,6 @@ import {
 	SettingsIcon,
 	TrashIcon,
 } from "lucide-react";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { useDynamicParametersOptOut } from "modules/workspaces/DynamicParameter/useDynamicParametersOptOut";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
