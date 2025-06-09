@@ -16,9 +16,10 @@ import (
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
+	ant_ssestream "github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
+	openai_ssestream "github.com/openai/openai-go/packages/ssestream"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/aibridged/proto"
@@ -61,23 +62,12 @@ func NewBridge(addr string, clientFn func() (proto.DRPCAIBridgeDaemonClient, boo
 }
 
 func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		// TODO: error handling.
-		panic(err)
+	coderdClient, ok := b.clientFn()
+	if !ok {
+		// TODO: log issue.
+		http.Error(w, "could not acquire coderd client", http.StatusInternalServerError)
 		return
 	}
-	r.Body.Close()
-
-	var msg openai.ChatCompletionNewParams
-	err = json.Unmarshal(body, &msg)
-	if err != nil {
-		// TODO: error handling.
-		panic(err)
-		return
-	}
-
-	fmt.Println(msg)
 
 	target, err := url.Parse("https://api.openai.com")
 	if err != nil {
@@ -103,7 +93,98 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 		req.URL.Scheme = target.Scheme
 		req.URL.Host = target.Host
 
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			http.Error(w, "could not ready request body", http.StatusBadRequest)
+			return
+		}
+		_ = req.Body.Close()
+
+		var msg openai.ChatCompletionNewParams
+		err = json.NewDecoder(bytes.NewReader(body)).Decode(&msg)
+		if err != nil {
+			http.Error(w, "could not unmarshal request body", http.StatusBadRequest)
+			return
+		}
+
+		// TODO: robustness
+		if len(msg.Messages) > 0 {
+			latest := msg.Messages[len(msg.Messages)-1]
+			if latest.OfUser != nil {
+				if latest.OfUser.Content.OfString.String() != "" {
+					_, _ = coderdClient.TrackUserPrompts(r.Context(), &proto.TrackUserPromptsRequest{
+						Prompt: strings.TrimSpace(latest.OfUser.Content.OfString.String()),
+					})
+				} else {
+					fmt.Println()
+				}
+			}
+		}
+
+		req.Body = io.NopCloser(bytes.NewReader(body))
+
 		fmt.Printf("Proxying %s request to: %s\n", req.Method, req.URL.String())
+	}
+	proxy.ModifyResponse = func(response *http.Response) error {
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			return xerrors.Errorf("read response body: %w", err)
+		}
+		if err = response.Body.Close(); err != nil {
+			return xerrors.Errorf("close body: %w", err)
+		}
+
+		if !strings.Contains(response.Header.Get("Content-Type"), "text/event-stream") {
+			var msg openai.ChatCompletion
+
+			// TODO: check content-encoding to handle others.
+			gr, err := gzip.NewReader(bytes.NewReader(body))
+			if err != nil {
+				return xerrors.Errorf("parse gzip-encoded body: %w", err)
+			}
+
+			err = json.NewDecoder(gr).Decode(&msg)
+			if err != nil {
+				return xerrors.Errorf("parse non-streaming body: %w", err)
+			}
+
+			_, _ = coderdClient.TrackTokenUsage(r.Context(), &proto.TrackTokenUsageRequest{
+				MsgId:        msg.ID,
+				InputTokens:  msg.Usage.PromptTokens,
+				OutputTokens: msg.Usage.CompletionTokens,
+			})
+
+			response.Body = io.NopCloser(bytes.NewReader(body))
+			return nil
+		}
+
+		response.Body = io.NopCloser(bytes.NewReader(body))
+		stream := openai_ssestream.NewStream[openai.ChatCompletionChunk](openai_ssestream.NewDecoder(response), nil)
+
+		var (
+			inputToks, outputToks int64
+		)
+
+		var msg openai.ChatCompletionAccumulator
+		for stream.Next() {
+			chunk := stream.Current()
+			msg.AddChunk(chunk)
+
+			if msg.Usage.PromptTokens+msg.Usage.CompletionTokens > 0 {
+				inputToks = msg.Usage.PromptTokens
+				outputToks = msg.Usage.CompletionTokens
+			}
+		}
+
+		_, _ = coderdClient.TrackTokenUsage(r.Context(), &proto.TrackTokenUsageRequest{
+			MsgId:        msg.ID,
+			InputTokens:  inputToks,
+			OutputTokens: outputToks,
+		})
+
+		response.Body = io.NopCloser(bytes.NewReader(body))
+
+		return nil
 	}
 	proxy.ServeHTTP(w, r)
 }
@@ -207,7 +288,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 		}
 
 		response.Body = io.NopCloser(bytes.NewReader(body))
-		stream := ssestream.NewStream[anthropic.MessageStreamEventUnion](ssestream.NewDecoder(response), nil)
+		stream := ant_ssestream.NewStream[anthropic.MessageStreamEventUnion](ant_ssestream.NewDecoder(response), nil)
 
 		var (
 			inputToks, outputToks int64
