@@ -319,7 +319,7 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 	// For organization level path-based apps, block access if path app sharing is disabled
 	// and the user is not in the same organization
 	if isPathApp &&
-		sharingLevel == database.AppSharingLevelOrganization &&
+		sharingLevel == database.SharingLevelOrganization &&
 		!p.DeploymentValues.Dangerous.AllowPathAppSharing.Value() {
 		// Check if user is in the same organization as the workspace
 		workspaceOrgID := dbReq.Workspace.OrganizationID

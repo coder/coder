@@ -13789,7 +13789,7 @@ type UpsertWorkspaceAgentPortShareParams struct {
 	WorkspaceID uuid.UUID         `db:"workspace_id" json:"workspace_id"`
 	AgentName   string            `db:"agent_name" json:"agent_name"`
 	Port        int32             `db:"port" json:"port"`
-	ShareLevel  AppSharingLevel   `db:"share_level" json:"share_level"`
+	ShareLevel  PortSharingLevel  `db:"share_level" json:"share_level"`
 	Protocol    PortShareProtocol `db:"protocol" json:"protocol"`
 }
 

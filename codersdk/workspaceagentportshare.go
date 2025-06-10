@@ -9,19 +9,23 @@ import (
 	"github.com/google/uuid"
 )
 
+type WorkspaceAgentPortShareLevel string
+
 const (
 	WorkspaceAgentPortShareLevelOwner         WorkspaceAgentPortShareLevel = "owner"
 	WorkspaceAgentPortShareLevelAuthenticated WorkspaceAgentPortShareLevel = "authenticated"
 	WorkspaceAgentPortShareLevelOrganization  WorkspaceAgentPortShareLevel = "organization"
 	WorkspaceAgentPortShareLevelPublic        WorkspaceAgentPortShareLevel = "public"
+)
 
+type WorkspaceAgentPortShareProtocol string
+
+const (
 	WorkspaceAgentPortShareProtocolHTTP  WorkspaceAgentPortShareProtocol = "http"
 	WorkspaceAgentPortShareProtocolHTTPS WorkspaceAgentPortShareProtocol = "https"
 )
 
 type (
-	WorkspaceAgentPortShareLevel         string
-	WorkspaceAgentPortShareProtocol      string
 	UpsertWorkspaceAgentPortShareRequest struct {
 		AgentName  string                          `json:"agent_name"`
 		Port       int32                           `json:"port"`

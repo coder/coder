@@ -18,7 +18,6 @@ CREATE TYPE api_key_scope AS ENUM (
 CREATE TYPE app_sharing_level AS ENUM (
     'owner',
     'authenticated',
-    'organization',
     'public'
 );
 
@@ -168,6 +167,13 @@ CREATE TYPE parameter_type_system AS ENUM (
 CREATE TYPE port_share_protocol AS ENUM (
     'http',
     'https'
+);
+
+CREATE TYPE port_sharing_level AS ENUM (
+    'owner',
+    'authenticated',
+    'organization',
+    'public'
 );
 
 CREATE TYPE prebuild_status AS ENUM (
@@ -1811,7 +1817,7 @@ CREATE TABLE workspace_agent_port_share (
     workspace_id uuid NOT NULL,
     agent_name text NOT NULL,
     port integer NOT NULL,
-    share_level app_sharing_level NOT NULL,
+    share_level port_sharing_level NOT NULL,
     protocol port_share_protocol DEFAULT 'http'::port_share_protocol NOT NULL
 );
 
