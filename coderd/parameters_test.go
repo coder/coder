@@ -249,6 +249,7 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 					Value: "GO",
 				},
 			}
+			request.EnableDynamicParameters = true
 		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, wrk.LatestBuild.ID)
 
