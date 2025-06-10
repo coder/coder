@@ -15,6 +15,14 @@ import (
 )
 
 func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
+	parentID := uuid.Nil
+	if pid := manifest.GetParentId(); pid != nil {
+		var err error
+		parentID, err = uuid.FromBytes(pid)
+		if err != nil {
+			return Manifest{}, xerrors.Errorf("error converting workspace agent parent ID: %w", err)
+		}
+	}
 	apps, err := AppsFromProto(manifest.Apps)
 	if err != nil {
 		return Manifest{}, xerrors.Errorf("error converting workspace agent apps: %w", err)
@@ -36,6 +44,7 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 		return Manifest{}, xerrors.Errorf("error converting workspace agent devcontainers: %w", err)
 	}
 	return Manifest{
+		ParentID:                 parentID,
 		AgentID:                  agentID,
 		AgentName:                manifest.AgentName,
 		OwnerName:                manifest.OwnerUsername,
@@ -62,6 +71,7 @@ func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 		return nil, xerrors.Errorf("convert workspace apps: %w", err)
 	}
 	return &proto.Manifest{
+		ParentId:      manifest.ParentID[:],
 		AgentId:       manifest.AgentID[:],
 		AgentName:     manifest.AgentName,
 		OwnerUsername: manifest.OwnerName,

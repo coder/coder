@@ -1080,6 +1080,18 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		if manifest.AgentID == uuid.Nil {
 			return xerrors.New("nil agentID returned by manifest")
 		}
+		if manifest.ParentID != uuid.Nil {
+			// This is a sub agent, disable all the features that should not
+			// be used by sub agents.
+			a.logger.Debug(ctx, "sub agent detected, disabling features",
+				slog.F("parent_id", manifest.ParentID),
+				slog.F("agent_id", manifest.AgentID),
+			)
+			if a.experimentalDevcontainersEnabled {
+				a.logger.Info(ctx, "devcontainers are not supported on sub agents, disabling feature")
+				a.experimentalDevcontainersEnabled = false
+			}
+		}
 		a.client.RewriteDERPMap(manifest.DERPMap)
 
 		// Expand the directory and send it back to coderd so external
