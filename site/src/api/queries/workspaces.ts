@@ -279,7 +279,7 @@ const updateWorkspaceBuild = async (
 	queryClient: QueryClient,
 ) => {
 	const workspaceKey = workspaceByOwnerAndNameKey(
-		build.workspace_owner_username,
+		build.workspace_owner_name,
 		build.workspace_name,
 	);
 	const previousData = queryClient.getQueryData<Workspace>(workspaceKey);

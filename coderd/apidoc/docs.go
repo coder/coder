@@ -17002,6 +17002,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "owner_name": {
+                    "description": "OwnerName is the username of the owner of the workspace.",
                     "type": "string"
                 },
                 "template_active_version_id": {
@@ -17847,9 +17848,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "workspace_owner_name": {
-                    "type": "string"
-                },
-                "workspace_owner_username": {
+                    "description": "WorkspaceOwnerName is the username of the owner of the workspace.",
                     "type": "string"
                 }
             }
