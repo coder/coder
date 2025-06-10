@@ -64,7 +64,7 @@ type fakeDevcontainerCLI struct {
 	upErr    error
 	upErrC   chan error // If set, send to return err, close to return upErr.
 	execErr  error
-	execErrC chan error // If set, send to return err, close to return execErr.
+	execErrC chan func(cmd string, args ...string) error // If set, send fn to return err, nil or close to return execErr.
 }
 
 func (f *fakeDevcontainerCLI) Up(ctx context.Context, _, _ string, _ ...agentcontainers.DevcontainerCLIUpOptions) (string, error) {
@@ -81,14 +81,14 @@ func (f *fakeDevcontainerCLI) Up(ctx context.Context, _, _ string, _ ...agentcon
 	return f.upID, f.upErr
 }
 
-func (f *fakeDevcontainerCLI) Exec(ctx context.Context, _, _ string, _ string, _ []string, _ ...agentcontainers.DevcontainerCLIExecOptions) error {
+func (f *fakeDevcontainerCLI) Exec(ctx context.Context, _, _ string, cmd string, args []string, _ ...agentcontainers.DevcontainerCLIExecOptions) error {
 	if f.execErrC != nil {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case err, ok := <-f.execErrC:
-			if ok {
-				return err
+		case fn, ok := <-f.execErrC:
+			if ok && fn != nil {
+				return fn(cmd, args...)
 			}
 		}
 	}
@@ -1239,16 +1239,17 @@ func TestAPI(t *testing.T) {
 		}
 
 		var (
-			ctx     = testutil.Context(t, testutil.WaitMedium)
-			logger  = slog.Make()
-			mClock  = quartz.NewMock(t)
-			mCCLI   = acmock.NewMockContainerCLI(gomock.NewController(t))
-			fakeSAC = &fakeSubAgentClient{
+			ctx                = testutil.Context(t, testutil.WaitMedium)
+			errTestTermination = xerrors.New("test termination")
+			logger             = slogtest.Make(t, &slogtest.Options{IgnoredErrorIs: []error{errTestTermination}}).Leveled(slog.LevelDebug)
+			mClock             = quartz.NewMock(t)
+			mCCLI              = acmock.NewMockContainerCLI(gomock.NewController(t))
+			fakeSAC            = &fakeSubAgentClient{
 				createErrC: make(chan error, 1),
 				deleteErrC: make(chan error, 1),
 			}
 			fakeDCCLI = &fakeDevcontainerCLI{
-				execErrC: make(chan error, 1),
+				execErrC: make(chan func(cmd string, args ...string) error, 1),
 			}
 
 			testContainer = codersdk.WorkspaceAgentContainer{
@@ -1263,8 +1264,6 @@ func TestAPI(t *testing.T) {
 				},
 			}
 		)
-
-		defer close(fakeDCCLI.execErrC)
 
 		coderBin, err := os.Executable()
 		require.NoError(t, err)
@@ -1287,22 +1286,30 @@ func TestAPI(t *testing.T) {
 		api := agentcontainers.NewAPI(logger,
 			agentcontainers.WithClock(mClock),
 			agentcontainers.WithContainerCLI(mCCLI),
+			agentcontainers.WithWatcher(watcher.NewNoop()),
 			agentcontainers.WithSubAgentClient(fakeSAC),
 			agentcontainers.WithSubAgentURL("test-subagent-url"),
 			agentcontainers.WithDevcontainerCLI(fakeDCCLI),
 		)
 		defer api.Close()
 
-		// Allow initial agent creation to succeed.
+		// Close before api.Close() defer to avoid deadlock after test.
+		defer close(fakeSAC.createErrC)
+		defer close(fakeSAC.deleteErrC)
+		defer close(fakeDCCLI.execErrC)
+
+		// Allow initial agent creation and injection to succeed.
 		testutil.RequireSend(ctx, t, fakeSAC.createErrC, nil)
+		testutil.RequireSend(ctx, t, fakeDCCLI.execErrC, func(cmd string, args ...string) error {
+			assert.Equal(t, "pwd", cmd)
+			assert.Empty(t, args)
+			return nil
+		}) // Exec pwd.
 
 		// Make sure the ticker function has been registered
 		// before advancing the clock.
 		tickerTrap.MustWait(ctx).MustRelease(ctx)
 		tickerTrap.Close()
-
-		// Pre-populate for next iteration (also verify previous consumption).
-		testutil.RequireSend(ctx, t, fakeSAC.createErrC, nil)
 
 		// Ensure we only inject the agent once.
 		for i := range 3 {
@@ -1318,6 +1325,8 @@ func TestAPI(t *testing.T) {
 			assert.Len(t, fakeSAC.deleted, 0)
 		}
 
+		t.Log("Agent injected successfully, now testing cleanup and reinjection...")
+
 		// Expect the agent to be reinjected.
 		gomock.InOrder(
 			mCCLI.EXPECT().DetectArchitecture(gomock.Any(), "test-container-id").Return(runtime.GOARCH, nil),
@@ -1329,16 +1338,35 @@ func TestAPI(t *testing.T) {
 		)
 
 		// Terminate the agent and verify it is deleted.
-		testutil.RequireSend(ctx, t, fakeDCCLI.execErrC, nil)
+		testutil.RequireSend(ctx, t, fakeDCCLI.execErrC, func(_ string, args ...string) error {
+			if len(args) > 0 {
+				assert.Equal(t, "agent", args[0])
+			} else {
+				assert.Fail(t, `want "agent" command argument`)
+			}
+			return errTestTermination
+		})
 
 		// Allow cleanup to proceed.
-		testutil.RequireSend(ctx, t, fakeSAC.deleteErrC, xerrors.New("test termination"))
+		testutil.RequireSend(ctx, t, fakeSAC.deleteErrC, nil)
+
+		t.Log("Waiting for agent recreation...")
+
+		// Allow agent recreation and reinjection to succeed.
+		testutil.RequireSend(ctx, t, fakeSAC.createErrC, nil)
+		testutil.RequireSend(ctx, t, fakeDCCLI.execErrC, func(cmd string, args ...string) error {
+			assert.Equal(t, "pwd", cmd)
+			assert.Empty(t, args)
+			return nil
+		}) // Exec pwd.
 
 		// Wait until the agent recreation is started.
 		for len(fakeSAC.createErrC) > 0 {
 			_, aw := mClock.AdvanceNext()
 			aw.MustWait(ctx)
 		}
+
+		t.Log("Agent recreated successfully.")
 
 		// Verify agent was deleted.
 		require.Len(t, fakeSAC.deleted, 1)

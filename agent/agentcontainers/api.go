@@ -1,9 +1,11 @@
 package agentcontainers
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path"
@@ -1075,17 +1077,30 @@ func (api *API) injectSubAgentIntoContainerLocked(ctx context.Context, dc coders
 		logger.Warn(ctx, "set CAP_NET_ADMIN on agent binary failed", slog.Error(err))
 	}
 
+	// Detect workspace folder by executing `pwd` in the container.
+	// NOTE(mafredri): This is a quick and dirty way to detect the
+	// workspace folder inside the container. In the future we will
+	// rely more on `devcontainer read-configuration`.
+	var pwdBuf bytes.Buffer
+	err = api.dccli.Exec(ctx, dc.WorkspaceFolder, dc.ConfigPath, "pwd", []string{},
+		WithExecOutput(&pwdBuf, io.Discard),
+		WithExecContainerID(container.ID),
+	)
+	if err != nil {
+		return xerrors.Errorf("check workspace folder in container: %w", err)
+	}
+	directory := strings.TrimSpace(pwdBuf.String())
+	if directory == "" {
+		logger.Warn(ctx, "detected workspace folder is empty, using default workspace folder",
+			slog.F("default_workspace_folder", DevcontainerDefaultContainerWorkspaceFolder))
+		directory = DevcontainerDefaultContainerWorkspaceFolder
+	}
+
 	// The preparation of the subagent is done, now we can create the
 	// subagent record in the database to receive the auth token.
 	createdAgent, err := api.subAgentClient.Create(ctx, SubAgent{
-		Name: dc.Name,
-		// The default workspaceFolder for devcontainers is /workspaces.
-		// However, it can be changed by setting {"workspaceFolder": "/src"}
-		// in the devcontainer.json. This information is not encoded into
-		// the container labels, so we must rely on the values parsed from
-		// the devcontainer.json file on disk.
-		// TODO(mafredri): Support custom workspace folders in the future.
-		Directory:       DevcontainerDefaultContainerWorkspaceFolder,
+		Name:            dc.Name,
+		Directory:       directory,
 		OperatingSystem: "linux", // Assuming Linux for dev containers.
 		Architecture:    arch,
 	})
@@ -1166,9 +1181,9 @@ func (api *API) runSubAgentInContainer(ctx context.Context, dc codersdk.Workspac
 	)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		logger.Error(ctx, "subagent process failed", slog.Error(err))
+	} else {
+		logger.Info(ctx, "subagent process finished")
 	}
-
-	logger.Info(ctx, "subagent process finished")
 }
 
 func (api *API) Close() error {

@@ -2238,6 +2238,10 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 	require.NoError(t, err, "failed to parse sub-agent ID")
 	t.Logf("Connecting to sub-agent: %s (ID: %s)", subAgent.Name, subAgentID)
 
+	gotDir, err := agentClient.GetSubAgentDirectory(subAgentID)
+	require.NoError(t, err, "failed to get sub-agent directory")
+	require.Equal(t, "/workspaces/mywork", gotDir, "sub-agent directory should match")
+
 	subAgentToken, err := uuid.FromBytes(subAgent.GetAuthToken())
 	require.NoError(t, err, "failed to parse sub-agent token")
 

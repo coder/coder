@@ -167,6 +167,10 @@ func (c *Client) GetSubAgents() []*agentproto.SubAgent {
 	return c.fakeAgentAPI.GetSubAgents()
 }
 
+func (c *Client) GetSubAgentDirectory(id uuid.UUID) (string, error) {
+	return c.fakeAgentAPI.GetSubAgentDirectory(id)
+}
+
 type FakeAgentAPI struct {
 	sync.Mutex
 	t      testing.TB
@@ -182,6 +186,7 @@ type FakeAgentAPI struct {
 	timings           []*agentproto.Timing
 	connectionReports []*agentproto.ReportConnectionRequest
 	subAgents         map[uuid.UUID]*agentproto.SubAgent
+	subAgentDirs      map[uuid.UUID]string
 
 	getAnnouncementBannersFunc              func() ([]codersdk.BannerConfig, error)
 	getResourcesMonitoringConfigurationFunc func() (*agentproto.GetResourcesMonitoringConfigurationResponse, error)
@@ -392,6 +397,10 @@ func (f *FakeAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Creat
 		f.subAgents = make(map[uuid.UUID]*agentproto.SubAgent)
 	}
 	f.subAgents[subAgentID] = subAgent
+	if f.subAgentDirs == nil {
+		f.subAgentDirs = make(map[uuid.UUID]string)
+	}
+	f.subAgentDirs[subAgentID] = req.GetDirectory()
 
 	// For a fake implementation, we don't create workspace apps.
 	// Real implementations would handle req.Apps here.
@@ -450,6 +459,22 @@ func (f *FakeAgentAPI) GetSubAgents() []*agentproto.SubAgent {
 		}
 	}
 	return agents
+}
+
+func (f *FakeAgentAPI) GetSubAgentDirectory(id uuid.UUID) (string, error) {
+	f.Lock()
+	defer f.Unlock()
+
+	if f.subAgentDirs == nil {
+		return "", xerrors.New("no sub-agent directories available")
+	}
+
+	dir, ok := f.subAgentDirs[id]
+	if !ok {
+		return "", xerrors.New("sub-agent directory not found")
+	}
+
+	return dir, nil
 }
 
 func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest, statsCh chan *agentproto.Stats) *FakeAgentAPI {
