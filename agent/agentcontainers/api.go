@@ -43,7 +43,7 @@ type API struct {
 	logger            slog.Logger
 	watcher           watcher.Watcher
 	execer            agentexec.Execer
-	cl                Lister
+	ccli              ContainerCLI
 	dccli             DevcontainerCLI
 	clock             quartz.Clock
 	scriptLogger      func(logSourceID uuid.UUID) ScriptLogger
@@ -80,11 +80,11 @@ func WithExecer(execer agentexec.Execer) Option {
 	}
 }
 
-// WithLister sets the agentcontainers.Lister implementation to use.
-// The default implementation uses the Docker CLI to list containers.
-func WithLister(cl Lister) Option {
+// WithContainerCLI sets the agentcontainers.ContainerCLI implementation
+// to use. The default implementation uses the Docker CLI.
+func WithContainerCLI(ccli ContainerCLI) Option {
 	return func(api *API) {
-		api.cl = cl
+		api.ccli = ccli
 	}
 }
 
@@ -186,8 +186,8 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 	for _, opt := range options {
 		opt(api)
 	}
-	if api.cl == nil {
-		api.cl = NewDocker(api.execer)
+	if api.ccli == nil {
+		api.ccli = NewDockerCLI(api.execer)
 	}
 	if api.dccli == nil {
 		api.dccli = NewDevcontainerCLI(logger.Named("devcontainer-cli"), api.execer)
@@ -363,7 +363,7 @@ func (api *API) updateContainers(ctx context.Context) error {
 	listCtx, listCancel := context.WithTimeout(ctx, listContainersTimeout)
 	defer listCancel()
 
-	updated, err := api.cl.List(listCtx)
+	updated, err := api.ccli.List(listCtx)
 	if err != nil {
 		// If the context was canceled, we hold off on clearing the
 		// containers cache. This is to avoid clearing the cache if
@@ -378,6 +378,8 @@ func (api *API) updateContainers(ctx context.Context) error {
 
 		return xerrors.Errorf("list containers failed: %w", err)
 	}
+	// Clone to avoid test flakes due to data manipulation.
+	updated.Containers = slices.Clone(updated.Containers)
 
 	api.mu.Lock()
 	defer api.mu.Unlock()
@@ -682,7 +684,7 @@ func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, con
 
 	logger.Debug(ctx, "starting devcontainer recreation")
 
-	_, err = api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, WithOutput(infoW, errW), WithRemoveExistingContainer())
+	_, err = api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, WithUpOutput(infoW, errW), WithRemoveExistingContainer())
 	if err != nil {
 		// No need to log if the API is closing (context canceled), as this
 		// is expected behavior when the API is shutting down.

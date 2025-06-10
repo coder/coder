@@ -388,10 +388,62 @@ message CreateSubAgentRequest {
 	string directory = 2;
 	string architecture = 3;
 	string operating_system = 4;
+
+	message App {
+		message Healthcheck {
+			int32 interval = 1;
+			int32 threshold = 2;
+			string url = 3;
+		}
+
+		enum OpenIn {
+			SLIM_WINDOW = 0;
+			TAB = 1;
+		}
+
+		enum Share {
+			OWNER = 0;
+			AUTHENTICATED = 1;
+			PUBLIC = 2;
+		}
+
+		string slug = 1;
+		optional string command = 2;
+		optional string display_name = 3;
+		optional bool external = 4;
+		optional string group = 5;
+		optional Healthcheck healthcheck = 6;
+		optional bool hidden = 7;
+		optional string icon = 8;
+		optional OpenIn open_in = 9;
+		optional int32 order = 10;
+		optional Share share = 11;
+		optional bool subdomain = 12;
+		optional string url = 13;
+	}
+
+	repeated App apps = 5;
+
+	enum DisplayApp {
+		VSCODE = 0;
+		VSCODE_INSIDERS = 1;
+		WEB_TERMINAL = 2;
+		SSH_HELPER = 3;
+		PORT_FORWARDING_HELPER = 4;
+	}
+
+	repeated DisplayApp display_apps = 6;
 }
 
 message CreateSubAgentResponse {
+	message AppCreationError {
+		int32 index = 1;
+		optional string field = 2;
+		string error = 3;
+	}
+
 	SubAgent agent = 1;
+	repeated AppCreationError app_creation_errors = 2;
 }
 
 message DeleteSubAgentRequest {

@@ -304,14 +304,17 @@
 							"children": [
 								{
 									"title": "Up to 1,000 Users",
+									"description": "Hardware specifications and architecture guidance for Coder deployments that support up to 1,000 users",
 									"path": "./admin/infrastructure/validated-architectures/1k-users.md"
 								},
 								{
 									"title": "Up to 2,000 Users",
+									"description": "Hardware specifications and architecture guidance for Coder deployments that support up to 2,000 users",
 									"path": "./admin/infrastructure/validated-architectures/2k-users.md"
 								},
 								{
 									"title": "Up to 3,000 Users",
+									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 3,000 users",
 									"path": "./admin/infrastructure/validated-architectures/3k-users.md"
 								}
 							]
@@ -341,42 +344,51 @@
 					"children": [
 						{
 							"title": "OIDC Authentication",
+							"description": "Configure OpenID Connect authentication with identity providers like Okta or Active Directory",
 							"path": "./admin/users/oidc-auth.md"
 						},
 						{
 							"title": "GitHub Authentication",
+							"description": "Set up authentication through GitHub OAuth to enable secure user login and sign-up",
 							"path": "./admin/users/github-auth.md"
 						},
 						{
 							"title": "Password Authentication",
+							"description": "Manage username/password authentication settings and user password reset workflows",
 							"path": "./admin/users/password-auth.md"
 						},
 						{
 							"title": "Headless Authentication",
+							"description": "Create and manage headless service accounts for automated systems and API integrations",
 							"path": "./admin/users/headless-auth.md"
 						},
 						{
 							"title": "Groups \u0026 Roles",
+							"description": "Manage access control with user groups and role-based permissions for Coder resources",
 							"path": "./admin/users/groups-roles.md",
 							"state": ["premium"]
 						},
 						{
 							"title": "IdP Sync",
+							"description": "Synchronize user groups, roles, and organizations from your identity provider to Coder",
 							"path": "./admin/users/idp-sync.md",
 							"state": ["premium"]
 						},
 						{
 							"title": "Organizations",
+							"description": "Segment and isolate resources by creating separate organizations for different teams or projects",
 							"path": "./admin/users/organizations.md",
 							"state": ["premium"]
 						},
 						{
 							"title": "Quotas",
+							"description": "Control resource usage by implementing workspace budgets and credit-based cost management",
 							"path": "./admin/users/quotas.md",
 							"state": ["premium"]
 						},
 						{
 							"title": "Sessions \u0026 API Tokens",
+							"description": "Manage authentication tokens for API access and configure session duration policies",
 							"path": "./admin/users/sessions-tokens.md"
 						}
 					]

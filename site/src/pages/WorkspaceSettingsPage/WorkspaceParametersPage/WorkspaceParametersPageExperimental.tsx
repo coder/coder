@@ -24,7 +24,7 @@ import type { FC } from "react";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
@@ -40,6 +40,8 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	const workspace = useWorkspaceSettings();
 	const navigate = useNavigate();
 	const experimentalFormContext = useContext(ExperimentalFormContext);
+	const [searchParams] = useSearchParams();
+	const templateVersionId = searchParams.get("templateVersionId") ?? undefined;
 
 	// autofill the form with the workspace build parameters from the latest build
 	const {
@@ -107,10 +109,11 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	});
 
 	useEffect(() => {
-		if (!workspace.latest_build.template_version_id) return;
+		if (!templateVersionId && !workspace.latest_build.template_version_id)
+			return;
 
 		const socket = API.templateVersionDynamicParameters(
-			workspace.latest_build.template_version_id,
+			templateVersionId ?? workspace.latest_build.template_version_id,
 			{
 				onMessage,
 				onError: (error) => {
@@ -136,12 +139,17 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		return () => {
 			socket.close();
 		};
-	}, [workspace.latest_build.template_version_id, onMessage]);
+	}, [
+		templateVersionId,
+		workspace.latest_build.template_version_id,
+		onMessage,
+	]);
 
 	const updateParameters = useMutation({
 		mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
 			API.postWorkspaceBuild(workspace.id, {
 				transition: "start",
+				template_version_id: templateVersionId,
 				rich_parameter_values: buildParameters,
 			}),
 		onSuccess: () => {
@@ -250,6 +258,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 
 			{sortedParams.length > 0 ? (
 				<WorkspaceParametersPageViewExperimental
+					templateVersionId={templateVersionId}
 					workspace={workspace}
 					autofillParameters={autofillParameters}
 					canChangeVersions={canChangeVersions}

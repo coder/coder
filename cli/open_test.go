@@ -306,7 +306,7 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 	containerFolder := "/workspace/coder"
 
 	ctrl := gomock.NewController(t)
-	mcl := acmock.NewMockLister(ctrl)
+	mcl := acmock.NewMockContainerCLI(ctrl)
 	mcl.EXPECT().List(gomock.Any()).Return(
 		codersdk.WorkspaceAgentListContainersResponse{
 			Containers: []codersdk.WorkspaceAgentContainer{
@@ -337,7 +337,7 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 
 	_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
 		o.ExperimentalDevcontainersEnabled = true
-		o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithLister(mcl))
+		o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithContainerCLI(mcl))
 	})
 	_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
@@ -481,7 +481,7 @@ func TestOpenVSCodeDevContainer_NoAgentDirectory(t *testing.T) {
 	containerFolder := "/workspace/coder"
 
 	ctrl := gomock.NewController(t)
-	mcl := acmock.NewMockLister(ctrl)
+	mcl := acmock.NewMockContainerCLI(ctrl)
 	mcl.EXPECT().List(gomock.Any()).Return(
 		codersdk.WorkspaceAgentListContainersResponse{
 			Containers: []codersdk.WorkspaceAgentContainer{
@@ -511,7 +511,7 @@ func TestOpenVSCodeDevContainer_NoAgentDirectory(t *testing.T) {
 
 	_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
 		o.ExperimentalDevcontainersEnabled = true
-		o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithLister(mcl))
+		o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithContainerCLI(mcl))
 	})
 	_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 

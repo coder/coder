@@ -144,6 +144,88 @@ func TestTokenUserSetMaxLifetime(t *testing.T) {
 	require.ErrorContains(t, err, "lifetime must be less")
 }
 
+func TestTokenAdminSetMaxLifetime(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	dc := coderdtest.DeploymentValues(t)
+	dc.Sessions.MaximumTokenDuration = serpent.Duration(time.Hour * 24 * 7)
+	dc.Sessions.MaximumAdminTokenDuration = serpent.Duration(time.Hour * 24 * 14)
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: dc,
+	})
+	adminUser := coderdtest.CreateFirstUser(t, client)
+	nonAdminClient, _ := coderdtest.CreateAnotherUser(t, client, adminUser.OrganizationID)
+
+	// Admin should be able to create a token with a lifetime longer than the non-admin max.
+	_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		Lifetime: time.Hour * 24 * 10,
+	})
+	require.NoError(t, err)
+
+	// Admin should NOT be able to create a token with a lifetime longer than the admin max.
+	_, err = client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		Lifetime: time.Hour * 24 * 15,
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "lifetime must be less")
+
+	// Non-admin should NOT be able to create a token with a lifetime longer than the non-admin max.
+	_, err = nonAdminClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		Lifetime: time.Hour * 24 * 8,
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "lifetime must be less")
+
+	// Non-admin should be able to create a token with a lifetime shorter than the non-admin max.
+	_, err = nonAdminClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		Lifetime: time.Hour * 24 * 6,
+	})
+	require.NoError(t, err)
+}
+
+func TestTokenAdminSetMaxLifetimeShorter(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	dc := coderdtest.DeploymentValues(t)
+	dc.Sessions.MaximumTokenDuration = serpent.Duration(time.Hour * 24 * 14)
+	dc.Sessions.MaximumAdminTokenDuration = serpent.Duration(time.Hour * 24 * 7)
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: dc,
+	})
+	adminUser := coderdtest.CreateFirstUser(t, client)
+	nonAdminClient, _ := coderdtest.CreateAnotherUser(t, client, adminUser.OrganizationID)
+
+	// Admin should NOT be able to create a token with a lifetime longer than the admin max.
+	_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		Lifetime: time.Hour * 24 * 8,
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "lifetime must be less")
+
+	// Admin should be able to create a token with a lifetime shorter than the admin max.
+	_, err = client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		Lifetime: time.Hour * 24 * 6,
+	})
+	require.NoError(t, err)
+
+	// Non-admin should be able to create a token with a lifetime longer than the admin max.
+	_, err = nonAdminClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		Lifetime: time.Hour * 24 * 10,
+	})
+	require.NoError(t, err)
+
+	// Non-admin should NOT be able to create a token with a lifetime longer than the non-admin max.
+	_, err = nonAdminClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		Lifetime: time.Hour * 24 * 15,
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "lifetime must be less")
+}
+
 func TestTokenCustomDefaultLifetime(t *testing.T) {
 	t.Parallel()
 

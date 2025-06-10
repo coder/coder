@@ -5,6 +5,7 @@ import type {
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
+import { Label } from "components/Label/Label";
 import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
@@ -30,6 +31,7 @@ type WorkspaceParametersPageViewExperimentalProps = {
 		rich_parameter_values: WorkspaceBuildParameter[];
 	}) => void;
 	sendMessage: (formValues: Record<string, string>) => void;
+	templateVersionId: string | undefined;
 };
 
 export const WorkspaceParametersPageViewExperimental: FC<
@@ -44,6 +46,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	onSubmit,
 	sendMessage,
 	onCancel,
+	templateVersionId,
 }) => {
 	const autofillByName = Object.fromEntries(
 		autofillParameters.map((param) => [param.name, param]),
@@ -152,6 +155,15 @@ export const WorkspaceParametersPageViewExperimental: FC<
 				</div>
 			)}
 
+			{(templateVersionId || workspace.latest_build.template_version_id) && (
+				<div className="flex flex-col gap-2">
+					<Label className="text-sm text-content-secondary">Version ID</Label>
+					<p className="m-0 text-sm font-medium">
+						{templateVersionId ?? workspace.latest_build.template_version_id}
+					</p>
+				</div>
+			)}
+
 			<form onSubmit={form.handleSubmit} className="flex flex-col gap-8">
 				{standardParameters.length > 0 && (
 					<section className="flex flex-col gap-9">
@@ -236,10 +248,21 @@ export const WorkspaceParametersPageViewExperimental: FC<
 					</Button>
 					<Button
 						type="submit"
-						disabled={isSubmitting || disabled || !form.dirty}
+						disabled={
+							isSubmitting ||
+							disabled ||
+							diagnostics.some(
+								(diagnostic) => diagnostic.severity === "error",
+							) ||
+							parameters.some((parameter) =>
+								parameter.diagnostics.some(
+									(diagnostic) => diagnostic.severity === "error",
+								),
+							)
+						}
 					>
 						<Spinner loading={isSubmitting} />
-						Submit and restart
+						Update and restart
 					</Button>
 				</div>
 			</form>
