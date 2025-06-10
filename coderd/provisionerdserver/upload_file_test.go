@@ -112,12 +112,7 @@ func TestUploadFileErrorScenarios(t *testing.T) {
 			messages: make(chan *proto.UploadFileRequest, 2),
 		}
 
-		up := &proto.UploadFileRequest{Type: &proto.UploadFileRequest_DataUpload{DataUpload: &proto.DataUpload{
-			UploadType: proto.DataUploadType(upload.UploadType),
-			DataHash:   upload.DataHash,
-			FileSize:   upload.FileSize,
-			Chunks:     upload.Chunks,
-		}}}
+		up := &proto.UploadFileRequest{Type: &proto.UploadFileRequest_DataUpload{DataUpload: upload}}
 
 		// Send it twice
 		stream.messages <- up
@@ -184,20 +179,11 @@ func newMockUploadStream(up *sdkproto.DataUpload, chunks ...*sdkproto.ChunkPiece
 		messages: make(chan *proto.UploadFileRequest, 1+len(chunks)),
 	}
 	if up != nil {
-		stream.messages <- &proto.UploadFileRequest{Type: &proto.UploadFileRequest_DataUpload{DataUpload: &proto.DataUpload{
-			UploadType: proto.DataUploadType(up.UploadType),
-			DataHash:   up.DataHash,
-			FileSize:   up.FileSize,
-			Chunks:     up.Chunks,
-		}}}
+		stream.messages <- &proto.UploadFileRequest{Type: &proto.UploadFileRequest_DataUpload{DataUpload: up}}
 	}
 
 	for _, chunk := range chunks {
-		stream.messages <- &proto.UploadFileRequest{Type: &proto.UploadFileRequest_ChunkPiece{ChunkPiece: &proto.ChunkPiece{
-			Data:         chunk.Data,
-			FullDataHash: chunk.FullDataHash,
-			PieceIndex:   chunk.PieceIndex,
-		}}}
+		stream.messages <- &proto.UploadFileRequest{Type: &proto.UploadFileRequest_ChunkPiece{ChunkPiece: chunk}}
 	}
 	close(stream.messages)
 	return stream
