@@ -137,6 +137,7 @@ type AppSharingLevel string
 const (
 	AppSharingLevelOwner         AppSharingLevel = "owner"
 	AppSharingLevelAuthenticated AppSharingLevel = "authenticated"
+	AppSharingLevelOrganization  AppSharingLevel = "organization"
 	AppSharingLevelPublic        AppSharingLevel = "public"
 )
 
@@ -179,6 +180,7 @@ func (e AppSharingLevel) Valid() bool {
 	switch e {
 	case AppSharingLevelOwner,
 		AppSharingLevelAuthenticated,
+		AppSharingLevelOrganization,
 		AppSharingLevelPublic:
 		return true
 	}
@@ -189,6 +191,7 @@ func AllAppSharingLevelValues() []AppSharingLevel {
 	return []AppSharingLevel{
 		AppSharingLevelOwner,
 		AppSharingLevelAuthenticated,
+		AppSharingLevelOrganization,
 		AppSharingLevelPublic,
 	}
 }
@@ -1426,70 +1429,6 @@ func AllPortShareProtocolValues() []PortShareProtocol {
 	return []PortShareProtocol{
 		PortShareProtocolHttp,
 		PortShareProtocolHttps,
-	}
-}
-
-type PortSharingLevel string
-
-const (
-	PortSharingLevelOwner         PortSharingLevel = "owner"
-	PortSharingLevelAuthenticated PortSharingLevel = "authenticated"
-	PortSharingLevelOrganization  PortSharingLevel = "organization"
-	PortSharingLevelPublic        PortSharingLevel = "public"
-)
-
-func (e *PortSharingLevel) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = PortSharingLevel(s)
-	case string:
-		*e = PortSharingLevel(s)
-	default:
-		return fmt.Errorf("unsupported scan type for PortSharingLevel: %T", src)
-	}
-	return nil
-}
-
-type NullPortSharingLevel struct {
-	PortSharingLevel PortSharingLevel `json:"port_sharing_level"`
-	Valid            bool             `json:"valid"` // Valid is true if PortSharingLevel is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullPortSharingLevel) Scan(value interface{}) error {
-	if value == nil {
-		ns.PortSharingLevel, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.PortSharingLevel.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullPortSharingLevel) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.PortSharingLevel), nil
-}
-
-func (e PortSharingLevel) Valid() bool {
-	switch e {
-	case PortSharingLevelOwner,
-		PortSharingLevelAuthenticated,
-		PortSharingLevelOrganization,
-		PortSharingLevelPublic:
-		return true
-	}
-	return false
-}
-
-func AllPortSharingLevelValues() []PortSharingLevel {
-	return []PortSharingLevel{
-		PortSharingLevelOwner,
-		PortSharingLevelAuthenticated,
-		PortSharingLevelOrganization,
-		PortSharingLevelPublic,
 	}
 }
 
@@ -3750,7 +3689,7 @@ type WorkspaceAgentPortShare struct {
 	WorkspaceID uuid.UUID         `db:"workspace_id" json:"workspace_id"`
 	AgentName   string            `db:"agent_name" json:"agent_name"`
 	Port        int32             `db:"port" json:"port"`
-	ShareLevel  PortSharingLevel  `db:"share_level" json:"share_level"`
+	ShareLevel  AppSharingLevel   `db:"share_level" json:"share_level"`
 	Protocol    PortShareProtocol `db:"protocol" json:"protocol"`
 }
 
