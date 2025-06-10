@@ -25,7 +25,7 @@ func TestWebpushSubscribeUnsubscribe(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentWebPush)}
+
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: dv,
 	})

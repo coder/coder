@@ -478,9 +478,7 @@ func TestUpdateStates(t *testing.T) {
 			TimeNowFn: func() time.Time {
 				return now
 			},
-			Experiments: codersdk.Experiments{
-				codersdk.ExperimentWorkspaceUsage,
-			},
+			Experiments: codersdk.Experiments{},
 		}
 
 		// Workspace gets fetched.

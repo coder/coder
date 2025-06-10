@@ -444,7 +444,7 @@ func New(options *Options) *API {
 			TemplateBuildTimes: options.MetricsCacheRefreshInterval,
 			DeploymentStats:    options.AgentStatsRefreshInterval,
 		},
-		experiments.Enabled(codersdk.ExperimentWorkspaceUsage),
+		true,
 	)
 
 	oauthConfigs := &httpmw.OAuth2Configs{

@@ -27,7 +27,7 @@ func TestVSCodeSSH(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
+
 	batcher := &workspacestatstest.StatsBatcher{
 		LastStats: &agentproto.Stats{},
 	}

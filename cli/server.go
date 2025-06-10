@@ -259,8 +259,8 @@ func enablePrometheus(
 	afterCtx(ctx, closeInsightsMetricsCollector)
 
 	if vals.Prometheus.CollectAgentStats {
-		experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
-		closeAgentStatsFunc, err := prometheusmetrics.AgentStats(ctx, logger, options.PrometheusRegistry, options.Database, time.Now(), 0, options.DeploymentValues.Prometheus.AggregateAgentStatsBy.Value(), experiments.Enabled(codersdk.ExperimentWorkspaceUsage))
+
+		closeAgentStatsFunc, err := prometheusmetrics.AgentStats(ctx, logger, options.PrometheusRegistry, options.Database, time.Now(), 0, options.DeploymentValues.Prometheus.AggregateAgentStatsBy.Value(), true)
 		if err != nil {
 			return nil, xerrors.Errorf("register agent stats prometheus metric: %w", err)
 		}
@@ -814,27 +814,18 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			// Manage push notifications.
-			experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
-			if experiments.Enabled(codersdk.ExperimentWebPush) {
-				if !strings.HasPrefix(options.AccessURL.String(), "https://") {
-					options.Logger.Warn(ctx, "access URL is not HTTPS, so web push notifications may not work on some browsers", slog.F("access_url", options.AccessURL.String()))
-				}
-				webpusher, err := webpush.New(ctx, ptr.Ref(options.Logger.Named("webpush")), options.Database, options.AccessURL.String())
-				if err != nil {
-					options.Logger.Error(ctx, "failed to create web push dispatcher", slog.Error(err))
-					options.Logger.Warn(ctx, "web push notifications will not work until the VAPID keys are regenerated")
-					webpusher = &webpush.NoopWebpusher{
-						Msg: "Web Push notifications are disabled due to a system error. Please contact your Coder administrator.",
-					}
-				}
-				options.WebPushDispatcher = webpusher
-			} else {
-				options.WebPushDispatcher = &webpush.NoopWebpusher{
-					// Users will likely not see this message as the endpoints return 404
-					// if not enabled. Just in case...
-					Msg: "Web Push notifications are an experimental feature and are disabled by default. Enable the 'web-push' experiment to use this feature.",
+			if !strings.HasPrefix(options.AccessURL.String(), "https://") {
+				options.Logger.Warn(ctx, "access URL is not HTTPS, so web push notifications may not work on some browsers", slog.F("access_url", options.AccessURL.String()))
+			}
+			webpusher, err := webpush.New(ctx, ptr.Ref(options.Logger.Named("webpush")), options.Database, options.AccessURL.String())
+			if err != nil {
+				options.Logger.Error(ctx, "failed to create web push dispatcher", slog.Error(err))
+				options.Logger.Warn(ctx, "web push notifications will not work until the VAPID keys are regenerated")
+				webpusher = &webpush.NoopWebpusher{
+					Msg: "Web Push notifications are disabled due to a system error. Please contact your Coder administrator.",
 				}
 			}
+			options.WebPushDispatcher = webpusher
 
 			githubOAuth2ConfigParams, err := getGithubOAuth2ConfigParams(ctx, options.Database, vals)
 			if err != nil {
