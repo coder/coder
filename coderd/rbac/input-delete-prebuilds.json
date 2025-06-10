@@ -2,6 +2,7 @@
 	"action": "delete",
 	"object": {
 		"id": "9046b041-58ed-47a3-9c3a-de302577875a",
+		"owner": "9046b041-58ed-47a3-9c3a-de302577875a",
 		"org_owner": "bf7b72bd-a2b1-4ef2-962c-1d698e0483f6",
 		"type": "workspace",
 		"acl_user_list": {},
@@ -14,6 +15,11 @@
 				"name": "test",
 				"display_name": "Test",
 				"site": [
+					{
+						"negate": false,
+						"resource_type": "workspace",
+						"action": "read"
+					},
 					{
 						"negate": false,
 						"resource_type": "workspace",
