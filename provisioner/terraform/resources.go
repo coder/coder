@@ -184,6 +184,9 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	// The label is what "terraform graph" uses to reference nodes.
 	tfResourcesByLabel := map[string]map[string]*tfjson.StateResource{}
 
+	// Map resource IDs to labels for efficient lookup when processing metadata
+	labelByResourceID := map[string]string{}
+
 	// Extra array to preserve the order of rich parameters.
 	tfResourcesRichParameters := make([]*tfjson.StateResource, 0)
 	tfResourcesPresets := make([]*tfjson.StateResource, 0)
@@ -205,6 +208,13 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				tfResourcesByLabel[label] = map[string]*tfjson.StateResource{}
 			}
 			tfResourcesByLabel[label][resource.Address] = resource
+
+			// Build the ID to label map
+			if idAttr, hasID := resource.AttributeValues["id"]; hasID {
+				if idStr, ok := idAttr.(string); ok && idStr != "" {
+					labelByResourceID[idStr] = label
+				}
+			}
 		}
 	}
 	for _, module := range modules {
@@ -652,27 +662,11 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			// First, check if ResourceID is provided and try to find the resource by ID
 			if attrs.ResourceID != "" {
 				// Look for a resource with matching ID
-				foundByID := false
-				for label, tfResources := range tfResourcesByLabel {
-					for _, tfResource := range tfResources {
-						// Check if this resource's ID matches the ResourceID
-						idAttr, hasID := tfResource.AttributeValues["id"]
-						if hasID {
-							idStr, ok := idAttr.(string)
-							if ok && idStr == attrs.ResourceID {
-								targetLabel = label
-								foundByID = true
-								break
-							}
-						}
-					}
-					if foundByID {
-						break
-					}
-				}
-
-				// If we couldn't find by ID, fall back to graph traversal
-				if !foundByID {
+				foundLabel, foundByID := labelByResourceID[attrs.ResourceID]
+				if foundByID {
+					targetLabel = foundLabel
+				} else {
+					// If we couldn't find by ID, fall back to graph traversal
 					logger.Warn(ctx, "coder_metadata resource_id not found, falling back to graph traversal",
 						slog.F("resource_id", attrs.ResourceID),
 						slog.F("metadata_address", resource.Address))
