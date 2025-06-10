@@ -48,7 +48,7 @@ export const useWebpushNotifications = (): WebpushNotifications => {
 		};
 
 		checkSubscription();
-	}, [enabledExperimentsQuery.data]);
+	}, []);
 
 	const subscribe = async (): Promise<void> => {
 		try {
