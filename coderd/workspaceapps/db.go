@@ -316,6 +316,32 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 		return false, warnings, nil
 	}
 
+	// For organization level path-based apps, block access if path app sharing is disabled
+	// and the user is not in the same organization
+	if isPathApp &&
+		sharingLevel == database.AppSharingLevelOrganization &&
+		!p.DeploymentValues.Dangerous.AllowPathAppSharing.Value() {
+		// Check if user is in the same organization as the workspace
+		workspaceOrgID := dbReq.Workspace.OrganizationID
+		inSameOrg := false
+		expandedRoles, err := roles.Roles.Expand()
+		if err != nil {
+			return false, warnings, xerrors.Errorf("expand roles: %w", err)
+		}
+		for _, role := range expandedRoles {
+			if _, ok := role.Org[workspaceOrgID.String()]; ok {
+				inSameOrg = true
+				break
+			}
+		}
+		if !inSameOrg {
+			if roles != nil && slices.Contains(roles.Roles.Names(), rbac.RoleOwner()) {
+				warnings = append(warnings, "path-based apps with \"organization\" share level are only accessible by organization members (see --dangerous-allow-path-app-sharing)")
+			}
+			return false, warnings, nil
+		}
+	}
+
 	// Figure out which RBAC resource to check. For terminals we use execution
 	// instead of application connect.
 	var (
@@ -354,6 +380,27 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 		if err == nil {
 			return true, []string{}, nil
 		}
+	case database.AppSharingLevelOrganization:
+		// Check if the user is a member of the same organization as the workspace
+		// First check if they have permission to connect to their own workspace (enforces scopes)
+		err := p.Authorizer.Authorize(ctx, *roles, rbacAction, rbacResourceOwned)
+		if err != nil {
+			return false, warnings, nil
+		}
+
+		// Check if the user is a member of the workspace's organization
+		workspaceOrgID := dbReq.Workspace.OrganizationID
+		expandedRoles, err := roles.Roles.Expand()
+		if err != nil {
+			return false, warnings, xerrors.Errorf("expand roles: %w", err)
+		}
+		for _, role := range expandedRoles {
+			if _, ok := role.Org[workspaceOrgID.String()]; ok {
+				return true, []string{}, nil
+			}
+		}
+		// User is not a member of the workspace's organization
+		return false, warnings, nil
 	case database.AppSharingLevelPublic:
 		// We don't really care about scopes and stuff if it's public anyways.
 		// Someone with a restricted-scope API key could just not submit the API

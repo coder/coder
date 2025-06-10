@@ -16548,6 +16548,7 @@ const docTemplate = `{
                     "enum": [
                         "owner",
                         "authenticated",
+                        "organization",
                         "public"
                     ],
                     "allOf": [
@@ -17462,6 +17463,7 @@ const docTemplate = `{
                     "enum": [
                         "owner",
                         "authenticated",
+                        "organization",
                         "public"
                     ],
                     "allOf": [
@@ -17481,11 +17483,13 @@ const docTemplate = `{
             "enum": [
                 "owner",
                 "authenticated",
+                "organization",
                 "public"
             ],
             "x-enum-varnames": [
                 "WorkspaceAgentPortShareLevelOwner",
                 "WorkspaceAgentPortShareLevelAuthenticated",
+                "WorkspaceAgentPortShareLevelOrganization",
                 "WorkspaceAgentPortShareLevelPublic"
             ]
         },

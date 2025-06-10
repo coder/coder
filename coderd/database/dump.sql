@@ -18,6 +18,7 @@ CREATE TYPE api_key_scope AS ENUM (
 CREATE TYPE app_sharing_level AS ENUM (
     'owner',
     'authenticated',
+    'organization',
     'public'
 );
 

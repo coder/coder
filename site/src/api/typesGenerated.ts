@@ -3491,10 +3491,15 @@ export interface WorkspaceAgentPortShare {
 }
 
 // From codersdk/workspaceagentportshare.go
-export type WorkspaceAgentPortShareLevel = "authenticated" | "owner" | "public";
+export type WorkspaceAgentPortShareLevel =
+	| "authenticated"
+	| "organization"
+	| "owner"
+	| "public";
 
 export const WorkspaceAgentPortShareLevels: WorkspaceAgentPortShareLevel[] = [
 	"authenticated",
+	"organization",
 	"owner",
 	"public",
 ];

@@ -7724,6 +7724,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `protocol`    | `https`         |
 | `share_level` | `owner`         |
 | `share_level` | `authenticated` |
+| `share_level` | `organization`  |
 | `share_level` | `public`        |
 
 ## codersdk.UsageAppName
@@ -8928,6 +8929,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `protocol`    | `https`         |
 | `share_level` | `owner`         |
 | `share_level` | `authenticated` |
+| `share_level` | `organization`  |
 | `share_level` | `public`        |
 
 ## codersdk.WorkspaceAgentPortShareLevel
@@ -8944,6 +8946,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |-----------------|
 | `owner`         |
 | `authenticated` |
+| `organization`  |
 | `public`        |
 
 ## codersdk.WorkspaceAgentPortShareProtocol
