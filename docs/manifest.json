@@ -61,7 +61,7 @@
 						},
 						{
 							"title": "Security",
-							"description": "Our guide for security",
+							"description": "Security vulnerability disclosure policy",
 							"path": "./about/contributing/SECURITY.md",
 							"icon_path": "./images/icons/lock.svg"
 						}
