@@ -74,30 +74,30 @@ message FailedJob {
 
 // CompletedJob is sent when the provisioner daemon completes a job.
 message CompletedJob {
-    message WorkspaceBuild {
-        bytes state = 1;
-        repeated provisioner.Resource resources = 2;
-        repeated provisioner.Timing timings = 3;
-        repeated provisioner.Module modules = 4;
-        repeated provisioner.ResourceReplacement resource_replacements = 5;
-    }
-    message TemplateImport {
-        repeated provisioner.Resource start_resources = 1;
-        repeated provisioner.Resource stop_resources = 2;
-        repeated provisioner.RichParameter rich_parameters = 3;
-        repeated string external_auth_providers_names = 4;
-        repeated provisioner.ExternalAuthProviderResource external_auth_providers = 5;
-        repeated provisioner.Module start_modules = 6;
-        repeated provisioner.Module stop_modules = 7;
-        repeated provisioner.Preset presets = 8;
-        bytes plan = 9;
-        bytes module_files = 10;
-        bytes module_files_hash = 11;
-    }
-    message TemplateDryRun {
-        repeated provisioner.Resource resources = 1;
-        repeated provisioner.Module modules = 2;
-    }
+  message WorkspaceBuild {
+    bytes state = 1;
+    repeated provisioner.Resource resources = 2;
+    repeated provisioner.Timing timings = 3;
+    repeated provisioner.Module modules = 4;
+    repeated provisioner.ResourceReplacement resource_replacements = 5;
+  }
+  message TemplateImport {
+    repeated provisioner.Resource start_resources = 1;
+    repeated provisioner.Resource stop_resources = 2;
+    repeated provisioner.RichParameter rich_parameters = 3;
+    repeated string external_auth_providers_names = 4;
+    repeated provisioner.ExternalAuthProviderResource external_auth_providers = 5;
+    repeated provisioner.Module start_modules = 6;
+    repeated provisioner.Module stop_modules = 7;
+    repeated provisioner.Preset presets = 8;
+    bytes plan = 9;
+    bytes module_files = 10;
+    bytes module_files_hash = 11;
+  }
+  message TemplateDryRun {
+    repeated provisioner.Resource resources = 1;
+    repeated provisioner.Module modules = 2;
+  }
 
   string job_id = 1;
   oneof type {
@@ -105,34 +105,6 @@ message CompletedJob {
     TemplateImport template_import = 3;
     TemplateDryRun template_dry_run = 4;
   }
-}
-
-enum DataUploadType {
-	UPLOAD_TYPE_UNKNOWN = 0;
-	// UPLOAD_TYPE_MODULE_FILES is used to stream over terraform module files.
-	// These files are located in `.terraform/modules` and are used for dynamic
-	// parameters.
-	UPLOAD_TYPE_MODULE_FILES = 1;
-}
-
-message DataUpload {
-	DataUploadType upload_type = 1;
-	// data_hash is the sha256 of the payload to be uploaded.
-	// This is also used to uniquely identify the upload.
-	bytes data_hash = 2;
-	// file_size is the total size of the data being uploaded.
-	int64 file_size = 3;
-	// Number of chunks to be uploaded.
-	int32 chunks = 4;
-}
-
-// ChunkPiece is used to stream over large files (over the 4mb limit).
-message ChunkPiece {
-	bytes data = 1;
-	// full_data_hash should match the hash from the original
-	// DataUpload message
-	bytes full_data_hash = 2;
-	int32 piece_index = 3;
 }
 
 // LogSource represents the sender of the log.
@@ -183,10 +155,10 @@ message CommitQuotaResponse {
 message CancelAcquire {}
 
 message UploadFileRequest {
-    oneof type {
-        DataUpload data_upload = 1;
-        ChunkPiece chunk_piece = 2;
-    }
+  oneof type {
+    provisioner.DataUpload data_upload = 1;
+    provisioner.ChunkPiece chunk_piece = 2;
+  }
 }
 
 service ProvisionerDaemon {
@@ -214,10 +186,10 @@ service ProvisionerDaemon {
   // FailJob indicates a job has failed.
   rpc FailJob(FailedJob) returns (Empty);
 
-    // CompleteJob indicates a job has been completed.
-    rpc CompleteJob(CompletedJob) returns (Empty);
+  // CompleteJob indicates a job has been completed.
+  rpc CompleteJob(CompletedJob) returns (Empty);
 
-    // UploadFile streams files to be inserted into the database.
-    // The file upload_type should be used to determine how to handle the file.
-    rpc UploadFile(stream UploadFileRequest) returns (Empty);
+  // UploadFile streams files to be inserted into the database.
+  // The file upload_type should be used to determine how to handle the file.
+  rpc UploadFile(stream UploadFileRequest) returns (Empty);
 }
