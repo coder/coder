@@ -2423,6 +2423,34 @@ waitForOutcomeLoop:
 	}(container)
 }
 
+func TestAgent_DevcontainersDisabledForSubAgent(t *testing.T) {
+	t.Parallel()
+
+	// Create a manifest with a ParentID to make this a sub agent.
+	manifest := agentsdk.Manifest{
+		AgentID:  uuid.New(),
+		ParentID: uuid.New(),
+	}
+
+	// Setup the agent with devcontainers enabled initially.
+	//nolint:dogsled
+	conn, _, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.ExperimentalDevcontainersEnabled = true
+	})
+
+	// Query the containers API endpoint. This should fail because
+	// devcontainers have been disabled for the sub agent.
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
+	_, err := conn.ListContainers(ctx)
+	require.Error(t, err)
+
+	// Verify the error message contains the expected text.
+	require.Contains(t, err.Error(), "The agent dev containers feature is experimental and not enabled by default.")
+	require.Contains(t, err.Error(), "To enable this feature, set CODER_AGENT_DEVCONTAINERS_ENABLE=true in your template.")
+}
+
 func TestAgent_Dial(t *testing.T) {
 	t.Parallel()
 
