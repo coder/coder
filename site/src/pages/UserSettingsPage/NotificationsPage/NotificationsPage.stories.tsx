@@ -24,7 +24,7 @@ const meta = {
 	title: "pages/UserSettingsPage/NotificationsPage",
 	component: NotificationsPage,
 	parameters: {
-		experiments: ["notifications"],
+		experiments: [],
 		queries: [
 			{
 				key: userNotificationPreferencesKey(MockUserOwner.id),

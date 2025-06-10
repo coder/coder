@@ -185,7 +185,7 @@ const mockNotificationsDeploymentOptions: SerpentOption[] = [
 
 export const baseMeta = {
 	parameters: {
-		experiments: ["notifications"],
+		experiments: [],
 		queries: [
 			{ key: systemNotificationTemplatesKey, data: MockNotificationTemplates },
 			{

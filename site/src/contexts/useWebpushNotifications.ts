@@ -24,10 +24,8 @@ export const useWebpushNotifications = (): WebpushNotifications => {
 	const [enabled, setEnabled] = useState<boolean>(false);
 
 	useEffect(() => {
-		// Check if the experiment is enabled.
-		if (enabledExperimentsQuery.data?.includes("web-push")) {
-			setEnabled(true);
-		}
+		// Web push is now enabled by default
+		setEnabled(true);
 
 		// Check if browser supports push notifications
 		if (!("Notification" in window) || !("serviceWorker" in navigator)) {
