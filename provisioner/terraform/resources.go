@@ -684,41 +684,77 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			if err != nil {
 				return nil, xerrors.Errorf("decode metadata attributes: %w", err)
 			}
-			resourceLabel := convertAddressToLabel(resource.Address)
 
-			var attachedNode *gographviz.Node
-			for _, node := range graph.Nodes.Lookup {
-				// The node attributes surround the label with quotes.
-				if strings.Trim(node.Attrs["label"], `"`) != resourceLabel {
+			var targetLabel string
+
+			// First, check if ResourceID is provided and try to find the resource by ID
+			if attrs.ResourceID != "" {
+				// Look for a resource with matching ID
+				foundByID := false
+				for label, tfResources := range tfResourcesByLabel {
+					for _, tfResource := range tfResources {
+						// Check if this resource's ID matches the ResourceID
+						idAttr, hasID := tfResource.AttributeValues["id"]
+						if hasID {
+							idStr, ok := idAttr.(string)
+							if ok && idStr == attrs.ResourceID {
+								targetLabel = label
+								foundByID = true
+								break
+							}
+						}
+					}
+					if foundByID {
+						break
+					}
+				}
+
+				// If we couldn't find by ID, fall back to graph traversal
+				if !foundByID {
+					logger.Warn(ctx, "coder_metadata resource_id not found, falling back to graph traversal",
+						slog.F("resource_id", attrs.ResourceID),
+						slog.F("metadata_address", resource.Address))
+				}
+			}
+
+			// If ResourceID wasn't provided or wasn't found, use graph traversal
+			if targetLabel == "" {
+				resourceLabel := convertAddressToLabel(resource.Address)
+
+				var attachedNode *gographviz.Node
+				for _, node := range graph.Nodes.Lookup {
+					// The node attributes surround the label with quotes.
+					if strings.Trim(node.Attrs["label"], `"`) != resourceLabel {
+						continue
+					}
+					attachedNode = node
+					break
+				}
+				if attachedNode == nil {
 					continue
 				}
-				attachedNode = node
-				break
-			}
-			if attachedNode == nil {
-				continue
-			}
-			var attachedResource *graphResource
-			for _, resource := range findResourcesInGraph(graph, tfResourcesByLabel, attachedNode.Name, 0, false) {
+				var attachedResource *graphResource
+				for _, resource := range findResourcesInGraph(graph, tfResourcesByLabel, attachedNode.Name, 0, false) {
+					if attachedResource == nil {
+						// Default to the first resource because we have nothing to compare!
+						attachedResource = resource
+						continue
+					}
+					if resource.Depth < attachedResource.Depth {
+						// There's a closer resource!
+						attachedResource = resource
+						continue
+					}
+					if resource.Depth == attachedResource.Depth && resource.Label < attachedResource.Label {
+						attachedResource = resource
+						continue
+					}
+				}
 				if attachedResource == nil {
-					// Default to the first resource because we have nothing to compare!
-					attachedResource = resource
 					continue
 				}
-				if resource.Depth < attachedResource.Depth {
-					// There's a closer resource!
-					attachedResource = resource
-					continue
-				}
-				if resource.Depth == attachedResource.Depth && resource.Label < attachedResource.Label {
-					attachedResource = resource
-					continue
-				}
+				targetLabel = attachedResource.Label
 			}
-			if attachedResource == nil {
-				continue
-			}
-			targetLabel := attachedResource.Label
 
 			if metadataTargetLabels[targetLabel] {
 				return nil, xerrors.Errorf("duplicate metadata resource: %s", targetLabel)
