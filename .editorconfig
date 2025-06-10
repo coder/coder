@@ -13,7 +13,7 @@ indent_size = 2
 
 [*.proto]
 indent_style = space
-indent_size = 4
+indent_size = 2
 
 [coderd/database/dump.sql]
 indent_style = space
