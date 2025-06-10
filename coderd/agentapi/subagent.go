@@ -55,6 +55,31 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 
 	createdAt := a.Clock.Now()
 
+	displayApps := make([]database.DisplayApp, 0, len(req.DisplayApps))
+	for idx, displayApp := range req.DisplayApps {
+		var app database.DisplayApp
+
+		switch displayApp {
+		case agentproto.CreateSubAgentRequest_PORT_FORWARDING_HELPER:
+			app = database.DisplayAppPortForwardingHelper
+		case agentproto.CreateSubAgentRequest_SSH_HELPER:
+			app = database.DisplayAppSSHHelper
+		case agentproto.CreateSubAgentRequest_VSCODE:
+			app = database.DisplayAppVscode
+		case agentproto.CreateSubAgentRequest_VSCODE_INSIDERS:
+			app = database.DisplayAppVscodeInsiders
+		case agentproto.CreateSubAgentRequest_WEB_TERMINAL:
+			app = database.DisplayAppWebTerminal
+		default:
+			return nil, codersdk.ValidationError{
+				Field:  fmt.Sprintf("display_apps[%d]", idx),
+				Detail: fmt.Sprintf("%q is not a valid display app", displayApp),
+			}
+		}
+
+		displayApps = append(displayApps, app)
+	}
+
 	subAgent, err := a.Database.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 		ID:                       uuid.New(),
 		ParentID:                 uuid.NullUUID{Valid: true, UUID: parentAgent.ID},
@@ -73,7 +98,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		ConnectionTimeoutSeconds: parentAgent.ConnectionTimeoutSeconds,
 		TroubleshootingURL:       parentAgent.TroubleshootingURL,
 		MOTDFile:                 "",
-		DisplayApps:              []database.DisplayApp{},
+		DisplayApps:              displayApps,
 		DisplayOrder:             0,
 		APIKeyScope:              parentAgent.APIKeyScope,
 	})

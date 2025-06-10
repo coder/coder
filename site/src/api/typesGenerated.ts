@@ -2519,6 +2519,7 @@ export interface SessionLifetime {
 	readonly default_duration: number;
 	readonly default_token_lifetime?: number;
 	readonly max_token_lifetime?: number;
+	readonly max_admin_token_lifetime?: number;
 }
 
 // From codersdk/client.go

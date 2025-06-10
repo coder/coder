@@ -2625,6 +2625,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "default_duration": 0,
       "default_token_lifetime": 0,
       "disable_expiry_refresh": true,
+      "max_admin_token_lifetime": 0,
       "max_token_lifetime": 0
     },
     "ssh_keygen_algorithm": "string",
@@ -3124,6 +3125,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "default_duration": 0,
     "default_token_lifetime": 0,
     "disable_expiry_refresh": true,
+    "max_admin_token_lifetime": 0,
     "max_token_lifetime": 0
   },
   "ssh_keygen_algorithm": "string",
@@ -6767,18 +6769,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "default_duration": 0,
   "default_token_lifetime": 0,
   "disable_expiry_refresh": true,
+  "max_admin_token_lifetime": 0,
   "max_token_lifetime": 0
 }
 ```
 
 ### Properties
 
-| Name                     | Type    | Required | Restrictions | Description                                                                                                                                                                        |
-|--------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `default_duration`       | integer | false    |              | Default duration is only for browser, workspace app and oauth sessions.                                                                                                            |
-| `default_token_lifetime` | integer | false    |              |                                                                                                                                                                                    |
-| `disable_expiry_refresh` | boolean | false    |              | Disable expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key. |
-| `max_token_lifetime`     | integer | false    |              |                                                                                                                                                                                    |
+| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                        |
+|----------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `default_duration`         | integer | false    |              | Default duration is only for browser, workspace app and oauth sessions.                                                                                                            |
+| `default_token_lifetime`   | integer | false    |              |                                                                                                                                                                                    |
+| `disable_expiry_refresh`   | boolean | false    |              | Disable expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key. |
+| `max_admin_token_lifetime` | integer | false    |              |                                                                                                                                                                                    |
+| `max_token_lifetime`       | integer | false    |              |                                                                                                                                                                                    |
 
 ## codersdk.SlimRole
 

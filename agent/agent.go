@@ -1080,6 +1080,18 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		if manifest.AgentID == uuid.Nil {
 			return xerrors.New("nil agentID returned by manifest")
 		}
+		if manifest.ParentID != uuid.Nil {
+			// This is a sub agent, disable all the features that should not
+			// be used by sub agents.
+			a.logger.Debug(ctx, "sub agent detected, disabling features",
+				slog.F("parent_id", manifest.ParentID),
+				slog.F("agent_id", manifest.AgentID),
+			)
+			if a.experimentalDevcontainersEnabled {
+				a.logger.Info(ctx, "devcontainers are not supported on sub agents, disabling feature")
+				a.experimentalDevcontainersEnabled = false
+			}
+		}
 		a.client.RewriteDERPMap(manifest.DERPMap)
 
 		// Expand the directory and send it back to coderd so external
@@ -1188,7 +1200,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 // createOrUpdateNetwork waits for the manifest to be set using manifestOK, then creates or updates
 // the tailnet using the information in the manifest
 func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(context.Context, proto.DRPCAgentClient26) error {
-	return func(ctx context.Context, _ proto.DRPCAgentClient26) (retErr error) {
+	return func(ctx context.Context, aAPI proto.DRPCAgentClient26) (retErr error) {
 		if err := manifestOK.wait(ctx); err != nil {
 			return xerrors.Errorf("no manifest: %w", err)
 		}
@@ -1208,6 +1220,7 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 			// agent API.
 			network, err = a.createTailnet(
 				a.gracefulCtx,
+				aAPI,
 				manifest.AgentID,
 				manifest.DERPMap,
 				manifest.DERPForceWebSockets,
@@ -1355,6 +1368,7 @@ func (a *agent) trackGoroutine(fn func()) error {
 
 func (a *agent) createTailnet(
 	ctx context.Context,
+	aAPI proto.DRPCAgentClient26,
 	agentID uuid.UUID,
 	derpMap *tailcfg.DERPMap,
 	derpForceWebSockets, disableDirectConnections bool,
@@ -1487,7 +1501,7 @@ func (a *agent) createTailnet(
 	}()
 	if err = a.trackGoroutine(func() {
 		defer apiListener.Close()
-		apiHandler, closeAPIHAndler := a.apiHandler()
+		apiHandler, closeAPIHAndler := a.apiHandler(aAPI)
 		defer func() {
 			_ = closeAPIHAndler()
 		}()
