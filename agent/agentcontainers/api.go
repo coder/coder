@@ -486,8 +486,6 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 	// Check if the container is running and update the known devcontainers.
 	for i := range updated.Containers {
 		container := &updated.Containers[i] // Grab a reference to the container to allow mutating it.
-		container.DevcontainerStatus = ""   // Reset the status for the container (updated later).
-		container.DevcontainerDirty = false // Reset dirty state for the container (updated later).
 
 		workspaceFolder := container.Labels[DevcontainerLocalFolderLabel]
 		configFile := container.Labels[DevcontainerConfigFileLabel]
@@ -568,8 +566,6 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 				// TODO(mafredri): Parse the container label (i.e. devcontainer.json) for customization.
 				dc.Name = safeFriendlyName(dc.Container.FriendlyName)
 			}
-			dc.Container.DevcontainerStatus = dc.Status
-			dc.Container.DevcontainerDirty = dc.Dirty
 		}
 
 		switch {
@@ -584,13 +580,11 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 			if dc.Container.Running {
 				dc.Status = codersdk.WorkspaceAgentDevcontainerStatusRunning
 			}
-			dc.Container.DevcontainerStatus = dc.Status
 
 			dc.Dirty = false
 			if lastModified, hasModTime := api.configFileModifiedTimes[dc.ConfigPath]; hasModTime && dc.Container.CreatedAt.Before(lastModified) {
 				dc.Dirty = true
 			}
-			dc.Container.DevcontainerDirty = dc.Dirty
 
 			if _, injected := api.injectedSubAgentProcs[dc.Container.ID]; !injected && dc.Status == codersdk.WorkspaceAgentDevcontainerStatusRunning {
 				err := api.injectSubAgentIntoContainerLocked(ctx, dc)
@@ -661,9 +655,19 @@ func (api *API) getContainers() (codersdk.WorkspaceAgentListContainersResponse, 
 	if api.containersErr != nil {
 		return codersdk.WorkspaceAgentListContainersResponse{}, api.containersErr
 	}
+
+	devcontainers := make([]codersdk.WorkspaceAgentDevcontainer, 0, len(api.knownDevcontainers))
+	for _, dc := range api.knownDevcontainers {
+		devcontainers = append(devcontainers, dc)
+	}
+	slices.SortFunc(devcontainers, func(a, b codersdk.WorkspaceAgentDevcontainer) int {
+		return strings.Compare(a.ID.String(), b.ID.String())
+	})
+
 	return codersdk.WorkspaceAgentListContainersResponse{
-		Containers: slices.Clone(api.containers.Containers),
-		Warnings:   slices.Clone(api.containers.Warnings),
+		Devcontainers: devcontainers,
+		Containers:    slices.Clone(api.containers.Containers),
+		Warnings:      slices.Clone(api.containers.Warnings),
 	}, nil
 }
 
@@ -740,9 +744,6 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	// Update the status so that we don't try to recreate the
 	// devcontainer multiple times in parallel.
 	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
-	if dc.Container != nil {
-		dc.Container.DevcontainerStatus = dc.Status
-	}
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	api.asyncWg.Add(1)
 	go api.recreateDevcontainer(dc, configPath)
@@ -815,9 +816,6 @@ func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, con
 		api.mu.Lock()
 		dc = api.knownDevcontainers[dc.WorkspaceFolder]
 		dc.Status = codersdk.WorkspaceAgentDevcontainerStatusError
-		if dc.Container != nil {
-			dc.Container.DevcontainerStatus = dc.Status
-		}
 		api.knownDevcontainers[dc.WorkspaceFolder] = dc
 		api.recreateErrorTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "errorTimes")
 		api.mu.Unlock()
@@ -838,7 +836,6 @@ func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, con
 		if dc.Container.Running {
 			dc.Status = codersdk.WorkspaceAgentDevcontainerStatusRunning
 		}
-		dc.Container.DevcontainerStatus = dc.Status
 	}
 	dc.Dirty = false
 	api.recreateSuccessTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "successTimes")
@@ -913,10 +910,6 @@ func (api *API) markDevcontainerDirty(configPath string, modifiedAt time.Time) {
 		if !dc.Dirty {
 			logger.Info(api.ctx, "marking devcontainer as dirty")
 			dc.Dirty = true
-		}
-		if dc.Container != nil && !dc.Container.DevcontainerDirty {
-			logger.Info(api.ctx, "marking devcontainer container as dirty")
-			dc.Container.DevcontainerDirty = true
 		}
 
 		api.knownDevcontainers[dc.WorkspaceFolder] = dc

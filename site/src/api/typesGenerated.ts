@@ -3354,8 +3354,6 @@ export interface WorkspaceAgentContainer {
 	readonly ports: readonly WorkspaceAgentContainerPort[];
 	readonly status: string;
 	readonly volumes: Record<string, string>;
-	readonly devcontainer_status?: WorkspaceAgentDevcontainerStatus;
-	readonly devcontainer_dirty: boolean;
 }
 
 // From codersdk/workspaceagents.go
@@ -3424,6 +3422,7 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentListContainersResponse {
+	readonly devcontainers: readonly WorkspaceAgentDevcontainer[];
 	readonly containers: readonly WorkspaceAgentContainer[];
 	readonly warnings?: readonly string[];
 }

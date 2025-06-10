@@ -609,7 +609,6 @@ func TestAPI(t *testing.T) {
 				require.Len(t, resp.Devcontainers, 1, "expected one devcontainer in response")
 				assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusStarting, resp.Devcontainers[0].Status, "devcontainer is not starting")
 				require.NotNil(t, resp.Devcontainers[0].Container, "devcontainer should have container reference")
-				assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusStarting, resp.Devcontainers[0].Container.DevcontainerStatus, "container dc status is not starting")
 
 				// Allow the devcontainer CLI to continue the up process.
 				close(tt.devcontainerCLI.upErrC)
@@ -637,7 +636,6 @@ func TestAPI(t *testing.T) {
 					require.Len(t, resp.Devcontainers, 1, "expected one devcontainer in response after error")
 					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusError, resp.Devcontainers[0].Status, "devcontainer is not in an error state after up failure")
 					require.NotNil(t, resp.Devcontainers[0].Container, "devcontainer should have container reference after up failure")
-					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusError, resp.Devcontainers[0].Container.DevcontainerStatus, "container dc status is not error after up failure")
 					return
 				}
 
@@ -662,7 +660,6 @@ func TestAPI(t *testing.T) {
 				require.Len(t, resp.Devcontainers, 1, "expected one devcontainer in response after recreation")
 				assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, resp.Devcontainers[0].Status, "devcontainer is not running after recreation")
 				require.NotNil(t, resp.Devcontainers[0].Container, "devcontainer should have container reference after recreation")
-				assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, resp.Devcontainers[0].Container.DevcontainerStatus, "container dc status is not running after recreation")
 			})
 		}
 	})
@@ -757,7 +754,6 @@ func TestAPI(t *testing.T) {
 					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, dc.Status)
 					require.NotNil(t, dc.Container)
 					assert.Equal(t, "runtime-container-1", dc.Container.ID)
-					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, dc.Container.DevcontainerStatus)
 				},
 			},
 			{
@@ -802,10 +798,8 @@ func TestAPI(t *testing.T) {
 
 					require.NotNil(t, known1.Container)
 					assert.Equal(t, "known-container-1", known1.Container.ID)
-					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, known1.Container.DevcontainerStatus)
 					require.NotNil(t, runtime1.Container)
 					assert.Equal(t, "runtime-container-1", runtime1.Container.ID)
-					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, runtime1.Container.DevcontainerStatus)
 				},
 			},
 			{
@@ -845,11 +839,9 @@ func TestAPI(t *testing.T) {
 
 					require.NotNil(t, running.Container, "running container should have container reference")
 					assert.Equal(t, "running-container", running.Container.ID)
-					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, running.Container.DevcontainerStatus)
 
 					require.NotNil(t, nonRunning.Container, "non-running container should have container reference")
 					assert.Equal(t, "non-running-container", nonRunning.Container.ID)
-					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusStopped, nonRunning.Container.DevcontainerStatus)
 				},
 			},
 			{
@@ -885,7 +877,6 @@ func TestAPI(t *testing.T) {
 					assert.NotEmpty(t, dc2.ConfigPath)
 					require.NotNil(t, dc2.Container)
 					assert.Equal(t, "known-container-2", dc2.Container.ID)
-					assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, dc2.Container.DevcontainerStatus)
 				},
 			},
 			{
@@ -1185,8 +1176,6 @@ func TestAPI(t *testing.T) {
 			"devcontainer should not be marked as dirty initially")
 		assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, response.Devcontainers[0].Status, "devcontainer should be running initially")
 		require.NotNil(t, response.Devcontainers[0].Container, "container should not be nil")
-		assert.False(t, response.Devcontainers[0].Container.DevcontainerDirty,
-			"container should not be marked as dirty initially")
 
 		// Verify the watcher is watching the config file.
 		assert.Contains(t, fWatcher.addedPaths, configPath,
@@ -1220,8 +1209,6 @@ func TestAPI(t *testing.T) {
 			"container should be marked as dirty after config file was modified")
 		assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, response.Devcontainers[0].Status, "devcontainer should be running after config file was modified")
 		require.NotNil(t, response.Devcontainers[0].Container, "container should not be nil")
-		assert.True(t, response.Devcontainers[0].Container.DevcontainerDirty,
-			"container should be marked as dirty after config file was modified")
 
 		container.ID = "new-container-id" // Simulate a new container ID after recreation.
 		container.FriendlyName = "new-container-name"
@@ -1246,8 +1233,6 @@ func TestAPI(t *testing.T) {
 			"dirty flag should be cleared on the devcontainer after container recreation")
 		assert.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, response.Devcontainers[0].Status, "devcontainer should be running after recreation")
 		require.NotNil(t, response.Devcontainers[0].Container, "container should not be nil")
-		assert.False(t, response.Devcontainers[0].Container.DevcontainerDirty,
-			"dirty flag should be cleared on the container after container recreation")
 	})
 
 	t.Run("SubAgentLifecycle", func(t *testing.T) {

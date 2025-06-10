@@ -777,8 +777,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
   "containers": [
     {
       "created_at": "2019-08-24T14:15:22Z",
-      "devcontainer_dirty": true,
-      "devcontainer_status": "running",
       "id": "string",
       "image": "string",
       "labels": {
@@ -800,6 +798,40 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
         "property1": "string",
         "property2": "string"
       }
+    }
+  ],
+  "devcontainers": [
+    {
+      "config_path": "string",
+      "container": {
+        "created_at": "2019-08-24T14:15:22Z",
+        "id": "string",
+        "image": "string",
+        "labels": {
+          "property1": "string",
+          "property2": "string"
+        },
+        "name": "string",
+        "ports": [
+          {
+            "host_ip": "string",
+            "host_port": 0,
+            "network": "string",
+            "port": 0
+          }
+        ],
+        "running": true,
+        "status": "string",
+        "volumes": {
+          "property1": "string",
+          "property2": "string"
+        }
+      },
+      "dirty": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "status": "running",
+      "workspace_folder": "string"
     }
   ],
   "warnings": [
