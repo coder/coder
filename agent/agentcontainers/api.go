@@ -72,16 +72,17 @@ type API struct {
 	configFileModifiedTimes map[string]time.Time                           // By config file path.
 	recreateSuccessTimes    map[string]time.Time                           // By workspace folder.
 	recreateErrorTimes      map[string]time.Time                           // By workspace folder.
-	injectedSubAgentProcs   map[string]subAgentProcess                     // By container ID.
+	injectedSubAgentProcs   map[string]subAgentProcess                     // By workspace folder.
 	asyncWg                 sync.WaitGroup
 
 	devcontainerLogSourceIDs map[string]uuid.UUID // By workspace folder.
 }
 
 type subAgentProcess struct {
-	agent SubAgent
-	ctx   context.Context
-	stop  context.CancelFunc
+	agent       SubAgent
+	containerID string
+	ctx         context.Context
+	stop        context.CancelFunc
 }
 
 // Option is a functional option for API.
@@ -586,7 +587,11 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 				dc.Dirty = true
 			}
 
-			if _, injected := api.injectedSubAgentProcs[dc.Container.ID]; !injected && dc.Status == codersdk.WorkspaceAgentDevcontainerStatusRunning {
+			proc, injected := api.injectedSubAgentProcs[dc.WorkspaceFolder]
+			if injected && proc.containerID != dc.Container.ID {
+				injected = false // The container ID changed, we need to re-inject.
+			}
+			if !injected && dc.Status == codersdk.WorkspaceAgentDevcontainerStatusRunning {
 				err := api.injectSubAgentIntoContainerLocked(ctx, dc)
 				if err != nil {
 					logger.Error(ctx, "inject subagent into container failed", slog.Error(err))
@@ -660,10 +665,22 @@ func (api *API) getContainers() (codersdk.WorkspaceAgentListContainersResponse, 
 	if len(api.knownDevcontainers) > 0 {
 		devcontainers = make([]codersdk.WorkspaceAgentDevcontainer, 0, len(api.knownDevcontainers))
 		for _, dc := range api.knownDevcontainers {
+			// Include the agent if it's been created (we're iterating over
+			// copies, so mutating is fine).
+			if dc.Container != nil {
+				if proc := api.injectedSubAgentProcs[dc.WorkspaceFolder]; proc.agent.ID != uuid.Nil && proc.containerID == dc.Container.ID {
+					dc.Agent = &codersdk.WorkspaceAgentDevcontainerAgent{
+						ID:        proc.agent.ID,
+						Name:      proc.agent.Name,
+						Directory: proc.agent.Directory,
+					}
+				}
+			}
+
 			devcontainers = append(devcontainers, dc)
 		}
 		slices.SortFunc(devcontainers, func(a, b codersdk.WorkspaceAgentDevcontainer) int {
-			return strings.Compare(a.ID.String(), b.ID.String())
+			return strings.Compare(a.Name, b.Name)
 		})
 	}
 
@@ -975,9 +992,25 @@ func (api *API) injectSubAgentIntoContainerLocked(ctx context.Context, dc coders
 		return xerrors.New("container is nil, cannot inject subagent")
 	}
 
+	logger := api.logger.With(
+		slog.F("devcontainer_id", dc.ID),
+		slog.F("devcontainer_name", dc.Name),
+		slog.F("workspace_folder", dc.WorkspaceFolder),
+		slog.F("config_path", dc.ConfigPath),
+		slog.F("container_id", container.ID),
+		slog.F("container_name", container.FriendlyName),
+	)
+
 	// Skip if subagent already exists for this container.
-	if _, injected := api.injectedSubAgentProcs[container.ID]; injected || api.closed {
-		return nil
+	if proc, injected := api.injectedSubAgentProcs[dc.WorkspaceFolder]; injected || api.closed {
+		if proc.containerID == container.ID {
+			return nil
+		}
+
+		// If the subagent is already injected but the container ID has
+		// changed, we need to inject it into the new container.
+		logger.Debug(ctx, "injecting subagent into new container")
+		proc.stop()
 	}
 
 	// Mark subagent as being injected immediately with a placeholder.
@@ -1009,13 +1042,6 @@ func (api *API) injectSubAgentIntoContainerLocked(ctx context.Context, dc coders
 	// inject the subagent into the container.
 	api.mu.Unlock()
 	defer api.mu.Lock() // Re-lock.
-
-	logger := api.logger.With(
-		slog.F("devcontainer_id", dc.ID),
-		slog.F("devcontainer_name", dc.Name),
-		slog.F("workspace_folder", dc.WorkspaceFolder),
-		slog.F("config_path", dc.ConfigPath),
-	)
 
 	arch, err := api.ccli.DetectArchitecture(ctx, container.ID)
 	if err != nil {
@@ -1176,7 +1202,9 @@ func (api *API) runSubAgentInContainer(ctx context.Context, dc codersdk.Workspac
 		}
 
 		api.mu.Lock()
-		delete(api.injectedSubAgentProcs, container.ID)
+		if api.injectedSubAgentProcs[dc.WorkspaceFolder].containerID == container.ID {
+			delete(api.injectedSubAgentProcs, dc.WorkspaceFolder)
+		}
 		api.mu.Unlock()
 
 		logger.Debug(ctx, "agent process cleanup complete")
@@ -1191,10 +1219,11 @@ func (api *API) runSubAgentInContainer(ctx context.Context, dc codersdk.Workspac
 		return
 	}
 	// Update the placeholder with a valid subagent, context and stop.
-	api.injectedSubAgentProcs[container.ID] = subAgentProcess{
-		agent: agent,
-		ctx:   agentCtx,
-		stop:  agentStop,
+	api.injectedSubAgentProcs[dc.WorkspaceFolder] = subAgentProcess{
+		agent:       agent,
+		containerID: container.ID,
+		ctx:         agentCtx,
+		stop:        agentStop,
 	}
 	api.mu.Unlock()
 
@@ -1226,7 +1255,11 @@ func (api *API) Close() error {
 	api.closed = true
 
 	for _, proc := range api.injectedSubAgentProcs {
-		api.logger.Debug(api.ctx, "canceling subagent process", slog.F("agent_name", proc.agent.Name), slog.F("agent_id", proc.agent.ID))
+		api.logger.Debug(api.ctx, "canceling subagent process",
+			slog.F("agent_name", proc.agent.Name),
+			slog.F("agent_id", proc.agent.ID),
+			slog.F("container_id", proc.containerID),
+		)
 		proc.stop()
 	}
 

@@ -3373,6 +3373,14 @@ export interface WorkspaceAgentDevcontainer {
 	readonly status: WorkspaceAgentDevcontainerStatus;
 	readonly dirty: boolean;
 	readonly container?: WorkspaceAgentContainer;
+	readonly agent?: WorkspaceAgentDevcontainerAgent;
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentDevcontainerAgent {
+	readonly id: string;
+	readonly name: string;
+	readonly directory: string;
 }
 
 // From codersdk/workspaceagents.go

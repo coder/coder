@@ -17567,6 +17567,9 @@ const docTemplate = `{
         "codersdk.WorkspaceAgentDevcontainer": {
             "type": "object",
             "properties": {
+                "agent": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainerAgent"
+                },
                 "config_path": {
                     "type": "string"
                 },
@@ -17592,6 +17595,21 @@ const docTemplate = `{
                     ]
                 },
                 "workspace_folder": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentDevcontainerAgent": {
+            "type": "object",
+            "properties": {
+                "directory": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
                     "type": "string"
                 }
             }

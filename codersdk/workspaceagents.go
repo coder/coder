@@ -422,6 +422,15 @@ type WorkspaceAgentDevcontainer struct {
 	Status    WorkspaceAgentDevcontainerStatus `json:"status"`
 	Dirty     bool                             `json:"dirty"`
 	Container *WorkspaceAgentContainer         `json:"container,omitempty"`
+	Agent     *WorkspaceAgentDevcontainerAgent `json:"agent,omitempty"`
+}
+
+// WorkspaceAgentDevcontainerAgent represents the sub agent for a
+// devcontainer.
+type WorkspaceAgentDevcontainerAgent struct {
+	ID        uuid.UUID `json:"id" format:"uuid"`
+	Name      string    `json:"name"`
+	Directory string    `json:"directory"`
 }
 
 // WorkspaceAgentContainer describes a devcontainer of some sort

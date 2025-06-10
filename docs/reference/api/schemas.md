@@ -9075,6 +9075,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "agent": {
+    "directory": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string"
+  },
   "config_path": "string",
   "container": {
     "created_at": "2019-08-24T14:15:22Z",
@@ -9112,6 +9117,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name               | Type                                                                                   | Required | Restrictions | Description                |
 |--------------------|----------------------------------------------------------------------------------------|----------|--------------|----------------------------|
+| `agent`            | [codersdk.WorkspaceAgentDevcontainerAgent](#codersdkworkspaceagentdevcontaineragent)   | false    |              |                            |
 | `config_path`      | string                                                                                 | false    |              |                            |
 | `container`        | [codersdk.WorkspaceAgentContainer](#codersdkworkspaceagentcontainer)                   | false    |              |                            |
 | `dirty`            | boolean                                                                                | false    |              |                            |
@@ -9119,6 +9125,24 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `name`             | string                                                                                 | false    |              |                            |
 | `status`           | [codersdk.WorkspaceAgentDevcontainerStatus](#codersdkworkspaceagentdevcontainerstatus) | false    |              | Additional runtime fields. |
 | `workspace_folder` | string                                                                                 | false    |              |                            |
+
+## codersdk.WorkspaceAgentDevcontainerAgent
+
+```json
+{
+  "directory": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name        | Type   | Required | Restrictions | Description |
+|-------------|--------|----------|--------------|-------------|
+| `directory` | string | false    |              |             |
+| `id`        | string | false    |              |             |
+| `name`      | string | false    |              |             |
 
 ## codersdk.WorkspaceAgentDevcontainerStatus
 
@@ -9207,6 +9231,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   ],
   "devcontainers": [
     {
+      "agent": {
+        "directory": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      },
       "config_path": "string",
       "container": {
         "created_at": "2019-08-24T14:15:22Z",
