@@ -29,7 +29,6 @@ func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-
 	var req codersdk.WebpushSubscription
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -73,8 +72,6 @@ func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Requ
 func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
-
-
 
 	var req codersdk.DeleteWebpushSubscription
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -127,8 +124,6 @@ func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Re
 func (api *API) postUserPushNotificationTest(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
-
-
 
 	// We need to authorize the user to send a push notification to themselves.
 	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceNotificationMessage.WithOwner(user.ID.String())) {

@@ -1507,8 +1507,6 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 
 	api.statsReporter.TrackUsage(workspace.ID)
 
-
-
 	if r.Body == http.NoBody {
 		// Continue previous behavior if no body is present.
 		rw.WriteHeader(http.StatusNoContent)

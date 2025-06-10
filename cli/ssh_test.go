@@ -1587,7 +1587,7 @@ func TestSSH(t *testing.T) {
 		t.Parallel()
 
 		type testCase struct {
-			name                   string
+			name string
 
 			usageAppName           string
 			expectedCalls          int
@@ -1596,43 +1596,42 @@ func TestSSH(t *testing.T) {
 			expectedCountVscode    int
 		}
 		tcs := []testCase{
-
 			{
-				name:             "Empty",
+				name: "Empty",
 
 				expectedCalls:    1,
 				expectedCountSSH: 1,
 			},
 			{
-				name:             "SSH",
+				name: "SSH",
 
 				usageAppName:     "ssh",
 				expectedCalls:    1,
 				expectedCountSSH: 1,
 			},
 			{
-				name:                   "Jetbrains",
+				name: "Jetbrains",
 
 				usageAppName:           "jetbrains",
 				expectedCalls:          1,
 				expectedCountJetbrains: 1,
 			},
 			{
-				name:                "Vscode",
+				name: "Vscode",
 
 				usageAppName:        "vscode",
 				expectedCalls:       1,
 				expectedCountVscode: 1,
 			},
 			{
-				name:             "InvalidDefaultsToSSH",
+				name: "InvalidDefaultsToSSH",
 
 				usageAppName:     "invalid",
 				expectedCalls:    1,
 				expectedCountSSH: 1,
 			},
 			{
-				name:         "Disable",
+				name: "Disable",
 
 				usageAppName: "disable",
 			},

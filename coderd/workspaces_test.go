@@ -4126,7 +4126,7 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
 		dv := coderdtest.DeploymentValues(t)
-	
+
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			DeploymentValues: dv,
 		})
