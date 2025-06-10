@@ -87,12 +87,12 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 
 interface AgentDevcontainerSSHButtonProps {
 	workspace: string;
-	container: string;
+	agentName: string;
 }
 
 export const AgentDevcontainerSSHButton: FC<
 	AgentDevcontainerSSHButtonProps
-> = ({ workspace, container }) => {
+> = ({ workspace, agentName }) => {
 	const paper = useClassName(classNames.paper, []);
 
 	return (
@@ -116,8 +116,8 @@ export const AgentDevcontainerSSHButton: FC<
 				<ol style={{ margin: 0, padding: 0 }}>
 					<Stack spacing={0.5} css={styles.codeExamples}>
 						<SSHStep
-							helpText="Connect to the container:"
-							codeExample={`coder ssh ${workspace} -c ${container}`}
+							helpText="Connect to the dev container:"
+							codeExample={`coder ssh ${workspace}.${agentName}`}
 						/>
 					</Stack>
 				</ol>
@@ -151,11 +151,11 @@ const SSHStep: FC<SSHStepProps> = ({ helpText, codeExample }) => (
 
 const classNames = {
 	paper: (css, theme) => css`
-    padding: 16px 24px 24px;
-    width: 304px;
-    color: ${theme.palette.text.secondary};
-    margin-top: 2px;
-  `,
+		padding: 16px 24px 24px;
+		width: 304px;
+		color: ${theme.palette.text.secondary};
+		margin-top: 2px;
+	`,
 } satisfies Record<string, ClassName>;
 
 const styles = {

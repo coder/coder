@@ -140,16 +140,11 @@ export const AgentRow: FC<AgentRowProps> = ({
 		setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
 	}, []);
 
-	const { data: containers } = useQuery({
+	const { data: devcontainers } = useQuery({
 		queryKey: ["agents", agent.id, "containers"],
-		queryFn: () =>
-			// Only return devcontainers
-			API.getAgentContainers(agent.id, [
-				"devcontainer.config_file=",
-				"devcontainer.local_folder=",
-			]),
+		queryFn: () => API.getAgentContainers(agent.id),
 		enabled: agent.status === "connected",
-		select: (res) => res.containers.filter((c) => c.status === "running"),
+		select: (res) => res.devcontainers,
 		// TODO: Implement a websocket connection to get updates on containers
 		// without having to poll.
 		refetchInterval: ({ state }) => {
@@ -164,7 +159,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const [showParentApps, setShowParentApps] = useState(false);
 
 	let shouldDisplayAppsSection = shouldDisplayAgentApps;
-	if (containers && containers.length > 0 && !showParentApps) {
+	if (devcontainers && devcontainers.length > 0 && !showParentApps) {
 		shouldDisplayAppsSection = false;
 	}
 
@@ -200,7 +195,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 				</div>
 
 				<div className="flex items-center gap-2">
-					{containers && containers.length > 0 && (
+					{devcontainers && devcontainers.length > 0 && (
 						<Button
 							variant="outline"
 							size="sm"
@@ -289,13 +284,13 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</section>
 				)}
 
-				{containers && containers.length > 0 && (
+				{devcontainers && devcontainers.length > 0 && (
 					<section className="flex flex-col gap-4">
-						{containers.map((container) => {
+						{devcontainers.map((devcontainer) => {
 							return (
 								<AgentDevcontainerCard
-									key={container.id}
-									container={container}
+									key={devcontainer.id}
+									devcontainer={devcontainer}
 									workspace={workspace}
 									wildcardHostname={proxy.preferredWildcardHostname}
 									agent={agent}

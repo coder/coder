@@ -6,12 +6,23 @@ import {
 	MockWorkspaceAgentContainerPorts,
 } from "testHelpers/entities";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
+import type { WorkspaceAgentDevcontainer } from "api/typesGenerated";
+
+const MockWorkspaceAgentDevcontainer: WorkspaceAgentDevcontainer = {
+	id: "test-devcontainer-id",
+	name: "test-devcontainer",
+	workspace_folder: "/workspace/test",
+	config_path: "/workspace/test/.devcontainer/devcontainer.json",
+	status: "running",
+	dirty: false,
+	container: MockWorkspaceAgentContainer,
+};
 
 const meta: Meta<typeof AgentDevcontainerCard> = {
 	title: "modules/resources/AgentDevcontainerCard",
 	component: AgentDevcontainerCard,
 	args: {
-		container: MockWorkspaceAgentContainer,
+		devcontainer: MockWorkspaceAgentDevcontainer,
 		workspace: MockWorkspace,
 		wildcardHostname: "*.wildcard.hostname",
 		agent: MockWorkspaceAgent,
@@ -25,30 +36,39 @@ export const NoPorts: Story = {};
 
 export const WithPorts: Story = {
 	args: {
-		container: {
-			...MockWorkspaceAgentContainer,
-			ports: MockWorkspaceAgentContainerPorts,
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			container: {
+				...MockWorkspaceAgentContainer,
+				ports: MockWorkspaceAgentContainerPorts,
+			},
 		},
 	},
 };
 
 export const Dirty: Story = {
 	args: {
-		container: {
-			...MockWorkspaceAgentContainer,
-			devcontainer_dirty: true,
-			ports: MockWorkspaceAgentContainerPorts,
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			dirty: true,
+			container: {
+				...MockWorkspaceAgentContainer,
+				ports: MockWorkspaceAgentContainerPorts,
+			},
 		},
 	},
 };
 
 export const Recreating: Story = {
 	args: {
-		container: {
-			...MockWorkspaceAgentContainer,
-			devcontainer_dirty: true,
-			devcontainer_status: "starting",
-			ports: MockWorkspaceAgentContainerPorts,
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			dirty: true,
+			status: "starting",
+			container: {
+				...MockWorkspaceAgentContainer,
+				ports: MockWorkspaceAgentContainerPorts,
+			},
 		},
 	},
 };

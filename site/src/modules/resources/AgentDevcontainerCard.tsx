@@ -1,7 +1,7 @@
 import type {
 	Workspace,
 	WorkspaceAgent,
-	WorkspaceAgentContainer,
+	WorkspaceAgentDevcontainer,
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { displayError } from "components/GlobalSnackbar/utils";
@@ -24,25 +24,26 @@ import type { FC } from "react";
 import { useEffect, useState } from "react";
 import { portForwardURL } from "utils/portForward";
 import { AgentButton } from "./AgentButton";
-import { AgentDevcontainerSSHButton } from "./SSHButton/SSHButton";
+import {
+	AgentDevcontainerSSHButton,
+	AgentSSHButton,
+} from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDevContainerButton } from "./VSCodeDevContainerButton/VSCodeDevContainerButton";
 
 type AgentDevcontainerCardProps = {
 	agent: WorkspaceAgent;
-	container: WorkspaceAgentContainer;
+	devcontainer: WorkspaceAgentDevcontainer;
 	workspace: Workspace;
 	wildcardHostname: string;
 };
 
 export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	agent,
-	container,
+	devcontainer,
 	workspace,
 	wildcardHostname,
 }) => {
-	const folderPath = container.labels["devcontainer.local_folder"];
-	const containerFolder = container.volumes[folderPath];
 	const [isRecreating, setIsRecreating] = useState(false);
 
 	const handleRecreateDevcontainer = async () => {
@@ -50,7 +51,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 		let recreateSucceeded = false;
 		try {
 			const response = await fetch(
-				`/api/v2/workspaceagents/${agent.id}/containers/devcontainers/container/${container.id}/recreate`,
+				`/api/v2/workspaceagents/${agent.id}/containers/devcontainers/container/${devcontainer.container?.id}/recreate`,
 				{
 					method: "POST",
 				},
@@ -79,27 +80,35 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 		}
 	};
 
-	// If the container is starting, reflect this in the recreate button.
+	// If the devcontainer is starting, reflect this in the recreate button.
 	useEffect(() => {
-		if (container.devcontainer_status === "starting") {
+		if (devcontainer.status === "starting") {
 			setIsRecreating(true);
 		} else {
 			setIsRecreating(false);
 		}
-	}, [container.devcontainer_status]);
+	}, [devcontainer.status]);
 
 	return (
 		<section
 			className="border border-border border-dashed rounded p-6 "
-			key={container.id}
+			key={devcontainer.id}
 		>
 			<header className="flex justify-between items-center mb-4">
 				<div className="flex items-center gap-2">
 					<h3 className="m-0 text-xs font-medium text-content-secondary">
 						dev container:{" "}
-						<span className="font-semibold">{container.name}</span>
+						<span className="font-semibold">
+							{devcontainer.name}
+							{devcontainer.container && (
+								<span className="text-content-tertiary">
+									{" "}
+									({devcontainer.container.name})
+								</span>
+							)}
+						</span>
 					</h3>
-					{container.devcontainer_dirty && (
+					{devcontainer.dirty && (
 						<HelpTooltip>
 							<HelpTooltipTrigger className="flex items-center text-xs text-content-warning ml-2">
 								<span>Outdated</span>
@@ -126,10 +135,17 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						Recreate
 					</Button>
 
-					<AgentDevcontainerSSHButton
+					{/* <AgentDevcontainerSSHButton
 						workspace={workspace.name}
-						container={container.name}
-					/>
+						container={devcontainer.container?.name || devcontainer.name}
+					/> */}
+					{agent.display_apps.includes("ssh_helper") && ( // TODO agent
+						<AgentSSHButton
+							workspaceName={workspace.name}
+							agentName={devcontainer.name}
+							workspaceOwnerUsername={workspace.owner_name}
+						/>
+					)}
 				</div>
 			</header>
 
@@ -139,20 +155,19 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 				<VSCodeDevContainerButton
 					userName={workspace.owner_name}
 					workspaceName={workspace.name}
-					devContainerName={container.name}
-					devContainerFolder={containerFolder}
-					displayApps={agent.display_apps}
-					agentName={agent.name}
+					devContainerName={devcontainer.name}
+					devContainerFolder={devcontainer.workspace_folder}
+					displayApps={agent.display_apps} // TODO agent
+					agentName={devcontainer.name}
 				/>
 
 				<TerminalLink
 					workspaceName={workspace.name}
-					agentName={agent.name}
-					containerName={container.name}
+					agentName={devcontainer.name}
 					userName={workspace.owner_name}
 				/>
 				{wildcardHostname !== "" &&
-					container.ports.map((port) => {
+					devcontainer.container?.ports.map((port) => {
 						const portLabel = `${port.port}/${port.network.toUpperCase()}`;
 						const hasHostBind =
 							port.host_port !== undefined && port.host_ip !== undefined;

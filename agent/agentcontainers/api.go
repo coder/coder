@@ -656,13 +656,16 @@ func (api *API) getContainers() (codersdk.WorkspaceAgentListContainersResponse, 
 		return codersdk.WorkspaceAgentListContainersResponse{}, api.containersErr
 	}
 
-	devcontainers := make([]codersdk.WorkspaceAgentDevcontainer, 0, len(api.knownDevcontainers))
-	for _, dc := range api.knownDevcontainers {
-		devcontainers = append(devcontainers, dc)
+	var devcontainers []codersdk.WorkspaceAgentDevcontainer
+	if len(api.knownDevcontainers) > 0 {
+		devcontainers = make([]codersdk.WorkspaceAgentDevcontainer, 0, len(api.knownDevcontainers))
+		for _, dc := range api.knownDevcontainers {
+			devcontainers = append(devcontainers, dc)
+		}
+		slices.SortFunc(devcontainers, func(a, b codersdk.WorkspaceAgentDevcontainer) int {
+			return strings.Compare(a.ID.String(), b.ID.String())
+		})
 	}
-	slices.SortFunc(devcontainers, func(a, b codersdk.WorkspaceAgentDevcontainer) int {
-		return strings.Compare(a.ID.String(), b.ID.String())
-	})
 
 	return codersdk.WorkspaceAgentListContainersResponse{
 		Devcontainers: devcontainers,
