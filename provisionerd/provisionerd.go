@@ -534,12 +534,7 @@ func (p *Server) UploadModuleFiles(ctx context.Context, moduleFiles []byte) erro
 
 		dataUp, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleFiles)
 
-		err = stream.Send(&proto.UploadFileRequest{Type: &proto.UploadFileRequest_DataUpload{DataUpload: &proto.DataUpload{
-			UploadType: proto.DataUploadType(dataUp.UploadType),
-			DataHash:   dataUp.DataHash,
-			FileSize:   dataUp.FileSize,
-			Chunks:     dataUp.Chunks,
-		}}})
+		err = stream.Send(&proto.UploadFileRequest{Type: &proto.UploadFileRequest_DataUpload{DataUpload: dataUp}})
 		if err != nil {
 			if retryable(err) { // Do not retry
 				return nil, xerrors.Errorf("send data upload: %s", err.Error())
@@ -548,11 +543,7 @@ func (p *Server) UploadModuleFiles(ctx context.Context, moduleFiles []byte) erro
 		}
 
 		for i, chunk := range chunks {
-			err = stream.Send(&proto.UploadFileRequest{Type: &proto.UploadFileRequest_ChunkPiece{ChunkPiece: &proto.ChunkPiece{
-				Data:         chunk.Data,
-				FullDataHash: chunk.FullDataHash,
-				PieceIndex:   chunk.PieceIndex,
-			}}})
+			err = stream.Send(&proto.UploadFileRequest{Type: &proto.UploadFileRequest_ChunkPiece{ChunkPiece: chunk}})
 			if err != nil {
 				if retryable(err) { // Do not retry
 					return nil, xerrors.Errorf("send chunk piece: %s", err.Error())
