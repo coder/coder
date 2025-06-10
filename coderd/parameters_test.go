@@ -276,7 +276,7 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 				EnableDynamicParameters: ptr.Ref(true),
 			})
 			require.NoError(t, err)
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, wrk.LatestBuild.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, bld.ID)
 
 			latestParams, err := setup.client.WorkspaceBuildParameters(ctx, bld.ID)
 			require.NoError(t, err)
