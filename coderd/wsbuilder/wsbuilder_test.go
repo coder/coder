@@ -57,7 +57,6 @@ func TestBuilder_NoOptions(t *testing.T) {
 	mDB := expectDB(t,
 		// Inputs
 		withTemplate,
-		withTerraformValuesErrNoRows,
 		withInactiveVersion(nil),
 		withLastBuildFound,
 		withTemplateVersionVariables(inactiveVersionID, nil),
@@ -114,7 +113,6 @@ func TestBuilder_Initiator(t *testing.T) {
 	mDB := expectDB(t,
 		// Inputs
 		withTemplate,
-		withTerraformValuesErrNoRows,
 		withInactiveVersion(nil),
 		withLastBuildFound,
 		withTemplateVersionVariables(inactiveVersionID, nil),
@@ -161,7 +159,6 @@ func TestBuilder_Baggage(t *testing.T) {
 	mDB := expectDB(t,
 		// Inputs
 		withTemplate,
-		withTerraformValuesErrNoRows,
 		withInactiveVersion(nil),
 		withLastBuildFound,
 		withTemplateVersionVariables(inactiveVersionID, nil),
@@ -200,7 +197,6 @@ func TestBuilder_Reason(t *testing.T) {
 	mDB := expectDB(t,
 		// Inputs
 		withTemplate,
-		withTerraformValuesErrNoRows,
 		withInactiveVersion(nil),
 		withLastBuildFound,
 		withTemplateVersionVariables(inactiveVersionID, nil),
@@ -239,7 +235,6 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 	mDB := expectDB(t,
 		// Inputs
 		withTemplate,
-		withTerraformValuesErrNoRows,
 		withActiveVersion(nil),
 		withLastBuildNotFound,
 		withTemplateVersionVariables(activeVersionID, nil),
@@ -343,7 +338,6 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 	mDB := expectDB(t,
 		// Inputs
 		withTemplate,
-		withTerraformValuesErrNoRows,
 		withInactiveVersion(richParameters),
 		withLastBuildFound,
 		withTemplateVersionVariables(inactiveVersionID, templateVersionVariables),
@@ -439,7 +433,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		mDB := expectDB(t,
 			// Inputs
 			withTemplate,
-			withTerraformValuesErrNoRows,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
 			withTemplateVersionVariables(inactiveVersionID, nil),
@@ -487,7 +480,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		mDB := expectDB(t,
 			// Inputs
 			withTemplate,
-			withTerraformValuesErrNoRows,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
 			withTemplateVersionVariables(inactiveVersionID, nil),
@@ -541,7 +533,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		mDB := expectDB(t,
 			// Inputs
 			withTemplate,
-			withTerraformValuesErrNoRows,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
 			withTemplateVersionVariables(inactiveVersionID, nil),
@@ -574,7 +565,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		mDB := expectDB(t,
 			// Inputs
 			withTemplate,
-			withTerraformValuesErrNoRows,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
 			withTemplateVersionVariables(inactiveVersionID, nil),
@@ -627,7 +617,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		mDB := expectDB(t,
 			// Inputs
 			withTemplate,
-			withTerraformValuesErrNoRows,
 			withActiveVersion(version2params),
 			withLastBuildFound,
 			withTemplateVersionVariables(activeVersionID, nil),
@@ -691,7 +680,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		mDB := expectDB(t,
 			// Inputs
 			withTemplate,
-			withTerraformValuesErrNoRows,
 			withActiveVersion(version2params),
 			withLastBuildFound,
 			withTemplateVersionVariables(activeVersionID, nil),
@@ -753,7 +741,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		mDB := expectDB(t,
 			// Inputs
 			withTemplate,
-			withTerraformValuesErrNoRows,
 			withActiveVersion(version2params),
 			withLastBuildFound,
 			withTemplateVersionVariables(activeVersionID, nil),
@@ -801,7 +788,6 @@ func TestWorkspaceBuildWithPreset(t *testing.T) {
 	mDB := expectDB(t,
 		// Inputs
 		withTemplate,
-		withTerraformValuesErrNoRows,
 		withActiveVersion(nil),
 		// building workspaces using presets with different combinations of parameters
 		// is tested at the API layer, in TestWorkspace. Here, it is sufficient to
@@ -914,12 +900,6 @@ func withTemplate(mTx *dbmock.MockStore) {
 			ActiveVersionID:         activeVersionID,
 			UseClassicParameterFlow: true,
 		}, nil)
-}
-
-func withTerraformValuesErrNoRows(mTx *dbmock.MockStore) {
-	mTx.EXPECT().GetTemplateVersionTerraformValues(gomock.Any(), gomock.Any()).
-		Times(1).
-		Return(database.TemplateVersionTerraformValue{}, sql.ErrNoRows)
 }
 
 // withInTx runs the given functions on the same db mock.
