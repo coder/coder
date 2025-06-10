@@ -139,68 +139,77 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						workspace={workspace.name}
 						container={devcontainer.container?.name || devcontainer.name}
 					/> */}
-					{agent.display_apps.includes("ssh_helper") && ( // TODO agent
+					{/* TODO(mafredri): Sub agent display apps. */}
+					{devcontainer.agent && agent.display_apps.includes("ssh_helper") && (
 						<AgentSSHButton
 							workspaceName={workspace.name}
-							agentName={devcontainer.name}
+							agentName={devcontainer.agent.name || devcontainer.name}
 							workspaceOwnerUsername={workspace.owner_name}
 						/>
 					)}
 				</div>
 			</header>
 
-			<h4 className="m-0 text-xl font-semibold mb-2">Forwarded ports</h4>
+			{devcontainer.agent && (
+				<>
+					<h4 className="m-0 text-xl font-semibold mb-2">Forwarded ports</h4>
+					<div className="flex gap-4 flex-wrap mt-4">
+						{devcontainer.container && (
+							<VSCodeDevContainerButton
+								userName={workspace.owner_name}
+								workspaceName={workspace.name}
+								devContainerName={devcontainer.container.name}
+								devContainerFolder={devcontainer.agent.directory}
+								displayApps={agent.display_apps} // TODO(mafredri): Sub agent display apps.
+								agentName={agent.name} // This must be set to the parent agent.
+							/>
+						)}
 
-			<div className="flex gap-4 flex-wrap mt-4">
-				<VSCodeDevContainerButton
-					userName={workspace.owner_name}
-					workspaceName={workspace.name}
-					devContainerName={devcontainer.name}
-					devContainerFolder={devcontainer.workspace_folder}
-					displayApps={agent.display_apps} // TODO agent
-					agentName={devcontainer.name}
-				/>
+						{devcontainer.agent && (
+							<TerminalLink
+								workspaceName={workspace.name}
+								agentName={devcontainer.agent.name}
+								userName={workspace.owner_name}
+							/>
+						)}
 
-				<TerminalLink
-					workspaceName={workspace.name}
-					agentName={devcontainer.name}
-					userName={workspace.owner_name}
-				/>
-				{wildcardHostname !== "" &&
-					devcontainer.container?.ports.map((port) => {
-						const portLabel = `${port.port}/${port.network.toUpperCase()}`;
-						const hasHostBind =
-							port.host_port !== undefined && port.host_ip !== undefined;
-						const helperText = hasHostBind
-							? `${port.host_ip}:${port.host_port}`
-							: "Not bound to host";
-						const linkDest = hasHostBind
-							? portForwardURL(
-									wildcardHostname,
-									port.host_port,
-									agent.name,
-									workspace.name,
-									workspace.owner_name,
-									location.protocol === "https" ? "https" : "http",
-								)
-							: "";
-						return (
-							<TooltipProvider key={portLabel}>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<AgentButton disabled={!hasHostBind} asChild>
-											<a href={linkDest}>
-												<ExternalLinkIcon />
-												{portLabel}
-											</a>
-										</AgentButton>
-									</TooltipTrigger>
-									<TooltipContent>{helperText}</TooltipContent>
-								</Tooltip>
-							</TooltipProvider>
-						);
-					})}
-			</div>
+						{wildcardHostname !== "" &&
+							devcontainer.container?.ports.map((port) => {
+								const portLabel = `${port.port}/${port.network.toUpperCase()}`;
+								const hasHostBind =
+									port.host_port !== undefined && port.host_ip !== undefined;
+								const helperText = hasHostBind
+									? `${port.host_ip}:${port.host_port}`
+									: "Not bound to host";
+								const linkDest = hasHostBind
+									? portForwardURL(
+											wildcardHostname,
+											port.host_port,
+											devcontainer.agent?.name || agent.name,
+											workspace.name,
+											workspace.owner_name,
+											location.protocol === "https" ? "https" : "http",
+										)
+									: "";
+								return (
+									<TooltipProvider key={portLabel}>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<AgentButton disabled={!hasHostBind} asChild>
+													<a href={linkDest}>
+														<ExternalLinkIcon />
+														{portLabel}
+													</a>
+												</AgentButton>
+											</TooltipTrigger>
+											<TooltipContent>{helperText}</TooltipContent>
+										</Tooltip>
+									</TooltipProvider>
+								);
+							})}
+					</div>
+				</>
+			)}
 		</section>
 	);
 };

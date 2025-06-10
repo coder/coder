@@ -16,6 +16,11 @@ const MockWorkspaceAgentDevcontainer: WorkspaceAgentDevcontainer = {
 	status: "running",
 	dirty: false,
 	container: MockWorkspaceAgentContainer,
+	agent: {
+		id: "test-agent-id",
+		name: "test-devcontainer-agent",
+		directory: "/workspace/test",
+	},
 };
 
 const meta: Meta<typeof AgentDevcontainerCard> = {
