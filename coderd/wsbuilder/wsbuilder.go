@@ -1042,6 +1042,21 @@ func (b *Builder) checkRunningBuild() error {
 }
 
 func (b *Builder) usingDynamicParameters() bool {
+	// Check if dynamic parameters are explicitly enabled/disabled first
+	if b.dynamicParametersEnabled != nil {
+		return *b.dynamicParametersEnabled
+	}
+
+	// Check template setting next - if classic flow is enabled, we're not using dynamic parameters
+	tpl, err := b.getTemplate()
+	if err != nil {
+		return false // Let another part of the code get this error
+	}
+	if tpl.UseClassicParameterFlow {
+		return false
+	}
+
+	// Only check terraform values if we might use dynamic parameters
 	vals, err := b.getTemplateTerraformValues()
 	if err != nil {
 		return false
@@ -1051,15 +1066,7 @@ func (b *Builder) usingDynamicParameters() bool {
 		return false
 	}
 
-	if b.dynamicParametersEnabled != nil {
-		return *b.dynamicParametersEnabled
-	}
-
-	tpl, err := b.getTemplate()
-	if err != nil {
-		return false // Let another part of the code get this error
-	}
-	return !tpl.UseClassicParameterFlow
+	return true
 }
 
 func ProvisionerVersionSupportsDynamicParameters(version string) bool {
