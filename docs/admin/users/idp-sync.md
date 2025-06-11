@@ -598,10 +598,12 @@ refresh tokens for offline access to the user's resources.
 
 ### Google
 
-If you're using Google directly, you will likely want to set `prompt=consent` on
-your auth URL to ensure you get refresh tokens. Without this, users will be
-logged out of Coder after 1 hour.
+To ensure Coder receives a refresh token when users authenticate with Google
+directly, set the `prompt` to `consent` in the auth URL parameters. Without
+this, users will be logged out after 1 hour.
+
+In your Coder configuration:
 
 ```
-CODER_OIDC_AUTH_URL_PARAMS={"access_type": "offline", "prompt": "consent"}
+CODER_OIDC_AUTH_URL_PARAMS='{"access_type": "offline", "prompt": "consent"}'
 ```
