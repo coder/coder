@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
 
 	"github.com/go-chi/cors"
 
@@ -72,4 +73,38 @@ func WorkspaceAppCors(regex *regexp.Regexp, app appurl.ApplicationURL) func(next
 		AllowedHeaders:   []string{"*"},
 		AllowCredentials: true,
 	})
+}
+
+// PermissiveCors creates a very permissive CORS middleware that allows all origins,
+// methods, and headers. This bypasses go-chi's CORS library for maximum compatibility.
+func PermissiveCors() func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH, SNARF")
+			w.Header().Set("Access-Control-Allow-Headers", "*")
+			w.Header().Set("Access-Control-Max-Age", "86400")
+
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// ConditionalCors applies permissive CORS for requests with the specified prefix,
+// and regular CORS for all other requests.
+func ConditionalCors(prefix string, regularCors, permissiveCors func(next http.Handler) http.Handler) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, prefix) {
+				permissiveCors(next).ServeHTTP(w, r)
+			} else {
+				regularCors(next).ServeHTTP(w, r)
+			}
+		})
+	}
 }
