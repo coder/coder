@@ -54,6 +54,7 @@ import { useAgentLogs } from "./useAgentLogs";
 
 interface AgentRowProps {
 	agent: WorkspaceAgent;
+	subAgents?: WorkspaceAgent[];
 	workspace: Workspace;
 	template: Template;
 	initialMetadata?: WorkspaceAgentMetadata[];
@@ -62,6 +63,7 @@ interface AgentRowProps {
 
 export const AgentRow: FC<AgentRowProps> = ({
 	agent,
+	subAgents,
 	workspace,
 	template,
 	onUpdateAgent,
@@ -293,7 +295,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 									devcontainer={devcontainer}
 									workspace={workspace}
 									wildcardHostname={proxy.preferredWildcardHostname}
-									agent={agent}
+									parentAgent={agent}
+									subAgents={subAgents ?? []}
 								/>
 							);
 						})}

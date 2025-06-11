@@ -32,26 +32,29 @@ import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDevContainerButton } from "./VSCodeDevContainerButton/VSCodeDevContainerButton";
 
 type AgentDevcontainerCardProps = {
-	agent: WorkspaceAgent;
+	parentAgent: WorkspaceAgent;
+	subAgents: WorkspaceAgent[];
 	devcontainer: WorkspaceAgentDevcontainer;
 	workspace: Workspace;
 	wildcardHostname: string;
 };
 
 export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
-	agent,
+	parentAgent,
+	subAgents,
 	devcontainer,
 	workspace,
 	wildcardHostname,
 }) => {
 	const [isRecreating, setIsRecreating] = useState(false);
+	const [subAgent, setSubAgent] = useState<WorkspaceAgent | null>(null);
 
 	const handleRecreateDevcontainer = async () => {
 		setIsRecreating(true);
 		let recreateSucceeded = false;
 		try {
 			const response = await fetch(
-				`/api/v2/workspaceagents/${agent.id}/containers/devcontainers/container/${devcontainer.container?.id}/recreate`,
+				`/api/v2/workspaceagents/${parentAgent.id}/containers/devcontainers/container/${devcontainer.container?.id}/recreate`,
 				{
 					method: "POST",
 				},
@@ -87,7 +90,17 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 		} else {
 			setIsRecreating(false);
 		}
-	}, [devcontainer.status]);
+	}, [devcontainer.id, devcontainer.status]);
+
+	const shouldDisplayAgentApps =
+		subAgent?.status === "connected" || subAgent?.status === "connecting";
+
+	// Woot! We have a sub agent, so we can display the forwarded ports.
+	useEffect(() => {
+		setSubAgent(
+			subAgents.find((sub) => sub.id === devcontainer.agent?.id) || null,
+		);
+	}, [subAgents, devcontainer.agent?.id]);
 
 	return (
 		<section
@@ -135,46 +148,37 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						Recreate
 					</Button>
 
-					{/* <AgentDevcontainerSSHButton
-						workspace={workspace.name}
-						container={devcontainer.container?.name || devcontainer.name}
-					/> */}
-					{/* TODO(mafredri): Sub agent display apps. */}
-					{devcontainer.agent && agent.display_apps.includes("ssh_helper") && (
+					{subAgent && subAgent.display_apps.includes("ssh_helper") && (
 						<AgentSSHButton
 							workspaceName={workspace.name}
-							agentName={devcontainer.agent.name || devcontainer.name}
+							agentName={subAgent.name}
 							workspaceOwnerUsername={workspace.owner_name}
 						/>
 					)}
 				</div>
 			</header>
 
-			{devcontainer.agent && (
+			{subAgent && devcontainer.container && (
 				<>
 					<h4 className="m-0 text-xl font-semibold mb-2">Forwarded ports</h4>
 					<div className="flex gap-4 flex-wrap mt-4">
-						{devcontainer.container && (
-							<VSCodeDevContainerButton
-								userName={workspace.owner_name}
-								workspaceName={workspace.name}
-								devContainerName={devcontainer.container.name}
-								devContainerFolder={devcontainer.agent.directory}
-								displayApps={agent.display_apps} // TODO(mafredri): Sub agent display apps.
-								agentName={agent.name} // This must be set to the parent agent.
-							/>
-						)}
+						<VSCodeDevContainerButton
+							userName={workspace.owner_name}
+							workspaceName={workspace.name}
+							devContainerName={devcontainer.container.name}
+							devContainerFolder={subAgent.directory ?? ""} // This will always be set.
+							displayApps={subAgent.display_apps}
+							agentName={parentAgent.name}
+						/>
 
-						{devcontainer.agent && (
-							<TerminalLink
-								workspaceName={workspace.name}
-								agentName={devcontainer.agent.name}
-								userName={workspace.owner_name}
-							/>
-						)}
+						<TerminalLink
+							workspaceName={workspace.name}
+							agentName={subAgent.name}
+							userName={workspace.owner_name}
+						/>
 
 						{wildcardHostname !== "" &&
-							devcontainer.container?.ports.map((port) => {
+							devcontainer.container.ports.map((port) => {
 								const portLabel = `${port.port}/${port.network.toUpperCase()}`;
 								const hasHostBind =
 									port.host_port !== undefined && port.host_ip !== undefined;
@@ -185,7 +189,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 									? portForwardURL(
 											wildcardHostname,
 											port.host_port,
-											devcontainer.agent?.name || agent.name,
+											subAgent.name,
 											workspace.name,
 											workspace.owner_name,
 											location.protocol === "https" ? "https" : "http",

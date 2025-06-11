@@ -30,7 +30,7 @@ const meta: Meta<typeof AgentDevcontainerCard> = {
 		devcontainer: MockWorkspaceAgentDevcontainer,
 		workspace: MockWorkspace,
 		wildcardHostname: "*.wildcard.hostname",
-		agent: MockWorkspaceAgent,
+		parentAgent: MockWorkspaceAgent,
 	},
 };
 
