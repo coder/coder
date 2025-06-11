@@ -39,7 +39,7 @@ certificates, you'll need a domain name that resolves to your Caddy server.
            condition: service_healthy
 
    database:
-       image: "postgres:16"
+       image: "postgres:17"
        ports:
            - "5432:5432"
        environment:
