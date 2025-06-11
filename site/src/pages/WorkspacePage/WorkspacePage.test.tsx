@@ -305,16 +305,20 @@ describe("WorkspacePage", () => {
 
 		// Check if the update was called using the values from the form
 		await waitFor(() => {
-			expect(API.updateWorkspace).toBeCalledWith(MockOutdatedWorkspace, [
-				{
-					name: MockTemplateVersionParameter1.name,
-					value: "some-value",
-				},
-				{
-					name: MockTemplateVersionParameter2.name,
-					value: "2",
-				},
-			]);
+			expect(API.updateWorkspace).toBeCalledWith(
+				MockOutdatedWorkspace,
+				[
+					{
+						name: MockTemplateVersionParameter1.name,
+						value: "some-value",
+					},
+					{
+						name: MockTemplateVersionParameter2.name,
+						value: "2",
+					},
+				],
+				false,
+			);
 		});
 	});
 

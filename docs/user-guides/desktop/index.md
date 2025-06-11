@@ -95,9 +95,7 @@ Before you can use Coder Desktop, you will need to sign in.
 
    Windows: Select **Generate a token via the Web UI**.
 
-1. In your web browser, you may be prompted to sign in to Coder with your credentials:
-
-   ![Sign in to your Coder deployment](../../images/templates/coder-login-web.png)
+1. In your web browser, you may be prompted to sign in to Coder with your credentials.
 
 1. Copy the session token to the clipboard:
 

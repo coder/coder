@@ -200,7 +200,7 @@ Before using Podman, please review the following documentation:
 - [Shortcomings of Rootless Podman](https://github.com/containers/podman/blob/main/rootless.md#shortcomings-of-rootless-podman)
 
 1. Enable
-   [smart-device-manager](https://gitlab.com/arm-research/smarter/smarter-device-manager#enabling-access)
+   [smart-device-manager](https://github.com/smarter-project/smarter-device-manager#enabling-access)
    to securely expose a FUSE devices to pods.
 
    ```shell

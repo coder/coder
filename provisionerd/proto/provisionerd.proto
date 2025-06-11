@@ -11,173 +11,173 @@ message Empty {}
 
 // AcquiredJob is returned when a provisioner daemon has a job locked.
 message AcquiredJob {
-    message WorkspaceBuild {
-        reserved 3;
+  message WorkspaceBuild {
+    reserved 3;
 
-        string workspace_build_id = 1;
-        string workspace_name = 2;
-        repeated provisioner.RichParameterValue rich_parameter_values = 4;
-        repeated provisioner.VariableValue variable_values = 5;
-        repeated provisioner.ExternalAuthProvider external_auth_providers = 6;
-        provisioner.Metadata metadata = 7;
-        bytes state = 8;
-        string log_level = 9;
-        // previous_parameter_values is used to pass the values of the previous
-        // workspace build. Omit these values if the workspace is being created
-        // for the first time.
-        repeated provisioner.RichParameterValue previous_parameter_values = 10;
-    }
-    message TemplateImport {
-        provisioner.Metadata metadata = 1;
-        repeated provisioner.VariableValue user_variable_values = 2;
-    }
-    message TemplateDryRun {
-        reserved 1;
+    string workspace_build_id = 1;
+    string workspace_name = 2;
+    repeated provisioner.RichParameterValue rich_parameter_values = 4;
+    repeated provisioner.VariableValue variable_values = 5;
+    repeated provisioner.ExternalAuthProvider external_auth_providers = 6;
+    provisioner.Metadata metadata = 7;
+    bytes state = 8;
+    string log_level = 9;
+    // previous_parameter_values is used to pass the values of the previous
+    // workspace build. Omit these values if the workspace is being created
+    // for the first time.
+    repeated provisioner.RichParameterValue previous_parameter_values = 10;
+  }
+  message TemplateImport {
+    provisioner.Metadata metadata = 1;
+    repeated provisioner.VariableValue user_variable_values = 2;
+  }
+  message TemplateDryRun {
+    reserved 1;
 
-        repeated provisioner.RichParameterValue rich_parameter_values = 2;
-        repeated provisioner.VariableValue variable_values = 3;
-        provisioner.Metadata metadata = 4;
-    }
+    repeated provisioner.RichParameterValue rich_parameter_values = 2;
+    repeated provisioner.VariableValue variable_values = 3;
+    provisioner.Metadata metadata = 4;
+  }
 
-    string job_id = 1;
-    int64 created_at = 2;
-    string provisioner = 3;
-    string user_name = 4;
-    bytes template_source_archive = 5;
-    oneof type {
-        WorkspaceBuild workspace_build = 6;
-        TemplateImport template_import = 7;
-        TemplateDryRun template_dry_run = 8;
-    }
-    // trace_metadata is currently used for tracing information only. It allows
-    // jobs to be tied to the request that created them.
-    map<string, string> trace_metadata = 9;
+  string job_id = 1;
+  int64 created_at = 2;
+  string provisioner = 3;
+  string user_name = 4;
+  bytes template_source_archive = 5;
+  oneof type {
+    WorkspaceBuild workspace_build = 6;
+    TemplateImport template_import = 7;
+    TemplateDryRun template_dry_run = 8;
+  }
+  // trace_metadata is currently used for tracing information only. It allows
+  // jobs to be tied to the request that created them.
+  map<string, string> trace_metadata = 9;
 }
 
 message FailedJob {
-    message WorkspaceBuild {
-        bytes state = 1;
-        repeated provisioner.Timing timings = 2;
-    }
-    message TemplateImport {}
-    message TemplateDryRun {}
+  message WorkspaceBuild {
+    bytes state = 1;
+    repeated provisioner.Timing timings = 2;
+  }
+  message TemplateImport {}
+  message TemplateDryRun {}
 
-    string job_id = 1;
-    string error = 2;
-    oneof type {
-        WorkspaceBuild workspace_build = 3;
-        TemplateImport template_import = 4;
-        TemplateDryRun template_dry_run = 5;
-    }
-    string error_code = 6;
+  string job_id = 1;
+  string error = 2;
+  oneof type {
+    WorkspaceBuild workspace_build = 3;
+    TemplateImport template_import = 4;
+    TemplateDryRun template_dry_run = 5;
+  }
+  string error_code = 6;
 }
 
 // CompletedJob is sent when the provisioner daemon completes a job.
 message CompletedJob {
-    message WorkspaceBuild {
-        bytes state = 1;
-        repeated provisioner.Resource resources = 2;
-        repeated provisioner.Timing timings = 3;
-        repeated provisioner.Module modules = 4;
-        repeated provisioner.ResourceReplacement resource_replacements = 5;
-    }
-    message TemplateImport {
-        repeated provisioner.Resource start_resources = 1;
-        repeated provisioner.Resource stop_resources = 2;
-        repeated provisioner.RichParameter rich_parameters = 3;
-        repeated string external_auth_providers_names = 4;
-        repeated provisioner.ExternalAuthProviderResource external_auth_providers = 5;
-        repeated provisioner.Module start_modules = 6;
-        repeated provisioner.Module stop_modules = 7;
-        repeated provisioner.Preset presets = 8;
-        bytes plan = 9;
-        bytes module_files = 10;
-    }
-    message TemplateDryRun {
-        repeated provisioner.Resource resources = 1;
-        repeated provisioner.Module modules = 2;
-    }
+  message WorkspaceBuild {
+    bytes state = 1;
+    repeated provisioner.Resource resources = 2;
+    repeated provisioner.Timing timings = 3;
+    repeated provisioner.Module modules = 4;
+    repeated provisioner.ResourceReplacement resource_replacements = 5;
+  }
+  message TemplateImport {
+    repeated provisioner.Resource start_resources = 1;
+    repeated provisioner.Resource stop_resources = 2;
+    repeated provisioner.RichParameter rich_parameters = 3;
+    repeated string external_auth_providers_names = 4;
+    repeated provisioner.ExternalAuthProviderResource external_auth_providers = 5;
+    repeated provisioner.Module start_modules = 6;
+    repeated provisioner.Module stop_modules = 7;
+    repeated provisioner.Preset presets = 8;
+    bytes plan = 9;
+    bytes module_files = 10;
+  }
+  message TemplateDryRun {
+    repeated provisioner.Resource resources = 1;
+    repeated provisioner.Module modules = 2;
+  }
 
-    string job_id = 1;
-    oneof type {
-        WorkspaceBuild workspace_build = 2;
-        TemplateImport template_import = 3;
-        TemplateDryRun template_dry_run = 4;
-    }
+  string job_id = 1;
+  oneof type {
+    WorkspaceBuild workspace_build = 2;
+    TemplateImport template_import = 3;
+    TemplateDryRun template_dry_run = 4;
+  }
 }
 
 // LogSource represents the sender of the log.
 enum LogSource {
-    PROVISIONER_DAEMON = 0;
-    PROVISIONER = 1;
+  PROVISIONER_DAEMON = 0;
+  PROVISIONER = 1;
 }
 
 // Log represents output from a job.
 message Log {
-    LogSource source = 1;
-    provisioner.LogLevel level = 2;
-    int64 created_at = 3;
-    string stage = 4;
-    string output = 5;
+  LogSource source = 1;
+  provisioner.LogLevel level = 2;
+  int64 created_at = 3;
+  string stage = 4;
+  string output = 5;
 }
 
 // This message should be sent periodically as a heartbeat.
 message UpdateJobRequest {
-    reserved 3;
+  reserved 3;
 
-    string job_id = 1;
-    repeated Log logs = 2;
-    repeated provisioner.TemplateVariable template_variables = 4;
-    repeated provisioner.VariableValue user_variable_values = 5;
-    bytes readme = 6;
-	map<string,string> workspace_tags = 7;
+  string job_id = 1;
+  repeated Log logs = 2;
+  repeated provisioner.TemplateVariable template_variables = 4;
+  repeated provisioner.VariableValue user_variable_values = 5;
+  bytes readme = 6;
+  map<string,string> workspace_tags = 7;
 }
 
 message UpdateJobResponse {
-    reserved 2;
+  reserved 2;
 
-    bool canceled = 1;
-    repeated provisioner.VariableValue variable_values = 3;
+  bool canceled = 1;
+  repeated provisioner.VariableValue variable_values = 3;
 }
 
 message CommitQuotaRequest {
-    string job_id = 1;
-    int32 daily_cost = 2;
+  string job_id = 1;
+  int32 daily_cost = 2;
 }
 
 message CommitQuotaResponse {
-    bool ok = 1;
-    int32 credits_consumed = 2;
-    int32 budget = 3;
+  bool ok = 1;
+  int32 credits_consumed = 2;
+  int32 budget = 3;
 }
 
 message CancelAcquire {}
 
 service ProvisionerDaemon {
-    // AcquireJob requests a job. Implementations should
-    // hold a lock on the job until CompleteJob() is
-    // called with the matching ID.
-    rpc AcquireJob(Empty) returns (AcquiredJob) {
-        option deprecated = true;
-    };
-    // AcquireJobWithCancel requests a job, blocking until
-    // a job is available or the client sends CancelAcquire.
-    // Server will send exactly one AcquiredJob, which is
-    // empty if a cancel was successful.  This RPC is a bidirectional
-    // stream since both messages are asynchronous with no implied
-    // ordering.
-    rpc AcquireJobWithCancel(stream CancelAcquire) returns (stream AcquiredJob);
+  // AcquireJob requests a job. Implementations should
+  // hold a lock on the job until CompleteJob() is
+  // called with the matching ID.
+  rpc AcquireJob(Empty) returns (AcquiredJob) {
+    option deprecated = true;
+  };
+  // AcquireJobWithCancel requests a job, blocking until
+  // a job is available or the client sends CancelAcquire.
+  // Server will send exactly one AcquiredJob, which is
+  // empty if a cancel was successful.  This RPC is a bidirectional
+  // stream since both messages are asynchronous with no implied
+  // ordering.
+  rpc AcquireJobWithCancel(stream CancelAcquire) returns (stream AcquiredJob);
 
-    rpc CommitQuota(CommitQuotaRequest) returns (CommitQuotaResponse);
+  rpc CommitQuota(CommitQuotaRequest) returns (CommitQuotaResponse);
 
-    // UpdateJob streams periodic updates for a job.
-    // Implementations should buffer logs so this stream
-    // is non-blocking.
-    rpc UpdateJob(UpdateJobRequest) returns (UpdateJobResponse);
+  // UpdateJob streams periodic updates for a job.
+  // Implementations should buffer logs so this stream
+  // is non-blocking.
+  rpc UpdateJob(UpdateJobRequest) returns (UpdateJobResponse);
 
-    // FailJob indicates a job has failed.
-    rpc FailJob(FailedJob) returns (Empty);
+  // FailJob indicates a job has failed.
+  rpc FailJob(FailedJob) returns (Empty);
 
-    // CompleteJob indicates a job has been completed.
-    rpc CompleteJob(CompletedJob) returns (Empty);
+  // CompleteJob indicates a job has been completed.
+  rpc CompleteJob(CompletedJob) returns (Empty);
 }

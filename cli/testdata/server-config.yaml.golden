@@ -25,6 +25,10 @@ networking:
     # The maximum lifetime duration users can specify when creating an API token.
     # (default: 876600h0m0s, type: duration)
     maxTokenLifetime: 876600h0m0s
+    # The maximum lifetime duration administrators can specify when creating an API
+    # token.
+    # (default: 168h0m0s, type: duration)
+    maxAdminTokenLifetime: 168h0m0s
     # The token expiry duration for browser sessions. Sessions may last longer if they
     # are actively making requests, but this functionality can be disabled via
     # --disable-session-expiry-refresh.

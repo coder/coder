@@ -78,7 +78,7 @@ func TestIntegrationDocker(t *testing.T) {
 		return ok && ct.Container.State.Running
 	}, testutil.WaitShort, testutil.IntervalSlow, "Container did not start in time")
 
-	dcl := agentcontainers.NewDocker(agentexec.DefaultExecer)
+	dcl := agentcontainers.NewDockerCLI(agentexec.DefaultExecer)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	actual, err := dcl.List(ctx)
 	require.NoError(t, err, "Could not list containers")
