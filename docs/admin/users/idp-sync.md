@@ -595,3 +595,13 @@ user is granted the necessary permissions to obtain refresh tokens.
 By combining the `{"access_type":"offline"}` parameter in the OIDC Auth URL with
 the `offline_access` scope, you can achieve the desired behavior of obtaining
 refresh tokens for offline access to the user's resources.
+
+### Google
+
+If you're using Google directly, you will likely want to set `prompt=consent` on
+your auth URL to ensure you get refresh tokens. Without this, users will be
+logged out of Coder after 1 hour.
+
+```
+CODER_OIDC_AUTH_URL_PARAMS={"access_type": "offline", "prompt": "consent"}
+```
