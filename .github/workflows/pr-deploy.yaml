@@ -2,6 +2,7 @@
 # 1. when the workflow is manually triggered
 # 2. ./scripts/deploy_pr.sh is run locally
 # 3. when a PR is updated
+# 4. when a PR comment contains '/deploy'
 name: Deploy PR
 on:
   push:
@@ -25,6 +26,15 @@ on:
         required: false
         type: boolean
         default: false
+      branch:
+        description: "Deploy specific branch (without PR)"
+        required: false
+        type: string
+        default: ""
+  issue_comment:
+    types: [created]
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 env:
   REPO: ghcr.io/coder/coder-preview
@@ -33,10 +43,52 @@ permissions:
   contents: read
 
 jobs:
-  check_pr:
+  check_comment_trigger:
+    if: github.event_name == 'issue_comment'
     runs-on: ubuntu-latest
     outputs:
+      SHOULD_DEPLOY: ${{ steps.check_comment.outputs.should_deploy }}
+      PR_NUMBER: ${{ steps.get_pr.outputs.pr_number }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - name: Check if comment contains deploy trigger
+        id: check_comment
+        run: |
+          set -euo pipefail
+          comment="${{ github.event.comment.body }}"
+          if [[ "$comment" =~ /deploy ]]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get PR number from issue
+        id: get_pr
+        if: steps.check_comment.outputs.should_deploy == 'true'
+        run: |
+          set -euo pipefail
+          # Check if this issue is actually a PR
+          pr_number=$(gh api repos/${{ github.repository }}/pulls --jq '.[] | select(.number == ${{ github.event.issue.number }}) | .number')
+          if [ -n "$pr_number" ]; then
+            echo "pr_number=$pr_number" >> $GITHUB_OUTPUT
+          else
+            echo "Issue is not a PR, skipping deployment"
+            exit 1
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  check_pr:
+    runs-on: ubuntu-latest
+    needs: [check_comment_trigger]
+    if: always() && (github.event_name != 'issue_comment' || needs.check_comment_trigger.outputs.SHOULD_DEPLOY == 'true')
+    outputs:
       PR_OPEN: ${{ steps.check_pr.outputs.pr_open }}
+      PR_NUMBER: ${{ steps.get_pr_number.outputs.pr_number }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -45,13 +97,35 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/head', needs.check_comment_trigger.outputs.PR_NUMBER) || github.ref }}
+
+      - name: Get PR number
+        id: get_pr_number
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
+            echo "pr_number=${{ needs.check_comment_trigger.outputs.PR_NUMBER }}" >> $GITHUB_OUTPUT
+          else
+            pr_number=$(gh pr view --json number | jq -r '.number')
+            echo "pr_number=$pr_number" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check if PR is open
         id: check_pr
         run: |
           set -euo pipefail
           pr_open=true
-          if [[ "$(gh pr view --json state | jq -r '.state')" != "OPEN" ]]; then
+          if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
+            # For comment triggers, check the specific PR
+            pr_state=$(gh pr view ${{ steps.get_pr_number.outputs.pr_number }} --json state | jq -r '.state')
+          else
+            pr_state=$(gh pr view --json state | jq -r '.state')
+          fi
+          
+          if [[ "$pr_state" != "OPEN" ]]; then
             echo "PR doesn't exist or is closed."
             pr_open=false
           fi
@@ -87,9 +161,9 @@ jobs:
         id: pr_info
         run: |
           set -euo pipefail
-          PR_NUMBER=$(gh pr view --json number | jq -r '.number')
-          PR_TITLE=$(gh pr view --json title | jq -r '.title')
-          PR_URL=$(gh pr view --json url | jq -r '.url')
+          PR_NUMBER=${{ needs.check_pr.outputs.PR_NUMBER }}
+          PR_TITLE=$(gh pr view $PR_NUMBER --json title | jq -r '.title')
+          PR_URL=$(gh pr view $PR_NUMBER --json url | jq -r '.url')
           echo "PR_URL=$PR_URL" >> $GITHUB_OUTPUT
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "PR_TITLE=$PR_TITLE" >> $GITHUB_OUTPUT
@@ -162,9 +236,25 @@ jobs:
         run: |
           set -euo pipefail
           # build if the workflow is manually triggered and the deployment doesn't exist (first build or force rebuild)
-          echo "first_or_force_build=${{ (github.event_name == 'workflow_dispatch' && steps.check_deployment.outputs.NEW == 'true') || github.event.inputs.build == 'true' }}" >> $GITHUB_OUTPUT
-          # build if the deployment already exist and there are changes in the files that we care about (automatic updates)
-          echo "automatic_rebuild=${{ steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count }}" >> $GITHUB_OUTPUT
+          first_or_force_build="${{ (github.event_name == 'workflow_dispatch' && steps.check_deployment.outputs.NEW == 'true') || github.event.inputs.build == 'true' || github.event_name == 'issue_comment' }}"
+          echo "first_or_force_build=$first_or_force_build" >> $GITHUB_OUTPUT
+          
+          # Improved logic for automatic rebuilds
+          # Build if:
+          # 1. Deployment exists and there are code changes (not just docs/config)
+          # 2. This is a new PR (pull_request event with opened action)
+          # 3. This is a comment-triggered deployment
+          automatic_rebuild="false"
+          if [[ "${{ steps.check_deployment.outputs.NEW }}" == "false" ]]; then
+            # For existing deployments, check if there are meaningful changes
+            if [[ "${{ steps.filter.outputs.all_count }}" -gt "${{ steps.filter.outputs.ignored_count }}" ]]; then
+              automatic_rebuild="true"
+            fi
+          elif [[ "${{ github.event.action }}" == "opened" || "${{ github.event_name }}" == "issue_comment" ]]; then
+            # Always build for new PRs or comment triggers
+            automatic_rebuild="true"
+          fi
+          echo "automatic_rebuild=$automatic_rebuild" >> $GITHUB_OUTPUT
 
   comment-pr:
     needs: get_info
@@ -216,6 +306,9 @@ jobs:
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
       CODER_IMAGE_TAG: ${{ needs.get_info.outputs.CODER_IMAGE_TAG }}
+      # Enable build optimizations
+      GOCACHE: /tmp/go-cache
+      GOMODCACHE: /tmp/go-mod-cache
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -235,6 +328,24 @@ jobs:
 
       - name: Setup sqlc
         uses: ./.github/actions/setup-sqlc
+
+      - name: Cache Go modules
+        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
+        with:
+          path: |
+            /tmp/go-mod-cache
+            /tmp/go-cache
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Cache Node modules
+        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: GHCR Login
         uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
@@ -327,28 +438,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Check and Create Certificate
+      - name: Setup Wildcard Certificate
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
         run: |
-          # Using kubectl to check if a Certificate resource already exists
-          # we are doing this to avoid letsenrypt rate limits
-          if ! kubectl get certificate pr${{ env.PR_NUMBER }}-tls -n pr-deployment-certs > /dev/null 2>&1; then
-            echo "Certificate doesn't exist. Creating a new one."
-            envsubst < ./.github/pr-deployments/certificate.yaml | kubectl apply -f -
+          set -euo pipefail
+          # Check if wildcard certificate exists, create if not
+          if ! kubectl get certificate pr-wildcard-tls -n pr-deployment-certs > /dev/null 2>&1; then
+            echo "Wildcard certificate doesn't exist. Creating one."
+            envsubst < ./.github/pr-deployments/wildcard-certificate.yaml | kubectl apply -f -
+            echo "Waiting for wildcard certificate to be ready..."
+            kubectl wait --for=condition=Ready certificate/pr-wildcard-tls -n pr-deployment-certs --timeout=300s
           else
-            echo "Certificate exists. Skipping certificate creation."
+            echo "Wildcard certificate exists. Reusing it."
           fi
-          echo "Copy certificate from pr-deployment-certs to pr${{ env.PR_NUMBER }} namespace"
-          until kubectl get secret pr${{ env.PR_NUMBER }}-tls -n pr-deployment-certs &> /dev/null
+          
+          # Copy wildcard certificate to PR namespace
+          echo "Copying wildcard certificate to pr${{ env.PR_NUMBER }} namespace"
+          until kubectl get secret pr-wildcard-tls -n pr-deployment-certs &> /dev/null
           do
-            echo "Waiting for secret pr${{ env.PR_NUMBER }}-tls to be created..."
+            echo "Waiting for wildcard certificate secret to be available..."
             sleep 5
           done
-          (
-            kubectl get secret pr${{ env.PR_NUMBER }}-tls -n pr-deployment-certs -o json |
-            jq 'del(.metadata.namespace,.metadata.creationTimestamp,.metadata.resourceVersion,.metadata.selfLink,.metadata.uid,.metadata.managedFields)' |
+          
+          # Copy the wildcard certificate secret to the PR namespace with the expected name
+          kubectl get secret pr-wildcard-tls -n pr-deployment-certs -o json |
+            jq 'del(.metadata.namespace,.metadata.creationTimestamp,.metadata.resourceVersion,.metadata.selfLink,.metadata.uid,.metadata.managedFields) | .metadata.name = "pr'${{ env.PR_NUMBER }}'-tls"' |
             kubectl -n pr${{ env.PR_NUMBER }} apply -f -
-          )
 
       - name: Set up PostgreSQL database
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
@@ -509,3 +624,153 @@ jobs:
           # Create workspace
           coder create --template="kubernetes" kube --parameter cpu=2 --parameter memory=4 --parameter home_disk_size=2 -y
           coder stop kube -y
+
+  # Branch deployment job for deploying branches without PRs
+  deploy_branch:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.branch != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
+      BRANCH_NAME: ${{ github.event.inputs.branch }}
+      CODER_IMAGE_TAG: ghcr.io/coder/coder-preview:branch-${{ github.event.inputs.branch }}
+      DEPLOYMENT_NAME: branch-${{ github.event.inputs.branch }}
+      HOSTNAME: "branch-${{ github.event.inputs.branch }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout specific branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.inputs.branch }}
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup sqlc
+        uses: ./.github/actions/setup-sqlc
+
+      - name: GHCR Login
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push branch Docker image
+        run: |
+          set -euo pipefail
+          go mod download
+          make gen/mark-fresh
+          export DOCKER_IMAGE_NO_PREREQUISITES=true
+          version="$(./scripts/version.sh)"
+          export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
+          make -j build/coder_linux_amd64
+          ./scripts/build_docker.sh \
+            --arch amd64 \
+            --target ${{ env.CODER_IMAGE_TAG }} \
+            --version $version \
+            --push \
+            build/coder_linux_amd64
+
+      - name: Set up kubeconfig
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.kube
+          echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG_BASE64 }}" | base64 --decode > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Deploy branch
+        run: |
+          set -euo pipefail
+          # Create namespace
+          kubectl create namespace ${{ env.DEPLOYMENT_NAME }} || true
+          
+          # Add DNS record
+          curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
+            -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type:application/json" \
+            --data '{"type":"CNAME","name":"*.${{ env.HOSTNAME }}","content":"${{ env.HOSTNAME }}","ttl":1,"proxied":false}' || true
+          
+          # Setup wildcard certificate
+          if ! kubectl get certificate pr-wildcard-tls -n pr-deployment-certs > /dev/null 2>&1; then
+            envsubst < ./.github/pr-deployments/wildcard-certificate.yaml | kubectl apply -f -
+            kubectl wait --for=condition=Ready certificate/pr-wildcard-tls -n pr-deployment-certs --timeout=300s
+          fi
+          
+          # Copy certificate
+          kubectl get secret pr-wildcard-tls -n pr-deployment-certs -o json |
+            jq 'del(.metadata.namespace,.metadata.creationTimestamp,.metadata.resourceVersion,.metadata.selfLink,.metadata.uid,.metadata.managedFields) | .metadata.name = "'${{ env.DEPLOYMENT_NAME }}'-tls"' |
+            kubectl -n ${{ env.DEPLOYMENT_NAME }} apply -f -
+          
+          # Deploy PostgreSQL
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm install coder-db bitnami/postgresql \
+            --namespace ${{ env.DEPLOYMENT_NAME }} \
+            --set auth.username=coder \
+            --set auth.password=coder \
+            --set auth.database=coder \
+            --set persistence.size=10Gi || true
+          
+          kubectl create secret generic coder-db-url -n ${{ env.DEPLOYMENT_NAME }} \
+            --from-literal=url="postgres://coder:coder@coder-db-postgresql.${{ env.DEPLOYMENT_NAME }}.svc.cluster.local:5432/coder?sslmode=disable" || true
+          
+          # Create values file for branch deployment
+          cat > branch-values.yaml << EOF
+          coder:
+            image:
+              repo: "ghcr.io/coder/coder-preview"
+              tag: "branch-${{ env.BRANCH_NAME }}"
+              pullPolicy: Always
+            service:
+              type: ClusterIP
+            ingress:
+              enable: true
+              className: traefik
+              host: "${{ env.HOSTNAME }}"
+              wildcardHost: "*.${{ env.HOSTNAME }}"
+              tls:
+                enable: true
+                secretName: "${{ env.DEPLOYMENT_NAME }}-tls"
+                wildcardSecretName: "${{ env.DEPLOYMENT_NAME }}-tls"
+            env:
+              - name: "CODER_ACCESS_URL"
+                value: "https://${{ env.HOSTNAME }}"
+              - name: "CODER_WILDCARD_ACCESS_URL"
+                value: "*.${{ env.HOSTNAME }}"
+              - name: "CODER_EXPERIMENTS"
+                value: "${{ github.event.inputs.experiments }}"
+              - name: CODER_PG_CONNECTION_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: coder-db-url
+                    key: url
+              - name: "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS"
+                value: "true"
+              - name: "CODER_OAUTH2_GITHUB_CLIENT_ID"
+                value: "${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID }}"
+              - name: "CODER_OAUTH2_GITHUB_CLIENT_SECRET"
+                value: "${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }}"
+              - name: "CODER_OAUTH2_GITHUB_ALLOWED_ORGS"
+                value: "coder"
+              - name: "CODER_DERP_CONFIG_URL"
+                value: "https://controlplane.tailscale.com/derpmap/default"
+          EOF
+          
+          # Deploy with Helm
+          helm dependency update --skip-refresh ./helm/coder
+          helm upgrade --install ${{ env.DEPLOYMENT_NAME }} ./helm/coder \
+            --namespace ${{ env.DEPLOYMENT_NAME }} \
+            --values branch-values.yaml \
+            --force
+          
+          echo "Branch ${{ env.BRANCH_NAME }} deployed to https://${{ env.HOSTNAME }}"
