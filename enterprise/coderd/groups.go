@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -170,6 +171,11 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 				Message: fmt.Sprintf("ID %q must be a valid user UUID.", id),
 			})
 			return
+		}
+		// Skip membership checks for the prebuilds user.
+		if id == prebuilds.SystemUserID.String() {
+			api.Logger.Debug(ctx, "Skipping membership check for prebuilds user")
+			continue
 		}
 		_, err := database.ExpectOne(api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
 			OrganizationID: group.OrganizationID,
