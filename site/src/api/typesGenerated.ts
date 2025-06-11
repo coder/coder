@@ -3394,11 +3394,6 @@ export const WorkspaceAgentDevcontainerStatuses: WorkspaceAgentDevcontainerStatu
 	["error", "running", "starting", "stopped"];
 
 // From codersdk/workspaceagents.go
-export interface WorkspaceAgentDevcontainersResponse {
-	readonly devcontainers: readonly WorkspaceAgentDevcontainer[];
-}
-
-// From codersdk/workspaceagents.go
 export interface WorkspaceAgentHealth {
 	readonly healthy: boolean;
 	readonly reason?: string;

@@ -294,6 +294,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 									key={devcontainer.id}
 									devcontainer={devcontainer}
 									workspace={workspace}
+									template={template}
 									wildcardHostname={proxy.preferredWildcardHostname}
 									parentAgent={agent}
 									subAgents={subAgents ?? []}

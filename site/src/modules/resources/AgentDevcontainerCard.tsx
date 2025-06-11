@@ -1,4 +1,5 @@
 import type {
+	Template,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
@@ -30,12 +31,16 @@ import {
 } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDevContainerButton } from "./VSCodeDevContainerButton/VSCodeDevContainerButton";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { useProxy } from "contexts/ProxyContext";
+import { PortForwardButton } from "./PortForwardButton";
 
 type AgentDevcontainerCardProps = {
 	parentAgent: WorkspaceAgent;
 	subAgents: WorkspaceAgent[];
 	devcontainer: WorkspaceAgentDevcontainer;
 	workspace: Workspace;
+	template: Template;
 	wildcardHostname: string;
 };
 
@@ -44,10 +49,13 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	subAgents,
 	devcontainer,
 	workspace,
+	template,
 	wildcardHostname,
 }) => {
+	const { browser_only } = useFeatureVisibility();
+	const { proxy } = useProxy();
+
 	const [isRecreating, setIsRecreating] = useState(false);
-	const [subAgent, setSubAgent] = useState<WorkspaceAgent | null>(null);
 
 	const handleRecreateDevcontainer = async () => {
 		setIsRecreating(true);
@@ -83,24 +91,24 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 		}
 	};
 
+	const subAgent = subAgents.find((sub) => sub.id === devcontainer.agent?.id);
+	const shouldDisplaySubAgentApps =
+		subAgent?.status === "connected" || subAgent?.status === "connecting";
+
 	// If the devcontainer is starting, reflect this in the recreate button.
 	useEffect(() => {
+		console.log(
+			"Devcontainer status:",
+			devcontainer.status,
+			"Sub agent status:",
+			subAgent?.status,
+		);
 		if (devcontainer.status === "starting") {
 			setIsRecreating(true);
 		} else {
 			setIsRecreating(false);
 		}
-	}, [devcontainer.id, devcontainer.status]);
-
-	const shouldDisplayAgentApps =
-		subAgent?.status === "connected" || subAgent?.status === "connecting";
-
-	// Woot! We have a sub agent, so we can display the forwarded ports.
-	useEffect(() => {
-		setSubAgent(
-			subAgents.find((sub) => sub.id === devcontainer.agent?.id) || null,
-		);
-	}, [subAgents, devcontainer.agent?.id]);
+	}, [devcontainer]);
 
 	return (
 		<section
@@ -148,17 +156,32 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						Recreate
 					</Button>
 
-					{subAgent && subAgent.display_apps.includes("ssh_helper") && (
-						<AgentSSHButton
-							workspaceName={workspace.name}
-							agentName={subAgent.name}
-							workspaceOwnerUsername={workspace.owner_name}
-						/>
-					)}
+					{shouldDisplaySubAgentApps &&
+						!browser_only &&
+						// TODO(mafredri): We could use subAgent display apps here but we currently set none.
+						parentAgent.display_apps.includes("ssh_helper") && (
+							<AgentSSHButton
+								workspaceName={workspace.name}
+								agentName={subAgent.name}
+								workspaceOwnerUsername={workspace.owner_name}
+							/>
+						)}
+
+					{shouldDisplaySubAgentApps &&
+						proxy.preferredWildcardHostname === "" &&
+						// TODO(mafredri): We could use subAgent display apps here but we currently set none.
+						parentAgent.display_apps.includes("port_forwarding_helper") && (
+							<PortForwardButton
+								host={proxy.preferredWildcardHostname}
+								workspace={workspace}
+								agent={subAgent}
+								template={template}
+							/>
+						)}
 				</div>
 			</header>
 
-			{subAgent && devcontainer.container && (
+			{shouldDisplaySubAgentApps && devcontainer.container && (
 				<>
 					<h4 className="m-0 text-xl font-semibold mb-2">Forwarded ports</h4>
 					<div className="flex gap-4 flex-wrap mt-4">
@@ -166,8 +189,8 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							userName={workspace.owner_name}
 							workspaceName={workspace.name}
 							devContainerName={devcontainer.container.name}
-							devContainerFolder={subAgent.directory ?? ""} // This will always be set.
-							displayApps={subAgent.display_apps}
+							devContainerFolder={subAgent.directory ?? "/"} // This will always be set on subagents but provide fallback anyway.
+							displayApps={parentAgent.display_apps} // TODO(mafredri): We could use subAgent display apps here but we currently set none.
 							agentName={parentAgent.name}
 						/>
 
