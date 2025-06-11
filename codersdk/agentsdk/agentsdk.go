@@ -102,6 +102,7 @@ type PostMetadataRequest struct {
 type PostMetadataRequestDeprecated = codersdk.WorkspaceAgentMetadataResult
 
 type Manifest struct {
+	ParentID  uuid.UUID `json:"parent_id"`
 	AgentID   uuid.UUID `json:"agent_id"`
 	AgentName string    `json:"agent_name"`
 	// OwnerUsername and WorkspaceID are used by an open-source user to identify the workspace.

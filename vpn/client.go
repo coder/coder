@@ -5,11 +5,14 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"time"
 
 	"golang.org/x/xerrors"
 
+	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/dns"
 	"tailscale.com/net/netmon"
+	"tailscale.com/tailcfg"
 	"tailscale.com/wgengine/router"
 
 	"github.com/google/uuid"
@@ -27,6 +30,9 @@ import (
 type Conn interface {
 	CurrentWorkspaceState() (tailnet.WorkspaceUpdate, error)
 	GetPeerDiagnostics(peerID uuid.UUID) tailnet.PeerDiagnostics
+	Ping(ctx context.Context, agentID uuid.UUID) (time.Duration, bool, *ipnstate.PingResult, error)
+	Node() *tailnet.Node
+	DERPMap() *tailcfg.DERPMap
 	Close() error
 }
 
@@ -36,6 +42,10 @@ type vpnConn struct {
 	cancelFn    func()
 	controller  *tailnet.Controller
 	updatesCtrl *tailnet.TunnelAllWorkspaceUpdatesController
+}
+
+func (c *vpnConn) Ping(ctx context.Context, agentID uuid.UUID) (time.Duration, bool, *ipnstate.PingResult, error) {
+	return c.Conn.Ping(ctx, tailnet.TailscaleServicePrefix.AddrFromUUID(agentID))
 }
 
 func (c *vpnConn) CurrentWorkspaceState() (tailnet.WorkspaceUpdate, error) {

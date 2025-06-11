@@ -48,6 +48,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/agent/proto"
@@ -60,9 +61,16 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestMain(m *testing.M) {
+	if os.Getenv("CODER_TEST_RUN_SUB_AGENT_MAIN") == "1" {
+		// If we're running as a subagent, we don't want to run the main tests.
+		// Instead, we just run the subagent tests.
+		exit := runSubAgentMain()
+		os.Exit(exit)
+	}
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
@@ -1930,6 +1938,9 @@ func TestAgent_ReconnectingPTYContainer(t *testing.T) {
 	if os.Getenv("CODER_TEST_USE_DOCKER") != "1" {
 		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
 	}
+	if _, err := exec.LookPath("devcontainer"); err != nil {
+		t.Skip("This test requires the devcontainer CLI: npm install -g @devcontainers/cli")
+	}
 
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err, "Could not connect to docker")
@@ -1955,6 +1966,9 @@ func TestAgent_ReconnectingPTYContainer(t *testing.T) {
 	// nolint: dogsled
 	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
 		o.ExperimentalDevcontainersEnabled = true
+		o.ContainerAPIOptions = append(o.ContainerAPIOptions,
+			agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
+		)
 	})
 	ctx := testutil.Context(t, testutil.WaitLong)
 	ac, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, "/bin/sh", func(arp *workspacesdk.AgentReconnectingPTYInit) {
@@ -1986,6 +2000,60 @@ func TestAgent_ReconnectingPTYContainer(t *testing.T) {
 	require.ErrorIs(t, tr.ReadUntil(ctx, nil), io.EOF)
 }
 
+type subAgentRequestPayload struct {
+	Token     string `json:"token"`
+	Directory string `json:"directory"`
+}
+
+// runSubAgentMain is the main function for the sub-agent that connects
+// to the control plane. It reads the CODER_AGENT_URL and
+// CODER_AGENT_TOKEN environment variables, sends the token, and exits
+// with a status code based on the response.
+func runSubAgentMain() int {
+	url := os.Getenv("CODER_AGENT_URL")
+	token := os.Getenv("CODER_AGENT_TOKEN")
+	if url == "" || token == "" {
+		_, _ = fmt.Fprintln(os.Stderr, "CODER_AGENT_URL and CODER_AGENT_TOKEN must be set")
+		return 10
+	}
+
+	dir, err := os.Getwd()
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "failed to get current working directory: %v\n", err)
+		return 1
+	}
+	payload := subAgentRequestPayload{
+		Token:     token,
+		Directory: dir,
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "failed to marshal payload: %v\n", err)
+		return 1
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewReader(b))
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "failed to create request: %v\n", err)
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	req = req.WithContext(ctx)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "agent connection failed: %v\n", err)
+		return 11
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		_, _ = fmt.Fprintf(os.Stderr, "agent exiting with non-zero exit code %d\n", resp.StatusCode)
+		return 12
+	}
+	_, _ = fmt.Println("sub-agent connected successfully")
+	return 0
+}
+
 // This tests end-to-end functionality of auto-starting a devcontainer.
 // It runs "devcontainer up" which creates a real Docker container. As
 // such, it does not run by default in CI.
@@ -1999,6 +2067,56 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 	if os.Getenv("CODER_TEST_USE_DOCKER") != "1" {
 		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
 	}
+	if _, err := exec.LookPath("devcontainer"); err != nil {
+		t.Skip("This test requires the devcontainer CLI: npm install -g @devcontainers/cli")
+	}
+
+	// This HTTP handler handles requests from runSubAgentMain which
+	// acts as a fake sub-agent. We want to verify that the sub-agent
+	// connects and sends its token. We use a channel to signal
+	// that the sub-agent has connected successfully and then we wait
+	// until we receive another signal to return from the handler. This
+	// keeps the agent "alive" for as long as we want.
+	subAgentConnected := make(chan subAgentRequestPayload, 1)
+	subAgentReady := make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Logf("Sub-agent request received: %s %s", r.Method, r.URL.Path)
+
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Read the token from the request body.
+		var payload subAgentRequestPayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, "Failed to read token", http.StatusBadRequest)
+			t.Logf("Failed to read token: %v", err)
+			return
+		}
+		defer r.Body.Close()
+
+		t.Logf("Sub-agent request payload received: %+v", payload)
+
+		// Signal that the sub-agent has connected successfully.
+		select {
+		case <-t.Context().Done():
+			t.Logf("Test context done, not processing sub-agent request")
+			return
+		case subAgentConnected <- payload:
+		}
+
+		// Wait for the signal to return from the handler.
+		select {
+		case <-t.Context().Done():
+			t.Logf("Test context done, not waiting for sub-agent ready")
+			return
+		case <-subAgentReady:
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
 
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err, "Could not connect to docker")
@@ -2016,9 +2134,10 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 	require.NoError(t, err, "create devcontainer directory")
 	devcontainerFile := filepath.Join(devcontainerPath, "devcontainer.json")
 	err = os.WriteFile(devcontainerFile, []byte(`{
-        "name": "mywork",
-        "image": "busybox:latest",
-        "cmd": ["sleep", "infinity"]
+		"name": "mywork",
+		"image": "ubuntu:latest",
+		"cmd": ["sleep", "infinity"],
+		"runArgs": ["--network=host"]
     }`), 0o600)
 	require.NoError(t, err, "write devcontainer.json")
 
@@ -2043,9 +2162,24 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 			},
 		},
 	}
+	mClock := quartz.NewMock(t)
+	mClock.Set(time.Now())
+	tickerFuncTrap := mClock.Trap().TickerFunc("agentcontainers")
+
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
+	_, agentClient, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
 		o.ExperimentalDevcontainersEnabled = true
+		o.ContainerAPIOptions = append(
+			o.ContainerAPIOptions,
+			// Only match this specific dev container.
+			agentcontainers.WithClock(mClock),
+			agentcontainers.WithContainerLabelIncludeFilter("devcontainer.local_folder", tempWorkspaceFolder),
+			agentcontainers.WithSubAgentURL(srv.URL),
+			// The agent will copy "itself", but in the case of this test, the
+			// agent is actually this test binary. So we'll tell the test binary
+			// to execute the sub-agent main function via this env.
+			agentcontainers.WithSubAgentEnv("CODER_TEST_RUN_SUB_AGENT_MAIN=1"),
+		)
 	})
 
 	t.Logf("Waiting for container with label: devcontainer.local_folder=%s", tempWorkspaceFolder)
@@ -2089,32 +2223,34 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	ac, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, "", func(opts *workspacesdk.AgentReconnectingPTYInit) {
-		opts.Container = container.ID
-	})
-	require.NoError(t, err, "failed to create ReconnectingPTY")
-	defer ac.Close()
+	// Ensure the container update routine runs.
+	tickerFuncTrap.MustWait(ctx).MustRelease(ctx)
+	tickerFuncTrap.Close()
+	_, next := mClock.AdvanceNext()
+	next.MustWait(ctx)
 
-	// Use terminal reader so we can see output in case somethin goes wrong.
-	tr := testutil.NewTerminalReader(t, ac)
+	// Verify that a subagent was created.
+	subAgents := agentClient.GetSubAgents()
+	require.Len(t, subAgents, 1, "expected one sub agent")
 
-	require.NoError(t, tr.ReadUntil(ctx, func(line string) bool {
-		return strings.Contains(line, "#") || strings.Contains(line, "$")
-	}), "find prompt")
+	subAgent := subAgents[0]
+	subAgentID, err := uuid.FromBytes(subAgent.GetId())
+	require.NoError(t, err, "failed to parse sub-agent ID")
+	t.Logf("Connecting to sub-agent: %s (ID: %s)", subAgent.Name, subAgentID)
 
-	wantFileName := "file-from-devcontainer"
-	wantFile := filepath.Join(tempWorkspaceFolder, wantFileName)
+	gotDir, err := agentClient.GetSubAgentDirectory(subAgentID)
+	require.NoError(t, err, "failed to get sub-agent directory")
+	require.Equal(t, "/workspaces/mywork", gotDir, "sub-agent directory should match")
 
-	require.NoError(t, json.NewEncoder(ac).Encode(workspacesdk.ReconnectingPTYRequest{
-		// NOTE(mafredri): We must use absolute path here for some reason.
-		Data: fmt.Sprintf("touch /workspaces/mywork/%s; exit\r", wantFileName),
-	}), "create file inside devcontainer")
+	subAgentToken, err := uuid.FromBytes(subAgent.GetAuthToken())
+	require.NoError(t, err, "failed to parse sub-agent token")
 
-	// Wait for the connection to close to ensure the touch was executed.
-	require.ErrorIs(t, tr.ReadUntil(ctx, nil), io.EOF)
+	payload := testutil.RequireReceive(ctx, t, subAgentConnected)
+	require.Equal(t, subAgentToken.String(), payload.Token, "sub-agent token should match")
+	require.Equal(t, "/workspaces/mywork", payload.Directory, "sub-agent directory should match")
 
-	_, err = os.Stat(wantFile)
-	require.NoError(t, err, "file should exist outside devcontainer")
+	// Allow the subagent to exit.
+	close(subAgentReady)
 }
 
 // TestAgent_DevcontainerRecreate tests that RecreateDevcontainer
@@ -2173,6 +2309,9 @@ func TestAgent_DevcontainerRecreate(t *testing.T) {
 	//nolint:dogsled
 	conn, client, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
 		o.ExperimentalDevcontainersEnabled = true
+		o.ContainerAPIOptions = append(o.ContainerAPIOptions,
+			agentcontainers.WithContainerLabelIncludeFilter("devcontainer.local_folder", workspaceFolder),
+		)
 	})
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -2282,6 +2421,34 @@ waitForOutcomeLoop:
 		})
 		assert.NoError(t, err, "remove container")
 	}(container)
+}
+
+func TestAgent_DevcontainersDisabledForSubAgent(t *testing.T) {
+	t.Parallel()
+
+	// Create a manifest with a ParentID to make this a sub agent.
+	manifest := agentsdk.Manifest{
+		AgentID:  uuid.New(),
+		ParentID: uuid.New(),
+	}
+
+	// Setup the agent with devcontainers enabled initially.
+	//nolint:dogsled
+	conn, _, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.ExperimentalDevcontainersEnabled = true
+	})
+
+	// Query the containers API endpoint. This should fail because
+	// devcontainers have been disabled for the sub agent.
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
+	_, err := conn.ListContainers(ctx)
+	require.Error(t, err)
+
+	// Verify the error message contains the expected text.
+	require.Contains(t, err.Error(), "The agent dev containers feature is experimental and not enabled by default.")
+	require.Contains(t, err.Error(), "To enable this feature, set CODER_AGENT_DEVCONTAINERS_ENABLE=true in your template.")
 }
 
 func TestAgent_Dial(t *testing.T) {

@@ -552,15 +552,14 @@ func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 			sentErrCh = true
 		}),
 	}
-	select {
-	case err = <-errCh:
-		if err != nil {
-			_ = p.pgListener.Close()
-			return xerrors.Errorf("create pq listener: %w", err)
-		}
-	case <-ctx.Done():
+	// We don't respect context cancellation here. There's a bug in the pq library
+	// where if you close the listener before or while the connection is being
+	// established, the connection will be established anyway, and will not be
+	// closed.
+	// https://github.com/lib/pq/issues/1192
+	if err := <-errCh; err != nil {
 		_ = p.pgListener.Close()
-		return ctx.Err()
+		return xerrors.Errorf("create pq listener: %w", err)
 	}
 	return nil
 }

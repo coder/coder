@@ -21,6 +21,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -92,12 +94,12 @@ func TestSubAgentAPI(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name      string
-			agentName string
-			agentDir  string
-			agentArch string
-			agentOS   string
-			shouldErr bool
+			name          string
+			agentName     string
+			agentDir      string
+			agentArch     string
+			agentOS       string
+			expectedError *codersdk.ValidationError
 		}{
 			{
 				name:      "Ok",
@@ -112,7 +114,10 @@ func TestSubAgentAPI(t *testing.T) {
 				agentDir:  "/workspaces/wibble",
 				agentArch: "amd64",
 				agentOS:   "linux",
-				shouldErr: true,
+				expectedError: &codersdk.ValidationError{
+					Field:  "name",
+					Detail: "agent name \"some_child_agent\" does not match regex \"(?i)^[a-z0-9](-?[a-z0-9])*$\"",
+				},
 			},
 			{
 				name:      "EmptyName",
@@ -120,7 +125,10 @@ func TestSubAgentAPI(t *testing.T) {
 				agentDir:  "/workspaces/wibble",
 				agentArch: "amd64",
 				agentOS:   "linux",
-				shouldErr: true,
+				expectedError: &codersdk.ValidationError{
+					Field:  "name",
+					Detail: "agent name cannot be empty",
+				},
 			},
 		}
 
@@ -142,8 +150,11 @@ func TestSubAgentAPI(t *testing.T) {
 					Architecture:    tt.agentArch,
 					OperatingSystem: tt.agentOS,
 				})
-				if tt.shouldErr {
+				if tt.expectedError != nil {
 					require.Error(t, err)
+					var validationErr codersdk.ValidationError
+					require.ErrorAs(t, err, &validationErr)
+					require.Equal(t, *tt.expectedError, validationErr)
 				} else {
 					require.NoError(t, err)
 
@@ -162,6 +173,590 @@ func TestSubAgentAPI(t *testing.T) {
 				}
 			})
 		}
+	})
+
+	type expectedAppError struct {
+		index int32
+		field string
+		error string
+	}
+
+	t.Run("CreateSubAgentWithApps", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name              string
+			apps              []*proto.CreateSubAgentRequest_App
+			expectApps        []database.WorkspaceApp
+			expectedAppErrors []expectedAppError
+		}{
+			{
+				name: "OK",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "code-server",
+						DisplayName: ptr.Ref("VS Code"),
+						Icon:        ptr.Ref("/icon/code.svg"),
+						Url:         ptr.Ref("http://localhost:13337"),
+						Share:       proto.CreateSubAgentRequest_App_OWNER.Enum(),
+						Subdomain:   ptr.Ref(false),
+						OpenIn:      proto.CreateSubAgentRequest_App_SLIM_WINDOW.Enum(),
+						Healthcheck: &proto.CreateSubAgentRequest_App_Healthcheck{
+							Interval:  5,
+							Threshold: 6,
+							Url:       "http://localhost:13337/healthz",
+						},
+					},
+					{
+						Slug:        "vim",
+						Command:     ptr.Ref("vim"),
+						DisplayName: ptr.Ref("Vim"),
+						Icon:        ptr.Ref("/icon/vim.svg"),
+					},
+				},
+				expectApps: []database.WorkspaceApp{
+					{
+						Slug:                 "code-server",
+						DisplayName:          "VS Code",
+						Icon:                 "/icon/code.svg",
+						Command:              sql.NullString{},
+						Url:                  sql.NullString{Valid: true, String: "http://localhost:13337"},
+						HealthcheckUrl:       "http://localhost:13337/healthz",
+						HealthcheckInterval:  5,
+						HealthcheckThreshold: 6,
+						Health:               database.WorkspaceAppHealthInitializing,
+						Subdomain:            false,
+						SharingLevel:         database.AppSharingLevelOwner,
+						External:             false,
+						DisplayOrder:         0,
+						Hidden:               false,
+						OpenIn:               database.WorkspaceAppOpenInSlimWindow,
+						DisplayGroup:         sql.NullString{},
+					},
+					{
+						Slug:         "vim",
+						DisplayName:  "Vim",
+						Icon:         "/icon/vim.svg",
+						Command:      sql.NullString{Valid: true, String: "vim"},
+						Health:       database.WorkspaceAppHealthDisabled,
+						SharingLevel: database.AppSharingLevelOwner,
+						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+					},
+				},
+			},
+			{
+				name: "EmptyAppSlug",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "",
+						DisplayName: ptr.Ref("App"),
+					},
+				},
+				expectApps: []database.WorkspaceApp{},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 0,
+						field: "slug",
+						error: "must not be empty",
+					},
+				},
+			},
+			{
+				name: "InvalidAppSlugWithUnderscores",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "invalid_slug_with_underscores",
+						DisplayName: ptr.Ref("App"),
+					},
+				},
+				expectApps: []database.WorkspaceApp{},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 0,
+						field: "slug",
+						error: "\"invalid_slug_with_underscores\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+					},
+				},
+			},
+			{
+				name: "InvalidAppSlugWithUppercase",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "InvalidSlug",
+						DisplayName: ptr.Ref("App"),
+					},
+				},
+				expectApps: []database.WorkspaceApp{},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 0,
+						field: "slug",
+						error: "\"InvalidSlug\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+					},
+				},
+			},
+			{
+				name: "InvalidAppSlugStartsWithHyphen",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "-invalid-app",
+						DisplayName: ptr.Ref("App"),
+					},
+				},
+				expectApps: []database.WorkspaceApp{},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 0,
+						field: "slug",
+						error: "\"-invalid-app\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+					},
+				},
+			},
+			{
+				name: "InvalidAppSlugEndsWithHyphen",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "invalid-app-",
+						DisplayName: ptr.Ref("App"),
+					},
+				},
+				expectApps: []database.WorkspaceApp{},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 0,
+						field: "slug",
+						error: "\"invalid-app-\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+					},
+				},
+			},
+			{
+				name: "InvalidAppSlugWithDoubleHyphens",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "invalid--app",
+						DisplayName: ptr.Ref("App"),
+					},
+				},
+				expectApps: []database.WorkspaceApp{},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 0,
+						field: "slug",
+						error: "\"invalid--app\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+					},
+				},
+			},
+			{
+				name: "InvalidAppSlugWithSpaces",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "invalid app",
+						DisplayName: ptr.Ref("App"),
+					},
+				},
+				expectApps: []database.WorkspaceApp{},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 0,
+						field: "slug",
+						error: "\"invalid app\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+					},
+				},
+			},
+			{
+				name: "MultipleAppsWithErrorInSecond",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "valid-app",
+						DisplayName: ptr.Ref("Valid App"),
+					},
+					{
+						Slug:        "Invalid_App",
+						DisplayName: ptr.Ref("Invalid App"),
+					},
+				},
+				expectApps: []database.WorkspaceApp{
+					{
+						Slug:         "valid-app",
+						DisplayName:  "Valid App",
+						SharingLevel: database.AppSharingLevelOwner,
+						Health:       database.WorkspaceAppHealthDisabled,
+						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+					},
+				},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 1,
+						field: "slug",
+						error: "\"Invalid_App\" does not match regex \"^[a-z0-9](-?[a-z0-9])*$\"",
+					},
+				},
+			},
+			{
+				name: "AppWithAllSharingLevels",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:  "owner-app",
+						Share: proto.CreateSubAgentRequest_App_OWNER.Enum(),
+					},
+					{
+						Slug:  "authenticated-app",
+						Share: proto.CreateSubAgentRequest_App_AUTHENTICATED.Enum(),
+					},
+					{
+						Slug:  "public-app",
+						Share: proto.CreateSubAgentRequest_App_PUBLIC.Enum(),
+					},
+				},
+				expectApps: []database.WorkspaceApp{
+					{
+						Slug:         "authenticated-app",
+						SharingLevel: database.AppSharingLevelAuthenticated,
+						Health:       database.WorkspaceAppHealthDisabled,
+						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+					},
+					{
+						Slug:         "owner-app",
+						SharingLevel: database.AppSharingLevelOwner,
+						Health:       database.WorkspaceAppHealthDisabled,
+						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+					},
+					{
+						Slug:         "public-app",
+						SharingLevel: database.AppSharingLevelPublic,
+						Health:       database.WorkspaceAppHealthDisabled,
+						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+					},
+				},
+			},
+			{
+				name: "AppWithDifferentOpenInOptions",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:   "window-app",
+						OpenIn: proto.CreateSubAgentRequest_App_SLIM_WINDOW.Enum(),
+					},
+					{
+						Slug:   "tab-app",
+						OpenIn: proto.CreateSubAgentRequest_App_TAB.Enum(),
+					},
+				},
+				expectApps: []database.WorkspaceApp{
+					{
+						Slug:         "tab-app",
+						SharingLevel: database.AppSharingLevelOwner,
+						Health:       database.WorkspaceAppHealthDisabled,
+						OpenIn:       database.WorkspaceAppOpenInTab,
+					},
+					{
+						Slug:         "window-app",
+						SharingLevel: database.AppSharingLevelOwner,
+						Health:       database.WorkspaceAppHealthDisabled,
+						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+					},
+				},
+			},
+			{
+				name: "AppWithAllOptionalFields",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "full-app",
+						Command:     ptr.Ref("echo hello"),
+						DisplayName: ptr.Ref("Full Featured App"),
+						External:    ptr.Ref(true),
+						Group:       ptr.Ref("Development"),
+						Hidden:      ptr.Ref(true),
+						Icon:        ptr.Ref("/icon/app.svg"),
+						Order:       ptr.Ref(int32(10)),
+						Subdomain:   ptr.Ref(true),
+						Url:         ptr.Ref("http://localhost:8080"),
+						Healthcheck: &proto.CreateSubAgentRequest_App_Healthcheck{
+							Interval:  30,
+							Threshold: 3,
+							Url:       "http://localhost:8080/health",
+						},
+					},
+				},
+				expectApps: []database.WorkspaceApp{
+					{
+						Slug:                 "full-app",
+						Command:              sql.NullString{Valid: true, String: "echo hello"},
+						DisplayName:          "Full Featured App",
+						External:             true,
+						DisplayGroup:         sql.NullString{Valid: true, String: "Development"},
+						Hidden:               true,
+						Icon:                 "/icon/app.svg",
+						DisplayOrder:         10,
+						Subdomain:            true,
+						Url:                  sql.NullString{Valid: true, String: "http://localhost:8080"},
+						HealthcheckUrl:       "http://localhost:8080/health",
+						HealthcheckInterval:  30,
+						HealthcheckThreshold: 3,
+						Health:               database.WorkspaceAppHealthInitializing,
+						SharingLevel:         database.AppSharingLevelOwner,
+						OpenIn:               database.WorkspaceAppOpenInSlimWindow,
+					},
+				},
+			},
+			{
+				name: "AppWithoutHealthcheck",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug: "no-health-app",
+					},
+				},
+				expectApps: []database.WorkspaceApp{
+					{
+						Slug:                 "no-health-app",
+						Health:               database.WorkspaceAppHealthDisabled,
+						SharingLevel:         database.AppSharingLevelOwner,
+						OpenIn:               database.WorkspaceAppOpenInSlimWindow,
+						HealthcheckUrl:       "",
+						HealthcheckInterval:  0,
+						HealthcheckThreshold: 0,
+					},
+				},
+			},
+			{
+				name: "DuplicateAppSlugs",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "duplicate-app",
+						DisplayName: ptr.Ref("First App"),
+					},
+					{
+						Slug:        "duplicate-app",
+						DisplayName: ptr.Ref("Second App"),
+					},
+				},
+				expectApps: []database.WorkspaceApp{
+					{
+						Slug:         "duplicate-app",
+						DisplayName:  "First App",
+						SharingLevel: database.AppSharingLevelOwner,
+						Health:       database.WorkspaceAppHealthDisabled,
+						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+					},
+				},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 1,
+						field: "slug",
+						error: "\"duplicate-app\" is already in use",
+					},
+				},
+			},
+			{
+				name: "MultipleDuplicateAppSlugs",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "valid-app",
+						DisplayName: ptr.Ref("Valid App"),
+					},
+					{
+						Slug:        "duplicate-app",
+						DisplayName: ptr.Ref("First Duplicate"),
+					},
+					{
+						Slug:        "duplicate-app",
+						DisplayName: ptr.Ref("Second Duplicate"),
+					},
+					{
+						Slug:        "duplicate-app",
+						DisplayName: ptr.Ref("Third Duplicate"),
+					},
+				},
+				expectApps: []database.WorkspaceApp{
+					{
+						Slug:         "duplicate-app",
+						DisplayName:  "First Duplicate",
+						SharingLevel: database.AppSharingLevelOwner,
+						Health:       database.WorkspaceAppHealthDisabled,
+						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+					},
+					{
+						Slug:         "valid-app",
+						DisplayName:  "Valid App",
+						SharingLevel: database.AppSharingLevelOwner,
+						Health:       database.WorkspaceAppHealthDisabled,
+						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+					},
+				},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 2,
+						field: "slug",
+						error: "\"duplicate-app\" is already in use",
+					},
+					{
+						index: 3,
+						field: "slug",
+						error: "\"duplicate-app\" is already in use",
+					},
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				log := testutil.Logger(t)
+				ctx := testutil.Context(t, testutil.WaitShort)
+				clock := quartz.NewMock(t)
+
+				db, org := newDatabaseWithOrg(t)
+				user, agent := newUserWithWorkspaceAgent(t, db, org)
+				api := newAgentAPI(t, log, db, clock, user, org, agent)
+
+				createResp, err := api.CreateSubAgent(ctx, &proto.CreateSubAgentRequest{
+					Name:            "child-agent",
+					Directory:       "/workspaces/coder",
+					Architecture:    "amd64",
+					OperatingSystem: "linux",
+					Apps:            tt.apps,
+				})
+				require.NoError(t, err)
+
+				agentID, err := uuid.FromBytes(createResp.Agent.Id)
+				require.NoError(t, err)
+
+				apps, err := api.Database.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
+				require.NoError(t, err)
+
+				// Sort the apps for determinism
+				slices.SortFunc(apps, func(a, b database.WorkspaceApp) int {
+					return cmp.Compare(a.Slug, b.Slug)
+				})
+				slices.SortFunc(tt.expectApps, func(a, b database.WorkspaceApp) int {
+					return cmp.Compare(a.Slug, b.Slug)
+				})
+
+				require.Len(t, apps, len(tt.expectApps))
+
+				for idx, app := range apps {
+					assert.Equal(t, tt.expectApps[idx].Slug, app.Slug)
+					assert.Equal(t, tt.expectApps[idx].Command, app.Command)
+					assert.Equal(t, tt.expectApps[idx].DisplayName, app.DisplayName)
+					assert.Equal(t, tt.expectApps[idx].External, app.External)
+					assert.Equal(t, tt.expectApps[idx].DisplayGroup, app.DisplayGroup)
+					assert.Equal(t, tt.expectApps[idx].HealthcheckInterval, app.HealthcheckInterval)
+					assert.Equal(t, tt.expectApps[idx].HealthcheckThreshold, app.HealthcheckThreshold)
+					assert.Equal(t, tt.expectApps[idx].HealthcheckUrl, app.HealthcheckUrl)
+					assert.Equal(t, tt.expectApps[idx].Hidden, app.Hidden)
+					assert.Equal(t, tt.expectApps[idx].Icon, app.Icon)
+					assert.Equal(t, tt.expectApps[idx].OpenIn, app.OpenIn)
+					assert.Equal(t, tt.expectApps[idx].DisplayOrder, app.DisplayOrder)
+					assert.Equal(t, tt.expectApps[idx].SharingLevel, app.SharingLevel)
+					assert.Equal(t, tt.expectApps[idx].Subdomain, app.Subdomain)
+					assert.Equal(t, tt.expectApps[idx].Url, app.Url)
+				}
+
+				// Verify expected app creation errors
+				require.Len(t, createResp.AppCreationErrors, len(tt.expectedAppErrors), "Number of app creation errors should match expected")
+
+				// Build a map of actual errors by index for easier testing
+				actualErrorMap := make(map[int32]*proto.CreateSubAgentResponse_AppCreationError)
+				for _, appErr := range createResp.AppCreationErrors {
+					actualErrorMap[appErr.Index] = appErr
+				}
+
+				// Verify each expected error
+				for _, expectedErr := range tt.expectedAppErrors {
+					actualErr, exists := actualErrorMap[expectedErr.index]
+					require.True(t, exists, "Expected app creation error at index %d", expectedErr.index)
+
+					require.NotNil(t, actualErr.Field, "Field should be set for validation error at index %d", expectedErr.index)
+					require.Equal(t, expectedErr.field, *actualErr.Field, "Field name should match for error at index %d", expectedErr.index)
+					require.Contains(t, actualErr.Error, expectedErr.error, "Error message should contain expected text for error at index %d", expectedErr.index)
+				}
+			})
+		}
+
+		t.Run("ValidationErrorFieldMapping", func(t *testing.T) {
+			t.Parallel()
+
+			log := testutil.Logger(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+
+			db, org := newDatabaseWithOrg(t)
+			user, agent := newUserWithWorkspaceAgent(t, db, org)
+			api := newAgentAPI(t, log, db, clock, user, org, agent)
+
+			// Test different types of validation errors to ensure field mapping works correctly
+			createResp, err := api.CreateSubAgent(ctx, &proto.CreateSubAgentRequest{
+				Name:            "validation-test-agent",
+				Directory:       "/workspace",
+				Architecture:    "amd64",
+				OperatingSystem: "linux",
+				Apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "", // Empty slug - should error on apps[0].slug
+						DisplayName: ptr.Ref("Empty Slug App"),
+					},
+					{
+						Slug:        "Invalid_Slug_With_Underscores", // Invalid characters - should error on apps[1].slug
+						DisplayName: ptr.Ref("Invalid Characters App"),
+					},
+					{
+						Slug:        "duplicate-slug", // First occurrence - should succeed
+						DisplayName: ptr.Ref("First Duplicate"),
+					},
+					{
+						Slug:        "duplicate-slug", // Duplicate - should error on apps[3].slug
+						DisplayName: ptr.Ref("Second Duplicate"),
+					},
+					{
+						Slug:        "-invalid-start", // Invalid start character - should error on apps[4].slug
+						DisplayName: ptr.Ref("Invalid Start App"),
+					},
+				},
+			})
+
+			// Agent should be created successfully
+			require.NoError(t, err)
+			require.NotNil(t, createResp.Agent)
+
+			// Should have 4 app creation errors (indices 0, 1, 3, 4)
+			require.Len(t, createResp.AppCreationErrors, 4)
+
+			errorMap := make(map[int32]*proto.CreateSubAgentResponse_AppCreationError)
+			for _, appErr := range createResp.AppCreationErrors {
+				errorMap[appErr.Index] = appErr
+			}
+
+			// Verify each specific validation error and its field
+			require.Contains(t, errorMap, int32(0))
+			require.NotNil(t, errorMap[0].Field)
+			require.Equal(t, "slug", *errorMap[0].Field)
+			require.Contains(t, errorMap[0].Error, "must not be empty")
+
+			require.Contains(t, errorMap, int32(1))
+			require.NotNil(t, errorMap[1].Field)
+			require.Equal(t, "slug", *errorMap[1].Field)
+			require.Contains(t, errorMap[1].Error, "Invalid_Slug_With_Underscores")
+
+			require.Contains(t, errorMap, int32(3))
+			require.NotNil(t, errorMap[3].Field)
+			require.Equal(t, "slug", *errorMap[3].Field)
+			require.Contains(t, errorMap[3].Error, "duplicate-slug")
+
+			require.Contains(t, errorMap, int32(4))
+			require.NotNil(t, errorMap[4].Field)
+			require.Equal(t, "slug", *errorMap[4].Field)
+			require.Contains(t, errorMap[4].Error, "-invalid-start")
+
+			// Verify only the valid app (index 2) was created
+			agentID, err := uuid.FromBytes(createResp.Agent.Id)
+			require.NoError(t, err)
+
+			apps, err := db.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
+			require.NoError(t, err)
+			require.Len(t, apps, 1)
+			require.Equal(t, "duplicate-slug", apps[0].Slug)
+			require.Equal(t, "First Duplicate", apps[0].DisplayName)
+		})
 	})
 
 	t.Run("DeleteSubAgent", func(t *testing.T) {
@@ -279,6 +874,267 @@ func TestSubAgentAPI(t *testing.T) {
 			_, err = db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), childAgentOne.ID) //nolint:gocritic // this is a test.
 			require.NoError(t, err)
 		})
+
+		t.Run("DeletesWorkspaceApps", func(t *testing.T) {
+			t.Parallel()
+
+			// Skip test on in-memory database since CASCADE DELETE is not implemented
+			if !dbtestutil.WillUsePostgres() {
+				t.Skip("CASCADE DELETE behavior requires PostgreSQL")
+			}
+
+			log := testutil.Logger(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+
+			db, org := newDatabaseWithOrg(t)
+			user, agent := newUserWithWorkspaceAgent(t, db, org)
+			api := newAgentAPI(t, log, db, clock, user, org, agent)
+
+			// Given: A sub agent with workspace apps
+			createResp, err := api.CreateSubAgent(ctx, &proto.CreateSubAgentRequest{
+				Name:            "child-agent-with-apps",
+				Directory:       "/workspaces/coder",
+				Architecture:    "amd64",
+				OperatingSystem: "linux",
+				Apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:        "code-server",
+						DisplayName: ptr.Ref("VS Code"),
+						Icon:        ptr.Ref("/icon/code.svg"),
+						Url:         ptr.Ref("http://localhost:13337"),
+					},
+					{
+						Slug:        "vim",
+						Command:     ptr.Ref("vim"),
+						DisplayName: ptr.Ref("Vim"),
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			subAgentID, err := uuid.FromBytes(createResp.Agent.Id)
+			require.NoError(t, err)
+
+			// Verify that the apps were created
+			apps, err := api.Database.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), subAgentID) //nolint:gocritic // this is a test.
+			require.NoError(t, err)
+			require.Len(t, apps, 2)
+
+			// When: We delete the sub agent
+			_, err = api.DeleteSubAgent(ctx, &proto.DeleteSubAgentRequest{
+				Id: createResp.Agent.Id,
+			})
+			require.NoError(t, err)
+
+			// Then: The agent is deleted
+			_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), subAgentID) //nolint:gocritic // this is a test.
+			require.ErrorIs(t, err, sql.ErrNoRows)
+
+			// And: The apps are also deleted (due to CASCADE DELETE)
+			// Use raw database since authorization layer requires agent to exist
+			appsAfterDeletion, err := db.GetWorkspaceAppsByAgentID(ctx, subAgentID)
+			require.NoError(t, err)
+			require.Empty(t, appsAfterDeletion)
+		})
+	})
+
+	t.Run("CreateSubAgentWithDisplayApps", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name          string
+			displayApps   []proto.CreateSubAgentRequest_DisplayApp
+			expectedApps  []database.DisplayApp
+			expectedError *codersdk.ValidationError
+		}{
+			{
+				name:         "NoDisplayApps",
+				displayApps:  []proto.CreateSubAgentRequest_DisplayApp{},
+				expectedApps: []database.DisplayApp{},
+			},
+			{
+				name: "SingleDisplayApp_VSCode",
+				displayApps: []proto.CreateSubAgentRequest_DisplayApp{
+					proto.CreateSubAgentRequest_VSCODE,
+				},
+				expectedApps: []database.DisplayApp{
+					database.DisplayAppVscode,
+				},
+			},
+			{
+				name: "SingleDisplayApp_VSCodeInsiders",
+				displayApps: []proto.CreateSubAgentRequest_DisplayApp{
+					proto.CreateSubAgentRequest_VSCODE_INSIDERS,
+				},
+				expectedApps: []database.DisplayApp{
+					database.DisplayAppVscodeInsiders,
+				},
+			},
+			{
+				name: "SingleDisplayApp_WebTerminal",
+				displayApps: []proto.CreateSubAgentRequest_DisplayApp{
+					proto.CreateSubAgentRequest_WEB_TERMINAL,
+				},
+				expectedApps: []database.DisplayApp{
+					database.DisplayAppWebTerminal,
+				},
+			},
+			{
+				name: "SingleDisplayApp_SSHHelper",
+				displayApps: []proto.CreateSubAgentRequest_DisplayApp{
+					proto.CreateSubAgentRequest_SSH_HELPER,
+				},
+				expectedApps: []database.DisplayApp{
+					database.DisplayAppSSHHelper,
+				},
+			},
+			{
+				name: "SingleDisplayApp_PortForwardingHelper",
+				displayApps: []proto.CreateSubAgentRequest_DisplayApp{
+					proto.CreateSubAgentRequest_PORT_FORWARDING_HELPER,
+				},
+				expectedApps: []database.DisplayApp{
+					database.DisplayAppPortForwardingHelper,
+				},
+			},
+			{
+				name: "MultipleDisplayApps",
+				displayApps: []proto.CreateSubAgentRequest_DisplayApp{
+					proto.CreateSubAgentRequest_VSCODE,
+					proto.CreateSubAgentRequest_WEB_TERMINAL,
+					proto.CreateSubAgentRequest_SSH_HELPER,
+				},
+				expectedApps: []database.DisplayApp{
+					database.DisplayAppVscode,
+					database.DisplayAppWebTerminal,
+					database.DisplayAppSSHHelper,
+				},
+			},
+			{
+				name: "AllDisplayApps",
+				displayApps: []proto.CreateSubAgentRequest_DisplayApp{
+					proto.CreateSubAgentRequest_VSCODE,
+					proto.CreateSubAgentRequest_VSCODE_INSIDERS,
+					proto.CreateSubAgentRequest_WEB_TERMINAL,
+					proto.CreateSubAgentRequest_SSH_HELPER,
+					proto.CreateSubAgentRequest_PORT_FORWARDING_HELPER,
+				},
+				expectedApps: []database.DisplayApp{
+					database.DisplayAppVscode,
+					database.DisplayAppVscodeInsiders,
+					database.DisplayAppWebTerminal,
+					database.DisplayAppSSHHelper,
+					database.DisplayAppPortForwardingHelper,
+				},
+			},
+			{
+				name: "InvalidDisplayApp",
+				displayApps: []proto.CreateSubAgentRequest_DisplayApp{
+					proto.CreateSubAgentRequest_DisplayApp(9999), // Invalid enum value
+				},
+				expectedError: &codersdk.ValidationError{
+					Field: "display_apps[0]",
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				log := testutil.Logger(t)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clock := quartz.NewMock(t)
+
+				db, org := newDatabaseWithOrg(t)
+				user, agent := newUserWithWorkspaceAgent(t, db, org)
+				api := newAgentAPI(t, log, db, clock, user, org, agent)
+
+				createResp, err := api.CreateSubAgent(ctx, &proto.CreateSubAgentRequest{
+					Name:            "test-agent",
+					Directory:       "/workspaces/test",
+					Architecture:    "amd64",
+					OperatingSystem: "linux",
+					DisplayApps:     tt.displayApps,
+				})
+				if tt.expectedError != nil {
+					require.Error(t, err)
+					require.Nil(t, createResp)
+
+					var validationErr codersdk.ValidationError
+					require.ErrorAs(t, err, &validationErr)
+					require.Equal(t, tt.expectedError.Field, validationErr.Field)
+					require.Contains(t, validationErr.Detail, "is not a valid display app")
+				} else {
+					require.NoError(t, err)
+					require.NotNil(t, createResp.Agent)
+
+					agentID, err := uuid.FromBytes(createResp.Agent.Id)
+					require.NoError(t, err)
+
+					subAgent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
+					require.NoError(t, err)
+
+					require.Equal(t, len(tt.expectedApps), len(subAgent.DisplayApps), "display apps count mismatch")
+
+					for i, expectedApp := range tt.expectedApps {
+						require.Equal(t, expectedApp, subAgent.DisplayApps[i], "display app at index %d doesn't match", i)
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("CreateSubAgentWithDisplayAppsAndApps", func(t *testing.T) {
+		t.Parallel()
+
+		log := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock := quartz.NewMock(t)
+
+		db, org := newDatabaseWithOrg(t)
+		user, agent := newUserWithWorkspaceAgent(t, db, org)
+		api := newAgentAPI(t, log, db, clock, user, org, agent)
+
+		// Test that display apps and regular apps can coexist
+		createResp, err := api.CreateSubAgent(ctx, &proto.CreateSubAgentRequest{
+			Name:            "test-agent",
+			Directory:       "/workspaces/test",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			DisplayApps: []proto.CreateSubAgentRequest_DisplayApp{
+				proto.CreateSubAgentRequest_VSCODE,
+				proto.CreateSubAgentRequest_WEB_TERMINAL,
+			},
+			Apps: []*proto.CreateSubAgentRequest_App{
+				{
+					Slug:        "custom-app",
+					DisplayName: ptr.Ref("Custom App"),
+					Url:         ptr.Ref("http://localhost:8080"),
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, createResp.Agent)
+		require.Empty(t, createResp.AppCreationErrors)
+
+		agentID, err := uuid.FromBytes(createResp.Agent.Id)
+		require.NoError(t, err)
+
+		// Verify display apps
+		subAgent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
+		require.NoError(t, err)
+		require.Len(t, subAgent.DisplayApps, 2)
+		require.Equal(t, database.DisplayAppVscode, subAgent.DisplayApps[0])
+		require.Equal(t, database.DisplayAppWebTerminal, subAgent.DisplayApps[1])
+
+		// Verify regular apps
+		apps, err := api.Database.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
+		require.NoError(t, err)
+		require.Len(t, apps, 1)
+		require.Equal(t, "custom-app", apps[0].Slug)
+		require.Equal(t, "Custom App", apps[0].DisplayName)
 	})
 
 	t.Run("ListSubAgents", func(t *testing.T) {

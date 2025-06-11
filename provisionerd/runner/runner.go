@@ -552,8 +552,9 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		CreatedAt: time.Now().UnixMilli(),
 	})
 	startProvision, err := r.runTemplateImportProvision(ctx, updateResponse.VariableValues, &sdkproto.Metadata{
-		CoderUrl:            r.job.GetTemplateImport().Metadata.CoderUrl,
-		WorkspaceTransition: sdkproto.WorkspaceTransition_START,
+		CoderUrl:             r.job.GetTemplateImport().Metadata.CoderUrl,
+		WorkspaceOwnerGroups: r.job.GetTemplateImport().Metadata.WorkspaceOwnerGroups,
+		WorkspaceTransition:  sdkproto.WorkspaceTransition_START,
 	})
 	if err != nil {
 		return nil, r.failedJobf("template import provision for start: %s", err)
@@ -567,8 +568,9 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		CreatedAt: time.Now().UnixMilli(),
 	})
 	stopProvision, err := r.runTemplateImportProvision(ctx, updateResponse.VariableValues, &sdkproto.Metadata{
-		CoderUrl:            r.job.GetTemplateImport().Metadata.CoderUrl,
-		WorkspaceTransition: sdkproto.WorkspaceTransition_STOP,
+		CoderUrl:             r.job.GetTemplateImport().Metadata.CoderUrl,
+		WorkspaceOwnerGroups: r.job.GetTemplateImport().Metadata.WorkspaceOwnerGroups,
+		WorkspaceTransition:  sdkproto.WorkspaceTransition_STOP,
 	})
 	if err != nil {
 		return nil, r.failedJobf("template import provision for stop: %s", err)

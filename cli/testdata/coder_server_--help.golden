@@ -332,6 +332,10 @@ NETWORKING / HTTP OPTIONS:
           The maximum lifetime duration users can specify when creating an API
           token.
 
+      --max-admin-token-lifetime duration, $CODER_MAX_ADMIN_TOKEN_LIFETIME (default: 168h0m0s)
+          The maximum lifetime duration administrators can specify when creating
+          an API token.
+
       --proxy-health-interval duration, $CODER_PROXY_HEALTH_INTERVAL (default: 1m0s)
           The interval in which coderd should be checking the status of
           workspace proxies.

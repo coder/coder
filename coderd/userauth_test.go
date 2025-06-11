@@ -1577,10 +1577,10 @@ func TestUserOIDC(t *testing.T) {
 		})
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
-		auditor.Contains(t, database.AuditLog{
+		require.True(t, auditor.Contains(t, database.AuditLog{
 			ResourceType:     database.ResourceTypeUser,
 			AdditionalFields: json.RawMessage(`{"automatic_actor":"coder","automatic_subsystem":"dormancy"}`),
-		})
+		}))
 		me, err := client.User(ctx, "me")
 		require.NoError(t, err)
 
