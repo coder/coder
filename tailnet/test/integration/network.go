@@ -409,17 +409,17 @@ type fakeTriangleNetwork struct {
 // .   ┌──────────────┐
 // .   │              │
 // .   │  Server      ├─────────────────────────────────────┐
-// .   │              │fdac:38fa:ffff:3::1                  │
-// .   └──────────────┘                                     │ fdac:38fa:ffff:3::2
+// .   │              │fdac:38fa:ffff:3::2                  │
+// .   └──────────────┘                                     │ fdac:38fa:ffff:3::1
 // .   ┌──────────────┐                               ┌─────┴───────┐
-// .   │              │            fdac:38fa:ffff:1::2│             │
+// .   │              │            fdac:38fa:ffff:1::1│             │
 // .   │  Client 1    ├───────────────────────────────┤  Router     │
-// .   │              │fdac:38fa:ffff:1::1            │             │
+// .   │              │fdac:38fa:ffff:1::2            │             │
 // .   └──────────────┘                               └─────┬───────┘
-// .   ┌──────────────┐                                     │ fdac:38fa:ffff:2::2
+// .   ┌──────────────┐                                     │ fdac:38fa:ffff:2::1
 // .   │              │                                     │
 // .   │  Client 2    ├─────────────────────────────────────┘
-// .   │              │fdac:38fa:ffff:2::1
+// .   │              │fdac:38fa:ffff:2::2
 // .   └──────────────┘
 // The veth link between Client 1 and the router has a configurable MTU via Client1MTU.
 func (n TriangleNetwork) SetupNetworking(t *testing.T, l slog.Logger) TestNetworking {
@@ -488,18 +488,18 @@ func (n TriangleNetwork) SetupNetworking(t *testing.T, l slog.Logger) TestNetwor
 	require.NoErrorf(t, err, "set veth %q to client2 NetNS", network.Client2VethPair.Inner)
 
 	// Set IP addresses according to the diagram:
-	err = setInterfaceIP6(network.ServerNetNS, network.ServerVethPair.Outer, ula+"3::1")
+	err = setInterfaceIP6(network.ServerNetNS, network.ServerVethPair.Outer, ula+"3::2")
 	require.NoErrorf(t, err, "set IP on server interface")
-	err = setInterfaceIP6(network.Client1NetNS, network.Client1VethPair.Outer, ula+"1::1")
+	err = setInterfaceIP6(network.Client1NetNS, network.Client1VethPair.Outer, ula+"1::2")
 	require.NoErrorf(t, err, "set IP on client1 interface")
-	err = setInterfaceIP6(network.Client2NetNS, network.Client2VethPair.Outer, ula+"2::1")
+	err = setInterfaceIP6(network.Client2NetNS, network.Client2VethPair.Outer, ula+"2::2")
 	require.NoErrorf(t, err, "set IP on client2 interface")
 
-	err = setInterfaceIP6(network.RouterNetNS, network.ServerVethPair.Inner, ula+"3::2")
+	err = setInterfaceIP6(network.RouterNetNS, network.ServerVethPair.Inner, ula+"3::1")
 	require.NoErrorf(t, err, "set IP on router-server interface")
-	err = setInterfaceIP6(network.RouterNetNS, network.Client1VethPair.Inner, ula+"1::2")
+	err = setInterfaceIP6(network.RouterNetNS, network.Client1VethPair.Inner, ula+"1::1")
 	require.NoErrorf(t, err, "set IP on router-client1 interface")
-	err = setInterfaceIP6(network.RouterNetNS, network.Client2VethPair.Inner, ula+"2::2")
+	err = setInterfaceIP6(network.RouterNetNS, network.Client2VethPair.Inner, ula+"2::1")
 	require.NoErrorf(t, err, "set IP on router-client2 interface")
 
 	// Bring up all interfaces
@@ -508,9 +508,9 @@ func (n TriangleNetwork) SetupNetworking(t *testing.T, l slog.Logger) TestNetwor
 		ifaceName    string
 		defaultRoute string
 	}{
-		{network.ServerNetNS, network.ServerVethPair.Outer, ula + "3::2"},
-		{network.Client1NetNS, network.Client1VethPair.Outer, ula + "1::2"},
-		{network.Client2NetNS, network.Client2VethPair.Outer, ula + "2::2"},
+		{network.ServerNetNS, network.ServerVethPair.Outer, ula + "3::1"},
+		{network.Client1NetNS, network.Client1VethPair.Outer, ula + "1::1"},
+		{network.Client2NetNS, network.Client2VethPair.Outer, ula + "2::1"},
 		{network.RouterNetNS, network.ServerVethPair.Inner, ""},
 		{network.RouterNetNS, network.Client1VethPair.Inner, ""},
 		{network.RouterNetNS, network.Client2VethPair.Inner, ""},
@@ -536,11 +536,11 @@ func (n TriangleNetwork) SetupNetworking(t *testing.T, l slog.Logger) TestNetwor
 		},
 		Client1: TestNetworkingClient{
 			Process:         TestNetworkingProcess{NetNS: network.Client1NetNS},
-			ServerAccessURL: "http://[" + ula + "3::1]:8080",
+			ServerAccessURL: "http://[" + ula + "3::2]:8080",
 		},
 		Client2: TestNetworkingClient{
 			Process:         TestNetworkingProcess{NetNS: network.Client2NetNS},
-			ServerAccessURL: "http://[" + ula + "3::1]:8080",
+			ServerAccessURL: "http://[" + ula + "3::2]:8080",
 		},
 	}
 }
