@@ -393,12 +393,6 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
 }
 
-// WorkspaceAgentDevcontainersResponse is the response to the devcontainers
-// request.
-type WorkspaceAgentDevcontainersResponse struct {
-	Devcontainers []WorkspaceAgentDevcontainer `json:"devcontainers"`
-}
-
 // WorkspaceAgentDevcontainerStatus is the status of a devcontainer.
 type WorkspaceAgentDevcontainerStatus string
 

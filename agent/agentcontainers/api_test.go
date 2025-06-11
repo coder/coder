@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -186,7 +187,7 @@ func (w *fakeWatcher) Next(ctx context.Context) (*fsnotify.Event, error) {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case <-w.closeNotify:
-		return nil, xerrors.New("watcher closed")
+		return nil, watcher.ErrClosed
 	case event := <-w.events:
 		return event, nil
 	}
@@ -212,7 +213,6 @@ func (w *fakeWatcher) sendEventWaitNextCalled(ctx context.Context, event fsnotif
 // fakeSubAgentClient implements SubAgentClient for testing purposes.
 type fakeSubAgentClient struct {
 	agents map[uuid.UUID]agentcontainers.SubAgent
-	nextID int
 
 	listErrC   chan error // If set, send to return error, close to return nil.
 	created    []agentcontainers.SubAgent
@@ -222,14 +222,13 @@ type fakeSubAgentClient struct {
 }
 
 func (m *fakeSubAgentClient) List(ctx context.Context) ([]agentcontainers.SubAgent, error) {
-	var listErr error
 	if m.listErrC != nil {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case err, ok := <-m.listErrC:
-			if ok {
-				listErr = err
+		case err := <-m.listErrC:
+			if err != nil {
+				return nil, err
 			}
 		}
 	}
@@ -237,22 +236,20 @@ func (m *fakeSubAgentClient) List(ctx context.Context) ([]agentcontainers.SubAge
 	for _, agent := range m.agents {
 		agents = append(agents, agent)
 	}
-	return agents, listErr
+	return agents, nil
 }
 
 func (m *fakeSubAgentClient) Create(ctx context.Context, agent agentcontainers.SubAgent) (agentcontainers.SubAgent, error) {
-	var createErr error
 	if m.createErrC != nil {
 		select {
 		case <-ctx.Done():
 			return agentcontainers.SubAgent{}, ctx.Err()
-		case err, ok := <-m.createErrC:
-			if ok {
-				createErr = err
+		case err := <-m.createErrC:
+			if err != nil {
+				return agentcontainers.SubAgent{}, err
 			}
 		}
 	}
-	m.nextID++
 	agent.ID = uuid.New()
 	agent.AuthToken = uuid.New()
 	if m.agents == nil {
@@ -260,18 +257,17 @@ func (m *fakeSubAgentClient) Create(ctx context.Context, agent agentcontainers.S
 	}
 	m.agents[agent.ID] = agent
 	m.created = append(m.created, agent)
-	return agent, createErr
+	return agent, nil
 }
 
 func (m *fakeSubAgentClient) Delete(ctx context.Context, id uuid.UUID) error {
-	var deleteErr error
 	if m.deleteErrC != nil {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case err, ok := <-m.deleteErrC:
-			if ok {
-				deleteErr = err
+		case err := <-m.deleteErrC:
+			if err != nil {
+				return err
 			}
 		}
 	}
@@ -280,7 +276,7 @@ func (m *fakeSubAgentClient) Delete(ctx context.Context, id uuid.UUID) error {
 	}
 	delete(m.agents, id)
 	m.deleted = append(m.deleted, id)
-	return deleteErr
+	return nil
 }
 
 func TestAPI(t *testing.T) {
@@ -596,13 +592,13 @@ func TestAPI(t *testing.T) {
 
 				// Verify the devcontainer is in starting state after recreation
 				// request is made.
-				req := httptest.NewRequest(http.MethodGet, "/devcontainers", nil).
+				req := httptest.NewRequest(http.MethodGet, "/", nil).
 					WithContext(ctx)
 				rec := httptest.NewRecorder()
 				r.ServeHTTP(rec, req)
 
 				require.Equal(t, http.StatusOK, rec.Code, "status code mismatch")
-				var resp codersdk.WorkspaceAgentDevcontainersResponse
+				var resp codersdk.WorkspaceAgentListContainersResponse
 				t.Log(rec.Body.String())
 				err := json.NewDecoder(rec.Body).Decode(&resp)
 				require.NoError(t, err, "unmarshal response failed")
@@ -625,7 +621,7 @@ func TestAPI(t *testing.T) {
 					_, aw = mClock.AdvanceNext()
 					aw.MustWait(ctx)
 
-					req = httptest.NewRequest(http.MethodGet, "/devcontainers", nil).
+					req = httptest.NewRequest(http.MethodGet, "/", nil).
 						WithContext(ctx)
 					rec = httptest.NewRecorder()
 					r.ServeHTTP(rec, req)
@@ -647,7 +643,7 @@ func TestAPI(t *testing.T) {
 				_, aw = mClock.AdvanceNext()
 				aw.MustWait(ctx)
 
-				req = httptest.NewRequest(http.MethodGet, "/devcontainers", nil).
+				req = httptest.NewRequest(http.MethodGet, "/", nil).
 					WithContext(ctx)
 				rec = httptest.NewRecorder()
 				r.ServeHTTP(rec, req)
@@ -986,7 +982,7 @@ func TestAPI(t *testing.T) {
 				_, aw := mClock.AdvanceNext()
 				aw.MustWait(ctx)
 
-				req := httptest.NewRequest(http.MethodGet, "/devcontainers", nil).
+				req := httptest.NewRequest(http.MethodGet, "/", nil).
 					WithContext(ctx)
 				rec := httptest.NewRecorder()
 				r.ServeHTTP(rec, req)
@@ -997,7 +993,7 @@ func TestAPI(t *testing.T) {
 					return
 				}
 
-				var response codersdk.WorkspaceAgentDevcontainersResponse
+				var response codersdk.WorkspaceAgentListContainersResponse
 				err := json.NewDecoder(rec.Body).Decode(&response)
 				require.NoError(t, err, "unmarshal response failed")
 
@@ -1072,13 +1068,13 @@ func TestAPI(t *testing.T) {
 		})
 
 		// Initially the devcontainer should be running and dirty.
-		req := httptest.NewRequest(http.MethodGet, "/devcontainers", nil).
+		req := httptest.NewRequest(http.MethodGet, "/", nil).
 			WithContext(ctx)
 		rec := httptest.NewRecorder()
 		api.Routes().ServeHTTP(rec, req)
 
 		require.Equal(t, http.StatusOK, rec.Code)
-		var resp1 codersdk.WorkspaceAgentDevcontainersResponse
+		var resp1 codersdk.WorkspaceAgentListContainersResponse
 		err := json.NewDecoder(rec.Body).Decode(&resp1)
 		require.NoError(t, err)
 		require.Len(t, resp1.Devcontainers, 1)
@@ -1096,13 +1092,13 @@ func TestAPI(t *testing.T) {
 		aw.MustWait(ctx)
 
 		// Afterwards the devcontainer should not be running and not dirty.
-		req = httptest.NewRequest(http.MethodGet, "/devcontainers", nil).
+		req = httptest.NewRequest(http.MethodGet, "/", nil).
 			WithContext(ctx)
 		rec = httptest.NewRecorder()
 		api.Routes().ServeHTTP(rec, req)
 
 		require.Equal(t, http.StatusOK, rec.Code)
-		var resp2 codersdk.WorkspaceAgentDevcontainersResponse
+		var resp2 codersdk.WorkspaceAgentListContainersResponse
 		err = json.NewDecoder(rec.Body).Decode(&resp2)
 		require.NoError(t, err)
 		require.Len(t, resp2.Devcontainers, 1)
@@ -1162,13 +1158,13 @@ func TestAPI(t *testing.T) {
 
 		// Call the list endpoint first to ensure config files are
 		// detected and watched.
-		req := httptest.NewRequest(http.MethodGet, "/devcontainers", nil).
+		req := httptest.NewRequest(http.MethodGet, "/", nil).
 			WithContext(ctx)
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusOK, rec.Code)
 
-		var response codersdk.WorkspaceAgentDevcontainersResponse
+		var response codersdk.WorkspaceAgentListContainersResponse
 		err := json.NewDecoder(rec.Body).Decode(&response)
 		require.NoError(t, err)
 		require.Len(t, response.Devcontainers, 1)
@@ -1196,7 +1192,7 @@ func TestAPI(t *testing.T) {
 		aw.MustWait(ctx)
 
 		// Check if the container is marked as dirty.
-		req = httptest.NewRequest(http.MethodGet, "/devcontainers", nil).
+		req = httptest.NewRequest(http.MethodGet, "/", nil).
 			WithContext(ctx)
 		rec = httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
@@ -1220,7 +1216,7 @@ func TestAPI(t *testing.T) {
 		aw.MustWait(ctx)
 
 		// Check if dirty flag is cleared.
-		req = httptest.NewRequest(http.MethodGet, "/devcontainers", nil).
+		req = httptest.NewRequest(http.MethodGet, "/", nil).
 			WithContext(ctx)
 		rec = httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
@@ -1274,7 +1270,7 @@ func TestAPI(t *testing.T) {
 
 		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
 			Containers: []codersdk.WorkspaceAgentContainer{testContainer},
-		}, nil).AnyTimes()
+		}, nil).Times(1 + 3) // 1 initial call + 3 updates.
 		gomock.InOrder(
 			mCCLI.EXPECT().DetectArchitecture(gomock.Any(), "test-container-id").Return(runtime.GOARCH, nil),
 			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
@@ -1285,6 +1281,7 @@ func TestAPI(t *testing.T) {
 		mClock.Set(time.Now()).MustWait(ctx)
 		tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
 
+		var closeOnce sync.Once
 		api := agentcontainers.NewAPI(logger,
 			agentcontainers.WithClock(mClock),
 			agentcontainers.WithContainerCLI(mCCLI),
@@ -1293,12 +1290,17 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithSubAgentURL("test-subagent-url"),
 			agentcontainers.WithDevcontainerCLI(fakeDCCLI),
 		)
-		defer api.Close()
+		apiClose := func() {
+			closeOnce.Do(func() {
+				// Close before api.Close() defer to avoid deadlock after test.
+				close(fakeSAC.createErrC)
+				close(fakeSAC.deleteErrC)
+				close(fakeDCCLI.execErrC)
 
-		// Close before api.Close() defer to avoid deadlock after test.
-		defer close(fakeSAC.createErrC)
-		defer close(fakeSAC.deleteErrC)
-		defer close(fakeDCCLI.execErrC)
+				_ = api.Close()
+			})
+		}
+		defer apiClose()
 
 		// Allow initial agent creation and injection to succeed.
 		testutil.RequireSend(ctx, t, fakeSAC.createErrC, nil)
@@ -1327,18 +1329,12 @@ func TestAPI(t *testing.T) {
 			assert.Len(t, fakeSAC.deleted, 0)
 		}
 
-		t.Log("Agent injected successfully, now testing cleanup and reinjection...")
+		t.Log("Agent injected successfully, now testing reinjection into the same container...")
 
-		// Expect the agent to be reinjected.
-		gomock.InOrder(
-			mCCLI.EXPECT().DetectArchitecture(gomock.Any(), "test-container-id").Return(runtime.GOARCH, nil),
-			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
-			mCCLI.EXPECT().Copy(gomock.Any(), "test-container-id", coderBin, "/.coder-agent/coder").Return(nil),
-			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
-		)
-
-		// Terminate the agent and verify it is deleted.
+		// Terminate the agent and verify it can be reinjected.
+		terminated := make(chan struct{})
 		testutil.RequireSend(ctx, t, fakeDCCLI.execErrC, func(_ string, args ...string) error {
+			defer close(terminated)
 			if len(args) > 0 {
 				assert.Equal(t, "agent", args[0])
 			} else {
@@ -1346,13 +1342,73 @@ func TestAPI(t *testing.T) {
 			}
 			return errTestTermination
 		})
+		<-terminated
 
-		// Allow cleanup to proceed.
+		t.Log("Waiting for agent reinjection...")
+
+		// Expect the agent to be reinjected.
+		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentContainer{testContainer},
+		}, nil).Times(3) // 3 updates.
+		gomock.InOrder(
+			mCCLI.EXPECT().DetectArchitecture(gomock.Any(), "test-container-id").Return(runtime.GOARCH, nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
+			mCCLI.EXPECT().Copy(gomock.Any(), "test-container-id", coderBin, "/.coder-agent/coder").Return(nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
+		)
+
+		// Allow agent reinjection to succeed.
+		testutil.RequireSend(ctx, t, fakeDCCLI.execErrC, func(cmd string, args ...string) error {
+			assert.Equal(t, "pwd", cmd)
+			assert.Empty(t, args)
+			return nil
+		}) // Exec pwd.
+
+		// Ensure we only inject the agent once.
+		for i := range 3 {
+			_, aw := mClock.AdvanceNext()
+			aw.MustWait(ctx)
+
+			t.Logf("Iteration %d: agents created: %d", i+1, len(fakeSAC.created))
+
+			// Verify that the agent was reused.
+			require.Len(t, fakeSAC.created, 1)
+			assert.Len(t, fakeSAC.deleted, 0)
+		}
+
+		t.Log("Agent reinjected successfully, now testing agent deletion and recreation...")
+
+		// New container ID means the agent will be recreated.
+		testContainer.ID = "new-test-container-id" // Simulate a new container ID after recreation.
+		// Expect the agent to be injected.
+		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentContainer{testContainer},
+		}, nil).Times(3) // 3 updates.
+		gomock.InOrder(
+			mCCLI.EXPECT().DetectArchitecture(gomock.Any(), "new-test-container-id").Return(runtime.GOARCH, nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "new-test-container-id", "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
+			mCCLI.EXPECT().Copy(gomock.Any(), "new-test-container-id", coderBin, "/.coder-agent/coder").Return(nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "new-test-container-id", "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "new-test-container-id", "root", "chown", "0:0", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "new-test-container-id", "root", "setcap", "cap_net_admin+ep", "/.coder-agent/coder").Return(nil, nil),
+		)
+
+		// Terminate the agent and verify it can be reinjected.
+		terminated = make(chan struct{})
+		testutil.RequireSend(ctx, t, fakeDCCLI.execErrC, func(_ string, args ...string) error {
+			defer close(terminated)
+			if len(args) > 0 {
+				assert.Equal(t, "agent", args[0])
+			} else {
+				assert.Fail(t, `want "agent" command argument`)
+			}
+			return errTestTermination
+		})
+		<-terminated
+
+		// Simulate the agent deletion.
 		testutil.RequireSend(ctx, t, fakeSAC.deleteErrC, nil)
-
-		t.Log("Waiting for agent recreation...")
-
-		// Allow agent recreation and reinjection to succeed.
+		// Expect the agent to be recreated.
 		testutil.RequireSend(ctx, t, fakeSAC.createErrC, nil)
 		testutil.RequireSend(ctx, t, fakeDCCLI.execErrC, func(cmd string, args ...string) error {
 			assert.Equal(t, "pwd", cmd)
@@ -1360,20 +1416,25 @@ func TestAPI(t *testing.T) {
 			return nil
 		}) // Exec pwd.
 
-		// Wait until the agent recreation is started.
-		for len(fakeSAC.createErrC) > 0 {
+		// Advance the clock to run updaterLoop.
+		for i := range 3 {
 			_, aw := mClock.AdvanceNext()
 			aw.MustWait(ctx)
+
+			t.Logf("Iteration %d: agents created: %d, deleted: %d", i+1, len(fakeSAC.created), len(fakeSAC.deleted))
 		}
 
-		t.Log("Agent recreated successfully.")
+		// Verify the agent was deleted and recreated.
+		require.Len(t, fakeSAC.deleted, 1, "there should be one deleted agent after recreation")
+		assert.Len(t, fakeSAC.created, 2, "there should be two created agents after recreation")
+		assert.Equal(t, fakeSAC.created[0].ID, fakeSAC.deleted[0], "the deleted agent should match the first created agent")
 
-		// Verify agent was deleted.
-		require.Len(t, fakeSAC.deleted, 1)
-		assert.Equal(t, fakeSAC.created[0].ID, fakeSAC.deleted[0])
+		t.Log("Agent deleted and recreated successfully.")
 
-		// Verify the agent recreated.
-		require.Len(t, fakeSAC.created, 2)
+		apiClose()
+		require.Len(t, fakeSAC.created, 2, "API close should not create more agents")
+		require.Len(t, fakeSAC.deleted, 2, "API close should delete the agent")
+		assert.Equal(t, fakeSAC.created[1].ID, fakeSAC.deleted[1], "the second created agent should be deleted on API close")
 	})
 
 	t.Run("SubAgentCleanup", func(t *testing.T) {
