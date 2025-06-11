@@ -135,6 +135,7 @@ The original PR deployment workflow took over 10 minutes to complete, which was 
 ## Future Enhancements
 
 Potential additional improvements:
+
 1. Pre-built base images for faster builds
 2. Deployment status webhooks
 3. Automatic cleanup of old deployments
