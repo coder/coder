@@ -249,7 +249,6 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 					Value: "GO",
 				},
 			}
-			request.EnableDynamicParameters = true
 		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, wrk.LatestBuild.ID)
 
@@ -379,6 +378,12 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 	version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, files)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
 	tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
+
+	var err error
+	tpl, err = templateAdmin.UpdateTemplateMeta(t.Context(), tpl.ID, codersdk.UpdateTemplateMeta{
+		UseClassicParameterFlow: ptr.Ref(false),
+	})
+	require.NoError(t, err)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, version.ID)
