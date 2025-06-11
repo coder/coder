@@ -582,7 +582,7 @@ jobs:
   # NOTE: this could instead be defined as a matrix strategy, but we want to
   # only block merging if tests on postgres 13 fail. Using a matrix strategy
   # here makes the check in the above `required` job rather complicated.
-  test-go-pg-16:
+  test-go-pg-17:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs:
       - changes
@@ -613,11 +613,11 @@ jobs:
         id: download-cache
         uses: ./.github/actions/test-cache/download
         with:
-          key-prefix: test-go-pg-16-${{ runner.os }}-${{ runner.arch }}
+          key-prefix: test-go-pg-17-${{ runner.os }}-${{ runner.arch }}
 
       - name: Test with PostgreSQL Database
         env:
-          POSTGRES_VERSION: "16"
+          POSTGRES_VERSION: "17"
           TS_DEBUG_DISCO: "true"
           TEST_RETRIES: 2
         run: |
