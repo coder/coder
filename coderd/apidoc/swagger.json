@@ -16096,7 +16096,7 @@
 					"$ref": "#/definitions/codersdk.WorkspaceAppOpenIn"
 				},
 				"sharing_level": {
-					"enum": ["owner", "authenticated", "public"],
+					"enum": ["owner", "authenticated", "organization", "public"],
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.WorkspaceAppSharingLevel"
@@ -16148,10 +16148,11 @@
 		},
 		"codersdk.WorkspaceAppSharingLevel": {
 			"type": "string",
-			"enum": ["owner", "authenticated", "public"],
+			"enum": ["owner", "authenticated", "organization", "public"],
 			"x-enum-varnames": [
 				"WorkspaceAppSharingLevelOwner",
 				"WorkspaceAppSharingLevelAuthenticated",
+				"WorkspaceAppSharingLevelOrganization",
 				"WorkspaceAppSharingLevelPublic"
 			]
 		},

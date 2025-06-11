@@ -928,6 +928,7 @@ Status Code **200**
 | `open_in`                 | `tab`              |
 | `sharing_level`           | `owner`            |
 | `sharing_level`           | `authenticated`    |
+| `sharing_level`           | `organization`     |
 | `sharing_level`           | `public`           |
 | `state`                   | `working`          |
 | `state`                   | `complete`         |
@@ -1686,6 +1687,7 @@ Status Code **200**
 | `open_in`                 | `tab`                         |
 | `sharing_level`           | `owner`                       |
 | `sharing_level`           | `authenticated`               |
+| `sharing_level`           | `organization`                |
 | `sharing_level`           | `public`                      |
 | `state`                   | `working`                     |
 | `state`                   | `complete`                    |

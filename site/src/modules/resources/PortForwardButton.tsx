@@ -1,4 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import BusinessIcon from "@mui/icons-material/Business";
 import LockIcon from "@mui/icons-material/Lock";
 import LockOpenIcon from "@mui/icons-material/LockOpen";
 import SensorsIcon from "@mui/icons-material/Sensors";
@@ -207,6 +208,19 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	);
 	const canSharePortsPublic =
 		canSharePorts && template.max_port_share_level === "public";
+	const canSharePortsOrganization =
+		canSharePorts &&
+		(template.max_port_share_level === "organization" ||
+			template.max_port_share_level === "public");
+
+	// Default share level for quick share button based on template's max level
+	const defaultShareLevel: WorkspaceAgentPortShareLevel = (() => {
+		if (template.max_port_share_level === "organization") {
+			return "organization";
+		}
+		// For authenticated or public max levels, default to organization as it's more restrictive
+		return canSharePortsOrganization ? "organization" : "authenticated";
+	})();
 
 	const disabledPublicMenuItem = (
 		<MUITooltip title="This workspace template does not allow sharing ports with unauthenticated users.">
@@ -214,6 +228,17 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 			<div>
 				<MenuItem value="public" disabled>
 					Public
+				</MenuItem>
+			</div>
+		</MUITooltip>
+	);
+
+	const disabledOrganizationMenuItem = (
+		<MUITooltip title="This workspace template does not allow sharing ports at the organization level.">
+			{/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
+			<div>
+				<MenuItem value="organization" disabled>
+					Organization
 				</MenuItem>
 			</div>
 		</MUITooltip>
@@ -379,7 +404,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 																agent_name: agent.name,
 																port: port.port,
 																protocol: listeningPortProtocol,
-																share_level: "authenticated",
+																share_level: defaultShareLevel,
 															});
 														}}
 													>
@@ -406,7 +431,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 				<HelpTooltipTitle>Shared Ports</HelpTooltipTitle>
 				<HelpTooltipText css={{ color: theme.palette.text.secondary }}>
 					{canSharePorts
-						? "Ports can be shared with other Coder users or with the public."
+						? "Ports can be shared with organization members, other Coder users, or with the public."
 						: "This workspace template does not allow sharing ports. Contact a template administrator to enable port sharing."}
 				</HelpTooltipText>
 				{canSharePorts && (
@@ -437,6 +462,8 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									>
 										{share.share_level === "public" ? (
 											<LockOpenIcon css={{ width: 14, height: 14 }} />
+										) : share.share_level === "organization" ? (
+											<BusinessIcon css={{ width: 14, height: 14 }} />
 										) : (
 											<LockIcon css={{ width: 14, height: 14 }} />
 										)}
@@ -480,6 +507,11 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 												}}
 											>
 												<MenuItem value="authenticated">Authenticated</MenuItem>
+												{canSharePortsOrganization ? (
+													<MenuItem value="organization">Organization</MenuItem>
+												) : (
+													disabledOrganizationMenuItem
+												)}
 												{canSharePortsPublic ? (
 													<MenuItem value="public">Public</MenuItem>
 												) : (
@@ -547,6 +579,11 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									label="Sharing Level"
 								>
 									<MenuItem value="authenticated">Authenticated</MenuItem>
+									{canSharePortsOrganization ? (
+										<MenuItem value="organization">Organization</MenuItem>
+									) : (
+										disabledOrganizationMenuItem
+									)}
 									{canSharePortsPublic ? (
 										<MenuItem value="public">Public</MenuItem>
 									) : (
@@ -568,11 +605,11 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 
 const classNames = {
 	paper: (css, theme) => css`
-    padding: 0;
-    width: 404px;
-    color: ${theme.palette.text.secondary};
-    margin-top: 4px;
-  `,
+		padding: 0;
+		width: 404px;
+		color: ${theme.palette.text.secondary};
+		margin-top: 4px;
+	`,
 } satisfies Record<string, ClassName>;
 
 const styles = {

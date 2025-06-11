@@ -9117,6 +9117,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |-----------------|-----------------|
 | `sharing_level` | `owner`         |
 | `sharing_level` | `authenticated` |
+| `sharing_level` | `organization`  |
 | `sharing_level` | `public`        |
 
 ## codersdk.WorkspaceAppHealth
@@ -9165,6 +9166,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |-----------------|
 | `owner`         |
 | `authenticated` |
+| `organization`  |
 | `public`        |
 
 ## codersdk.WorkspaceAppStatus

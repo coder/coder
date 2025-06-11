@@ -3589,10 +3589,15 @@ export type WorkspaceAppOpenIn = "slim-window" | "tab";
 export const WorkspaceAppOpenIns: WorkspaceAppOpenIn[] = ["slim-window", "tab"];
 
 // From codersdk/workspaceapps.go
-export type WorkspaceAppSharingLevel = "authenticated" | "owner" | "public";
+export type WorkspaceAppSharingLevel =
+	| "authenticated"
+	| "organization"
+	| "owner"
+	| "public";
 
 export const WorkspaceAppSharingLevels: WorkspaceAppSharingLevel[] = [
 	"authenticated",
+	"organization",
 	"owner",
 	"public",
 ];
