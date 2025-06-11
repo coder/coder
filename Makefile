@@ -36,7 +36,9 @@ GOOS         := $(shell go env GOOS)
 GOARCH       := $(shell go env GOARCH)
 GOOS_BIN_EXT := $(if $(filter windows, $(GOOS)),.exe,)
 VERSION      := $(shell ./scripts/version.sh)
-POSTGRES_VERSION ?= 16
+
+POSTGRES_VERSION ?= 17
+POSTGRES_IMAGE   ?= us-docker.pkg.dev/coder-v2-images-public/public/postgres:$(POSTGRES_VERSION)
 
 # Use the highest ZSTD compression level in CI.
 ifdef CI
@@ -949,12 +951,12 @@ test-postgres-docker:
 	docker rm -f test-postgres-docker-${POSTGRES_VERSION} || true
 
 	# Try pulling up to three times to avoid CI flakes.
-	docker pull gcr.io/coder-dev-1/postgres:${POSTGRES_VERSION} || {
+	docker pull ${POSTGRES_IMAGE} || {
 		retries=2
 		for try in $(seq 1 ${retries}); do
 			echo "Failed to pull image, retrying (${try}/${retries})..."
 			sleep 1
-			if docker pull gcr.io/coder-dev-1/postgres:${POSTGRES_VERSION}; then
+			if docker pull ${POSTGRES_IMAGE}; then
 				break
 			fi
 		done
@@ -982,7 +984,7 @@ test-postgres-docker:
 		--restart no \
 		--detach \
 		--memory 16GB \
-		gcr.io/coder-dev-1/postgres:${POSTGRES_VERSION} \
+		${POSTGRES_IMAGE} \
 		-c shared_buffers=2GB \
 		-c effective_cache_size=1GB \
 		-c work_mem=8MB \
