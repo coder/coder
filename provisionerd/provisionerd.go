@@ -578,7 +578,7 @@ func (p *Server) CompleteJob(ctx context.Context, in *proto.CompletedJob) error 
 			moduleFilesHash := sha256.Sum256(ti.TemplateImport.ModuleFiles)
 
 			moduleFiles := ti.TemplateImport.ModuleFiles
-			ti.TemplateImport.ModuleFiles = nil // Clear the files in the final message
+			ti.TemplateImport.ModuleFiles = []byte{} // Clear the files in the final message
 			ti.TemplateImport.ModuleFilesHash = moduleFilesHash[:]
 			err := p.UploadModuleFiles(ctx, moduleFiles)
 			if err != nil {

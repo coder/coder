@@ -601,6 +601,8 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				Plan:                       startProvision.Plan,
 				// ModuleFiles are not on the stopProvision. So grab from the startProvision.
 				ModuleFiles: startProvision.ModuleFiles,
+				// ModuleFileHash will be populated if the file is uploaded async
+				ModuleFilesHash: []byte{},
 			},
 		},
 	}, nil
