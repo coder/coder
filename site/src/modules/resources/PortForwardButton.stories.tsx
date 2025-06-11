@@ -14,6 +14,7 @@ const meta: Meta<typeof PortForwardButton> = {
 	component: PortForwardButton,
 	decorators: [withDashboardProvider],
 	args: {
+		host: "*.coder.com",
 		agent: MockWorkspaceAgent,
 		workspace: MockWorkspace,
 		template: MockTemplate,

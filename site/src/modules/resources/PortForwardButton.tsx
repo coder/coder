@@ -9,7 +9,6 @@ import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
-import MUITooltip from "@mui/material/Tooltip";
 import { API } from "api/api";
 import {
 	deleteWorkspacePortShare,
@@ -223,25 +222,41 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	})();
 
 	const disabledPublicMenuItem = (
-		<MUITooltip title="This workspace template does not allow sharing ports with unauthenticated users.">
-			{/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
-			<div>
-				<MenuItem value="public" disabled>
-					Public
-				</MenuItem>
-			</div>
-		</MUITooltip>
+		<TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					{/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
+					<div>
+						<MenuItem value="public" disabled>
+							Public
+						</MenuItem>
+					</div>
+				</TooltipTrigger>
+				<TooltipContent>
+					This workspace template does not allow sharing ports with
+					unauthenticated users.
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 
 	const disabledOrganizationMenuItem = (
-		<MUITooltip title="This workspace template does not allow sharing ports at the organization level.">
-			{/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
-			<div>
-				<MenuItem value="organization" disabled>
-					Organization
-				</MenuItem>
-			</div>
-		</MUITooltip>
+		<TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					{/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
+					<div>
+						<MenuItem value="organization" disabled>
+							Organization
+						</MenuItem>
+					</div>
+				</TooltipTrigger>
+				<TooltipContent>
+					This workspace template does not allow sharing ports at the
+					organization level.
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 
 	return (

@@ -30,7 +30,7 @@ const meta: Meta<typeof PortForwardPopoverView> = {
 		template: MockTemplate,
 		workspace: MockWorkspace,
 		portSharingControlsEnabled: true,
-		host: "coder.com",
+		host: "*.coder.com",
 	},
 };
 
