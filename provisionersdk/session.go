@@ -174,6 +174,7 @@ func (s *Session) handleRequests() error {
 				dataUp, chunks := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, complete.ModuleFiles)
 
 				complete.ModuleFiles = nil // sent over the stream
+				complete.ModuleFilesHash = dataUp.DataHash
 				resp.Type = &proto.Response_Plan{Plan: complete}
 
 				err := s.stream.Send(&proto.Response{Type: &proto.Response_DataUpload{DataUpload: dataUp}})

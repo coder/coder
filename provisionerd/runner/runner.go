@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -791,6 +792,9 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 					return nil, xerrors.Errorf("module files, complete upload: %w", err)
 				}
 				moduleFilesData = uploadData
+				if !bytes.Equal(c.ModuleFilesHash, moduleFilesUpload.Hash) {
+					return nil, xerrors.Errorf("module files hash mismatch, uploaded: %x, expected: %x", moduleFilesUpload.Hash, c.ModuleFilesHash)
+				}
 			}
 
 			return &templateImportProvision{
