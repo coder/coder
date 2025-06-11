@@ -40,6 +40,8 @@ You can install Coder Desktop on macOS or Windows.
 
 ### Windows
 
+Install from `winget` by running `winget install Coder.CoderDesktop` or follwo the steps below:
+
 1. Download the latest `CoderDesktop` installer executable (`.exe`) from the [coder-desktop-windows release page](https://github.com/coder/coder-desktop-windows/releases).
 
    Choose the architecture that fits your Windows system, `x64` or `arm64`.
