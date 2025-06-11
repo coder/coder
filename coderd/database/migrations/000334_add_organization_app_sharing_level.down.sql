@@ -1,0 +1,4 @@
+-- Remove 'organization' from app_sharing_level enum
+-- Note: PostgreSQL doesn't support removing enum values directly
+-- This would require recreating the enum type and updating all references
+-- For now, we'll leave the enum value in place as it's backwards compatible

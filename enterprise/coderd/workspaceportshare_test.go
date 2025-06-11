@@ -59,4 +59,27 @@ func TestWorkspacePortShare(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceAgentPortShareLevelPublic, ps.ShareLevel)
+
+	// Test organization level - should work when max level is public
+	ps, err = client.UpsertWorkspaceAgentPortShare(ctx, r.workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
+		AgentName:  r.sdkAgent.Name,
+		Port:       8081,
+		ShareLevel: codersdk.WorkspaceAgentPortShareLevelOrganization,
+		Protocol:   codersdk.WorkspaceAgentPortShareProtocolHTTP,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceAgentPortShareLevelOrganization, ps.ShareLevel)
+
+	// Test organization level should fail when max level is authenticated
+	levelAuth := codersdk.WorkspaceAgentPortShareLevelAuthenticated
+	client.UpdateTemplateMeta(ctx, r.workspace.TemplateID, codersdk.UpdateTemplateMeta{
+		MaxPortShareLevel: &levelAuth,
+	})
+	_, err = client.UpsertWorkspaceAgentPortShare(ctx, r.workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
+		AgentName:  r.sdkAgent.Name,
+		Port:       8082,
+		ShareLevel: codersdk.WorkspaceAgentPortShareLevelOrganization,
+		Protocol:   codersdk.WorkspaceAgentPortShareProtocolHTTP,
+	})
+	require.Error(t, err, "Organization level should not be allowed when max level is authenticated")
 }
