@@ -1501,6 +1501,19 @@ func New(options *Options) *API {
 		})
 		r.Route("/aibridge", func(r chi.Router) {
 			r.Post("/v1/chat/completions", api.bridgeAIRequest)
+			r.Get("/v1/models", func(rw http.ResponseWriter, r *http.Request) {
+				httpapi.Write(context.Background(), rw, http.StatusOK, map[string]any{
+					"object": "list",
+					"data": []map[string]any{
+						{
+							"id":       "gpt-4-0613",
+							"object":   "model",
+							"created":  1686588896,
+							"owned_by": "openai",
+						},
+					},
+				})
+			})
 			r.Post("/v1/messages", api.bridgeAIRequest)
 		})
 	})
