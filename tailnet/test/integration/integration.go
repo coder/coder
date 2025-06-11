@@ -25,6 +25,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
@@ -458,6 +459,16 @@ func (UDPEchoService) StartService(t *testing.T, logger slog.Logger, _ *tailnet.
 		Port: EchoPort,
 	})
 	require.NoError(t, err)
+
+	// set path MTU discovery so that we don't fragment the responses.
+	c, err := l.SyscallConn()
+	require.NoError(t, err)
+	var sockErr error
+	err = c.Control(func(fd uintptr) {
+		sockErr = unix.SetsockoptInt(int(fd), unix.IPPROTO_IPV6, unix.IPV6_MTU_DISCOVER, unix.IP_PMTUDISC_DO)
+	})
+	require.NoError(t, err)
+	require.NoError(t, sockErr)
 	logger.Info(context.Background(), "started UDPEcho server")
 	t.Cleanup(func() {
 		lCloseErr := l.Close()

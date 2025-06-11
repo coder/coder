@@ -139,7 +139,7 @@ func Test_sshConfigSplitOnCoderSection(t *testing.T) {
 // This test tries to mimic the behavior of OpenSSH
 // when executing e.g. a ProxyCommand.
 // nolint:tparallel
-func Test_sshConfigExecEscape(t *testing.T) {
+func Test_sshConfigProxyCommandEscape(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -171,7 +171,7 @@ func Test_sshConfigExecEscape(t *testing.T) {
 			err = os.WriteFile(bin, contents, 0o755) //nolint:gosec
 			require.NoError(t, err)
 
-			escaped, err := sshConfigExecEscape(bin, false)
+			escaped, err := sshConfigProxyCommandEscape(bin, false)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -179,6 +179,63 @@ func Test_sshConfigExecEscape(t *testing.T) {
 			require.NoError(t, err)
 
 			b, err := exec.Command("/bin/sh", "-c", escaped).CombinedOutput() //nolint:gosec
+			require.NoError(t, err)
+			got := strings.TrimSpace(string(b))
+			require.Equal(t, "yay", got)
+		})
+	}
+}
+
+// This test tries to mimic the behavior of OpenSSH
+// when executing e.g. a match exec command.
+// nolint:tparallel
+func Test_sshConfigMatchExecEscape(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		path           string
+		wantErrOther   bool
+		wantErrWindows bool
+	}{
+		{"no spaces", "simple", false, false},
+		{"spaces", "path with spaces", false, false},
+		{"quotes", "path with \"quotes\"", true, true},
+		{"backslashes", "path with\\backslashes", false, false},
+		{"tabs", "path with \ttabs", false, true},
+		{"newline fails", "path with \nnewline", true, true},
+	}
+	// nolint:paralleltest // Fixes a flake
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := "/bin/sh"
+			arg := "-c"
+			contents := []byte("#!/bin/sh\necho yay\n")
+			if runtime.GOOS == "windows" {
+				cmd = "cmd.exe"
+				arg = "/c"
+				contents = []byte("@echo yay\n")
+			}
+
+			dir := filepath.Join(t.TempDir(), tt.path)
+			bin := filepath.Join(dir, "coder.bat") // Windows will treat it as batch, Linux doesn't care
+			escaped, err := sshConfigMatchExecEscape(bin)
+			if (runtime.GOOS == "windows" && tt.wantErrWindows) || (runtime.GOOS != "windows" && tt.wantErrOther) {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			err = os.MkdirAll(dir, 0o755)
+			require.NoError(t, err)
+
+			err = os.WriteFile(bin, contents, 0o755) //nolint:gosec
+			require.NoError(t, err)
+
+			// OpenSSH processes %% escape sequences into %
+			escaped = strings.ReplaceAll(escaped, "%%", "%")
+			b, err := exec.Command(cmd, arg, escaped).CombinedOutput() //nolint:gosec
 			require.NoError(t, err)
 			got := strings.TrimSpace(string(b))
 			require.Equal(t, "yay", got)
@@ -236,7 +293,7 @@ func Test_sshConfigExecEscapeSeparatorForce(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			found, err := sshConfigExecEscape(tt.path, tt.forceUnix)
+			found, err := sshConfigProxyCommandEscape(tt.path, tt.forceUnix)
 			if tt.wantErr {
 				require.Error(t, err)
 				return

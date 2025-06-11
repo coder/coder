@@ -15705,6 +15705,9 @@ const docTemplate = `{
                     "description": "DisableExpiryRefresh will disable automatically refreshing api\nkeys when they are used from the api. This means the api key lifetime at\ncreation is the lifetime of the api key.",
                     "type": "boolean"
                 },
+                "max_admin_token_lifetime": {
+                    "type": "integer"
+                },
                 "max_token_lifetime": {
                     "type": "integer"
                 }

@@ -390,33 +390,38 @@ func createFakeInternet(t *testing.T) fakeInternet {
 }
 
 type TriangleNetwork struct {
-	InterClientMTU int
+	Client1MTU int
 }
 
 type fakeTriangleNetwork struct {
-	NamePrefix             string
-	ServerNetNS            *os.File
-	Client1NetNS           *os.File
-	Client2NetNS           *os.File
-	ServerClient1VethPair  vethPair
-	ServerClient2VethPair  vethPair
-	Client1Client2VethPair vethPair
+	NamePrefix      string
+	ServerNetNS     *os.File
+	Client1NetNS    *os.File
+	Client2NetNS    *os.File
+	RouterNetNS     *os.File
+	ServerVethPair  vethPair
+	Client1VethPair vethPair
+	Client2VethPair vethPair
 }
 
-// SetupNetworking creates multiple namespaces with veth pairs between them
-// with the following topology:
+// SetupNetworking creates multiple namespaces with a central router in the following topology
 // .
-// .     ┌────────────────────────────────────────────┐
-// .     │                  Server                    │
-// .     └─────┬───────────────────────────────────┬──┘
-// .           │fdac:38fa:ffff:2::3                │fdac:38fa:ffff:3::3
-// .       veth│                               veth│
-// .           │fdac:38fa:ffff:2::1                │fdac:38fa:ffff:3::2
-// .   ┌───────┴──────┐                      ┌─────┴───────┐
-// .   │              │   fdac:38fa:ffff:1::2│             │
-// .   │  Client 1    ├──────────────────────┤  Client 2   │
-// .   │              │fdac:38fa:ffff:1::1   │             │
-// .   └──────────────┘                      └─────────────┘
+// .   ┌──────────────┐
+// .   │              │
+// .   │  Server      ├─────────────────────────────────────┐
+// .   │              │fdac:38fa:ffff:3::2                  │
+// .   └──────────────┘                                     │ fdac:38fa:ffff:3::1
+// .   ┌──────────────┐                               ┌─────┴───────┐
+// .   │              │            fdac:38fa:ffff:1::1│             │
+// .   │  Client 1    ├───────────────────────────────┤  Router     │
+// .   │              │fdac:38fa:ffff:1::2            │             │
+// .   └──────────────┘                               └─────┬───────┘
+// .   ┌──────────────┐                                     │ fdac:38fa:ffff:2::1
+// .   │              │                                     │
+// .   │  Client 2    ├─────────────────────────────────────┘
+// .   │              │fdac:38fa:ffff:2::2
+// .   └──────────────┘
+// The veth link between Client 1 and the router has a configurable MTU via Client1MTU.
 func (n TriangleNetwork) SetupNetworking(t *testing.T, l slog.Logger) TestNetworking {
 	logger := l.Named("setup-networking").Leveled(slog.LevelDebug)
 	t.Helper()
@@ -433,88 +438,96 @@ func (n TriangleNetwork) SetupNetworking(t *testing.T, l slog.Logger) TestNetwor
 	network.ServerNetNS = createNetNS(t, namePrefix+"server")
 	network.Client1NetNS = createNetNS(t, namePrefix+"client1")
 	network.Client2NetNS = createNetNS(t, namePrefix+"client2")
+	network.RouterNetNS = createNetNS(t, namePrefix+"router")
 
-	// Create veth pair between server and client1
-	network.ServerClient1VethPair = vethPair{
-		Outer: namePrefix + "s-1",
-		Inner: namePrefix + "1-s",
+	// Create veth pair between server and router
+	network.ServerVethPair = vethPair{
+		Outer: namePrefix + "s-r",
+		Inner: namePrefix + "r-s",
 	}
-	err := createVethPair(network.ServerClient1VethPair.Outer, network.ServerClient1VethPair.Inner)
+	err := createVethPair(network.ServerVethPair.Outer, network.ServerVethPair.Inner)
 	require.NoErrorf(t, err, "create veth pair %q <-> %q",
-		network.ServerClient1VethPair.Outer, network.ServerClient1VethPair.Inner)
+		network.ServerVethPair.Outer, network.ServerVethPair.Inner)
 
-	// Move server-client1 veth ends to their respective namespaces
-	err = setVethNetNS(network.ServerClient1VethPair.Outer, int(network.ServerNetNS.Fd()))
-	require.NoErrorf(t, err, "set veth %q to server NetNS", network.ServerClient1VethPair.Outer)
-	err = setVethNetNS(network.ServerClient1VethPair.Inner, int(network.Client1NetNS.Fd()))
-	require.NoErrorf(t, err, "set veth %q to client1 NetNS", network.ServerClient1VethPair.Inner)
+	// Move server-router veth ends to their respective namespaces
+	err = setVethNetNS(network.ServerVethPair.Outer, int(network.ServerNetNS.Fd()))
+	require.NoErrorf(t, err, "set veth %q to server NetNS", network.ServerVethPair.Outer)
+	err = setVethNetNS(network.ServerVethPair.Inner, int(network.RouterNetNS.Fd()))
+	require.NoErrorf(t, err, "set veth %q to router NetNS", network.ServerVethPair.Inner)
 
-	// Create veth pair between server and client2
-	network.ServerClient2VethPair = vethPair{
-		Outer: namePrefix + "s-2",
-		Inner: namePrefix + "2-s",
+	// Create veth pair between client1 and router
+	network.Client1VethPair = vethPair{
+		Outer: namePrefix + "1-r",
+		Inner: namePrefix + "r-1",
 	}
-	err = createVethPair(network.ServerClient2VethPair.Outer, network.ServerClient2VethPair.Inner)
+	logger.Debug(context.Background(), "creating client1 link", slog.F("mtu", n.Client1MTU))
+	err = createVethPair(network.Client1VethPair.Outer, network.Client1VethPair.Inner, withMTU(n.Client1MTU))
 	require.NoErrorf(t, err, "create veth pair %q <-> %q",
-		network.ServerClient2VethPair.Outer, network.ServerClient2VethPair.Inner)
+		network.Client1VethPair.Outer, network.Client1VethPair.Inner)
 
-	// Move server-client2 veth ends to their respective namespaces
-	err = setVethNetNS(network.ServerClient2VethPair.Outer, int(network.ServerNetNS.Fd()))
-	require.NoErrorf(t, err, "set veth %q to server NetNS", network.ServerClient2VethPair.Outer)
-	err = setVethNetNS(network.ServerClient2VethPair.Inner, int(network.Client2NetNS.Fd()))
-	require.NoErrorf(t, err, "set veth %q to client2 NetNS", network.ServerClient2VethPair.Inner)
+	// Move client1-router veth ends to their respective namespaces
+	err = setVethNetNS(network.Client1VethPair.Outer, int(network.Client1NetNS.Fd()))
+	require.NoErrorf(t, err, "set veth %q to server NetNS", network.Client1VethPair.Outer)
+	err = setVethNetNS(network.Client1VethPair.Inner, int(network.RouterNetNS.Fd()))
+	require.NoErrorf(t, err, "set veth %q to client2 NetNS", network.Client1VethPair.Inner)
 
 	// Create veth pair between client1 and client2
-	network.Client1Client2VethPair = vethPair{
-		Outer: namePrefix + "1-2",
-		Inner: namePrefix + "2-1",
+	network.Client2VethPair = vethPair{
+		Outer: namePrefix + "2-r",
+		Inner: namePrefix + "r-2",
 	}
-	logger.Debug(context.Background(), "creating inter-client link", slog.F("mtu", n.InterClientMTU))
-	err = createVethPair(network.Client1Client2VethPair.Outer, network.Client1Client2VethPair.Inner,
-		withMTU(n.InterClientMTU))
+
+	err = createVethPair(network.Client2VethPair.Outer, network.Client2VethPair.Inner)
 	require.NoErrorf(t, err, "create veth pair %q <-> %q",
-		network.Client1Client2VethPair.Outer, network.Client1Client2VethPair.Inner)
+		network.Client2VethPair.Outer, network.Client2VethPair.Inner)
 
 	// Move client1-client2 veth ends to their respective namespaces
-	err = setVethNetNS(network.Client1Client2VethPair.Outer, int(network.Client1NetNS.Fd()))
-	require.NoErrorf(t, err, "set veth %q to client1 NetNS", network.Client1Client2VethPair.Outer)
-	err = setVethNetNS(network.Client1Client2VethPair.Inner, int(network.Client2NetNS.Fd()))
-	require.NoErrorf(t, err, "set veth %q to client2 NetNS", network.Client1Client2VethPair.Inner)
+	err = setVethNetNS(network.Client2VethPair.Outer, int(network.Client2NetNS.Fd()))
+	require.NoErrorf(t, err, "set veth %q to client1 NetNS", network.Client2VethPair.Outer)
+	err = setVethNetNS(network.Client2VethPair.Inner, int(network.RouterNetNS.Fd()))
+	require.NoErrorf(t, err, "set veth %q to client2 NetNS", network.Client2VethPair.Inner)
 
 	// Set IP addresses according to the diagram:
-	err = setInterfaceIP6(network.ServerNetNS, network.ServerClient1VethPair.Outer, ula+"2::3")
-	require.NoErrorf(t, err, "set IP on server-client1 interface")
-	err = setInterfaceIP6(network.ServerNetNS, network.ServerClient2VethPair.Outer, ula+"3::3")
-	require.NoErrorf(t, err, "set IP on server-client2 interface")
+	err = setInterfaceIP6(network.ServerNetNS, network.ServerVethPair.Outer, ula+"3::2")
+	require.NoErrorf(t, err, "set IP on server interface")
+	err = setInterfaceIP6(network.Client1NetNS, network.Client1VethPair.Outer, ula+"1::2")
+	require.NoErrorf(t, err, "set IP on client1 interface")
+	err = setInterfaceIP6(network.Client2NetNS, network.Client2VethPair.Outer, ula+"2::2")
+	require.NoErrorf(t, err, "set IP on client2 interface")
 
-	err = setInterfaceIP6(network.Client1NetNS, network.ServerClient1VethPair.Inner, ula+"2::1")
-	require.NoErrorf(t, err, "set IP on client1-server interface")
-	err = setInterfaceIP6(network.Client1NetNS, network.Client1Client2VethPair.Outer, ula+"1::1")
-	require.NoErrorf(t, err, "set IP on client1-client2 interface")
-
-	err = setInterfaceIP6(network.Client2NetNS, network.ServerClient2VethPair.Inner, ula+"3::2")
-	require.NoErrorf(t, err, "set IP on client2-server interface")
-	err = setInterfaceIP6(network.Client2NetNS, network.Client1Client2VethPair.Inner, ula+"1::2")
-	require.NoErrorf(t, err, "set IP on client2-client1 interface")
+	err = setInterfaceIP6(network.RouterNetNS, network.ServerVethPair.Inner, ula+"3::1")
+	require.NoErrorf(t, err, "set IP on router-server interface")
+	err = setInterfaceIP6(network.RouterNetNS, network.Client1VethPair.Inner, ula+"1::1")
+	require.NoErrorf(t, err, "set IP on router-client1 interface")
+	err = setInterfaceIP6(network.RouterNetNS, network.Client2VethPair.Inner, ula+"2::1")
+	require.NoErrorf(t, err, "set IP on router-client2 interface")
 
 	// Bring up all interfaces
 	interfaces := []struct {
-		netNS     *os.File
-		ifaceName string
+		netNS        *os.File
+		ifaceName    string
+		defaultRoute string
 	}{
-		{network.ServerNetNS, network.ServerClient1VethPair.Outer},
-		{network.ServerNetNS, network.ServerClient2VethPair.Outer},
-		{network.Client1NetNS, network.ServerClient1VethPair.Inner},
-		{network.Client1NetNS, network.Client1Client2VethPair.Outer},
-		{network.Client2NetNS, network.ServerClient2VethPair.Inner},
-		{network.Client2NetNS, network.Client1Client2VethPair.Inner},
+		{network.ServerNetNS, network.ServerVethPair.Outer, ula + "3::1"},
+		{network.Client1NetNS, network.Client1VethPair.Outer, ula + "1::1"},
+		{network.Client2NetNS, network.Client2VethPair.Outer, ula + "2::1"},
+		{network.RouterNetNS, network.ServerVethPair.Inner, ""},
+		{network.RouterNetNS, network.Client1VethPair.Inner, ""},
+		{network.RouterNetNS, network.Client2VethPair.Inner, ""},
 	}
 	for _, iface := range interfaces {
 		err = setInterfaceUp(iface.netNS, iface.ifaceName)
 		require.NoErrorf(t, err, "bring up interface %q", iface.ifaceName)
-		// Note: routes are not needed as we are fully connected, so nothing needs to forward IP to a further
-		// destination.
+
+		if iface.defaultRoute != "" {
+			err = addRouteInNetNS(iface.netNS, []string{"default", "via", iface.defaultRoute, "dev", iface.ifaceName})
+			require.NoErrorf(t, err, "add peer default route to %s", iface.defaultRoute)
+		}
 	}
+
+	// enable IP forwarding in the router
+	_, err = commandInNetNS(network.RouterNetNS, "sysctl", []string{"-w", "net.ipv6.conf.all.forwarding=1"}).Output()
+	require.NoError(t, wrapExitErr(err), "enable IPv6 forwarding in router NetNS")
 
 	return TestNetworking{
 		Server: TestNetworkingServer{
@@ -523,11 +536,11 @@ func (n TriangleNetwork) SetupNetworking(t *testing.T, l slog.Logger) TestNetwor
 		},
 		Client1: TestNetworkingClient{
 			Process:         TestNetworkingProcess{NetNS: network.Client1NetNS},
-			ServerAccessURL: "http://[" + ula + "2::3]:8080", // Client1 accesses server directly
+			ServerAccessURL: "http://[" + ula + "3::2]:8080",
 		},
 		Client2: TestNetworkingClient{
 			Process:         TestNetworkingProcess{NetNS: network.Client2NetNS},
-			ServerAccessURL: "http://[" + ula + "3::3]:8080", // Client2 accesses server directly
+			ServerAccessURL: "http://[" + ula + "3::2]:8080",
 		},
 	}
 }

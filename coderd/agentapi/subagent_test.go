@@ -939,6 +939,204 @@ func TestSubAgentAPI(t *testing.T) {
 		})
 	})
 
+	t.Run("CreateSubAgentWithDisplayApps", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name          string
+			displayApps   []proto.CreateSubAgentRequest_DisplayApp
+			expectedApps  []database.DisplayApp
+			expectedError *codersdk.ValidationError
+		}{
+			{
+				name:         "NoDisplayApps",
+				displayApps:  []proto.CreateSubAgentRequest_DisplayApp{},
+				expectedApps: []database.DisplayApp{},
+			},
+			{
+				name: "SingleDisplayApp_VSCode",
+				displayApps: []proto.CreateSubAgentRequest_DisplayApp{
+					proto.CreateSubAgentRequest_VSCODE,
+				},
+				expectedApps: []database.DisplayApp{
+					database.DisplayAppVscode,
+				},
+			},
+			{
+				name: "SingleDisplayApp_VSCodeInsiders",
+				displayApps: []proto.CreateSubAgentRequest_DisplayApp{
+					proto.CreateSubAgentRequest_VSCODE_INSIDERS,
+				},
+				expectedApps: []database.DisplayApp{
+					database.DisplayAppVscodeInsiders,
+				},
+			},
+			{
+				name: "SingleDisplayApp_WebTerminal",
+				displayApps: []proto.CreateSubAgentRequest_DisplayApp{
+					proto.CreateSubAgentRequest_WEB_TERMINAL,
+				},
+				expectedApps: []database.DisplayApp{
+					database.DisplayAppWebTerminal,
+				},
+			},
+			{
+				name: "SingleDisplayApp_SSHHelper",
+				displayApps: []proto.CreateSubAgentRequest_DisplayApp{
+					proto.CreateSubAgentRequest_SSH_HELPER,
+				},
+				expectedApps: []database.DisplayApp{
+					database.DisplayAppSSHHelper,
+				},
+			},
+			{
+				name: "SingleDisplayApp_PortForwardingHelper",
+				displayApps: []proto.CreateSubAgentRequest_DisplayApp{
+					proto.CreateSubAgentRequest_PORT_FORWARDING_HELPER,
+				},
+				expectedApps: []database.DisplayApp{
+					database.DisplayAppPortForwardingHelper,
+				},
+			},
+			{
+				name: "MultipleDisplayApps",
+				displayApps: []proto.CreateSubAgentRequest_DisplayApp{
+					proto.CreateSubAgentRequest_VSCODE,
+					proto.CreateSubAgentRequest_WEB_TERMINAL,
+					proto.CreateSubAgentRequest_SSH_HELPER,
+				},
+				expectedApps: []database.DisplayApp{
+					database.DisplayAppVscode,
+					database.DisplayAppWebTerminal,
+					database.DisplayAppSSHHelper,
+				},
+			},
+			{
+				name: "AllDisplayApps",
+				displayApps: []proto.CreateSubAgentRequest_DisplayApp{
+					proto.CreateSubAgentRequest_VSCODE,
+					proto.CreateSubAgentRequest_VSCODE_INSIDERS,
+					proto.CreateSubAgentRequest_WEB_TERMINAL,
+					proto.CreateSubAgentRequest_SSH_HELPER,
+					proto.CreateSubAgentRequest_PORT_FORWARDING_HELPER,
+				},
+				expectedApps: []database.DisplayApp{
+					database.DisplayAppVscode,
+					database.DisplayAppVscodeInsiders,
+					database.DisplayAppWebTerminal,
+					database.DisplayAppSSHHelper,
+					database.DisplayAppPortForwardingHelper,
+				},
+			},
+			{
+				name: "InvalidDisplayApp",
+				displayApps: []proto.CreateSubAgentRequest_DisplayApp{
+					proto.CreateSubAgentRequest_DisplayApp(9999), // Invalid enum value
+				},
+				expectedError: &codersdk.ValidationError{
+					Field: "display_apps[0]",
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				log := testutil.Logger(t)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clock := quartz.NewMock(t)
+
+				db, org := newDatabaseWithOrg(t)
+				user, agent := newUserWithWorkspaceAgent(t, db, org)
+				api := newAgentAPI(t, log, db, clock, user, org, agent)
+
+				createResp, err := api.CreateSubAgent(ctx, &proto.CreateSubAgentRequest{
+					Name:            "test-agent",
+					Directory:       "/workspaces/test",
+					Architecture:    "amd64",
+					OperatingSystem: "linux",
+					DisplayApps:     tt.displayApps,
+				})
+				if tt.expectedError != nil {
+					require.Error(t, err)
+					require.Nil(t, createResp)
+
+					var validationErr codersdk.ValidationError
+					require.ErrorAs(t, err, &validationErr)
+					require.Equal(t, tt.expectedError.Field, validationErr.Field)
+					require.Contains(t, validationErr.Detail, "is not a valid display app")
+				} else {
+					require.NoError(t, err)
+					require.NotNil(t, createResp.Agent)
+
+					agentID, err := uuid.FromBytes(createResp.Agent.Id)
+					require.NoError(t, err)
+
+					subAgent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
+					require.NoError(t, err)
+
+					require.Equal(t, len(tt.expectedApps), len(subAgent.DisplayApps), "display apps count mismatch")
+
+					for i, expectedApp := range tt.expectedApps {
+						require.Equal(t, expectedApp, subAgent.DisplayApps[i], "display app at index %d doesn't match", i)
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("CreateSubAgentWithDisplayAppsAndApps", func(t *testing.T) {
+		t.Parallel()
+
+		log := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock := quartz.NewMock(t)
+
+		db, org := newDatabaseWithOrg(t)
+		user, agent := newUserWithWorkspaceAgent(t, db, org)
+		api := newAgentAPI(t, log, db, clock, user, org, agent)
+
+		// Test that display apps and regular apps can coexist
+		createResp, err := api.CreateSubAgent(ctx, &proto.CreateSubAgentRequest{
+			Name:            "test-agent",
+			Directory:       "/workspaces/test",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			DisplayApps: []proto.CreateSubAgentRequest_DisplayApp{
+				proto.CreateSubAgentRequest_VSCODE,
+				proto.CreateSubAgentRequest_WEB_TERMINAL,
+			},
+			Apps: []*proto.CreateSubAgentRequest_App{
+				{
+					Slug:        "custom-app",
+					DisplayName: ptr.Ref("Custom App"),
+					Url:         ptr.Ref("http://localhost:8080"),
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, createResp.Agent)
+		require.Empty(t, createResp.AppCreationErrors)
+
+		agentID, err := uuid.FromBytes(createResp.Agent.Id)
+		require.NoError(t, err)
+
+		// Verify display apps
+		subAgent, err := api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
+		require.NoError(t, err)
+		require.Len(t, subAgent.DisplayApps, 2)
+		require.Equal(t, database.DisplayAppVscode, subAgent.DisplayApps[0])
+		require.Equal(t, database.DisplayAppWebTerminal, subAgent.DisplayApps[1])
+
+		// Verify regular apps
+		apps, err := api.Database.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
+		require.NoError(t, err)
+		require.Len(t, apps, 1)
+		require.Equal(t, "custom-app", apps[0].Slug)
+		require.Equal(t, "Custom App", apps[0].DisplayName)
+	})
+
 	t.Run("ListSubAgents", func(t *testing.T) {
 		t.Parallel()
 

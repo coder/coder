@@ -28,6 +28,7 @@ import (
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/reaper"
@@ -362,6 +363,9 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					BlockFileTransfer:                blockFileTransfer,
 					Execer:                           execer,
 					ExperimentalDevcontainersEnabled: experimentalDevcontainersEnabled,
+					ContainerAPIOptions: []agentcontainers.Option{
+						agentcontainers.WithSubAgentURL(r.agentURL.String()),
+					},
 				})
 
 				promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)
