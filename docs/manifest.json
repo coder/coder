@@ -927,6 +927,11 @@
 					"path": "./tutorials/azure-federation.md"
 				},
 				{
+					"title": "Deploy Coder on Azure with an Application Gateway",
+					"description": "Deploy Coder on Azure with an Application Gateway",
+					"path": "./install/kubernetes/kubernetes-azure-app-gateway.md"
+				},
+				{
 					"title": "Scanning Workspaces with JFrog Xray",
 					"description": "Integrate Coder with JFrog Xray",
 					"path": "./admin/integrations/jfrog-xray.md"
