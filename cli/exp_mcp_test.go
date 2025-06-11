@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -14,10 +16,22 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	agentapi "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+)
+
+// Used to mock github.com/coder/agentapi events
+const (
+	ServerSentEventTypeMessageUpdate codersdk.ServerSentEventType = "message_update"
+	ServerSentEventTypeStatusChange  codersdk.ServerSentEventType = "status_change"
 )
 
 func TestExpMcpServer(t *testing.T) {
@@ -314,6 +328,7 @@ test-system-prompt
 		err := inv.WithContext(cancelCtx).Run()
 		require.ErrorContains(t, err, "project directory is required")
 	})
+
 	t.Run("NewConfig", func(t *testing.T) {
 		t.Parallel()
 
@@ -704,4 +719,235 @@ func TestExpMcpServerOptionalUserToken(t *testing.T) {
 	// Cancel and wait for the server to stop
 	cancel()
 	<-cmdDone
+}
+
+func TestExpMcpReporter(t *testing.T) {
+	t.Parallel()
+
+	// Reading to / writing from the PTY is flaky on non-linux systems.
+	if runtime.GOOS != "linux" {
+		t.Skip("skipping on non-linux")
+	}
+
+	t.Run("Error", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+		client := coderdtest.New(t, nil)
+		inv, _ := clitest.New(t,
+			"exp", "mcp", "server",
+			"--agent-url", client.URL.String(),
+			"--agent-token", "fake-agent-token",
+			"--app-status-slug", "vscode",
+			"--llm-agent-url", "not a valid url",
+		)
+		inv = inv.WithContext(ctx)
+
+		pty := ptytest.New(t)
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
+		stderr := ptytest.New(t)
+		inv.Stderr = stderr.Output()
+
+		cmdDone := make(chan struct{})
+		go func() {
+			defer close(cmdDone)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		stderr.ExpectMatch("Failed to watch screen events")
+		cancel()
+		<-cmdDone
+	})
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a test deployment and workspace.
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		client, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user2.ID,
+		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+			a[0].Apps = []*proto.App{
+				{
+					Slug: "vscode",
+				},
+			}
+			return a
+		}).Do()
+
+		makeStatusEvent := func(status agentapi.AgentStatus) *codersdk.ServerSentEvent {
+			return &codersdk.ServerSentEvent{
+				Type: ServerSentEventTypeStatusChange,
+				Data: agentapi.EventStatusChange{
+					Status: status,
+				},
+			}
+		}
+
+		makeMessageEvent := func(id int64) *codersdk.ServerSentEvent {
+			return &codersdk.ServerSentEvent{
+				Type: ServerSentEventTypeMessageUpdate,
+				Data: agentapi.EventMessageUpdate{
+					Id: id,
+				},
+			}
+		}
+
+		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+
+		// Mock the LLM agent API server.
+		listening := make(chan func(sse codersdk.ServerSentEvent) error)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			send, closed, err := httpapi.ServerSentEventSender(w, r)
+			if err != nil {
+				httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error setting up server-sent events.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			// Send initial message.
+			send(*makeMessageEvent(0))
+			listening <- send
+			<-closed
+		}))
+		t.Cleanup(srv.Close)
+		llmAgentURL := srv.URL
+
+		// Watch the workspace for changes.
+		watcher, err := client.WatchWorkspace(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		var lastAppStatus codersdk.WorkspaceAppStatusState
+		wait := func(state codersdk.WorkspaceAppStatusState) {
+			for {
+				select {
+				case <-ctx.Done():
+					require.FailNow(t, "timed out waiting for state", state)
+				case w, ok := <-watcher:
+					require.True(t, ok, "watch channel closed: %s", state)
+					var nextAppStatus codersdk.WorkspaceAppStatusState
+					if w.LatestAppStatus != nil {
+						nextAppStatus = w.LatestAppStatus.State
+					}
+					if nextAppStatus == state {
+						lastAppStatus = nextAppStatus
+						return
+					}
+					if nextAppStatus != lastAppStatus {
+						require.FailNow(t, "unexpected status change", nextAppStatus)
+					}
+				}
+			}
+		}
+
+		inv, _ := clitest.New(t,
+			"exp", "mcp", "server",
+			// We need the agent credentials, LLM API url, and a slug for reporting.
+			"--agent-url", client.URL.String(),
+			"--agent-token", r.AgentToken,
+			"--app-status-slug", "vscode",
+			"--llm-agent-url", llmAgentURL,
+			"--allowed-tools=coder_report_task",
+		)
+		inv = inv.WithContext(ctx)
+
+		pty := ptytest.New(t)
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
+		stderr := ptytest.New(t)
+		inv.Stderr = stderr.Output()
+
+		// Run the MCP server.
+		cmdDone := make(chan struct{})
+		go func() {
+			defer close(cmdDone)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		// Initialize.
+		payload := `{"jsonrpc":"2.0","id":1,"method":"initialize"}`
+		pty.WriteLine(payload)
+		_ = pty.ReadLine(ctx) // ignore echo
+		_ = pty.ReadLine(ctx) // ignore init response
+
+		sender := <-listening
+
+		tests := []struct {
+			// event simulates an event from the screen watcher.
+			event *codersdk.ServerSentEvent
+			// state and summary simulate a tool call from the LLM.
+			state    codersdk.WorkspaceAppStatusState
+			summary  string
+			expected codersdk.WorkspaceAppStatusState
+		}{
+			// First the LLM updates with a state change.
+			{
+				state:    codersdk.WorkspaceAppStatusStateWorking,
+				summary:  "doing work",
+				expected: codersdk.WorkspaceAppStatusStateWorking,
+			},
+			// Terminal goes quiet but the LLM forgot the update, and it is caught by
+			// the screen watcher.
+			{
+				event:    makeStatusEvent(agentapi.StatusStable),
+				expected: codersdk.WorkspaceAppStatusStateComplete,
+			},
+			// Terminal becomes active again according to the screen watcher, but
+			// message length is the same.  This could be the LLM being active again,
+			// but it could also be the user messing around.  We will prefer not
+			// updating the status so the "working" update here should be skipped.
+			{
+				event: makeStatusEvent(agentapi.StatusRunning),
+			},
+			// LLM reports that it failed.
+			{
+				state:    codersdk.WorkspaceAppStatusStateFailure,
+				summary:  "oops",
+				expected: codersdk.WorkspaceAppStatusStateFailure,
+			},
+			// The watcher reports the screen is active again...
+			{
+				event: makeStatusEvent(agentapi.StatusRunning),
+			},
+			// ... but this time the message length has increased so we know there is
+			// LLM activity.  This time the "working" update will not be skipped.
+			{
+				event:    makeMessageEvent(1),
+				expected: codersdk.WorkspaceAppStatusStateWorking,
+			},
+			// Watcher reports stable again.
+			{
+				event:    makeStatusEvent(agentapi.StatusStable),
+				expected: codersdk.WorkspaceAppStatusStateComplete,
+			},
+		}
+		for _, test := range tests {
+			if test.event != nil {
+				err := sender(*test.event)
+				require.NoError(t, err)
+			} else {
+				// Call the tool and ensure it works.
+				payload := fmt.Sprintf(`{"jsonrpc":"2.0","id":3,"method":"tools/call", "params": {"name": "coder_report_task", "arguments": {"state": %q, "summary": %q}}}`, test.state, test.summary)
+				pty.WriteLine(payload)
+				_ = pty.ReadLine(ctx) // ignore echo
+				output := pty.ReadLine(ctx)
+				require.NotEmpty(t, output, "did not receive a response from coder_report_task")
+				// Ensure it is valid JSON.
+				_, err = json.Marshal(output)
+				require.NoError(t, err, "did not receive valid JSON from coder_report_task")
+			}
+			if test.expected != "" {
+				wait(test.expected)
+			}
+		}
+		cancel()
+		<-cmdDone
+	})
 }
