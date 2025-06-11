@@ -2192,6 +2192,7 @@ export type RBACResource =
 	| "oauth2_app_secret"
 	| "organization"
 	| "organization_member"
+	| "prebuilt_workspace"
 	| "provisioner_daemon"
 	| "provisioner_jobs"
 	| "replicas"
@@ -2231,6 +2232,7 @@ export const RBACResources: RBACResource[] = [
 	"oauth2_app_secret",
 	"organization",
 	"organization_member",
+	"prebuilt_workspace",
 	"provisioner_daemon",
 	"provisioner_jobs",
 	"replicas",

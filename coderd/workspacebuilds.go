@@ -404,6 +404,16 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			ctx,
 			tx,
 			func(action policy.Action, object rbac.Objecter) bool {
+				if object.RBACObject().Type == rbac.ResourceWorkspace.Type && action == policy.ActionDelete {
+					workspaceObj, ok := object.(database.Workspace)
+					if ok {
+						prebuild := workspaceObj.PrebuildRBAC()
+						// Fallback to normal workspace auth check
+						if auth := api.Authorize(r, action, prebuild); auth {
+							return auth
+						}
+					}
+				}
 				return api.Authorize(r, action, object)
 			},
 			audit.WorkspaceBuildBaggageFromRequest(r),

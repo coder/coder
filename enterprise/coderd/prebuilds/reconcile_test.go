@@ -8,6 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/provisionersdk"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/xerrors"
@@ -418,6 +424,108 @@ func TestPrebuildReconciliation(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestTemplateAdminDelete(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	t.Run("template admin delete prebuilds", func(t *testing.T) {
+		t.Parallel()
+
+		clock := quartz.NewMock(t)
+
+		// Setup.
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		db, pubsub := dbtestutil.NewDB(t)
+
+		spy := newStoreSpy(db, nil)
+
+		logger := testutil.Logger(t)
+		client, _, api, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database: spy,
+				Pubsub:   pubsub,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+
+			EntitlementsUpdateInterval: time.Second,
+		})
+
+		orgID := owner.OrganizationID
+
+		provisionerCloser := coderdenttest.NewExternalProvisionerDaemon(t, client, orgID, map[string]string{
+			provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+		})
+		defer provisionerCloser.Close()
+
+		reconciler := prebuilds.NewStoreReconciler(spy, pubsub, codersdk.PrebuildsConfig{}, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(spy)
+		api.AGPL.PrebuildsClaimer.Store(&claimer)
+
+		version := coderdtest.CreateTemplateVersion(t, client, orgID, templateWithAgentAndPresetsWithPrebuilds(2))
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, orgID, version.ID)
+		presets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, presets, 1)
+		preset := setupTestDBPreset(t, db, version.ID, 2, "b0rked")
+
+		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, orgID, rbac.RoleTemplateAdmin())
+
+		state, err := reconciler.SnapshotState(ctx, spy)
+		require.NoError(t, err)
+		require.Len(t, state.Presets, 2)
+
+		for _, preset := range presets {
+			ps, err := state.FilterByPreset(preset.ID)
+			require.NoError(t, err)
+			require.NotNil(t, ps)
+			actions, err := reconciler.CalculateActions(ctx, *ps)
+			require.NoError(t, err)
+			require.NotNil(t, actions)
+
+			require.NoError(t, reconciler.ReconcilePreset(ctx, *ps))
+		}
+
+		workspace, _ := setupTestDBPrebuild(
+			t,
+			clock,
+			db,
+			pubsub,
+			database.WorkspaceTransitionStart,
+			database.ProvisionerJobStatusSucceeded,
+			orgID,
+			preset,
+			template.ID,
+			version.ID,
+		)
+
+		require.NoError(t, reconciler.ReconcileAll(ctx))
+
+		runningWorkspaces, err := db.GetRunningPrebuiltWorkspaces(ctx)
+		require.NoError(t, err)
+
+		prebuiltWorkspace, err := db.GetWorkspaceByID(ctx, runningWorkspaces[0].ID)
+		require.NoError(t, err)
+
+		build, err := templateAdminClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionDelete,
+		})
+		require.NoError(t, err, "delete the workspace")
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+
+		workspaceNew, err := client.DeletedWorkspace(ctx, prebuiltWorkspace.ID)
+		require.NoError(t, err)
+		require.Equal(t, prebuiltWorkspace.ID, workspaceNew.ID)
+	})
 }
 
 // brokenPublisher is used to validate that Publish() calls which always fail do not affect the reconciler's behavior,
