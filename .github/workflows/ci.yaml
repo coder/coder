@@ -719,7 +719,7 @@ jobs:
       # c.f. discussion on https://github.com/coder/coder/pull/15106
       - name: Run Tests
         env:
-          POSTGRES_VERSION: "16"
+          POSTGRES_VERSION: "17"
         run: |
           make test-postgres-docker
           DB=ci gotestsum --junitfile="gotests.xml" --packages="./..." --rerun-fails=2 --rerun-fails-abort-on-data-race -- -race -parallel 4 -p 4
