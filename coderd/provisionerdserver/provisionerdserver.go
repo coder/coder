@@ -1340,7 +1340,7 @@ UploadFileStream:
 			}
 
 			file, err = sdkproto.NewDataBuilder(&sdkproto.DataUpload{
-				UploadType: sdkproto.DataUploadType(typed.DataUpload.UploadType),
+				UploadType: typed.DataUpload.UploadType,
 				DataHash:   typed.DataUpload.DataHash,
 				FileSize:   typed.DataUpload.FileSize,
 				Chunks:     typed.DataUpload.Chunks,
