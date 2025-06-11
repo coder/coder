@@ -53,7 +53,7 @@ type Server struct {
 
 var _ proto.DRPCAIBridgeDaemonServer = &Server{}
 
-func New(rpcDialer Dialer, httpAddr string, logger slog.Logger) (*Server, error) {
+func New(rpcDialer Dialer, httpAddr string, logger slog.Logger, bridgeCfg codersdk.AIBridgeConfig) (*Server, error) {
 	if rpcDialer == nil {
 		return nil, xerrors.Errorf("nil rpcDialer given")
 	}
@@ -70,9 +70,10 @@ func New(rpcDialer Dialer, httpAddr string, logger slog.Logger) (*Server, error)
 		initConnectionCh: make(chan struct{}),
 	}
 
-	bridge := NewBridge(httpAddr, logger.Named("ai_bridge"), daemon.client)
+	bridge := NewBridge(bridgeCfg, httpAddr, logger.Named("ai_bridge"), daemon.client)
 	daemon.bridge = bridge
 
+	daemon.wg.Add(1)
 	go daemon.connect()
 	go func() {
 		err := bridge.Serve()

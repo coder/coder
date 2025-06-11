@@ -1073,7 +1073,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// the 64 character limit.
 				hostname := stringutil.Truncate(cliutil.Hostname(), 63-len(suffix))
 				name := fmt.Sprintf("%s-%s", hostname, suffix)
-				daemon, err := newAIBridgeDaemon(ctx, coderAPI, name)
+				daemon, err := newAIBridgeDaemon(ctx, coderAPI, name, vals.AI.Value.BridgeConfig)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -1593,14 +1593,14 @@ func newProvisionerDaemon(
 	}), nil
 }
 
-func newAIBridgeDaemon(ctx context.Context, coderAPI *coderd.API, name string) (*aibridged.Server, error) {
+func newAIBridgeDaemon(ctx context.Context, coderAPI *coderd.API, name string, bridgeCfg codersdk.AIBridgeConfig) (*aibridged.Server, error) {
 	httpAddr := "0.0.0.0:0" // TODO: configurable.
 
 	return aibridged.New(func(dialCtx context.Context) (aibridgedproto.DRPCAIBridgeDaemonClient, error) {
 		// This debounces calls to listen every second.
 		// TODO: is this true / necessary?
 		return coderAPI.CreateInMemoryAIBridgeDaemon(dialCtx, name)
-	}, httpAddr, coderAPI.Logger.Named("aibridged").With(slog.F("name", name)))
+	}, httpAddr, coderAPI.Logger.Named("aibridged").With(slog.F("name", name)), bridgeCfg)
 }
 
 // nolint: revive

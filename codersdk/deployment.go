@@ -3120,6 +3120,28 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "daemons",
 			Hidden:      true,
 		},
+		{
+			Name:        "AI Bridge OpenAI Base URL",
+			Description: "TODO.",
+			Flag:        "ai-bridge-openai-base-url",
+			Env:         "CODER_AI_BRIDGE_OPENAI_BASE_URL",
+			Value:       &c.AI.Value.BridgeConfig.OpenAIBaseURL,
+			Default:     "https://api.openai.com",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "daemons",
+			Hidden:      true,
+		},
+		{
+			Name:        "AI Bridge Anthropic Base URL",
+			Description: "TODO.",
+			Flag:        "ai-bridge-anthropic-base-url",
+			Env:         "CODER_AI_BRIDGE_Anthropic_BASE_URL",
+			Value:       &c.AI.Value.BridgeConfig.AnthropicBaseURL,
+			Default:     "https://api.anthropic.com",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "daemons",
+			Hidden:      true,
+		},
 	}
 
 	return opts
@@ -3136,12 +3158,15 @@ type AIProviderConfig struct {
 	BaseURL string `json:"base_url" yaml:"base_url"`
 }
 
+type AIBridgeConfig struct {
+	Daemons          serpent.Int64  `json:"daemons" typescript:",notnull"`
+	OpenAIBaseURL    serpent.String `json:"openai_base_url" typescript:",notnull"`
+	AnthropicBaseURL serpent.String `json:"anthropic_base_url" typescript:",notnull"`
+}
+
 type AIConfig struct {
 	Providers []AIProviderConfig `json:"providers,omitempty" yaml:"providers,omitempty"`
-
-	BridgeConfig struct {
-		Daemons serpent.Int64 `json:"daemons" typescript:",notnull"`
-	} `json:"bridge,omitempty"`
+	BridgeConfig AIBridgeConfig `json:"bridge,omitempty"`
 }
 
 type SupportConfig struct {

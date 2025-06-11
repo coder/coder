@@ -23,16 +23,19 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/aibridged/proto"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type Bridge struct {
+	cfg codersdk.AIBridgeConfig
+
 	httpSrv  *http.Server
 	addr     string
 	clientFn func() (proto.DRPCAIBridgeDaemonClient, bool)
 	logger   slog.Logger
 }
 
-func NewBridge(addr string, logger slog.Logger, clientFn func() (proto.DRPCAIBridgeDaemonClient, bool)) *Bridge {
+func NewBridge(cfg codersdk.AIBridgeConfig, addr string, logger slog.Logger, clientFn func() (proto.DRPCAIBridgeDaemonClient, bool)) *Bridge {
 	var bridge Bridge
 
 	mux := &http.ServeMux{}
@@ -45,6 +48,7 @@ func NewBridge(addr string, logger slog.Logger, clientFn func() (proto.DRPCAIBri
 		// TODO: other settings.
 	}
 
+	bridge.cfg = cfg
 	bridge.httpSrv = srv
 	bridge.clientFn = clientFn
 	bridge.logger = logger
@@ -164,6 +168,16 @@ func (b *ChatCompletionNewParamsWrapper) UnmarshalJSON(raw []byte) error {
 //	return pr
 //}
 
+func (b *Bridge) openAITarget() *url.URL {
+	u := b.cfg.OpenAIBaseURL.String()
+	target, err := url.Parse(u)
+	if err != nil {
+		panic(fmt.Sprintf("failed to parse %q", u))
+		return nil
+	}
+	return target
+}
+
 func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 	coderdClient, ok := b.clientFn()
 	if !ok {
@@ -172,15 +186,10 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	target, err := url.Parse("https://api.openai.com")
-	if err != nil {
-		http.Error(w, "failed to parse OpenAI URL", http.StatusInternalServerError)
-		return
-	}
-
 	var acc openai.ChatCompletionAccumulator
 	proxy, err := NewSSEProxyWithConfig(ProxyConfig{
-		Target: target,
+		OpenAISession: NewOpenAISession(),
+		Target:        b.openAITarget(),
 		ModifyRequest: func(req *http.Request) {
 			var in ChatCompletionNewParamsWrapper
 
@@ -226,7 +235,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 		},
 		RequestInterceptFunc: func(req *http.Request, body []byte) error {
 			var msg ChatCompletionNewParamsWrapper
-			err = json.NewDecoder(bytes.NewReader(body)).Decode(&msg)
+			err := json.NewDecoder(bytes.NewReader(body)).Decode(&msg)
 			if err != nil {
 				http.Error(w, "could not unmarshal request body", http.StatusBadRequest)
 				return xerrors.Errorf("unmarshal request body: %w", err)
@@ -244,11 +253,11 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 			}
 			return nil
 		},
-		ResponseInterceptFunc: func(data []byte, isStreaming bool) error {
+		ResponseInterceptFunc: func(session *OpenAISession, data []byte, isStreaming bool) ([][]byte, bool, error) {
 			b.logger.Info(r.Context(), "openai response received", slog.F("data", data), slog.F("streaming", isStreaming))
 
 			if !isStreaming {
-				return nil
+				return nil, true, nil
 			}
 
 			response := &http.Response{
@@ -260,7 +269,9 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 				inputToks, outputToks int64
 			)
 			for stream.Next() {
-				acc.AddChunk(stream.Current())
+				chunk := stream.Current()
+
+				acc.AddChunk(chunk)
 				b.logger.Info(r.Context(), "openai chunk", slog.F("msgID", acc.ID), slog.F("contents", fmt.Sprintf("%+v", acc)))
 
 				if acc.Usage.PromptTokens+acc.Usage.CompletionTokens > 0 {
@@ -268,11 +279,48 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 					outputToks = acc.Usage.CompletionTokens
 				}
 
-				//for _, c := range msg.ChatCompletion.Choices {
-				//	for _, t := range c.Message.ToolCalls {
-				//		fmt.Println(t.Function.Name, t.Function.Arguments)
-				//	}
-				//}
+				var foundToolCallDelta bool
+				for _, c := range chunk.Choices {
+					for range c.Delta.ToolCalls {
+						foundToolCallDelta = true
+
+						// Grab values from accumulator instead of delta.
+						for _, ac := range acc.ChatCompletion.Choices {
+							for _, at := range ac.Message.ToolCalls {
+								var (
+									tc *OpenAIToolCall
+									ok bool
+								)
+								if tc, ok = session.toolCallsRequired[at.ID]; !ok {
+									session.toolCallsRequired[at.ID] = &OpenAIToolCall{}
+									tc = session.toolCallsRequired[at.ID]
+								}
+
+								session.toolCallsState[at.ID] = OpenAIToolCallNotReady
+
+								tc.funcName = at.Function.Name
+								args := make(map[string]string)
+								err := json.Unmarshal([]byte(at.Function.Arguments), &args)
+								if err == nil { // Note: inverted.
+									tc.args = args
+								}
+							}
+						}
+					}
+
+					// Once we receive a finish reason of "tool_calls", the API is waiting for the responses for this/these tool(s).
+					// We mark all the tool calls as ready. Once we see observe the [DONE] event, we will execute these tool calls.
+					if c.FinishReason == "tool_calls" {
+						for idx := range session.toolCallsState {
+							session.toolCallsState[idx] = OpenAIToolCallReady
+						}
+					}
+				}
+
+				if foundToolCallDelta {
+					// Don't reflect these events back to client since they contain tool calls.
+					return nil, false, nil
+				}
 			}
 			if err := stream.Err(); err != nil {
 				panic(err)
@@ -287,16 +335,23 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if len(acc.Choices) < 0 {
-				return nil
+				return nil, true, nil
 			}
 
-			for _, c := range acc.Choices {
-				for _, t := range c.Message.ToolCalls {
-					// Now that we can execute tools and add new messages, we'll need to append these to the stream (?)
-				}
+			var extra [][]byte
+			for idx, t := range session.toolCallsRequired {
+				// TODO: locking.
+				// TODO: index check.
+				session.toolCallsState[idx] = OpenAIToolCallInProgress
+
+				fmt.Printf("EXEC TOOL! %s with %+v\n", t.funcName, t.args)
+				b, _ := json.Marshal(openai.ToolMessage("weather is rainy and cold in cape town today", idx)) // TODO: error handling.
+				extra = append(extra, b)
+
+				session.toolCallsState[idx] = OpenAIToolCallDone
 			}
 
-			return nil
+			return extra, true, nil
 		},
 	})
 	if err != nil {

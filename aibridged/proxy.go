@@ -19,7 +19,7 @@ import (
 // For streaming responses, it's called for each SSE event or data chunk.
 // For non-streaming responses, it's called once with the complete response body.
 // The function receives a copy of the data - modifications don't affect the response.
-type ResponseInterceptFunc func(data []byte, isStreaming bool) error
+type ResponseInterceptFunc func(sess *OpenAISession, data []byte, isStreaming bool) ([][]byte, bool, error)
 
 // RequestInterceptFunc is called for each request before it's sent to the upstream server.
 // The function receives a copy of the request body - modifications don't affect the request.
@@ -38,6 +38,7 @@ type SSEProxy struct {
 	requestInterceptFunc  RequestInterceptFunc
 	requestModifyFunc     RequestModifyFunc
 	bufferPool            sync.Pool
+	config                *ProxyConfig
 }
 
 // NewSSEProxy creates a new SSE proxy that proxies to the given target URL.
@@ -170,6 +171,7 @@ func (p *SSEProxy) wrapResponseBody(body io.ReadCloser, headers http.Header) io.
 			ReadCloser:    body,
 			interceptFunc: p.responseInterceptFunc,
 			bufferPool:    &p.bufferPool,
+			sess:          p.config.OpenAISession,
 		}
 	}
 
@@ -186,6 +188,9 @@ type streamingInterceptReader struct {
 	bufferPool    *sync.Pool
 	reader        *bufio.Reader
 	readerOnce    sync.Once
+
+	sess          *OpenAISession
+	trailerEvents [][]byte
 }
 
 func (sir *streamingInterceptReader) Read(p []byte) (n int, err error) {
@@ -194,16 +199,32 @@ func (sir *streamingInterceptReader) Read(p []byte) (n int, err error) {
 		sir.reader = bufio.NewReader(sir.ReadCloser)
 	})
 
-	n, err = sir.reader.Read(p)
-	if n > 0 {
-		// Call intercept function with a copy of the chunk
-		chunk := make([]byte, n)
-		copy(chunk, p[:n])
+	for {
+		n, err = sir.reader.Read(p)
+		if n > 0 {
+			// Call intercept function with a copy of the chunk
+			chunk := make([]byte, n)
+			copy(chunk, p[:n])
 
-		if interceptErr := sir.interceptFunc(chunk, true); interceptErr != nil {
-			// Log error but continue reading
-			_ = interceptErr
+			// Once [DONE] is found, we need to inject the trailer events and rewind the reader.
+			if bytes.Contains(chunk, []byte(`[DONE]`)) {
+				// TODO: inject trailers then [DONE] events.
+				//continue
+			}
+
+			extraEvents, send, interceptErr := sir.interceptFunc(sir.sess, chunk, true)
+			if interceptErr != nil {
+				// TODO: Log error but continue reading
+				_ = interceptErr
+			}
+
+			if !send {
+				continue
+			}
+			sir.trailerEvents = extraEvents
 		}
+
+		break
 	}
 	return n, err
 }
@@ -234,7 +255,7 @@ func (nsir *nonStreamingInterceptReader) Read(p []byte) (n int, err error) {
 			data := nsir.buffer.Bytes()
 			nsir.mu.Unlock()
 
-			if interceptErr := nsir.interceptFunc(data, false); interceptErr != nil {
+			if _, _, interceptErr := nsir.interceptFunc(nil, data, false); interceptErr != nil {
 				// Log error but continue
 				_ = interceptErr
 			}
@@ -257,6 +278,8 @@ type ProxyConfig struct {
 	ErrorHandler          func(http.ResponseWriter, *http.Request, error)
 	Transport             http.RoundTripper
 	FlushInterval         time.Duration // -1 for immediate flushing
+
+	OpenAISession *OpenAISession
 }
 
 // NewSSEProxyWithConfig creates a new SSE proxy with custom configuration
@@ -274,6 +297,8 @@ func NewSSEProxyWithConfig(config ProxyConfig) (*SSEProxy, error) {
 				return make([]byte, 32*1024)
 			},
 		},
+
+		config: &config,
 	}
 
 	proxy.ReverseProxy = httputil.NewSingleHostReverseProxy(config.Target)
