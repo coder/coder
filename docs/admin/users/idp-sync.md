@@ -604,6 +604,6 @@ this, users will be logged out after 1 hour.
 
 In your Coder configuration:
 
-```
+```shell
 CODER_OIDC_AUTH_URL_PARAMS='{"access_type": "offline", "prompt": "consent"}'
 ```
