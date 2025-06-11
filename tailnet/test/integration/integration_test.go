@@ -112,7 +112,7 @@ var topologies = []integration.TestTopology{
 	{
 		// Test that direct over normal MTU works.
 		Name:               "DirectMTU1500",
-		NetworkingProvider: integration.TriangleNetwork{InterClientMTU: 1500},
+		NetworkingProvider: integration.TriangleNetwork{Client1MTU: 1500},
 		Server:             integration.SimpleServerOptions{},
 		ClientStarter: integration.BasicClientStarter{
 			WaitForDirect: true,
@@ -124,7 +124,7 @@ var topologies = []integration.TestTopology{
 	{
 		// Test that small MTU works.
 		Name:               "MTU1280",
-		NetworkingProvider: integration.TriangleNetwork{InterClientMTU: 1280},
+		NetworkingProvider: integration.TriangleNetwork{Client1MTU: 1280},
 		Server:             integration.SimpleServerOptions{},
 		ClientStarter:      integration.BasicClientStarter{Service: integration.UDPEchoService{}, LogPackets: true},
 		RunTests:           integration.TestBigUDP,
