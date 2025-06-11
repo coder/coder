@@ -427,6 +427,7 @@ export interface PlanComplete {
   plan: Uint8Array;
   resourceReplacements: ResourceReplacement[];
   moduleFiles: Uint8Array;
+  moduleFilesHash: Uint8Array;
 }
 
 /**
@@ -1289,6 +1290,9 @@ export const PlanComplete = {
     }
     if (message.moduleFiles.length !== 0) {
       writer.uint32(90).bytes(message.moduleFiles);
+    }
+    if (message.moduleFilesHash.length !== 0) {
+      writer.uint32(98).bytes(message.moduleFilesHash);
     }
     return writer;
   },
