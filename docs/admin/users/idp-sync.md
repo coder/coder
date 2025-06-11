@@ -304,7 +304,7 @@ Visit the Coder UI to confirm these changes:
 
    ```env
     # Depending on your identity provider configuration, you may need to explicitly request a "roles" scope
-   CODER_OIDC_SCOPES=openid,profile,email,roles
+   CODER_OIDC_SCOPES=openid,profile,email,offline_access,roles
 
    # The following fields are required for role sync:
    CODER_OIDC_USER_ROLE_FIELD=roles

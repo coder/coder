@@ -7,7 +7,7 @@
     <img src="https://avatars.githubusercontent.com/u/5446298?v=4" alt="Steven Masley" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
   </a>
 </div>
-December 13, 2023
+Updated: June, 2025
 
 ---
 
@@ -50,7 +50,7 @@ the `id_token`. See all configuration options for group sync in the
 
 ```bash
 # Add the 'groups' scope.
-CODER_OIDC_SCOPES=openid,profile,email,groups
+CODER_OIDC_SCOPES=openid,profile,email,offline_access,groups
 # This name needs to match the "Claim name" in the configuration above.
 CODER_OIDC_GROUP_FIELD=groups
 ```
@@ -60,7 +60,7 @@ membership.
 
 ```bash
 # Requires the "groups" scope
-CODER_OIDC_SCOPES=openid,profile,email,groups
+CODER_OIDC_SCOPES=openid,profile,email,offline_access,groups
 # This name needs to match the "Claim name" in the configuration above.
 CODER_OIDC_USER_ROLE_FIELD=groups
 # Example configuration to map a group to some roles
@@ -95,7 +95,7 @@ Configure using these new attributes in Coder.
 # This must be set to false. Coder uses this endpoint to grab the attributes.
 CODER_OIDC_IGNORE_USERINFO=false
 # No custom scopes are required.
-CODER_OIDC_SCOPES=openid,profile,email
+CODER_OIDC_SCOPES=openid,profile,email,offline_access
 # Configure the group/role field using the attribute name in the application.
 CODER_OIDC_USER_ROLE_FIELD=approles
 # See our docs for mapping okta roles to coder roles.
@@ -147,7 +147,7 @@ need to configure coder to use this.
 # authorization server.
 CODER_OIDC_ISSUER_URL=https://dev-12222860.okta.com/oauth2/default
 # Add the new scope you just configured
-CODER_OIDC_SCOPES=openid,profile,email,roles
+CODER_OIDC_SCOPES=openid,profile,email,roles,offline_access
 # Use the claim you just configured
 CODER_OIDC_USER_ROLE_FIELD=roles
 # See our docs for mapping okta roles to coder roles.
