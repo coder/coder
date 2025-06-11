@@ -518,8 +518,6 @@ func (n TriangleNetwork) SetupNetworking(t *testing.T, l slog.Logger) TestNetwor
 	for _, iface := range interfaces {
 		err = setInterfaceUp(iface.netNS, iface.ifaceName)
 		require.NoErrorf(t, err, "bring up interface %q", iface.ifaceName)
-		// Note: routes are not needed as we are fully connected, so nothing needs to forward IP to a further
-		// destination.
 
 		if iface.defaultRoute != "" {
 			err = addRouteInNetNS(iface.netNS, []string{"default", "via", iface.defaultRoute, "dev", iface.ifaceName})
