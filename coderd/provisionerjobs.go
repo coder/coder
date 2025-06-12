@@ -557,7 +557,9 @@ func (f *logFollower) follow() {
 	}
 
 	// Log the request immediately instead of after it completes.
-	loggermw.RequestLoggerFromContext(f.ctx).WriteLog(f.ctx, http.StatusAccepted)
+	if rl := loggermw.RequestLoggerFromContext(f.ctx); rl != nil {
+		rl.WriteLog(f.ctx, http.StatusAccepted)
+	}
 
 	// no need to wait if the job is done
 	if f.complete {
