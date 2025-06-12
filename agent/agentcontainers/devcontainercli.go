@@ -196,8 +196,8 @@ func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath st
 	cmd.Stderr = io.MultiWriter(stderrWriters...)
 
 	if err := cmd.Run(); err != nil {
-		var result devcontainerCLIResult
-		if err2 := parseDevcontainerCLILastLine(ctx, logger, stdoutBuf.Bytes(), &result); err2 != nil {
+		result, err2 := parseDevcontainerCLILastLine[devcontainerCLIResult](ctx, logger, stdoutBuf.Bytes())
+		if err2 != nil {
 			err = errors.Join(err, err2)
 		}
 		if err2 := result.Err(); err2 != nil {
@@ -206,8 +206,8 @@ func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath st
 		return "", err
 	}
 
-	var result devcontainerCLIResult
-	if err := parseDevcontainerCLILastLine(ctx, logger, stdoutBuf.Bytes(), &result); err != nil {
+	result, err := parseDevcontainerCLILastLine[devcontainerCLIResult](ctx, logger, stdoutBuf.Bytes())
+	if err != nil {
 		return "", err
 	}
 	if err := result.Err(); err != nil {
@@ -286,8 +286,8 @@ func (d *devcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, confi
 		return DevcontainerConfig{}, xerrors.Errorf("devcontainer read-configuration failed: %w", err)
 	}
 
-	var config DevcontainerConfig
-	if err := parseDevcontainerCLILastLine(ctx, logger, stdoutBuf.Bytes(), &config); err != nil {
+	config, err := parseDevcontainerCLILastLine[DevcontainerConfig](ctx, logger, stdoutBuf.Bytes())
+	if err != nil {
 		return DevcontainerConfig{}, err
 	}
 
@@ -296,7 +296,9 @@ func (d *devcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, confi
 
 // parseDevcontainerCLILastLine parses the last line of the devcontainer CLI output
 // which is a JSON object.
-func parseDevcontainerCLILastLine[T any](ctx context.Context, logger slog.Logger, p []byte, result T) error {
+func parseDevcontainerCLILastLine[T any](ctx context.Context, logger slog.Logger, p []byte) (T, error) {
+	var result T
+
 	s := bufio.NewScanner(bytes.NewReader(p))
 	var lastLine []byte
 	for s.Scan() {
@@ -307,18 +309,18 @@ func parseDevcontainerCLILastLine[T any](ctx context.Context, logger slog.Logger
 		lastLine = b
 	}
 	if err := s.Err(); err != nil {
-		return err
+		return result, err
 	}
 	if len(lastLine) == 0 || lastLine[0] != '{' {
 		logger.Error(ctx, "devcontainer result is not json", slog.F("result", string(lastLine)))
-		return xerrors.Errorf("devcontainer result is not json: %q", string(lastLine))
+		return result, xerrors.Errorf("devcontainer result is not json: %q", string(lastLine))
 	}
 	if err := json.Unmarshal(lastLine, &result); err != nil {
 		logger.Error(ctx, "parse devcontainer result failed", slog.Error(err), slog.F("result", string(lastLine)))
-		return err
+		return result, err
 	}
 
-	return nil
+	return result, nil
 }
 
 // devcontainerCLIResult is the result of the devcontainer CLI command.
