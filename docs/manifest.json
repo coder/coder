@@ -590,7 +590,14 @@
 					"title": "External Authentication",
 					"description": "Learn how to configure external authentication",
 					"path": "./admin/external-auth/index.md",
-					"icon_path": "./images/icons/plug.svg"
+					"icon_path": "./images/icons/plug.svg",
+					"children": [
+						{
+							"title": "Configure OIDC refresh tokens",
+							"description": "How to configure OIDC refresh tokens"
+							"path": "./admin/external-auth/refresh-tokens.md"
+						}
+					]
 				},
 				{
 					"title": "Integrations",

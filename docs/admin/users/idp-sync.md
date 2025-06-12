@@ -517,7 +517,7 @@ Steps to troubleshoot.
 
 ## Provider-Specific Guides
 
-Below are some details specific to individual OIDC providers.
+<div class="tabs">
 
 ### Active Directory Federation Services (ADFS)
 
@@ -579,6 +579,8 @@ Below are some details specific to individual OIDC providers.
 
 ### Keycloak
 
+<!-- copied in refresh-tokens.md. make changes there too. -->
+
 The `access_type` parameter has two possible values: `online` and `offline`.
 By default, the value is set to `offline`.
 
@@ -598,6 +600,8 @@ refresh tokens for offline access to the user's resources.
 
 ### Google
 
+<!-- copied in refresh-tokens.md. make changes there too. -->
+
 To ensure Coder receives a refresh token when users authenticate with Google
 directly, set the `prompt` to `consent` in the auth URL parameters. Without
 this, users will be logged out after 1 hour.
@@ -607,3 +611,5 @@ In your Coder configuration:
 ```shell
 CODER_OIDC_AUTH_URL_PARAMS='{"access_type": "offline", "prompt": "consent"}'
 ```
+
+</div>
