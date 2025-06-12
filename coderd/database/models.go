@@ -193,6 +193,7 @@ func AllAppSharingLevelValues() []AppSharingLevel {
 	}
 }
 
+// NOTE: `connect`, `disconnect`, `open`, and `close` are deprecated and no longer used - these events are now tracked in the connection_logs table.
 type AuditAction string
 
 const (

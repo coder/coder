@@ -41,6 +41,8 @@ COMMENT ON COLUMN connection_logs.connection_type IS 'Null for Workspace App act
 
 COMMENT ON COLUMN connection_logs.reason IS 'Null for Workspace App actions. For SSH actions, this is the reason for the connection or disconnection, to be displayed in the UI.';
 
+COMMENT ON TYPE audit_action IS 'NOTE: `connect`, `disconnect`, `open`, and `close` are deprecated and no longer used - these events are now tracked in the connection_logs table.';
+
 CREATE INDEX idx_connection_logs_time_desc ON connection_logs USING btree ("time" DESC);
 CREATE INDEX idx_connection_logs_organization_id ON connection_logs USING btree (organization_id);
 CREATE INDEX idx_connection_logs_workspace_owner_id ON connection_logs USING btree (workspace_owner_id);

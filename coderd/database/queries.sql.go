@@ -985,9 +985,9 @@ WHERE TRUE
 ORDER BY
 	"time" DESC
 LIMIT
-    -- a limit of 0 means "no limit". The connection log table is unbounded
-    -- in size, and is expected to be quite large. Implement a default
-    -- limit of 100 to prevent accidental excessively large queries.
+	-- a limit of 0 means "no limit". The connection log table is unbounded
+	-- in size, and is expected to be quite large. Implement a default
+	-- limit of 100 to prevent accidental excessively large queries.
 	COALESCE(NULLIF($2 :: int, 0), 100)
 OFFSET
 	$1
@@ -1050,9 +1050,9 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 const insertConnectionLog = `-- name: InsertConnectionLog :one
 INSERT INTO
 	connection_logs (
-        id,
-        "time",
-        organization_id,
+		id,
+		"time",
+		organization_id,
 		workspace_owner_id,
 		workspace_id,
 		workspace_name,
@@ -1065,7 +1065,7 @@ INSERT INTO
 		slug_or_port,
 		connection_type,
 		reason
-    )
+	)
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, action, code, ip, user_agent, user_id, slug_or_port, connection_type, reason
 `
