@@ -653,8 +653,6 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 	// Add tool dependencies.
 	toolOpts := []func(*toolsdk.Deps){
 		toolsdk.WithTaskReporter(func(args toolsdk.ReportTaskArgs) error {
-			// TODO: Is it OK to just push and return or should we wait for it to
-			// actually get disatched to return any request errors?
 			return s.queue.Push(reportTask{
 				link:         args.Link,
 				selfReported: true,
