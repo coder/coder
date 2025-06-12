@@ -1249,24 +1249,120 @@ func TestAgentNameDuplicate(t *testing.T) {
 	require.ErrorContains(t, err, "duplicate agent name")
 }
 
-func TestMetadataResourceDuplicate(t *testing.T) {
+func TestMetadata(t *testing.T) {
 	t.Parallel()
-	ctx, logger := ctxAndLogger(t)
 
-	// Load the multiple-apps state file and edit it.
-	dir := filepath.Join("testdata", "resources", "resource-metadata-duplicate")
-	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "resource-metadata-duplicate.tfplan.json"))
-	require.NoError(t, err)
-	var tfPlan tfjson.Plan
-	err = json.Unmarshal(tfPlanRaw, &tfPlan)
-	require.NoError(t, err)
-	tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "resource-metadata-duplicate.tfplan.dot"))
-	require.NoError(t, err)
+	t.Run("Duplicate", func(t *testing.T) {
+		t.Parallel()
+		ctx, logger := ctxAndLogger(t)
+		// Load the multiple-apps state file and edit it.
+		dir := filepath.Join("testdata", "resources", "resource-metadata-duplicate")
+		tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "resource-metadata-duplicate.tfplan.json"))
+		require.NoError(t, err)
+		var tfPlan tfjson.Plan
+		err = json.Unmarshal(tfPlanRaw, &tfPlan)
+		require.NoError(t, err)
+		tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "resource-metadata-duplicate.tfplan.dot"))
+		require.NoError(t, err)
 
-	state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), logger)
-	require.Nil(t, state)
-	require.Error(t, err)
-	require.ErrorContains(t, err, "duplicate metadata resource: null_resource.about")
+		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), logger)
+		require.Nil(t, state)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "duplicate metadata resource: null_resource.about")
+	})
+
+	t.Run("ResourceID", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("ResourceIDProvided", func(t *testing.T) {
+			t.Parallel()
+			ctx, logger := ctxAndLogger(t)
+
+			dir := filepath.Join("testdata", "resources", "resource-id-provided")
+			tfStateRaw, err := os.ReadFile(filepath.Join(dir, "resource-id-provided.tfstate.json"))
+			require.NoError(t, err)
+			var tfState tfjson.State
+			err = json.Unmarshal(tfStateRaw, &tfState)
+			require.NoError(t, err)
+			tfStateGraph, err := os.ReadFile(filepath.Join(dir, "resource-id-provided.tfstate.dot"))
+			require.NoError(t, err)
+
+			state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph), logger)
+			require.NoError(t, err)
+			require.Len(t, state.Resources, 2)
+
+			// Find the resources
+			var firstResource, secondResource *proto.Resource
+			for _, res := range state.Resources {
+				if res.Name == "first" && res.Type == "null_resource" {
+					firstResource = res
+				} else if res.Name == "second" && res.Type == "null_resource" {
+					secondResource = res
+				}
+			}
+
+			require.NotNil(t, firstResource)
+			require.NotNil(t, secondResource)
+
+			// The metadata should be on the second resource (as specified by resource_id),
+			// not the first one (which is the closest in the graph)
+			require.Len(t, firstResource.Metadata, 0, "first resource should have no metadata")
+			require.Len(t, secondResource.Metadata, 1, "second resource should have metadata")
+			require.Equal(t, "test", secondResource.Metadata[0].Key)
+			require.Equal(t, "value", secondResource.Metadata[0].Value)
+		})
+
+		t.Run("ResourceIDNotFound", func(t *testing.T) {
+			t.Parallel()
+			ctx, logger := ctxAndLogger(t)
+
+			dir := filepath.Join("testdata", "resources", "resource-id-not-found")
+			tfStateRaw, err := os.ReadFile(filepath.Join(dir, "resource-id-not-found.tfstate.json"))
+			require.NoError(t, err)
+			var tfState tfjson.State
+			err = json.Unmarshal(tfStateRaw, &tfState)
+			require.NoError(t, err)
+			tfStateGraph, err := os.ReadFile(filepath.Join(dir, "resource-id-not-found.tfstate.dot"))
+			require.NoError(t, err)
+
+			state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph), logger)
+			require.NoError(t, err)
+			require.Len(t, state.Resources, 1)
+
+			// The metadata should still be applied via graph traversal
+			require.Equal(t, "example", state.Resources[0].Name)
+			require.Len(t, state.Resources[0].Metadata, 1)
+			require.Equal(t, "test", state.Resources[0].Metadata[0].Key)
+			require.Equal(t, "value", state.Resources[0].Metadata[0].Value)
+
+			// When resource_id is not found, it falls back to graph traversal
+			// We can't easily verify the warning was logged without access to the log capture API
+		})
+
+		t.Run("ResourceIDNotProvided", func(t *testing.T) {
+			t.Parallel()
+			ctx, logger := ctxAndLogger(t)
+
+			dir := filepath.Join("testdata", "resources", "resource-id-not-provided")
+			tfStateRaw, err := os.ReadFile(filepath.Join(dir, "resource-id-not-provided.tfstate.json"))
+			require.NoError(t, err)
+			var tfState tfjson.State
+			err = json.Unmarshal(tfStateRaw, &tfState)
+			require.NoError(t, err)
+			tfStateGraph, err := os.ReadFile(filepath.Join(dir, "resource-id-not-provided.tfstate.dot"))
+			require.NoError(t, err)
+
+			state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph), logger)
+			require.NoError(t, err)
+			require.Len(t, state.Resources, 1)
+
+			// The metadata should be applied via graph traversal
+			require.Equal(t, "example", state.Resources[0].Name)
+			require.Len(t, state.Resources[0].Metadata, 1)
+			require.Equal(t, "test", state.Resources[0].Metadata[0].Key)
+			require.Equal(t, "value", state.Resources[0].Metadata[0].Value)
+		})
+	})
 }
 
 func TestParameterValidation(t *testing.T) {
@@ -1606,181 +1702,5 @@ func sortResources(resources []*proto.Resource) {
 func sortExternalAuthProviders(providers []*proto.ExternalAuthProviderResource) {
 	sort.Slice(providers, func(i, j int) bool {
 		return strings.Compare(providers[i].Id, providers[j].Id) == -1
-	})
-}
-
-func TestMetadataResourceID(t *testing.T) {
-	t.Parallel()
-
-	t.Run("UsesResourceIDWhenProvided", func(t *testing.T) {
-		t.Parallel()
-		ctx, logger := ctxAndLogger(t)
-
-		// Create a state with two resources and metadata that references the second one via resource_id
-		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{{
-			Resources: []*tfjson.StateResource{{
-				Address: "null_resource.first",
-				Type:    "null_resource",
-				Name:    "first",
-				Mode:    tfjson.ManagedResourceMode,
-				AttributeValues: map[string]interface{}{
-					"id": "first-resource-id",
-				},
-			}, {
-				Address: "null_resource.second",
-				Type:    "null_resource",
-				Name:    "second",
-				Mode:    tfjson.ManagedResourceMode,
-				AttributeValues: map[string]interface{}{
-					"id": "second-resource-id",
-				},
-			}, {
-				Address:   "coder_metadata.example",
-				Type:      "coder_metadata",
-				Name:      "example",
-				Mode:      tfjson.ManagedResourceMode,
-				DependsOn: []string{"null_resource.first"},
-				AttributeValues: map[string]interface{}{
-					"resource_id": "second-resource-id",
-					"item": []interface{}{
-						map[string]interface{}{
-							"key":   "test",
-							"value": "value",
-						},
-					},
-				},
-			}},
-		}}, `digraph {
-	compound = "true"
-	newrank = "true"
-	subgraph "root" {
-		"[root] null_resource.first" [label = "null_resource.first", shape = "box"]
-		"[root] null_resource.second" [label = "null_resource.second", shape = "box"]
-		"[root] coder_metadata.example" [label = "coder_metadata.example", shape = "box"]
-		"[root] coder_metadata.example" -> "[root] null_resource.first"
-	}
-}`, logger)
-		require.NoError(t, err)
-		require.Len(t, state.Resources, 2)
-
-		// Find the resources
-		var firstResource, secondResource *proto.Resource
-		for _, res := range state.Resources {
-			if res.Name == "first" && res.Type == "null_resource" {
-				firstResource = res
-			} else if res.Name == "second" && res.Type == "null_resource" {
-				secondResource = res
-			}
-		}
-
-		require.NotNil(t, firstResource)
-		require.NotNil(t, secondResource)
-
-		// The metadata should be on the second resource (as specified by resource_id),
-		// not the first one (which is the closest in the graph)
-		require.Len(t, firstResource.Metadata, 0, "first resource should have no metadata")
-		require.Len(t, secondResource.Metadata, 1, "second resource should have metadata")
-		require.Equal(t, "test", secondResource.Metadata[0].Key)
-		require.Equal(t, "value", secondResource.Metadata[0].Value)
-	})
-
-	t.Run("FallsBackToGraphWhenResourceIDNotFound", func(t *testing.T) {
-		t.Parallel()
-		ctx, logger := ctxAndLogger(t)
-
-		// Create a state where resource_id references a non-existent ID
-		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{{
-			Resources: []*tfjson.StateResource{{
-				Address: "null_resource.example",
-				Type:    "null_resource",
-				Name:    "example",
-				Mode:    tfjson.ManagedResourceMode,
-				AttributeValues: map[string]interface{}{
-					"id": "example-resource-id",
-				},
-			}, {
-				Address:   "coder_metadata.example",
-				Type:      "coder_metadata",
-				Name:      "example",
-				Mode:      tfjson.ManagedResourceMode,
-				DependsOn: []string{"null_resource.example"},
-				AttributeValues: map[string]interface{}{
-					"resource_id": "non-existent-id",
-					"item": []interface{}{
-						map[string]interface{}{
-							"key":   "test",
-							"value": "value",
-						},
-					},
-				},
-			}},
-		}}, `digraph {
-	compound = "true"
-	newrank = "true"
-	subgraph "root" {
-		"[root] null_resource.example" [label = "null_resource.example", shape = "box"]
-		"[root] coder_metadata.example" [label = "coder_metadata.example", shape = "box"]
-		"[root] coder_metadata.example" -> "[root] null_resource.example"
-	}
-}`, logger)
-		require.NoError(t, err)
-		require.Len(t, state.Resources, 1)
-
-		// The metadata should still be applied via graph traversal
-		require.Equal(t, "example", state.Resources[0].Name)
-		require.Len(t, state.Resources[0].Metadata, 1)
-		require.Equal(t, "test", state.Resources[0].Metadata[0].Key)
-		require.Equal(t, "value", state.Resources[0].Metadata[0].Value)
-
-		// When resource_id is not found, it falls back to graph traversal
-		// We can't easily verify the warning was logged without access to the log capture API
-	})
-
-	t.Run("UsesGraphWhenResourceIDNotProvided", func(t *testing.T) {
-		t.Parallel()
-		ctx, logger := ctxAndLogger(t)
-
-		// Create a state without resource_id
-		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{{
-			Resources: []*tfjson.StateResource{{
-				Address: "null_resource.example",
-				Type:    "null_resource",
-				Name:    "example",
-				Mode:    tfjson.ManagedResourceMode,
-				AttributeValues: map[string]interface{}{
-					"id": "example-resource-id",
-				},
-			}, {
-				Address:   "coder_metadata.example",
-				Type:      "coder_metadata",
-				Name:      "example",
-				Mode:      tfjson.ManagedResourceMode,
-				DependsOn: []string{"null_resource.example"},
-				AttributeValues: map[string]interface{}{
-					"item": []interface{}{
-						map[string]interface{}{
-							"key":   "test",
-							"value": "value",
-						},
-					},
-				},
-			}},
-		}}, `digraph {
-	compound = "true"
-	newrank = "true"
-	subgraph "root" {
-		"[root] null_resource.example" [label = "null_resource.example", shape = "box"]
-		"[root] coder_metadata.example" [label = "coder_metadata.example", shape = "box"]
-		"[root] coder_metadata.example" -> "[root] null_resource.example"
-	}
-}`, logger)
-		require.NoError(t, err)
-		require.Len(t, state.Resources, 1)
-
-		// The metadata should be applied via graph traversal
-		require.Equal(t, "example", state.Resources[0].Name)
-		require.Len(t, state.Resources[0].Metadata, 1)
-		require.Equal(t, "test", state.Resources[0].Metadata[0].Key)
-		require.Equal(t, "value", state.Resources[0].Metadata[0].Value)
 	})
 }

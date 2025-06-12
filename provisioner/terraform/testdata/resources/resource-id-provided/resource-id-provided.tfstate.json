@@ -1,0 +1,68 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.11.4",
+  "values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_metadata.example",
+          "mode": "managed",
+          "type": "coder_metadata",
+          "name": "example",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "daily_cost": null,
+            "hide": null,
+            "icon": null,
+            "id": "79e8977e-3277-4856-93a5-6200d9b8b156",
+            "item": [
+              {
+                "is_null": false,
+                "key": "test",
+                "sensitive": false,
+                "value": "value"
+              }
+            ],
+            "resource_id": "6187209037590702578"
+          },
+          "sensitive_values": {
+            "item": [
+              {}
+            ]
+          },
+          "depends_on": [
+            "null_resource.first",
+            "null_resource.second"
+          ]
+        },
+        {
+          "address": "null_resource.first",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "first",
+          "provider_name": "registry.terraform.io/hashicorp/null",
+          "schema_version": 0,
+          "values": {
+            "id": "529239707770856465",
+            "triggers": null
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "null_resource.second",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "second",
+          "provider_name": "registry.terraform.io/hashicorp/null",
+          "schema_version": 0,
+          "values": {
+            "id": "6187209037590702578",
+            "triggers": null
+          },
+          "sensitive_values": {}
+        }
+      ]
+    }
+  }
+}
