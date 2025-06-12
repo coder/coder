@@ -32,13 +32,14 @@ type DevcontainerCustomizations struct {
 
 type CoderCustomization struct {
 	DisplayApps map[codersdk.DisplayApp]bool `json:"displayApps,omitempty"`
+	Apps        []SubAgentApp                `json:"apps,omitempty"`
 }
 
 // DevcontainerCLI is an interface for the devcontainer CLI.
 type DevcontainerCLI interface {
 	Up(ctx context.Context, workspaceFolder, configPath string, opts ...DevcontainerCLIUpOptions) (id string, err error)
 	Exec(ctx context.Context, workspaceFolder, configPath string, cmd string, cmdArgs []string, opts ...DevcontainerCLIExecOptions) error
-	ReadConfig(ctx context.Context, workspaceFolder, configPath string, opts ...DevcontainerCLIReadConfigOptions) (DevcontainerConfig, error)
+	ReadConfig(ctx context.Context, workspaceFolder, configPath string, env []string, opts ...DevcontainerCLIReadConfigOptions) (DevcontainerConfig, error)
 }
 
 // DevcontainerCLIUpOptions are options for the devcontainer CLI Up
@@ -113,8 +114,8 @@ type devcontainerCLIReadConfigConfig struct {
 	stderr io.Writer
 }
 
-// WithExecOutput sets additional stdout and stderr writers for logs
-// during Exec operations.
+// WithReadConfigOutput sets additional stdout and stderr writers for logs
+// during ReadConfig operations.
 func WithReadConfigOutput(stdout, stderr io.Writer) DevcontainerCLIReadConfigOptions {
 	return func(o *devcontainerCLIReadConfigConfig) {
 		o.stdout = stdout
@@ -250,7 +251,7 @@ func (d *devcontainerCLI) Exec(ctx context.Context, workspaceFolder, configPath 
 	return nil
 }
 
-func (d *devcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, configPath string, opts ...DevcontainerCLIReadConfigOptions) (DevcontainerConfig, error) {
+func (d *devcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, configPath string, env []string, opts ...DevcontainerCLIReadConfigOptions) (DevcontainerConfig, error) {
 	conf := applyDevcontainerCLIReadConfigOptions(opts)
 	logger := d.logger.With(slog.F("workspace_folder", workspaceFolder), slog.F("config_path", configPath))
 
@@ -263,6 +264,7 @@ func (d *devcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, confi
 	}
 
 	c := d.execer.CommandContext(ctx, "devcontainer", args...)
+	c.Env = append(c.Env, env...)
 
 	var stdoutBuf bytes.Buffer
 	stdoutWriters := []io.Writer{&stdoutBuf, &devcontainerCLILogWriter{ctx: ctx, logger: logger.With(slog.F("stdout", true))}}
