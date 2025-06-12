@@ -644,7 +644,7 @@
 					"children": [
 						{
 							"title": "Configure OIDC refresh tokens",
-							"description": "How to configure OIDC refresh tokens"
+							"description": "How to configure OIDC refresh tokens",
 							"path": "./admin/external-auth/refresh-tokens.md"
 						}
 					]
