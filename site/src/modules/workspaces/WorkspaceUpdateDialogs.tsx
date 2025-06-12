@@ -55,7 +55,7 @@ export const useWorkspaceUpdate = ({
 	const confirmUpdate = (buildParameters: WorkspaceBuildParameter[] = []) => {
 		updateWorkspaceMutation.mutate({
 			buildParameters,
-			isDynamicParametersEnabled: workspace.template_use_classic_parameter_flow,
+			isDynamicParametersEnabled: !workspace.template_use_classic_parameter_flow,
 		});
 		setIsConfirmingUpdate(false);
 	};
