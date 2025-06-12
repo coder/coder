@@ -998,9 +998,9 @@ func TestAPIKeyExpiryRefresh(t *testing.T) {
 	t.Run("ShortLivedKeyRefresh", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db, _   = dbtestutil.NewDB(t)
-			user    = dbgen.User(t, db, database.User{})
-			now     = time.Now()
+			db, _ = dbtestutil.NewDB(t)
+			user  = dbgen.User(t, db, database.User{})
+			now   = time.Now()
 			// 2 minute lifetime
 			lifetime = int64(120)
 			// Key expires in 30 seconds (less than half the 2-minute lifetime)
@@ -1048,9 +1048,9 @@ func TestAPIKeyExpiryRefresh(t *testing.T) {
 	t.Run("ShortLivedKeyNoRefresh", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db, _   = dbtestutil.NewDB(t)
-			user    = dbgen.User(t, db, database.User{})
-			now     = time.Now()
+			db, _ = dbtestutil.NewDB(t)
+			user  = dbgen.User(t, db, database.User{})
+			now   = time.Now()
 			// 2 minute lifetime
 			lifetime = int64(120)
 			// Key expires in 90 seconds (more than half the lifetime)
@@ -1092,9 +1092,9 @@ func TestAPIKeyExpiryRefresh(t *testing.T) {
 	t.Run("LongLivedKeyRefresh", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db, _   = dbtestutil.NewDB(t)
-			user    = dbgen.User(t, db, database.User{})
-			now     = time.Now()
+			db, _ = dbtestutil.NewDB(t)
+			user  = dbgen.User(t, db, database.User{})
+			now   = time.Now()
 			// 2 hour lifetime
 			lifetime = int64(7200)
 			// Key expires in 30 minutes (less than 1 hour threshold)
@@ -1140,9 +1140,9 @@ func TestAPIKeyExpiryRefresh(t *testing.T) {
 	t.Run("LongLivedKeyNoRefresh", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db, _   = dbtestutil.NewDB(t)
-			user    = dbgen.User(t, db, database.User{})
-			now     = time.Now()
+			db, _ = dbtestutil.NewDB(t)
+			user  = dbgen.User(t, db, database.User{})
+			now   = time.Now()
 			// 2 hour lifetime
 			lifetime = int64(7200)
 			// Key expires in 90 minutes (more than 1 hour threshold)
@@ -1184,9 +1184,9 @@ func TestAPIKeyExpiryRefresh(t *testing.T) {
 	t.Run("RefreshDisabled", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db, _   = dbtestutil.NewDB(t)
-			user    = dbgen.User(t, db, database.User{})
-			now     = time.Now()
+			db, _ = dbtestutil.NewDB(t)
+			user  = dbgen.User(t, db, database.User{})
+			now   = time.Now()
 			// 2 minute lifetime
 			lifetime = int64(120)
 			// Key expires in 30 seconds (well below threshold)
