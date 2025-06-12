@@ -32,6 +32,7 @@ import { useAuthenticated } from "hooks";
 import { ExternalLinkIcon, RotateCcwIcon, SendIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
+import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { type FC, type ReactNode, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -489,7 +490,7 @@ export const data = {
 		templateId: string,
 	): Promise<Task> {
 		const workspace = await API.createWorkspace(userId, {
-			name: `task-${new Date().getTime()}`,
+			name: `task-${generateWorkspaceName()}`,
 			template_id: templateId,
 			rich_parameter_values: [
 				{ name: AI_PROMPT_PARAMETER_NAME, value: prompt },
