@@ -823,24 +823,17 @@ func TestExpMcpReporter(t *testing.T) {
 		// Watch the workspace for changes.
 		watcher, err := client.WatchWorkspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
-		var lastAppStatus codersdk.WorkspaceAppStatusState
-		wait := func(state codersdk.WorkspaceAppStatusState) {
+		var lastAppStatus codersdk.WorkspaceAppStatus
+		nextUpdate := func() codersdk.WorkspaceAppStatus {
 			for {
 				select {
 				case <-ctx.Done():
-					require.FailNow(t, "timed out waiting for state", state)
+					require.FailNow(t, "timed out waiting for status update")
 				case w, ok := <-watcher:
-					require.True(t, ok, "watch channel closed: %s", state)
-					var nextAppStatus codersdk.WorkspaceAppStatusState
-					if w.LatestAppStatus != nil {
-						nextAppStatus = w.LatestAppStatus.State
-					}
-					if nextAppStatus == state {
-						lastAppStatus = nextAppStatus
-						return
-					}
-					if nextAppStatus != lastAppStatus {
-						require.FailNow(t, "unexpected status change", nextAppStatus)
+					require.True(t, ok, "watch channel closed")
+					if w.LatestAppStatus != nil && w.LatestAppStatus.ID != lastAppStatus.ID {
+						lastAppStatus = *w.LatestAppStatus
+						return lastAppStatus
 					}
 				}
 			}
@@ -882,22 +875,32 @@ func TestExpMcpReporter(t *testing.T) {
 		tests := []struct {
 			// event simulates an event from the screen watcher.
 			event *codersdk.ServerSentEvent
-			// state and summary simulate a tool call from the LLM.
+			// state, summary, and uri simulate a tool call from the LLM.
 			state    codersdk.WorkspaceAppStatusState
 			summary  string
-			expected codersdk.WorkspaceAppStatusState
+			uri      string
+			expected *codersdk.WorkspaceAppStatus
 		}{
 			// First the LLM updates with a state change.
 			{
-				state:    codersdk.WorkspaceAppStatusStateWorking,
-				summary:  "doing work",
-				expected: codersdk.WorkspaceAppStatusStateWorking,
+				state:   codersdk.WorkspaceAppStatusStateWorking,
+				summary: "doing work",
+				uri:     "https://dev.coder.com",
+				expected: &codersdk.WorkspaceAppStatus{
+					State:   codersdk.WorkspaceAppStatusStateWorking,
+					Message: "doing work",
+					URI:     "https://dev.coder.com",
+				},
 			},
 			// Terminal goes quiet but the LLM forgot the update, and it is caught by
-			// the screen watcher.
+			// the screen watcher.  Message and URI are preserved.
 			{
-				event:    makeStatusEvent(agentapi.StatusStable),
-				expected: codersdk.WorkspaceAppStatusStateComplete,
+				event: makeStatusEvent(agentapi.StatusStable),
+				expected: &codersdk.WorkspaceAppStatus{
+					State:   codersdk.WorkspaceAppStatusStateComplete,
+					Message: "doing work",
+					URI:     "https://dev.coder.com",
+				},
 			},
 			// Terminal becomes active again according to the screen watcher, but
 			// message length is the same.  This could be the LLM being active again,
@@ -906,11 +909,15 @@ func TestExpMcpReporter(t *testing.T) {
 			{
 				event: makeStatusEvent(agentapi.StatusRunning),
 			},
-			// LLM reports that it failed.
+			// LLM reports that it failed and URI is blank.
 			{
-				state:    codersdk.WorkspaceAppStatusStateFailure,
-				summary:  "oops",
-				expected: codersdk.WorkspaceAppStatusStateFailure,
+				state:   codersdk.WorkspaceAppStatusStateFailure,
+				summary: "oops",
+				expected: &codersdk.WorkspaceAppStatus{
+					State:   codersdk.WorkspaceAppStatusStateFailure,
+					Message: "oops",
+					URI:     "",
+				},
 			},
 			// The watcher reports the screen is active again...
 			{
@@ -919,13 +926,21 @@ func TestExpMcpReporter(t *testing.T) {
 			// ... but this time the message length has increased so we know there is
 			// LLM activity.  This time the "working" update will not be skipped.
 			{
-				event:    makeMessageEvent(1),
-				expected: codersdk.WorkspaceAppStatusStateWorking,
+				event: makeMessageEvent(1),
+				expected: &codersdk.WorkspaceAppStatus{
+					State:   codersdk.WorkspaceAppStatusStateWorking,
+					Message: "oops",
+					URI:     "",
+				},
 			},
 			// Watcher reports stable again.
 			{
-				event:    makeStatusEvent(agentapi.StatusStable),
-				expected: codersdk.WorkspaceAppStatusStateComplete,
+				event: makeStatusEvent(agentapi.StatusStable),
+				expected: &codersdk.WorkspaceAppStatus{
+					State:   codersdk.WorkspaceAppStatusStateComplete,
+					Message: "oops",
+					URI:     "",
+				},
 			},
 		}
 		for _, test := range tests {
@@ -934,7 +949,7 @@ func TestExpMcpReporter(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				// Call the tool and ensure it works.
-				payload := fmt.Sprintf(`{"jsonrpc":"2.0","id":3,"method":"tools/call", "params": {"name": "coder_report_task", "arguments": {"state": %q, "summary": %q}}}`, test.state, test.summary)
+				payload := fmt.Sprintf(`{"jsonrpc":"2.0","id":3,"method":"tools/call", "params": {"name": "coder_report_task", "arguments": {"state": %q, "summary": %q, "link": %q}}}`, test.state, test.summary, test.uri)
 				pty.WriteLine(payload)
 				_ = pty.ReadLine(ctx) // ignore echo
 				output := pty.ReadLine(ctx)
@@ -943,8 +958,11 @@ func TestExpMcpReporter(t *testing.T) {
 				_, err = json.Marshal(output)
 				require.NoError(t, err, "did not receive valid JSON from coder_report_task")
 			}
-			if test.expected != "" {
-				wait(test.expected)
+			if test.expected != nil {
+				got := nextUpdate()
+				require.Equal(t, got.State, test.expected.State)
+				require.Equal(t, got.Message, test.expected.Message)
+				require.Equal(t, got.URI, test.expected.URI)
 			}
 		}
 		cancel()
