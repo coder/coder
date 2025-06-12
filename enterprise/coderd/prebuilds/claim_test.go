@@ -415,18 +415,18 @@ func templateWithAgentAndPresetsWithPrebuilds(desiredInstances int32) *echo.Resp
 									Instances: desiredInstances,
 								},
 							},
-							//{
-							//	Name: "preset-b",
-							//	Parameters: []*proto.PresetParameter{
-							//		{
-							//			Name:  "k1",
-							//			Value: "v2",
-							//		},
-							//	},
-							//	Prebuild: &proto.Prebuild{
-							//		Instances: desiredInstances,
-							//	},
-							// },
+							{
+								Name: "preset-b",
+								Parameters: []*proto.PresetParameter{
+									{
+										Name:  "k1",
+										Value: "v2",
+									},
+								},
+								Prebuild: &proto.Prebuild{
+									Instances: desiredInstances,
+								},
+							},
 						},
 					},
 				},

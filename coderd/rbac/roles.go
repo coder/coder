@@ -414,7 +414,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				}),
 				Org: map[string][]Permission{
 					// Org admins should not have workspace exec perms.
-					organizationID.String(): append(allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourceAssignRole), Permissions(map[string][]policy.Action{
+					organizationID.String(): append(allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole), Permissions(map[string][]policy.Action{
 						ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
 						ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
 					})...),

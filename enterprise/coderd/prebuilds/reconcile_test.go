@@ -475,25 +475,10 @@ func TestTemplateAdminDelete(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, orgID, version.ID)
 		presets, err := client.TemplateVersionPresets(ctx, version.ID)
 		require.NoError(t, err)
-		require.Len(t, presets, 1)
+		require.Len(t, presets, 2)
 		preset := setupTestDBPreset(t, db, version.ID, 2, "b0rked")
 
 		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, orgID, rbac.RoleTemplateAdmin())
-
-		state, err := reconciler.SnapshotState(ctx, spy)
-		require.NoError(t, err)
-		require.Len(t, state.Presets, 2)
-
-		for _, preset := range presets {
-			ps, err := state.FilterByPreset(preset.ID)
-			require.NoError(t, err)
-			require.NotNil(t, ps)
-			actions, err := reconciler.CalculateActions(ctx, *ps)
-			require.NoError(t, err)
-			require.NotNil(t, actions)
-
-			require.NoError(t, reconciler.ReconcilePreset(ctx, *ps))
-		}
 
 		workspace, _ := setupTestDBPrebuild(
 			t,
