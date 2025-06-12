@@ -380,7 +380,7 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			srv := &mcpServer{
 				appStatusSlug: appStatusSlug,
-				queue:         cliutil.NewQueue[reportTask](10),
+				queue:         cliutil.NewQueue[reportTask](100),
 			}
 
 			// Display client URL separately from authentication status.
