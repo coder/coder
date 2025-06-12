@@ -29,6 +29,7 @@ func cachePromMetricName(metric string) string {
 
 func TestConcurrency(t *testing.T) {
 	t.Parallel()
+	//nolint:gocritic // Unit testing
 	ctx := dbauthz.AsFileReader(t.Context())
 
 	const fileSize = 10
@@ -82,6 +83,7 @@ func TestConcurrency(t *testing.T) {
 
 func TestRelease(t *testing.T) {
 	t.Parallel()
+	//nolint:gocritic // Unit testing
 	ctx := dbauthz.AsFileReader(t.Context())
 
 	const fileSize = 10
