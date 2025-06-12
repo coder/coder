@@ -66,6 +66,10 @@ func (m *MockConnectionLogger) Contains(t testing.TB, expected database.Connecti
 			t.Logf("connection log %d: expected Time %s, got %s", idx+1, expected.Time, cl.Time)
 			continue
 		}
+		if expected.ConnectionID != uuid.Nil && cl.ConnectionID != expected.ConnectionID {
+			t.Logf("connection log %d: expected ConnectionID %s, got %s", idx+1, expected.ConnectionID, cl.ConnectionID)
+			continue
+		}
 		if expected.OrganizationID != uuid.Nil && cl.OrganizationID != expected.OrganizationID {
 			t.Logf("connection log %d: expected OrganizationID %s, got %s", idx+1, expected.OrganizationID, cl.OrganizationID)
 			continue

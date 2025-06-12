@@ -969,7 +969,7 @@ func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParam
 
 const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
 SELECT
-	connection_logs.id, connection_logs.time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.action, connection_logs.code, connection_logs.ip, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_type, connection_logs.reason,
+	connection_logs.id, connection_logs.time, connection_logs.connection_id, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.action, connection_logs.code, connection_logs.ip, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_type, connection_logs.reason,
 	users.username AS user_username,
 	workspace_owner.username AS workspace_owner_username,
 	COUNT(connection_logs.*) OVER () AS count
@@ -1017,6 +1017,7 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 		if err := rows.Scan(
 			&i.ConnectionLog.ID,
 			&i.ConnectionLog.Time,
+			&i.ConnectionLog.ConnectionID,
 			&i.ConnectionLog.OrganizationID,
 			&i.ConnectionLog.WorkspaceOwnerID,
 			&i.ConnectionLog.WorkspaceID,
@@ -1052,6 +1053,7 @@ INSERT INTO
 	connection_logs (
 		id,
 		"time",
+		connection_id,
 		organization_id,
 		workspace_owner_id,
 		workspace_id,
@@ -1067,12 +1069,13 @@ INSERT INTO
 		reason
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, action, code, ip, user_agent, user_id, slug_or_port, connection_type, reason
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id, time, connection_id, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, action, code, ip, user_agent, user_id, slug_or_port, connection_type, reason
 `
 
 type InsertConnectionLogParams struct {
 	ID               uuid.UUID        `db:"id" json:"id"`
 	Time             time.Time        `db:"time" json:"time"`
+	ConnectionID     uuid.UUID        `db:"connection_id" json:"connection_id"`
 	OrganizationID   uuid.UUID        `db:"organization_id" json:"organization_id"`
 	WorkspaceOwnerID uuid.UUID        `db:"workspace_owner_id" json:"workspace_owner_id"`
 	WorkspaceID      uuid.UUID        `db:"workspace_id" json:"workspace_id"`
@@ -1092,6 +1095,7 @@ func (q *sqlQuerier) InsertConnectionLog(ctx context.Context, arg InsertConnecti
 	row := q.db.QueryRowContext(ctx, insertConnectionLog,
 		arg.ID,
 		arg.Time,
+		arg.ConnectionID,
 		arg.OrganizationID,
 		arg.WorkspaceOwnerID,
 		arg.WorkspaceID,
@@ -1110,6 +1114,7 @@ func (q *sqlQuerier) InsertConnectionLog(ctx context.Context, arg InsertConnecti
 	err := row.Scan(
 		&i.ID,
 		&i.Time,
+		&i.ConnectionID,
 		&i.OrganizationID,
 		&i.WorkspaceOwnerID,
 		&i.WorkspaceID,

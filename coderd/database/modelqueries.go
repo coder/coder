@@ -562,6 +562,7 @@ func (q *sqlQuerier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg 
 		if err := rows.Scan(
 			&i.ConnectionLog.ID,
 			&i.ConnectionLog.Time,
+			&i.ConnectionLog.ConnectionID,
 			&i.ConnectionLog.OrganizationID,
 			&i.ConnectionLog.WorkspaceOwnerID,
 			&i.ConnectionLog.WorkspaceID,

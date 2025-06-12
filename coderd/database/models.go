@@ -2858,8 +2858,10 @@ type ChatMessage struct {
 }
 
 type ConnectionLog struct {
-	ID               uuid.UUID        `db:"id" json:"id"`
-	Time             time.Time        `db:"time" json:"time"`
+	ID   uuid.UUID `db:"id" json:"id"`
+	Time time.Time `db:"time" json:"time"`
+	// Either the workspace app request ID or the SSH connection ID. Used to correlate connections and disconnections.
+	ConnectionID     uuid.UUID        `db:"connection_id" json:"connection_id"`
 	OrganizationID   uuid.UUID        `db:"organization_id" json:"organization_id"`
 	WorkspaceOwnerID uuid.UUID        `db:"workspace_owner_id" json:"workspace_owner_id"`
 	WorkspaceID      uuid.UUID        `db:"workspace_id" json:"workspace_id"`

@@ -26,6 +26,13 @@ type ConnLogAPI struct {
 }
 
 func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.ReportConnectionRequest) (*emptypb.Empty, error) {
+	// We will use connection ID as request ID, typically this is the
+	// SSH session ID as reported by the agent.
+	connectionID, err := uuid.FromBytes(req.GetConnection().GetId())
+	if err != nil {
+		return nil, xerrors.Errorf("connection id from bytes: %w", err)
+	}
+
 	action, err := db2sdk.ConnectionLogActionFromAgentProtoConnectionAction(req.GetConnection().GetAction())
 	if err != nil {
 		return nil, err
@@ -50,6 +57,7 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	err = connLogger.Export(ctx, database.ConnectionLog{
 		ID:               uuid.New(),
 		Time:             req.GetConnection().GetTimestamp().AsTime(),
+		ConnectionID:     connectionID,
 		OrganizationID:   workspace.OrganizationID,
 		WorkspaceOwnerID: workspace.OwnerID,
 		WorkspaceID:      workspace.ID,

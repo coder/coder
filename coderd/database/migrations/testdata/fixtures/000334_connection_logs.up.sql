@@ -1,6 +1,7 @@
 INSERT INTO connection_logs (
 	id,
 	"time",
+	connection_id,
 	organization_id,
 	workspace_owner_id,
 	workspace_id,
@@ -17,6 +18,7 @@ INSERT INTO connection_logs (
 ) VALUES (
 	'00000000-0000-0000-0000-000000000001', -- log id
 	'2023-10-01 12:00:00+00',
+	'00000000-0000-0000-0000-000000000003', -- connection id
 	'00000000-0000-0000-0000-000000000020', -- organization id
 	'00000000-0000-0000-0000-000000000030', -- workspace owner id
 	'3a9a1feb-e89d-457c-9d53-ac751b198ebe', -- workspace id
@@ -34,6 +36,7 @@ INSERT INTO connection_logs (
 (
 	'00000000-0000-0000-0000-000000000002', -- log id
 	'2023-10-01 12:05:00+00',
+	'00000000-0000-0000-0000-000000000004', -- connection id (request ID)
 	'00000000-0000-0000-0000-000000000020', -- organization id
 	'00000000-0000-0000-0000-000000000030', -- workspace owner id
 	'3a9a1feb-e89d-457c-9d53-ac751b198ebe', -- workspace id

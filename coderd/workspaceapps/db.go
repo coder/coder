@@ -477,10 +477,13 @@ func (p *DBTokenProvider) connLogInitRequest(ctx context.Context, w http.Respons
 			// didn't timeout due to inactivity.
 			return
 		}
+
+		requestID := httpmw.RequestID(r)
 		connLogger := *p.ConnectionLogger.Load()
 		err = connLogger.Export(ctx, database.ConnectionLog{
 			ID:               uuid.New(),
 			Time:             aReq.time,
+			ConnectionID:     requestID,
 			OrganizationID:   aReq.dbReq.Workspace.OrganizationID,
 			WorkspaceOwnerID: aReq.dbReq.Workspace.OwnerID,
 			WorkspaceID:      aReq.dbReq.Workspace.ID,

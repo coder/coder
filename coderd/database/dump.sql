@@ -857,6 +857,7 @@ CREATE TABLE chats (
 CREATE TABLE connection_logs (
     id uuid NOT NULL,
     "time" timestamp with time zone NOT NULL,
+    connection_id uuid NOT NULL,
     organization_id uuid NOT NULL,
     workspace_owner_id uuid NOT NULL,
     workspace_id uuid NOT NULL,
@@ -871,6 +872,8 @@ CREATE TABLE connection_logs (
     connection_type text,
     reason text
 );
+
+COMMENT ON COLUMN connection_logs.connection_id IS 'Either the workspace app request ID or the SSH connection ID. Used to correlate connections and disconnections.';
 
 COMMENT ON COLUMN connection_logs.code IS 'Either the HTTP status code for the workspace app request, or the exit code of an SSH connection.';
 

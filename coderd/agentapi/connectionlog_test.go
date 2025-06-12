@@ -132,6 +132,7 @@ func TestConnectionLog(t *testing.T) {
 
 			require.True(t, connLogger.Contains(t, database.ConnectionLog{
 				Time:             dbtime.Time(tt.time).In(time.UTC),
+				ConnectionID:     tt.id,
 				OrganizationID:   workspace.OrganizationID,
 				WorkspaceOwnerID: workspace.OwnerID,
 				WorkspaceID:      workspace.ID,
