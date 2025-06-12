@@ -17,6 +17,17 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
+const (
+	// MaximumModuleArchiveSize limits the total size of a module archive.
+	// At some point, the user should take steps to reduce the size of their
+	// template modules, as this can lead to performance issues
+	// TODO: Determine what a reasonable limit is for modules
+	//  If we start hitting this limit, we might want to consider adding
+	//  configurable filters? Files like images could blow up the size of a
+	//  module.
+	MaximumModuleArchiveSize = 20 * 1024 * 1024 // 20MB
+)
+
 type module struct {
 	Source  string `json:"Source"`
 	Version string `json:"Version"`
@@ -87,12 +98,7 @@ func GetModulesArchive(root fs.FS) ([]byte, error) {
 	empty := true
 	var b bytes.Buffer
 
-	// Limit to 20MB for now. This is the total size of a modules archive.
-	// TODO: Determine what a reasonable limit is for modules
-	//  If we start hitting this limit, we might want to consider adding
-	//  configurable filters? Files like images could blow up the size of a
-	//  module.
-	lw := xio.NewLimitWriter(&b, 20<<20)
+	lw := xio.NewLimitWriter(&b, MaximumModuleArchiveSize)
 	w := tar.NewWriter(lw)
 
 	for _, it := range m.Modules {
