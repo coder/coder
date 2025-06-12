@@ -77,6 +77,10 @@ const (
 	SubjectTypeFileReader                   SubjectType = "file_reader"
 )
 
+const (
+	SubjectTypeFileReaderID = "acbf0be6-6fed-47b6-8c43-962cb5cab994"
+)
+
 // Subject is a struct that contains all the elements of a subject in an rbac
 // authorize.
 type Subject struct {

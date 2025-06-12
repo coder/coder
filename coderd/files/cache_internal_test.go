@@ -13,8 +13,14 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func authzAlwaysTrue(_ context.Context, _ rbac.Subject, _ policy.Action, _ rbac.Object) error {
+	return nil
+}
 
 func cachePromMetricName(metric string) string {
 	return "coderd_file_cache_" + metric
@@ -33,7 +39,7 @@ func TestConcurrency(t *testing.T) {
 		// will be waiting in line, ensuring that no one duplicated a fetch.
 		time.Sleep(testutil.IntervalMedium)
 		return cacheEntryValue{FS: emptyFS, size: fileSize}, nil
-	}, reg)
+	}, reg, authzAlwaysTrue)
 
 	batches := 1000
 	groups := make([]*errgroup.Group, 0, batches)
@@ -83,7 +89,7 @@ func TestRelease(t *testing.T) {
 			FS:   emptyFS,
 			size: fileSize,
 		}, nil
-	}, reg)
+	}, reg, authzAlwaysTrue)
 
 	batches := 100
 	ids := make([]uuid.UUID, 0, batches)

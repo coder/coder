@@ -19,7 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/lazy"
 )
 
-type AuthorizeFile func(ctx context.Context, action policy.Action, object rbac.Object) error
+type AuthorizeFile func(ctx context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error
 
 // NewFromStore returns a file cache that will fetch files from the provided
 // database.
@@ -158,8 +158,12 @@ func (c *Cache) Acquire(ctx context.Context, fileID uuid.UUID) (fs.FS, error) {
 		return nil, err
 	}
 
+	subject, ok := dbauthz.ActorFromContext(ctx)
+	if !ok {
+		return nil, dbauthz.ErrNoActor
+	}
 	// Always check the caller can actually read the file.
-	if c.authz(ctx, policy.ActionRead, it.object) != nil {
+	if err := c.authz(ctx, subject, policy.ActionRead, it.object); err != nil {
 		c.Release(fileID)
 		return nil, err
 	}

@@ -436,7 +436,8 @@ var (
 	subjectFileReader = rbac.Subject{
 		Type:         rbac.SubjectTypeFileReader,
 		FriendlyName: "Can Read All Files",
-		ID:           uuid.Nil.String(),
+		// Arbitrary uuid to have a unique ID for this subject.
+		ID: rbac.SubjectTypeFileReaderID,
 		Roles: rbac.Roles([]rbac.Role{
 			{
 				Identifier:  rbac.RoleIdentifier{Name: "file-reader"},
