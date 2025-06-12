@@ -1338,7 +1338,6 @@ func TestMetadata(t *testing.T) {
 			// When resource_id is not found, it falls back to graph traversal
 			// We can't easily verify the warning was logged without access to the log capture API
 		})
-
 	})
 }
 
