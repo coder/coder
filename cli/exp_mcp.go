@@ -547,12 +547,12 @@ func (s *mcpServer) startReporter(ctx context.Context, inv *serpent.Invocation) 
 				State:   state,
 			}
 
-			// Preserve previous message and URI.
+			// Preserve previous message and URI if there was no message.
 			if payload.Message == "" {
 				payload.Message = lastPayload.Message
-			}
-			if payload.URI == "" {
-				payload.URI = lastPayload.URI
+				if payload.URI == "" {
+					payload.URI = lastPayload.URI
+				}
 			}
 
 			// Avoid sending duplicate updates.
