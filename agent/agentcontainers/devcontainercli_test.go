@@ -22,6 +22,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -229,6 +230,91 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 					assert.Error(t, err, "want error")
 				} else {
 					assert.NoError(t, err, "want no error")
+				}
+			})
+		}
+	})
+
+	t.Run("ReadConfig", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name            string
+			logFile         string
+			workspaceFolder string
+			configPath      string
+			opts            []agentcontainers.DevcontainerCLIReadConfigOptions
+			wantArgs        string
+			wantError       bool
+			wantConfig      agentcontainers.DevcontainerConfig
+		}{
+			{
+				name:            "WithCoderCustomization",
+				logFile:         "read-config-with-coder-customization.log",
+				workspaceFolder: "/test/workspace",
+				configPath:      "",
+				wantArgs:        "read-configuration --include-merged-configuration --workspace-folder /test/workspace",
+				wantError:       false,
+				wantConfig: agentcontainers.DevcontainerConfig{
+					MergedConfiguration: agentcontainers.DevcontainerConfiguration{
+						Customizations: agentcontainers.DevcontainerCustomizations{
+							Coder: &agentcontainers.CoderCustomization{
+								DisplayApps: []codersdk.DisplayApp{
+									codersdk.DisplayAppVSCodeDesktop,
+									codersdk.DisplayAppWebTerminal,
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				name:            "WithoutCoderCustomization",
+				logFile:         "read-config-without-coder-customization.log",
+				workspaceFolder: "/test/workspace",
+				configPath:      "/test/config.json",
+				wantArgs:        "read-configuration --include-merged-configuration --workspace-folder /test/workspace --config /test/config.json",
+				wantError:       false,
+				wantConfig: agentcontainers.DevcontainerConfig{
+					MergedConfiguration: agentcontainers.DevcontainerConfiguration{
+						Customizations: agentcontainers.DevcontainerCustomizations{
+							Coder: nil,
+						},
+					},
+				},
+			},
+			{
+				name:            "FileNotFound",
+				logFile:         "read-config-error-not-found.log",
+				workspaceFolder: "/nonexistent/workspace",
+				configPath:      "",
+				wantArgs:        "read-configuration --include-merged-configuration --workspace-folder /nonexistent/workspace",
+				wantError:       true,
+				wantConfig:      agentcontainers.DevcontainerConfig{},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitMedium)
+
+				testExecer := &testDevcontainerExecer{
+					testExePath: testExePath,
+					wantArgs:    tt.wantArgs,
+					wantError:   tt.wantError,
+					logFile:     filepath.Join("testdata", "devcontainercli", "readconfig", tt.logFile),
+				}
+
+				dccli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
+				config, err := dccli.ReadConfig(ctx, tt.workspaceFolder, tt.configPath, tt.opts...)
+				if tt.wantError {
+					assert.Error(t, err, "want error")
+					assert.Equal(t, agentcontainers.DevcontainerConfig{}, config, "expected empty config on error")
+				} else {
+					assert.NoError(t, err, "want no error")
+					assert.Equal(t, tt.wantConfig, config, "expected config to match")
 				}
 			})
 		}

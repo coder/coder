@@ -149,6 +149,26 @@ func (mr *MockDevcontainerCLIMockRecorder) Exec(ctx, workspaceFolder, configPath
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exec", reflect.TypeOf((*MockDevcontainerCLI)(nil).Exec), varargs...)
 }
 
+// ReadConfig mocks base method.
+func (m *MockDevcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, configPath string, opts ...agentcontainers.DevcontainerCLIReadConfigOptions) (agentcontainers.DevcontainerConfig, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, workspaceFolder, configPath}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ReadConfig", varargs...)
+	ret0, _ := ret[0].(agentcontainers.DevcontainerConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadConfig indicates an expected call of ReadConfig.
+func (mr *MockDevcontainerCLIMockRecorder) ReadConfig(ctx, workspaceFolder, configPath any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, workspaceFolder, configPath}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadConfig", reflect.TypeOf((*MockDevcontainerCLI)(nil).ReadConfig), varargs...)
+}
+
 // Up mocks base method.
 func (m *MockDevcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath string, opts ...agentcontainers.DevcontainerCLIUpOptions) (string, error) {
 	m.ctrl.T.Helper()
