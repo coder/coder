@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/testutil"
@@ -28,6 +29,7 @@ func cachePromMetricName(metric string) string {
 
 func TestConcurrency(t *testing.T) {
 	t.Parallel()
+	ctx := dbauthz.AsFileReader(t.Context())
 
 	const fileSize = 10
 	emptyFS := afero.NewIOFS(afero.NewReadOnlyFs(afero.NewMemMapFs()))
@@ -57,7 +59,7 @@ func TestConcurrency(t *testing.T) {
 			g.Go(func() error {
 				// We don't bother to Release these references because the Cache will be
 				// released at the end of the test anyway.
-				_, err := c.Acquire(t.Context(), id)
+				_, err := c.Acquire(ctx, id)
 				return err
 			})
 		}
@@ -80,6 +82,7 @@ func TestConcurrency(t *testing.T) {
 
 func TestRelease(t *testing.T) {
 	t.Parallel()
+	ctx := dbauthz.AsFileReader(t.Context())
 
 	const fileSize = 10
 	emptyFS := afero.NewIOFS(afero.NewReadOnlyFs(afero.NewMemMapFs()))
@@ -101,7 +104,7 @@ func TestRelease(t *testing.T) {
 	batchSize := 10
 	for openedIdx, id := range ids {
 		for batchIdx := range batchSize {
-			it, err := c.Acquire(t.Context(), id)
+			it, err := c.Acquire(ctx, id)
 			require.NoError(t, err)
 			require.Equal(t, emptyFS, it)
 
