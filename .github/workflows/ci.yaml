@@ -383,7 +383,12 @@ jobs:
             touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
           fi
           export TS_DEBUG_DISCO=true
-          gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" --rerun-fails=2 \
+          TEST_RETRIES="--rerun-fails=2"
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            # on main, run tests without retries
+            TEST_RETRIES=""
+          fi
+          gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" $TEST_RETRIES \
             --packages="./..." -- $PARALLEL_FLAG -short
 
       - name: Upload Test Cache
@@ -558,6 +563,12 @@ jobs:
             TESTCOUNT="-count=1"
           fi
 
+          TEST_RETRIES="--rerun-fails=2 --rerun-fails-max-failures=50"
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            # on main, run tests without retries
+            TEST_RETRIES=""
+          fi
+
           mkdir -p "$RUNNER_TEMP/sym"
           source scripts/normalize_path.sh
           # terraform gets installed in a random directory, so we need to normalize
@@ -565,9 +576,7 @@ jobs:
           # invalidated. See scripts/normalize_path.sh for more details.
           normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname $(which terraform))"
 
-          # We rerun failing tests to counteract flakiness coming from Postgres
-          # choking on macOS and Windows sometimes.
-          DB=ci gotestsum --rerun-fails=2 --rerun-fails-max-failures=50 \
+          DB=ci gotestsum $TEST_RETRIES \
             --format standard-quiet --packages "./..." \
             -- -timeout=20m -v -p $NUM_PARALLEL_PACKAGES -parallel=$NUM_PARALLEL_TESTS $TESTCOUNT
 
@@ -638,8 +647,12 @@ jobs:
         env:
           POSTGRES_VERSION: "17"
           TS_DEBUG_DISCO: "true"
-          TEST_RETRIES: 2
         run: |
+          export TEST_RETRIES="2"
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            # on main, run tests without retries
+            export TEST_RETRIES=""
+          fi
           make test-postgres
 
       - name: Upload Test Cache
@@ -689,7 +702,12 @@ jobs:
       # c.f. discussion on https://github.com/coder/coder/pull/15106
       - name: Run Tests
         run: |
-          gotestsum --junitfile="gotests.xml" --packages="./..." --rerun-fails=2 --rerun-fails-abort-on-data-race -- -race -parallel 4 -p 4
+          TEST_RETRIES="--rerun-fails=2 --rerun-fails-abort-on-data-race"
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            # on main, run tests without retries
+            TEST_RETRIES=""
+          fi
+          gotestsum --junitfile="gotests.xml" --packages="./..." $TEST_RETRIES -- -race -parallel 4 -p 4
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
@@ -740,8 +758,13 @@ jobs:
         env:
           POSTGRES_VERSION: "17"
         run: |
+          TEST_RETRIES="--rerun-fails=2 --rerun-fails-abort-on-data-race"
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            # on main, run tests without retries
+            TEST_RETRIES=""
+          fi
           make test-postgres-docker
-          DB=ci gotestsum --junitfile="gotests.xml" --packages="./..." --rerun-fails=2 --rerun-fails-abort-on-data-race -- -race -parallel 4 -p 4
+          DB=ci gotestsum --junitfile="gotests.xml" --packages="./..." $TEST_RETRIES -- -race -parallel 4 -p 4
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
@@ -867,13 +890,19 @@ jobs:
         working-directory: site
 
       # Run all of the tests with a premium license
-      - run: pnpm playwright:test --forbid-only --workers 1
+      - name: Run Tests with Premium License
+        run: |
+          # Only retry on PRs, not on main
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            export CODER_E2E_TEST_RETRIES=2
+          fi
+          pnpm playwright:test --forbid-only --workers 1
+        shell: bash
         if: ${{ matrix.variant.premium }}
         env:
           DEBUG: pw:api
           CODER_E2E_LICENSE: ${{ secrets.CODER_E2E_LICENSE }}
           CODER_E2E_REQUIRE_PREMIUM_TESTS: "1"
-          CODER_E2E_TEST_RETRIES: 2
         working-directory: site
 
       - name: Upload Playwright Failed Tests
