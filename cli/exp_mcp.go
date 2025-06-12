@@ -190,9 +190,9 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 			// Determine if we should include the reportTaskPrompt
 			var reportTaskPrompt string
 			if agentClient != nil && appStatusSlug != "" {
-				// Only include the report task prompt if both agent token and app
-				// status slug are defined. Otherwise, reporting a task will fail
-				// and confuse the agent (and by extension, the user).
+				// Only include the report task prompt if both the agent client and app
+				// status slug are defined. Otherwise, reporting a task will fail and
+				// confuse the agent (and by extension, the user).
 				reportTaskPrompt = defaultReportTaskPrompt
 			}
 
