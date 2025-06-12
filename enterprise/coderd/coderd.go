@@ -22,6 +22,7 @@ import (
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/enterprise/coderd/connectionlog"
 	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
 	"github.com/coder/coder/v2/enterprise/coderd/portsharing"
 
@@ -36,6 +37,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd"
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
+	agplconnectionlog "github.com/coder/coder/v2/coderd/connectionlog"
 	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/healthcheck"
@@ -121,6 +123,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 	if options.IDPSync == nil {
 		options.IDPSync = enidpsync.NewSync(options.Logger, options.RuntimeConfig, options.Entitlements, idpsync.FromDeploymentValues(options.DeploymentValues))
+	}
+
+	if options.ConnectionLogger == nil {
+		options.ConnectionLogger = connectionlog.NewConnectionLogger(
+			connectionlog.NewDBBackend(options.Database),
+			connectionlog.NewSlogBackend(options.Logger),
+		)
 	}
 
 	api := &API{
@@ -593,8 +602,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 type Options struct {
 	*coderd.Options
 
-	RBAC         bool
-	AuditLogging bool
+	RBAC              bool
+	AuditLogging      bool
+	ConnectionLogging bool
 	// Whether to block non-browser connections.
 	BrowserOnly bool
 	SCIMAPIKey  []byte
@@ -695,6 +705,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			ctx, api.Database,
 			len(agedReplicas), len(api.ExternalAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
 				codersdk.FeatureAuditLog:                   api.AuditLogging,
+				codersdk.FeatureConnectionLog:              api.ConnectionLogging,
 				codersdk.FeatureBrowserOnly:                api.BrowserOnly,
 				codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
 				codersdk.FeatureMultipleExternalAuth:       len(api.ExternalAuthConfigs) > 1,
@@ -731,6 +742,14 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				auditor = api.AGPL.Options.Auditor
 			}
 			api.AGPL.Auditor.Store(&auditor)
+		}
+
+		if initial, changed, enabled := featureChanged(codersdk.FeatureConnectionLog); shouldUpdate(initial, changed, enabled) {
+			connectionLogger := agplconnectionlog.NewNop()
+			if enabled {
+				connectionLogger = api.AGPL.Options.ConnectionLogger
+			}
+			api.AGPL.ConnectionLogger.Store(&connectionLogger)
 		}
 
 		if initial, changed, enabled := featureChanged(codersdk.FeatureBrowserOnly); shouldUpdate(initial, changed, enabled) {

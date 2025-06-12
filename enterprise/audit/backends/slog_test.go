@@ -24,7 +24,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/audit/backends"
 )
 
-func TestSlogBackend(t *testing.T) {
+func TestSlogExporter(t *testing.T) {
 	t.Parallel()
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
@@ -32,30 +32,29 @@ func TestSlogBackend(t *testing.T) {
 		var (
 			ctx, cancel = context.WithCancel(context.Background())
 
-			sink    = &fakeSink{}
-			logger  = slog.Make(sink)
-			backend = backends.NewSlog(logger)
+			sink     = &fakeSink{}
+			logger   = slog.Make(sink)
+			exporter = backends.NewSlogExporter(logger)
 
 			alog = audittest.RandomLog()
 		)
 		defer cancel()
 
-		err := backend.Export(ctx, alog, audit.BackendDetails{})
+		err := exporter.ExportStruct(ctx, alog, "audit_log")
 		require.NoError(t, err)
 		require.Len(t, sink.entries, 1)
 		require.Equal(t, sink.entries[0].Message, "audit_log")
 		require.Len(t, sink.entries[0].Fields, len(structs.Fields(alog)))
 	})
-
 	t.Run("FormatsCorrectly", func(t *testing.T) {
 		t.Parallel()
 
 		var (
 			ctx, cancel = context.WithCancel(context.Background())
 
-			buf     = bytes.NewBuffer(nil)
-			logger  = slog.Make(slogjson.Sink(buf))
-			backend = backends.NewSlog(logger)
+			buf      = bytes.NewBuffer(nil)
+			logger   = slog.Make(slogjson.Sink(buf))
+			exporter = backends.NewSlogExporter(logger)
 
 			_, inet, _ = net.ParseCIDR("127.0.0.1/32")
 			alog       = database.AuditLog{
@@ -81,11 +80,11 @@ func TestSlogBackend(t *testing.T) {
 		)
 		defer cancel()
 
-		err := backend.Export(ctx, alog, audit.BackendDetails{Actor: &audit.Actor{
+		err := exporter.ExportStruct(ctx, alog, "audit_log", slog.F("actor", &audit.Actor{
 			ID:       uuid.UUID{2},
 			Username: "coadler",
 			Email:    "doug@coder.com",
-		}})
+		}))
 		require.NoError(t, err)
 		logger.Sync()
 
