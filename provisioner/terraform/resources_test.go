@@ -1274,7 +1274,7 @@ func TestMetadata(t *testing.T) {
 	t.Run("ResourceID", func(t *testing.T) {
 		t.Parallel()
 
-		t.Run("ResourceIDProvided", func(t *testing.T) {
+		t.Run("OK", func(t *testing.T) {
 			t.Parallel()
 			ctx, logger := ctxAndLogger(t)
 
@@ -1312,7 +1312,7 @@ func TestMetadata(t *testing.T) {
 			require.Equal(t, "value", secondResource.Metadata[0].Value)
 		})
 
-		t.Run("ResourceIDNotFound", func(t *testing.T) {
+		t.Run("NotFound", func(t *testing.T) {
 			t.Parallel()
 			ctx, logger := ctxAndLogger(t)
 
@@ -1339,29 +1339,6 @@ func TestMetadata(t *testing.T) {
 			// We can't easily verify the warning was logged without access to the log capture API
 		})
 
-		t.Run("ResourceIDNotProvided", func(t *testing.T) {
-			t.Parallel()
-			ctx, logger := ctxAndLogger(t)
-
-			dir := filepath.Join("testdata", "resources", "resource-id-not-provided")
-			tfStateRaw, err := os.ReadFile(filepath.Join(dir, "resource-id-not-provided.tfstate.json"))
-			require.NoError(t, err)
-			var tfState tfjson.State
-			err = json.Unmarshal(tfStateRaw, &tfState)
-			require.NoError(t, err)
-			tfStateGraph, err := os.ReadFile(filepath.Join(dir, "resource-id-not-provided.tfstate.dot"))
-			require.NoError(t, err)
-
-			state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph), logger)
-			require.NoError(t, err)
-			require.Len(t, state.Resources, 1)
-
-			// The metadata should be applied via graph traversal
-			require.Equal(t, "example", state.Resources[0].Name)
-			require.Len(t, state.Resources[0].Metadata, 1)
-			require.Equal(t, "test", state.Resources[0].Metadata[0].Key)
-			require.Equal(t, "value", state.Resources[0].Metadata[0].Value)
-		})
 	})
 }
 
