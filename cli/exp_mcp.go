@@ -126,6 +126,7 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 		coderPrompt      string
 		appStatusSlug    string
 		testBinaryName   string
+		llmAgentURL      url.URL
 
 		deprecatedCoderMCPClaudeAPIKey string
 	)
@@ -163,6 +164,9 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 			}
 			if appStatusSlug != "" {
 				configureClaudeEnv[envAppStatusSlug] = appStatusSlug
+			}
+			if llmAgentURL.String() != "" {
+				configureClaudeEnv[envLLMAgentURL] = llmAgentURL.String()
 			}
 			if deprecatedSystemPromptEnv, ok := os.LookupEnv("SYSTEM_PROMPT"); ok {
 				cliui.Warnf(inv.Stderr, "SYSTEM_PROMPT is deprecated, use CODER_MCP_CLAUDE_SYSTEM_PROMPT instead")
@@ -261,6 +265,12 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				Env:         envAppStatusSlug,
 				Flag:        "claude-app-status-slug",
 				Value:       serpent.StringOf(&appStatusSlug),
+			},
+			{
+				Flag:        "llm-agent-url",
+				Description: "The URL of the LLM agent API, used to listen for status updates.",
+				Env:         envLLMAgentURL,
+				Value:       serpent.URLOf(&llmAgentURL),
 			},
 			{
 				Name:        "test-binary-name",
@@ -446,7 +456,9 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 			defer srv.queue.Close()
 
 			cliui.Infof(inv.Stderr, "Failed to watch screen events")
-			// Start the reporter, watcher, and server.
+			// Start the reporter, watcher, and server.  These are all tied to the
+			// lifetime of the MCP server, which is itself tied to the lifetime of the
+			// LLM agent.
 			if srv.agentClient != nil && appStatusSlug != "" {
 				srv.startReporter(ctx, inv)
 				if srv.llmClient != nil {

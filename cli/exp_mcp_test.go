@@ -365,7 +365,8 @@ test-system-prompt
 							"env": {
 								"CODER_AGENT_URL": "%s",
 								"CODER_AGENT_TOKEN": "test-agent-token",
-								"CODER_MCP_APP_STATUS_SLUG": "some-app-name"
+								"CODER_MCP_APP_STATUS_SLUG": "some-app-name",
+								"CODER_MCP_LLM_AGENT_URL": "http://localhost:3284"
 							}
 						}
 					}
@@ -390,6 +391,7 @@ test-system-prompt
 			"--claude-test-binary-name=pathtothecoderbinary",
 			"--agent-url", client.URL.String(),
 			"--agent-token", "test-agent-token",
+			"--llm-agent-url", "http://localhost:3284",
 		)
 		clitest.SetupConfig(t, client, root)
 
