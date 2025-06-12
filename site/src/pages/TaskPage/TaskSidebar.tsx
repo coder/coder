@@ -97,7 +97,9 @@ export const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
 					</DropdownMenu>
 				</div>
 
-				<h1 className="m-0 mt-1 text-base font-medium">{task.prompt}</h1>
+				<h1 className="m-0 mt-1 text-base font-medium truncate">
+					{task.prompt}
+				</h1>
 
 				{task.workspace.latest_app_status?.uri && (
 					<div className="flex items-center gap-2 mt-2 flex-wrap">

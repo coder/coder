@@ -9351,6 +9351,7 @@ func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		AllowUserAutostart:           true,
 		AllowUserAutostop:            true,
 		MaxPortSharingLevel:          arg.MaxPortSharingLevel,
+		UseClassicParameterFlow:      true,
 	}
 	q.templates = append(q.templates, template)
 	return nil
