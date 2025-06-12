@@ -64,6 +64,9 @@ type API struct {
 	subAgentURL                 string
 	subAgentEnv                 []string
 
+	userName      string
+	workspaceName string
+
 	mu                      sync.RWMutex
 	closed                  bool
 	containers              codersdk.WorkspaceAgentListContainersResponse  // Output from the last list operation.
@@ -150,6 +153,20 @@ func WithSubAgentURL(url string) Option {
 func WithSubAgentEnv(env ...string) Option {
 	return func(api *API) {
 		api.subAgentEnv = env
+	}
+}
+
+// WithWorkspaceName sets the workspace name for the sub-agent.
+func WithWorkspaceName(name string) Option {
+	return func(api *API) {
+		api.workspaceName = name
+	}
+}
+
+// WithUserName sets the workspace name for the sub-agent.
+func WithUserName(name string) Option {
+	return func(api *API) {
+		api.userName = name
 	}
 }
 
@@ -1127,7 +1144,14 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			codersdk.DisplayAppPortForward:    true,
 		}
 
-		if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath); err != nil {
+		var apps []SubAgentApp
+
+		if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath, []string{
+			fmt.Sprintf("CODER_AGENT_NAME=%s", dc.Name),
+			fmt.Sprintf("CODER_USER_NAME=%s", api.userName),
+			fmt.Sprintf("CODER_WORKSPACE_NAME=%s", api.workspaceName),
+			fmt.Sprintf("CODER_DEPLOYMENT_URL=%s", api.subAgentURL),
+		}); err != nil {
 			api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
 		} else {
 			coderCustomization := config.MergedConfiguration.Customizations.Coder
@@ -1143,6 +1167,8 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 					}
 					displayAppsMap[app] = enabled
 				}
+
+				apps = append(apps, customization.Apps...)
 			}
 		}
 

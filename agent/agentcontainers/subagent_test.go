@@ -4,11 +4,13 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
@@ -99,6 +101,234 @@ func TestSubAgentClient_CreateWithDisplayApps(t *testing.T) {
 
 				// Then: We expect the apps to be created.
 				require.Equal(t, tt.expectedApps, displayApps)
+			})
+		}
+	})
+
+	t.Run("CreateWithApps", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name         string
+			apps         []agentcontainers.SubAgentApp
+			expectedApps []*agentproto.CreateSubAgentRequest_App
+		}{
+			{
+				name: "single app with minimal fields",
+				apps: []agentcontainers.SubAgentApp{
+					{
+						Slug:   "code-server",
+						OpenIn: codersdk.WorkspaceAppOpenInSlimWindow,
+						Share:  codersdk.WorkspaceAppSharingLevelOwner,
+					},
+				},
+				expectedApps: []*agentproto.CreateSubAgentRequest_App{
+					{
+						Slug:   "code-server",
+						OpenIn: agentproto.CreateSubAgentRequest_App_SLIM_WINDOW.Enum(),
+						Share:  agentproto.CreateSubAgentRequest_App_OWNER.Enum(),
+					},
+				},
+			},
+			{
+				name: "single app with all fields",
+				apps: []agentcontainers.SubAgentApp{
+					{
+						Slug:        "jupyter",
+						Command:     ptr.Ref("jupyter lab --port=8888"),
+						DisplayName: ptr.Ref("Jupyter Lab"),
+						External:    ptr.Ref(false),
+						Group:       ptr.Ref("Development"),
+						HealthCheck: &agentcontainers.SubAgentHealthCheck{
+							Interval:  30,
+							Threshold: 3,
+							URL:       "http://localhost:8888/api",
+						},
+						Hidden:    ptr.Ref(false),
+						Icon:      ptr.Ref("/icon/jupyter.svg"),
+						OpenIn:    codersdk.WorkspaceAppOpenInTab,
+						Order:     ptr.Ref(int32(1)),
+						Share:     codersdk.WorkspaceAppSharingLevelAuthenticated,
+						Subdomain: ptr.Ref(true),
+						URL:       ptr.Ref("http://localhost:8888"),
+					},
+				},
+				expectedApps: []*agentproto.CreateSubAgentRequest_App{
+					{
+						Slug:        "jupyter",
+						Command:     ptr.Ref("jupyter lab --port=8888"),
+						DisplayName: ptr.Ref("Jupyter Lab"),
+						External:    ptr.Ref(false),
+						Group:       ptr.Ref("Development"),
+						Healthcheck: &agentproto.CreateSubAgentRequest_App_Healthcheck{
+							Interval:  30,
+							Threshold: 3,
+							Url:       "http://localhost:8888/api",
+						},
+						Hidden:    ptr.Ref(false),
+						Icon:      ptr.Ref("/icon/jupyter.svg"),
+						OpenIn:    agentproto.CreateSubAgentRequest_App_TAB.Enum(),
+						Order:     ptr.Ref(int32(1)),
+						Share:     agentproto.CreateSubAgentRequest_App_AUTHENTICATED.Enum(),
+						Subdomain: ptr.Ref(true),
+						Url:       ptr.Ref("http://localhost:8888"),
+					},
+				},
+			},
+			{
+				name: "multiple apps with different sharing levels",
+				apps: []agentcontainers.SubAgentApp{
+					{
+						Slug:   "owner-app",
+						OpenIn: codersdk.WorkspaceAppOpenInSlimWindow,
+						Share:  codersdk.WorkspaceAppSharingLevelOwner,
+					},
+					{
+						Slug:   "authenticated-app",
+						OpenIn: codersdk.WorkspaceAppOpenInTab,
+						Share:  codersdk.WorkspaceAppSharingLevelAuthenticated,
+					},
+					{
+						Slug:   "public-app",
+						OpenIn: codersdk.WorkspaceAppOpenInSlimWindow,
+						Share:  codersdk.WorkspaceAppSharingLevelPublic,
+					},
+				},
+				expectedApps: []*agentproto.CreateSubAgentRequest_App{
+					{
+						Slug:   "owner-app",
+						OpenIn: agentproto.CreateSubAgentRequest_App_SLIM_WINDOW.Enum(),
+						Share:  agentproto.CreateSubAgentRequest_App_OWNER.Enum(),
+					},
+					{
+						Slug:   "authenticated-app",
+						OpenIn: agentproto.CreateSubAgentRequest_App_TAB.Enum(),
+						Share:  agentproto.CreateSubAgentRequest_App_AUTHENTICATED.Enum(),
+					},
+					{
+						Slug:   "public-app",
+						OpenIn: agentproto.CreateSubAgentRequest_App_SLIM_WINDOW.Enum(),
+						Share:  agentproto.CreateSubAgentRequest_App_PUBLIC.Enum(),
+					},
+				},
+			},
+			{
+				name: "app with health check",
+				apps: []agentcontainers.SubAgentApp{
+					{
+						Slug: "health-app",
+						HealthCheck: &agentcontainers.SubAgentHealthCheck{
+							Interval:  60,
+							Threshold: 5,
+							URL:       "http://localhost:3000/health",
+						},
+						OpenIn: codersdk.WorkspaceAppOpenInSlimWindow,
+						Share:  codersdk.WorkspaceAppSharingLevelOwner,
+					},
+				},
+				expectedApps: []*agentproto.CreateSubAgentRequest_App{
+					{
+						Slug: "health-app",
+						Healthcheck: &agentproto.CreateSubAgentRequest_App_Healthcheck{
+							Interval:  60,
+							Threshold: 5,
+							Url:       "http://localhost:3000/health",
+						},
+						OpenIn: agentproto.CreateSubAgentRequest_App_SLIM_WINDOW.Enum(),
+						Share:  agentproto.CreateSubAgentRequest_App_OWNER.Enum(),
+					},
+				},
+			},
+			{
+				name: "app without health check",
+				apps: []agentcontainers.SubAgentApp{
+					{
+						Slug:   "no-health-app",
+						OpenIn: codersdk.WorkspaceAppOpenInTab,
+						Share:  codersdk.WorkspaceAppSharingLevelOwner,
+					},
+				},
+				expectedApps: []*agentproto.CreateSubAgentRequest_App{
+					{
+						Slug:   "no-health-app",
+						OpenIn: agentproto.CreateSubAgentRequest_App_TAB.Enum(),
+						Share:  agentproto.CreateSubAgentRequest_App_OWNER.Enum(),
+					},
+				},
+			},
+			{
+				name: "no apps",
+				apps: []agentcontainers.SubAgentApp{},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitShort)
+				logger := testutil.Logger(t)
+				statsCh := make(chan *agentproto.Stats)
+
+				agentAPI := agenttest.NewClient(t, logger, uuid.New(), agentsdk.Manifest{}, statsCh, tailnet.NewCoordinator(logger))
+
+				agentClient, _, err := agentAPI.ConnectRPC26(ctx)
+				require.NoError(t, err)
+
+				subAgentClient := agentcontainers.NewSubAgentClientFromAPI(logger, agentClient)
+
+				// When: We create a sub agent with display apps.
+				subAgent, err := subAgentClient.Create(ctx, agentcontainers.SubAgent{
+					Name:            "sub-agent-" + tt.name,
+					Directory:       "/workspaces/coder",
+					Architecture:    "amd64",
+					OperatingSystem: "linux",
+					Apps:            tt.apps,
+				})
+				require.NoError(t, err)
+
+				apps, err := agentAPI.GetSubAgentApps(subAgent.ID)
+				require.NoError(t, err)
+
+				// Then: We expect the apps to be created.
+				require.Len(t, apps, len(tt.expectedApps))
+				for i, expectedApp := range tt.expectedApps {
+					actualApp := apps[i]
+
+					assert.Equal(t, expectedApp.Slug, actualApp.Slug)
+					assert.Equal(t, expectedApp.Command, actualApp.Command)
+					assert.Equal(t, expectedApp.DisplayName, actualApp.DisplayName)
+					assert.Equal(t, expectedApp.External, actualApp.External)
+					assert.Equal(t, expectedApp.Group, actualApp.Group)
+					assert.Equal(t, expectedApp.Hidden, actualApp.Hidden)
+					assert.Equal(t, expectedApp.Icon, actualApp.Icon)
+					assert.Equal(t, expectedApp.Order, actualApp.Order)
+					assert.Equal(t, expectedApp.Subdomain, actualApp.Subdomain)
+					assert.Equal(t, expectedApp.Url, actualApp.Url)
+
+					if expectedApp.OpenIn != nil {
+						require.NotNil(t, actualApp.OpenIn)
+						assert.Equal(t, *expectedApp.OpenIn, *actualApp.OpenIn)
+					} else {
+						assert.Equal(t, expectedApp.OpenIn, actualApp.OpenIn)
+					}
+
+					if expectedApp.Share != nil {
+						require.NotNil(t, actualApp.Share)
+						assert.Equal(t, *expectedApp.Share, *actualApp.Share)
+					} else {
+						assert.Equal(t, expectedApp.Share, actualApp.Share)
+					}
+
+					if expectedApp.Healthcheck != nil {
+						require.NotNil(t, expectedApp.Healthcheck)
+						assert.Equal(t, expectedApp.Healthcheck.Interval, actualApp.Healthcheck.Interval)
+						assert.Equal(t, expectedApp.Healthcheck.Threshold, actualApp.Healthcheck.Threshold)
+						assert.Equal(t, expectedApp.Healthcheck.Url, actualApp.Healthcheck.Url)
+					} else {
+						assert.Equal(t, expectedApp.Healthcheck, actualApp.Healthcheck)
+					}
+				}
 			})
 		}
 	})

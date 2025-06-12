@@ -316,7 +316,7 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				}
 
 				dccli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
-				config, err := dccli.ReadConfig(ctx, tt.workspaceFolder, tt.configPath, tt.opts...)
+				config, err := dccli.ReadConfig(ctx, tt.workspaceFolder, tt.configPath, []string{}, tt.opts...)
 				if tt.wantError {
 					assert.Error(t, err, "want error")
 					assert.Equal(t, agentcontainers.DevcontainerConfig{}, config, "expected empty config on error")
