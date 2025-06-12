@@ -991,3 +991,237 @@ func TestAPIKey(t *testing.T) {
 		require.Equal(t, http.StatusOK, res.StatusCode)
 	})
 }
+
+func TestAPIKeyExpiryRefresh(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShortLivedKeyRefresh", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _   = dbtestutil.NewDB(t)
+			user    = dbgen.User(t, db, database.User{})
+			now     = time.Now()
+			// 2 minute lifetime
+			lifetime = int64(120)
+			// Key expires in 30 seconds (less than half the 2-minute lifetime)
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:          user.ID,
+				LastUsed:        dbtime.Now().Add(-time.Hour),
+				ExpiresAt:       dbtime.Time(now.Add(30 * time.Second)),
+				LifetimeSeconds: lifetime,
+			})
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+
+		// Mock time to be exactly now
+		successHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
+				Message: "It worked!",
+			})
+		})
+
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		// Verify the key was refreshed
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
+		require.NoError(t, err)
+
+		// For a 2-minute key, refresh threshold is 1 minute (half the lifetime)
+		// Since the key expires in 30 seconds and threshold is 1 minute,
+		// it should be refreshed
+		require.True(t, gotAPIKey.ExpiresAt.After(sentAPIKey.ExpiresAt),
+			"API key should have been refreshed for short-lived key")
+		// Should be extended by the full lifetime (2 minutes)
+		expectedExpiry := now.Add(time.Duration(lifetime) * time.Second)
+		require.WithinDuration(t, expectedExpiry, gotAPIKey.ExpiresAt, time.Second,
+			"API key should be extended by full lifetime")
+	})
+
+	t.Run("ShortLivedKeyNoRefresh", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _   = dbtestutil.NewDB(t)
+			user    = dbgen.User(t, db, database.User{})
+			now     = time.Now()
+			// 2 minute lifetime
+			lifetime = int64(120)
+			// Key expires in 90 seconds (more than half the lifetime)
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:          user.ID,
+				LastUsed:        dbtime.Now().Add(-time.Hour),
+				ExpiresAt:       dbtime.Time(now.Add(90 * time.Second)),
+				LifetimeSeconds: lifetime,
+			})
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+
+		successHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
+				Message: "It worked!",
+			})
+		})
+
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		// Verify the key was NOT refreshed
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
+		require.NoError(t, err)
+
+		// For a 2-minute key with 90 seconds remaining (> 60 second threshold),
+		// it should NOT be refreshed
+		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt,
+			"API key should NOT have been refreshed when above threshold")
+	})
+
+	t.Run("LongLivedKeyRefresh", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _   = dbtestutil.NewDB(t)
+			user    = dbgen.User(t, db, database.User{})
+			now     = time.Now()
+			// 2 hour lifetime
+			lifetime = int64(7200)
+			// Key expires in 30 minutes (less than 1 hour threshold)
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:          user.ID,
+				LastUsed:        dbtime.Now().Add(-time.Hour),
+				ExpiresAt:       dbtime.Time(now.Add(30 * time.Minute)),
+				LifetimeSeconds: lifetime,
+			})
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+
+		successHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
+				Message: "It worked!",
+			})
+		})
+
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		// Verify the key was refreshed
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
+		require.NoError(t, err)
+
+		// For a 2-hour key with 30 minutes remaining (< 1 hour threshold),
+		// it should be refreshed
+		require.True(t, gotAPIKey.ExpiresAt.After(sentAPIKey.ExpiresAt),
+			"API key should have been refreshed for long-lived key")
+		// Should be extended by the full lifetime (2 hours)
+		expectedExpiry := now.Add(time.Duration(lifetime) * time.Second)
+		require.WithinDuration(t, expectedExpiry, gotAPIKey.ExpiresAt, time.Second,
+			"API key should be extended by full lifetime")
+	})
+
+	t.Run("LongLivedKeyNoRefresh", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _   = dbtestutil.NewDB(t)
+			user    = dbgen.User(t, db, database.User{})
+			now     = time.Now()
+			// 2 hour lifetime
+			lifetime = int64(7200)
+			// Key expires in 90 minutes (more than 1 hour threshold)
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:          user.ID,
+				LastUsed:        dbtime.Now().Add(-time.Hour),
+				ExpiresAt:       dbtime.Time(now.Add(90 * time.Minute)),
+				LifetimeSeconds: lifetime,
+			})
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+
+		successHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
+				Message: "It worked!",
+			})
+		})
+
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		// Verify the key was NOT refreshed
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
+		require.NoError(t, err)
+
+		// For a 2-hour key with 90 minutes remaining (> 1 hour threshold),
+		// it should NOT be refreshed
+		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt,
+			"API key should NOT have been refreshed when above threshold")
+	})
+
+	t.Run("RefreshDisabled", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _   = dbtestutil.NewDB(t)
+			user    = dbgen.User(t, db, database.User{})
+			now     = time.Now()
+			// 2 minute lifetime
+			lifetime = int64(120)
+			// Key expires in 30 seconds (well below threshold)
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:          user.ID,
+				LastUsed:        dbtime.Now().Add(-time.Hour),
+				ExpiresAt:       dbtime.Time(now.Add(30 * time.Second)),
+				LifetimeSeconds: lifetime,
+			})
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+
+		successHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
+				Message: "It worked!",
+			})
+		})
+
+		// Disable session expiry refresh
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:                          db,
+			RedirectToLogin:             false,
+			DisableSessionExpiryRefresh: true,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		// Verify the key was NOT refreshed even though it should have been
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
+		require.NoError(t, err)
+
+		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt,
+			"API key should NOT have been refreshed when refresh is disabled")
+	})
+}

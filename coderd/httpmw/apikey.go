@@ -369,7 +369,13 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	// We extend the ExpiresAt to reduce re-authentication.
 	if !cfg.DisableSessionExpiryRefresh {
 		apiKeyLifetime := time.Duration(key.LifetimeSeconds) * time.Second
-		if key.ExpiresAt.Sub(now) <= apiKeyLifetime-time.Hour {
+		// For short-lived keys (< 1 hour), refresh when half the lifetime remains.
+		// For longer keys, refresh when 1 hour remains.
+		refreshThreshold := apiKeyLifetime - time.Hour
+		if apiKeyLifetime < time.Hour {
+			refreshThreshold = apiKeyLifetime / 2
+		}
+		if key.ExpiresAt.Sub(now) <= refreshThreshold {
 			key.ExpiresAt = now.Add(apiKeyLifetime)
 			changed = true
 		}
