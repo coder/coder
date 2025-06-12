@@ -790,11 +790,12 @@ func TestExpMcpReporter(t *testing.T) {
 			}
 		}
 
-		makeMessageEvent := func(id int64) *codersdk.ServerSentEvent {
+		makeMessageEvent := func(id int64, role agentapi.ConversationRole) *codersdk.ServerSentEvent {
 			return &codersdk.ServerSentEvent{
 				Type: ServerSentEventTypeMessageUpdate,
 				Data: agentapi.EventMessageUpdate{
-					Id: id,
+					Id:   id,
+					Role: role,
 				},
 			}
 		}
@@ -813,7 +814,7 @@ func TestExpMcpReporter(t *testing.T) {
 				return
 			}
 			// Send initial message.
-			send(*makeMessageEvent(0))
+			send(*makeMessageEvent(0, agentapi.RoleAgent))
 			listening <- send
 			<-closed
 		}))
@@ -902,12 +903,16 @@ func TestExpMcpReporter(t *testing.T) {
 					URI:     "https://dev.coder.com",
 				},
 			},
-			// Terminal becomes active again according to the screen watcher, but
-			// message length is the same.  This could be the LLM being active again,
-			// but it could also be the user messing around.  We will prefer not
-			// updating the status so the "working" update here should be skipped.
+			// Terminal becomes active again according to the screen watcher, but no
+			// new user message.  This could be the LLM being active again, but it
+			// could also be the user messing around.  We will prefer not updating the
+			// status so the "working" update here should be skipped.
 			{
 				event: makeStatusEvent(agentapi.StatusRunning),
+			},
+			// Agent messages are ignored.
+			{
+				event: makeMessageEvent(1, agentapi.RoleAgent),
 			},
 			// LLM reports that it failed and URI is blank.
 			{
@@ -923,10 +928,10 @@ func TestExpMcpReporter(t *testing.T) {
 			{
 				event: makeStatusEvent(agentapi.StatusRunning),
 			},
-			// ... but this time the message length has increased so we know there is
-			// LLM activity.  This time the "working" update will not be skipped.
+			// ... but this time we have a new user message so we know there is LLM
+			// activity.  This time the "working" update will not be skipped.
 			{
-				event: makeMessageEvent(1),
+				event: makeMessageEvent(2, agentapi.RoleUser),
 				expected: &codersdk.WorkspaceAppStatus{
 					State:   codersdk.WorkspaceAppStatusStateWorking,
 					Message: "oops",

@@ -493,6 +493,9 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 }
 
 func (s *mcpServer) startReporter(ctx context.Context, inv *serpent.Invocation) {
+	// lastMessageID is the ID of the last *user* message that we saw.  A user
+	// message only happens when interacting via the API (as opposed to
+	// interacting with the terminal directly).
 	var lastMessageID int64
 	shouldUpdate := func(item reportTask) codersdk.WorkspaceAppStatusState {
 		// Always send self-reported updates.
@@ -505,18 +508,17 @@ func (s *mcpServer) startReporter(ctx context.Context, inv *serpent.Invocation) 
 			codersdk.WorkspaceAppStatusStateFailure:
 			return item.state
 		}
-		// Always send "working" when there is a new message, since this means the
-		// user submitted a message through the API and we know the LLM will begin
-		// work soon if it has not already.
+		// Always send "working" when there is a new user message, since we know the
+		// LLM will begin work soon if it has not already.
 		if item.messageID > lastMessageID {
 			return codersdk.WorkspaceAppStatusStateWorking
 		}
-		// Otherwise, if the state is "working" and there have been no new messages,
-		// it means either that the LLM is still working or it means the user has
-		// interacted with the terminal directly.  For now, we are ignoring these
-		// updates.  This risks missing cases where the user manually submits a new
-		// prompt and the LLM becomes active and does not update itself, but it
-		// avoids spamming useless status updates.
+		// Otherwise, if the state is "working" and there have been no new user
+		// messages, it means either that the LLM is still working or it means the
+		// user has interacted with the terminal directly.  For now, we are ignoring
+		// these updates.  This risks missing cases where the user manually submits
+		// a new prompt and the LLM becomes active and does not update itself, but
+		// it avoids spamming useless status updates.
 		return ""
 	}
 	var lastPayload agentsdk.PatchAppStatus
@@ -599,12 +601,14 @@ func (s *mcpServer) startWatcher(ctx context.Context, inv *serpent.Invocation) {
 						return
 					}
 				case agentapi.EventMessageUpdate:
-					err := s.queue.Push(reportTask{
-						messageID: ev.Id,
-					})
-					if err != nil {
-						cliui.Warnf(inv.Stderr, "Failed to queue update: %s", err)
-						return
+					if ev.Role == agentapi.RoleUser {
+						err := s.queue.Push(reportTask{
+							messageID: ev.Id,
+						})
+						if err != nil {
+							cliui.Warnf(inv.Stderr, "Failed to queue update: %s", err)
+							return
+						}
 					}
 				}
 			case err := <-errCh:
