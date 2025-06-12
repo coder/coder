@@ -26,7 +26,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
-import { ArrowLeft, CircleHelp, Undo2 } from "lucide-react";
+import { ArrowLeft, CircleHelp } from "lucide-react";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
 import { Diagnostics } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import {
@@ -38,7 +38,6 @@ import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName"
 import {
 	type FC,
 	useCallback,
-	useContext,
 	useEffect,
 	useId,
 	useRef,
@@ -52,7 +51,6 @@ import type {
 	CreateWorkspaceMode,
 	ExternalAuthPollingState,
 } from "./CreateWorkspacePage";
-import { ExperimentalFormContext } from "./ExperimentalFormContext";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
@@ -112,7 +110,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 	owner,
 	setOwner,
 }) => {
-	const experimentalFormContext = useContext(ExperimentalFormContext);
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
 	);
@@ -372,16 +369,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 								</Badge>
 							)}
 						</span>
-						{experimentalFormContext && (
-							<Button
-								size="sm"
-								variant="outline"
-								onClick={experimentalFormContext.toggleOptedOut}
-							>
-								<Undo2 />
-								Classic workspace creation
-							</Button>
-						)}
 					</div>
 					<span className="flex flex-row items-center gap-2">
 						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
