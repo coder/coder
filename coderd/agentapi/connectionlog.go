@@ -69,7 +69,7 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 
 		// It's not possible to tell which user connected. Once we have
 		// the capability, this may be reported by the agent.
-		UserID: uuid.Nil, // We don't have the user ID in the connection request.
+		UserID: uuid.Nil,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("export connection log: %w", err)
