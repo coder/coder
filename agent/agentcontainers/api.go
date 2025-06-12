@@ -1099,6 +1099,17 @@ func (api *API) injectSubAgentIntoContainerLocked(ctx context.Context, dc coders
 		directory = DevcontainerDefaultContainerWorkspaceFolder
 	}
 
+	var displayApps []codersdk.DisplayApp
+
+	if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath); err != nil {
+		api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
+	} else {
+		coderCustomization := config.Configuration.Customizations.Coder
+		if coderCustomization != nil {
+			displayApps = coderCustomization.DisplayApps
+		}
+	}
+
 	// The preparation of the subagent is done, now we can create the
 	// subagent record in the database to receive the auth token.
 	createdAgent, err := api.subAgentClient.Create(ctx, SubAgent{
@@ -1106,6 +1117,7 @@ func (api *API) injectSubAgentIntoContainerLocked(ctx context.Context, dc coders
 		Directory:       directory,
 		OperatingSystem: "linux", // Assuming Linux for dev containers.
 		Architecture:    arch,
+		DisplayApps:     displayApps,
 	})
 	if err != nil {
 		return xerrors.Errorf("create agent: %w", err)

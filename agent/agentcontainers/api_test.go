@@ -60,11 +60,14 @@ func (f *fakeContainerCLI) ExecAs(ctx context.Context, name, user string, args .
 // fakeDevcontainerCLI implements the agentcontainers.DevcontainerCLI
 // interface for testing.
 type fakeDevcontainerCLI struct {
-	upID     string
-	upErr    error
-	upErrC   chan error // If set, send to return err, close to return upErr.
-	execErr  error
-	execErrC chan func(cmd string, args ...string) error // If set, send fn to return err, nil or close to return execErr.
+	upID           string
+	upErr          error
+	upErrC         chan error // If set, send to return err, close to return upErr.
+	execErr        error
+	execErrC       chan func(cmd string, args ...string) error // If set, send fn to return err, nil or close to return execErr.
+	readConfig     agentcontainers.DevcontainerConfig
+	readConfigErr  error
+	readConfigErrC chan error
 }
 
 func (f *fakeDevcontainerCLI) Up(ctx context.Context, _, _ string, _ ...agentcontainers.DevcontainerCLIUpOptions) (string, error) {
@@ -93,6 +96,20 @@ func (f *fakeDevcontainerCLI) Exec(ctx context.Context, _, _ string, cmd string,
 		}
 	}
 	return f.execErr
+}
+
+func (f *fakeDevcontainerCLI) ReadConfig(ctx context.Context, _, _ string, _ ...agentcontainers.DevcontainerCLIReadConfigOptions) (agentcontainers.DevcontainerConfig, error) {
+	if f.readConfigErrC != nil {
+		select {
+		case <-ctx.Done():
+			return agentcontainers.DevcontainerConfig{}, ctx.Err()
+		case err, ok := <-f.readConfigErrC:
+			if ok {
+				return f.readConfig, err
+			}
+		}
+	}
+	return f.readConfig, f.readConfigErr
 }
 
 // fakeWatcher implements the watcher.Watcher interface for testing.
@@ -1132,10 +1149,12 @@ func TestAPI(t *testing.T) {
 				Containers: []codersdk.WorkspaceAgentContainer{container},
 			},
 		}
+		fDCCLI := &fakeDevcontainerCLI{}
 
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		api := agentcontainers.NewAPI(
 			logger,
+			agentcontainers.WithDevcontainerCLI(fDCCLI),
 			agentcontainers.WithContainerCLI(fLister),
 			agentcontainers.WithWatcher(fWatcher),
 			agentcontainers.WithClock(mClock),
@@ -1420,6 +1439,130 @@ func TestAPI(t *testing.T) {
 		// Verify agent was deleted.
 		assert.Contains(t, fakeSAC.deleted, existingAgentID)
 		assert.Empty(t, fakeSAC.agents)
+	})
+
+	t.Run("Create", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("Dev Container tests are not supported on Windows (this test uses mocks but fails due to Windows paths)")
+		}
+
+		tests := []struct {
+			name          string
+			customization *agentcontainers.CoderCustomization
+			afterCreate   func(t *testing.T, subAgent agentcontainers.SubAgent)
+		}{
+			{
+				name:          "WithoutCustomization",
+				customization: nil,
+			},
+			{
+				name: "WithDisplayApps",
+				customization: &agentcontainers.CoderCustomization{
+					DisplayApps: []codersdk.DisplayApp{
+						codersdk.DisplayAppSSH,
+						codersdk.DisplayAppWebTerminal,
+						codersdk.DisplayAppVSCodeInsiders,
+					},
+				},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.Len(t, subAgent.DisplayApps, 3)
+					assert.Equal(t, codersdk.DisplayAppSSH, subAgent.DisplayApps[0])
+					assert.Equal(t, codersdk.DisplayAppWebTerminal, subAgent.DisplayApps[1])
+					assert.Equal(t, codersdk.DisplayAppVSCodeInsiders, subAgent.DisplayApps[2])
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				var (
+					ctx    = testutil.Context(t, testutil.WaitMedium)
+					logger = testutil.Logger(t)
+					mClock = quartz.NewMock(t)
+					mCCLI  = acmock.NewMockContainerCLI(gomock.NewController(t))
+					fSAC   = &fakeSubAgentClient{createErrC: make(chan error, 1)}
+					fDCCLI = &fakeDevcontainerCLI{
+						readConfig: agentcontainers.DevcontainerConfig{
+							Configuration: agentcontainers.DevcontainerConfiguration{
+								Customizations: agentcontainers.DevcontainerCustomizations{
+									Coder: tt.customization,
+								},
+							},
+						},
+						execErrC: make(chan func(cmd string, args ...string) error, 1),
+					}
+
+					testContainer = codersdk.WorkspaceAgentContainer{
+						ID:           "test-container-id",
+						FriendlyName: "test-container",
+						Image:        "test-image",
+						Running:      true,
+						CreatedAt:    time.Now(),
+						Labels: map[string]string{
+							agentcontainers.DevcontainerLocalFolderLabel: "/workspaces",
+							agentcontainers.DevcontainerConfigFileLabel:  "/workspace/.devcontainer/devcontainer.json",
+						},
+					}
+				)
+
+				coderBin, err := os.Executable()
+				require.NoError(t, err)
+
+				// Mock the `List` function to always return out test container.
+				mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+					Containers: []codersdk.WorkspaceAgentContainer{testContainer},
+				}, nil).AnyTimes()
+
+				// Mock the steps used for injecting the coder agent.
+				gomock.InOrder(
+					mCCLI.EXPECT().DetectArchitecture(gomock.Any(), testContainer.ID).Return(runtime.GOARCH, nil),
+					mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
+					mCCLI.EXPECT().Copy(gomock.Any(), testContainer.ID, coderBin, "/.coder-agent/coder").Return(nil),
+					mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
+				)
+
+				mClock.Set(time.Now()).MustWait(ctx)
+				tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+
+				api := agentcontainers.NewAPI(logger,
+					agentcontainers.WithClock(mClock),
+					agentcontainers.WithContainerCLI(mCCLI),
+					agentcontainers.WithDevcontainerCLI(fDCCLI),
+					agentcontainers.WithSubAgentClient(fSAC),
+					agentcontainers.WithSubAgentURL("test-subagent-url"),
+					agentcontainers.WithWatcher(watcher.NewNoop()),
+				)
+				defer api.Close()
+
+				// Close before api.Close() defer to avoid deadlock after test.
+				defer close(fSAC.createErrC)
+				defer close(fDCCLI.execErrC)
+
+				// Given: We allow agent creation and injection to succeed.
+				testutil.RequireSend(ctx, t, fSAC.createErrC, nil)
+				testutil.RequireSend(ctx, t, fDCCLI.execErrC, func(cmd string, args ...string) error {
+					assert.Equal(t, "pwd", cmd)
+					assert.Empty(t, args)
+					return nil
+				})
+
+				// Wait until the ticker has been registered.
+				tickerTrap.MustWait(ctx).MustRelease(ctx)
+				tickerTrap.Close()
+
+				// Then: We expected it to succeed
+				require.Len(t, fSAC.created, 1)
+				assert.Equal(t, testContainer.FriendlyName, fSAC.created[0].Name)
+
+				if tt.afterCreate != nil {
+					tt.afterCreate(t, fSAC.created[0])
+				}
+			})
+		}
 	})
 }
 
