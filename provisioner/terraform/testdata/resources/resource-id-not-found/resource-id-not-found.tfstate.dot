@@ -2,8 +2,16 @@ digraph {
 	compound = "true"
 	newrank = "true"
 	subgraph "root" {
-		"[root] null_resource.example" [label = "null_resource.example", shape = "box"]
-		"[root] coder_metadata.example" [label = "coder_metadata.example", shape = "box"]
-		"[root] coder_metadata.example" -> "[root] null_resource.example"
+		"[root] coder_metadata.example (expand)" [label = "coder_metadata.example", shape = "box"]
+		"[root] null_resource.example (expand)" [label = "null_resource.example", shape = "box"]
+		"[root] provider[\"registry.terraform.io/coder/coder\"]" [label = "provider[\"registry.terraform.io/coder/coder\"]", shape = "diamond"]
+		"[root] provider[\"registry.terraform.io/hashicorp/null\"]" [label = "provider[\"registry.terraform.io/hashicorp/null\"]", shape = "diamond"]
+		"[root] coder_metadata.example (expand)" -> "[root] null_resource.example (expand)"
+		"[root] coder_metadata.example (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] null_resource.example (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"]"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_metadata.example (expand)"
+		"[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)" -> "[root] null_resource.example (expand)"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/coder/coder\"] (close)"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)"
 	}
 }

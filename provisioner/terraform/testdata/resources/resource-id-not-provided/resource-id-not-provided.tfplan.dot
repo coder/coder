@@ -1,9 +1,0 @@
-digraph {
-	compound = "true"
-	newrank = "true"
-	subgraph "root" {
-		"[root] null_resource.example" [label = "null_resource.example", shape = "box"]
-		"[root] coder_metadata.example" [label = "coder_metadata.example", shape = "box"]
-		"[root] coder_metadata.example" -> "[root] null_resource.example"
-	}
-}
