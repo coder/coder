@@ -82,4 +82,29 @@ func TestQueue(t *testing.T) {
 		err := q.Push(10)
 		require.Error(t, err)
 	})
+
+	t.Run("WithPredicate", func(t *testing.T) {
+		t.Parallel()
+
+		q := cliutil.NewQueue[int](10)
+		q.WithPredicate(func(n int) (int, bool) {
+			if n == 2 {
+				return n, false
+			}
+			return n + 1, true
+		})
+
+		for i := 0; i < 5; i++ {
+			err := q.Push(i)
+			require.NoError(t, err)
+		}
+
+		got := []int{}
+		for i := 0; i < 4; i++ {
+			val, ok := q.Pop()
+			require.True(t, ok)
+			got = append(got, val)
+		}
+		require.Equal(t, []int{1, 2, 4, 5}, got)
+	})
 }

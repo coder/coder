@@ -361,7 +361,7 @@ func (*RootCmd) mcpConfigureCursor() *serpent.Command {
 	return cmd
 }
 
-type reportTask struct {
+type taskReport struct {
 	link         string
 	messageID    int64
 	selfReported bool
@@ -374,7 +374,7 @@ type mcpServer struct {
 	appStatusSlug string
 	client        *codersdk.Client
 	llmClient     *agentapi.Client
-	queue         *cliutil.Queue[reportTask]
+	queue         *cliutil.Queue[taskReport]
 }
 
 func (r *RootCmd) mcpServer() *serpent.Command {
@@ -388,9 +388,50 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 	return &serpent.Command{
 		Use: "server",
 		Handler: func(inv *serpent.Invocation) error {
+			// lastUserMessageID is the ID of the last *user* message that we saw.  A
+			// user message only happens when interacting via the LLM agent API (as
+			// opposed to interacting with the terminal directly).
+			var lastUserMessageID int64
+			var lastReport taskReport
+			// Create a queue that skips duplicates and preserves summaries.
+			queue := cliutil.NewQueue[taskReport](512).WithPredicate(func(report taskReport) (taskReport, bool) {
+				// Use "working" status if this is a new user message.  If this is not a
+				// new user message, and the status is "working" and not self-reported
+				// (meaning it came from the screen watcher), then it means one of two
+				// things:
+				// 1. The LLM is still working, so there is nothing to update.
+				// 2. The LLM stopped working, then the user has interacted with the
+				//    terminal directly.  For now, we are ignoring these updates.  This
+				//    risks missing cases where the user manually submits a new prompt
+				//    and the LLM becomes active and does not update itself, but it
+				//    avoids spamming useless status updates as the user is typing, so
+				//    the tradeoff is worth it.  In the future, if we can reliably
+				//    distinguish between user and LLM activity, we can change this.
+				if report.messageID > lastUserMessageID {
+					report.state = codersdk.WorkspaceAppStatusStateWorking
+				} else if report.state == codersdk.WorkspaceAppStatusStateWorking && !report.selfReported {
+					return report, false
+				}
+				// Preserve previous message and URI if there was no message.
+				if report.summary == "" {
+					report.summary = lastReport.summary
+					if report.link == "" {
+						report.link = lastReport.link
+					}
+				}
+				// Avoid queueing duplicate updates.
+				if report.state == lastReport.state &&
+					report.link == lastReport.link &&
+					report.summary == lastReport.summary {
+					return report, false
+				}
+				lastReport = report
+				return report, true
+			})
+
 			srv := &mcpServer{
 				appStatusSlug: appStatusSlug,
-				queue:         cliutil.NewQueue[reportTask](100),
+				queue:         queue,
 			}
 
 			// Display client URL separately from authentication status.
@@ -505,35 +546,6 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 }
 
 func (s *mcpServer) startReporter(ctx context.Context, inv *serpent.Invocation) {
-	// lastMessageID is the ID of the last *user* message that we saw.  A user
-	// message only happens when interacting via the API (as opposed to
-	// interacting with the terminal directly).
-	var lastMessageID int64
-	shouldUpdate := func(item reportTask) codersdk.WorkspaceAppStatusState {
-		// Always send self-reported updates.
-		if item.selfReported {
-			return item.state
-		}
-		// Always send completed states.
-		switch item.state {
-		case codersdk.WorkspaceAppStatusStateComplete,
-			codersdk.WorkspaceAppStatusStateFailure:
-			return item.state
-		}
-		// Always send "working" when there is a new user message, since we know the
-		// LLM will begin work soon if it has not already.
-		if item.messageID > lastMessageID {
-			return codersdk.WorkspaceAppStatusStateWorking
-		}
-		// Otherwise, if the state is "working" and there have been no new user
-		// messages, it means either that the LLM is still working or it means the
-		// user has interacted with the terminal directly.  For now, we are ignoring
-		// these updates.  This risks missing cases where the user manually submits
-		// a new prompt and the LLM becomes active and does not update itself, but
-		// it avoids spamming useless status updates.
-		return ""
-	}
-	var lastPayload agentsdk.PatchAppStatus
 	go func() {
 		for {
 			// TODO: Even with the queue, there is still the potential that a message
@@ -545,44 +557,14 @@ func (s *mcpServer) startReporter(ctx context.Context, inv *serpent.Invocation) 
 				return
 			}
 
-			state := shouldUpdate(item)
-			if state == "" {
-				continue
-			}
-
-			if item.messageID != 0 {
-				lastMessageID = item.messageID
-			}
-
-			payload := agentsdk.PatchAppStatus{
+			err := s.agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
 				AppSlug: s.appStatusSlug,
 				Message: item.summary,
 				URI:     item.link,
-				State:   state,
-			}
-
-			// Preserve previous message and URI if there was no message.
-			if payload.Message == "" {
-				payload.Message = lastPayload.Message
-				if payload.URI == "" {
-					payload.URI = lastPayload.URI
-				}
-			}
-
-			// Avoid sending duplicate updates.
-			if lastPayload.State == payload.State &&
-				lastPayload.URI == payload.URI &&
-				lastPayload.Message == payload.Message {
-				continue
-			}
-
-			err := s.agentClient.PatchAppStatus(ctx, payload)
+				State:   item.state,
+			})
 			if err != nil && !errors.Is(err, context.Canceled) {
 				cliui.Warnf(inv.Stderr, "Failed to report task status: %s", err)
-			}
-
-			if err == nil {
-				lastPayload = payload
 			}
 		}
 	}()
@@ -607,7 +589,7 @@ func (s *mcpServer) startWatcher(ctx context.Context, inv *serpent.Invocation) {
 					if ev.Status == agentapi.StatusStable {
 						state = codersdk.WorkspaceAppStatusStateComplete
 					}
-					err := s.queue.Push(reportTask{
+					err := s.queue.Push(taskReport{
 						state: state,
 					})
 					if err != nil {
@@ -616,7 +598,7 @@ func (s *mcpServer) startWatcher(ctx context.Context, inv *serpent.Invocation) {
 					}
 				case agentapi.EventMessageUpdate:
 					if ev.Role == agentapi.RoleUser {
-						err := s.queue.Push(reportTask{
+						err := s.queue.Push(taskReport{
 							messageID: ev.Id,
 						})
 						if err != nil {
@@ -667,7 +649,7 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 	// Add tool dependencies.
 	toolOpts := []func(*toolsdk.Deps){
 		toolsdk.WithTaskReporter(func(args toolsdk.ReportTaskArgs) error {
-			return s.queue.Push(reportTask{
+			return s.queue.Push(taskReport{
 				link:         args.Link,
 				selfReported: true,
 				state:        codersdk.WorkspaceAppStatusState(args.State),
