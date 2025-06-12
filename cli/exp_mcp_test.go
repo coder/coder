@@ -905,6 +905,10 @@ func TestExpMcpReporter(t *testing.T) {
 					URI:     "https://dev.coder.com",
 				},
 			},
+			// A completed update at this point from the watcher should be discarded.
+			{
+				event: makeStatusEvent(agentapi.StatusStable),
+			},
 			// Terminal becomes active again according to the screen watcher, but no
 			// new user message.  This could be the LLM being active again, but it
 			// could also be the user messing around.  We will prefer not updating the
