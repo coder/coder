@@ -16,7 +16,7 @@ func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 
 	// Something, somewhere is adding a duplicate header.
 	// Haven't been able to track it down yet.
-	rw.Header().Del("Access-Control-Allow-Origin")
+	//rw.Header().Del("Access-Control-Allow-Origin")
 
 	if len(api.AIBridgeDaemons) == 0 {
 		http.Error(rw, "no AI bridge daemons running", http.StatusInternalServerError)
@@ -39,5 +39,9 @@ func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rp := httputil.NewSingleHostReverseProxy(u)
+	rp.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		api.Logger.Error(ctx, "aibridge reverse proxy error", slog.Error(err))
+		http.Error(w, "aibridge internal error", http.StatusBadGateway)
+	}
 	http.StripPrefix("/api/v2/aibridge", rp).ServeHTTP(rw, r)
 }

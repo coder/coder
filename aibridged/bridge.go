@@ -3,7 +3,9 @@ package aibridged
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -13,14 +15,16 @@ import (
 	"os"
 	"strings"
 
-	"cdr.dev/slog"
 	"github.com/anthropics/anthropic-sdk-go"
 	ant_ssestream "github.com/anthropics/anthropic-sdk-go/packages/ssestream"
+	"github.com/google/uuid"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 	openai_ssestream "github.com/openai/openai-go/packages/ssestream"
 	"github.com/tidwall/gjson"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
@@ -92,11 +96,11 @@ func (b *ChatCompletionNewParamsWrapper) UnmarshalJSON(raw []byte) error {
 	return nil
 }
 
-//type SSERoundTripper struct {
+// type SSERoundTripper struct {
 //	transport http.RoundTripper
 //}
 //
-//func (s *SSERoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+// func (s *SSERoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 //	// Use default transport if none specified
 //	transport := s.transport
 //	if transport == nil {
@@ -143,7 +147,7 @@ func (b *ChatCompletionNewParamsWrapper) UnmarshalJSON(raw []byte) error {
 //	return resp, err
 //}
 //
-//func wrapResponseBody(body io.ReadCloser) io.ReadCloser {
+// func wrapResponseBody(body io.ReadCloser) io.ReadCloser {
 //	pr, pw := io.Pipe()
 //	go func() {
 //		defer pw.Close()
@@ -173,12 +177,138 @@ func (b *Bridge) openAITarget() *url.URL {
 	target, err := url.Parse(u)
 	if err != nil {
 		panic(fmt.Sprintf("failed to parse %q", u))
-		return nil
+
 	}
 	return target
 }
 
 func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
+	sessionID := uuid.New()
+	_, _ = fmt.Fprintf(os.Stderr, "[%s] new chat session started\n\n", sessionID)
+	defer func() {
+		_, _ = fmt.Fprintf(os.Stderr, "[%s] chat session ended\n\n", sessionID)
+	}()
+
+	// Required characteristics:
+	// 1.  Client-side cancel
+	// 2.  No timeout (SSE)
+	// 3a. client->coderd conn established
+	// 3b. coderd->AI provider conn established
+	// 4.  responses from AI provider->coderd must be parsed, optionally reflected back to client
+	// 5.  tool calls must be injected and intercepted, transparently to the client
+	// 6.  multiple calls can be made to AI provider while holding client->coderd conn open
+	// 7.  client->coderd conn must ONLY be closed on client-side disconn or coderd->AI provider non-recoverable error.
+
+	// Allow us to interrupt watch via cancel.
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
+
+	eventsCh := make(chan any)
+
+	// Establish SSE stream which we will connect to requesting client.
+	clientStream := NewSSEStream(eventsCh, b.logger.Named("sse-stream"))
+
+	coderdClient, ok := b.clientFn()
+	if !ok {
+		// TODO: log issue.
+		http.Error(w, "could not acquire coderd client", http.StatusInternalServerError)
+		return
+	}
+	_ = coderdClient
+
+	// Parse incoming request, inject tool calls.
+	var in ChatCompletionNewParamsWrapper
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		b.logger.Error(r.Context(), "failed to read body", slog.Error(err))
+		http.Error(w, "failed to read body", http.StatusInternalServerError)
+		return
+	}
+
+	if err = json.Unmarshal(body, &in); err != nil {
+		b.logger.Error(r.Context(), "failed to unmarshal request", slog.Error(err))
+		http.Error(w, "failed to unmarshal request", http.StatusInternalServerError)
+		return
+	}
+
+	//// Prepend assistant message.
+	// in.Messages = append([]openai.ChatCompletionMessageParamUnion{
+	//	openai.SystemMessage("You are a helpful assistant that explicitly mentions when tool calls are about to be made."),
+	//}, in.Messages...)
+
+	// in.Tools = []openai.ChatCompletionToolParam{
+	//	{
+	//		Function: openai.FunctionDefinitionParam{
+	//			Name:        "get_weather",
+	//			Description: openai.String("Get weather at the given location"),
+	//			Parameters: openai.FunctionParameters{
+	//				"type": "object",
+	//				"properties": map[string]interface{}{
+	//					"location": map[string]string{
+	//						"type": "string",
+	//					},
+	//				},
+	//				"required": []string{"location"},
+	//			},
+	//		},
+	//	},
+	//}
+
+	client := openai.NewClient()
+
+	done := make(chan struct{})
+	if in.Stream {
+		go func() {
+			stream := client.Chat.Completions.NewStreaming(ctx, in.ChatCompletionNewParams)
+
+			for stream.Next() {
+				evt := stream.Current()
+				// if len(evt.Choices) > 0 {
+				//	fmt.Print(evt.Choices[0].Delta.Content)
+				//}
+
+				_, _ = fmt.Fprintf(os.Stderr, "[%s] %s\n\n", sessionID, evt.RawJSON())
+				eventsCh <- evt.RawJSON()
+			}
+
+			if err := stream.Err(); err != nil {
+				// TODO: handle error.
+				b.logger.Error(ctx, "server stream error", slog.Error(err))
+				return
+			}
+
+			eventsCh <- `[DONE]`
+
+			// TODO: wait for ACK of [DONE] before flushing and exiting.
+
+			if flusher, ok := w.(http.Flusher); ok {
+				flusher.Flush()
+			}
+
+			close(done)
+		}()
+
+		// TODO: improve impl here for more explicit context control.
+		err = clientStream.transmit(ctx, done, w, r)
+		if err != nil && !errors.Is(err, ErrDone) {
+			b.logger.Error(ctx, "SSE stream exited", slog.Error(err))
+		}
+	} else {
+		completion, err := client.Chat.Completions.New(ctx, in.ChatCompletionNewParams)
+		if err != nil {
+			b.logger.Error(ctx, "chat completion failed", slog.Error(err))
+			http.Error(w, "chat completion failed", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK) // TODO: always?
+		_, _ = w.Write([]byte(completion.RawJSON()))
+	}
+}
+
+func (b *Bridge) proxyOpenAIRequestPrev(w http.ResponseWriter, r *http.Request) {
 	coderdClient, ok := b.clientFn()
 	if !ok {
 		// TODO: log issue.
@@ -363,7 +493,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		originalDirector(req)
-		//Add OpenAI-specific headers
+		// Add OpenAI-specific headers
 		if strings.TrimSpace(req.Header.Get("Authorization")) == "" {
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("OPENAI_API_KEY")))
 		}

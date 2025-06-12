@@ -2,7 +2,6 @@ package aibridged_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -10,9 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/serpent"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 	"storj.io/drpc"
+
+	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/aibridged"
 	"github.com/coder/coder/v2/aibridged/proto"
@@ -110,11 +111,11 @@ func (f *fakeBridgeDaemonClient) DRPCConn() drpc.Conn {
 	return conn
 }
 func (f *fakeBridgeDaemonClient) AuditPrompt(ctx context.Context, in *proto.AuditPromptRequest) (*proto.AuditPromptResponse, error) {
-	return nil, errors.New("not implemented")
+	return nil, xerrors.New("not implemented")
 }
 func (f *fakeBridgeDaemonClient) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageRequest) (*proto.TrackTokenUsageResponse, error) {
-	return nil, errors.New("not implemented")
+	return nil, xerrors.New("not implemented")
 }
 func (f *fakeBridgeDaemonClient) TrackUserPrompts(ctx context.Context, in *proto.TrackUserPromptsRequest) (*proto.TrackUserPromptsResponse, error) {
-	return nil, errors.New("not implemented")
+	return nil, xerrors.New("not implemented")
 }

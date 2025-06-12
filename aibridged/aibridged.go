@@ -8,11 +8,12 @@ import (
 	"sync"
 	"time"
 
-	"cdr.dev/slog"
-	"github.com/coder/retry"
 	"github.com/hashicorp/yamux"
 	"github.com/valyala/fasthttp/fasthttputil"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
+	"github.com/coder/retry"
 
 	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
@@ -48,7 +49,7 @@ type Server struct {
 	// shuttingDownCh will receive when we start graceful shutdown
 	shuttingDownCh chan struct{}
 
-	bridge   *Bridge
+	bridge *Bridge
 }
 
 var _ proto.DRPCAIBridgeDaemonServer = &Server{}
@@ -95,7 +96,7 @@ connectLoop:
 		// TODO(dannyk): handle premature close.
 		//// It's possible for the provisioner daemon to be shut down
 		//// before the wait is complete!
-		//if s.isClosed() {
+		// if s.isClosed() {
 		//	return
 		//}
 
@@ -187,7 +188,7 @@ func (s *Server) TrackUserPrompts(ctx context.Context, in *proto.TrackUserPrompt
 	return out, nil
 }
 
-//func (s *Server) ChatCompletions(payload *proto.JSONPayload, stream proto.DRPCOpenAIService_ChatCompletionsStream) error {
+// func (s *Server) ChatCompletions(payload *proto.JSONPayload, stream proto.DRPCOpenAIService_ChatCompletionsStream) error {
 //	// TODO: call OpenAI API.
 //
 //	select {
@@ -233,7 +234,7 @@ func (s *Server) TrackUserPrompts(ctx context.Context, in *proto.TrackUserPrompt
 //  },
 //  "service_tier": "default"
 //}
-//`})
+// `})
 //	if err != nil {
 //		return xerrors.Errorf("stream chat completion response: %w", err)
 //	}
@@ -317,7 +318,7 @@ func (s *Server) Close() error {
 	}
 
 	s.logger.Info(s.closeContext, "closing aibridged")
-	// TODO: invalidate all running requests (cancelling context should be enough?).
+	// TODO: invalidate all running requests (canceling context should be enough?).
 	errMsg := "aibridged closed gracefully"
 	err := s.closeWithError(nil)
 	if err != nil {
