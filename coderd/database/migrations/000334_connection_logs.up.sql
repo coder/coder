@@ -1,26 +1,26 @@
 CREATE TYPE connection_action AS ENUM (
-    -- SSH actions
-    'connect',
-    'disconnect',
-    -- Workspace App actions
-    'open',
-    'close'
+	-- SSH actions
+	'connect',
+	'disconnect',
+	-- Workspace App actions
+	'open',
+	'close'
 );
 
 CREATE TABLE connection_logs (
-    id uuid NOT NULL,
-    "time" timestamp with time zone NOT NULL,
-    organization_id uuid NOT NULL,
-    workspace_owner_id uuid NOT NULL,
-    workspace_id uuid NOT NULL REFERENCES workspaces (id) ON DELETE SET NULL,
-    workspace_name text NOT NULL,
-    agent_name text NOT NULL,
-    action connection_action NOT NULL,
-    code integer NOT NULL,
+	id uuid NOT NULL,
+	"time" timestamp with time zone NOT NULL,
+	organization_id uuid NOT NULL,
+	workspace_owner_id uuid NOT NULL,
+	workspace_id uuid NOT NULL REFERENCES workspaces (id) ON DELETE SET NULL,
+	workspace_name text NOT NULL,
+	agent_name text NOT NULL,
+	action connection_action NOT NULL,
+	code integer NOT NULL,
 	ip inet,
 
 	-- Null for SSH actions.
-    user_agent text,
+	user_agent text,
 	user_id uuid NOT NULL, -- Can be NULL, but must be uuid.Nil.
 	slug_or_port text,
 
@@ -28,7 +28,7 @@ CREATE TABLE connection_logs (
 	connection_type text,
 	reason text,
 
-    PRIMARY KEY (id)
+	PRIMARY KEY (id)
 );
 
 COMMENT ON COLUMN connection_logs.code IS 'Either the HTTP status code for the workspace app request, or the exit code of an SSH connection.';
