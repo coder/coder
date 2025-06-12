@@ -412,6 +412,9 @@ var (
 						policy.ActionCreate, policy.ActionDelete, policy.ActionRead, policy.ActionUpdate,
 						policy.ActionWorkspaceStart, policy.ActionWorkspaceStop,
 					},
+					// PrebuiltWorkspaces are a subset of Workspaces.
+					// Explicitly setting PrebuiltWorkspace permissions for clarity.
+					// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
 					rbac.ResourcePrebuiltWorkspace.Type: {
 						policy.ActionRead, policy.ActionUpdate, policy.ActionDelete,
 					},

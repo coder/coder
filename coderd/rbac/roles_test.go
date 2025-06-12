@@ -501,8 +501,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourcePrebuiltWorkspace.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgMemberMe, templateAdmin, orgTemplateAdmin},
-				false: {setOtherOrg, userAdmin, memberMe, orgAdmin, orgUserAdmin, orgAuditor},
+				true:  {owner, orgAdmin, templateAdmin, orgTemplateAdmin},
+				false: {setOtherOrg, userAdmin, memberMe, orgUserAdmin, orgAuditor, orgMemberMe},
 			},
 		},
 		// Some admin style resources
