@@ -1348,6 +1348,12 @@ UploadFileStream:
 			if err != nil {
 				return xerrors.Errorf("unable to create file upload: %w", err)
 			}
+
+			if file.IsDone() {
+				// If a file is 0 bytes, we can consider it done immediately.
+				// This should never really happen in practice, but we handle it gracefully.
+				break UploadFileStream
+			}
 		case *proto.UploadFileRequest_ChunkPiece:
 			if file == nil {
 				return xerrors.New("unexpected chunk piece while waiting for file upload")

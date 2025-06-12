@@ -31,6 +31,7 @@ func TestUploadFileLargeModuleFiles(t *testing.T) {
 	})
 
 	testSizes := []int{
+		0,                             // Empty file
 		512,                           // A small file
 		drpcsdk.MaxMessageSize + 1024, // Just over the limit
 		drpcsdk.MaxMessageSize * 2,    // 2x the limit

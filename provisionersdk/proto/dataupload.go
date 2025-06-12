@@ -69,6 +69,13 @@ func (b *DataBuilder) Add(chunk *ChunkPiece) (bool, error) {
 	return b.done(), nil
 }
 
+// IsDone is always safe to call
+func (b *DataBuilder) IsDone() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.done()
+}
+
 func (b *DataBuilder) Complete() ([]byte, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
