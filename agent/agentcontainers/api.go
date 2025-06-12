@@ -163,7 +163,7 @@ func WithWorkspaceName(name string) Option {
 	}
 }
 
-// WithUserName sets the workspace name for the sub-agent.
+// WithUserName sets the user name for the sub-agent.
 func WithUserName(name string) Option {
 	return func(api *API) {
 		api.userName = name
