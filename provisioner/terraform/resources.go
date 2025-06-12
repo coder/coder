@@ -209,7 +209,8 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	tfResourcesByLabel := map[string]map[string]*tfjson.StateResource{}
 
 	// Map resource IDs to labels for efficient lookup when processing metadata
-	labelByResourceID := map[string]string{}
+	// Multiple resources can have the same ID, so we store a slice of labels
+	labelsByResourceID := map[string][]string{}
 
 	// Extra array to preserve the order of rich parameters.
 	tfResourcesRichParameters := make([]*tfjson.StateResource, 0)
@@ -237,10 +238,10 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			}
 			tfResourcesByLabel[label][resource.Address] = resource
 
-			// Build the ID to label map
+			// Build the ID to labels map - multiple resources can have the same ID
 			if idAttr, hasID := resource.AttributeValues["id"]; hasID {
 				if idStr, ok := idAttr.(string); ok && idStr != "" {
-					labelByResourceID[idStr] = label
+					labelsByResourceID[idStr] = append(labelsByResourceID[idStr], label)
 				}
 			}
 		}
@@ -700,9 +701,16 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			// First, check if ResourceID is provided and try to find the resource by ID
 			if attrs.ResourceID != "" {
 				// Look for a resource with matching ID
-				foundLabel, foundByID := labelByResourceID[attrs.ResourceID]
-				if foundByID {
-					targetLabel = foundLabel
+				foundLabels := labelsByResourceID[attrs.ResourceID]
+				if len(foundLabels) == 1 {
+					// Single match - use it
+					targetLabel = foundLabels[0]
+				} else if len(foundLabels) > 1 {
+					// Multiple resources with same ID - this creates ambiguity
+					logger.Warn(ctx, "multiple resources found with same resource_id, falling back to graph traversal",
+						slog.F("resource_id", attrs.ResourceID),
+						slog.F("metadata_address", resource.Address),
+						slog.F("matching_labels", foundLabels))
 				} else {
 					// If we couldn't find by ID, fall back to graph traversal
 					logger.Warn(ctx, "coder_metadata resource_id not found, falling back to graph traversal",
