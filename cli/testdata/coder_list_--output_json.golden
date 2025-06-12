@@ -15,7 +15,7 @@
     "template_allow_user_cancel_workspace_jobs": false,
     "template_active_version_id": "============[version ID]============",
     "template_require_active_version": false,
-    "template_use_classic_parameter_flow": false,
+    "template_use_classic_parameter_flow": true,
     "latest_build": {
       "id": "========[workspace build ID]========",
       "created_at": "====[timestamp]=====",

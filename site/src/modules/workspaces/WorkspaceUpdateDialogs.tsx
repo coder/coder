@@ -10,7 +10,6 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Loader } from "components/Loader/Loader";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { useDynamicParametersOptOut } from "modules/workspaces/DynamicParameter/useDynamicParametersOptOut";
 import { UpdateBuildParametersDialog } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialog";
 import { UpdateBuildParametersDialogExperimental } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialogExperimental";
@@ -56,14 +55,11 @@ export const useWorkspaceUpdate = ({
 		setIsConfirmingUpdate(true);
 	};
 
-	const { experiments } = useDashboard();
-	const isDynamicParametersEnabled = experiments.includes("dynamic-parameters");
-
 	const optOutQuery = useDynamicParametersOptOut({
 		templateId: workspace.template_id,
 		templateUsesClassicParameters:
 			workspace.template_use_classic_parameter_flow,
-		enabled: isDynamicParametersEnabled,
+		enabled: true,
 	});
 
 	const confirmUpdate = (buildParameters: WorkspaceBuildParameter[] = []) => {
@@ -164,13 +160,11 @@ const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
 	error,
 	...dialogProps
 }) => {
-	const { experiments } = useDashboard();
-	const isDynamicParametersEnabled = experiments.includes("dynamic-parameters");
 	const optOutQuery = useDynamicParametersOptOut({
 		templateId: workspace.template_id,
 		templateUsesClassicParameters:
 			workspace.template_use_classic_parameter_flow,
-		enabled: isDynamicParametersEnabled,
+		enabled: true,
 	});
 
 	const missedParameters =
@@ -182,13 +176,11 @@ const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
 	if (optOutQuery.isError) {
 		return <ErrorAlert error={optOutQuery.error} />;
 	}
-	if (isDynamicParametersEnabled && !optOutQuery.data) {
+	if (!optOutQuery.data) {
 		return <Loader />;
 	}
 
-	// If dynamic parameters experiment is not enabled, or if opted out, use classic dialog
-	const shouldUseClassicDialog =
-		!isDynamicParametersEnabled || optOutQuery.data?.optedOut;
+	const shouldUseClassicDialog = optOutQuery.data?.optedOut;
 
 	return shouldUseClassicDialog ? (
 		<UpdateBuildParametersDialog

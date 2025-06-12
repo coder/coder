@@ -21,8 +21,6 @@ import (
 func TestDynamicParametersOwnerGroups(t *testing.T) {
 	t.Parallel()
 
-	cfg := coderdtest.DeploymentValues(t)
-	cfg.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
 	ownerClient, owner := coderdenttest.New(t,
 		&coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -30,7 +28,7 @@ func TestDynamicParametersOwnerGroups(t *testing.T) {
 					codersdk.FeatureTemplateRBAC: 1,
 				},
 			},
-			Options: &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: cfg},
+			Options: &coderdtest.Options{IncludeProvisionerDaemon: true},
 		},
 	)
 	templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())

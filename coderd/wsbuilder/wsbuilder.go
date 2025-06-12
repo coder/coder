@@ -1042,8 +1042,15 @@ func (b *Builder) checkRunningBuild() error {
 }
 
 func (b *Builder) usingDynamicParameters() bool {
-	if !b.experiments.Enabled(codersdk.ExperimentDynamicParameters) {
-		// Experiment required
+	if b.dynamicParametersEnabled != nil {
+		return *b.dynamicParametersEnabled
+	}
+
+	tpl, err := b.getTemplate()
+	if err != nil {
+		return false // Let another part of the code get this error
+	}
+	if tpl.UseClassicParameterFlow {
 		return false
 	}
 
@@ -1056,15 +1063,7 @@ func (b *Builder) usingDynamicParameters() bool {
 		return false
 	}
 
-	if b.dynamicParametersEnabled != nil {
-		return *b.dynamicParametersEnabled
-	}
-
-	tpl, err := b.getTemplate()
-	if err != nil {
-		return false // Let another part of the code get this error
-	}
-	return !tpl.UseClassicParameterFlow
+	return true
 }
 
 func ProvisionerVersionSupportsDynamicParameters(version string) bool {
