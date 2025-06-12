@@ -13,33 +13,42 @@ import (
 
 	archivefs "github.com/coder/coder/v2/archive/fs"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/lazy"
 )
 
+type AuthorizeFile func(ctx context.Context, action policy.Action, object rbac.Object) error
+
 // NewFromStore returns a file cache that will fetch files from the provided
 // database.
-func NewFromStore(store database.Store, registerer prometheus.Registerer) *Cache {
+func NewFromStore(store database.Store, registerer prometheus.Registerer, authz AuthorizeFile) *Cache {
 	fetch := func(ctx context.Context, fileID uuid.UUID) (cacheEntryValue, error) {
-		file, err := store.GetFileByID(ctx, fileID)
+		// Make sure the read does not fail due to authorization issues.
+		// Authz is checked on the Acquire call, so this is safe.
+		file, err := store.GetFileByID(dbauthz.AsFileReader(ctx), fileID)
 		if err != nil {
 			return cacheEntryValue{}, xerrors.Errorf("failed to read file from database: %w", err)
 		}
 
 		content := bytes.NewBuffer(file.Data)
 		return cacheEntryValue{
-			FS:   archivefs.FromTarReader(content),
-			size: int64(content.Len()),
+			object: rbac.ResourceFile.WithID(file.ID).WithOwner(file.CreatedBy.String()),
+			FS:     archivefs.FromTarReader(content),
+			size:   int64(content.Len()),
 		}, nil
 	}
 
-	return New(fetch, registerer)
+	return New(fetch, registerer, authz)
 }
 
-func New(fetch fetcher, registerer prometheus.Registerer) *Cache {
+func New(fetch fetcher, registerer prometheus.Registerer, authz AuthorizeFile) *Cache {
 	return (&Cache{
 		lock:    sync.Mutex{},
 		data:    make(map[uuid.UUID]*cacheEntry),
 		fetcher: fetch,
+		authz:   authz,
 	}).registerMetrics(registerer)
 }
 
@@ -101,6 +110,7 @@ type Cache struct {
 	lock sync.Mutex
 	data map[uuid.UUID]*cacheEntry
 	fetcher
+	authz AuthorizeFile
 
 	// metrics
 	cacheMetrics
@@ -118,6 +128,7 @@ type cacheMetrics struct {
 }
 
 type cacheEntryValue struct {
+	object rbac.Object
 	fs.FS
 	size int64
 }
@@ -146,6 +157,13 @@ func (c *Cache) Acquire(ctx context.Context, fileID uuid.UUID) (fs.FS, error) {
 		c.Release(fileID)
 		return nil, err
 	}
+
+	// Always check the caller can actually read the file.
+	if c.authz(ctx, policy.ActionRead, it.object) != nil {
+		c.Release(fileID)
+		return nil, err
+	}
+
 	return it.FS, err
 }
 

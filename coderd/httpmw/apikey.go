@@ -47,14 +47,18 @@ func APIKey(r *http.Request) database.APIKey {
 
 // UserAuthorizationOptional may return the roles and scope used for
 // authorization. Depends on the ExtractAPIKey handler.
-func UserAuthorizationOptional(r *http.Request) (rbac.Subject, bool) {
-	return dbauthz.ActorFromContext(r.Context())
+func UserAuthorizationOptional(ctx context.Context) (rbac.Subject, bool) {
+	return dbauthz.ActorFromContext(ctx)
 }
 
 // UserAuthorization returns the roles and scope used for authorization. Depends
 // on the ExtractAPIKey handler.
 func UserAuthorization(r *http.Request) rbac.Subject {
-	auth, ok := UserAuthorizationOptional(r)
+	return UserAuthorizationCtx(r.Context())
+}
+
+func UserAuthorizationCtx(ctx context.Context) rbac.Subject {
+	auth, ok := UserAuthorizationOptional(ctx)
 	if !ok {
 		panic("developer error: ExtractAPIKey middleware not provided")
 	}

@@ -58,7 +58,7 @@ func TestAPIKey(t *testing.T) {
 			assert.NoError(t, err, "actor rego ok")
 		}
 
-		auth, ok := httpmw.UserAuthorizationOptional(r)
+		auth, ok := httpmw.UserAuthorizationOptional(r.Context())
 		assert.True(t, ok, "httpmw auth ok")
 		if ok {
 			_, err := auth.Roles.Expand()

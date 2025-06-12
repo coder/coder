@@ -572,10 +572,13 @@ func New(options *Options) *API {
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
-		FileCache:                   files.NewFromStore(options.Database, options.PrometheusRegistry),
-		Experiments:                 experiments,
-		WebpushDispatcher:           options.WebPushDispatcher,
-		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
+		FileCache: files.NewFromStore(options.Database, options.PrometheusRegistry, func(ctx context.Context, action policy.Action, object rbac.Object) error {
+			subject := httpmw.UserAuthorizationCtx(ctx)
+			return options.Authorizer.Authorize(ctx, subject, action, object)
+		}),
+		Experiments:       experiments,
+		WebpushDispatcher: options.WebPushDispatcher,
+		healthCheckGroup:  &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
 		Acquirer: provisionerdserver.NewAcquirer(
 			ctx,
 			options.Logger.Named("acquirer"),
