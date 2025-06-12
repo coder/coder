@@ -305,7 +305,7 @@ describe("WorkspacePage", () => {
 
 		// Check if the update was called using the values from the form
 		await waitFor(() => {
-			expect(API.updateWorkspace).toBeCalledWith(
+			expect(API.updateWorkspace).toHaveBeenCalledWith(
 				MockOutdatedWorkspace,
 				[
 					{
@@ -317,7 +317,7 @@ describe("WorkspacePage", () => {
 						value: "2",
 					},
 				],
-				true,
+				false,
 			);
 		});
 	});
