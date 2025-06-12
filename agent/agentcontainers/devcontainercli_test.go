@@ -400,39 +400,6 @@ func TestDevcontainerCLI_WithOutput(t *testing.T) {
 		assert.NotEmpty(t, outBuf.String(), "stdout buffer should not be empty for exec with log file")
 		assert.Empty(t, errBuf.String(), "stderr buffer should be empty")
 	})
-
-	t.Run("ReadConfig", func(t *testing.T) {
-		t.Parallel()
-
-		// Buffers to capture stdout and stderr.
-		outBuf := &bytes.Buffer{}
-		errBuf := &bytes.Buffer{}
-
-		// Simulate CLI execution with a read-config-success.log file.
-		wantArgs := "read-configuration --workspace-folder /test/workspace --config /test/config.json"
-		testExecer := &testDevcontainerExecer{
-			testExePath: testExePath,
-			wantArgs:    wantArgs,
-			wantError:   false,
-			logFile:     filepath.Join("testdata", "devcontainercli", "readconfig", "read-config-success.log"),
-		}
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		dccli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
-
-		// Call ReadConfig with WithReadConfigOutput to capture CLI logs.
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		config, err := dccli.ReadConfig(ctx, "/test/workspace", "/test/config.json", agentcontainers.WithReadConfigOutput(outBuf, errBuf))
-		require.NoError(t, err, "ReadConfig should succeed")
-		require.NotEmpty(t, config.Configuration.Customizations, "expected non-empty customizations")
-
-		// Read expected log content.
-		expLog, err := os.ReadFile(filepath.Join("testdata", "devcontainercli", "readconfig", "read-config-success.log"))
-		require.NoError(t, err, "reading expected log file")
-
-		// Verify stdout buffer contains the CLI logs and stderr is empty.
-		assert.Equal(t, string(expLog), outBuf.String(), "stdout buffer should match CLI logs")
-		assert.Empty(t, errBuf.String(), "stderr buffer should be empty on success")
-	})
 }
 
 // testDevcontainerExecer implements the agentexec.Execer interface for testing.

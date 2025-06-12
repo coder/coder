@@ -3,16 +3,16 @@ package agentcontainers_test
 import (
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agenttest"
-	"github.com/coder/coder/v2/agent/proto"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSubAgentClient_CreateWithDisplayApps(t *testing.T) {
@@ -75,7 +75,7 @@ func TestSubAgentClient_CreateWithDisplayApps(t *testing.T) {
 
 				ctx := testutil.Context(t, testutil.WaitShort)
 				logger := testutil.Logger(t)
-				statsCh := make(chan *proto.Stats)
+				statsCh := make(chan *agentproto.Stats)
 
 				agentAPI := agenttest.NewClient(t, logger, uuid.New(), agentsdk.Manifest{}, statsCh, tailnet.NewCoordinator(logger))
 
@@ -102,5 +102,4 @@ func TestSubAgentClient_CreateWithDisplayApps(t *testing.T) {
 			})
 		}
 	})
-
 }
