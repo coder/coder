@@ -12,7 +12,11 @@ export const useExternalAuth = (versionId: string | undefined) => {
 		setExternalAuthPollingState("polling");
 	}, []);
 
-	const { data: externalAuth, isPending: isLoadingExternalAuth } = useQuery({
+	const {
+		data: externalAuth,
+		isPending: isLoadingExternalAuth,
+		error,
+	} = useQuery({
 		...templateVersionExternalAuth(versionId ?? ""),
 		enabled: !!versionId,
 		refetchInterval: externalAuthPollingState === "polling" ? 1000 : false,
@@ -45,5 +49,6 @@ export const useExternalAuth = (versionId: string | undefined) => {
 		externalAuth,
 		externalAuthPollingState,
 		isLoadingExternalAuth,
+		externalAuthError: error,
 	};
 };
