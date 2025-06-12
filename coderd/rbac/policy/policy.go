@@ -132,6 +132,12 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionCreate: actDef("create new audit log entries"),
 		},
 	},
+	"connection_log": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   actDef("read connection logs"),
+			ActionCreate: actDef("create new connection log entries"),
+		},
+	},
 	"deployment_config": {
 		Actions: map[Action]ActionDefinition{
 			ActionRead:   actDef("read deployment config"),

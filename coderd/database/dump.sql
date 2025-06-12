@@ -51,6 +51,13 @@ CREATE TYPE build_reason AS ENUM (
     'autodelete'
 );
 
+CREATE TYPE connection_action AS ENUM (
+    'connect',
+    'disconnect',
+    'open',
+    'close'
+);
+
 CREATE TYPE crypto_key_feature AS ENUM (
     'workspace_apps_token',
     'workspace_apps_api_key',
@@ -844,6 +851,34 @@ CREATE TABLE chats (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     title text NOT NULL
 );
+
+CREATE TABLE connection_logs (
+    id uuid NOT NULL,
+    "time" timestamp with time zone NOT NULL,
+    organization_id uuid NOT NULL,
+    workspace_owner_id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    workspace_name text NOT NULL,
+    agent_name text NOT NULL,
+    action connection_action NOT NULL,
+    code integer NOT NULL,
+    ip inet,
+    user_agent text,
+    user_id uuid NOT NULL,
+    slug_or_port text,
+    connection_type text,
+    reason text
+);
+
+COMMENT ON COLUMN connection_logs.code IS 'Either the HTTP status code for the workspace app request, or the exit code of an SSH connection.';
+
+COMMENT ON COLUMN connection_logs.user_agent IS 'Null for SSH actions. For workspace apps, this is the User-Agent header from the request.';
+
+COMMENT ON COLUMN connection_logs.user_id IS 'uuid.Nil for SSH actions. For workspace apps, this is the ID of the user that made the request.';
+
+COMMENT ON COLUMN connection_logs.connection_type IS 'Null for Workspace App actions. For SSH actions, this is the type of connection (e.g., "ssh", "websocket").';
+
+COMMENT ON COLUMN connection_logs.reason IS 'Null for Workspace App actions. For SSH actions, this is the reason for the connection or disconnection, to be displayed in the UI.';
 
 CREATE TABLE crypto_keys (
     feature crypto_key_feature NOT NULL,
@@ -2349,6 +2384,9 @@ ALTER TABLE ONLY chat_messages
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY connection_logs
+    ADD CONSTRAINT connection_logs_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_pkey PRIMARY KEY (feature, sequence);
 
@@ -2635,6 +2673,14 @@ CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
+CREATE INDEX idx_connection_logs_organization_id ON connection_logs USING btree (organization_id);
+
+CREATE INDEX idx_connection_logs_time_desc ON connection_logs USING btree ("time" DESC);
+
+CREATE INDEX idx_connection_logs_workspace_id ON connection_logs USING btree (workspace_id);
+
+CREATE INDEX idx_connection_logs_workspace_owner_id ON connection_logs USING btree (workspace_owner_id);
+
 CREATE INDEX idx_custom_roles_id ON custom_roles USING btree (id);
 
 CREATE UNIQUE INDEX idx_custom_roles_name_lower ON custom_roles USING btree (lower(name));
@@ -2843,6 +2889,9 @@ ALTER TABLE ONLY chat_messages
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY connection_logs
+    ADD CONSTRAINT connection_logs_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);

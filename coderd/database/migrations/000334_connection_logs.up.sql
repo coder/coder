@@ -1,0 +1,47 @@
+CREATE TYPE connection_action AS ENUM (
+    -- SSH actions
+    'connect',
+    'disconnect',
+    -- Workspace App actions
+    'open',
+    'close'
+);
+
+CREATE TABLE connection_logs (
+    id uuid NOT NULL,
+    "time" timestamp with time zone NOT NULL,
+    organization_id uuid NOT NULL,
+    workspace_owner_id uuid NOT NULL,
+    workspace_id uuid NOT NULL REFERENCES workspaces (id) ON DELETE SET NULL,
+    workspace_name text NOT NULL,
+    agent_name text NOT NULL,
+    action connection_action NOT NULL,
+    code integer NOT NULL,
+	ip inet,
+
+	-- Null for SSH actions.
+    user_agent text,
+	user_id uuid NOT NULL, -- Can be NULL, but must be uuid.Nil.
+	slug_or_port text,
+
+	-- Null for Workspace App actions.
+	connection_type text,
+	reason text,
+
+    PRIMARY KEY (id)
+);
+
+COMMENT ON COLUMN connection_logs.code IS 'Either the HTTP status code for the workspace app request, or the exit code of an SSH connection.';
+
+COMMENT ON COLUMN connection_logs.user_agent IS 'Null for SSH actions. For workspace apps, this is the User-Agent header from the request.';
+
+COMMENT ON COLUMN connection_logs.user_id IS 'uuid.Nil for SSH actions. For workspace apps, this is the ID of the user that made the request.';
+
+COMMENT ON COLUMN connection_logs.connection_type IS 'Null for Workspace App actions. For SSH actions, this is the type of connection (e.g., "ssh", "websocket").';
+
+COMMENT ON COLUMN connection_logs.reason IS 'Null for Workspace App actions. For SSH actions, this is the reason for the connection or disconnection, to be displayed in the UI.';
+
+CREATE INDEX idx_connection_logs_time_desc ON connection_logs USING btree ("time" DESC);
+CREATE INDEX idx_connection_logs_organization_id ON connection_logs USING btree (organization_id);
+CREATE INDEX idx_connection_logs_workspace_owner_id ON connection_logs USING btree (workspace_owner_id);
+CREATE INDEX idx_connection_logs_workspace_id ON connection_logs USING btree (workspace_id);

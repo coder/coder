@@ -329,6 +329,80 @@ func (s *MethodTestSuite) TestAuditLogs() {
 	}))
 }
 
+func (s *MethodTestSuite) TestConnectionLogs() {
+	s.Run("InsertConnectionLog", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		tpl := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			ID:               uuid.New(),
+			OwnerID:          u.ID,
+			OrganizationID:   o.ID,
+			AutomaticUpdates: database.AutomaticUpdatesNever,
+			TemplateID:       tpl.ID,
+		})
+		check.Args(database.InsertConnectionLogParams{
+			Action:      database.ConnectionActionConnect,
+			WorkspaceID: ws.ID,
+		}).Asserts(rbac.ResourceConnectionLog, policy.ActionCreate)
+	}))
+	s.Run("GetConnectionLogsOffset", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		tpl := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			ID:               uuid.New(),
+			OwnerID:          u.ID,
+			OrganizationID:   o.ID,
+			AutomaticUpdates: database.AutomaticUpdatesNever,
+			TemplateID:       tpl.ID,
+		})
+		_ = dbgen.ConnectionLog(s.T(), db, database.ConnectionLog{
+			Action:      database.ConnectionActionConnect,
+			WorkspaceID: ws.ID,
+		})
+		_ = dbgen.ConnectionLog(s.T(), db, database.ConnectionLog{
+			Action:      database.ConnectionActionConnect,
+			WorkspaceID: ws.ID,
+		})
+		check.Args(database.GetConnectionLogsOffsetParams{
+			LimitOpt: 10,
+		}).Asserts(rbac.ResourceConnectionLog, policy.ActionRead).WithNotAuthorized("nil")
+	}))
+	s.Run("GetAuthorizedConnectionLogsOffset", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		tpl := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			ID:               uuid.New(),
+			OwnerID:          u.ID,
+			OrganizationID:   o.ID,
+			AutomaticUpdates: database.AutomaticUpdatesNever,
+			TemplateID:       tpl.ID,
+		})
+		_ = dbgen.ConnectionLog(s.T(), db, database.ConnectionLog{
+			Action:      database.ConnectionActionConnect,
+			WorkspaceID: ws.ID,
+		})
+		_ = dbgen.ConnectionLog(s.T(), db, database.ConnectionLog{
+			Action:      database.ConnectionActionConnect,
+			WorkspaceID: ws.ID,
+		})
+		check.Args(database.GetConnectionLogsOffsetParams{
+			LimitOpt: 10,
+		}, emptyPreparedAuthorized{}).Asserts(rbac.ResourceConnectionLog, policy.ActionRead)
+	}))
+}
+
 func (s *MethodTestSuite) TestFile() {
 	s.Run("GetFileByHashAndCreator", s.Subtest(func(db database.Store, check *expects) {
 		f := dbgen.File(s.T(), db, database.File{})

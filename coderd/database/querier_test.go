@@ -2049,6 +2049,178 @@ func auditOnlyIDs[T database.AuditLog | database.GetAuditLogsOffsetRow](logs []T
 	return ids
 }
 
+func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
+	t.Parallel()
+
+	var allLogs []database.ConnectionLog
+	db, _ := dbtestutil.NewDB(t)
+	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
+	authDb := dbauthz.New(db, authz, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+
+	orgA := dbfake.Organization(t, db).Do()
+	orgB := dbfake.Organization(t, db).Do()
+
+	user := dbgen.User(t, db, database.User{})
+
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: orgA.Org.ID,
+		CreatedBy:      user.ID,
+	})
+
+	wsID := uuid.New()
+	createTemplateVersion(t, db, tpl, tvArgs{
+		WorkspaceTransition: database.WorkspaceTransitionStart,
+		Status:              database.ProvisionerJobStatusSucceeded,
+		CreateWorkspace:     true,
+		WorkspaceID:         wsID,
+	})
+
+	// This map is a simple way to insert a given number of organizations
+	// and audit logs for each organization.
+	// map[orgID][]ConnectionLogID
+	orgConnectionLogs := map[uuid.UUID][]uuid.UUID{
+		orgA.Org.ID: {uuid.New(), uuid.New()},
+		orgB.Org.ID: {uuid.New(), uuid.New()},
+	}
+	orgIDs := make([]uuid.UUID, 0, len(orgConnectionLogs))
+	for orgID := range orgConnectionLogs {
+		orgIDs = append(orgIDs, orgID)
+	}
+	for orgID, ids := range orgConnectionLogs {
+		for _, id := range ids {
+			allLogs = append(allLogs, dbgen.ConnectionLog(t, authDb, database.ConnectionLog{
+				WorkspaceID:    wsID,
+				ID:             id,
+				OrganizationID: orgID,
+			}))
+		}
+	}
+
+	// Now fetch all the logs
+	ctx := testutil.Context(t, testutil.WaitLong)
+	auditorRole, err := rbac.RoleByName(rbac.RoleAuditor())
+	require.NoError(t, err)
+
+	memberRole, err := rbac.RoleByName(rbac.RoleMember())
+	require.NoError(t, err)
+
+	orgAuditorRoles := func(t *testing.T, orgID uuid.UUID) rbac.Role {
+		t.Helper()
+
+		role, err := rbac.RoleByName(rbac.ScopedRoleOrgAuditor(orgID))
+		require.NoError(t, err)
+		return role
+	}
+
+	t.Run("NoAccess", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: A user who is a member of 0 organizations
+		memberCtx := dbauthz.As(ctx, rbac.Subject{
+			FriendlyName: "member",
+			ID:           uuid.NewString(),
+			Roles:        rbac.Roles{memberRole},
+			Scope:        rbac.ScopeAll,
+		})
+
+		// When: The user queries for connection logs
+		logs, err := authDb.GetConnectionLogsOffset(memberCtx, database.GetConnectionLogsOffsetParams{})
+		require.NoError(t, err)
+		// Then: No logs returned
+		require.Len(t, logs, 0, "no logs should be returned")
+	})
+
+	t.Run("SiteWideAuditor", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: A site wide auditor
+		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
+			FriendlyName: "owner",
+			ID:           uuid.NewString(),
+			Roles:        rbac.Roles{auditorRole},
+			Scope:        rbac.ScopeAll,
+		})
+
+		// When: the auditor queries for connection logs
+		logs, err := authDb.GetConnectionLogsOffset(siteAuditorCtx, database.GetConnectionLogsOffsetParams{})
+		require.NoError(t, err)
+		// Then: All logs are returned
+		require.ElementsMatch(t, connectionOnlyIDs(allLogs), connectionOnlyIDs(logs))
+	})
+
+	t.Run("SingleOrgAuditor", func(t *testing.T) {
+		t.Parallel()
+
+		orgID := orgIDs[0]
+		// Given: An organization scoped auditor
+		orgAuditCtx := dbauthz.As(ctx, rbac.Subject{
+			FriendlyName: "org-auditor",
+			ID:           uuid.NewString(),
+			Roles:        rbac.Roles{orgAuditorRoles(t, orgID)},
+			Scope:        rbac.ScopeAll,
+		})
+
+		// When: The auditor queries for connection logs
+		logs, err := authDb.GetConnectionLogsOffset(orgAuditCtx, database.GetConnectionLogsOffsetParams{})
+		require.NoError(t, err)
+		// Then: Only the logs for the organization are returned
+		require.ElementsMatch(t, orgConnectionLogs[orgID], connectionOnlyIDs(logs))
+	})
+
+	t.Run("TwoOrgAuditors", func(t *testing.T) {
+		t.Parallel()
+
+		first := orgIDs[0]
+		second := orgIDs[1]
+		// Given: A user who is an auditor for two organizations
+		multiOrgAuditCtx := dbauthz.As(ctx, rbac.Subject{
+			FriendlyName: "org-auditor",
+			ID:           uuid.NewString(),
+			Roles:        rbac.Roles{orgAuditorRoles(t, first), orgAuditorRoles(t, second)},
+			Scope:        rbac.ScopeAll,
+		})
+
+		// When: The user queries for connection logs
+		logs, err := authDb.GetConnectionLogsOffset(multiOrgAuditCtx, database.GetConnectionLogsOffsetParams{})
+		require.NoError(t, err)
+		// Then: All logs for both organizations are returned
+		require.ElementsMatch(t, append(orgConnectionLogs[first], orgConnectionLogs[second]...), connectionOnlyIDs(logs))
+	})
+
+	t.Run("ErroneousOrg", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: A user who is an auditor for an organization that has 0 logs
+		userCtx := dbauthz.As(ctx, rbac.Subject{
+			FriendlyName: "org-auditor",
+			ID:           uuid.NewString(),
+			Roles:        rbac.Roles{orgAuditorRoles(t, uuid.New())},
+			Scope:        rbac.ScopeAll,
+		})
+
+		// When: The user queries for audit logs
+		logs, err := authDb.GetConnectionLogsOffset(userCtx, database.GetConnectionLogsOffsetParams{})
+		require.NoError(t, err)
+		// Then: No logs are returned
+		require.Len(t, logs, 0, "no logs should be returned")
+	})
+}
+
+func connectionOnlyIDs[T database.ConnectionLog | database.GetConnectionLogsOffsetRow](logs []T) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(logs))
+	for _, log := range logs {
+		switch log := any(log).(type) {
+		case database.ConnectionLog:
+			ids = append(ids, log.ID)
+		case database.GetConnectionLogsOffsetRow:
+			ids = append(ids, log.ConnectionLog.ID)
+		default:
+			panic("unreachable")
+		}
+	}
+	return ids
+}
+
 type tvArgs struct {
 	Status database.ProvisionerJobStatus
 	// CreateWorkspace is true if we should create a workspace for the template version

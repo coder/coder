@@ -727,12 +727,12 @@ func TemplateRoleActions(role codersdk.TemplateRole) []policy.Action {
 	return []policy.Action{}
 }
 
-func AuditActionFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.AuditAction, error) {
+func ConnectionLogActionFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.ConnectionAction, error) {
 	switch action {
 	case agentproto.Connection_CONNECT:
-		return database.AuditActionConnect, nil
+		return database.ConnectionActionConnect, nil
 	case agentproto.Connection_DISCONNECT:
-		return database.AuditActionDisconnect, nil
+		return database.ConnectionActionDisconnect, nil
 	default:
 		// Also Connection_ACTION_UNSPECIFIED, no mapping.
 		return "", xerrors.Errorf("unknown agent connection action %q", action)

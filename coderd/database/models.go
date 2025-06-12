@@ -412,6 +412,70 @@ func AllBuildReasonValues() []BuildReason {
 	}
 }
 
+type ConnectionAction string
+
+const (
+	ConnectionActionConnect    ConnectionAction = "connect"
+	ConnectionActionDisconnect ConnectionAction = "disconnect"
+	ConnectionActionOpen       ConnectionAction = "open"
+	ConnectionActionClose      ConnectionAction = "close"
+)
+
+func (e *ConnectionAction) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ConnectionAction(s)
+	case string:
+		*e = ConnectionAction(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ConnectionAction: %T", src)
+	}
+	return nil
+}
+
+type NullConnectionAction struct {
+	ConnectionAction ConnectionAction `json:"connection_action"`
+	Valid            bool             `json:"valid"` // Valid is true if ConnectionAction is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullConnectionAction) Scan(value interface{}) error {
+	if value == nil {
+		ns.ConnectionAction, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ConnectionAction.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullConnectionAction) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ConnectionAction), nil
+}
+
+func (e ConnectionAction) Valid() bool {
+	switch e {
+	case ConnectionActionConnect,
+		ConnectionActionDisconnect,
+		ConnectionActionOpen,
+		ConnectionActionClose:
+		return true
+	}
+	return false
+}
+
+func AllConnectionActionValues() []ConnectionAction {
+	return []ConnectionAction{
+		ConnectionActionConnect,
+		ConnectionActionDisconnect,
+		ConnectionActionOpen,
+		ConnectionActionClose,
+	}
+}
+
 type CryptoKeyFeature string
 
 const (
@@ -2790,6 +2854,29 @@ type ChatMessage struct {
 	Model     string          `db:"model" json:"model"`
 	Provider  string          `db:"provider" json:"provider"`
 	Content   json.RawMessage `db:"content" json:"content"`
+}
+
+type ConnectionLog struct {
+	ID               uuid.UUID        `db:"id" json:"id"`
+	Time             time.Time        `db:"time" json:"time"`
+	OrganizationID   uuid.UUID        `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID uuid.UUID        `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      uuid.UUID        `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    string           `db:"workspace_name" json:"workspace_name"`
+	AgentName        string           `db:"agent_name" json:"agent_name"`
+	Action           ConnectionAction `db:"action" json:"action"`
+	// Either the HTTP status code for the workspace app request, or the exit code of an SSH connection.
+	Code int32       `db:"code" json:"code"`
+	Ip   pqtype.Inet `db:"ip" json:"ip"`
+	// Null for SSH actions. For workspace apps, this is the User-Agent header from the request.
+	UserAgent sql.NullString `db:"user_agent" json:"user_agent"`
+	// uuid.Nil for SSH actions. For workspace apps, this is the ID of the user that made the request.
+	UserID     uuid.UUID      `db:"user_id" json:"user_id"`
+	SlugOrPort sql.NullString `db:"slug_or_port" json:"slug_or_port"`
+	// Null for Workspace App actions. For SSH actions, this is the type of connection (e.g., "ssh", "websocket").
+	ConnectionType sql.NullString `db:"connection_type" json:"connection_type"`
+	// Null for Workspace App actions. For SSH actions, this is the reason for the connection or disconnection, to be displayed in the UI.
+	Reason sql.NullString `db:"reason" json:"reason"`
 }
 
 type CryptoKey struct {

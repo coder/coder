@@ -662,6 +662,13 @@ func (m queryMetricsStore) GetChatsByOwnerID(ctx context.Context, ownerID uuid.U
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetConnectionLogsOffset(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetConnectionLogsOffset").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetCoordinatorResumeTokenSigningKey(ctx)
@@ -2076,6 +2083,13 @@ func (m queryMetricsStore) InsertChatMessages(ctx context.Context, arg database.
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertConnectionLog(ctx context.Context, arg database.InsertConnectionLogParams) (database.ConnectionLog, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertConnectionLog(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertConnectionLog").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	start := time.Now()
 	key, err := m.s.InsertCryptoKey(ctx, arg)
@@ -3319,5 +3333,12 @@ func (m queryMetricsStore) GetAuthorizedAuditLogsOffset(ctx context.Context, arg
 	start := time.Now()
 	r0, r1 := m.s.GetAuthorizedAuditLogsOffset(ctx, arg, prepared)
 	m.queryLatencies.WithLabelValues("GetAuthorizedAuditLogsOffset").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams, prepared rbac.PreparedAuthorized) ([]database.GetConnectionLogsOffsetRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizedConnectionLogsOffset(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedConnectionLogsOffset").Observe(time.Since(start).Seconds())
 	return r0, r1
 }

@@ -2174,6 +2174,7 @@ export type RBACResource =
 	| "assign_role"
 	| "audit_log"
 	| "chat"
+	| "connection_log"
 	| "crypto_key"
 	| "debug_info"
 	| "deployment_config"
@@ -2213,6 +2214,7 @@ export const RBACResources: RBACResource[] = [
 	"assign_role",
 	"audit_log",
 	"chat",
+	"connection_log",
 	"crypto_key",
 	"debug_info",
 	"deployment_config",

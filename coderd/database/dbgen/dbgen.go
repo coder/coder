@@ -73,6 +73,43 @@ func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.
 	return log
 }
 
+func ConnectionLog(t testing.TB, db database.Store, seed database.ConnectionLog) database.ConnectionLog {
+	log, err := db.InsertConnectionLog(genCtx, database.InsertConnectionLogParams{
+		ID:               takeFirst(seed.ID, uuid.New()),
+		Time:             takeFirst(seed.Time, dbtime.Now()),
+		OrganizationID:   takeFirst(seed.OrganizationID, uuid.New()),
+		WorkspaceOwnerID: takeFirst(seed.WorkspaceOwnerID, uuid.New()),
+		WorkspaceID:      takeFirst(seed.WorkspaceID, uuid.New()),
+		WorkspaceName:    takeFirst(seed.WorkspaceName, testutil.GetRandomName(t)),
+		AgentName:        takeFirst(seed.AgentName, testutil.GetRandomName(t)),
+		Action:           takeFirst(seed.Action, database.ConnectionActionOpen),
+		Code:             takeFirst(seed.Code, 0),
+		Ip: pqtype.Inet{
+			IPNet: takeFirstIP(seed.Ip.IPNet, net.IPNet{}),
+			Valid: takeFirst(seed.Ip.Valid, false),
+		},
+		UserAgent: sql.NullString{
+			String: takeFirst(seed.UserAgent.String, ""),
+			Valid:  takeFirst(seed.UserAgent.Valid, false),
+		},
+		UserID: takeFirst(seed.UserID, uuid.New()),
+		SlugOrPort: sql.NullString{
+			String: takeFirst(seed.SlugOrPort.String, ""),
+			Valid:  takeFirst(seed.SlugOrPort.Valid, false),
+		},
+		ConnectionType: sql.NullString{
+			String: takeFirst(seed.ConnectionType.String, ""),
+			Valid:  takeFirst(seed.ConnectionType.Valid, false),
+		},
+		Reason: sql.NullString{
+			String: takeFirst(seed.Reason.String, ""),
+			Valid:  takeFirst(seed.Reason.Valid, false),
+		},
+	})
+	require.NoError(t, err, "insert connection log")
+	return log
+}
+
 func Template(t testing.TB, db database.Store, seed database.Template) database.Template {
 	id := takeFirst(seed.ID, uuid.New())
 	if seed.GroupACL == nil {
