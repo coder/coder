@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+// nolint:paralleltest,tparallel // Serially testing is easier
 func TestCacheRBAC(t *testing.T) {
 	t.Parallel()
 
@@ -43,6 +44,7 @@ func TestCacheRBAC(t *testing.T) {
 		Scope: rbac.ScopeAll,
 	})
 
+	//nolint:gocritic // Unit testing
 	cacheReader := dbauthz.AsFileReader(ctx)
 
 	t.Run("NoRolesOpen", func(t *testing.T) {

@@ -27,6 +27,7 @@ func NewFromStore(store database.Store, registerer prometheus.Registerer, authz 
 	fetch := func(ctx context.Context, fileID uuid.UUID) (cacheEntryValue, error) {
 		// Make sure the read does not fail due to authorization issues.
 		// Authz is checked on the Acquire call, so this is safe.
+		//nolint:gocritic
 		file, err := store.GetFileByID(dbauthz.AsFileReader(ctx), fileID)
 		if err != nil {
 			return cacheEntryValue{}, xerrors.Errorf("failed to read file from database: %w", err)
