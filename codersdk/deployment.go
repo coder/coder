@@ -65,6 +65,7 @@ type FeatureName string
 const (
 	FeatureUserLimit                  FeatureName = "user_limit"
 	FeatureAuditLog                   FeatureName = "audit_log"
+	FeatureConnectionLog              FeatureName = "connection_log"
 	FeatureBrowserOnly                FeatureName = "browser_only"
 	FeatureSCIM                       FeatureName = "scim"
 	FeatureTemplateRBAC               FeatureName = "template_rbac"
@@ -88,6 +89,7 @@ const (
 var FeatureNames = []FeatureName{
 	FeatureUserLimit,
 	FeatureAuditLog,
+	FeatureConnectionLog,
 	FeatureBrowserOnly,
 	FeatureSCIM,
 	FeatureTemplateRBAC,
