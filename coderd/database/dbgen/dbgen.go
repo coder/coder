@@ -77,6 +77,7 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.ConnectionLog)
 	log, err := db.InsertConnectionLog(genCtx, database.InsertConnectionLogParams{
 		ID:               takeFirst(seed.ID, uuid.New()),
 		Time:             takeFirst(seed.Time, dbtime.Now()),
+		ConnectionID:     takeFirst(seed.ConnectionID, uuid.New()),
 		OrganizationID:   takeFirst(seed.OrganizationID, uuid.New()),
 		WorkspaceOwnerID: takeFirst(seed.WorkspaceOwnerID, uuid.New()),
 		WorkspaceID:      takeFirst(seed.WorkspaceID, uuid.New()),
