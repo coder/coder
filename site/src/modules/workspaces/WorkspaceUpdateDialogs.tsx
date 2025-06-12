@@ -6,11 +6,8 @@ import type {
 	WorkspaceBuild,
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { Loader } from "components/Loader/Loader";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
-import { useDynamicParametersOptOut } from "modules/workspaces/DynamicParameter/useDynamicParametersOptOut";
 import { UpdateBuildParametersDialog } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialog";
 import { UpdateBuildParametersDialogExperimental } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialogExperimental";
 import { type FC, useState } from "react";
@@ -55,17 +52,11 @@ export const useWorkspaceUpdate = ({
 		setIsConfirmingUpdate(true);
 	};
 
-	const optOutQuery = useDynamicParametersOptOut({
-		templateId: workspace.template_id,
-		templateUsesClassicParameters:
-			workspace.template_use_classic_parameter_flow,
-		enabled: true,
-	});
-
 	const confirmUpdate = (buildParameters: WorkspaceBuildParameter[] = []) => {
 		updateWorkspaceMutation.mutate({
 			buildParameters,
-			isDynamicParametersEnabled: optOutQuery.data?.optedOut === false,
+			isDynamicParametersEnabled:
+				!workspace.template_use_classic_parameter_flow,
 		});
 		setIsConfirmingUpdate(false);
 	};
@@ -160,29 +151,13 @@ const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
 	error,
 	...dialogProps
 }) => {
-	const optOutQuery = useDynamicParametersOptOut({
-		templateId: workspace.template_id,
-		templateUsesClassicParameters:
-			workspace.template_use_classic_parameter_flow,
-		enabled: true,
-	});
-
 	const missedParameters =
 		error instanceof MissingBuildParameters ? error.parameters : [];
 	const versionId =
 		error instanceof MissingBuildParameters ? error.versionId : undefined;
 	const isOpen = error instanceof MissingBuildParameters;
 
-	if (optOutQuery.isError) {
-		return <ErrorAlert error={optOutQuery.error} />;
-	}
-	if (!optOutQuery.data) {
-		return <Loader />;
-	}
-
-	const shouldUseClassicDialog = optOutQuery.data?.optedOut;
-
-	return shouldUseClassicDialog ? (
+	return workspace.template_use_classic_parameter_flow ? (
 		<UpdateBuildParametersDialog
 			missedParameters={missedParameters}
 			open={isOpen}

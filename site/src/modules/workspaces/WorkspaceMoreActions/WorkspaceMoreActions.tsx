@@ -21,7 +21,6 @@ import {
 	SettingsIcon,
 	TrashIcon,
 } from "lucide-react";
-import { useDynamicParametersOptOut } from "modules/workspaces/DynamicParameter/useDynamicParametersOptOut";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
@@ -43,13 +42,6 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 
-	const optOutQuery = useDynamicParametersOptOut({
-		templateId: workspace.template_id,
-		templateUsesClassicParameters:
-			workspace.template_use_classic_parameter_flow,
-		enabled: true,
-	});
-
 	// Permissions
 	const { data: permissions } = useQuery(workspacePermissions(workspace));
 
@@ -59,7 +51,11 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	// Change version
 	const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
 	const changeVersionMutation = useMutation(
-		changeVersion(workspace, queryClient, optOutQuery.data?.optedOut === false),
+		changeVersion(
+			workspace,
+			queryClient,
+			!workspace.template_use_classic_parameter_flow,
+		),
 	);
 
 	// Delete
@@ -151,7 +147,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				onClose={() => setIsDownloadDialogOpen(false)}
 			/>
 
-			{optOutQuery.data?.optedOut ? (
+			{workspace.template_use_classic_parameter_flow ? (
 				<UpdateBuildParametersDialog
 					missedParameters={
 						changeVersionMutation.error instanceof MissingBuildParameters
