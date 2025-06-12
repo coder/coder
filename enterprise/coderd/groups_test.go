@@ -838,12 +838,12 @@ func TestGroup(t *testing.T) {
 		// The 'Everyone' group always has an ID that matches the organization ID.
 		group, err := userAdminClient.Group(ctx, user.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, group.Members, 4)
+		require.Len(t, group.Members, 5)
 		require.Equal(t, "Everyone", group.Name)
 		require.Equal(t, user.OrganizationID, group.OrganizationID)
 		require.Contains(t, group.Members, user1.ReducedUser)
 		require.Contains(t, group.Members, user2.ReducedUser)
-		require.NotContains(t, group.Members, prebuildsUser.ReducedUser)
+		require.Contains(t, group.Members, prebuildsUser.ReducedUser)
 	})
 }
 
