@@ -26,6 +26,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
+import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
 import { ArrowLeft, CircleHelp } from "lucide-react";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
 import { Diagnostics } from "modules/workspaces/DynamicParameter/DynamicParameter";
@@ -47,10 +48,7 @@ import { docs } from "utils/docs";
 import { nameValidator } from "utils/formUtils";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
-import type {
-	CreateWorkspaceMode,
-	ExternalAuthPollingState,
-} from "./CreateWorkspacePage";
+import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
