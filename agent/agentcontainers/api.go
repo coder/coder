@@ -1104,7 +1104,7 @@ func (api *API) injectSubAgentIntoContainerLocked(ctx context.Context, dc coders
 	if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath); err != nil {
 		api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
 	} else {
-		coderCustomization := config.Configuration.Customizations.Coder
+		coderCustomization := config.MergedConfiguration.Customizations.Coder
 		if coderCustomization != nil {
 			displayApps = coderCustomization.DisplayApps
 		}

@@ -1487,7 +1487,7 @@ func TestAPI(t *testing.T) {
 					fSAC   = &fakeSubAgentClient{createErrC: make(chan error, 1)}
 					fDCCLI = &fakeDevcontainerCLI{
 						readConfig: agentcontainers.DevcontainerConfig{
-							Configuration: agentcontainers.DevcontainerConfiguration{
+							MergedConfiguration: agentcontainers.DevcontainerConfiguration{
 								Customizations: agentcontainers.DevcontainerCustomizations{
 									Coder: tt.customization,
 								},

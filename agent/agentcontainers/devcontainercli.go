@@ -19,7 +19,7 @@ import (
 // Unfortunately we cannot make use of `dcspec` as the output doesn't appear to
 // match.
 type DevcontainerConfig struct {
-	Configuration DevcontainerConfiguration `json:"configuration"`
+	MergedConfiguration DevcontainerConfiguration `json:"mergedConfiguration"`
 }
 
 type DevcontainerConfiguration struct {
@@ -27,7 +27,7 @@ type DevcontainerConfiguration struct {
 }
 
 type DevcontainerCustomizations struct {
-	Coder *CoderCustomization `json:"com.coder,omitempty"`
+	Coder *CoderCustomization `json:"coder,omitempty"`
 }
 
 type CoderCustomization struct {
@@ -196,11 +196,8 @@ func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath st
 	cmd.Stderr = io.MultiWriter(stderrWriters...)
 
 	if err := cmd.Run(); err != nil {
-		result, err2 := parseDevcontainerCLILastLine[devcontainerCLIResult](ctx, logger, stdoutBuf.Bytes())
+		_, err2 := parseDevcontainerCLILastLine[devcontainerCLIResult](ctx, logger, stdoutBuf.Bytes())
 		if err2 != nil {
-			err = errors.Join(err, err2)
-		}
-		if err2 := result.Err(); err2 != nil {
 			err = errors.Join(err, err2)
 		}
 		return "", err
@@ -208,9 +205,6 @@ func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath st
 
 	result, err := parseDevcontainerCLILastLine[devcontainerCLIResult](ctx, logger, stdoutBuf.Bytes())
 	if err != nil {
-		return "", err
-	}
-	if err := result.Err(); err != nil {
 		return "", err
 	}
 
@@ -260,7 +254,7 @@ func (d *devcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, confi
 	conf := applyDevcontainerCLIReadConfigOptions(opts)
 	logger := d.logger.With(slog.F("workspace_folder", workspaceFolder), slog.F("config_path", configPath))
 
-	args := []string{"read-configuration"}
+	args := []string{"read-configuration", "--include-merged-configuration"}
 	if workspaceFolder != "" {
 		args = append(args, "--workspace-folder", workspaceFolder)
 	}
@@ -337,6 +331,18 @@ type devcontainerCLIResult struct {
 	// The following fields are set if outcome is error.
 	Message     string `json:"message"`
 	Description string `json:"description"`
+}
+
+func (r *devcontainerCLIResult) UnmarshalJSON(data []byte) error {
+	type wrapperResult devcontainerCLIResult
+
+	var wrappedResult wrapperResult
+	if err := json.Unmarshal(data, &wrappedResult); err != nil {
+		return err
+	}
+
+	*r = devcontainerCLIResult(wrappedResult)
+	return r.Err()
 }
 
 func (r devcontainerCLIResult) Err() error {

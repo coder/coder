@@ -253,10 +253,10 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				logFile:         "read-config-with-coder-customization.log",
 				workspaceFolder: "/test/workspace",
 				configPath:      "",
-				wantArgs:        "read-configuration --workspace-folder /test/workspace",
+				wantArgs:        "read-configuration --include-merged-configuration --workspace-folder /test/workspace",
 				wantError:       false,
 				wantConfig: agentcontainers.DevcontainerConfig{
-					Configuration: agentcontainers.DevcontainerConfiguration{
+					MergedConfiguration: agentcontainers.DevcontainerConfiguration{
 						Customizations: agentcontainers.DevcontainerCustomizations{
 							Coder: &agentcontainers.CoderCustomization{
 								DisplayApps: []codersdk.DisplayApp{
@@ -273,10 +273,10 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				logFile:         "read-config-without-coder-customization.log",
 				workspaceFolder: "/test/workspace",
 				configPath:      "/test/config.json",
-				wantArgs:        "read-configuration --workspace-folder /test/workspace --config /test/config.json",
+				wantArgs:        "read-configuration --include-merged-configuration --workspace-folder /test/workspace --config /test/config.json",
 				wantError:       false,
 				wantConfig: agentcontainers.DevcontainerConfig{
-					Configuration: agentcontainers.DevcontainerConfiguration{
+					MergedConfiguration: agentcontainers.DevcontainerConfiguration{
 						Customizations: agentcontainers.DevcontainerCustomizations{
 							Coder: nil,
 						},
@@ -288,7 +288,7 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				logFile:         "read-config-error-not-found.log",
 				workspaceFolder: "/nonexistent/workspace",
 				configPath:      "",
-				wantArgs:        "read-configuration --workspace-folder /nonexistent/workspace",
+				wantArgs:        "read-configuration --include-merged-configuration --workspace-folder /nonexistent/workspace",
 				wantError:       true,
 				wantConfig:      agentcontainers.DevcontainerConfig{},
 			},
