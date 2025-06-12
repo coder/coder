@@ -581,7 +581,9 @@ func (s *mcpServer) startReporter(ctx context.Context, inv *serpent.Invocation) 
 				cliui.Warnf(inv.Stderr, "Failed to report task status: %s", err)
 			}
 
-			lastPayload = payload
+			if err == nil {
+				lastPayload = payload
+			}
 		}
 	}()
 }
