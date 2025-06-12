@@ -589,7 +589,7 @@
 				{
 					"title": "External Authentication",
 					"description": "Learn how to configure external authentication",
-					"path": "./admin/external-auth.md",
+					"path": "./admin/external-auth/index.md",
 					"icon_path": "./images/icons/plug.svg"
 				},
 				{
