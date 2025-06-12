@@ -1334,9 +1334,6 @@ func TestMetadata(t *testing.T) {
 			require.Len(t, state.Resources[0].Metadata, 1)
 			require.Equal(t, "test", state.Resources[0].Metadata[0].Key)
 			require.Equal(t, "value", state.Resources[0].Metadata[0].Value)
-
-			// When resource_id is not found, it falls back to graph traversal
-			// We can't easily verify the warning was logged without access to the log capture API
 		})
 	})
 }
