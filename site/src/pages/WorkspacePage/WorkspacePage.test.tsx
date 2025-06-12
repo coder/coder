@@ -317,7 +317,7 @@ describe("WorkspacePage", () => {
 						value: "2",
 					},
 				],
-				false,
+				true,
 			);
 		});
 	});
