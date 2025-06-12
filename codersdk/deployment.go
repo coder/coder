@@ -3367,6 +3367,8 @@ const (
 // not be included here and will be essentially hidden.
 var ExperimentsSafe = Experiments{
 	ExperimentWorkspacePrebuilds,
+	ExperimentAgenticChat,
+	ExperimentWorkspacePrebuilds,
 }
 
 // Experiments is a list of experiments.
