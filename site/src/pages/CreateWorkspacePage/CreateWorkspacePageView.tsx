@@ -27,6 +27,7 @@ import { Stack } from "components/Stack/Stack";
 import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
+import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { type FC, useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -40,10 +41,7 @@ import {
 	useValidationSchemaForRichParameters,
 } from "utils/richParameters";
 import * as Yup from "yup";
-import type {
-	CreateWorkspaceMode,
-	ExternalAuthPollingState,
-} from "./CreateWorkspacePage";
+import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
