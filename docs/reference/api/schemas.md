@@ -3509,9 +3509,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 |------------------------|
 | `example`              |
 | `auto-fill-parameters` |
-| `notifications`        |
-| `workspace-usage`      |
-| `web-push`             |
 | `dynamic-parameters`   |
 | `workspace-prebuilds`  |
 | `agentic-chat`         |

@@ -832,10 +832,7 @@ export type Experiment =
 	| "auto-fill-parameters"
 	| "dynamic-parameters"
 	| "example"
-	| "notifications"
-	| "web-push"
-	| "workspace-prebuilds"
-	| "workspace-usage";
+	| "workspace-prebuilds";
 
 // From codersdk/deployment.go
 export type Experiments = readonly Experiment[];

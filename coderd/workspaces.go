@@ -1507,12 +1507,6 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 
 	api.statsReporter.TrackUsage(workspace.ID)
 
-	if !api.Experiments.Enabled(codersdk.ExperimentWorkspaceUsage) {
-		// Continue previous behavior if the experiment is not enabled.
-		rw.WriteHeader(http.StatusNoContent)
-		return
-	}
-
 	if r.Body == http.NoBody {
 		// Continue previous behavior if no body is present.
 		rw.WriteHeader(http.StatusNoContent)

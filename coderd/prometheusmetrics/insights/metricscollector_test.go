@@ -182,7 +182,7 @@ func TestCollectInsights(t *testing.T) {
 	err = json.Unmarshal(goldenFile, &golden)
 	require.NoError(t, err)
 
-	collected := map[string]int{}
+	var collected map[string]int
 	ok := assert.Eventuallyf(t, func() bool {
 		// When
 		metrics, err := registry.Gather()
@@ -191,6 +191,7 @@ func TestCollectInsights(t *testing.T) {
 		}
 
 		// Then
+		currentCollected := map[string]int{}
 		for _, metric := range metrics {
 			t.Logf("metric: %s: %#v", metric.GetName(), metric)
 			switch metric.GetName() {
@@ -200,14 +201,18 @@ func TestCollectInsights(t *testing.T) {
 					if len(m.Label) > 0 {
 						key = key + "[" + metricLabelAsString(m) + "]"
 					}
-					collected[key] = int(m.Gauge.GetValue())
+					currentCollected[key] = int(m.Gauge.GetValue())
 				}
 			default:
 				assert.Failf(t, "unexpected metric collected", "metric: %s", metric.GetName())
 			}
 		}
 
-		return assert.ObjectsAreEqualValues(golden, collected)
+		if assert.ObjectsAreEqualValues(golden, currentCollected) {
+			collected = currentCollected
+			return true
+		}
+		return false
 	}, testutil.WaitMedium, testutil.IntervalFast, "template insights are inconsistent with golden files")
 	if !ok {
 		diff := cmp.Diff(golden, collected)
