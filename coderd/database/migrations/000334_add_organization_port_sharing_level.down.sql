@@ -37,7 +37,7 @@ ALTER TABLE templates
 	ALTER COLUMN max_port_sharing_level DROP DEFAULT,
 	ALTER COLUMN max_port_sharing_level TYPE new_app_sharing_level USING (
 		CASE
-			WHEN max_port_sharing_level = 'organization' THEN 'authenticated'::new_app_sharing_level
+			WHEN max_port_sharing_level = 'organization' THEN 'owner'::new_app_sharing_level
 			ELSE max_port_sharing_level::text::new_app_sharing_level
 		END
 	),
