@@ -123,12 +123,51 @@ export const WorkspaceParametersPageViewExperimental: FC<
 		setFieldValue: form.setFieldValue,
 	});
 
+	const hasIncompatibleParameters = parameters.some((parameter) => {
+		if (!parameter.mutable && parameter.diagnostics.length > 0) {
+			return true;
+		}
+		return false;
+	});
+
 	return (
 		<>
 			{disabled && (
 				<Alert severity="warning" className="mb-8">
 					The template for this workspace requires automatic updates. Update the
 					workspace to edit parameters.
+				</Alert>
+			)}
+
+			{hasIncompatibleParameters && (
+				<Alert severity="error">
+					<p className="text-lg leading-tight font-bold m-0">
+						Workspace update blocked
+					</p>
+					<p className="mb-0">
+						The new template version includes parameter changes that are
+						incompatible with this workspace's existing parameter values. This
+						may be caused by:
+					</p>
+					<ul className="mb-0 pl-4 space-y-1">
+						<li>
+							New <strong>required</strong> parameters that cannot be provided
+							after workspace creation
+						</li>
+						<li>
+							Changes to <strong>valid options or validations</strong> for
+							existing parameters
+						</li>
+						<li>Logic changes that conflict with previously selected values</li>
+					</ul>
+					<p className="mb-0">
+						Please contact the <strong>template administrator</strong> to review
+						the changes and ensure compatibility for existing workspaces.
+					</p>
+					<p className="mb-0">
+						Consider supplying defaults for new parameters or validating
+						conditional logic against prior workspace states.
+					</p>
 				</Alert>
 			)}
 
@@ -182,7 +221,23 @@ export const WorkspaceParametersPageViewExperimental: FC<
 							</p>
 						</hgroup>
 						{standardParameters.map((parameter, index) => {
-							const parameterField = `rich_parameter_values.${index}`;
+							const currentParameterValueIndex =
+								form.values.rich_parameter_values?.findIndex(
+									(p) => p.name === parameter.name,
+								);
+							const parameterFieldIndex =
+								currentParameterValueIndex !== undefined
+									? currentParameterValueIndex
+									: index;
+							// Get the form value by parameter name to ensure correct value mapping
+							const formValue =
+								currentParameterValueIndex !== undefined
+									? form.values?.rich_parameter_values?.[
+											currentParameterValueIndex
+										]?.value || ""
+									: "";
+
+							const parameterField = `rich_parameter_values.${parameterFieldIndex}`;
 							const isDisabled =
 								disabled ||
 								parameter.styling?.disabled ||
@@ -198,9 +253,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 									}
 									autofill={false}
 									disabled={isDisabled}
-									value={
-										form.values?.rich_parameter_values?.[index]?.value || ""
-									}
+									value={formValue}
 								/>
 							);
 						})}
