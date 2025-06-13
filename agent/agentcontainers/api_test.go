@@ -1450,7 +1450,7 @@ func TestAPI(t *testing.T) {
 
 		tests := []struct {
 			name          string
-			customization *agentcontainers.CoderCustomization
+			customization []agentcontainers.CoderCustomization
 			afterCreate   func(t *testing.T, subAgent agentcontainers.SubAgent)
 		}{
 			{
@@ -1458,19 +1458,68 @@ func TestAPI(t *testing.T) {
 				customization: nil,
 			},
 			{
-				name: "WithDisplayApps",
-				customization: &agentcontainers.CoderCustomization{
-					DisplayApps: []codersdk.DisplayApp{
-						codersdk.DisplayAppSSH,
-						codersdk.DisplayAppWebTerminal,
-						codersdk.DisplayAppVSCodeInsiders,
+				name:          "WithDefaultDisplayApps",
+				customization: []agentcontainers.CoderCustomization{},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.Len(t, subAgent.DisplayApps, 4)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppVSCodeDesktop)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppWebTerminal)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppSSH)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppPortForward)
+				},
+			},
+			{
+				name: "WithAllDisplayApps",
+				customization: []agentcontainers.CoderCustomization{
+					{
+						DisplayApps: map[codersdk.DisplayApp]bool{
+							codersdk.DisplayAppSSH:            true,
+							codersdk.DisplayAppWebTerminal:    true,
+							codersdk.DisplayAppVSCodeDesktop:  true,
+							codersdk.DisplayAppVSCodeInsiders: true,
+							codersdk.DisplayAppPortForward:    true,
+						},
 					},
 				},
 				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
-					require.Len(t, subAgent.DisplayApps, 3)
-					assert.Equal(t, codersdk.DisplayAppSSH, subAgent.DisplayApps[0])
-					assert.Equal(t, codersdk.DisplayAppWebTerminal, subAgent.DisplayApps[1])
-					assert.Equal(t, codersdk.DisplayAppVSCodeInsiders, subAgent.DisplayApps[2])
+					require.Len(t, subAgent.DisplayApps, 5)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppSSH)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppWebTerminal)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppVSCodeDesktop)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppVSCodeInsiders)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppPortForward)
+				},
+			},
+			{
+				name: "WithSomeDisplayAppsDisabled",
+				customization: []agentcontainers.CoderCustomization{
+					{
+						DisplayApps: map[codersdk.DisplayApp]bool{
+							codersdk.DisplayAppSSH:            false,
+							codersdk.DisplayAppWebTerminal:    false,
+							codersdk.DisplayAppVSCodeInsiders: false,
+
+							// We'll enable vscode in this layer, and disable
+							// it in the next layer to ensure a layer can be
+							// disabled.
+							codersdk.DisplayAppVSCodeDesktop: true,
+
+							// We disable port-forward in this layer, and
+							// then re-enable it in the next layer to ensure
+							// that behavior works.
+							codersdk.DisplayAppPortForward: false,
+						},
+					},
+					{
+						DisplayApps: map[codersdk.DisplayApp]bool{
+							codersdk.DisplayAppVSCodeDesktop: false,
+							codersdk.DisplayAppPortForward:   true,
+						},
+					},
+				},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.Len(t, subAgent.DisplayApps, 1)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppPortForward)
 				},
 			},
 		}
