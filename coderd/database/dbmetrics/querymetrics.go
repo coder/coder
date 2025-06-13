@@ -1145,6 +1145,13 @@ func (m queryMetricsStore) GetPresetParametersByTemplateVersionID(ctx context.Co
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetPresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPresetPrebuildSchedules(ctx)
+	m.queryLatencies.WithLabelValues("GetPresetPrebuildSchedules").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetPresetsAtFailureLimit(ctx context.Context, hardLimit int64) ([]database.GetPresetsAtFailureLimitRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetPresetsAtFailureLimit(ctx, hardLimit)
@@ -2227,6 +2234,13 @@ func (m queryMetricsStore) InsertPresetParameters(ctx context.Context, arg datab
 	start := time.Now()
 	r0, r1 := m.s.InsertPresetParameters(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertPresetParameters").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertPresetPrebuildSchedule(ctx context.Context, arg database.InsertPresetPrebuildScheduleParams) (database.TemplateVersionPresetPrebuildSchedule, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertPresetPrebuildSchedule(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertPresetPrebuildSchedule").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

@@ -2282,6 +2282,13 @@ func (q *querier) GetPresetParametersByTemplateVersionID(ctx context.Context, ar
 	return q.db.GetPresetParametersByTemplateVersionID(ctx, args)
 }
 
+func (q *querier) GetPresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetPresetPrebuildSchedules(ctx)
+}
+
 func (q *querier) GetPresetsAtFailureLimit(ctx context.Context, hardLimit int64) ([]database.GetPresetsAtFailureLimitRow, error) {
 	// GetPresetsAtFailureLimit returns a list of template version presets that have reached the hard failure limit.
 	// Request the same authorization permissions as GetPresetsBackoff, since the methods are similar.
@@ -3631,6 +3638,15 @@ func (q *querier) InsertPresetParameters(ctx context.Context, arg database.Inser
 	}
 
 	return q.db.InsertPresetParameters(ctx, arg)
+}
+
+func (q *querier) InsertPresetPrebuildSchedule(ctx context.Context, arg database.InsertPresetPrebuildScheduleParams) (database.TemplateVersionPresetPrebuildSchedule, error) {
+	err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTemplate)
+	if err != nil {
+		return database.TemplateVersionPresetPrebuildSchedule{}, err
+	}
+
+	return q.db.InsertPresetPrebuildSchedule(ctx, arg)
 }
 
 func (q *querier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {

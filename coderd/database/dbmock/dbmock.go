@@ -2342,6 +2342,21 @@ func (mr *MockStoreMockRecorder) GetPresetParametersByTemplateVersionID(ctx, tem
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPresetParametersByTemplateVersionID", reflect.TypeOf((*MockStore)(nil).GetPresetParametersByTemplateVersionID), ctx, templateVersionID)
 }
 
+// GetPresetPrebuildSchedules mocks base method.
+func (m *MockStore) GetPresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPresetPrebuildSchedules", ctx)
+	ret0, _ := ret[0].([]database.TemplateVersionPresetPrebuildSchedule)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPresetPrebuildSchedules indicates an expected call of GetPresetPrebuildSchedules.
+func (mr *MockStoreMockRecorder) GetPresetPrebuildSchedules(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPresetPrebuildSchedules", reflect.TypeOf((*MockStore)(nil).GetPresetPrebuildSchedules), ctx)
+}
+
 // GetPresetsAtFailureLimit mocks base method.
 func (m *MockStore) GetPresetsAtFailureLimit(ctx context.Context, hardLimit int64) ([]database.GetPresetsAtFailureLimitRow, error) {
 	m.ctrl.T.Helper()
@@ -4705,6 +4720,21 @@ func (m *MockStore) InsertPresetParameters(ctx context.Context, arg database.Ins
 func (mr *MockStoreMockRecorder) InsertPresetParameters(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertPresetParameters", reflect.TypeOf((*MockStore)(nil).InsertPresetParameters), ctx, arg)
+}
+
+// InsertPresetPrebuildSchedule mocks base method.
+func (m *MockStore) InsertPresetPrebuildSchedule(ctx context.Context, arg database.InsertPresetPrebuildScheduleParams) (database.TemplateVersionPresetPrebuildSchedule, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertPresetPrebuildSchedule", ctx, arg)
+	ret0, _ := ret[0].(database.TemplateVersionPresetPrebuildSchedule)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertPresetPrebuildSchedule indicates an expected call of InsertPresetPrebuildSchedule.
+func (mr *MockStoreMockRecorder) InsertPresetPrebuildSchedule(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertPresetPrebuildSchedule", reflect.TypeOf((*MockStore)(nil).InsertPresetPrebuildSchedule), ctx, arg)
 }
 
 // InsertProvisionerJob mocks base method.

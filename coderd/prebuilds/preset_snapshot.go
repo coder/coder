@@ -1,14 +1,17 @@
 package prebuilds
 
 import (
+	"fmt"
 	"slices"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 )
 
 // ActionType represents the type of action needed to reconcile prebuilds.
@@ -36,12 +39,14 @@ const (
 // - InProgress: prebuilds currently in progress
 // - Backoff: holds failure info to decide if prebuild creation should be backed off
 type PresetSnapshot struct {
-	Preset        database.GetTemplatePresetsWithPrebuildsRow
-	Running       []database.GetRunningPrebuiltWorkspacesRow
-	Expired       []database.GetRunningPrebuiltWorkspacesRow
-	InProgress    []database.CountInProgressPrebuildsRow
-	Backoff       *database.GetPresetsBackoffRow
-	IsHardLimited bool
+	Preset            database.GetTemplatePresetsWithPrebuildsRow
+	PrebuildSchedules []database.TemplateVersionPresetPrebuildSchedule
+	Running           []database.GetRunningPrebuiltWorkspacesRow
+	Expired           []database.GetRunningPrebuiltWorkspacesRow
+	InProgress        []database.CountInProgressPrebuildsRow
+	Backoff           *database.GetPresetsBackoffRow
+	IsHardLimited     bool
+	clock             quartz.Clock
 }
 
 // ReconciliationState represents the processed state of a preset's prebuilds,
@@ -83,6 +88,49 @@ func (ra *ReconciliationActions) IsNoop() bool {
 	return ra.Create == 0 && len(ra.DeleteIDs) == 0 && ra.BackoffUntil.IsZero()
 }
 
+// MatchesCron interprets a cron spec as a continuous time range,
+// and returns whether the provided time value falls within that range.
+func MatchesCron(cronExpression string, at time.Time) (bool, error) {
+	sched, err := cron.Weekly(cronExpression)
+	if err != nil {
+		return false, xerrors.Errorf("failed to parse cron expression: %w", err)
+	}
+
+	return sched.IsWithinRange(at), nil
+}
+
+// CalculateDesiredInstances returns the number of desired instances based on the provided time.
+// If the time matches any defined autoscaling schedule, the corresponding number of instances is returned.
+// Otherwise, it falls back to the default number of instances specified in the prebuild configuration.
+func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) (int32, error) {
+	if len(p.PrebuildSchedules) == 0 {
+		// If no schedules are defined, fall back to the default desired instance count
+		return p.Preset.DesiredInstances.Int32, nil
+	}
+
+	// Validate that the provided timezone is valid
+	_, err := time.LoadLocation(p.Preset.AutoscalingTimezone)
+	if err != nil {
+		return 0, xerrors.Errorf("failed to parse location %v: %w", p.Preset.AutoscalingTimezone, err)
+	}
+
+	// Look for a schedule whose cron expression matches the provided time
+	for _, schedule := range p.PrebuildSchedules {
+		// Prefix the cron expression with timezone information
+		cronExprWithTimezone := fmt.Sprintf("CRON_TZ=%s %s", p.Preset.AutoscalingTimezone, schedule.CronExpression)
+		matches, err := MatchesCron(cronExprWithTimezone, at)
+		if err != nil {
+			return 0, xerrors.Errorf("failed to match cron expression: %w", err)
+		}
+		if matches {
+			return schedule.Instances, nil
+		}
+	}
+
+	// If no schedule matches, fall back to the default desired instance count
+	return p.Preset.DesiredInstances.Int32, nil
+}
+
 // CalculateState computes the current state of prebuilds for a preset, including:
 // - Actual: Number of currently running prebuilds, i.e., non-expired and expired prebuilds
 // - Expired: Number of currently running expired prebuilds
@@ -95,7 +143,7 @@ func (ra *ReconciliationActions) IsNoop() bool {
 // and calculates appropriate counts based on the current state of running prebuilds and
 // in-progress transitions. This state information is used to determine what reconciliation
 // actions are needed to reach the desired state.
-func (p PresetSnapshot) CalculateState() *ReconciliationState {
+func (p PresetSnapshot) CalculateState() (*ReconciliationState, error) {
 	var (
 		actual     int32
 		desired    int32
@@ -111,7 +159,11 @@ func (p PresetSnapshot) CalculateState() *ReconciliationState {
 	expired = int32(len(p.Expired))
 
 	if p.isActive() {
-		desired = p.Preset.DesiredInstances.Int32
+		var err error
+		desired, err = p.CalculateDesiredInstances(p.clock.Now())
+		if err != nil {
+			return nil, xerrors.Errorf("failed to calculate number of desired instances: %w", err)
+		}
 		eligible = p.countEligible()
 		extraneous = max(actual-expired-desired, 0)
 	}
@@ -128,7 +180,7 @@ func (p PresetSnapshot) CalculateState() *ReconciliationState {
 		Starting: starting,
 		Stopping: stopping,
 		Deleting: deleting,
-	}
+	}, nil
 }
 
 // CalculateActions determines what actions are needed to reconcile the current state with the desired state.
@@ -183,7 +235,10 @@ func (p PresetSnapshot) isActive() bool {
 //
 // The function returns a list of actions to be executed to achieve the desired state.
 func (p PresetSnapshot) handleActiveTemplateVersion() (actions []*ReconciliationActions, err error) {
-	state := p.CalculateState()
+	state, err := p.CalculateState()
+	if err != nil {
+		return nil, xerrors.Errorf("failed to calculate state: %w", err)
+	}
 
 	// If we have expired prebuilds, delete them
 	if state.Expired > 0 {
