@@ -31,7 +31,7 @@ type Cleanable interface {
 	Cleanup(ctx context.Context, id string, logs io.Writer) error
 }
 
-// Collectable is an optional extension to Runnable that allows to get metrics from the runner
+// Collectable is an optional extension to Runnable that allows to get metrics from the runner.
 type Collectable interface {
 	Runnable
 	// Gets the bytes transferred
