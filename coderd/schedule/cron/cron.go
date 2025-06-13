@@ -163,11 +163,16 @@ func (s Schedule) Next(t time.Time) time.Time {
 // However, due to minor implementation imprecision, it is interpreted as
 // a range from 08:59:00 to 18:58:59, Monday through Friday.
 func (s Schedule) IsWithinRange(t time.Time) bool {
-	// Get the next scheduled time
-	next := s.Next(t)
-
-	// If the next time is more than a minute away, we're not within range
-	return next.Sub(t) <= time.Minute
+	// Truncate to the beginning of the current minute.
+	currentMinute := t.Truncate(time.Minute)
+	
+	// Go back 1 second from the current minute to find what the next scheduled time would be.
+	justBefore := currentMinute.Add(-time.Second)
+	next := s.Next(justBefore)
+	
+	// If the next scheduled time is exactly at the current minute,
+	// then we are within the range.
+	return next.Equal(currentMinute)
 }
 
 var (
