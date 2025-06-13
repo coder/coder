@@ -102,6 +102,13 @@ var RBACPermissions = map[string]PermissionDefinition{
 	"workspace_dormant": {
 		Actions: workspaceActions,
 	},
+	"prebuilt_workspace": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   actDef("read prebuilt workspace"),
+			ActionUpdate: actDef("update prebuilt workspace"),
+			ActionDelete: actDef("delete prebuilt workspace"),
+		},
+	},
 	"workspace_proxy": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef("create a workspace proxy"),

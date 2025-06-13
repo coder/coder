@@ -412,6 +412,12 @@ var (
 						policy.ActionCreate, policy.ActionDelete, policy.ActionRead, policy.ActionUpdate,
 						policy.ActionWorkspaceStart, policy.ActionWorkspaceStop,
 					},
+					// PrebuiltWorkspaces are a subset of Workspaces.
+					// Explicitly setting PrebuiltWorkspace permissions for clarity.
+					// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
+					rbac.ResourcePrebuiltWorkspace.Type: {
+						policy.ActionRead, policy.ActionUpdate, policy.ActionDelete,
+					},
 					// Should be able to add the prebuilds system user as a member to any organization that needs prebuilds.
 					rbac.ResourceOrganizationMember.Type: {
 						policy.ActionCreate,
@@ -3909,7 +3915,14 @@ func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertW
 		action = policy.ActionWorkspaceStop
 	}
 
-	if err = q.authorizeContext(ctx, action, w); err != nil {
+	if action == policy.ActionDelete && w.IsPrebuild() {
+		if err := q.authorizeContext(ctx, action, w.PrebuildRBAC()); err != nil {
+			// Fallback to normal workspace auth check
+			if err = q.authorizeContext(ctx, action, w); err != nil {
+				return xerrors.Errorf("authorize context: %w", err)
+			}
+		}
+	} else if err = q.authorizeContext(ctx, action, w); err != nil {
 		return xerrors.Errorf("authorize context: %w", err)
 	}
 
@@ -3949,7 +3962,15 @@ func (q *querier) InsertWorkspaceBuildParameters(ctx context.Context, arg databa
 		return err
 	}
 
-	err = q.authorizeContext(ctx, policy.ActionUpdate, workspace)
+	if workspace.IsPrebuild() {
+		err = q.authorizeContext(ctx, policy.ActionUpdate, workspace.PrebuildRBAC())
+		// Fallback to normal workspace auth check
+		if err != nil {
+			err = q.authorizeContext(ctx, policy.ActionUpdate, workspace)
+		}
+	} else {
+		err = q.authorizeContext(ctx, policy.ActionUpdate, workspace)
+	}
 	if err != nil {
 		return err
 	}

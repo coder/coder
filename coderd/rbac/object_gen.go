@@ -222,6 +222,15 @@ var (
 		Type: "organization_member",
 	}
 
+	// ResourcePrebuiltWorkspace
+	// Valid Actions
+	//  - "ActionDelete" :: delete prebuilt workspace
+	//  - "ActionRead" :: read prebuilt workspace
+	//  - "ActionUpdate" :: update prebuilt workspace
+	ResourcePrebuiltWorkspace = Object{
+		Type: "prebuilt_workspace",
+	}
+
 	// ResourceProvisionerDaemon
 	// Valid Actions
 	//  - "ActionCreate" :: create a provisioner daemon/key
@@ -389,6 +398,7 @@ func AllResources() []Objecter {
 		ResourceOauth2AppSecret,
 		ResourceOrganization,
 		ResourceOrganizationMember,
+		ResourcePrebuiltWorkspace,
 		ResourceProvisionerDaemon,
 		ResourceProvisionerJobs,
 		ResourceReplicas,

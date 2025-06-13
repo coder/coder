@@ -206,6 +206,7 @@ Status Code **200**
 | `resource_type` | `oauth2_app_secret`                |
 | `resource_type` | `organization`                     |
 | `resource_type` | `organization_member`              |
+| `resource_type` | `prebuilt_workspace`               |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
 | `resource_type` | `replicas`                         |
@@ -375,6 +376,7 @@ Status Code **200**
 | `resource_type` | `oauth2_app_secret`                |
 | `resource_type` | `organization`                     |
 | `resource_type` | `organization_member`              |
+| `resource_type` | `prebuilt_workspace`               |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
 | `resource_type` | `replicas`                         |
@@ -544,6 +546,7 @@ Status Code **200**
 | `resource_type` | `oauth2_app_secret`                |
 | `resource_type` | `organization`                     |
 | `resource_type` | `organization_member`              |
+| `resource_type` | `prebuilt_workspace`               |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
 | `resource_type` | `replicas`                         |
@@ -682,6 +685,7 @@ Status Code **200**
 | `resource_type` | `oauth2_app_secret`                |
 | `resource_type` | `organization`                     |
 | `resource_type` | `organization_member`              |
+| `resource_type` | `prebuilt_workspace`               |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
 | `resource_type` | `replicas`                         |
@@ -1042,6 +1046,7 @@ Status Code **200**
 | `resource_type` | `oauth2_app_secret`                |
 | `resource_type` | `organization`                     |
 | `resource_type` | `organization_member`              |
+| `resource_type` | `prebuilt_workspace`               |
 | `resource_type` | `provisioner_daemon`               |
 | `resource_type` | `provisioner_jobs`                 |
 | `resource_type` | `replicas`                         |
