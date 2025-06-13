@@ -56,7 +56,7 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 						/>
 						<SSHStep
 							helpText="Connect to the agent:"
-							codeExample={`ssh ${workspaceName}.${agentName}.${workspaceOwnerUsername}.${sshSuffix}`}
+							codeExample={`ssh ${agentName}.${workspaceName}.${workspaceOwnerUsername}.${sshSuffix}`}
 						/>
 					</Stack>
 				</ol>

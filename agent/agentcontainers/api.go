@@ -1099,6 +1099,36 @@ func (api *API) injectSubAgentIntoContainerLocked(ctx context.Context, dc coders
 		directory = DevcontainerDefaultContainerWorkspaceFolder
 	}
 
+	displayAppsMap := map[codersdk.DisplayApp]bool{
+		// NOTE(DanielleMaywood):
+		// We use the same defaults here as set in terraform-provider-coder.
+		// https://github.com/coder/terraform-provider-coder/blob/c1c33f6d556532e75662c0ca373ed8fdea220eb5/provider/agent.go#L38-L51
+		codersdk.DisplayAppVSCodeDesktop:  true,
+		codersdk.DisplayAppVSCodeInsiders: false,
+		codersdk.DisplayAppWebTerminal:    true,
+		codersdk.DisplayAppSSH:            true,
+		codersdk.DisplayAppPortForward:    true,
+	}
+
+	if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath); err != nil {
+		api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
+	} else {
+		coderCustomization := config.MergedConfiguration.Customizations.Coder
+
+		for _, customization := range coderCustomization {
+			for app, enabled := range customization.DisplayApps {
+				displayAppsMap[app] = enabled
+			}
+		}
+	}
+
+	displayApps := make([]codersdk.DisplayApp, 0, len(displayAppsMap))
+	for app, enabled := range displayAppsMap {
+		if enabled {
+			displayApps = append(displayApps, app)
+		}
+	}
+
 	// The preparation of the subagent is done, now we can create the
 	// subagent record in the database to receive the auth token.
 	createdAgent, err := api.subAgentClient.Create(ctx, SubAgent{
@@ -1106,6 +1136,7 @@ func (api *API) injectSubAgentIntoContainerLocked(ctx context.Context, dc coders
 		Directory:       directory,
 		OperatingSystem: "linux", // Assuming Linux for dev containers.
 		Architecture:    arch,
+		DisplayApps:     displayApps,
 	})
 	if err != nil {
 		return xerrors.Errorf("create agent: %w", err)

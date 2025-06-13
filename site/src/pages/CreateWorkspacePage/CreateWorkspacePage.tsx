@@ -4,7 +4,6 @@ import { checkAuthorization } from "api/queries/authCheck";
 import {
 	richParameters,
 	templateByName,
-	templateVersionExternalAuth,
 	templateVersionPresets,
 } from "api/queries/templates";
 import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
@@ -17,6 +16,7 @@ import type {
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { useExternalAuth } from "hooks/useExternalAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
@@ -34,8 +34,6 @@ import {
 
 const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
-
-export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePage: FC = () => {
 	const { organization: organizationName = "default", template: templateName } =
@@ -235,50 +233,6 @@ const CreateWorkspacePage: FC = () => {
 			)}
 		</>
 	);
-};
-
-const useExternalAuth = (versionId: string | undefined) => {
-	const [externalAuthPollingState, setExternalAuthPollingState] =
-		useState<ExternalAuthPollingState>("idle");
-
-	const startPollingExternalAuth = useCallback(() => {
-		setExternalAuthPollingState("polling");
-	}, []);
-
-	const { data: externalAuth, isPending: isLoadingExternalAuth } = useQuery({
-		...templateVersionExternalAuth(versionId ?? ""),
-		enabled: !!versionId,
-		refetchInterval: externalAuthPollingState === "polling" ? 1000 : false,
-	});
-
-	const allSignedIn = externalAuth?.every((it) => it.authenticated);
-
-	useEffect(() => {
-		if (allSignedIn) {
-			setExternalAuthPollingState("idle");
-			return;
-		}
-
-		if (externalAuthPollingState !== "polling") {
-			return;
-		}
-
-		// Poll for a maximum of one minute
-		const quitPolling = setTimeout(
-			() => setExternalAuthPollingState("abandoned"),
-			60_000,
-		);
-		return () => {
-			clearTimeout(quitPolling);
-		};
-	}, [externalAuthPollingState, allSignedIn]);
-
-	return {
-		startPollingExternalAuth,
-		externalAuth,
-		externalAuthPollingState,
-		isLoadingExternalAuth,
-	};
 };
 
 const getAutofillParameters = (
