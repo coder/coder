@@ -1403,6 +1403,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				proxyTestAppNameFake:          codersdk.WorkspaceAppSharingLevelOwner,
 				proxyTestAppNameOwner:         codersdk.WorkspaceAppSharingLevelOwner,
 				proxyTestAppNameAuthenticated: codersdk.WorkspaceAppSharingLevelAuthenticated,
+				proxyTestAppNameOrganization:  codersdk.WorkspaceAppSharingLevelOrganization,
 				proxyTestAppNamePublic:        codersdk.WorkspaceAppSharingLevelPublic,
 			}
 			for _, app := range agnt.Apps {
@@ -1560,6 +1561,24 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 				// Unauthenticated user should not have any access.
 				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticated, clientWithNoAuth, false, true)
+			})
+
+			t.Run("LevelOrganization", func(t *testing.T) {
+				t.Parallel()
+
+				// Site owner should be able to access all workspaces if
+				// enabled.
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOrganization, ownerClient, siteOwnerCanAccessShared, false)
+
+				// Owner should be able to access their own workspace.
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOrganization, client, true, false)
+
+				// Users in the same organization should be able to access the workspace.
+				// Note: clientInOtherOrg is in a different organization, so should NOT have access
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOrganization, clientInOtherOrg, false, false)
+
+				// Unauthenticated user should not have any access.
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOrganization, clientWithNoAuth, false, true)
 			})
 
 			t.Run("LevelPublic", func(t *testing.T) {

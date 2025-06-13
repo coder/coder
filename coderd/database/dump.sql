@@ -18,7 +18,8 @@ CREATE TYPE api_key_scope AS ENUM (
 CREATE TYPE app_sharing_level AS ENUM (
     'owner',
     'authenticated',
-    'public'
+    'public',
+    'organization'
 );
 
 CREATE TYPE audit_action AS ENUM (

@@ -12,6 +12,7 @@ import (
 const (
 	WorkspaceAgentPortShareLevelOwner         WorkspaceAgentPortShareLevel = "owner"
 	WorkspaceAgentPortShareLevelAuthenticated WorkspaceAgentPortShareLevel = "authenticated"
+	WorkspaceAgentPortShareLevelOrganization  WorkspaceAgentPortShareLevel = "organization"
 	WorkspaceAgentPortShareLevelPublic        WorkspaceAgentPortShareLevel = "public"
 
 	WorkspaceAgentPortShareProtocolHTTP  WorkspaceAgentPortShareProtocol = "http"
@@ -24,7 +25,7 @@ type (
 	UpsertWorkspaceAgentPortShareRequest struct {
 		AgentName  string                          `json:"agent_name"`
 		Port       int32                           `json:"port"`
-		ShareLevel WorkspaceAgentPortShareLevel    `json:"share_level" enums:"owner,authenticated,public"`
+		ShareLevel WorkspaceAgentPortShareLevel    `json:"share_level" enums:"owner,authenticated,organization,public"`
 		Protocol   WorkspaceAgentPortShareProtocol `json:"protocol" enums:"http,https"`
 	}
 	WorkspaceAgentPortShares struct {
@@ -34,7 +35,7 @@ type (
 		WorkspaceID uuid.UUID                       `json:"workspace_id" format:"uuid"`
 		AgentName   string                          `json:"agent_name"`
 		Port        int32                           `json:"port"`
-		ShareLevel  WorkspaceAgentPortShareLevel    `json:"share_level" enums:"owner,authenticated,public"`
+		ShareLevel  WorkspaceAgentPortShareLevel    `json:"share_level" enums:"owner,authenticated,organization,public"`
 		Protocol    WorkspaceAgentPortShareProtocol `json:"protocol" enums:"http,https"`
 	}
 	DeleteWorkspaceAgentPortShareRequest struct {
@@ -46,11 +47,13 @@ type (
 func (l WorkspaceAgentPortShareLevel) ValidMaxLevel() bool {
 	return l == WorkspaceAgentPortShareLevelOwner ||
 		l == WorkspaceAgentPortShareLevelAuthenticated ||
+		l == WorkspaceAgentPortShareLevelOrganization ||
 		l == WorkspaceAgentPortShareLevelPublic
 }
 
 func (l WorkspaceAgentPortShareLevel) ValidPortShareLevel() bool {
 	return l == WorkspaceAgentPortShareLevelAuthenticated ||
+		l == WorkspaceAgentPortShareLevelOrganization ||
 		l == WorkspaceAgentPortShareLevelPublic
 }
 

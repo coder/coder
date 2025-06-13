@@ -35,6 +35,7 @@ const (
 	proxyTestAppNameFake          = "test-app-fake"
 	proxyTestAppNameOwner         = "test-app-owner"
 	proxyTestAppNameAuthenticated = "test-app-authenticated"
+	proxyTestAppNameOrganization  = "test-app-organization"
 	proxyTestAppNamePublic        = "test-app-public"
 	proxyTestAppQuery             = "query=true"
 	proxyTestAppBody              = "hello world from apps test"
@@ -351,6 +352,13 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 			Slug:         proxyTestAppNameAuthenticated,
 			DisplayName:  proxyTestAppNameAuthenticated,
 			SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
+			Url:          appURL,
+			Subdomain:    true,
+		},
+		{
+			Slug:         proxyTestAppNameOrganization,
+			DisplayName:  proxyTestAppNameOrganization,
+			SharingLevel: proto.AppSharingLevel_ORGANIZATION,
 			Url:          appURL,
 			Subdomain:    true,
 		},
