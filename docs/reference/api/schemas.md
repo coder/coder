@@ -6308,6 +6308,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `assign_role`                      |
 | `audit_log`                        |
 | `chat`                             |
+| `connection_log`                   |
 | `crypto_key`                       |
 | `debug_info`                       |
 | `deployment_config`                |

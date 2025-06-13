@@ -936,6 +936,7 @@ export type FeatureName =
 	| "appearance"
 	| "audit_log"
 	| "browser_only"
+	| "connection_log"
 	| "control_shared_ports"
 	| "custom_roles"
 	| "external_provisioner_daemons"
@@ -957,6 +958,7 @@ export const FeatureNames: FeatureName[] = [
 	"appearance",
 	"audit_log",
 	"browser_only",
+	"connection_log",
 	"control_shared_ports",
 	"custom_roles",
 	"external_provisioner_daemons",
@@ -2173,6 +2175,7 @@ export type RBACResource =
 	| "assign_role"
 	| "audit_log"
 	| "chat"
+	| "connection_log"
 	| "crypto_key"
 	| "debug_info"
 	| "deployment_config"
@@ -2212,6 +2215,7 @@ export const RBACResources: RBACResource[] = [
 	"assign_role",
 	"audit_log",
 	"chat",
+	"connection_log",
 	"crypto_key",
 	"debug_info",
 	"deployment_config",

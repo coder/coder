@@ -58,6 +58,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -122,6 +123,7 @@ type Options struct {
 	TemplateScheduleStore          schedule.TemplateScheduleStore
 	Coordinator                    tailnet.Coordinator
 	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
+	ConnectionLogger               connectionlog.ConnectionLogger
 
 	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport
 	HealthcheckTimeout time.Duration
@@ -353,6 +355,12 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 	auditor.Store(&options.Auditor)
 
+	var connectionLogger atomic.Pointer[connectionlog.ConnectionLogger]
+	if options.ConnectionLogger == nil {
+		options.ConnectionLogger = connectionlog.NewNop()
+	}
+	connectionLogger.Store(&options.ConnectionLogger)
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	experiments := coderd.ReadExperiments(*options.Logger, options.DeploymentValues.Experiments)
 	lifecycleExecutor := autobuild.NewExecutor(
@@ -539,6 +547,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			ExternalAuthConfigs:            options.ExternalAuthConfigs,
 
 			Auditor:                            options.Auditor,
+			ConnectionLogger:                   options.ConnectionLogger,
 			AWSCertificates:                    options.AWSCertificates,
 			AzureCertificates:                  options.AzureCertificates,
 			GithubOAuth2Config:                 options.GithubOAuth2Config,
