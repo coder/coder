@@ -480,7 +480,7 @@ require (
 )
 
 require (
-	github.com/anthropics/anthropic-sdk-go v0.2.0-beta.3
+	github.com/anthropics/anthropic-sdk-go v1.4.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
 	github.com/coder/preview v0.0.2-0.20250611164554-2e5caa65a54a
 	github.com/fsnotify/fsnotify v1.9.0
