@@ -19,12 +19,17 @@ import (
 )
 
 type mockLogger struct {
+	mu sync.Mutex
+
 	logs []*proto.Log
 }
 
 var _ logSink = &mockLogger{}
 
 func (m *mockLogger) ProvisionLog(l proto.LogLevel, o string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.logs = append(m.logs, &proto.Log{Level: l, Output: o})
 }
 
