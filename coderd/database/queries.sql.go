@@ -975,7 +975,8 @@ SELECT
 	COUNT(connection_logs.*) OVER () AS count
 FROM
 	connection_logs
-LEFT JOIN users ON connection_logs.user_id = users.id
+LEFT JOIN users ON
+	connection_logs.user_id = users.id
 LEFT JOIN users as workspace_owner ON
 	connection_logs.workspace_owner_id = workspace_owner.id
 WHERE TRUE
@@ -1073,22 +1074,22 @@ VALUES
 `
 
 type InsertConnectionLogParams struct {
-	ID               uuid.UUID        `db:"id" json:"id"`
-	Time             time.Time        `db:"time" json:"time"`
-	ConnectionID     uuid.UUID        `db:"connection_id" json:"connection_id"`
-	OrganizationID   uuid.UUID        `db:"organization_id" json:"organization_id"`
-	WorkspaceOwnerID uuid.UUID        `db:"workspace_owner_id" json:"workspace_owner_id"`
-	WorkspaceID      uuid.UUID        `db:"workspace_id" json:"workspace_id"`
-	WorkspaceName    string           `db:"workspace_name" json:"workspace_name"`
-	AgentName        string           `db:"agent_name" json:"agent_name"`
-	Action           ConnectionAction `db:"action" json:"action"`
-	Code             int32            `db:"code" json:"code"`
-	Ip               pqtype.Inet      `db:"ip" json:"ip"`
-	UserAgent        sql.NullString   `db:"user_agent" json:"user_agent"`
-	UserID           uuid.UUID        `db:"user_id" json:"user_id"`
-	SlugOrPort       sql.NullString   `db:"slug_or_port" json:"slug_or_port"`
-	ConnectionType   sql.NullString   `db:"connection_type" json:"connection_type"`
-	Reason           sql.NullString   `db:"reason" json:"reason"`
+	ID               uuid.UUID              `db:"id" json:"id"`
+	Time             time.Time              `db:"time" json:"time"`
+	ConnectionID     uuid.UUID              `db:"connection_id" json:"connection_id"`
+	OrganizationID   uuid.UUID              `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID uuid.UUID              `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      uuid.UUID              `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    string                 `db:"workspace_name" json:"workspace_name"`
+	AgentName        string                 `db:"agent_name" json:"agent_name"`
+	Action           ConnectionAction       `db:"action" json:"action"`
+	Code             int32                  `db:"code" json:"code"`
+	Ip               pqtype.Inet            `db:"ip" json:"ip"`
+	UserAgent        sql.NullString         `db:"user_agent" json:"user_agent"`
+	UserID           uuid.UUID              `db:"user_id" json:"user_id"`
+	SlugOrPort       sql.NullString         `db:"slug_or_port" json:"slug_or_port"`
+	ConnectionType   NullConnectionTypeEnum `db:"connection_type" json:"connection_type"`
+	Reason           sql.NullString         `db:"reason" json:"reason"`
 }
 
 func (q *sqlQuerier) InsertConnectionLog(ctx context.Context, arg InsertConnectionLogParams) (ConnectionLog, error) {

@@ -3,10 +3,9 @@ package connectionlog
 import (
 	"context"
 
-	"cdr.dev/slog"
-
 	"github.com/hashicorp/go-multierror"
 
+	"cdr.dev/slog"
 	agpl "github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"

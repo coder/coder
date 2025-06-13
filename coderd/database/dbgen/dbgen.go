@@ -98,10 +98,10 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.ConnectionLog)
 			String: takeFirst(seed.SlugOrPort.String, ""),
 			Valid:  takeFirst(seed.SlugOrPort.Valid, false),
 		},
-		ConnectionType: sql.NullString{
-			String: takeFirst(seed.ConnectionType.String, ""),
-			Valid:  takeFirst(seed.ConnectionType.Valid, false),
-		},
+		ConnectionType: takeFirst(seed.ConnectionType, database.NullConnectionTypeEnum{
+			ConnectionTypeEnum: database.ConnectionTypeEnumSsh,
+			Valid:              true,
+		}),
 		Reason: sql.NullString{
 			String: takeFirst(seed.Reason.String, ""),
 			Valid:  takeFirst(seed.Reason.Valid, false),

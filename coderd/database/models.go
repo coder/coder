@@ -477,6 +477,73 @@ func AllConnectionActionValues() []ConnectionAction {
 	}
 }
 
+type ConnectionTypeEnum string
+
+const (
+	ConnectionTypeEnumSsh             ConnectionTypeEnum = "ssh"
+	ConnectionTypeEnumVscode          ConnectionTypeEnum = "vscode"
+	ConnectionTypeEnumJetbrains       ConnectionTypeEnum = "jetbrains"
+	ConnectionTypeEnumReconnectingPty ConnectionTypeEnum = "reconnecting_pty"
+	ConnectionTypeEnumUnspecified     ConnectionTypeEnum = "unspecified"
+)
+
+func (e *ConnectionTypeEnum) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ConnectionTypeEnum(s)
+	case string:
+		*e = ConnectionTypeEnum(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ConnectionTypeEnum: %T", src)
+	}
+	return nil
+}
+
+type NullConnectionTypeEnum struct {
+	ConnectionTypeEnum ConnectionTypeEnum `json:"connection_type_enum"`
+	Valid              bool               `json:"valid"` // Valid is true if ConnectionTypeEnum is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullConnectionTypeEnum) Scan(value interface{}) error {
+	if value == nil {
+		ns.ConnectionTypeEnum, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ConnectionTypeEnum.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullConnectionTypeEnum) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ConnectionTypeEnum), nil
+}
+
+func (e ConnectionTypeEnum) Valid() bool {
+	switch e {
+	case ConnectionTypeEnumSsh,
+		ConnectionTypeEnumVscode,
+		ConnectionTypeEnumJetbrains,
+		ConnectionTypeEnumReconnectingPty,
+		ConnectionTypeEnumUnspecified:
+		return true
+	}
+	return false
+}
+
+func AllConnectionTypeEnumValues() []ConnectionTypeEnum {
+	return []ConnectionTypeEnum{
+		ConnectionTypeEnumSsh,
+		ConnectionTypeEnumVscode,
+		ConnectionTypeEnumJetbrains,
+		ConnectionTypeEnumReconnectingPty,
+		ConnectionTypeEnumUnspecified,
+	}
+}
+
 type CryptoKeyFeature string
 
 const (
@@ -2876,8 +2943,8 @@ type ConnectionLog struct {
 	// uuid.Nil for SSH actions. For workspace apps, this is the ID of the user that made the request.
 	UserID     uuid.UUID      `db:"user_id" json:"user_id"`
 	SlugOrPort sql.NullString `db:"slug_or_port" json:"slug_or_port"`
-	// Null for Workspace App actions. For SSH actions, this is the type of connection (e.g., "ssh", "websocket").
-	ConnectionType sql.NullString `db:"connection_type" json:"connection_type"`
+	// Null for Workspace App actions. For SSH actions, this is the type of connection (e.g., "SSH", "VS Code").
+	ConnectionType NullConnectionTypeEnum `db:"connection_type" json:"connection_type"`
 	// Null for Workspace App actions. For SSH actions, this is the reason for the connection or disconnection, to be displayed in the UI.
 	Reason sql.NullString `db:"reason" json:"reason"`
 }

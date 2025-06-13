@@ -7,6 +7,15 @@ CREATE TYPE connection_action AS ENUM (
 	'close'
 );
 
+-- Mirrors `Connection.Type` in `agent.Proto` / agentSDK.ConnectionType`
+CREATE TYPE connection_type_enum AS ENUM (
+	'ssh',
+	'vscode',
+	'jetbrains',
+	'reconnecting_pty',
+	'unspecified'
+);
+
 CREATE TABLE connection_logs (
 	id uuid NOT NULL,
 	"time" timestamp with time zone NOT NULL,
@@ -26,7 +35,7 @@ CREATE TABLE connection_logs (
 	slug_or_port text,
 
 	-- Null for Workspace App actions.
-	connection_type text,
+	connection_type connection_type_enum,
 	reason text,
 
 	PRIMARY KEY (id)
@@ -40,7 +49,7 @@ COMMENT ON COLUMN connection_logs.user_agent IS 'Null for SSH actions. For works
 
 COMMENT ON COLUMN connection_logs.user_id IS 'uuid.Nil for SSH actions. For workspace apps, this is the ID of the user that made the request.';
 
-COMMENT ON COLUMN connection_logs.connection_type IS 'Null for Workspace App actions. For SSH actions, this is the type of connection (e.g., "ssh", "websocket").';
+COMMENT ON COLUMN connection_logs.connection_type IS 'Null for Workspace App actions. For SSH actions, this is the type of connection (e.g., "SSH", "VS Code").';
 
 COMMENT ON COLUMN connection_logs.reason IS 'Null for Workspace App actions. For SSH actions, this is the reason for the connection or disconnection, to be displayed in the UI.';
 

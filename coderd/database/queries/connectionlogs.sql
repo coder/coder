@@ -6,7 +6,8 @@ SELECT
 	COUNT(connection_logs.*) OVER () AS count
 FROM
 	connection_logs
-LEFT JOIN users ON connection_logs.user_id = users.id
+LEFT JOIN users ON
+	connection_logs.user_id = users.id
 LEFT JOIN users as workspace_owner ON
 	connection_logs.workspace_owner_id = workspace_owner.id
 WHERE TRUE

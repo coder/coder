@@ -6,3 +6,5 @@ DROP INDEX IF EXISTS idx_connection_logs_time_desc;
 DROP TABLE IF EXISTS connection_logs;
 
 DROP TYPE IF EXISTS connection_action;
+
+DROP TYPE IF EXISTS connection_type_enum;

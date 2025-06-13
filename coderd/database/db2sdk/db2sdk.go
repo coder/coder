@@ -739,6 +739,23 @@ func ConnectionLogActionFromAgentProtoConnectionAction(action agentproto.Connect
 	}
 }
 
+func ConnectionLogConnectionTypeEnumFromAgentProtoConnectionType(typ agentproto.Connection_Type) (database.ConnectionTypeEnum, error) {
+	switch typ {
+	case agentproto.Connection_SSH:
+		return database.ConnectionTypeEnumSsh, nil
+	case agentproto.Connection_JETBRAINS:
+		return database.ConnectionTypeEnumJetbrains, nil
+	case agentproto.Connection_VSCODE:
+		return database.ConnectionTypeEnumVscode, nil
+	case agentproto.Connection_RECONNECTING_PTY:
+		return database.ConnectionTypeEnumReconnectingPty, nil
+	case agentproto.Connection_TYPE_UNSPECIFIED:
+		return database.ConnectionTypeEnumUnspecified, nil
+	default:
+		return "", xerrors.Errorf("unknown agent connection type %q", typ)
+	}
+}
+
 func AgentProtoConnectionActionToAuditAction(action database.AuditAction) (agentproto.Connection_Action, error) {
 	switch action {
 	case database.AuditActionConnect:

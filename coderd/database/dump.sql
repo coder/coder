@@ -60,6 +60,14 @@ CREATE TYPE connection_action AS ENUM (
     'close'
 );
 
+CREATE TYPE connection_type_enum AS ENUM (
+    'ssh',
+    'vscode',
+    'jetbrains',
+    'reconnecting_pty',
+    'unspecified'
+);
+
 CREATE TYPE crypto_key_feature AS ENUM (
     'workspace_apps_token',
     'workspace_apps_api_key',
@@ -869,7 +877,7 @@ CREATE TABLE connection_logs (
     user_agent text,
     user_id uuid NOT NULL,
     slug_or_port text,
-    connection_type text,
+    connection_type connection_type_enum,
     reason text
 );
 
@@ -881,7 +889,7 @@ COMMENT ON COLUMN connection_logs.user_agent IS 'Null for SSH actions. For works
 
 COMMENT ON COLUMN connection_logs.user_id IS 'uuid.Nil for SSH actions. For workspace apps, this is the ID of the user that made the request.';
 
-COMMENT ON COLUMN connection_logs.connection_type IS 'Null for Workspace App actions. For SSH actions, this is the type of connection (e.g., "ssh", "websocket").';
+COMMENT ON COLUMN connection_logs.connection_type IS 'Null for Workspace App actions. For SSH actions, this is the type of connection (e.g., "SSH", "VS Code").';
 
 COMMENT ON COLUMN connection_logs.reason IS 'Null for Workspace App actions. For SSH actions, this is the reason for the connection or disconnection, to be displayed in the UI.';
 

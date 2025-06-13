@@ -10,12 +10,10 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"cdr.dev/slog"
-
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 type ConnLogAPI struct {
@@ -37,7 +35,7 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	if err != nil {
 		return nil, err
 	}
-	connectionType, err := agentsdk.ConnectionTypeFromProto(req.GetConnection().GetType())
+	connectionType, err := db2sdk.ConnectionLogConnectionTypeEnumFromAgentProtoConnectionType(req.GetConnection().GetType())
 	if err != nil {
 		return nil, err
 	}
@@ -66,9 +64,9 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		Action:           action,
 		Code:             req.GetConnection().GetStatusCode(),
 		Ip:               database.ParseIP(req.GetConnection().GetIp()),
-		ConnectionType: sql.NullString{
-			String: string(connectionType),
-			Valid:  true,
+		ConnectionType: database.NullConnectionTypeEnum{
+			ConnectionTypeEnum: connectionType,
+			Valid:              true,
 		},
 		Reason: sql.NullString{
 			String: reason,

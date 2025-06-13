@@ -21,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 func TestConnectionLog(t *testing.T) {
@@ -143,9 +142,9 @@ func TestConnectionLog(t *testing.T) {
 
 				Code: tt.status,
 				Ip:   pqtype.Inet{Valid: true, IPNet: net.IPNet{IP: net.ParseIP(tt.ip), Mask: net.CIDRMask(32, 32)}},
-				ConnectionType: sql.NullString{
-					String: string(agentProtoConnectionTypeToSDK(t, *tt.typ)),
-					Valid:  true,
+				ConnectionType: database.NullConnectionTypeEnum{
+					ConnectionTypeEnum: agentProtoConnectionTypeToConnectionLog(t, *tt.typ),
+					Valid:              true,
 				},
 				Reason: sql.NullString{
 					String: tt.reason,
@@ -162,8 +161,8 @@ func agentProtoConnectionActionToConnectionLog(t *testing.T, action agentproto.C
 	return a
 }
 
-func agentProtoConnectionTypeToSDK(t *testing.T, typ agentproto.Connection_Type) agentsdk.ConnectionType {
-	action, err := agentsdk.ConnectionTypeFromProto(typ)
+func agentProtoConnectionTypeToConnectionLog(t *testing.T, typ agentproto.Connection_Type) database.ConnectionTypeEnum {
+	action, err := db2sdk.ConnectionLogConnectionTypeEnumFromAgentProtoConnectionType(typ)
 	require.NoError(t, err)
 	return action
 }

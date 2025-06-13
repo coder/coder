@@ -114,8 +114,8 @@ func (m *MockConnectionLogger) Contains(t testing.TB, expected database.Connecti
 			t.Logf("connection log %d: expected UserID %s, got %s", idx+1, expected.UserID, cl.UserID)
 			continue
 		}
-		if expected.ConnectionType.Valid && cl.ConnectionType != expected.ConnectionType {
-			t.Logf("connection log %d: expected ConnectionType %s, got %s", idx+1, expected.ConnectionType.String, cl.ConnectionType.String)
+		if expected.ConnectionType.Valid && cl.ConnectionType.ConnectionTypeEnum != expected.ConnectionType.ConnectionTypeEnum {
+			t.Logf("connection log %d: expected ConnectionType %s, got %s", idx+1, expected.ConnectionType.ConnectionTypeEnum, cl.ConnectionType.ConnectionTypeEnum)
 			continue
 		}
 		if expected.Reason.Valid && cl.Reason != expected.Reason {

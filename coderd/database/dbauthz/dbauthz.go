@@ -1785,8 +1785,7 @@ func (q *querier) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]d
 }
 
 func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
-	// Shortcut if the user is an owner. The SQL filter is noticeable,
-	// and this is an easy win for owners. Which is the common case.
+	// Just like with the audit logs query, shortcut if the user is an owner.
 	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog)
 	if err == nil {
 		return q.db.GetConnectionLogsOffset(ctx, arg)
