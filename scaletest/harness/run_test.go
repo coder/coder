@@ -17,11 +17,22 @@ type testFns struct {
 	RunFn func(ctx context.Context, id string, logs io.Writer) error
 	// CleanupFn is optional if no cleanup is required.
 	CleanupFn func(ctx context.Context, id string, logs io.Writer) error
+	// getBytesTransferred is optional if byte transfer tracking is required.
+	getBytesTransferred func() (int64, int64)
 }
 
 // Run implements Runnable.
 func (fns testFns) Run(ctx context.Context, id string, logs io.Writer) error {
 	return fns.RunFn(ctx, id, logs)
+}
+
+// GetBytesTransferred implements Collectable.
+func (fns testFns) GetBytesTransferred() (bytesRead int64, bytesWritten int64) {
+	if fns.getBytesTransferred == nil {
+		return 0, 0
+	}
+
+	return fns.getBytesTransferred()
 }
 
 // Cleanup implements Cleanable.
@@ -40,9 +51,10 @@ func Test_TestRun(t *testing.T) {
 		t.Parallel()
 
 		var (
-			name, id      = "test", "1"
-			runCalled     int64
-			cleanupCalled int64
+			name, id          = "test", "1"
+			runCalled         int64
+			cleanupCalled     int64
+			collectableCalled int64
 
 			testFns = testFns{
 				RunFn: func(ctx context.Context, id string, logs io.Writer) error {
@@ -53,6 +65,10 @@ func Test_TestRun(t *testing.T) {
 					atomic.AddInt64(&cleanupCalled, 1)
 					return nil
 				},
+				getBytesTransferred: func() (int64, int64) {
+					atomic.AddInt64(&collectableCalled, 1)
+					return 0, 0
+				},
 			}
 		)
 
@@ -62,6 +78,7 @@ func Test_TestRun(t *testing.T) {
 		err := run.Run(context.Background())
 		require.NoError(t, err)
 		require.EqualValues(t, 1, atomic.LoadInt64(&runCalled))
+		require.EqualValues(t, 1, atomic.LoadInt64(&collectableCalled))
 
 		err = run.Cleanup(context.Background())
 		require.NoError(t, err)
@@ -102,6 +119,24 @@ func Test_TestRun(t *testing.T) {
 			err := run.Cleanup(context.Background())
 			require.NoError(t, err)
 			require.EqualValues(t, 0, atomic.LoadInt64(&cleanupCalled))
+		})
+	})
+
+	t.Run("Collectable", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("NoFn", func(t *testing.T) {
+			t.Parallel()
+
+			run := harness.NewTestRun("test", "1", testFns{
+				RunFn: func(ctx context.Context, id string, logs io.Writer) error {
+					return nil
+				},
+				getBytesTransferred: nil,
+			})
+
+			err := run.Run(context.Background())
+			require.NoError(t, err)
 		})
 	})
 
