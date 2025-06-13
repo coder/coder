@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import type { WorkspaceAgentDevcontainer } from "api/typesGenerated";
+import { chromatic } from "testHelpers/chromatic";
 import {
+	MockListeningPortsResponse,
 	MockTemplate,
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -9,6 +11,10 @@ import {
 	MockWorkspaceApp,
 	MockWorkspaceSubAgent,
 } from "testHelpers/entities";
+import {
+	withDashboardProvider,
+	withProxyProvider,
+} from "testHelpers/storybook";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 
 const MockWorkspaceAgentDevcontainer: WorkspaceAgentDevcontainer = {
@@ -37,6 +43,16 @@ const meta: Meta<typeof AgentDevcontainerCard> = {
 		template: MockTemplate,
 		subAgents: [MockWorkspaceSubAgent],
 	},
+	decorators: [withProxyProvider(), withDashboardProvider],
+	parameters: {
+		chromatic,
+		queries: [
+			{
+				key: ["portForward", MockWorkspaceSubAgent.id],
+				data: MockListeningPortsResponse,
+			},
+		],
+	},
 };
 
 export default meta;
@@ -53,7 +69,6 @@ export const WithPorts: Story = {
 				ports: MockWorkspaceAgentContainerPorts,
 			},
 		},
-		subAgents: [MockWorkspaceSubAgent],
 	},
 };
 
@@ -67,7 +82,6 @@ export const Dirty: Story = {
 				ports: MockWorkspaceAgentContainerPorts,
 			},
 		},
-		subAgents: [MockWorkspaceSubAgent],
 	},
 };
 
