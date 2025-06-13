@@ -143,6 +143,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |------------------------|-----------------|
 | `max_port_share_level` | `owner`         |
 | `max_port_share_level` | `authenticated` |
+| `max_port_share_level` | `organization`  |
 | `max_port_share_level` | `public`        |
 | `provisioner`          | `terraform`     |
 
@@ -874,6 +875,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |------------------------|-----------------|
 | `max_port_share_level` | `owner`         |
 | `max_port_share_level` | `authenticated` |
+| `max_port_share_level` | `organization`  |
 | `max_port_share_level` | `public`        |
 | `provisioner`          | `terraform`     |
 
@@ -2552,6 +2554,7 @@ Status Code **200**
 | `open_in`                 | `tab`              |
 | `sharing_level`           | `owner`            |
 | `sharing_level`           | `authenticated`    |
+| `sharing_level`           | `organization`     |
 | `sharing_level`           | `public`           |
 | `state`                   | `working`          |
 | `state`                   | `complete`         |
@@ -3227,6 +3230,7 @@ Status Code **200**
 | `open_in`                 | `tab`              |
 | `sharing_level`           | `owner`            |
 | `sharing_level`           | `authenticated`    |
+| `sharing_level`           | `organization`     |
 | `sharing_level`           | `public`           |
 | `state`                   | `working`          |
 | `state`                   | `complete`         |

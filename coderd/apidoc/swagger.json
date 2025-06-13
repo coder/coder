@@ -15353,7 +15353,7 @@
 					]
 				},
 				"share_level": {
-					"enum": ["owner", "authenticated", "public"],
+					"enum": ["owner", "authenticated", "organization", "public"],
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
@@ -16227,7 +16227,7 @@
 					]
 				},
 				"share_level": {
-					"enum": ["owner", "authenticated", "public"],
+					"enum": ["owner", "authenticated", "organization", "public"],
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
@@ -16242,10 +16242,11 @@
 		},
 		"codersdk.WorkspaceAgentPortShareLevel": {
 			"type": "string",
-			"enum": ["owner", "authenticated", "public"],
+			"enum": ["owner", "authenticated", "organization", "public"],
 			"x-enum-varnames": [
 				"WorkspaceAgentPortShareLevelOwner",
 				"WorkspaceAgentPortShareLevelAuthenticated",
+				"WorkspaceAgentPortShareLevelOrganization",
 				"WorkspaceAgentPortShareLevelPublic"
 			]
 		},
@@ -16366,7 +16367,7 @@
 					"$ref": "#/definitions/codersdk.WorkspaceAppOpenIn"
 				},
 				"sharing_level": {
-					"enum": ["owner", "authenticated", "public"],
+					"enum": ["owner", "authenticated", "organization", "public"],
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.WorkspaceAppSharingLevel"
@@ -16418,10 +16419,11 @@
 		},
 		"codersdk.WorkspaceAppSharingLevel": {
 			"type": "string",
-			"enum": ["owner", "authenticated", "public"],
+			"enum": ["owner", "authenticated", "organization", "public"],
 			"x-enum-varnames": [
 				"WorkspaceAppSharingLevelOwner",
 				"WorkspaceAppSharingLevelAuthenticated",
+				"WorkspaceAppSharingLevelOrganization",
 				"WorkspaceAppSharingLevelPublic"
 			]
 		},

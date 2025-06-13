@@ -1,3 +1,4 @@
+import BusinessIcon from "@mui/icons-material/Business";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import PublicOutlinedIcon from "@mui/icons-material/PublicOutlined";
 import Tooltip from "@mui/material/Tooltip";
@@ -20,6 +21,13 @@ export const ShareIcon = ({ app }: ShareIconProps) => {
 		return (
 			<Tooltip title="Shared with all authenticated users">
 				<GroupOutlinedIcon />
+			</Tooltip>
+		);
+	}
+	if (app.sharing_level === "organization") {
+		return (
+			<Tooltip title="Shared with organization members">
+				<BusinessIcon />
 			</Tooltip>
 		);
 	}

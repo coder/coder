@@ -14,9 +14,11 @@ export const TooltipTrigger = TooltipPrimitive.Trigger;
 
 export const TooltipContent = React.forwardRef<
 	React.ElementRef<typeof TooltipPrimitive.Content>,
-	React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 4, ...props }, ref) => (
-	<TooltipPrimitive.Portal>
+	React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content> & {
+		disablePortal?: boolean;
+	}
+>(({ className, sideOffset = 4, disablePortal, ...props }, ref) => {
+	const content = (
 		<TooltipPrimitive.Content
 			ref={ref}
 			sideOffset={sideOffset}
@@ -30,5 +32,11 @@ export const TooltipContent = React.forwardRef<
 			)}
 			{...props}
 		/>
-	</TooltipPrimitive.Portal>
-));
+	);
+
+	return disablePortal ? (
+		content
+	) : (
+		<TooltipPrimitive.Portal>{content}</TooltipPrimitive.Portal>
+	);
+});
