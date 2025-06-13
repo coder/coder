@@ -53,11 +53,7 @@ func UserAuthorizationOptional(ctx context.Context) (rbac.Subject, bool) {
 
 // UserAuthorization returns the roles and scope used for authorization. Depends
 // on the ExtractAPIKey handler.
-func UserAuthorization(r *http.Request) rbac.Subject {
-	return UserAuthorizationCtx(r.Context())
-}
-
-func UserAuthorizationCtx(ctx context.Context) rbac.Subject {
+func UserAuthorization(ctx context.Context) rbac.Subject {
 	auth, ok := UserAuthorizationOptional(ctx)
 	if !ok {
 		panic("developer error: ExtractAPIKey middleware not provided")
