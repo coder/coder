@@ -28,7 +28,7 @@ import (
 
 const (
 	envAppStatusSlug = "CODER_MCP_APP_STATUS_SLUG"
-	envLLMAgentURL   = "CODER_MCP_LLM_AGENT_URL"
+	envAIAgentAPIURL = "CODER_MCP_AI_AGENTAPI_URL"
 )
 
 func (r *RootCmd) mcpCommand() *serpent.Command {
@@ -126,7 +126,7 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 		coderPrompt      string
 		appStatusSlug    string
 		testBinaryName   string
-		llmAgentURL      url.URL
+		aiAgentAPIURL    url.URL
 
 		deprecatedCoderMCPClaudeAPIKey string
 	)
@@ -165,8 +165,8 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 			if appStatusSlug != "" {
 				configureClaudeEnv[envAppStatusSlug] = appStatusSlug
 			}
-			if llmAgentURL.String() != "" {
-				configureClaudeEnv[envLLMAgentURL] = llmAgentURL.String()
+			if aiAgentAPIURL.String() != "" {
+				configureClaudeEnv[envAIAgentAPIURL] = aiAgentAPIURL.String()
 			}
 			if deprecatedSystemPromptEnv, ok := os.LookupEnv("SYSTEM_PROMPT"); ok {
 				cliui.Warnf(inv.Stderr, "SYSTEM_PROMPT is deprecated, use CODER_MCP_CLAUDE_SYSTEM_PROMPT instead")
@@ -267,10 +267,10 @@ func (r *RootCmd) mcpConfigureClaudeCode() *serpent.Command {
 				Value:       serpent.StringOf(&appStatusSlug),
 			},
 			{
-				Flag:        "llm-agent-url",
-				Description: "The URL of the LLM agent API, used to listen for status updates.",
-				Env:         envLLMAgentURL,
-				Value:       serpent.URLOf(&llmAgentURL),
+				Flag:        "ai-agentapi-url",
+				Description: "The URL of the AI AgentAPI, used to listen for status updates.",
+				Env:         envAIAgentAPIURL,
+				Value:       serpent.URLOf(&aiAgentAPIURL),
 			},
 			{
 				Name:        "test-binary-name",
@@ -370,11 +370,11 @@ type taskReport struct {
 }
 
 type mcpServer struct {
-	agentClient   *agentsdk.Client
-	appStatusSlug string
-	client        *codersdk.Client
-	llmClient     *agentapi.Client
-	queue         *cliutil.Queue[taskReport]
+	agentClient      *agentsdk.Client
+	appStatusSlug    string
+	client           *codersdk.Client
+	aiAgentAPIClient *agentapi.Client
+	queue            *cliutil.Queue[taskReport]
 }
 
 func (r *RootCmd) mcpServer() *serpent.Command {
@@ -383,13 +383,13 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 		instructions  string
 		allowedTools  []string
 		appStatusSlug string
-		llmAgentURL   url.URL
+		aiAgentAPIURL url.URL
 	)
 	return &serpent.Command{
 		Use: "server",
 		Handler: func(inv *serpent.Invocation) error {
 			// lastUserMessageID is the ID of the last *user* message that we saw.  A
-			// user message only happens when interacting via the LLM agent API (as
+			// user message only happens when interacting via the AI AgentAPI (as
 			// opposed to interacting with the terminal directly).
 			var lastUserMessageID int64
 			var lastReport taskReport
@@ -399,14 +399,15 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 				// new user message, and the status is "working" and not self-reported
 				// (meaning it came from the screen watcher), then it means one of two
 				// things:
-				// 1. The LLM is still working, so there is nothing to update.
-				// 2. The LLM stopped working, then the user has interacted with the
-				//    terminal directly.  For now, we are ignoring these updates.  This
-				//    risks missing cases where the user manually submits a new prompt
-				//    and the LLM becomes active and does not update itself, but it
-				//    avoids spamming useless status updates as the user is typing, so
-				//    the tradeoff is worth it.  In the future, if we can reliably
-				//    distinguish between user and LLM activity, we can change this.
+				// 1. The AI agent is still working, so there is nothing to update.
+				// 2. The AI agent stopped working, then the user has interacted with
+				//    the terminal directly.  For now, we are ignoring these updates.
+				//    This risks missing cases where the user manually submits a new
+				//    prompt and the AI agent becomes active and does not update itself,
+				//    but it avoids spamming useless status updates as the user is
+				//    typing, so the tradeoff is worth it.  In the future, if we can
+				//    reliably distinguish between user and AI agent activity, we can
+				//    change this.
 				if report.messageID > lastUserMessageID {
 					report.state = codersdk.WorkspaceAppStatusStateWorking
 				} else if report.state == codersdk.WorkspaceAppStatusStateWorking && !report.selfReported {
@@ -475,20 +476,20 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 				cliui.Infof(inv.Stderr, "Task reporter  : Enabled")
 			}
 
-			// Try to create a client for the LLM agent API, which is used to get the
+			// Try to create a client for the AI AgentAPI, which is used to get the
 			// screen status to make the status reporting more robust.  No auth
 			// needed, so no validation.
-			if llmAgentURL.String() == "" {
-				cliui.Infof(inv.Stderr, "LLM agent URL  : Not configured")
+			if aiAgentAPIURL.String() == "" {
+				cliui.Infof(inv.Stderr, "AI AgentAPI URL  : Not configured")
 			} else {
-				cliui.Infof(inv.Stderr, "LLM agent URL  : %s", llmAgentURL.String())
-				llmClient, err := agentapi.NewClient(llmAgentURL.String())
+				cliui.Infof(inv.Stderr, "AI AgentAPI URL  : %s", aiAgentAPIURL.String())
+				aiAgentAPIClient, err := agentapi.NewClient(aiAgentAPIURL.String())
 				if err != nil {
 					cliui.Infof(inv.Stderr, "Screen events  : Disabled")
-					cliui.Warnf(inv.Stderr, "%s must be set", envLLMAgentURL)
+					cliui.Warnf(inv.Stderr, "%s must be set", envAIAgentAPIURL)
 				} else {
 					cliui.Infof(inv.Stderr, "Screen events  : Enabled")
-					srv.llmClient = llmClient
+					srv.aiAgentAPIClient = aiAgentAPIClient
 				}
 			}
 
@@ -499,10 +500,10 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 			cliui.Infof(inv.Stderr, "Failed to watch screen events")
 			// Start the reporter, watcher, and server.  These are all tied to the
 			// lifetime of the MCP server, which is itself tied to the lifetime of the
-			// LLM agent.
+			// AI agent.
 			if srv.agentClient != nil && appStatusSlug != "" {
 				srv.startReporter(ctx, inv)
-				if srv.llmClient != nil {
+				if srv.aiAgentAPIClient != nil {
 					srv.startWatcher(ctx, inv)
 				}
 			}
@@ -536,10 +537,10 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 				Default:     "",
 			},
 			{
-				Flag:        "llm-agent-url",
-				Description: "The URL of the LLM agent API, used to listen for status updates.",
-				Env:         envLLMAgentURL,
-				Value:       serpent.URLOf(&llmAgentURL),
+				Flag:        "ai-agentapi-url",
+				Description: "The URL of the AI AgentAPI, used to listen for status updates.",
+				Env:         envAIAgentAPIURL,
+				Value:       serpent.URLOf(&aiAgentAPIURL),
 			},
 		},
 	}
@@ -549,9 +550,9 @@ func (s *mcpServer) startReporter(ctx context.Context, inv *serpent.Invocation) 
 	go func() {
 		for {
 			// TODO: Even with the queue, there is still the potential that a message
-			// from the screen watcher and a message from the LLM could arrive out of
-			// order if the timing is just right.  We might want to wait a bit, then
-			// check if the status has changed before committing.
+			// from the screen watcher and a message from the AI agent could arrive
+			// out of order if the timing is just right.  We might want to wait a bit,
+			// then check if the status has changed before committing.
 			item, ok := s.queue.Pop()
 			if !ok {
 				return
@@ -571,7 +572,7 @@ func (s *mcpServer) startReporter(ctx context.Context, inv *serpent.Invocation) 
 }
 
 func (s *mcpServer) startWatcher(ctx context.Context, inv *serpent.Invocation) {
-	eventsCh, errCh, err := s.llmClient.SubscribeEvents(ctx)
+	eventsCh, errCh, err := s.aiAgentAPIClient.SubscribeEvents(ctx)
 	if err != nil {
 		cliui.Warnf(inv.Stderr, "Failed to watch screen events: %s", err)
 		return

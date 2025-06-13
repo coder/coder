@@ -366,7 +366,7 @@ test-system-prompt
 								"CODER_AGENT_URL": "%s",
 								"CODER_AGENT_TOKEN": "test-agent-token",
 								"CODER_MCP_APP_STATUS_SLUG": "some-app-name",
-								"CODER_MCP_LLM_AGENT_URL": "http://localhost:3284"
+								"CODER_MCP_AI_AGENTAPI_URL": "http://localhost:3284"
 							}
 						}
 					}
@@ -391,7 +391,7 @@ test-system-prompt
 			"--claude-test-binary-name=pathtothecoderbinary",
 			"--agent-url", client.URL.String(),
 			"--agent-token", "test-agent-token",
-			"--llm-agent-url", "http://localhost:3284",
+			"--ai-agentapi-url", "http://localhost:3284",
 		)
 		clitest.SetupConfig(t, client, root)
 
@@ -741,7 +741,7 @@ func TestExpMcpReporter(t *testing.T) {
 			"--agent-url", client.URL.String(),
 			"--agent-token", "fake-agent-token",
 			"--app-status-slug", "vscode",
-			"--llm-agent-url", "not a valid url",
+			"--ai-agentapi-url", "not a valid url",
 		)
 		inv = inv.WithContext(ctx)
 
@@ -804,7 +804,7 @@ func TestExpMcpReporter(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
 
-		// Mock the LLM agent API server.
+		// Mock the AI AgentAPI server.
 		listening := make(chan func(sse codersdk.ServerSentEvent) error)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			send, closed, err := httpapi.ServerSentEventSender(w, r)
@@ -821,7 +821,7 @@ func TestExpMcpReporter(t *testing.T) {
 			<-closed
 		}))
 		t.Cleanup(srv.Close)
-		llmAgentURL := srv.URL
+		aiAgentAPIURL := srv.URL
 
 		// Watch the workspace for changes.
 		watcher, err := client.WatchWorkspace(ctx, r.Workspace.ID)
@@ -844,11 +844,11 @@ func TestExpMcpReporter(t *testing.T) {
 
 		inv, _ := clitest.New(t,
 			"exp", "mcp", "server",
-			// We need the agent credentials, LLM API url, and a slug for reporting.
+			// We need the agent credentials, AI AgentAPI url, and a slug for reporting.
 			"--agent-url", client.URL.String(),
 			"--agent-token", r.AgentToken,
 			"--app-status-slug", "vscode",
-			"--llm-agent-url", llmAgentURL,
+			"--ai-agentapi-url", aiAgentAPIURL,
 			"--allowed-tools=coder_report_task",
 		)
 		inv = inv.WithContext(ctx)
@@ -878,13 +878,13 @@ func TestExpMcpReporter(t *testing.T) {
 		tests := []struct {
 			// event simulates an event from the screen watcher.
 			event *codersdk.ServerSentEvent
-			// state, summary, and uri simulate a tool call from the LLM.
+			// state, summary, and uri simulate a tool call from the AI agent.
 			state    codersdk.WorkspaceAppStatusState
 			summary  string
 			uri      string
 			expected *codersdk.WorkspaceAppStatus
 		}{
-			// First the LLM updates with a state change.
+			// First the AI agent updates with a state change.
 			{
 				state:   codersdk.WorkspaceAppStatusStateWorking,
 				summary: "doing work",
@@ -895,8 +895,8 @@ func TestExpMcpReporter(t *testing.T) {
 					URI:     "https://dev.coder.com",
 				},
 			},
-			// Terminal goes quiet but the LLM forgot the update, and it is caught by
-			// the screen watcher.  Message and URI are preserved.
+			// Terminal goes quiet but the AI agent forgot the update, and it is
+			// caught by the screen watcher.  Message and URI are preserved.
 			{
 				event: makeStatusEvent(agentapi.StatusStable),
 				expected: &codersdk.WorkspaceAppStatus{
@@ -910,9 +910,9 @@ func TestExpMcpReporter(t *testing.T) {
 				event: makeStatusEvent(agentapi.StatusStable),
 			},
 			// Terminal becomes active again according to the screen watcher, but no
-			// new user message.  This could be the LLM being active again, but it
-			// could also be the user messing around.  We will prefer not updating the
-			// status so the "working" update here should be skipped.
+			// new user message.  This could be the AI agent being active again, but
+			// it could also be the user messing around.  We will prefer not updating
+			// the status so the "working" update here should be skipped.
 			{
 				event: makeStatusEvent(agentapi.StatusRunning),
 			},
@@ -920,7 +920,7 @@ func TestExpMcpReporter(t *testing.T) {
 			{
 				event: makeMessageEvent(1, agentapi.RoleAgent),
 			},
-			// LLM reports that it failed and URI is blank.
+			// AI agent reports that it failed and URI is blank.
 			{
 				state:   codersdk.WorkspaceAppStatusStateFailure,
 				summary: "oops",
@@ -934,8 +934,8 @@ func TestExpMcpReporter(t *testing.T) {
 			{
 				event: makeStatusEvent(agentapi.StatusRunning),
 			},
-			// ... but this time we have a new user message so we know there is LLM
-			// activity.  This time the "working" update will not be skipped.
+			// ... but this time we have a new user message so we know there is AI
+			// agent activity.  This time the "working" update will not be skipped.
 			{
 				event: makeMessageEvent(2, agentapi.RoleUser),
 				expected: &codersdk.WorkspaceAppStatus{
