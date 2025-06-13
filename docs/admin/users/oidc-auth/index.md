@@ -92,6 +92,39 @@ CODER_OIDC_ICON_URL=https://gitea.io/images/gitea.png
 To change the icon and text above the OpenID Connect button, see application
 name and logo url in [appearance](../setup/appearance.md) settings.
 
+## Configure Refresh Tokens
+
+By default, OIDC access tokens typically expire after a short period.
+This is typically after one hour, but varies by provider.
+
+Without refresh tokens, users will be automatically logged out when their access token expires.
+
+Follow [Configure OIDC Refresh Tokens](./refresh-tokens.md) for provider-specific steps.
+
+The general steps to configure persistent user sessions are:
+
+1. Configure your Coder OIDC settings:
+
+   For most providers, add the `offline_access` scope:
+
+   ```env
+   CODER_OIDC_SCOPES=openid,profile,email,offline_access
+   ```
+
+   For Google, add auth URL parameters (`CODER_OIDC_AUTH_URL_PARAMS`) too:
+
+   ```env
+   CODER_OIDC_SCOPES=openid,profile,email
+   CODER_OIDC_AUTH_URL_PARAMS='{"access_type": "offline", "prompt": "consent"}'
+   ```
+
+1. Configure your identity provider to issue refresh tokens.
+
+1. After configuration, have users log out and back in once to obtain refresh tokens
+
+> [!IMPORTANT]
+> Misconfigured refresh tokens can lead to frequent user authentication prompts.
+
 ## Disable Built-in Authentication
 
 To remove email and password login, set the following environment variable on
@@ -127,7 +160,8 @@ CODER_TLS_CLIENT_CERT_FILE=/path/to/cert.pem
 CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
 ```
 
-### Next steps
+## Next steps
 
-- [Group Sync](./idp-sync.md)
-- [Groups & Roles](./groups-roles.md)
+- [Group Sync](../idp-sync.md)
+- [Groups & Roles](../groups-roles.md)
+- [Configure OIDC Refresh Tokens](./refresh-tokens.md)
