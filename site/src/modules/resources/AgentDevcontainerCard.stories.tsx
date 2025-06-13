@@ -1,10 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import type { WorkspaceAgentDevcontainer } from "api/typesGenerated";
 import {
+	MockTemplate,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceAgentContainer,
 	MockWorkspaceAgentContainerPorts,
+	MockWorkspaceApp,
+	MockWorkspaceSubAgent,
 } from "testHelpers/entities";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 
@@ -17,9 +20,9 @@ const MockWorkspaceAgentDevcontainer: WorkspaceAgentDevcontainer = {
 	dirty: false,
 	container: MockWorkspaceAgentContainer,
 	agent: {
-		id: "test-agent-id",
-		name: "test-devcontainer-agent",
-		directory: "/workspace/test",
+		id: MockWorkspaceSubAgent.id,
+		name: MockWorkspaceSubAgent.name,
+		directory: MockWorkspaceSubAgent?.directory ?? "/workspace/test",
 	},
 };
 
@@ -31,6 +34,8 @@ const meta: Meta<typeof AgentDevcontainerCard> = {
 		workspace: MockWorkspace,
 		wildcardHostname: "*.wildcard.hostname",
 		parentAgent: MockWorkspaceAgent,
+		template: MockTemplate,
+		subAgents: [MockWorkspaceSubAgent],
 	},
 };
 
@@ -48,6 +53,7 @@ export const WithPorts: Story = {
 				ports: MockWorkspaceAgentContainerPorts,
 			},
 		},
+		subAgents: [MockWorkspaceSubAgent],
 	},
 };
 
@@ -61,6 +67,7 @@ export const Dirty: Story = {
 				ports: MockWorkspaceAgentContainerPorts,
 			},
 		},
+		subAgents: [MockWorkspaceSubAgent],
 	},
 };
 
@@ -75,5 +82,51 @@ export const Recreating: Story = {
 				ports: MockWorkspaceAgentContainerPorts,
 			},
 		},
+		subAgents: [],
+	},
+};
+
+export const NoSubAgent: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			agent: undefined,
+		},
+		subAgents: [],
+	},
+};
+
+export const SubAgentConnecting: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			container: {
+				...MockWorkspaceAgentContainer,
+			},
+		},
+		subAgents: [
+			{
+				...MockWorkspaceSubAgent,
+				status: "connecting",
+			},
+		],
+	},
+};
+
+export const WithAppsAndPorts: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			container: {
+				...MockWorkspaceAgentContainer,
+				ports: MockWorkspaceAgentContainerPorts,
+			},
+		},
+		subAgents: [
+			{
+				...MockWorkspaceSubAgent,
+				apps: [MockWorkspaceApp],
+			},
+		],
 	},
 };
