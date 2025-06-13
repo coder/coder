@@ -1450,7 +1450,7 @@ func TestAPI(t *testing.T) {
 
 		tests := []struct {
 			name          string
-			customization *agentcontainers.CoderCustomization
+			customization []agentcontainers.CoderCustomization
 			afterCreate   func(t *testing.T, subAgent agentcontainers.SubAgent)
 		}{
 			{
@@ -1459,18 +1459,28 @@ func TestAPI(t *testing.T) {
 			},
 			{
 				name: "WithDisplayApps",
-				customization: &agentcontainers.CoderCustomization{
-					DisplayApps: []codersdk.DisplayApp{
-						codersdk.DisplayAppSSH,
-						codersdk.DisplayAppWebTerminal,
-						codersdk.DisplayAppVSCodeInsiders,
+				customization: []agentcontainers.CoderCustomization{
+					{
+						DisplayApps: map[codersdk.DisplayApp]bool{
+							codersdk.DisplayAppSSH:           true,
+							codersdk.DisplayAppWebTerminal:   false,
+							codersdk.DisplayAppVSCodeDesktop: true,
+							codersdk.DisplayAppPortForward:   true,
+						},
+					},
+					{
+						DisplayApps: map[codersdk.DisplayApp]bool{
+							codersdk.DisplayAppSSH:         true,
+							codersdk.DisplayAppWebTerminal: true,
+							codersdk.DisplayAppPortForward: false,
+						},
 					},
 				},
 				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
 					require.Len(t, subAgent.DisplayApps, 3)
-					assert.Equal(t, codersdk.DisplayAppSSH, subAgent.DisplayApps[0])
-					assert.Equal(t, codersdk.DisplayAppWebTerminal, subAgent.DisplayApps[1])
-					assert.Equal(t, codersdk.DisplayAppVSCodeInsiders, subAgent.DisplayApps[2])
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppSSH)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppWebTerminal)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppVSCodeDesktop)
 				},
 			},
 		}

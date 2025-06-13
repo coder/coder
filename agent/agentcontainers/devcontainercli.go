@@ -27,11 +27,11 @@ type DevcontainerConfiguration struct {
 }
 
 type DevcontainerCustomizations struct {
-	Coder *CoderCustomization `json:"coder,omitempty"`
+	Coder []CoderCustomization `json:"coder,omitempty"`
 }
 
 type CoderCustomization struct {
-	DisplayApps []codersdk.DisplayApp `json:"displayApps,omitempty"`
+	DisplayApps map[codersdk.DisplayApp]bool `json:"displayApps,omitempty"`
 }
 
 // DevcontainerCLI is an interface for the devcontainer CLI.

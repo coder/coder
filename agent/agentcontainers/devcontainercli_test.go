@@ -258,10 +258,18 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				wantConfig: agentcontainers.DevcontainerConfig{
 					MergedConfiguration: agentcontainers.DevcontainerConfiguration{
 						Customizations: agentcontainers.DevcontainerCustomizations{
-							Coder: &agentcontainers.CoderCustomization{
-								DisplayApps: []codersdk.DisplayApp{
-									codersdk.DisplayAppVSCodeDesktop,
-									codersdk.DisplayAppWebTerminal,
+							Coder: []agentcontainers.CoderCustomization{
+								{
+									DisplayApps: map[codersdk.DisplayApp]bool{
+										codersdk.DisplayAppVSCodeDesktop: true,
+										codersdk.DisplayAppWebTerminal:   true,
+									},
+								},
+								{
+									DisplayApps: map[codersdk.DisplayApp]bool{
+										codersdk.DisplayAppVSCodeInsiders: true,
+										codersdk.DisplayAppWebTerminal:    false,
+									},
 								},
 							},
 						},

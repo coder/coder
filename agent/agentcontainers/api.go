@@ -1099,14 +1099,24 @@ func (api *API) injectSubAgentIntoContainerLocked(ctx context.Context, dc coders
 		directory = DevcontainerDefaultContainerWorkspaceFolder
 	}
 
-	var displayApps []codersdk.DisplayApp
+	displayAppsMap := make(map[codersdk.DisplayApp]bool)
 
 	if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath); err != nil {
 		api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
 	} else {
 		coderCustomization := config.MergedConfiguration.Customizations.Coder
-		if coderCustomization != nil {
-			displayApps = coderCustomization.DisplayApps
+
+		for _, customization := range coderCustomization {
+			for app, enabled := range customization.DisplayApps {
+				displayAppsMap[app] = enabled
+			}
+		}
+	}
+
+	displayApps := make([]codersdk.DisplayApp, 0, len(displayAppsMap))
+	for app, enabled := range displayAppsMap {
+		if enabled {
+			displayApps = append(displayApps, app)
 		}
 	}
 
