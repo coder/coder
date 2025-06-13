@@ -213,7 +213,7 @@ resource "local_file" "test_file" {
 `
 
 	tfFile := filepath.Join(tmpDir, "main.tf")
-	require.NoError(t, os.WriteFile(tfFile, []byte(tfConfig), 0o644))
+	require.NoError(t, os.WriteFile(tfFile, []byte(tfConfig), 0o600))
 
 	// Create a minimal server for the executor.
 	mockSrv := &server{
@@ -270,7 +270,7 @@ resource "local_file" "test_file" {
 `
 
 	// Write the modified configuration.
-	require.NoError(t, os.WriteFile(tfFile, []byte(driftConfig), 0o644))
+	require.NoError(t, os.WriteFile(tfFile, []byte(driftConfig), 0o600))
 
 	// Create a new plan that will show the drift/replacement.
 	driftLogger := &mockLogger{}
