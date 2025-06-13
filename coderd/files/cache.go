@@ -33,7 +33,7 @@ func NewFromStore(store database.Store, registerer prometheus.Registerer, authz 
 
 		content := bytes.NewBuffer(file.Data)
 		return cacheEntryValue{
-			object: rbac.ResourceFile.WithID(file.ID).WithOwner(file.CreatedBy.String()),
+			object: file.RBACObject(),
 			FS:     archivefs.FromTarReader(content),
 			size:   int64(content.Len()),
 		}, nil
