@@ -1506,7 +1506,7 @@ func TestAPI(t *testing.T) {
 
 							// We disable port-forward in this layer, and
 							// then re-enable it in the next layer to ensure
-							// that behaviour works.
+							// that behavior works.
 							codersdk.DisplayAppPortForward: false,
 						},
 					},
