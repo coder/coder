@@ -284,12 +284,16 @@ coder:
 
 ### Azure
 
-In certain enterprise environments, the
-[Azure Application Gateway](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview)
-was needed. The Application Gateway supports:
+Certain enterprise environments require the
+[Azure Application Gateway](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview).
+The Application Gateway supports:
 
 - Websocket traffic (required for workspace connections)
 - TLS termination
+
+Follow our doc on
+[how to deploy Coder on Azure with an Application Gateway](./kubernetes/kubernetes-azure-app-gateway.md)
+for an example.
 
 ## Troubleshooting
 
