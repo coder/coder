@@ -31,7 +31,7 @@ services:
   database:
     # Minimum supported version is 13.
     # More versions here: https://hub.docker.com/_/postgres
-    image: "postgres:16"
+    image: "postgres:17"
     # Uncomment the next two lines to allow connections to the database from outside the server.
     #ports:
     #  - "5432:5432"

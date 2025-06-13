@@ -19,6 +19,7 @@ import (
 func TestManifest(t *testing.T) {
 	t.Parallel()
 	manifest := agentsdk.Manifest{
+		ParentID:           uuid.New(),
 		AgentID:            uuid.New(),
 		AgentName:          "test-agent",
 		OwnerName:          "test-owner",
@@ -142,6 +143,7 @@ func TestManifest(t *testing.T) {
 	require.NoError(t, err)
 	back, err := agentsdk.ManifestFromProto(p)
 	require.NoError(t, err)
+	require.Equal(t, manifest.ParentID, back.ParentID)
 	require.Equal(t, manifest.AgentID, back.AgentID)
 	require.Equal(t, manifest.AgentName, back.AgentName)
 	require.Equal(t, manifest.OwnerName, back.OwnerName)

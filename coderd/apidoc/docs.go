@@ -12745,7 +12745,6 @@ const docTemplate = `{
                 "notifications",
                 "workspace-usage",
                 "web-push",
-                "dynamic-parameters",
                 "workspace-prebuilds",
                 "agentic-chat",
                 "ai-tasks"
@@ -12754,7 +12753,6 @@ const docTemplate = `{
                 "ExperimentAITasks": "Enables the new AI tasks feature.",
                 "ExperimentAgenticChat": "Enables the new agentic AI chat feature.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
-                "ExperimentDynamicParameters": "Enables dynamic parameters when creating a workspace.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
@@ -12767,7 +12765,6 @@ const docTemplate = `{
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
                 "ExperimentWebPush",
-                "ExperimentDynamicParameters",
                 "ExperimentWorkspacePrebuilds",
                 "ExperimentAgenticChat",
                 "ExperimentAITasks"
@@ -15704,6 +15701,9 @@ const docTemplate = `{
                 "disable_expiry_refresh": {
                     "description": "DisableExpiryRefresh will disable automatically refreshing api\nkeys when they are used from the api. This means the api key lifetime at\ncreation is the lifetime of the api key.",
                     "type": "boolean"
+                },
+                "max_admin_token_lifetime": {
+                    "type": "integer"
                 },
                 "max_token_lifetime": {
                     "type": "integer"

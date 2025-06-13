@@ -29,9 +29,7 @@ import (
 func TestDynamicParametersOwnerSSHPublicKey(t *testing.T) {
 	t.Parallel()
 
-	cfg := coderdtest.DeploymentValues(t)
-	cfg.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
-	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: cfg})
+	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
@@ -251,6 +249,7 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 					Value: "GO",
 				},
 			}
+			request.EnableDynamicParameters = true
 		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, wrk.LatestBuild.ID)
 
@@ -276,7 +275,7 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 				EnableDynamicParameters: ptr.Ref(true),
 			})
 			require.NoError(t, err)
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, wrk.LatestBuild.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, bld.ID)
 
 			latestParams, err := setup.client.WorkspaceBuildParameters(ctx, bld.ID)
 			require.NoError(t, err)
@@ -354,14 +353,11 @@ type dynamicParamsTest struct {
 }
 
 func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dynamicParamsTest {
-	cfg := coderdtest.DeploymentValues(t)
-	cfg.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
 	ownerClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		Database:                 args.db,
 		Pubsub:                   args.ps,
 		IncludeProvisionerDaemon: true,
 		ProvisionerDaemonVersion: args.provisionerDaemonVersion,
-		DeploymentValues:         cfg,
 	})
 
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
@@ -383,6 +379,12 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 	version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, files)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
 	tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
+
+	var err error
+	tpl, err = templateAdmin.UpdateTemplateMeta(t.Context(), tpl.ID, codersdk.UpdateTemplateMeta{
+		UseClassicParameterFlow: ptr.Ref(false),
+	})
+	require.NoError(t, err)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, version.ID)

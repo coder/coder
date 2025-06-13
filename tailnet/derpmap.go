@@ -8,8 +8,11 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 
 	"golang.org/x/xerrors"
+	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/tailcfg"
 )
 
@@ -150,6 +153,49 @@ regionLoop:
 	}
 
 	return derpMap, nil
+}
+
+func ExtractPreferredDERPName(pingResult *ipnstate.PingResult, node *Node, derpMap *tailcfg.DERPMap) string {
+	// Sometimes the preferred DERP doesn't match the one we're actually
+	// connected with. Perhaps because the agent prefers a different DERP and
+	// we're using that server instead.
+	preferredDerpID := node.PreferredDERP
+	if pingResult.DERPRegionID != 0 {
+		preferredDerpID = pingResult.DERPRegionID
+	}
+	preferredDerp, ok := derpMap.Regions[preferredDerpID]
+	preferredDerpName := fmt.Sprintf("Unnamed %d", preferredDerpID)
+	if ok {
+		preferredDerpName = preferredDerp.RegionName
+	}
+
+	return preferredDerpName
+}
+
+// ExtractDERPLatency extracts a map of derp region names to their latencies
+func ExtractDERPLatency(node *Node, derpMap *tailcfg.DERPMap) map[string]time.Duration {
+	latencyMs := make(map[string]time.Duration)
+
+	// Convert DERP region IDs to friendly names for display in the UI.
+	for rawRegion, latency := range node.DERPLatency {
+		regionParts := strings.SplitN(rawRegion, "-", 2)
+		regionID, err := strconv.Atoi(regionParts[0])
+		if err != nil {
+			continue
+		}
+		region, found := derpMap.Regions[regionID]
+		if !found {
+			// It's possible that a workspace agent is using an old DERPMap
+			// and reports regions that do not exist. If that's the case,
+			// report the region as unknown!
+			region = &tailcfg.DERPRegion{
+				RegionID:   regionID,
+				RegionName: fmt.Sprintf("Unnamed %d", regionID),
+			}
+		}
+		latencyMs[region.RegionName] = time.Duration(latency * float64(time.Second))
+	}
+	return latencyMs
 }
 
 // CompareDERPMaps returns true if the given DERPMaps are equivalent. Ordering

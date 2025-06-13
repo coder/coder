@@ -16,7 +16,14 @@ var CurrentSupportedVersions = RPCVersionList{
 		// - device_id: Coder Desktop device ID
 		// - device_os: Coder Desktop OS information
 		// - coder_desktop_version: Coder Desktop version
-		{Major: 1, Minor: 1},
+		// 1.2 adds network related information to Agent:
+		// - last_ping:
+		//   - latency: RTT of the most recently sent ping
+		//   - did_p2p: Whether the last ping was sent over P2P
+		//   - preferred_derp: The server that DERP relayed connections are
+		//                     using, if they're not using P2P.
+		//   - preferred_derp_latency: The latency to the preferred DERP
+		{Major: 1, Minor: 2},
 	},
 }
 

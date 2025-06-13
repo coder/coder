@@ -12,6 +12,7 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
 import { Link as RouterLink } from "react-router-dom";
+import { ellipsizeText } from "utils/ellipsizeText";
 import { pageTitle } from "utils/page";
 import { TaskApps } from "./TaskApps";
 import { TaskSidebar } from "./TaskSidebar";
@@ -92,10 +93,10 @@ const TaskPage = () => {
 				<div className="flex flex-col items-center">
 					<Spinner loading className="mb-4" />
 					<h3 className="m-0 font-medium text-content-primary text-base">
-						Building the workspace
+						Starting your workspace
 					</h3>
 					<span className="text-content-secondary text-sm">
-						Your task will run as soon as the workspace is ready
+						This should take a few minutes
 					</span>
 				</div>
 			</div>
@@ -163,7 +164,7 @@ const TaskPage = () => {
 	return (
 		<>
 			<Helmet>
-				<title>{pageTitle(task.prompt)}</title>
+				<title>{pageTitle(ellipsizeText(task.prompt, 64)!)}</title>
 			</Helmet>
 
 			<div className="h-full flex justify-stretch">

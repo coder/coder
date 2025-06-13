@@ -1011,6 +1011,8 @@ export const updateWorkspace = async (
 	await page.getByTestId("workspace-update-button").click();
 	await page.getByTestId("confirm-button").click();
 
+	await page.waitForSelector('[data-testid="dialog"]', { state: "visible" });
+
 	await fillParameters(page, richParameters, buildParameters);
 	await page.getByRole("button", { name: /update parameters/i }).click();
 

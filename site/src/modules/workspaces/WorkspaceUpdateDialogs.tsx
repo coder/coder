@@ -9,6 +9,7 @@ import type {
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { UpdateBuildParametersDialog } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialog";
+import { UpdateBuildParametersDialogExperimental } from "modules/workspaces/WorkspaceMoreActions/UpdateBuildParametersDialogExperimental";
 import { type FC, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 
@@ -52,7 +53,11 @@ export const useWorkspaceUpdate = ({
 	};
 
 	const confirmUpdate = (buildParameters: WorkspaceBuildParameter[] = []) => {
-		updateWorkspaceMutation.mutate(buildParameters);
+		updateWorkspaceMutation.mutate({
+			buildParameters,
+			isDynamicParametersEnabled:
+				!workspace.template_use_classic_parameter_flow,
+		});
 		setIsConfirmingUpdate(false);
 	};
 
@@ -67,6 +72,7 @@ export const useWorkspaceUpdate = ({
 				latestVersion,
 			},
 			missingBuildParameters: {
+				workspace,
 				error: updateWorkspaceMutation.error,
 				onClose: () => {
 					updateWorkspaceMutation.reset();
@@ -134,22 +140,37 @@ const UpdateConfirmationDialog: FC<UpdateConfirmationDialogProps> = ({
 };
 
 type MissingBuildParametersDialogProps = {
+	workspace: Workspace;
 	error: unknown;
 	onClose: () => void;
 	onUpdate: (buildParameters: WorkspaceBuildParameter[]) => void;
 };
 
 const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
+	workspace,
 	error,
 	...dialogProps
 }) => {
-	return (
+	const missedParameters =
+		error instanceof MissingBuildParameters ? error.parameters : [];
+	const versionId =
+		error instanceof MissingBuildParameters ? error.versionId : undefined;
+	const isOpen = error instanceof MissingBuildParameters;
+
+	return workspace.template_use_classic_parameter_flow ? (
 		<UpdateBuildParametersDialog
-			missedParameters={
-				error instanceof MissingBuildParameters ? error.parameters : []
-			}
-			open={error instanceof MissingBuildParameters}
+			missedParameters={missedParameters}
+			open={isOpen}
 			{...dialogProps}
+		/>
+	) : (
+		<UpdateBuildParametersDialogExperimental
+			missedParameters={missedParameters}
+			open={isOpen}
+			onClose={dialogProps.onClose}
+			workspaceOwnerName={workspace.owner_name}
+			workspaceName={workspace.name}
+			templateVersionId={versionId}
 		/>
 	);
 };
