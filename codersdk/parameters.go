@@ -125,8 +125,17 @@ type DynamicParametersResponse struct {
 	// TODO: Workspace tags
 }
 
-func (c *Client) TemplateVersionDynamicParameters(ctx context.Context, version uuid.UUID) (*wsjson.Stream[DynamicParametersResponse, DynamicParametersRequest], error) {
-	conn, err := c.Dial(ctx, fmt.Sprintf("/api/v2/templateversions/%s/dynamic-parameters", version), nil)
+func (c *Client) TemplateVersionDynamicParameters(ctx context.Context, userID string, version uuid.UUID) (*wsjson.Stream[DynamicParametersResponse, DynamicParametersRequest], error) {
+	endpoint := fmt.Sprintf("/api/v2/templateversions/%s/dynamic-parameters", version)
+	if userID != Me {
+		uid, err := uuid.Parse(userID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid user ID: %w", err)
+		}
+		endpoint += fmt.Sprintf("?user_id=%s", uid.String())
+	}
+
+	conn, err := c.Dial(ctx, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
