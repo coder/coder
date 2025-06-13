@@ -15,7 +15,7 @@ Sign On (SSO) on Coder.
 
 To configure custom claims in Okta to support syncing roles and groups with
 Coder, you must first have setup an Okta application with
-[OIDC working with Coder](../admin/users/oidc-auth.md).
+[OIDC working with Coder](../admin/users/oidc-auth/index.md).
 From here, we will add additional claims for Coder to use for syncing groups and
 roles.
 
