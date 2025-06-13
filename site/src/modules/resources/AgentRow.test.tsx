@@ -1,5 +1,5 @@
 import { MockWorkspaceApp } from "testHelpers/entities";
-import { organizeAgentApps } from "./AgentRow";
+import { organizeAgentApps } from "./AgentApps/AgentApps";
 
 describe("organizeAgentApps", () => {
 	test("returns one ungrouped app", () => {

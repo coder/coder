@@ -97,7 +97,7 @@ export const RunningWithChildAgent: Story = {
 								lifecycle_state: "ready",
 							},
 							{
-								...Mocks.MockWorkspaceChildAgent,
+								...Mocks.MockWorkspaceSubAgent,
 								lifecycle_state: "ready",
 							},
 						],
