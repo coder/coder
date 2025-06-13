@@ -5,7 +5,6 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -204,10 +203,11 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
 
-	eventsCh := make(chan any)
+	eventsCh := make(chan string)
+	done := make(chan struct{})
 
 	// Establish SSE stream which we will connect to requesting client.
-	clientStream := NewSSEStream(eventsCh, b.logger.Named("sse-stream"))
+	//clientStream := NewSSEStream(eventsCh, b.logger.Named("sse-stream"))
 
 	coderdClient, ok := b.clientFn()
 	if !ok {
@@ -233,67 +233,183 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//// Prepend assistant message.
-	// in.Messages = append([]openai.ChatCompletionMessageParamUnion{
-	//	openai.SystemMessage("You are a helpful assistant that explicitly mentions when tool calls are about to be made."),
-	//}, in.Messages...)
+	// Prepend assistant message.
+	in.Messages = append([]openai.ChatCompletionMessageParamUnion{
+		openai.SystemMessage("You are a helpful assistant that explicitly mentions when tool calls are about to be made."),
+	}, in.Messages...)
 
-	// in.Tools = []openai.ChatCompletionToolParam{
-	//	{
-	//		Function: openai.FunctionDefinitionParam{
-	//			Name:        "get_weather",
-	//			Description: openai.String("Get weather at the given location"),
-	//			Parameters: openai.FunctionParameters{
-	//				"type": "object",
-	//				"properties": map[string]interface{}{
-	//					"location": map[string]string{
-	//						"type": "string",
-	//					},
-	//				},
-	//				"required": []string{"location"},
-	//			},
-	//		},
-	//	},
-	//}
+	in.Tools = []openai.ChatCompletionToolParam{
+		{
+			Function: openai.FunctionDefinitionParam{
+				Name:        "get_weather",
+				Description: openai.String("Get weather at the given location"),
+				Parameters: openai.FunctionParameters{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"location": map[string]string{
+							"type": "string",
+						},
+					},
+					"required": []string{"location"},
+				},
+			},
+		},
+	}
 
 	client := openai.NewClient()
 
-	done := make(chan struct{})
 	if in.Stream {
+		chunks := make(chan openai.ChatCompletionChunk)
+
+		go BasicSSESender(eventsCh, b.logger.Named("jfs")).ServeHTTP(w, r)
+
 		go func() {
-			stream := client.Chat.Completions.NewStreaming(ctx, in.ChatCompletionNewParams)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case chunk, ok := <-chunks:
+					if !ok {
+						return
+					}
 
-			for stream.Next() {
-				evt := stream.Current()
-				// if len(evt.Choices) > 0 {
-				//	fmt.Print(evt.Choices[0].Delta.Content)
-				//}
+					event := chunk.RawJSON()
+					if event == "" {
+						b, _ := json.Marshal(chunk)
+						event = string(b)
+					}
 
-				_, _ = fmt.Fprintf(os.Stderr, "[%s] %s\n\n", sessionID, evt.RawJSON())
-				eventsCh <- evt.RawJSON()
+					_, _ = fmt.Fprintf(os.Stderr, "[%s] %s\n\n", sessionID, event)
+					eventsCh <- event
+				}
 			}
-
-			if err := stream.Err(); err != nil {
-				// TODO: handle error.
-				b.logger.Error(ctx, "server stream error", slog.Error(err))
-				return
-			}
-
-			eventsCh <- `[DONE]`
-
-			// TODO: wait for ACK of [DONE] before flushing and exiting.
-
-			if flusher, ok := w.(http.Flusher); ok {
-				flusher.Flush()
-			}
-
-			close(done)
 		}()
 
-		// TODO: improve impl here for more explicit context control.
-		err = clientStream.transmit(ctx, done, w, r)
-		if err != nil && !errors.Is(err, ErrDone) {
-			b.logger.Error(ctx, "SSE stream exited", slog.Error(err))
+		session := NewOpenAISession()
+
+		stream := client.Chat.Completions.NewStreaming(ctx, in.ChatCompletionNewParams)
+		defer close(eventsCh)
+
+		var acc openai.ChatCompletionAccumulator
+		for stream.Next() {
+			chunk := stream.Current()
+			acc.AddChunk(chunk)
+
+			var foundToolCallDelta bool
+			for _, c := range chunk.Choices {
+				for range c.Delta.ToolCalls {
+					foundToolCallDelta = true
+
+					// Grab values from accumulator instead of delta.
+					for _, ac := range acc.ChatCompletion.Choices {
+						for _, at := range ac.Message.ToolCalls {
+							var (
+								tc *OpenAIToolCall
+								ok bool
+							)
+							if tc, ok = session.toolCallsRequired[at.ID]; !ok {
+								session.toolCallsRequired[at.ID] = &OpenAIToolCall{}
+								tc = session.toolCallsRequired[at.ID]
+							}
+
+							session.toolCallsState[at.ID] = OpenAIToolCallNotReady
+
+							tc.funcName = at.Function.Name
+							args := make(map[string]string)
+							err := json.Unmarshal([]byte(at.Function.Arguments), &args)
+							if err == nil { // Note: inverted.
+								tc.args = args
+							}
+						}
+					}
+				}
+
+				// Once we receive a finish reason of "tool_calls", the API is waiting for the responses for this/these tool(s).
+				// We mark all the tool calls as ready. Once we see observe the [DONE] event, we will execute these tool calls.
+				if c.FinishReason == "tool_calls" {
+					for idx := range session.toolCallsState {
+						session.toolCallsState[idx] = OpenAIToolCallReady
+					}
+				}
+			}
+
+			// TODO: ONLY do this for our injected tool calls.
+			if foundToolCallDelta {
+				// Don't write these chunks, we'll handle this.
+				continue
+			}
+
+			// Actually make the call!
+			if tool, ok := acc.JustFinishedToolCall(); ok {
+				switch tool.Name {
+				case "get_weather":
+					msg := openai.ToolMessage("the weather in cape town is KAK", tool.ID)
+
+					var msgs []openai.ChatCompletionMessageParamUnion
+					for _, c := range acc.ChatCompletion.Choices {
+						msgs = append(msgs, c.Message.ToParam())
+					}
+
+					msgs = append(msgs, msg)
+
+					toolRes, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
+						Messages: msgs,
+						Model: in.ChatCompletionNewParams.Model,
+					})
+					if err != nil {
+						b.logger.Error(ctx, "failed to report tool response", slog.Error(err))
+					}
+
+					toolChunk := openai.ChatCompletionChunk{
+						ID: acc.ID,
+						Choices: []openai.ChatCompletionChunkChoice{
+							{
+								Delta: openai.ChatCompletionChunkChoiceDelta{
+									Role:    "assistant",
+									Content: toolRes.Choices[0].Message.Content, // TODO: improve
+								},
+							},
+						},
+					}
+					chunks <- toolChunk
+
+					/**
+
+
+
+
+
+
+					TODO: you are here
+					once the tool call is done, we need to mark the session as completed, which should send [DONE].
+
+
+
+
+
+
+
+					 */
+				}
+				continue
+			}
+
+			chunks <- chunk
+		}
+
+		if err := stream.Err(); err != nil {
+			// TODO: handle error.
+			b.logger.Error(ctx, "server stream error", slog.Error(err))
+			return
+		}
+
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+
+		select {
+		case <-ctx.Done():
+		case <-done:
 		}
 	} else {
 		completion, err := client.Chat.Completions.New(ctx, in.ChatCompletionNewParams)

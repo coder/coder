@@ -1,69 +1,53 @@
 package aibridged
 
 import (
-	"context"
 	"net/http"
 
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
-
-	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/codersdk"
 )
 
-type SSEStream[T any] struct {
-	logger     slog.Logger
-	eventsChan <-chan T
-}
+// BasicSSESender was implemented to overcome httpapi.ServerSentEventSender's odd design choices. For example, it doesn't
+// write "event: data" for every data event (it's unnecessary, and breaks some AI tools' parsing of the SSE stream).
+func BasicSSESender(eventsChan <-chan string, logger slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
 
-var ErrDone = xerrors.New("done")
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.Header().Set("X-Accel-Buffering", "no")
 
-func NewSSEStream[T any](eventsChan <-chan T, logger slog.Logger) *SSEStream[T] {
-	return &SSEStream[T]{eventsChan: eventsChan, logger: logger}
-}
-
-func (s *SSEStream[T]) transmit(ctx context.Context, done chan struct{}, rw http.ResponseWriter, r *http.Request) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-	}
-
-	sseSendEvent, sseSenderClosed, err := httpapi.ServerSentEventSender(rw, r)
-	if err != nil {
-		return xerrors.Errorf("failed to create sse transmitter: %w", err)
-	}
-
-	defer func() {
-		// Block returning until the ServerSentEventSender is closed
-		// to avoid a race condition where we might write or flush to rw after the handler returns.
-		select {
-		case <-sseSenderClosed:
-		case <-done:
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "SSE not supported", http.StatusInternalServerError)
+			return
 		}
-	}()
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-done:
-			return ErrDone
-		case <-sseSenderClosed:
-			return xerrors.New("SSE target closed")
-		case event, ok := <-s.eventsChan:
-			if !ok {
-				return xerrors.New("SSE source closed")
-			}
+		// Send initial flush to ensure connection is established.
+		flusher.Flush()
 
-			err = sseSendEvent(codersdk.ServerSentEvent{
-				Type: codersdk.ServerSentEventTypeData,
-				Data: event,
-			})
-			if err != nil {
-				// TODO: handle error.
-				continue
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case event, ok := <-eventsChan:
+				if !ok {
+					// Channel closed, send done event and exit
+					_, err := w.Write([]byte("data: [DONE]\n\n")) // Convention used by OpenAI. // TODO: others, too?
+					if err != nil {
+						logger.Error(ctx, "failed to write done event", slog.Error(err))
+					}
+					flusher.Flush()
+					return
+				}
+
+				// Send data event
+				_, err := w.Write([]byte("data: " + event + "\n\n"))
+				if err != nil {
+					logger.Error(ctx, "failed to write SSE event", slog.Error(err))
+					return
+				}
+				flusher.Flush()
 			}
 		}
 	}

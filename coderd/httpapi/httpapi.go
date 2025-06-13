@@ -358,41 +358,25 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 
 	sendEvent := func(newEvent codersdk.ServerSentEvent) error {
 		buf := &bytes.Buffer{}
-		//_, err := buf.WriteString(fmt.Sprintf("event: %s\n", newEvent.Type))
-		//if err != nil {
-		//	return err
-		//}
+		_, err := buf.WriteString(fmt.Sprintf("event: %s\n", newEvent.Type))
+		if err != nil {
+			return err
+		}
 
 		if newEvent.Data != nil {
-			_, err := buf.WriteString("data: ")
+			_, err = buf.WriteString("data: ")
 			if err != nil {
 				return err
 			}
 
-			if newEvent.Data == `[DONE]` {
-				buf.WriteString(newEvent.Data.(string))
-			} else {
-				var out []byte
-				switch newEvent.Data.(type) {
-				case []byte:
-					out = newEvent.Data.([]byte)
-				case string:
-					out = []byte(newEvent.Data.(string))
-				default:
-					out, err = json.Marshal(newEvent.Data)
-					if err != nil {
-						return err
-					}
-				}
-
-				buf.Write(out)
-				if err != nil {
-					return err
-				}
+			enc := json.NewEncoder(buf)
+			err = enc.Encode(newEvent.Data)
+			if err != nil {
+				return err
 			}
 		}
 
-		_, err := buf.WriteString("\n\n")
+		err = buf.WriteByte('\n')
 		if err != nil {
 			return err
 		}

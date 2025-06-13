@@ -522,15 +522,18 @@ require (
 	github.com/moby/sys/user v0.4.0 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
+	github.com/r3labs/sse/v2 v2.10.0 // indirect
 	github.com/samber/lo v1.50.0 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
+	github.com/tmaxmax/go-sse v0.11.0 // indirect
 	github.com/ulikunitz/xz v0.5.12 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.34.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.35.0 // indirect
+	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738 // indirect
 )
 
