@@ -7,27 +7,39 @@ export default {
 	rules: [
 		{
 			token: "comment",
-			foreground: "6B737C",
+			foreground: "5A6B73", // Darker gray for better readability on light background
 		},
 		{
 			token: "type",
-			foreground: "682CD7",
+			foreground: "5B2C87", // Darker purple for better contrast
 		},
 		{
 			token: "string",
-			foreground: "1766B4",
+			foreground: "0D7377", // Dark teal for strings
 		},
 		{
 			token: "variable",
-			foreground: "444444",
+			foreground: "2D2D2D", // Darker gray for variables
 		},
 		{
 			token: "identifier",
-			foreground: "682CD7",
+			foreground: "1565C0", // Dark blue for identifiers
 		},
 		{
 			token: "delimiter.curly",
-			foreground: "EBB325",
+			foreground: "E65100", // Dark orange for delimiters
+		},
+		{
+			token: "keyword",
+			foreground: "C2185B", // Dark pink for keywords
+		},
+		{
+			token: "number",
+			foreground: "D84315", // Dark orange-red for numbers
+		},
+		{
+			token: "operator",
+			foreground: "0277BD", // Dark blue for operators
 		},
 	],
 	colors: {
