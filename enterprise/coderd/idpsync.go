@@ -836,6 +836,9 @@ func (api *API) idpSyncClaimFieldValues(orgID uuid.UUID, rw http.ResponseWriter,
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	if fieldValues == nil {
+		fieldValues = []string{}
+	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, fieldValues)
 }
