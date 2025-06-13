@@ -158,18 +158,16 @@ func (s Schedule) Next(t time.Time) time.Time {
 // IsWithinRange interprets a cron spec as a continuous time range,
 // and returns whether the provided time value falls within that range.
 //
-// For example, the expression "* 9-18 * * 1-5" should represent a continuous time range
-// from 09:00 to 18:59, Monday through Friday.
-// However, due to minor implementation imprecision, it is interpreted as
-// a range from 08:59:00 to 18:58:59, Monday through Friday.
+// For example, the expression "* 9-18 * * 1-5" represents a continuous time range
+// from 09:00:00 to 18:59:59, Monday through Friday.
 func (s Schedule) IsWithinRange(t time.Time) bool {
 	// Truncate to the beginning of the current minute.
 	currentMinute := t.Truncate(time.Minute)
-	
+
 	// Go back 1 second from the current minute to find what the next scheduled time would be.
 	justBefore := currentMinute.Add(-time.Second)
 	next := s.Next(justBefore)
-	
+
 	// If the next scheduled time is exactly at the current minute,
 	// then we are within the range.
 	return next.Equal(currentMinute)
