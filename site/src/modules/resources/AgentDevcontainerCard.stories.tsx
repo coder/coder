@@ -1,14 +1,17 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import type { WorkspaceAgentDevcontainer } from "api/typesGenerated";
+import { getPreferredProxy } from "contexts/ProxyContext";
 import { chromatic } from "testHelpers/chromatic";
 import {
 	MockListeningPortsResponse,
+	MockPrimaryWorkspaceProxy,
 	MockTemplate,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceAgentContainer,
 	MockWorkspaceAgentContainerPorts,
 	MockWorkspaceApp,
+	MockWorkspaceProxies,
 	MockWorkspaceSubAgent,
 } from "testHelpers/entities";
 import {
@@ -143,4 +146,13 @@ export const WithAppsAndPorts: Story = {
 			},
 		],
 	},
+};
+
+export const ShowingPortForward: Story = {
+	decorators: [
+		withProxyProvider({
+			proxy: getPreferredProxy(MockWorkspaceProxies, MockPrimaryWorkspaceProxy),
+			proxies: MockWorkspaceProxies,
+		}),
+	],
 };
