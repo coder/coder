@@ -577,39 +577,8 @@ Steps to troubleshoot.
      groups claim field.
      Use [this answer from Stack Overflow](https://stackoverflow.com/a/55570286) for an example.
 
-### Keycloak
+## Next Steps
 
-<!-- copied in refresh-tokens.md. make changes there too. -->
-
-The `access_type` parameter has two possible values: `online` and `offline`.
-By default, the value is set to `offline`.
-
-This means that when a user authenticates using OIDC, the application requests
-offline access to the user's resources, including the ability to refresh access
-tokens without requiring the user to reauthenticate.
-
-To enable the `offline_access` scope which allows for the refresh token
-functionality, you need to add it to the list of requested scopes during the
-authentication flow.
-Including the `offline_access` scope in the requested scopes ensures that the
-user is granted the necessary permissions to obtain refresh tokens.
-
-By combining the `{"access_type":"offline"}` parameter in the OIDC Auth URL with
-the `offline_access` scope, you can achieve the desired behavior of obtaining
-refresh tokens for offline access to the user's resources.
-
-### Google
-
-<!-- copied in refresh-tokens.md. make changes there too. -->
-
-To ensure Coder receives a refresh token when users authenticate with Google
-directly, set the `prompt` to `consent` in the auth URL parameters. Without
-this, users will be logged out after 1 hour.
-
-In your Coder configuration:
-
-```shell
-CODER_OIDC_AUTH_URL_PARAMS='{"access_type": "offline", "prompt": "consent"}'
-```
-
-</div>
+- [Configure OIDC Refresh Tokens](./oidc-auth/refresh-tokens.md)
+- [Organizations](./organizations.md)
+- [Groups & Roles](./groups-roles.md)
