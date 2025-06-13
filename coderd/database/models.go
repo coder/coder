@@ -3355,6 +3355,7 @@ type TemplateVersion struct {
 	Message               string          `db:"message" json:"message"`
 	Archived              bool            `db:"archived" json:"archived"`
 	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
+	HasAITask             bool            `db:"has_ai_task" json:"has_ai_task"`
 	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName         string          `db:"created_by_name" json:"created_by_name"`
@@ -3431,6 +3432,7 @@ type TemplateVersionTable struct {
 	Message         string         `db:"message" json:"message"`
 	Archived        bool           `db:"archived" json:"archived"`
 	SourceExampleID sql.NullString `db:"source_example_id" json:"source_example_id"`
+	HasAITask       bool           `db:"has_ai_task" json:"has_ai_task"`
 }
 
 type TemplateVersionTerraformValue struct {
@@ -3845,6 +3847,8 @@ type WorkspaceBuild struct {
 	DailyCost               int32               `db:"daily_cost" json:"daily_cost"`
 	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
+	HasAITask               bool                `db:"has_ai_task" json:"has_ai_task"`
+	AITasksSidebarAppID     uuid.NullUUID       `db:"ai_tasks_sidebar_app_id" json:"ai_tasks_sidebar_app_id"`
 	InitiatorByAvatarUrl    string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
 	InitiatorByUsername     string              `db:"initiator_by_username" json:"initiator_by_username"`
 	InitiatorByName         string              `db:"initiator_by_name" json:"initiator_by_name"`
@@ -3874,6 +3878,8 @@ type WorkspaceBuildTable struct {
 	DailyCost               int32               `db:"daily_cost" json:"daily_cost"`
 	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
+	HasAITask               bool                `db:"has_ai_task" json:"has_ai_task"`
+	AITasksSidebarAppID     uuid.NullUUID       `db:"ai_tasks_sidebar_app_id" json:"ai_tasks_sidebar_app_id"`
 }
 
 type WorkspaceLatestBuild struct {
