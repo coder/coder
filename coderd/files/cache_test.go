@@ -109,7 +109,7 @@ func cacheAuthzSetup(t *testing.T) (database.Store, *files.Cache, *coderdtest.Re
 
 	// Dbauthz wrap the db
 	db = dbauthz.New(db, rec, logger, coderdtest.AccessControlStorePointer())
-	c := files.NewFromStore(db, reg, rec.Authorize)
+	c := files.NewFromStore(db, reg, rec)
 	return db, c, rec
 }
 
