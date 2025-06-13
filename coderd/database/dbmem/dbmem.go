@@ -12277,16 +12277,17 @@ func (q *FakeQuerier) UpsertConnectionLog(_ context.Context, arg database.Upsert
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	if arg.ConnectionAction == "disconnect" {
-		for i, existing := range q.connectionLogs {
-			if existing.ConnectionID == arg.ConnectionID &&
-				existing.WorkspaceID == arg.WorkspaceID &&
-				existing.AgentName == arg.AgentName {
-				// Update existing connection with close time and reason
-				q.connectionLogs[i].CloseTime = sql.NullTime{Valid: true, Time: arg.Time}
-				q.connectionLogs[i].CloseReason = arg.CloseReason
+	for i, existing := range q.connectionLogs {
+		if existing.ConnectionID == arg.ConnectionID &&
+			existing.WorkspaceID == arg.WorkspaceID &&
+			existing.AgentName == arg.AgentName {
+			if arg.ConnectionAction != "disconnect" {
 				return q.connectionLogs[i], nil
 			}
+			// Update existing connection with close time and reason
+			q.connectionLogs[i].CloseTime = sql.NullTime{Valid: true, Time: arg.Time}
+			q.connectionLogs[i].CloseReason = arg.CloseReason
+			return q.connectionLogs[i], nil
 		}
 	}
 
