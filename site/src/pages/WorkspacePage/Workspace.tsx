@@ -99,6 +99,8 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const shouldShowProvisionerAlert =
 		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
 
+	console.log(selectedResource?.agents);
+
 	return (
 		<div
 			css={{
