@@ -207,19 +207,14 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	);
 	const canSharePortsPublic =
 		canSharePorts && template.max_port_share_level === "public";
-	const canSharePortsOrganization =
+	const canSharePortsAuthenticated =
 		canSharePorts &&
-		(template.max_port_share_level === "organization" ||
-			template.max_port_share_level === "public");
+		(template.max_port_share_level === "authenticated" || canSharePortsPublic);
 
-	// Default share level for quick share button based on template's max level
-	const defaultShareLevel: WorkspaceAgentPortShareLevel = (() => {
-		if (template.max_port_share_level === "organization") {
-			return "organization";
-		}
-		// For authenticated or public max levels, default to organization as it's more restrictive
-		return canSharePortsOrganization ? "organization" : "authenticated";
-	})();
+	const defaultShareLevel =
+		template.max_port_share_level === "organization"
+			? "organization"
+			: "authenticated";
 
 	const disabledPublicMenuItem = (
 		<TooltipProvider>
@@ -232,28 +227,27 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 						</MenuItem>
 					</div>
 				</TooltipTrigger>
-				<TooltipContent>
-					This workspace template does not allow sharing ports with
-					unauthenticated users.
+				<TooltipContent disablePortal>
+					This workspace template does not allow sharing ports publicly.
 				</TooltipContent>
 			</Tooltip>
 		</TooltipProvider>
 	);
 
-	const disabledOrganizationMenuItem = (
+	const disabledAuthenticatedMenuItem = (
 		<TooltipProvider>
 			<Tooltip>
 				<TooltipTrigger asChild>
 					{/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
 					<div>
-						<MenuItem value="organization" disabled>
-							Organization
+						<MenuItem value="authenticated" disabled>
+							Authenticated
 						</MenuItem>
 					</div>
 				</TooltipTrigger>
-				<TooltipContent>
-					This workspace template does not allow sharing ports at the
-					organization level.
+				<TooltipContent disablePortal>
+					This workspace template does not allow sharing ports outside of its
+					organization.
 				</TooltipContent>
 			</Tooltip>
 		</TooltipProvider>
@@ -351,7 +345,9 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 												<span className="sr-only">Connect to port</span>
 											</Button>
 										</TooltipTrigger>
-										<TooltipContent>Connect to port</TooltipContent>
+										<TooltipContent disablePortal>
+											Connect to port
+										</TooltipContent>
 									</Tooltip>
 								</TooltipProvider>
 							</form>
@@ -427,7 +423,9 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 														<span className="sr-only">Share</span>
 													</Button>
 												</TooltipTrigger>
-												<TooltipContent>Share this port</TooltipContent>
+												<TooltipContent disablePortal>
+													Share this port
+												</TooltipContent>
 											</Tooltip>
 										</TooltipProvider>
 									)}
@@ -521,11 +519,13 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 													});
 												}}
 											>
-												<MenuItem value="authenticated">Authenticated</MenuItem>
-												{canSharePortsOrganization ? (
-													<MenuItem value="organization">Organization</MenuItem>
+												<MenuItem value="organization">Organization</MenuItem>
+												{canSharePortsAuthenticated ? (
+													<MenuItem value="authenticated">
+														Authenticated
+													</MenuItem>
 												) : (
-													disabledOrganizationMenuItem
+													disabledAuthenticatedMenuItem
 												)}
 												{canSharePortsPublic ? (
 													<MenuItem value="public">Public</MenuItem>
@@ -593,11 +593,11 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									value={form.values.share_level}
 									label="Sharing Level"
 								>
-									<MenuItem value="authenticated">Authenticated</MenuItem>
-									{canSharePortsOrganization ? (
-										<MenuItem value="organization">Organization</MenuItem>
+									<MenuItem value="organization">Organization</MenuItem>
+									{canSharePortsAuthenticated ? (
+										<MenuItem value="authenticated">Authenticated</MenuItem>
 									) : (
-										disabledOrganizationMenuItem
+										disabledAuthenticatedMenuItem
 									)}
 									{canSharePortsPublic ? (
 										<MenuItem value="public">Public</MenuItem>
