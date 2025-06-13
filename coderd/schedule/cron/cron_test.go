@@ -186,9 +186,9 @@ func TestIsWithinRange(t *testing.T) {
 			expectedWithinRange: true,
 		},
 		{
-			name:                "9AM - One minute after the start of the time range",
+			name:                "9:01 AM - One minute after the start of the time range",
 			spec:                "* 9-18 * * 1-5",
-			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 9:00:00 UTC"),
+			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 9:01:00 UTC"),
 			expectedWithinRange: true,
 		},
 		{
@@ -198,7 +198,7 @@ func TestIsWithinRange(t *testing.T) {
 			expectedWithinRange: true,
 		},
 		{
-			name:                "6PM - Around one hour before the end of the time range",
+			name:                "6PM - One hour before the end of the time range",
 			spec:                "* 9-18 * * 1-5",
 			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 18:00:00 UTC"),
 			expectedWithinRange: true,
@@ -216,9 +216,9 @@ func TestIsWithinRange(t *testing.T) {
 			expectedWithinRange: false,
 		},
 		{
-			name:                "7PM - Around one minute after the end of the time range",
+			name:                "7:01PM - One minute after the end of the time range",
 			spec:                "* 9-18 * * 1-5",
-			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 19:00:00 UTC"),
+			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 19:01:00 UTC"),
 			expectedWithinRange: false,
 		},
 		{
