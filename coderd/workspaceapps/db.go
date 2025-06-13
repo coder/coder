@@ -258,7 +258,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	return &token, tokenStr, true
 }
 
-// authorizeRequest returns true/false if the request is authorized. The returned []string
+// authorizeRequest returns true if the request is authorized. The returned []string
 // are warnings that aid in debugging. These messages do not prevent authorization,
 // but may indicate that the request is not configured correctly.
 // If an error is returned, the request should be aborted with a 500 error.
@@ -310,36 +310,10 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 		// This is not ideal to check for the 'owner' role, but we are only checking
 		// to determine whether to show a warning for debugging reasons. This does
 		// not do any authz checks, so it is ok.
-		if roles != nil && slices.Contains(roles.Roles.Names(), rbac.RoleOwner()) {
+		if slices.Contains(roles.Roles.Names(), rbac.RoleOwner()) {
 			warnings = append(warnings, "path-based apps with \"owner\" share level are only accessible by the workspace owner (see --dangerous-allow-path-app-site-owner-access)")
 		}
 		return false, warnings, nil
-	}
-
-	// For organization level path-based apps, block access if path app sharing is disabled
-	// and the user is not in the same organization
-	if isPathApp &&
-		sharingLevel == database.AppSharingLevelOrganization &&
-		!p.DeploymentValues.Dangerous.AllowPathAppSharing.Value() {
-		// Check if user is in the same organization as the workspace
-		workspaceOrgID := dbReq.Workspace.OrganizationID
-		inSameOrg := false
-		expandedRoles, err := roles.Roles.Expand()
-		if err != nil {
-			return false, warnings, xerrors.Errorf("expand roles: %w", err)
-		}
-		for _, role := range expandedRoles {
-			if _, ok := role.Org[workspaceOrgID.String()]; ok {
-				inSameOrg = true
-				break
-			}
-		}
-		if !inSameOrg {
-			if roles != nil && slices.Contains(roles.Roles.Names(), rbac.RoleOwner()) {
-				warnings = append(warnings, "path-based apps with \"organization\" share level are only accessible by organization members (see --dangerous-allow-path-app-sharing)")
-			}
-			return false, warnings, nil
-		}
 	}
 
 	// Figure out which RBAC resource to check. For terminals we use execution
