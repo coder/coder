@@ -47,9 +47,21 @@ Or use your favorite RDP client to connect to `localhost:3399`.
 
 The default username is `Administrator` and password is `coderRDP!`.
 
-### Coder Desktop URI Handling (Beta)
+### Coder Desktop (Beta)
 
-[Coder Desktop](../desktop) can use a URI handler to directly launch an RDP session without setting up port-forwarding.
+[Coder Desktop](../desktop)'s _Coder Connect_ feature creates a connection to your workspaces in the background. There
+is no need for port forwarding when enabled. Use your favorite RDP client to connect to `<workspace-name>.coder` instead
+of `localhost:3399`.
+
+> [!NOTE]
+> We have identified that some versions of Windows, including Windows Server 2022, do not communicate correctly over UDP
+> when using Coder Connect as they do not respect the maximum transmission unit (MTU) of the link. When this happens the
+> RDP client will appear to connect, but show a blank screen. We recommend you
+> [disable RDP over UDP on your Windows workspaces](https://github.com/coder/registry/blob/b58bfebcf3bcdcde4f06a183f92eb3e01842d270/registry/coder/modules/windows-rdp/powershell-installation-script.tftpl#L22).
+> Coder's [Windows RDP](https://registry.coder.com/modules/windows-rdp) module does this automatically.
+
+You can also use a URI handler to directly launch an RDP session without setting up port-forwarding.
+
 The URI format is:
 
 ```text
@@ -81,7 +93,7 @@ resource "coder_app" "rdp-coder-desktop" {
 
 ## RDP Web
 
-Our [WebRDP](https://registry.coder.com/modules/windows-rdp) module in the Coder
+Our [Windows RDP](https://registry.coder.com/modules/windows-rdp) module in the Coder
 Registry adds a one-click button to open an RDP session in the browser. This
 requires just a few lines of Terraform in your template, see the documentation
 on our registry for setup.
