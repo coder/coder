@@ -1389,8 +1389,6 @@ func TestAPI(t *testing.T) {
 			mCCLI.EXPECT().ExecAs(gomock.Any(), "new-test-container-id", "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
 			mCCLI.EXPECT().Copy(gomock.Any(), "new-test-container-id", coderBin, "/.coder-agent/coder").Return(nil),
 			mCCLI.EXPECT().ExecAs(gomock.Any(), "new-test-container-id", "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
-			mCCLI.EXPECT().ExecAs(gomock.Any(), "new-test-container-id", "root", "chown", "0:0", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
-			mCCLI.EXPECT().ExecAs(gomock.Any(), "new-test-container-id", "root", "setcap", "cap_net_admin+ep", "/.coder-agent/coder").Return(nil, nil),
 		)
 
 		// Terminate the agent and verify it can be reinjected.
