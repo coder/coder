@@ -13,7 +13,7 @@ func NewEnterprisePortSharer() *EnterprisePortSharer {
 	return &EnterprisePortSharer{}
 }
 
-func (s EnterprisePortSharer) AuthorizedLevel(template database.Template, level codersdk.WorkspaceAgentPortShareLevel) error {
+func (EnterprisePortSharer) AuthorizedLevel(template database.Template, level codersdk.WorkspaceAgentPortShareLevel) error {
 	maxLevel := codersdk.WorkspaceAgentPortShareLevel(template.MaxPortSharingLevel)
 	return level.IsCompatibleWithMaxLevel(maxLevel)
 }
