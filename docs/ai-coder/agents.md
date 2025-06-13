@@ -45,12 +45,12 @@ Additionally, with Coder, headless agents benefit from:
 - Resource monitoring and limits to prevent runaway processes.
 - API-driven management for enterprise automation.
 
-| Agent         | Supported models                                        | Coder integration                                                                  | Notes                                                                                         |
-|---------------|---------------------------------------------------------|------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| Agent         | Supported models                                        | Coder integration                                                                 | Notes                                                                                         |
+|---------------|---------------------------------------------------------|-----------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
 | Claude Code ⭐ | Anthropic Models Only (+ AWS Bedrock and GCP Vertex AI) | [First class integration](https://registry.coder.com/modules/coder/claude-code) ✅ | Enhanced security through workspace isolation, resource optimization, task status in Coder UI |
 | Goose         | Most popular AI models + gateways                       | [First class integration](https://registry.coder.com/modules/coder/goose) ✅       | Simplified setup with Terraform module, environment consistency                               |
-| Aider         | Most popular AI models + gateways                       | [First class integration](https://registry.coder.com/modules/coder/aider) ✅       | Simplified setup with Terraform module, environment consistency                                             |
-| OpenHands     | Most popular AI models + gateways                       | In progress ⏳ ⏳           | Coming soon                                                                                   |
+| Aider         | Most popular AI models + gateways                       | [First class integration](https://registry.coder.com/modules/coder/aider) ✅       | Simplified setup with Terraform module, environment consistency                               |
+| OpenHands     | Most popular AI models + gateways                       | In progress ⏳ ⏳                                                                   | Coming soon                                                                                   |
 
 [Claude Code](https://github.com/anthropics/claude-code) is our recommended
 coding agent due to its strong performance on complex programming tasks.
@@ -66,8 +66,8 @@ In-IDE agents run within development environments like VS Code, Cursor, or Winds
 These are ideal for exploring new codebases, complex problem solving, pair programming,
 or rubber-ducking.
 
-| Agent                       | Supported Models                  | Coder integration                                                       | Coder key advantages                                           |
-|-----------------------------|-----------------------------------|-------------------------------------------------------------------------|----------------------------------------------------------------|
+| Agent                       | Supported Models                  | Coder integration                                                      | Coder key advantages                                           |
+|-----------------------------|-----------------------------------|------------------------------------------------------------------------|----------------------------------------------------------------|
 | Cursor (Agent Mode)         | Most popular AI models + gateways | ✅ [Cursor Module](https://registry.coder.com/modules/coder/cursor)     | Pre-configured environment, containerized dependencies         |
 | Windsurf (Agents and Flows) | Most popular AI models + gateways | ✅ [Windsurf Module](https://registry.coder.com/modules/coder/windsurf) | Consistent setup across team, powerful cloud compute           |
 | Cline                       | Most popular AI models + gateways | ✅ via VS Code Extension                                                | Enterprise-friendly API key management, consistent environment |
