@@ -4369,6 +4369,22 @@ export const MockWorkspaceAgentContainer: TypesGen.WorkspaceAgentContainer = {
 	},
 };
 
+export const MockWorkspaceAgentDevcontainer: TypesGen.WorkspaceAgentDevcontainer =
+	{
+		id: "test-devcontainer-id",
+		name: "test-devcontainer",
+		workspace_folder: "/workspace/test",
+		config_path: "/workspace/test/.devcontainer/devcontainer.json",
+		status: "running",
+		dirty: false,
+		container: MockWorkspaceAgentContainer,
+		agent: {
+			id: MockWorkspaceSubAgent.id,
+			name: MockWorkspaceSubAgent.name,
+			directory: MockWorkspaceSubAgent?.directory ?? "/workspace/test",
+		},
+	};
+
 export const MockWorkspaceAppStatuses: TypesGen.WorkspaceAppStatus[] = [
 	{
 		// This is the latest status chronologically (15:04:38)

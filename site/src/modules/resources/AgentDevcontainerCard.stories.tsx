@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import type { WorkspaceAgentDevcontainer } from "api/typesGenerated";
 import { getPreferredProxy } from "contexts/ProxyContext";
 import { chromatic } from "testHelpers/chromatic";
 import {
@@ -10,6 +9,7 @@ import {
 	MockWorkspaceAgent,
 	MockWorkspaceAgentContainer,
 	MockWorkspaceAgentContainerPorts,
+	MockWorkspaceAgentDevcontainer,
 	MockWorkspaceApp,
 	MockWorkspaceProxies,
 	MockWorkspaceSubAgent,
@@ -19,21 +19,6 @@ import {
 	withProxyProvider,
 } from "testHelpers/storybook";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
-
-const MockWorkspaceAgentDevcontainer: WorkspaceAgentDevcontainer = {
-	id: "test-devcontainer-id",
-	name: "test-devcontainer",
-	workspace_folder: "/workspace/test",
-	config_path: "/workspace/test/.devcontainer/devcontainer.json",
-	status: "running",
-	dirty: false,
-	container: MockWorkspaceAgentContainer,
-	agent: {
-		id: MockWorkspaceSubAgent.id,
-		name: MockWorkspaceSubAgent.name,
-		directory: MockWorkspaceSubAgent?.directory ?? "/workspace/test",
-	},
-};
 
 const meta: Meta<typeof AgentDevcontainerCard> = {
 	title: "modules/resources/AgentDevcontainerCard",
@@ -80,10 +65,6 @@ export const Dirty: Story = {
 		devcontainer: {
 			...MockWorkspaceAgentDevcontainer,
 			dirty: true,
-			container: {
-				...MockWorkspaceAgentContainer,
-				ports: MockWorkspaceAgentContainerPorts,
-			},
 		},
 	},
 };
@@ -94,10 +75,7 @@ export const Recreating: Story = {
 			...MockWorkspaceAgentDevcontainer,
 			dirty: true,
 			status: "starting",
-			container: {
-				...MockWorkspaceAgentContainer,
-				ports: MockWorkspaceAgentContainerPorts,
-			},
+			container: undefined,
 		},
 		subAgents: [],
 	},
@@ -115,12 +93,6 @@ export const NoSubAgent: Story = {
 
 export const SubAgentConnecting: Story = {
 	args: {
-		devcontainer: {
-			...MockWorkspaceAgentDevcontainer,
-			container: {
-				...MockWorkspaceAgentContainer,
-			},
-		},
 		subAgents: [
 			{
 				...MockWorkspaceSubAgent,
@@ -148,7 +120,7 @@ export const WithAppsAndPorts: Story = {
 	},
 };
 
-export const ShowingPortForward: Story = {
+export const WithPortForwarding: Story = {
 	decorators: [
 		withProxyProvider({
 			proxy: getPreferredProxy(MockWorkspaceProxies, MockPrimaryWorkspaceProxy),
