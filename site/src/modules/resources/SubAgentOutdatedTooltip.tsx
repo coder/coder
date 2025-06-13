@@ -13,10 +13,8 @@ import {
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
-import { PopoverTrigger } from "components/deprecated/Popover/Popover";
 import { RotateCcwIcon } from "lucide-react";
 import type { FC } from "react";
-import { agentVersionStatus } from "../../utils/workspace";
 
 type SubAgentOutdatedTooltipProps = {
 	devcontainer: WorkspaceAgentDevcontainer;
@@ -29,7 +27,7 @@ export const SubAgentOutdatedTooltip: FC<SubAgentOutdatedTooltipProps> = ({
 	agent,
 	onUpdate,
 }) => {
-	if (!devcontainer.agent || devcontainer.agent.id != agent.id) {
+	if (!devcontainer.agent || devcontainer.agent.id !== agent.id) {
 		return null;
 	}
 	if (!devcontainer.dirty) {

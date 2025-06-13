@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import type { WorkspaceAgentDevcontainer } from "api/typesGenerated";
 import {
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -6,7 +7,6 @@ import {
 	MockWorkspaceAgentContainerPorts,
 } from "testHelpers/entities";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
-import type { WorkspaceAgentDevcontainer } from "api/typesGenerated";
 
 const MockWorkspaceAgentDevcontainer: WorkspaceAgentDevcontainer = {
 	id: "test-devcontainer-id",

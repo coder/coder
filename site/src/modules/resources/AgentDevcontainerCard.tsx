@@ -1,37 +1,37 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import Skeleton from "@mui/material/Skeleton";
 import type {
 	Template,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
 } from "api/typesGenerated";
-import { Stack } from "components/Stack/Stack";
 import { Button } from "components/Button/Button";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Spinner } from "components/Spinner/Spinner";
+import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { ExternalLinkIcon, Container } from "lucide-react";
+import { useProxy } from "contexts/ProxyContext";
+import { Container, ExternalLinkIcon } from "lucide-react";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import type { FC } from "react";
 import { useEffect, useState } from "react";
 import { portForwardURL } from "utils/portForward";
 import { AgentButton } from "./AgentButton";
+import { AgentLatency } from "./AgentLatency";
+import { Apps, organizeAgentApps } from "./AgentRow";
+import { SubAgentStatus } from "./AgentStatus";
+import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
+import { SubAgentOutdatedTooltip } from "./SubAgentOutdatedTooltip";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDevContainerButton } from "./VSCodeDevContainerButton/VSCodeDevContainerButton";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { useProxy } from "contexts/ProxyContext";
-import { PortForwardButton } from "./PortForwardButton";
-import { SubAgentStatus } from "./AgentStatus";
-import { AgentLatency } from "./AgentLatency";
-import Skeleton from "@mui/material/Skeleton";
-import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
-import { SubAgentOutdatedTooltip } from "./SubAgentOutdatedTooltip";
-import { organizeAgentApps, Apps } from "./AgentRow";
 
 type AgentDevcontainerCardProps = {
 	parentAgent: WorkspaceAgent;
