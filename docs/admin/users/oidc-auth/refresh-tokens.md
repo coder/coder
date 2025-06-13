@@ -11,6 +11,8 @@ This is typically after one hour, but varies by provider, and can disrupt the us
 
 <div class="tabs">
 
+<!-- markdownlint-disable MD001 -->
+
 ### Azure AD
 
 Go to the Azure Portal > **Azure Active Directory** > **App registrations** > Your Coder app and make the following changes:
