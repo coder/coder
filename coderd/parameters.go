@@ -61,7 +61,7 @@ func (api *API) templateVersionDynamicParametersWebsocket(rw http.ResponseWriter
 	userID := apikey.UserID
 
 	qUserID := r.URL.Query().Get("user_id")
-	if qUserID != "" {
+	if qUserID != "" && qUserID != codersdk.Me {
 		uid, err := uuid.Parse(qUserID)
 		if err != nil {
 			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{

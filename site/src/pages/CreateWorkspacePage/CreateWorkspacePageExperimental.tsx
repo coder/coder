@@ -148,7 +148,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 	useEffect(() => {
 		if (!realizedVersionId) return;
 
-		const socket = API.templateVersionDynamicParameters(realizedVersionId, {
+		const socket = API.templateVersionDynamicParameters(realizedVersionId, "me", {
 			onMessage,
 			onError: (error) => {
 				if (ws.current === socket) {
