@@ -90,7 +90,7 @@ CODER_OIDC_ICON_URL=https://gitea.io/images/gitea.png
 ```
 
 To change the icon and text above the OpenID Connect button, see application
-name and logo url in [appearance](../setup/appearance.md) settings.
+name and logo url in [appearance](../../setup/appearance.md) settings.
 
 ## Configure Refresh Tokens
 
@@ -142,8 +142,8 @@ CODER_DISABLE_PASSWORD_AUTH=true
 
 Coder supports user provisioning and deprovisioning via SCIM 2.0 with header
 authentication. Upon deactivation, users are
-[suspended](./index.md#suspend-a-user) and are not deleted.
-[Configure](../setup/index.md) your SCIM application with an auth key and supply
+[suspended](../index.md#suspend-a-user) and are not deleted.
+[Configure](../../setup/index.md) your SCIM application with an auth key and supply
 it the Coder server.
 
 ```env
