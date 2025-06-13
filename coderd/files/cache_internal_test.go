@@ -1,4 +1,4 @@
-package files
+package files_test
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -31,12 +32,12 @@ func TestConcurrency(t *testing.T) {
 	emptyFS := afero.NewIOFS(afero.NewReadOnlyFs(afero.NewMemMapFs()))
 	var fetches atomic.Int64
 	reg := prometheus.NewRegistry()
-	c := New(func(_ context.Context, _ uuid.UUID) (cacheEntryValue, error) {
+	c := files.New(func(_ context.Context, _ uuid.UUID) (files.CacheEntryValue, error) {
 		fetches.Add(1)
 		// Wait long enough before returning to make sure that all of the goroutines
 		// will be waiting in line, ensuring that no one duplicated a fetch.
 		time.Sleep(testutil.IntervalMedium)
-		return cacheEntryValue{FS: emptyFS, size: fileSize}, nil
+		return files.CacheEntryValue{FS: emptyFS, Size: fileSize}, nil
 	}, reg, &coderdtest.FakeAuthorizer{})
 
 	batches := 1000
@@ -84,10 +85,10 @@ func TestRelease(t *testing.T) {
 	const fileSize = 10
 	emptyFS := afero.NewIOFS(afero.NewReadOnlyFs(afero.NewMemMapFs()))
 	reg := prometheus.NewRegistry()
-	c := New(func(_ context.Context, _ uuid.UUID) (cacheEntryValue, error) {
-		return cacheEntryValue{
+	c := files.New(func(_ context.Context, _ uuid.UUID) (files.CacheEntryValue, error) {
+		return files.CacheEntryValue{
 			FS:   emptyFS,
-			size: fileSize,
+			Size: fileSize,
 		}, nil
 	}, reg, &coderdtest.FakeAuthorizer{})
 
@@ -118,7 +119,7 @@ func TestRelease(t *testing.T) {
 	}
 
 	// Make sure cache is fully loaded
-	require.Equal(t, len(c.data), batches)
+	require.Equal(t, c.Count(), batches)
 
 	// Now release all of the references
 	for closedIdx, id := range ids {
@@ -142,7 +143,7 @@ func TestRelease(t *testing.T) {
 	}
 
 	// ...and make sure that the cache has emptied itself.
-	require.Equal(t, len(c.data), 0)
+	require.Equal(t, c.Count(), 0)
 
 	// Verify all the counts & metrics are correct.
 	// All existing files are closed

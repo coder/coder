@@ -22,20 +22,20 @@ import (
 // NewFromStore returns a file cache that will fetch files from the provided
 // database.
 func NewFromStore(store database.Store, registerer prometheus.Registerer, authz rbac.Authorizer) *Cache {
-	fetch := func(ctx context.Context, fileID uuid.UUID) (cacheEntryValue, error) {
+	fetch := func(ctx context.Context, fileID uuid.UUID) (CacheEntryValue, error) {
 		// Make sure the read does not fail due to authorization issues.
 		// Authz is checked on the Acquire call, so this is safe.
 		//nolint:gocritic
 		file, err := store.GetFileByID(dbauthz.AsFileReader(ctx), fileID)
 		if err != nil {
-			return cacheEntryValue{}, xerrors.Errorf("failed to read file from database: %w", err)
+			return CacheEntryValue{}, xerrors.Errorf("failed to read file from database: %w", err)
 		}
 
 		content := bytes.NewBuffer(file.Data)
-		return cacheEntryValue{
-			object: file.RBACObject(),
+		return CacheEntryValue{
+			Object: file.RBACObject(),
 			FS:     archivefs.FromTarReader(content),
-			size:   int64(content.Len()),
+			Size:   int64(content.Len()),
 		}, nil
 	}
 
@@ -126,19 +126,19 @@ type cacheMetrics struct {
 	totalCacheSize   prometheus.Counter
 }
 
-type cacheEntryValue struct {
-	object rbac.Object
+type CacheEntryValue struct {
+	Object rbac.Object
 	fs.FS
-	size int64
+	Size int64
 }
 
 type cacheEntry struct {
 	// refCount must only be accessed while the Cache lock is held.
 	refCount int
-	value    *lazy.ValueWithError[cacheEntryValue]
+	value    *lazy.ValueWithError[CacheEntryValue]
 }
 
-type fetcher func(context.Context, uuid.UUID) (cacheEntryValue, error)
+type fetcher func(context.Context, uuid.UUID) (CacheEntryValue, error)
 
 // Acquire will load the fs.FS for the given file. It guarantees that parallel
 // calls for the same fileID will only result in one fetch, and that parallel
@@ -162,7 +162,7 @@ func (c *Cache) Acquire(ctx context.Context, fileID uuid.UUID) (fs.FS, error) {
 		return nil, dbauthz.ErrNoActor
 	}
 	// Always check the caller can actually read the file.
-	if err := c.authz.Authorize(ctx, subject, policy.ActionRead, it.object); err != nil {
+	if err := c.authz.Authorize(ctx, subject, policy.ActionRead, it.Object); err != nil {
 		c.Release(fileID)
 		return nil, err
 	}
@@ -170,19 +170,19 @@ func (c *Cache) Acquire(ctx context.Context, fileID uuid.UUID) (fs.FS, error) {
 	return it.FS, err
 }
 
-func (c *Cache) prepare(ctx context.Context, fileID uuid.UUID) *lazy.ValueWithError[cacheEntryValue] {
+func (c *Cache) prepare(ctx context.Context, fileID uuid.UUID) *lazy.ValueWithError[CacheEntryValue] {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
 	entry, ok := c.data[fileID]
 	if !ok {
-		value := lazy.NewWithError(func() (cacheEntryValue, error) {
+		value := lazy.NewWithError(func() (CacheEntryValue, error) {
 			val, err := c.fetcher(ctx, fileID)
 
 			// Always add to the cache size the bytes of the file loaded.
 			if err == nil {
-				c.currentCacheSize.Add(float64(val.size))
-				c.totalCacheSize.Add(float64(val.size))
+				c.currentCacheSize.Add(float64(val.Size))
+				c.totalCacheSize.Add(float64(val.Size))
 			}
 
 			return val, err
@@ -227,7 +227,7 @@ func (c *Cache) Release(fileID uuid.UUID) {
 
 	ev, err := entry.value.Load()
 	if err == nil {
-		c.currentCacheSize.Add(-1 * float64(ev.size))
+		c.currentCacheSize.Add(-1 * float64(ev.Size))
 	}
 
 	delete(c.data, fileID)
