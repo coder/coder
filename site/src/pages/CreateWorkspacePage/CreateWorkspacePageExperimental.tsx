@@ -150,7 +150,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 
 		const socket = API.templateVersionDynamicParameters(
 			realizedVersionId,
-			"me",
+			defaultOwner.id,
 			{
 				onMessage,
 				onError: (error) => {
@@ -176,7 +176,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 		return () => {
 			socket.close();
 		};
-	}, [realizedVersionId, onMessage]);
+	}, [realizedVersionId, onMessage, defaultOwner.id]);
 
 	const organizationId = templateQuery.data?.organization_id;
 
