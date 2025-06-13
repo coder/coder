@@ -545,6 +545,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 					<PrimaryAction
 						onClick={() => setIsStopConfirmOpen(true)}
 						isLoading={stopWorkspaceMutation.isPending}
+						disabled={stopWorkspaceMutation.isPending}
 						label="Stop workspace"
 					>
 						<SquareIcon />
@@ -611,12 +612,14 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 type PrimaryActionProps = PropsWithChildren<{
 	label: string;
 	isLoading?: boolean;
+	disabled?: boolean;
 	onClick: () => void;
 }>;
 
 const PrimaryAction: FC<PrimaryActionProps> = ({
 	onClick,
 	isLoading,
+	disabled,
 	label,
 	children,
 }) => {
@@ -624,7 +627,12 @@ const PrimaryAction: FC<PrimaryActionProps> = ({
 		<TooltipProvider>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<Button variant="outline" size="icon-lg" onClick={onClick}>
+					<Button
+						variant="outline"
+						size="icon-lg"
+						onClick={onClick}
+						disabled={disabled}
+					>
 						<Spinner loading={isLoading}>{children}</Spinner>
 						<span className="sr-only">{label}</span>
 					</Button>
