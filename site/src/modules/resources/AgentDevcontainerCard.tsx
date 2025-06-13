@@ -86,9 +86,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	const showDevcontainerControls =
 		!subAgentRemoved && subAgent && devcontainer.container;
 	const showSubAgentApps =
-		!subAgentRemoved &&
-		((subAgent?.status === "connected" && hasAppsToDisplay) ||
-			subAgent?.status === "connecting");
+		!subAgentRemoved && subAgent?.status === "connected" && hasAppsToDisplay;
 	const showSubAgentAppsPlaceholders =
 		subAgentRemoved || subAgent?.status === "connecting";
 
