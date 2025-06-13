@@ -135,12 +135,12 @@ To verify refresh tokens are working correctly:
 
    ### Keycloak
 
-   Review Keycloak sessions for the presence of refresh tokens
+   Review Keycloak sessions for the presence of refresh tokens.
 
    ### Ping Federate
 
-   - Verify the client sent `offline_access` in the `grantedScopes` portion of the ID token
-   - Confirm `refresh_token` appears in the `grant_types` list returned by `/pf-admin-api/v1/oauth/clients/{id}`
+   - Verify the client sent `offline_access` in the `grantedScopes` portion of the ID token.
+   - Confirm `refresh_token` appears in the `grant_types` list returned by `/pf-admin-api/v1/oauth/clients/{id}`.
 
    </div>
 
@@ -157,38 +157,40 @@ If all verification steps pass successfully, your refresh token configuration is
 
 **Symptoms**:
 
-- Users experience session timeouts and must re-authenticate
-- Session timeouts typically occur after the access token expiration period (varies by provider, commonly 1 hour)
+- Users experience session timeouts and must re-authenticate.
+- Session timeouts typically occur after the access token expiration period (varies by provider, commonly 1 hour).
 
 **Causes**:
 
-- Missing `offline_access` scope in `CODER_OIDC_SCOPES`
-- Provider not configured to issue refresh tokens
-- User has not logged in since refresh token configuration was added
+- Missing required refresh token configuration:
+  - `offline_access` scope for most providers
+  - `"access_type": "offline"` for Google
+- Provider not correctly configured to issue refresh tokens.
+- User has not logged in since refresh token configuration was added.
 
 **Solution**:
 
-- Add `offline_access` to your `CODER_OIDC_SCOPES` configuration
-- Configure your identity provider according to the provider-specific instructions above
+- Add `offline_access` to your `CODER_OIDC_SCOPES` configuration.
+- Configure your identity provider according to the provider-specific instructions above.
 - Have users log out and log in again to obtain refresh tokens.
   Look for entries containing `failed to renew OIDC token` which might indicate specific provider issues.
-
-Users might get logged out again before the new configuration takes effect completely.
 
 ### Refresh tokens don't work after configuration change
 
 **Symptoms**:
 
-- Session timeouts continue despite refresh token configuration and users re-authenticating
-- Some users experience frequent logouts
+- Session timeouts continue despite refresh token configuration and users re-authenticating.
+- Some users experience frequent logouts.
 
 **Cause**:
 
-- Existing user sessions don't have refresh tokens stored
-- Configuration may be incomplete
+- Existing user sessions don't have refresh tokens stored.
+- Configuration may be incomplete.
 
 **Solution**:
 
-- Users must log out and log in again to get refresh tokens stored in the database
-- Verify you've correctly configured your provider as described in the configuration steps above
-- Check Coder logs for specific error messages related to token refresh
+- Users must log out and log in again to get refresh tokens stored in the database.
+- Verify you've correctly configured your provider as described in the configuration steps above.
+- Check Coder logs for specific error messages related to token refresh.
+
+Users might get logged out again before the new configuration takes effect completely.
