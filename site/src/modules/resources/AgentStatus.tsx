@@ -46,6 +46,10 @@ interface AgentStatusProps {
 	agent: WorkspaceAgent;
 }
 
+interface SubAgentStatusProps {
+	agent?: WorkspaceAgent;
+}
+
 const StartTimeoutLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 	return (
 		<HelpTooltip>
@@ -252,6 +256,28 @@ const TimeoutStatus: FC<AgentStatusProps> = ({ agent }) => {
 };
 
 export const AgentStatus: FC<AgentStatusProps> = ({ agent }) => {
+	return (
+		<ChooseOne>
+			<Cond condition={agent.status === "connected"}>
+				<ConnectedStatus agent={agent} />
+			</Cond>
+			<Cond condition={agent.status === "disconnected"}>
+				<DisconnectedStatus />
+			</Cond>
+			<Cond condition={agent.status === "timeout"}>
+				<TimeoutStatus agent={agent} />
+			</Cond>
+			<Cond>
+				<ConnectingStatus />
+			</Cond>
+		</ChooseOne>
+	);
+};
+
+export const SubAgentStatus: FC<SubAgentStatusProps> = ({ agent }) => {
+	if (!agent) {
+		return <ConnectingStatus />;
+	}
 	return (
 		<ChooseOne>
 			<Cond condition={agent.status === "connected"}>
