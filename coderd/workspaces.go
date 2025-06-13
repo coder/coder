@@ -717,7 +717,7 @@ func createWorkspace(
 			builder = builder.MarkPrebuiltWorkspaceClaim()
 		}
 
-		if req.EnableDynamicParameters && api.Experiments.Enabled(codersdk.ExperimentDynamicParameters) {
+		if req.EnableDynamicParameters {
 			builder = builder.DynamicParameters(req.EnableDynamicParameters)
 		}
 

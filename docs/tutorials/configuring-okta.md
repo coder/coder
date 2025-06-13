@@ -4,7 +4,6 @@
   <span style="vertical-align:middle;">Author: </span>
   <a href="https://github.com/Emyrk" style="text-decoration: none; color: inherit; margin-bottom: 0px;">
     <span style="vertical-align:middle;">Steven Masley</span>
-    <img src="https://avatars.githubusercontent.com/u/5446298?v=4" alt="Steven Masley" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
   </a>
 </div>
 December 13, 2023

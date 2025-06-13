@@ -35,7 +35,7 @@ export const HistorySidebar: FC<HistorySidebarProps> = ({ workspace }) => {
 						<SidebarLink
 							target="_blank"
 							key={build.id}
-							to={`/@${build.workspace_owner_username}/${build.workspace_name}/builds/${build.build_number}`}
+							to={`/@${build.workspace_owner_name}/${build.workspace_name}/builds/${build.build_number}`}
 						>
 							<WorkspaceBuildData build={build} />
 						</SidebarLink>

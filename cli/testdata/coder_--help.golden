@@ -18,7 +18,7 @@ SUBCOMMANDS:
     completion        Install or update shell completion scripts for the
                       detected or chosen shell.
     config-ssh        Add an SSH Host entry for your workspaces "ssh
-                      coder.workspace"
+                      workspace.coder"
     create            Create a workspace
     delete            Delete a workspace
     dotfiles          Personalize your workspace by applying a canonical

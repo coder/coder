@@ -23,6 +23,8 @@ func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
+const expectedHandshake = "codervpn tunnel 1.2\n"
+
 // TestSpeaker_RawPeer tests the speaker with a peer that we simulate by directly making reads and
 // writes to the other end of the pipe. There should be at least one test that does this, rather
 // than use 2 speakers so that we don't have a bug where we don't adhere to the stated protocol, but
@@ -47,8 +49,6 @@ func TestSpeaker_RawPeer(t *testing.T) {
 		tun = s
 		errCh <- err
 	}()
-
-	expectedHandshake := "codervpn tunnel 1.1\n"
 
 	b := make([]byte, 256)
 	n, err := mp.Read(b)
@@ -157,8 +157,6 @@ func TestSpeaker_OversizeHandshake(t *testing.T) {
 		errCh <- err
 	}()
 
-	expectedHandshake := "codervpn tunnel 1.1\n"
-
 	b := make([]byte, 256)
 	n, err := mp.Read(b)
 	require.NoError(t, err)
@@ -210,7 +208,6 @@ func TestSpeaker_HandshakeInvalid(t *testing.T) {
 			_, err = mp.Write([]byte(tc.handshake))
 			require.NoError(t, err)
 
-			expectedHandshake := "codervpn tunnel 1.1\n"
 			b := make([]byte, 256)
 			n, err := mp.Read(b)
 			require.NoError(t, err)
@@ -247,8 +244,6 @@ func TestSpeaker_CorruptMessage(t *testing.T) {
 		tun = s
 		errCh <- err
 	}()
-
-	expectedHandshake := "codervpn tunnel 1.1\n"
 
 	b := make([]byte, 256)
 	n, err := mp.Read(b)

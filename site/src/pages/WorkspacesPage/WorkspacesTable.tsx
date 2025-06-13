@@ -297,7 +297,10 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 
 							{hasActivity && (
 								<TableCell>
-									<WorkspaceAppStatus status={workspace.latest_app_status} />
+									<WorkspaceAppStatus
+										status={workspace.latest_app_status}
+										disabled={workspace.latest_build.status !== "running"}
+									/>
 								</TableCell>
 							)}
 

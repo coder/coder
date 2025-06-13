@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 2.0"
+      version = "~> 2.5"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -130,11 +130,29 @@ data "coder_parameter" "image_type" {
   }
 }
 
+locals {
+  default_regions = {
+    // keys should match group names
+    "north-america" : "us-pittsburgh"
+    "europe" : "eu-helsinki"
+    "australia" : "ap-sydney"
+    "south-america" : "sa-saopaulo"
+    "africa" : "za-cpt"
+  }
+
+  user_groups = data.coder_workspace_owner.me.groups
+  user_region = coalescelist([
+    for g in local.user_groups :
+    local.default_regions[g] if contains(keys(local.default_regions), g)
+  ], ["us-pittsburgh"])[0]
+}
+
+
 data "coder_parameter" "region" {
   type    = "string"
   name    = "Region"
   icon    = "/emojis/1f30e.png"
-  default = "us-pittsburgh"
+  default = local.user_region
   option {
     icon  = "/emojis/1f1fa-1f1f8.png"
     name  = "Pittsburgh"
@@ -249,21 +267,23 @@ module "personalize" {
 module "code-server" {
   count                   = data.coder_workspace.me.start_count
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.2.0"
+  version                 = "1.3.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
+  group                   = "Web Editors"
 }
 
 module "vscode-web" {
   count                   = data.coder_workspace.me.start_count
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
-  version                 = "1.1.0"
+  version                 = "1.2.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   extensions              = ["github.copilot"]
   auto_install_extensions = true # will install extensions from the repos .vscode/extensions.json file
   accept_license          = true
+  group                   = "Web Editors"
 }
 
 module "jetbrains" {

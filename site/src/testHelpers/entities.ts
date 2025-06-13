@@ -824,7 +824,7 @@ export const MockTemplate: TypesGen.Template = {
 	deprecated: false,
 	deprecation_message: "",
 	max_port_share_level: "public",
-	use_classic_parameter_flow: false,
+	use_classic_parameter_flow: true,
 };
 
 const MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -1288,7 +1288,7 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
 	updated_at: "2022-05-17T17:39:01.382927298Z",
 	workspace_name: "test-workspace",
 	workspace_owner_id: MockUserOwner.id,
-	workspace_owner_username: MockUserOwner.username,
+	workspace_owner_name: MockUserOwner.username,
 	workspace_owner_avatar_url: MockUserOwner.avatar_url,
 	workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
 	deadline: "2022-05-17T23:39:00.00Z",
@@ -1316,7 +1316,7 @@ const MockWorkspaceBuildAutostart: TypesGen.WorkspaceBuild = {
 	updated_at: "2022-05-17T17:39:01.382927298Z",
 	workspace_name: "test-workspace",
 	workspace_owner_id: MockUserOwner.id,
-	workspace_owner_username: MockUserOwner.username,
+	workspace_owner_name: MockUserOwner.username,
 	workspace_owner_avatar_url: MockUserOwner.avatar_url,
 	workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
 	deadline: "2022-05-17T23:39:00.00Z",
@@ -1340,7 +1340,7 @@ const MockWorkspaceBuildAutostop: TypesGen.WorkspaceBuild = {
 	updated_at: "2022-05-17T17:39:01.382927298Z",
 	workspace_name: "test-workspace",
 	workspace_owner_id: MockUserOwner.id,
-	workspace_owner_username: MockUserOwner.username,
+	workspace_owner_name: MockUserOwner.username,
 	workspace_owner_avatar_url: MockUserOwner.avatar_url,
 	workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
 	deadline: "2022-05-17T23:39:00.00Z",
@@ -1366,7 +1366,7 @@ export const MockFailedWorkspaceBuild = (
 	updated_at: "2022-05-17T17:39:01.382927298Z",
 	workspace_name: "test-workspace",
 	workspace_owner_id: MockUserOwner.id,
-	workspace_owner_username: MockUserOwner.username,
+	workspace_owner_name: MockUserOwner.username,
 	workspace_owner_avatar_url: MockUserOwner.avatar_url,
 	workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
 	deadline: "2022-05-17T23:39:00.00Z",
@@ -1410,7 +1410,7 @@ export const MockWorkspace: TypesGen.Workspace = {
 		MockTemplate.allow_user_cancel_workspace_jobs,
 	template_active_version_id: MockTemplate.active_version_id,
 	template_require_active_version: MockTemplate.require_active_version,
-	template_use_classic_parameter_flow: false,
+	template_use_classic_parameter_flow: true,
 	outdated: false,
 	owner_id: MockUserOwner.id,
 	organization_id: MockOrganization.id,
@@ -4399,3 +4399,83 @@ export const MockWorkspaceAgentContainer: TypesGen.WorkspaceAgentContainer = {
 	},
 	devcontainer_dirty: false,
 };
+
+export const MockWorkspaceAppStatuses: TypesGen.WorkspaceAppStatus[] = [
+	{
+		// This is the latest status chronologically (15:04:38)
+		...MockWorkspaceAppStatus,
+		id: "status-7",
+		icon: "/emojis/1f4dd.png", // 📝
+		message: "Creating PR with gh CLI",
+		created_at: createTimestamp(4, 38), // 15:04:38
+		uri: "https://github.com/coder/coder/pull/5678",
+		state: "complete" as const,
+	},
+	{
+		// (15:03:56)
+		...MockWorkspaceAppStatus,
+		id: "status-6",
+		icon: "/emojis/1f680.png", // 🚀
+		message: "Pushing branch to remote",
+		created_at: createTimestamp(3, 56), // 15:03:56
+		uri: "",
+		state: "complete" as const,
+	},
+	{
+		// (15:02:29)
+		...MockWorkspaceAppStatus,
+		id: "status-5",
+		icon: "/emojis/1f527.png", // 🔧
+		message: "Configuring git identity",
+		created_at: createTimestamp(2, 29), // 15:02:29
+		uri: "",
+		state: "complete" as const,
+	},
+	{
+		// (15:02:04)
+		...MockWorkspaceAppStatus,
+		id: "status-4",
+		icon: "/emojis/1f4be.png", // 💾
+		message: "Committing changes",
+		created_at: createTimestamp(2, 4), // 15:02:04
+		uri: "",
+		state: "complete" as const,
+	},
+	{
+		// (15:01:44)
+		...MockWorkspaceAppStatus,
+		id: "status-3",
+		icon: "/emojis/2795.png", // +
+		message: "Adding files to staging",
+		created_at: createTimestamp(1, 44), // 15:01:44
+		uri: "",
+		state: "complete" as const,
+	},
+	{
+		// (15:01:32)
+		...MockWorkspaceAppStatus,
+		id: "status-2",
+		icon: "/emojis/1f33f.png", // 🌿
+		message: "Creating a new branch for PR",
+		created_at: createTimestamp(1, 32), // 15:01:32
+		uri: "",
+		state: "complete" as const,
+	},
+	{
+		// (15:01:00) - Oldest
+		...MockWorkspaceAppStatus,
+		id: "status-1",
+		icon: "/emojis/1f680.png", // 🚀
+		message: "Starting to create a PR",
+		created_at: createTimestamp(1, 0), // 15:01:00
+		uri: "",
+		state: "complete" as const,
+	},
+];
+
+export function createTimestamp(minuteOffset: number, secondOffset: number) {
+	const baseDate = new Date("2024-03-26T15:00:00Z");
+	baseDate.setMinutes(baseDate.getMinutes() + minuteOffset);
+	baseDate.setSeconds(baseDate.getSeconds() + secondOffset);
+	return baseDate.toISOString();
+}

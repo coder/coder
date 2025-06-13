@@ -2596,7 +2596,6 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
 
 | Name              | In   | Type         | Required | Description         |
 |-------------------|------|--------------|----------|---------------------|
-| `user`            | path | string(uuid) | true     | Template version ID |
 | `templateversion` | path | string(uuid) | true     | Template version ID |
 
 ### Responses
@@ -2604,6 +2603,125 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
 | Status | Meaning                                                                  | Description         | Schema |
 |--------|--------------------------------------------------------------------------|---------------------|--------|
 | 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Evaluate dynamic parameters for template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/dynamic-parameters/evaluate \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /templateversions/{templateversion}/dynamic-parameters/evaluate`
+
+> Body parameter
+
+```json
+{
+  "id": 0,
+  "inputs": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+}
+```
+
+### Parameters
+
+| Name              | In   | Type                                                                             | Required | Description              |
+|-------------------|------|----------------------------------------------------------------------------------|----------|--------------------------|
+| `templateversion` | path | string(uuid)                                                                     | true     | Template version ID      |
+| `body`            | body | [codersdk.DynamicParametersRequest](schemas.md#codersdkdynamicparametersrequest) | true     | Initial parameter values |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "diagnostics": [
+    {
+      "detail": "string",
+      "extra": {
+        "code": "string"
+      },
+      "severity": "error",
+      "summary": "string"
+    }
+  ],
+  "id": 0,
+  "parameters": [
+    {
+      "default_value": {
+        "valid": true,
+        "value": "string"
+      },
+      "description": "string",
+      "diagnostics": [
+        {
+          "detail": "string",
+          "extra": {
+            "code": "string"
+          },
+          "severity": "error",
+          "summary": "string"
+        }
+      ],
+      "display_name": "string",
+      "ephemeral": true,
+      "form_type": "",
+      "icon": "string",
+      "mutable": true,
+      "name": "string",
+      "options": [
+        {
+          "description": "string",
+          "icon": "string",
+          "name": "string",
+          "value": {
+            "valid": true,
+            "value": "string"
+          }
+        }
+      ],
+      "order": 0,
+      "required": true,
+      "styling": {
+        "disabled": true,
+        "label": "string",
+        "placeholder": "string"
+      },
+      "type": "string",
+      "validations": [
+        {
+          "validation_error": "string",
+          "validation_max": 0,
+          "validation_min": 0,
+          "validation_monotonic": "string",
+          "validation_regex": "string"
+        }
+      ],
+      "value": {
+        "valid": true,
+        "value": "string"
+      }
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DynamicParametersResponse](schemas.md#codersdkdynamicparametersresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

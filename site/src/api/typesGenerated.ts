@@ -830,7 +830,6 @@ export type Experiment =
 	| "ai-tasks"
 	| "agentic-chat"
 	| "auto-fill-parameters"
-	| "dynamic-parameters"
 	| "example"
 	| "notifications"
 	| "web-push"
@@ -2519,6 +2518,7 @@ export interface SessionLifetime {
 	readonly default_duration: number;
 	readonly default_token_lifetime?: number;
 	readonly max_token_lifetime?: number;
+	readonly max_admin_token_lifetime?: number;
 }
 
 // From codersdk/client.go
@@ -3633,8 +3633,7 @@ export interface WorkspaceBuild {
 	readonly workspace_id: string;
 	readonly workspace_name: string;
 	readonly workspace_owner_id: string;
-	readonly workspace_owner_name?: string;
-	readonly workspace_owner_username: string;
+	readonly workspace_owner_name: string;
 	readonly workspace_owner_avatar_url?: string;
 	readonly template_version_id: string;
 	readonly template_version_name: string;

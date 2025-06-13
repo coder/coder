@@ -5131,7 +5131,9 @@ func (q *FakeQuerier) GetTelemetryItem(_ context.Context, key string) (database.
 }
 
 func (q *FakeQuerier) GetTelemetryItems(_ context.Context) ([]database.TelemetryItem, error) {
-	return q.telemetryItems, nil
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	return slices.Clone(q.telemetryItems), nil
 }
 
 func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
@@ -8741,6 +8743,12 @@ func (q *FakeQuerier) InsertFile(_ context.Context, arg database.InsertFileParam
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	if slices.ContainsFunc(q.files, func(file database.File) bool {
+		return file.CreatedBy == arg.CreatedBy && file.Hash == arg.Hash
+	}) {
+		return database.File{}, newUniqueConstraintError(database.UniqueFilesHashCreatedByKey)
+	}
+
 	//nolint:gosimple
 	file := database.File{
 		ID:        arg.ID,
@@ -9343,6 +9351,7 @@ func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		AllowUserAutostart:           true,
 		AllowUserAutostop:            true,
 		MaxPortSharingLevel:          arg.MaxPortSharingLevel,
+		UseClassicParameterFlow:      true,
 	}
 	q.templates = append(q.templates, template)
 	return nil
@@ -9962,6 +9971,7 @@ func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		Hidden:               arg.Hidden,
 		DisplayOrder:         arg.DisplayOrder,
 		OpenIn:               arg.OpenIn,
+		DisplayGroup:         arg.DisplayGroup,
 	}
 	q.workspaceApps = append(q.workspaceApps, workspaceApp)
 	return workspaceApp, nil

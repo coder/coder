@@ -910,6 +910,17 @@ Periodically check for new releases of Coder and inform the owner. The check is 
 
 The maximum lifetime duration users can specify when creating an API token.
 
+### --max-admin-token-lifetime
+
+|             |                                                    |
+|-------------|----------------------------------------------------|
+| Type        | <code>duration</code>                              |
+| Environment | <code>$CODER_MAX_ADMIN_TOKEN_LIFETIME</code>       |
+| YAML        | <code>networking.http.maxAdminTokenLifetime</code> |
+| Default     | <code>168h0m0s</code>                              |
+
+The maximum lifetime duration administrators can specify when creating an API token.
+
 ### --default-token-lifetime
 
 |             |                                            |

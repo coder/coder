@@ -33,7 +33,7 @@ func (r *RootCmd) gitAskpass() *serpent.Command {
 				return xerrors.Errorf("parse host: %w", err)
 			}
 
-			client, err := r.createAgentClient()
+			client, err := r.tryCreateAgentClient()
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}

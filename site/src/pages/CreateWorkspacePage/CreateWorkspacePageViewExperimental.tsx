@@ -3,12 +3,12 @@ import type { FriendlyDiagnostic, PreviewParameter } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
+import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import { Link } from "components/Link/Link";
-import { Pill } from "components/Pill/Pill";
 import {
 	Select,
 	SelectContent,
@@ -26,7 +26,8 @@ import {
 } from "components/Tooltip/Tooltip";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
-import { ArrowLeft, CircleHelp, Undo2 } from "lucide-react";
+import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
+import { ArrowLeft, CircleHelp } from "lucide-react";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
 import { Diagnostics } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import {
@@ -38,7 +39,6 @@ import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName"
 import {
 	type FC,
 	useCallback,
-	useContext,
 	useEffect,
 	useId,
 	useRef,
@@ -48,11 +48,7 @@ import { docs } from "utils/docs";
 import { nameValidator } from "utils/formUtils";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
-import type {
-	CreateWorkspaceMode,
-	ExternalAuthPollingState,
-} from "./CreateWorkspacePage";
-import { ExperimentalFormContext } from "./ExperimentalFormContext";
+import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
@@ -112,7 +108,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 	owner,
 	setOwner,
 }) => {
-	const experimentalFormContext = useContext(ExperimentalFormContext);
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
 	);
@@ -179,7 +174,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 	}, [error]);
 
 	useEffect(() => {
-		if (form.submitCount > 0 && form.errors) {
+		if (form.submitCount > 0 && Object.keys(form.errors).length > 0) {
 			workspaceNameInputRef.current?.scrollIntoView({
 				behavior: "smooth",
 				block: "center",
@@ -353,21 +348,29 @@ export const CreateWorkspacePageViewExperimental: FC<
 			</div>
 			<div className="flex flex-col gap-6 max-w-screen-md mx-auto">
 				<header className="flex flex-col items-start gap-3 mt-10">
-					<div className="flex items-center gap-2">
-						<Avatar
-							variant="icon"
-							size="md"
-							src={template.icon}
-							fallback={template.name}
-						/>
-						<p className="text-base font-medium m-0">
-							{template.display_name.length > 0
-								? template.display_name
-								: template.name}
-						</p>
+					<div className="flex items-center gap-2 justify-between w-full">
+						<span className="flex items-center gap-2">
+							<Avatar
+								variant="icon"
+								size="md"
+								src={template.icon}
+								fallback={template.name}
+							/>
+							<p className="text-base font-medium m-0">
+								{template.display_name.length > 0
+									? template.display_name
+									: template.name}
+							</p>
+							{template.deprecated && (
+								<Badge variant="warning" size="sm">
+									Deprecated
+								</Badge>
+							)}
+						</span>
 					</div>
 					<span className="flex flex-row items-center gap-2">
 						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
+
 						<TooltipProvider delayDuration={100}>
 							<Tooltip>
 								<TooltipTrigger asChild>
@@ -389,19 +392,11 @@ export const CreateWorkspacePageViewExperimental: FC<
 							</Tooltip>
 						</TooltipProvider>
 					</span>
-
-					{template.deprecated && <Pill type="warning">Deprecated</Pill>}
-
-					{experimentalFormContext && (
-						<Button
-							size="sm"
-							variant="outline"
-							onClick={experimentalFormContext.toggleOptedOut}
-						>
-							<Undo2 />
-							Use the classic workspace creation flow
-						</Button>
-					)}
+					<FeatureStageBadge
+						contentType={"early_access"}
+						size="sm"
+						labelText="Dynamic parameters"
+					/>
 				</header>
 
 				<form
@@ -555,7 +550,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 								<div className="flex flex-col gap-2">
 									<div className="flex gap-2 items-center">
 										<Label className="text-sm">Preset</Label>
-										<FeatureStageBadge contentType={"beta"} size="md" />
+										<FeatureStageBadge contentType={"beta"} size="sm" />
 									</div>
 									<div className="flex flex-col gap-4">
 										<div className="max-w-lg">
@@ -598,7 +593,22 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 							<div className="flex flex-col gap-9">
 								{parameters.map((parameter, index) => {
-									const parameterField = `rich_parameter_values.${index}`;
+									const currentParameterValueIndex =
+										form.values.rich_parameter_values?.findIndex(
+											(p) => p.name === parameter.name,
+										);
+									const parameterFieldIndex =
+										currentParameterValueIndex !== undefined
+											? currentParameterValueIndex
+											: index;
+									// Get the form value by parameter name to ensure correct value mapping
+									const formValue =
+										currentParameterValueIndex !== undefined
+											? form.values?.rich_parameter_values?.[
+													currentParameterValueIndex
+												]?.value || ""
+											: "";
+									const parameterField = `rich_parameter_values.${parameterFieldIndex}`;
 									const isPresetParameter = presetParameterNames.includes(
 										parameter.name,
 									);
@@ -610,13 +620,14 @@ export const CreateWorkspacePageViewExperimental: FC<
 										creatingWorkspace ||
 										isPresetParameter;
 
-									// Hide preset parameters if showPresetParameters is false
-									if (!showPresetParameters && isPresetParameter) {
+									// Always show preset parameters if they have any diagnostics
+									if (
+										!showPresetParameters &&
+										isPresetParameter &&
+										parameter.diagnostics.length === 0
+									) {
 										return null;
 									}
-
-									const formValue =
-										form.values?.rich_parameter_values?.[index]?.value || "";
 
 									return (
 										<DynamicParameter

@@ -228,23 +228,23 @@ func run(ctx context.Context, execer agentexec.Execer, cmd string, args ...strin
 	return stdout, stderr, err
 }
 
-// DockerCLILister is a ContainerLister that lists containers using the docker CLI
-type DockerCLILister struct {
+// dockerCLI is an implementation for Docker CLI that lists containers.
+type dockerCLI struct {
 	execer agentexec.Execer
 }
 
-var _ Lister = &DockerCLILister{}
+var _ ContainerCLI = (*dockerCLI)(nil)
 
-func NewDocker(execer agentexec.Execer) Lister {
-	return &DockerCLILister{
-		execer: agentexec.DefaultExecer,
+func NewDockerCLI(execer agentexec.Execer) ContainerCLI {
+	return &dockerCLI{
+		execer: execer,
 	}
 }
 
-func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
+func (dcli *dockerCLI) List(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
 	var stdoutBuf, stderrBuf bytes.Buffer
 	// List all container IDs, one per line, with no truncation
-	cmd := dcl.execer.CommandContext(ctx, "docker", "ps", "--all", "--quiet", "--no-trunc")
+	cmd := dcli.execer.CommandContext(ctx, "docker", "ps", "--all", "--quiet", "--no-trunc")
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 	if err := cmd.Run(); err != nil {
@@ -288,7 +288,7 @@ func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentLi
 	// will still contain valid JSON. We will just end up missing
 	// information about the removed container. We could potentially
 	// log this error, but I'm not sure it's worth it.
-	dockerInspectStdout, dockerInspectStderr, err := runDockerInspect(ctx, dcl.execer, ids...)
+	dockerInspectStdout, dockerInspectStderr, err := runDockerInspect(ctx, dcli.execer, ids...)
 	if err != nil {
 		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("run docker inspect: %w: %s", err, dockerInspectStderr)
 	}
@@ -516,4 +516,72 @@ func isLoopbackOrUnspecified(ips string) bool {
 		return false // technically correct, I suppose
 	}
 	return nip.IsLoopback() || nip.IsUnspecified()
+}
+
+// DetectArchitecture detects the architecture of a container by inspecting its
+// image.
+func (dcli *dockerCLI) DetectArchitecture(ctx context.Context, containerName string) (string, error) {
+	// Inspect the container to get the image name, which contains the architecture.
+	stdout, stderr, err := runCmd(ctx, dcli.execer, "docker", "inspect", "--format", "{{.Config.Image}}", containerName)
+	if err != nil {
+		return "", xerrors.Errorf("inspect container %s: %w: %s", containerName, err, stderr)
+	}
+	imageName := string(stdout)
+	if imageName == "" {
+		return "", xerrors.Errorf("no image found for container %s", containerName)
+	}
+
+	stdout, stderr, err = runCmd(ctx, dcli.execer, "docker", "inspect", "--format", "{{.Architecture}}", imageName)
+	if err != nil {
+		return "", xerrors.Errorf("inspect image %s: %w: %s", imageName, err, stderr)
+	}
+	arch := string(stdout)
+	if arch == "" {
+		return "", xerrors.Errorf("no architecture found for image %s", imageName)
+	}
+	return arch, nil
+}
+
+// Copy copies a file from the host to a container.
+func (dcli *dockerCLI) Copy(ctx context.Context, containerName, src, dst string) error {
+	_, stderr, err := runCmd(ctx, dcli.execer, "docker", "cp", src, containerName+":"+dst)
+	if err != nil {
+		return xerrors.Errorf("copy %s to %s:%s: %w: %s", src, containerName, dst, err, stderr)
+	}
+	return nil
+}
+
+// ExecAs executes a command in a container as a specific user.
+func (dcli *dockerCLI) ExecAs(ctx context.Context, containerName, uid string, args ...string) ([]byte, error) {
+	execArgs := []string{"exec"}
+	if uid != "" {
+		altUID := uid
+		if uid == "root" {
+			// UID 0 is more portable than the name root, so we use that
+			// because  some containers may not have a user named "root".
+			altUID = "0"
+		}
+		execArgs = append(execArgs, "--user", altUID)
+	}
+	execArgs = append(execArgs, containerName)
+	execArgs = append(execArgs, args...)
+
+	stdout, stderr, err := runCmd(ctx, dcli.execer, "docker", execArgs...)
+	if err != nil {
+		return nil, xerrors.Errorf("exec in container %s as user %s: %w: %s", containerName, uid, err, stderr)
+	}
+	return stdout, nil
+}
+
+// runCmd is a helper function that runs a command with the given
+// arguments and returns the stdout and stderr output.
+func runCmd(ctx context.Context, execer agentexec.Execer, cmd string, args ...string) (stdout, stderr []byte, err error) {
+	var stdoutBuf, stderrBuf bytes.Buffer
+	c := execer.CommandContext(ctx, cmd, args...)
+	c.Stdout = &stdoutBuf
+	c.Stderr = &stderrBuf
+	err = c.Run()
+	stdout = bytes.TrimSpace(stdoutBuf.Bytes())
+	stderr = bytes.TrimSpace(stderrBuf.Bytes())
+	return stdout, stderr, err
 }

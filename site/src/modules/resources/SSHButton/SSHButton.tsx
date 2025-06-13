@@ -22,26 +22,24 @@ import { docs } from "utils/docs";
 interface AgentSSHButtonProps {
 	workspaceName: string;
 	agentName: string;
+	workspaceOwnerUsername: string;
 }
 
 export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 	workspaceName,
 	agentName,
+	workspaceOwnerUsername,
 }) => {
 	const paper = useClassName(classNames.paper, []);
 	const { data } = useQuery(deploymentSSHConfig());
-	const sshPrefix = data?.hostname_prefix;
+	const sshSuffix = data?.hostname_suffix;
 
 	return (
 		<Popover>
 			<PopoverTrigger>
-				<Button
-					size="sm"
-					variant="subtle"
-					css={{ fontSize: 13, padding: "8px 12px" }}
-				>
+				<Button size="sm" variant="subtle">
 					Connect via SSH
-					<ChevronDownIcon className="size-4 ml-2" />
+					<ChevronDownIcon />
 				</Button>
 			</PopoverTrigger>
 
@@ -58,7 +56,7 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 						/>
 						<SSHStep
 							helpText="Connect to the agent:"
-							codeExample={`ssh ${sshPrefix}${workspaceName}.${agentName}`}
+							codeExample={`ssh ${agentName}.${workspaceName}.${workspaceOwnerUsername}.${sshSuffix}`}
 						/>
 					</Stack>
 				</ol>
@@ -73,7 +71,10 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 					<HelpTooltipLink
 						href={docs("/user-guides/workspace-access/jetbrains")}
 					>
-						Connect via JetBrains Gateway
+						Connect via JetBrains IDEs
+					</HelpTooltipLink>
+					<HelpTooltipLink href={docs("/user-guides/desktop")}>
+						Connect via Coder Desktop
 					</HelpTooltipLink>
 					<HelpTooltipLink href={docs("/user-guides/workspace-access#ssh")}>
 						SSH configuration

@@ -468,6 +468,8 @@ type SessionLifetime struct {
 	DefaultTokenDuration serpent.Duration `json:"default_token_lifetime,omitempty" typescript:",notnull"`
 
 	MaximumTokenDuration serpent.Duration `json:"max_token_lifetime,omitempty" typescript:",notnull"`
+
+	MaximumAdminTokenDuration serpent.Duration `json:"max_admin_token_lifetime,omitempty" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -2341,6 +2343,17 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
+			Name:        "Maximum Admin Token Lifetime",
+			Description: "The maximum lifetime duration administrators can specify when creating an API token.",
+			Flag:        "max-admin-token-lifetime",
+			Env:         "CODER_MAX_ADMIN_TOKEN_LIFETIME",
+			Default:     (7 * 24 * time.Hour).String(),
+			Value:       &c.Sessions.MaximumAdminTokenDuration,
+			Group:       &deploymentGroupNetworkingHTTP,
+			YAML:        "maxAdminTokenLifetime",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
 			Name:        "Default Token Lifetime",
 			Description: "The default lifetime duration for API tokens. This value is used when creating a token without specifying a duration, such as when authenticating the CLI or an IDE plugin.",
 			Flag:        "default-token-lifetime",
@@ -3343,7 +3356,6 @@ const (
 	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
-	ExperimentDynamicParameters  Experiment = "dynamic-parameters"   // Enables dynamic parameters when creating a workspace.
 	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
 	ExperimentAgenticChat        Experiment = "agentic-chat"         // Enables the new agentic AI chat feature.
 	ExperimentAITasks            Experiment = "ai-tasks"             // Enables the new AI tasks feature.

@@ -11,7 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -21,14 +21,14 @@ func TestObtainOIDCAccessToken(t *testing.T) {
 	ctx := context.Background()
 	t.Run("NoToken", func(t *testing.T) {
 		t.Parallel()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 		_, err := obtainOIDCAccessToken(ctx, db, nil, uuid.Nil)
 		require.NoError(t, err)
 	})
 	t.Run("InvalidConfig", func(t *testing.T) {
 		// We still want OIDC to succeed even if exchanging the token fails.
 		t.Parallel()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 		user := dbgen.User(t, db, database.User{})
 		dbgen.UserLink(t, db, database.UserLink{
 			UserID:      user.ID,
@@ -40,7 +40,7 @@ func TestObtainOIDCAccessToken(t *testing.T) {
 	})
 	t.Run("MissingLink", func(t *testing.T) {
 		t.Parallel()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 		user := dbgen.User(t, db, database.User{
 			LoginType: database.LoginTypeOIDC,
 		})
@@ -50,7 +50,7 @@ func TestObtainOIDCAccessToken(t *testing.T) {
 	})
 	t.Run("Exchange", func(t *testing.T) {
 		t.Parallel()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 		user := dbgen.User(t, db, database.User{})
 		dbgen.UserLink(t, db, database.UserLink{
 			UserID:      user.ID,

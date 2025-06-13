@@ -572,7 +572,7 @@ func New(options *Options) *API {
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
-		FileCache:                   files.NewFromStore(options.Database),
+		FileCache:                   files.NewFromStore(options.Database, options.PrometheusRegistry),
 		Experiments:                 experiments,
 		WebpushDispatcher:           options.WebPushDispatcher,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
@@ -860,7 +860,7 @@ func New(options *Options) *API {
 				next.ServeHTTP(w, r)
 			})
 		},
-		// httpmw.CSRF(options.DeploymentValues.HTTPCookies),
+		httpmw.CSRF(options.DeploymentValues.HTTPCookies),
 	)
 
 	// This incurs a performance hit from the middleware, but is required to make sure
@@ -1153,10 +1153,10 @@ func New(options *Options) *API {
 			})
 
 			r.Group(func(r chi.Router) {
-				r.Use(
-					httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentDynamicParameters),
-				)
-				r.Get("/dynamic-parameters", api.templateVersionDynamicParameters)
+				r.Route("/dynamic-parameters", func(r chi.Router) {
+					r.Post("/evaluate", api.templateVersionDynamicParametersEvaluate)
+					r.Get("/", api.templateVersionDynamicParametersWebsocket)
+				})
 			})
 		})
 		r.Route("/users", func(r chi.Router) {

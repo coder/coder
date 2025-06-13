@@ -7,8 +7,8 @@ import type {
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import {
@@ -18,12 +18,12 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { CircleHelp, Undo2 } from "lucide-react";
+import { CircleHelp } from "lucide-react";
 import type { FC } from "react";
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
@@ -31,14 +31,14 @@ import {
 	type WorkspacePermissions,
 	workspaceChecks,
 } from "../../../modules/workspaces/permissions";
-import { ExperimentalFormContext } from "../../CreateWorkspacePage/ExperimentalFormContext";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import { WorkspaceParametersPageViewExperimental } from "./WorkspaceParametersPageViewExperimental";
 
 const WorkspaceParametersPageExperimental: FC = () => {
 	const workspace = useWorkspaceSettings();
 	const navigate = useNavigate();
-	const experimentalFormContext = useContext(ExperimentalFormContext);
+	const [searchParams] = useSearchParams();
+	const templateVersionId = searchParams.get("templateVersionId") ?? undefined;
 
 	// autofill the form with the workspace build parameters from the latest build
 	const {
@@ -106,10 +106,12 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	});
 
 	useEffect(() => {
-		if (!workspace.latest_build.template_version_id) return;
+		if (!templateVersionId && !workspace.latest_build.template_version_id)
+			return;
 
 		const socket = API.templateVersionDynamicParameters(
-			workspace.latest_build.template_version_id,
+			templateVersionId ?? workspace.latest_build.template_version_id,
+			workspace.owner_id,
 			{
 				onMessage,
 				onError: (error) => {
@@ -135,12 +137,18 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		return () => {
 			socket.close();
 		};
-	}, [workspace.latest_build.template_version_id, onMessage]);
+	}, [
+		templateVersionId,
+		workspace.latest_build.template_version_id,
+		onMessage,
+		workspace.owner_id,
+	]);
 
 	const updateParameters = useMutation({
 		mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
 			API.postWorkspaceBuild(workspace.id, {
 				transition: "start",
+				template_version_id: templateVersionId,
 				rich_parameter_values: buildParameters,
 			}),
 		onSuccess: () => {
@@ -203,45 +211,43 @@ const WorkspaceParametersPageExperimental: FC = () => {
 			</Helmet>
 
 			<header className="flex flex-col items-start gap-2">
-				<span className="flex flex-row items-center gap-2">
-					<h1 className="text-3xl m-0">Workspace parameters</h1>
-					<TooltipProvider delayDuration={100}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<CircleHelp className="size-icon-xs text-content-secondary" />
-							</TooltipTrigger>
-							<TooltipContent className="max-w-xs text-sm">
-								Dynamic Parameters enhances Coder's existing parameter system
-								with real-time validation, conditional parameter behavior, and
-								richer input types.
-								<br />
-								<Link
-									href={docs(
-										"/admin/templates/extending-templates/parameters#enable-dynamic-parameters-early-access",
-									)}
-								>
-									View docs
-								</Link>
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+				<span className="flex flex-row items-center gap-2 justify-between w-full">
+					<span className="flex flex-row items-center gap-2">
+						<h1 className="text-3xl m-0">Workspace parameters</h1>
+						<TooltipProvider delayDuration={100}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<CircleHelp className="size-icon-xs text-content-secondary" />
+								</TooltipTrigger>
+								<TooltipContent className="max-w-xs text-sm">
+									Dynamic Parameters enhances Coder's existing parameter system
+									with real-time validation, conditional parameter behavior, and
+									richer input types.
+									<br />
+									<Link
+										href={docs(
+											"/admin/templates/extending-templates/parameters#enable-dynamic-parameters-early-access",
+										)}
+									>
+										View docs
+									</Link>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					</span>
 				</span>
-				{experimentalFormContext && (
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={experimentalFormContext.toggleOptedOut}
-					>
-						<Undo2 />
-						Use the classic workspace parameters
-					</Button>
-				)}
+				<FeatureStageBadge
+					contentType={"early_access"}
+					size="sm"
+					labelText="Dynamic parameters"
+				/>
 			</header>
 
 			{Boolean(error) && <ErrorAlert error={error} />}
 
 			{sortedParams.length > 0 ? (
 				<WorkspaceParametersPageViewExperimental
+					templateVersionId={templateVersionId}
 					workspace={workspace}
 					autofillParameters={autofillParameters}
 					canChangeVersions={canChangeVersions}
