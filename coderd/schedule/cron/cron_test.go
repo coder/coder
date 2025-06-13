@@ -172,17 +172,17 @@ func TestIsWithinRange(t *testing.T) {
 		expectedWithinRange bool
 		expectedError       string
 	}{
-		// "* 9-18 * * 1-5" should be interpreted as a continuous time range from 08:59:00 to 18:58:59, Monday through Friday
+		// "* 9-18 * * 1-5" should be interpreted as a continuous time range from 09:00:00 to 18:59:59, Monday through Friday
 		{
 			name:                "Right before the start of the time range",
 			spec:                "* 9-18 * * 1-5",
-			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 8:58:59 UTC"),
+			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 8:59:59 UTC"),
 			expectedWithinRange: false,
 		},
 		{
 			name:                "Start of the time range",
 			spec:                "* 9-18 * * 1-5",
-			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 8:59:00 UTC"),
+			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 9:00:00 UTC"),
 			expectedWithinRange: true,
 		},
 		{
@@ -206,13 +206,13 @@ func TestIsWithinRange(t *testing.T) {
 		{
 			name:                "End of the time range",
 			spec:                "* 9-18 * * 1-5",
-			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 18:58:59 UTC"),
+			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 18:59:59 UTC"),
 			expectedWithinRange: true,
 		},
 		{
 			name:                "Right after the end of the time range",
 			spec:                "* 9-18 * * 1-5",
-			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 18:59:00 UTC"),
+			at:                  mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 19:00:00 UTC"),
 			expectedWithinRange: false,
 		},
 		{
