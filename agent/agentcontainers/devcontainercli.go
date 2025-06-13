@@ -265,7 +265,8 @@ func (d *devcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, confi
 	}
 
 	c := d.execer.CommandContext(ctx, "devcontainer", args...)
-	c.Env = append(os.Environ(), env...)
+	c.Env = append(c.Env, os.Environ()...)
+	c.Env = append(c.Env, env...)
 
 	var stdoutBuf bytes.Buffer
 	stdoutWriters := []io.Writer{&stdoutBuf, &devcontainerCLILogWriter{ctx: ctx, logger: logger.With(slog.F("stdout", true))}}

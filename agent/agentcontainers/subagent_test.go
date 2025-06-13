@@ -114,24 +114,20 @@ func TestSubAgentClient_CreateWithDisplayApps(t *testing.T) {
 			expectedApps []*agentproto.CreateSubAgentRequest_App
 		}{
 			{
-				name: "single app with minimal fields",
+				name: "SlugOnly",
 				apps: []agentcontainers.SubAgentApp{
 					{
-						Slug:   "code-server",
-						OpenIn: codersdk.WorkspaceAppOpenInSlimWindow,
-						Share:  codersdk.WorkspaceAppSharingLevelOwner,
+						Slug: "code-server",
 					},
 				},
 				expectedApps: []*agentproto.CreateSubAgentRequest_App{
 					{
-						Slug:   "code-server",
-						OpenIn: agentproto.CreateSubAgentRequest_App_SLIM_WINDOW.Enum(),
-						Share:  agentproto.CreateSubAgentRequest_App_OWNER.Enum(),
+						Slug: "code-server",
 					},
 				},
 			},
 			{
-				name: "single app with all fields",
+				name: "AllFields",
 				apps: []agentcontainers.SubAgentApp{
 					{
 						Slug:        "jupyter",
@@ -146,9 +142,9 @@ func TestSubAgentClient_CreateWithDisplayApps(t *testing.T) {
 						},
 						Hidden:    ptr.Ref(false),
 						Icon:      ptr.Ref("/icon/jupyter.svg"),
-						OpenIn:    codersdk.WorkspaceAppOpenInTab,
+						OpenIn:    ptr.Ref(codersdk.WorkspaceAppOpenInTab),
 						Order:     ptr.Ref(int32(1)),
-						Share:     codersdk.WorkspaceAppSharingLevelAuthenticated,
+						Share:     ptr.Ref(codersdk.WorkspaceAppSharingLevelAuthenticated),
 						Subdomain: ptr.Ref(true),
 						URL:       ptr.Ref("http://localhost:8888"),
 					},
@@ -176,44 +172,38 @@ func TestSubAgentClient_CreateWithDisplayApps(t *testing.T) {
 				},
 			},
 			{
-				name: "multiple apps with different sharing levels",
+				name: "AllSharingLevels",
 				apps: []agentcontainers.SubAgentApp{
 					{
-						Slug:   "owner-app",
-						OpenIn: codersdk.WorkspaceAppOpenInSlimWindow,
-						Share:  codersdk.WorkspaceAppSharingLevelOwner,
+						Slug:  "owner-app",
+						Share: ptr.Ref(codersdk.WorkspaceAppSharingLevelOwner),
 					},
 					{
-						Slug:   "authenticated-app",
-						OpenIn: codersdk.WorkspaceAppOpenInTab,
-						Share:  codersdk.WorkspaceAppSharingLevelAuthenticated,
+						Slug:  "authenticated-app",
+						Share: ptr.Ref(codersdk.WorkspaceAppSharingLevelAuthenticated),
 					},
 					{
-						Slug:   "public-app",
-						OpenIn: codersdk.WorkspaceAppOpenInSlimWindow,
-						Share:  codersdk.WorkspaceAppSharingLevelPublic,
+						Slug:  "public-app",
+						Share: ptr.Ref(codersdk.WorkspaceAppSharingLevelPublic),
 					},
 				},
 				expectedApps: []*agentproto.CreateSubAgentRequest_App{
 					{
-						Slug:   "owner-app",
-						OpenIn: agentproto.CreateSubAgentRequest_App_SLIM_WINDOW.Enum(),
-						Share:  agentproto.CreateSubAgentRequest_App_OWNER.Enum(),
+						Slug:  "owner-app",
+						Share: agentproto.CreateSubAgentRequest_App_OWNER.Enum(),
 					},
 					{
-						Slug:   "authenticated-app",
-						OpenIn: agentproto.CreateSubAgentRequest_App_TAB.Enum(),
-						Share:  agentproto.CreateSubAgentRequest_App_AUTHENTICATED.Enum(),
+						Slug:  "authenticated-app",
+						Share: agentproto.CreateSubAgentRequest_App_AUTHENTICATED.Enum(),
 					},
 					{
-						Slug:   "public-app",
-						OpenIn: agentproto.CreateSubAgentRequest_App_SLIM_WINDOW.Enum(),
-						Share:  agentproto.CreateSubAgentRequest_App_PUBLIC.Enum(),
+						Slug:  "public-app",
+						Share: agentproto.CreateSubAgentRequest_App_PUBLIC.Enum(),
 					},
 				},
 			},
 			{
-				name: "app with health check",
+				name: "WithHealthCheck",
 				apps: []agentcontainers.SubAgentApp{
 					{
 						Slug: "health-app",
@@ -222,8 +212,6 @@ func TestSubAgentClient_CreateWithDisplayApps(t *testing.T) {
 							Threshold: 5,
 							URL:       "http://localhost:3000/health",
 						},
-						OpenIn: codersdk.WorkspaceAppOpenInSlimWindow,
-						Share:  codersdk.WorkspaceAppSharingLevelOwner,
 					},
 				},
 				expectedApps: []*agentproto.CreateSubAgentRequest_App{
@@ -234,31 +222,8 @@ func TestSubAgentClient_CreateWithDisplayApps(t *testing.T) {
 							Threshold: 5,
 							Url:       "http://localhost:3000/health",
 						},
-						OpenIn: agentproto.CreateSubAgentRequest_App_SLIM_WINDOW.Enum(),
-						Share:  agentproto.CreateSubAgentRequest_App_OWNER.Enum(),
 					},
 				},
-			},
-			{
-				name: "app without health check",
-				apps: []agentcontainers.SubAgentApp{
-					{
-						Slug:   "no-health-app",
-						OpenIn: codersdk.WorkspaceAppOpenInTab,
-						Share:  codersdk.WorkspaceAppSharingLevelOwner,
-					},
-				},
-				expectedApps: []*agentproto.CreateSubAgentRequest_App{
-					{
-						Slug:   "no-health-app",
-						OpenIn: agentproto.CreateSubAgentRequest_App_TAB.Enum(),
-						Share:  agentproto.CreateSubAgentRequest_App_OWNER.Enum(),
-					},
-				},
-			},
-			{
-				name: "no apps",
-				apps: []agentcontainers.SubAgentApp{},
 			},
 		}
 
