@@ -773,7 +773,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 	case database.ProvisionerStorageMethodFile:
 		file, err := s.Database.GetFileByID(ctx, job.FileID)
 		if err != nil {
-			return nil, failJob(fmt.Sprintf("get file by hash: %s", err))
+			return nil, failJob(fmt.Sprintf("get file by id: %s", err))
 		}
 		protoJob.TemplateSourceArchive = file.Data
 	default:
@@ -1321,6 +1321,104 @@ func (s *server) prepareForNotifyWorkspaceManualBuildFailed(ctx context.Context,
 	return templateAdmins, template, templateVersion, workspaceOwner, nil
 }
 
+func (s *server) UploadFile(stream proto.DRPCProvisionerDaemon_UploadFileStream) error {
+	var file *sdkproto.DataBuilder
+	// Always terminate the stream with an empty response.
+	defer stream.SendAndClose(&proto.Empty{})
+
+UploadFileStream:
+	for {
+		msg, err := stream.Recv()
+		if err != nil {
+			return xerrors.Errorf("receive complete job with files: %w", err)
+		}
+
+		switch typed := msg.Type.(type) {
+		case *proto.UploadFileRequest_DataUpload:
+			if file != nil {
+				return xerrors.New("unexpected file upload while waiting for file completion")
+			}
+
+			file, err = sdkproto.NewDataBuilder(&sdkproto.DataUpload{
+				UploadType: typed.DataUpload.UploadType,
+				DataHash:   typed.DataUpload.DataHash,
+				FileSize:   typed.DataUpload.FileSize,
+				Chunks:     typed.DataUpload.Chunks,
+			})
+			if err != nil {
+				return xerrors.Errorf("unable to create file upload: %w", err)
+			}
+
+			if file.IsDone() {
+				// If a file is 0 bytes, we can consider it done immediately.
+				// This should never really happen in practice, but we handle it gracefully.
+				break UploadFileStream
+			}
+		case *proto.UploadFileRequest_ChunkPiece:
+			if file == nil {
+				return xerrors.New("unexpected chunk piece while waiting for file upload")
+			}
+
+			done, err := file.Add(&sdkproto.ChunkPiece{
+				Data:         typed.ChunkPiece.Data,
+				FullDataHash: typed.ChunkPiece.FullDataHash,
+				PieceIndex:   typed.ChunkPiece.PieceIndex,
+			})
+			if err != nil {
+				return xerrors.Errorf("unable to add chunk piece: %w", err)
+			}
+
+			if done {
+				break UploadFileStream
+			}
+		}
+	}
+
+	fileData, err := file.Complete()
+	if err != nil {
+		return xerrors.Errorf("complete file upload: %w", err)
+	}
+
+	// Just rehash the data to be sure it is correct.
+	hashBytes := sha256.Sum256(fileData)
+	hash := hex.EncodeToString(hashBytes[:])
+
+	var insert database.InsertFileParams
+
+	switch file.Type {
+	case sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES:
+		insert = database.InsertFileParams{
+			ID:        uuid.New(),
+			Hash:      hash,
+			CreatedAt: dbtime.Now(),
+			CreatedBy: uuid.Nil,
+			Mimetype:  tarMimeType,
+			Data:      fileData,
+		}
+	default:
+		return xerrors.Errorf("unsupported file upload type: %s", file.Type)
+	}
+
+	//nolint:gocritic // Provisionerd actor
+	_, err = s.Database.InsertFile(dbauthz.AsProvisionerd(s.lifecycleCtx), insert)
+	if err != nil {
+		// Duplicated files already exist in the database, so we can ignore this error.
+		if !database.IsUniqueViolation(err, database.UniqueFilesHashCreatedByKey) {
+			return xerrors.Errorf("insert file: %w", err)
+		}
+	}
+
+	s.Logger.Info(s.lifecycleCtx, "file uploaded to database",
+		slog.F("type", file.Type.String()),
+		slog.F("hash", hash),
+		slog.F("size", len(fileData)),
+		// new_insert indicates whether the file was newly inserted or already existed.
+		slog.F("new_insert", err == nil),
+	)
+
+	return nil
+}
+
 // CompleteJob is triggered by a provision daemon to mark a provisioner job as completed.
 func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob) (*proto.Empty, error) {
 	ctx, span := s.startTrace(ctx, tracing.FuncName())
@@ -1603,6 +1701,20 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 						Valid: true,
 						UUID:  file.ID,
 					}
+				}
+			}
+
+			if len(jobType.TemplateImport.ModuleFilesHash) > 0 {
+				hashString := hex.EncodeToString(jobType.TemplateImport.ModuleFilesHash)
+				//nolint:gocritic // Acting as provisioner
+				file, err := db.GetFileByHashAndCreator(dbauthz.AsProvisionerd(ctx), database.GetFileByHashAndCreatorParams{Hash: hashString, CreatedBy: uuid.Nil})
+				if err != nil {
+					return xerrors.Errorf("get file by hash, it should have been uploaded: %w", err)
+				}
+
+				fileID = uuid.NullUUID{
+					Valid: true,
+					UUID:  file.ID,
 				}
 			}
 
