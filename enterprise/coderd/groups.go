@@ -156,7 +156,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 
 	currentMembers, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
 		GroupID:       group.ID,
-		IncludeSystem: false,
+		IncludeSystem: true,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -174,7 +174,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		_, err := database.ExpectOne(api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
 			OrganizationID: group.OrganizationID,
 			UserID:         uuid.MustParse(id),
-			IncludeSystem:  false,
+			IncludeSystem:  true,
 		}))
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -290,7 +290,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 
 	patchedMembers, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
 		GroupID:       group.ID,
-		IncludeSystem: false,
+		IncludeSystem: true,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -301,7 +301,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 
 	memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, database.GetGroupMembersCountByGroupIDParams{
 		GroupID:       group.ID,
-		IncludeSystem: false,
+		IncludeSystem: true,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -347,7 +347,7 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 
 	groupMembers, getMembersErr := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
 		GroupID:       group.ID,
-		IncludeSystem: false,
+		IncludeSystem: true,
 	})
 	if getMembersErr != nil {
 		httpapi.InternalServerError(rw, getMembersErr)
@@ -401,7 +401,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 
 	users, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
 		GroupID:       group.ID,
-		IncludeSystem: false,
+		IncludeSystem: true,
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
@@ -410,7 +410,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 
 	memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, database.GetGroupMembersCountByGroupIDParams{
 		GroupID:       group.ID,
-		IncludeSystem: false,
+		IncludeSystem: true,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -506,7 +506,7 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 	for _, group := range groups {
 		members, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
 			GroupID:       group.Group.ID,
-			IncludeSystem: false,
+			IncludeSystem: true,
 		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
@@ -514,7 +514,7 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 		}
 		memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, database.GetGroupMembersCountByGroupIDParams{
 			GroupID:       group.Group.ID,
-			IncludeSystem: false,
+			IncludeSystem: true,
 		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
