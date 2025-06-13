@@ -12,11 +12,11 @@ import type {
 	PatchTemplateVersionRequest,
 	TemplateVersion,
 } from "api/typesGenerated";
-import { displayError } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import {
 	keepPreviousData,
@@ -122,11 +122,31 @@ const TemplateVersionEditorPage: FC = () => {
 	const [provisionerTags, setProvisionerTags] = useState<
 		Record<string, string>
 	>({});
+	// Track previous job status to detect when a build completes successfully
+	const previousJobStatus = useRef<string | undefined>(undefined);
 	useEffect(() => {
 		if (activeTemplateVersion?.job.tags) {
 			setProvisionerTags(activeTemplateVersion.job.tags);
 		}
 	}, [activeTemplateVersion?.job.tags]);
+	
+	// Show notification when build succeeds
+	useEffect(() => {
+		if (!activeTemplateVersion || !templateQuery.data) {
+			return;
+		}
+		
+		// Only show notification when status changes from running/pending to succeeded
+		if (previousJobStatus.current &&
+			["running", "pending"].includes(previousJobStatus.current) &&
+			activeTemplateVersion.job.status === "succeeded") {
+			const templateName = templateQuery.data.display_name || templateQuery.data.name;
+			displaySuccess(`Template ${templateName} (${activeTemplateVersion.name}) built successfully`);
+		}
+		
+		// Update the previous status for next comparison
+		previousJobStatus.current = activeTemplateVersion.job.status;
+	}, [activeTemplateVersion?.job.status, templateQuery.data]);
 
 	return (
 		<>
