@@ -603,7 +603,6 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 					setIsStopConfirmOpen(false);
 				}}
 				type="delete"
-				loading={stopWorkspaceMutation.isPending}
 			/>
 		</TableCell>
 	);
