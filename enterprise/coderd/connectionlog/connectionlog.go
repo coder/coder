@@ -13,7 +13,7 @@ import (
 )
 
 type Backend interface {
-	Export(ctx context.Context, clog database.ConnectionLog) error
+	Upsert(ctx context.Context, clog database.UpsertConnectionLogParams) error
 }
 
 func NewConnectionLogger(backends ...Backend) agpl.ConnectionLogger {
@@ -26,10 +26,10 @@ type connectionLogger struct {
 	backends []Backend
 }
 
-func (c *connectionLogger) Export(ctx context.Context, clog database.ConnectionLog) error {
+func (c *connectionLogger) Upsert(ctx context.Context, clog database.UpsertConnectionLogParams) error {
 	var errs error
 	for _, backend := range c.backends {
-		err := backend.Export(ctx, clog)
+		err := backend.Upsert(ctx, clog)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		}
@@ -45,13 +45,10 @@ func NewDBBackend(db database.Store) Backend {
 	return &dbBackend{db: db}
 }
 
-func (b *dbBackend) Export(ctx context.Context, clog database.ConnectionLog) error {
+func (b *dbBackend) Upsert(ctx context.Context, clog database.UpsertConnectionLogParams) error {
 	//nolint:gocritic // This is the Connection Logger
-	_, err := b.db.InsertConnectionLog(dbauthz.AsConnectionLogger(ctx), database.InsertConnectionLogParams(clog))
-	if err != nil {
-		return err
-	}
-	return nil
+	_, err := b.db.UpsertConnectionLog(dbauthz.AsConnectionLogger(ctx), clog)
+	return err
 }
 
 type connectionSlogBackend struct {
@@ -64,6 +61,6 @@ func NewSlogBackend(logger slog.Logger) Backend {
 	}
 }
 
-func (b *connectionSlogBackend) Export(ctx context.Context, clog database.ConnectionLog) error {
+func (b *connectionSlogBackend) Upsert(ctx context.Context, clog database.UpsertConnectionLogParams) error {
 	return b.exporter.ExportStruct(ctx, clog, "connection_log")
 }

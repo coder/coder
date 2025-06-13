@@ -8627,30 +8627,6 @@ func (q *FakeQuerier) InsertChatMessages(ctx context.Context, arg database.Inser
 	return messages, nil
 }
 
-func (q *FakeQuerier) InsertConnectionLog(_ context.Context, arg database.InsertConnectionLogParams) (database.ConnectionLog, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.ConnectionLog{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	log := database.ConnectionLog(arg)
-
-	q.connectionLogs = append(q.connectionLogs, log)
-	slices.SortFunc(q.connectionLogs, func(a, b database.ConnectionLog) int {
-		if a.Time.Before(b.Time) {
-			return -1
-		} else if a.Time.Equal(b.Time) {
-			return 0
-		}
-		return 1
-	})
-
-	return log, nil
-}
-
 func (q *FakeQuerier) InsertCryptoKey(_ context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -12290,6 +12266,59 @@ func (q *FakeQuerier) UpsertApplicationName(_ context.Context, data string) erro
 
 	q.applicationName = data
 	return nil
+}
+
+func (q *FakeQuerier) UpsertConnectionLog(_ context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.ConnectionLog{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	if arg.ConnectionAction == "disconnect" {
+		for i, existing := range q.connectionLogs {
+			if existing.ConnectionID == arg.ConnectionID &&
+				existing.WorkspaceID == arg.WorkspaceID &&
+				existing.AgentName == arg.AgentName {
+				// Update existing connection with close time and reason
+				q.connectionLogs[i].CloseTime = sql.NullTime{Valid: true, Time: arg.Time}
+				q.connectionLogs[i].CloseReason = arg.CloseReason
+				return q.connectionLogs[i], nil
+			}
+		}
+	}
+
+	log := database.ConnectionLog{
+		ID:               arg.ID,
+		Time:             arg.Time,
+		OrganizationID:   arg.OrganizationID,
+		WorkspaceOwnerID: arg.WorkspaceOwnerID,
+		WorkspaceID:      arg.WorkspaceID,
+		WorkspaceName:    arg.WorkspaceName,
+		AgentName:        arg.AgentName,
+		Type:             arg.Type,
+		Code:             arg.Code,
+		Ip:               arg.Ip,
+		UserAgent:        arg.UserAgent,
+		UserID:           arg.UserID,
+		SlugOrPort:       arg.SlugOrPort,
+		ConnectionID:     arg.ConnectionID,
+		CloseReason:      arg.CloseReason,
+	}
+
+	q.connectionLogs = append(q.connectionLogs, log)
+	slices.SortFunc(q.connectionLogs, func(a, b database.ConnectionLog) int {
+		if a.Time.Before(b.Time) {
+			return -1
+		} else if a.Time.Equal(b.Time) {
+			return 0
+		}
+		return 1
+	})
+
+	return log, nil
 }
 
 func (q *FakeQuerier) UpsertCoordinatorResumeTokenSigningKey(_ context.Context, value string) error {

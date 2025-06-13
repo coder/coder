@@ -2083,13 +2083,6 @@ func (m queryMetricsStore) InsertChatMessages(ctx context.Context, arg database.
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertConnectionLog(ctx context.Context, arg database.InsertConnectionLogParams) (database.ConnectionLog, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertConnectionLog(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertConnectionLog").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	start := time.Now()
 	key, err := m.s.InsertCryptoKey(ctx, arg)
@@ -3131,6 +3124,13 @@ func (m queryMetricsStore) UpsertApplicationName(ctx context.Context, value stri
 	r0 := m.s.UpsertApplicationName(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertApplicationName").Observe(time.Since(start).Seconds())
 	return r0
+}
+
+func (m queryMetricsStore) UpsertConnectionLog(ctx context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertConnectionLog(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertConnectionLog").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error {

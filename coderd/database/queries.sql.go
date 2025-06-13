@@ -969,7 +969,7 @@ func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParam
 
 const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
 SELECT
-	connection_logs.id, connection_logs.time, connection_logs.connection_id, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.action, connection_logs.code, connection_logs.ip, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_type, connection_logs.reason,
+	connection_logs.id, connection_logs.time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.code, connection_logs.ip, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.close_time, connection_logs.close_reason,
 	users.username AS user_username,
 	workspace_owner.username AS workspace_owner_username,
 	COUNT(connection_logs.*) OVER () AS count
@@ -1018,20 +1018,20 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 		if err := rows.Scan(
 			&i.ConnectionLog.ID,
 			&i.ConnectionLog.Time,
-			&i.ConnectionLog.ConnectionID,
 			&i.ConnectionLog.OrganizationID,
 			&i.ConnectionLog.WorkspaceOwnerID,
 			&i.ConnectionLog.WorkspaceID,
 			&i.ConnectionLog.WorkspaceName,
 			&i.ConnectionLog.AgentName,
-			&i.ConnectionLog.Action,
+			&i.ConnectionLog.Type,
 			&i.ConnectionLog.Code,
 			&i.ConnectionLog.Ip,
 			&i.ConnectionLog.UserAgent,
 			&i.ConnectionLog.UserID,
 			&i.ConnectionLog.SlugOrPort,
-			&i.ConnectionLog.ConnectionType,
-			&i.ConnectionLog.Reason,
+			&i.ConnectionLog.ConnectionID,
+			&i.ConnectionLog.CloseTime,
+			&i.ConnectionLog.CloseReason,
 			&i.UserUsername,
 			&i.WorkspaceOwnerUsername,
 			&i.Count,
@@ -1049,86 +1049,97 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 	return items, nil
 }
 
-const insertConnectionLog = `-- name: InsertConnectionLog :one
-INSERT INTO
-	connection_logs (
-		id,
-		"time",
-		connection_id,
-		organization_id,
-		workspace_owner_id,
-		workspace_id,
-		workspace_name,
-		agent_name,
-		action,
-		code,
-		ip,
-		user_agent,
-		user_id,
-		slug_or_port,
-		connection_type,
-		reason
-	)
-VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id, time, connection_id, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, action, code, ip, user_agent, user_id, slug_or_port, connection_type, reason
+const upsertConnectionLog = `-- name: UpsertConnectionLog :one
+INSERT INTO connection_logs (
+	id,
+	"time",
+	organization_id,
+	workspace_owner_id,
+	workspace_id,
+	workspace_name,
+	agent_name,
+	type,
+	code,
+	ip,
+	user_agent,
+	user_id,
+	slug_or_port,
+	connection_id,
+	close_reason
+) VALUES
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+ON CONFLICT (connection_id, workspace_id, agent_name)
+DO UPDATE SET
+	-- No-op if the connection is still open.
+    close_time = CASE
+        WHEN $16::connection_action = 'disconnect'
+        THEN EXCLUDED."time"
+        ELSE connection_logs.close_time
+    END,
+    close_reason = CASE
+        WHEN $16::connection_action = 'disconnect'
+        THEN EXCLUDED.close_reason
+        ELSE connection_logs.close_reason
+    END
+RETURNING id, time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, code, ip, user_agent, user_id, slug_or_port, connection_id, close_time, close_reason
 `
 
-type InsertConnectionLogParams struct {
-	ID               uuid.UUID              `db:"id" json:"id"`
-	Time             time.Time              `db:"time" json:"time"`
-	ConnectionID     uuid.UUID              `db:"connection_id" json:"connection_id"`
-	OrganizationID   uuid.UUID              `db:"organization_id" json:"organization_id"`
-	WorkspaceOwnerID uuid.UUID              `db:"workspace_owner_id" json:"workspace_owner_id"`
-	WorkspaceID      uuid.UUID              `db:"workspace_id" json:"workspace_id"`
-	WorkspaceName    string                 `db:"workspace_name" json:"workspace_name"`
-	AgentName        string                 `db:"agent_name" json:"agent_name"`
-	Action           ConnectionAction       `db:"action" json:"action"`
-	Code             int32                  `db:"code" json:"code"`
-	Ip               pqtype.Inet            `db:"ip" json:"ip"`
-	UserAgent        sql.NullString         `db:"user_agent" json:"user_agent"`
-	UserID           uuid.UUID              `db:"user_id" json:"user_id"`
-	SlugOrPort       sql.NullString         `db:"slug_or_port" json:"slug_or_port"`
-	ConnectionType   NullConnectionTypeEnum `db:"connection_type" json:"connection_type"`
-	Reason           sql.NullString         `db:"reason" json:"reason"`
+type UpsertConnectionLogParams struct {
+	ID               uuid.UUID        `db:"id" json:"id"`
+	Time             time.Time        `db:"time" json:"time"`
+	OrganizationID   uuid.UUID        `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID uuid.UUID        `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      uuid.UUID        `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    string           `db:"workspace_name" json:"workspace_name"`
+	AgentName        string           `db:"agent_name" json:"agent_name"`
+	Type             ConnectionType   `db:"type" json:"type"`
+	Code             int32            `db:"code" json:"code"`
+	Ip               pqtype.Inet      `db:"ip" json:"ip"`
+	UserAgent        sql.NullString   `db:"user_agent" json:"user_agent"`
+	UserID           uuid.NullUUID    `db:"user_id" json:"user_id"`
+	SlugOrPort       sql.NullString   `db:"slug_or_port" json:"slug_or_port"`
+	ConnectionID     uuid.NullUUID    `db:"connection_id" json:"connection_id"`
+	CloseReason      sql.NullString   `db:"close_reason" json:"close_reason"`
+	ConnectionAction ConnectionAction `db:"connection_action" json:"connection_action"`
 }
 
-func (q *sqlQuerier) InsertConnectionLog(ctx context.Context, arg InsertConnectionLogParams) (ConnectionLog, error) {
-	row := q.db.QueryRowContext(ctx, insertConnectionLog,
+func (q *sqlQuerier) UpsertConnectionLog(ctx context.Context, arg UpsertConnectionLogParams) (ConnectionLog, error) {
+	row := q.db.QueryRowContext(ctx, upsertConnectionLog,
 		arg.ID,
 		arg.Time,
-		arg.ConnectionID,
 		arg.OrganizationID,
 		arg.WorkspaceOwnerID,
 		arg.WorkspaceID,
 		arg.WorkspaceName,
 		arg.AgentName,
-		arg.Action,
+		arg.Type,
 		arg.Code,
 		arg.Ip,
 		arg.UserAgent,
 		arg.UserID,
 		arg.SlugOrPort,
-		arg.ConnectionType,
-		arg.Reason,
+		arg.ConnectionID,
+		arg.CloseReason,
+		arg.ConnectionAction,
 	)
 	var i ConnectionLog
 	err := row.Scan(
 		&i.ID,
 		&i.Time,
-		&i.ConnectionID,
 		&i.OrganizationID,
 		&i.WorkspaceOwnerID,
 		&i.WorkspaceID,
 		&i.WorkspaceName,
 		&i.AgentName,
-		&i.Action,
+		&i.Type,
 		&i.Code,
 		&i.Ip,
 		&i.UserAgent,
 		&i.UserID,
 		&i.SlugOrPort,
-		&i.ConnectionType,
-		&i.Reason,
+		&i.ConnectionID,
+		&i.CloseTime,
+		&i.CloseReason,
 	)
 	return i, err
 }

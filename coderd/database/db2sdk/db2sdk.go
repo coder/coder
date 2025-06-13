@@ -727,7 +727,23 @@ func TemplateRoleActions(role codersdk.TemplateRole) []policy.Action {
 	return []policy.Action{}
 }
 
-func ConnectionLogActionFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.ConnectionAction, error) {
+func ConnectionLogConnectionTypeFromAgentProtoConnectionType(typ agentproto.Connection_Type) (database.ConnectionType, error) {
+	switch typ {
+	case agentproto.Connection_SSH:
+		return database.ConnectionTypeSsh, nil
+	case agentproto.Connection_JETBRAINS:
+		return database.ConnectionTypeJetbrains, nil
+	case agentproto.Connection_VSCODE:
+		return database.ConnectionTypeVscode, nil
+	case agentproto.Connection_RECONNECTING_PTY:
+		return database.ConnectionTypeReconnectingPty, nil
+	default:
+		// Also Connection_ACTION_UNSPECIFIED, no mapping.
+		return "", xerrors.Errorf("unknown agent connection type %q", typ)
+	}
+}
+
+func ConnectionActionFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.ConnectionAction, error) {
 	switch action {
 	case agentproto.Connection_CONNECT:
 		return database.ConnectionActionConnect, nil
@@ -736,34 +752,6 @@ func ConnectionLogActionFromAgentProtoConnectionAction(action agentproto.Connect
 	default:
 		// Also Connection_ACTION_UNSPECIFIED, no mapping.
 		return "", xerrors.Errorf("unknown agent connection action %q", action)
-	}
-}
-
-func ConnectionLogConnectionTypeEnumFromAgentProtoConnectionType(typ agentproto.Connection_Type) (database.ConnectionTypeEnum, error) {
-	switch typ {
-	case agentproto.Connection_SSH:
-		return database.ConnectionTypeEnumSsh, nil
-	case agentproto.Connection_JETBRAINS:
-		return database.ConnectionTypeEnumJetbrains, nil
-	case agentproto.Connection_VSCODE:
-		return database.ConnectionTypeEnumVscode, nil
-	case agentproto.Connection_RECONNECTING_PTY:
-		return database.ConnectionTypeEnumReconnectingPty, nil
-	case agentproto.Connection_TYPE_UNSPECIFIED:
-		return database.ConnectionTypeEnumUnspecified, nil
-	default:
-		return "", xerrors.Errorf("unknown agent connection type %q", typ)
-	}
-}
-
-func AgentProtoConnectionActionToAuditAction(action database.AuditAction) (agentproto.Connection_Action, error) {
-	switch action {
-	case database.AuditActionConnect:
-		return agentproto.Connection_CONNECT, nil
-	case database.AuditActionDisconnect:
-		return agentproto.Connection_DISCONNECT, nil
-	default:
-		return agentproto.Connection_ACTION_UNSPECIFIED, xerrors.Errorf("unknown agent connection action %q", action)
 	}
 }
 

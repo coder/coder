@@ -345,22 +345,29 @@ func (s *MethodTestSuite) TestConnectionLogs() {
 			TemplateID:       tpl.ID,
 		})
 	}
-	s.Run("InsertConnectionLog", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpsertConnectionLog", s.Subtest(func(db database.Store, check *expects) {
 		ws := createWorkspace(s.T(), db)
-		check.Args(database.InsertConnectionLogParams{
-			Action:      database.ConnectionActionConnect,
-			WorkspaceID: ws.ID,
+		check.Args(database.UpsertConnectionLogParams{
+			Type:             database.ConnectionTypeSsh,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			ConnectionAction: database.ConnectionActionConnect,
+			WorkspaceOwnerID: ws.OwnerID,
 		}).Asserts(rbac.ResourceConnectionLog, policy.ActionCreate)
 	}))
 	s.Run("GetConnectionLogsOffset", s.Subtest(func(db database.Store, check *expects) {
 		ws := createWorkspace(s.T(), db)
 		_ = dbgen.ConnectionLog(s.T(), db, database.ConnectionLog{
-			Action:      database.ConnectionActionConnect,
-			WorkspaceID: ws.ID,
+			Type:             database.ConnectionTypeSsh,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
 		})
 		_ = dbgen.ConnectionLog(s.T(), db, database.ConnectionLog{
-			Action:      database.ConnectionActionConnect,
-			WorkspaceID: ws.ID,
+			Type:             database.ConnectionTypeSsh,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
 		})
 		check.Args(database.GetConnectionLogsOffsetParams{
 			LimitOpt: 10,
@@ -369,12 +376,16 @@ func (s *MethodTestSuite) TestConnectionLogs() {
 	s.Run("GetAuthorizedConnectionLogsOffset", s.Subtest(func(db database.Store, check *expects) {
 		ws := createWorkspace(s.T(), db)
 		_ = dbgen.ConnectionLog(s.T(), db, database.ConnectionLog{
-			Action:      database.ConnectionActionConnect,
-			WorkspaceID: ws.ID,
+			Type:             database.ConnectionTypeSsh,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
 		})
 		_ = dbgen.ConnectionLog(s.T(), db, database.ConnectionLog{
-			Action:      database.ConnectionActionConnect,
-			WorkspaceID: ws.ID,
+			Type:             database.ConnectionTypeSsh,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
 		})
 		check.Args(database.GetConnectionLogsOffsetParams{
 			LimitOpt: 10,

@@ -478,26 +478,32 @@ func (p *DBTokenProvider) connLogInitRequest(ctx context.Context, w http.Respons
 			return
 		}
 
-		requestID := httpmw.RequestID(r)
 		connLogger := *p.ConnectionLogger.Load()
-		err = connLogger.Export(ctx, database.ConnectionLog{
+		err = connLogger.Upsert(ctx, database.UpsertConnectionLogParams{
 			ID:               uuid.New(),
 			Time:             aReq.time,
-			ConnectionID:     requestID,
 			OrganizationID:   aReq.dbReq.Workspace.OrganizationID,
 			WorkspaceOwnerID: aReq.dbReq.Workspace.OwnerID,
 			WorkspaceID:      aReq.dbReq.Workspace.ID,
 			WorkspaceName:    aReq.dbReq.Workspace.Name,
 			AgentName:        aReq.dbReq.Agent.Name,
-			Action:           database.ConnectionActionOpen,
+			Type:             database.ConnectionTypeWeb,
 			Code:             statusCode,
 			Ip:               database.ParseIP(ip),
 			UserAgent:        sql.NullString{Valid: userAgent != "", String: userAgent},
-			UserID:           userID,
+			UserID: uuid.NullUUID{
+				UUID:  userID,
+				Valid: userID != uuid.Nil,
+			},
 			SlugOrPort:       sql.NullString{Valid: slugOrPort != "", String: slugOrPort},
+			ConnectionAction: database.ConnectionActionConnect,
+
+			// N/A
+			ConnectionID: uuid.NullUUID{},
+			CloseReason:  sql.NullString{},
 		})
 		if err != nil {
-			logger.Error(ctx, "insert connection log failed", slog.Error(err))
+			logger.Error(ctx, "upsert connection log failed", slog.Error(err))
 			return
 		}
 	}

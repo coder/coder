@@ -11,7 +11,7 @@ import (
 )
 
 type ConnectionLogger interface {
-	Export(ctx context.Context, clog database.ConnectionLog) error
+	Upsert(ctx context.Context, clog database.UpsertConnectionLogParams) error
 }
 
 type nop struct{}
@@ -20,7 +20,7 @@ func NewNop() ConnectionLogger {
 	return nop{}
 }
 
-func (nop) Export(context.Context, database.ConnectionLog) error {
+func (nop) Upsert(context.Context, database.UpsertConnectionLogParams) error {
 	return nil
 }
 
@@ -29,45 +29,41 @@ func NewMock() *MockConnectionLogger {
 }
 
 type MockConnectionLogger struct {
-	mu             sync.Mutex
-	connectionLogs []database.ConnectionLog
+	mu         sync.Mutex
+	upsertions []database.UpsertConnectionLogParams
 }
 
-func (m *MockConnectionLogger) ResetLogs() {
+func (m *MockConnectionLogger) Reset() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.connectionLogs = make([]database.ConnectionLog, 0)
+	m.upsertions = make([]database.UpsertConnectionLogParams, 0)
 }
 
-func (m *MockConnectionLogger) ConnectionLogs() []database.ConnectionLog {
+func (m *MockConnectionLogger) ConnectionLogs() []database.UpsertConnectionLogParams {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.connectionLogs
+	return m.upsertions
 }
 
-func (m *MockConnectionLogger) Export(_ context.Context, clog database.ConnectionLog) error {
+func (m *MockConnectionLogger) Upsert(_ context.Context, clog database.UpsertConnectionLogParams) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.connectionLogs = append(m.connectionLogs, clog)
+	m.upsertions = append(m.upsertions, clog)
 
 	return nil
 }
 
-func (m *MockConnectionLogger) Contains(t testing.TB, expected database.ConnectionLog) bool {
+func (m *MockConnectionLogger) Contains(t testing.TB, expected database.UpsertConnectionLogParams) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	for idx, cl := range m.connectionLogs {
+	for idx, cl := range m.upsertions {
 		if expected.ID != uuid.Nil && cl.ID != expected.ID {
 			t.Logf("connection log %d: expected ID %s, got %s", idx+1, expected.ID, cl.ID)
 			continue
 		}
 		if !expected.Time.IsZero() && expected.Time != cl.Time {
 			t.Logf("connection log %d: expected Time %s, got %s", idx+1, expected.Time, cl.Time)
-			continue
-		}
-		if expected.ConnectionID != uuid.Nil && cl.ConnectionID != expected.ConnectionID {
-			t.Logf("connection log %d: expected ConnectionID %s, got %s", idx+1, expected.ConnectionID, cl.ConnectionID)
 			continue
 		}
 		if expected.OrganizationID != uuid.Nil && cl.OrganizationID != expected.OrganizationID {
@@ -90,8 +86,8 @@ func (m *MockConnectionLogger) Contains(t testing.TB, expected database.Connecti
 			t.Logf("connection log %d: expected AgentName %s, got %s", idx+1, expected.AgentName, cl.AgentName)
 			continue
 		}
-		if expected.Action != "" && cl.Action != expected.Action {
-			t.Logf("connection log %d: expected Action %s, got %s", idx+1, expected.Action, cl.Action)
+		if expected.Type != "" && cl.Type != expected.Type {
+			t.Logf("connection log %d: expected Type %s, got %s", idx+1, expected.Type, cl.Type)
 			continue
 		}
 		if expected.Code != 0 && cl.Code != expected.Code {
@@ -102,24 +98,20 @@ func (m *MockConnectionLogger) Contains(t testing.TB, expected database.Connecti
 			t.Logf("connection log %d: expected IP %s, got %s", idx+1, expected.Ip.IPNet, cl.Ip.IPNet)
 			continue
 		}
-		if expected.SlugOrPort.Valid && cl.SlugOrPort != expected.SlugOrPort {
-			t.Logf("connection log %d: expected SlugOrPort %s, got %s", idx+1, expected.SlugOrPort.String, cl.SlugOrPort.String)
-			continue
-		}
-		if expected.UserAgent.Valid && cl.UserAgent != expected.UserAgent {
+		if expected.UserAgent.Valid && cl.UserAgent.String != expected.UserAgent.String {
 			t.Logf("connection log %d: expected UserAgent %s, got %s", idx+1, expected.UserAgent.String, cl.UserAgent.String)
 			continue
 		}
-		if expected.UserID != uuid.Nil && cl.UserID != expected.UserID {
-			t.Logf("connection log %d: expected UserID %s, got %s", idx+1, expected.UserID, cl.UserID)
+		if expected.UserID.Valid && cl.UserID.UUID != expected.UserID.UUID {
+			t.Logf("connection log %d: expected UserID %s, got %s", idx+1, expected.UserID.UUID, cl.UserID.UUID)
 			continue
 		}
-		if expected.ConnectionType.Valid && cl.ConnectionType.ConnectionTypeEnum != expected.ConnectionType.ConnectionTypeEnum {
-			t.Logf("connection log %d: expected ConnectionType %s, got %s", idx+1, expected.ConnectionType.ConnectionTypeEnum, cl.ConnectionType.ConnectionTypeEnum)
+		if expected.SlugOrPort.Valid && cl.SlugOrPort.String != expected.SlugOrPort.String {
+			t.Logf("connection log %d: expected SlugOrPort %s, got %s", idx+1, expected.SlugOrPort.String, cl.SlugOrPort.String)
 			continue
 		}
-		if expected.Reason.Valid && cl.Reason != expected.Reason {
-			t.Logf("connection log %d: expected Reason %s, got %s", idx+1, expected.Reason.String, cl.Reason.String)
+		if expected.ConnectionID.Valid && cl.ConnectionID.UUID != expected.ConnectionID.UUID {
+			t.Logf("connection log %d: expected ConnectionID %s, got %s", idx+1, expected.ConnectionID.UUID, cl.ConnectionID.UUID)
 			continue
 		}
 		return true

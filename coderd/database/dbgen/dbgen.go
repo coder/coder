@@ -74,16 +74,15 @@ func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.
 }
 
 func ConnectionLog(t testing.TB, db database.Store, seed database.ConnectionLog) database.ConnectionLog {
-	log, err := db.InsertConnectionLog(genCtx, database.InsertConnectionLogParams{
+	log, err := db.UpsertConnectionLog(genCtx, database.UpsertConnectionLogParams{
 		ID:               takeFirst(seed.ID, uuid.New()),
 		Time:             takeFirst(seed.Time, dbtime.Now()),
-		ConnectionID:     takeFirst(seed.ConnectionID, uuid.New()),
 		OrganizationID:   takeFirst(seed.OrganizationID, uuid.New()),
 		WorkspaceOwnerID: takeFirst(seed.WorkspaceOwnerID, uuid.New()),
 		WorkspaceID:      takeFirst(seed.WorkspaceID, uuid.New()),
 		WorkspaceName:    takeFirst(seed.WorkspaceName, testutil.GetRandomName(t)),
 		AgentName:        takeFirst(seed.AgentName, testutil.GetRandomName(t)),
-		Action:           takeFirst(seed.Action, database.ConnectionActionOpen),
+		Type:             takeFirst(seed.Type, database.ConnectionTypeSsh),
 		Code:             takeFirst(seed.Code, 0),
 		Ip: pqtype.Inet{
 			IPNet: takeFirstIP(seed.Ip.IPNet, net.IPNet{}),
@@ -93,19 +92,23 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.ConnectionLog)
 			String: takeFirst(seed.UserAgent.String, ""),
 			Valid:  takeFirst(seed.UserAgent.Valid, false),
 		},
-		UserID: takeFirst(seed.UserID, uuid.New()),
+		UserID: uuid.NullUUID{
+			UUID:  takeFirst(seed.UserID.UUID, uuid.Nil),
+			Valid: takeFirst(seed.UserID.Valid, false),
+		},
 		SlugOrPort: sql.NullString{
 			String: takeFirst(seed.SlugOrPort.String, ""),
 			Valid:  takeFirst(seed.SlugOrPort.Valid, false),
 		},
-		ConnectionType: takeFirst(seed.ConnectionType, database.NullConnectionTypeEnum{
-			ConnectionTypeEnum: database.ConnectionTypeEnumSsh,
-			Valid:              true,
-		}),
-		Reason: sql.NullString{
-			String: takeFirst(seed.Reason.String, ""),
-			Valid:  takeFirst(seed.Reason.Valid, false),
+		ConnectionID: uuid.NullUUID{
+			UUID:  takeFirst(seed.ConnectionID.UUID, uuid.Nil),
+			Valid: takeFirst(seed.ConnectionID.Valid, false),
 		},
+		CloseReason: sql.NullString{
+			String: takeFirst(seed.CloseReason.String, ""),
+			Valid:  takeFirst(seed.CloseReason.Valid, false),
+		},
+		ConnectionAction: database.ConnectionActionConnect,
 	})
 	require.NoError(t, err, "insert connection log")
 	return log

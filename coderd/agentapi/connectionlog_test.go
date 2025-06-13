@@ -129,42 +129,45 @@ func TestConnectionLog(t *testing.T) {
 				},
 			})
 
-			require.True(t, connLogger.Contains(t, database.ConnectionLog{
+			require.True(t, connLogger.Contains(t, database.UpsertConnectionLogParams{
 				Time:             dbtime.Time(tt.time).In(time.UTC),
-				ConnectionID:     tt.id,
 				OrganizationID:   workspace.OrganizationID,
 				WorkspaceOwnerID: workspace.OwnerID,
 				WorkspaceID:      workspace.ID,
 				WorkspaceName:    workspace.Name,
 				AgentName:        agent.Name,
-				UserID:           uuid.Nil,
-				Action:           agentProtoConnectionActionToConnectionLog(t, *tt.action),
+				UserID: uuid.NullUUID{
+					UUID:  uuid.Nil,
+					Valid: false,
+				},
+				ConnectionAction: connectionLogActionFromAgentProtoConnectionAction(t, *tt.action),
 
 				Code: tt.status,
 				Ip:   pqtype.Inet{Valid: true, IPNet: net.IPNet{IP: net.ParseIP(tt.ip), Mask: net.CIDRMask(32, 32)}},
-				ConnectionType: database.NullConnectionTypeEnum{
-					ConnectionTypeEnum: agentProtoConnectionTypeToConnectionLog(t, *tt.typ),
-					Valid:              true,
-				},
-				Reason: sql.NullString{
+				Type: connectionLogConnectionTypeFromAgentProtoConnectionType(t, *tt.typ),
+				CloseReason: sql.NullString{
 					String: tt.reason,
 					Valid:  tt.reason != "",
+				},
+				ConnectionID: uuid.NullUUID{
+					UUID:  tt.id,
+					Valid: tt.id != uuid.Nil,
 				},
 			}))
 		})
 	}
 }
 
-func agentProtoConnectionActionToConnectionLog(t *testing.T, action agentproto.Connection_Action) database.ConnectionAction {
-	a, err := db2sdk.ConnectionLogActionFromAgentProtoConnectionAction(action)
+func connectionLogConnectionTypeFromAgentProtoConnectionType(t *testing.T, typ agentproto.Connection_Type) database.ConnectionType {
+	a, err := db2sdk.ConnectionLogConnectionTypeFromAgentProtoConnectionType(typ)
 	require.NoError(t, err)
 	return a
 }
 
-func agentProtoConnectionTypeToConnectionLog(t *testing.T, typ agentproto.Connection_Type) database.ConnectionTypeEnum {
-	action, err := db2sdk.ConnectionLogConnectionTypeEnumFromAgentProtoConnectionType(typ)
+func connectionLogActionFromAgentProtoConnectionAction(t *testing.T, action agentproto.Connection_Action) database.ConnectionAction {
+	a, err := db2sdk.ConnectionActionFromAgentProtoConnectionAction(action)
 	require.NoError(t, err)
-	return action
+	return a
 }
 
 func asAtomicPointer[T any](v T) *atomic.Pointer[T] {

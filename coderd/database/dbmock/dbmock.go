@@ -4411,21 +4411,6 @@ func (mr *MockStoreMockRecorder) InsertChatMessages(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatMessages", reflect.TypeOf((*MockStore)(nil).InsertChatMessages), ctx, arg)
 }
 
-// InsertConnectionLog mocks base method.
-func (m *MockStore) InsertConnectionLog(ctx context.Context, arg database.InsertConnectionLogParams) (database.ConnectionLog, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertConnectionLog", ctx, arg)
-	ret0, _ := ret[0].(database.ConnectionLog)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertConnectionLog indicates an expected call of InsertConnectionLog.
-func (mr *MockStoreMockRecorder) InsertConnectionLog(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertConnectionLog", reflect.TypeOf((*MockStore)(nil).InsertConnectionLog), ctx, arg)
-}
-
 // InsertCryptoKey mocks base method.
 func (m *MockStore) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	m.ctrl.T.Helper()
@@ -6621,6 +6606,21 @@ func (m *MockStore) UpsertApplicationName(ctx context.Context, value string) err
 func (mr *MockStoreMockRecorder) UpsertApplicationName(ctx, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertApplicationName", reflect.TypeOf((*MockStore)(nil).UpsertApplicationName), ctx, value)
+}
+
+// UpsertConnectionLog mocks base method.
+func (m *MockStore) UpsertConnectionLog(ctx context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertConnectionLog", ctx, arg)
+	ret0, _ := ret[0].(database.ConnectionLog)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertConnectionLog indicates an expected call of UpsertConnectionLog.
+func (mr *MockStoreMockRecorder) UpsertConnectionLog(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertConnectionLog", reflect.TypeOf((*MockStore)(nil).UpsertConnectionLog), ctx, arg)
 }
 
 // UpsertCoordinatorResumeTokenSigningKey mocks base method.

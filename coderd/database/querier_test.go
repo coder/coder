@@ -2089,9 +2089,10 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 	for orgID, ids := range orgConnectionLogs {
 		for _, id := range ids {
 			allLogs = append(allLogs, dbgen.ConnectionLog(t, authDb, database.ConnectionLog{
-				WorkspaceID:    wsID,
-				ID:             id,
-				OrganizationID: orgID,
+				WorkspaceID:      wsID,
+				WorkspaceOwnerID: user.ID,
+				ID:               id,
+				OrganizationID:   orgID,
 			}))
 		}
 	}
@@ -2219,6 +2220,157 @@ func connectionOnlyIDs[T database.ConnectionLog | database.GetConnectionLogsOffs
 		}
 	}
 	return ids
+}
+
+func TestUpsertConnectionLog(t *testing.T) {
+	t.Parallel()
+	createWorkspace := func(t *testing.T, db database.Store) database.WorkspaceTable {
+		u := dbgen.User(t, db, database.User{})
+		o := dbgen.Organization(t, db, database.Organization{})
+		tpl := dbgen.Template(t, db, database.Template{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		return dbgen.Workspace(t, db, database.WorkspaceTable{
+			ID:               uuid.New(),
+			OwnerID:          u.ID,
+			OrganizationID:   o.ID,
+			AutomaticUpdates: database.AutomaticUpdatesNever,
+			TemplateID:       tpl.ID,
+		})
+	}
+
+	t.Run("ConnectThenDisconnect", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+
+		ws := createWorkspace(t, db)
+
+		connectionID := uuid.New()
+		agentName := "test-agent"
+
+		// 1. Insert a 'connect' event.
+		connectTime := dbtime.Now()
+		connectParams := database.UpsertConnectionLogParams{
+			ID:               uuid.New(),
+			Time:             connectTime,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			WorkspaceID:      ws.ID,
+			WorkspaceName:    ws.Name,
+			AgentName:        agentName,
+			Type:             database.ConnectionTypeSsh,
+			Code:             0,
+			ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
+			ConnectionAction: database.ConnectionActionConnect,
+		}
+
+		log1, err := db.UpsertConnectionLog(ctx, connectParams)
+		require.NoError(t, err)
+		require.Equal(t, connectParams.ID, log1.ID)
+		require.False(t, log1.CloseTime.Valid, "CloseTime should not be set on connect")
+
+		// Check that one row exists.
+		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		require.Equal(t, int64(1), rows[0].Count)
+
+		// 2. Insert a 'disconnect' event for the same connection.
+		disconnectTime := connectTime.Add(time.Second)
+		disconnectParams := database.UpsertConnectionLogParams{
+			ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
+			WorkspaceID:      ws.ID,
+			AgentName:        agentName,
+			ConnectionAction: database.ConnectionActionDisconnect,
+
+			// Updated to:
+			Time:        disconnectTime,
+			CloseReason: sql.NullString{String: "test disconnect", Valid: true},
+
+			// Ignored
+			ID:               uuid.New(),
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			WorkspaceName:    ws.Name,
+			Type:             database.ConnectionTypeSsh,
+			Code:             0,
+		}
+
+		log2, err := db.UpsertConnectionLog(ctx, disconnectParams)
+		require.NoError(t, err)
+
+		// Updated
+		require.Equal(t, log1.ID, log2.ID)
+		require.True(t, log2.CloseTime.Valid)
+		require.True(t, disconnectTime.Equal(log2.CloseTime.Time))
+		require.Equal(t, disconnectParams.CloseReason.String, log2.CloseReason.String)
+
+		rows, err = db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{})
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		require.Equal(t, int64(1), rows[0].Count)
+	})
+
+	t.Run("ConnectDoesNotUpdate", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+
+		ws := createWorkspace(t, db)
+
+		connectionID := uuid.New()
+		agentName := "test-agent"
+
+		// 1. Insert a 'connect' event.
+		connectTime := dbtime.Now()
+		connectParams := database.UpsertConnectionLogParams{
+			ID:               uuid.New(),
+			Time:             connectTime,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			WorkspaceID:      ws.ID,
+			WorkspaceName:    ws.Name,
+			AgentName:        agentName,
+			Type:             database.ConnectionTypeSsh,
+			Code:             0,
+			ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
+			ConnectionAction: database.ConnectionActionConnect,
+		}
+
+		log, err := db.UpsertConnectionLog(ctx, connectParams)
+		require.NoError(t, err)
+
+		// 2. Insert another 'connect' event for the same connection.
+		connectTime2 := connectTime.Add(time.Second)
+		connectParams2 := database.UpsertConnectionLogParams{
+			ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
+			WorkspaceID:      ws.ID,
+			AgentName:        agentName,
+			ConnectionAction: database.ConnectionActionConnect,
+
+			// Ignored
+			ID:               uuid.New(),
+			Time:             connectTime2,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			WorkspaceName:    ws.Name,
+			Type:             database.ConnectionTypeSsh,
+			Code:             0,
+		}
+
+		origLog, err := db.UpsertConnectionLog(ctx, connectParams2)
+		require.NoError(t, err)
+		require.Equal(t, log, origLog, "connect update should be a no-op")
+
+		// Check that still only one row exists.
+		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{})
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		require.Equal(t, int64(1), rows[0].Count)
+		require.Equal(t, log, rows[0].ConnectionLog)
+	})
 }
 
 type tvArgs struct {

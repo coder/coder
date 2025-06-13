@@ -230,7 +230,7 @@ func Test_ResolveRequest(t *testing.T) {
 	require.NotEqual(t, uuid.Nil, agentID)
 
 	// Reset audit logs so cleanup check can pass.
-	connLogger.ResetLogs()
+	connLogger.Reset()
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
@@ -1257,23 +1257,26 @@ func signedTokenProviderWithConnLogger(t testing.TB, provider workspaceapps.Sign
 	return &shallowCopy
 }
 
-func assertConnLogContains(t testing.TB, rr *httptest.ResponseRecorder, r *http.Request, connLogger *connectionlog.MockConnectionLogger, workspace codersdk.Workspace, agentName string, slugOrPort string, userID uuid.UUID) {
+func assertConnLogContains(t *testing.T, rr *httptest.ResponseRecorder, r *http.Request, connLogger *connectionlog.MockConnectionLogger, workspace codersdk.Workspace, agentName string, slugOrPort string, userID uuid.UUID) {
 	t.Helper()
 
 	resp := rr.Result()
 	defer resp.Body.Close()
 
-	require.True(t, connLogger.Contains(t, database.ConnectionLog{
+	require.True(t, connLogger.Contains(t, database.UpsertConnectionLogParams{
 		OrganizationID:   workspace.OrganizationID,
 		WorkspaceOwnerID: workspace.OwnerID,
 		WorkspaceID:      workspace.ID,
 		WorkspaceName:    workspace.Name,
 		AgentName:        agentName,
-		Action:           database.ConnectionActionOpen,
+		Type:             database.ConnectionTypeWeb,
 		Ip:               database.ParseIP(r.RemoteAddr),
 		UserAgent:        sql.NullString{Valid: r.UserAgent() != "", String: r.UserAgent()},
 		Code:             int32(resp.StatusCode), // nolint:gosec
-		UserID:           userID,
-		SlugOrPort:       sql.NullString{Valid: slugOrPort != "", String: slugOrPort},
+		UserID: uuid.NullUUID{
+			UUID:  userID,
+			Valid: true,
+		},
+		SlugOrPort: sql.NullString{Valid: slugOrPort != "", String: slugOrPort},
 	}))
 }

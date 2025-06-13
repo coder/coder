@@ -24,18 +24,21 @@ type ConnLogAPI struct {
 }
 
 func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.ReportConnectionRequest) (*emptypb.Empty, error) {
-	// We will use connection ID as request ID, typically this is the
-	// SSH session ID as reported by the agent.
+	// We use the connection ID to identify which connection log event to mark
+	// as closed, when we receive a close action for that ID.
 	connectionID, err := uuid.FromBytes(req.GetConnection().GetId())
 	if err != nil {
 		return nil, xerrors.Errorf("connection id from bytes: %w", err)
 	}
 
-	action, err := db2sdk.ConnectionLogActionFromAgentProtoConnectionAction(req.GetConnection().GetAction())
+	if connectionID == uuid.Nil {
+		return nil, xerrors.New("connection ID cannot be nil")
+	}
+	action, err := db2sdk.ConnectionActionFromAgentProtoConnectionAction(req.GetConnection().GetAction())
 	if err != nil {
 		return nil, err
 	}
-	connectionType, err := db2sdk.ConnectionLogConnectionTypeEnumFromAgentProtoConnectionType(req.GetConnection().GetType())
+	connectionType, err := db2sdk.ConnectionLogConnectionTypeFromAgentProtoConnectionType(req.GetConnection().GetType())
 	if err != nil {
 		return nil, err
 	}
@@ -52,30 +55,38 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 
 	reason := req.GetConnection().GetReason()
 	connLogger := *a.ConnectionLogger.Load()
-	err = connLogger.Export(ctx, database.ConnectionLog{
+	err = connLogger.Upsert(ctx, database.UpsertConnectionLogParams{
 		ID:               uuid.New(),
 		Time:             req.GetConnection().GetTimestamp().AsTime(),
-		ConnectionID:     connectionID,
 		OrganizationID:   workspace.OrganizationID,
 		WorkspaceOwnerID: workspace.OwnerID,
 		WorkspaceID:      workspace.ID,
 		WorkspaceName:    workspace.Name,
 		AgentName:        workspaceAgent.Name,
-		Action:           action,
+		Type:             connectionType,
 		Code:             req.GetConnection().GetStatusCode(),
 		Ip:               database.ParseIP(req.GetConnection().GetIp()),
-		ConnectionType: database.NullConnectionTypeEnum{
-			ConnectionTypeEnum: connectionType,
-			Valid:              true,
+		ConnectionID: uuid.NullUUID{
+			UUID:  connectionID,
+			Valid: true,
 		},
-		Reason: sql.NullString{
+		CloseReason: sql.NullString{
 			String: reason,
 			Valid:  reason != "",
 		},
+		// Used to populate whether the connection was established or closed
+		// outside of the DB (slog).
+		ConnectionAction: action,
 
 		// It's not possible to tell which user connected. Once we have
 		// the capability, this may be reported by the agent.
-		UserID: uuid.Nil,
+		UserID: uuid.NullUUID{
+			Valid: false,
+		},
+		// N/A
+		UserAgent: sql.NullString{},
+		// N/A
+		SlugOrPort: sql.NullString{},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("export connection log: %w", err)

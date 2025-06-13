@@ -418,8 +418,6 @@ type ConnectionAction string
 const (
 	ConnectionActionConnect    ConnectionAction = "connect"
 	ConnectionActionDisconnect ConnectionAction = "disconnect"
-	ConnectionActionOpen       ConnectionAction = "open"
-	ConnectionActionClose      ConnectionAction = "close"
 )
 
 func (e *ConnectionAction) Scan(src interface{}) error {
@@ -460,9 +458,7 @@ func (ns NullConnectionAction) Value() (driver.Value, error) {
 func (e ConnectionAction) Valid() bool {
 	switch e {
 	case ConnectionActionConnect,
-		ConnectionActionDisconnect,
-		ConnectionActionOpen,
-		ConnectionActionClose:
+		ConnectionActionDisconnect:
 		return true
 	}
 	return false
@@ -472,75 +468,73 @@ func AllConnectionActionValues() []ConnectionAction {
 	return []ConnectionAction{
 		ConnectionActionConnect,
 		ConnectionActionDisconnect,
-		ConnectionActionOpen,
-		ConnectionActionClose,
 	}
 }
 
-type ConnectionTypeEnum string
+type ConnectionType string
 
 const (
-	ConnectionTypeEnumSsh             ConnectionTypeEnum = "ssh"
-	ConnectionTypeEnumVscode          ConnectionTypeEnum = "vscode"
-	ConnectionTypeEnumJetbrains       ConnectionTypeEnum = "jetbrains"
-	ConnectionTypeEnumReconnectingPty ConnectionTypeEnum = "reconnecting_pty"
-	ConnectionTypeEnumUnspecified     ConnectionTypeEnum = "unspecified"
+	ConnectionTypeSsh             ConnectionType = "ssh"
+	ConnectionTypeVscode          ConnectionType = "vscode"
+	ConnectionTypeJetbrains       ConnectionType = "jetbrains"
+	ConnectionTypeReconnectingPty ConnectionType = "reconnecting_pty"
+	ConnectionTypeWeb             ConnectionType = "web"
 )
 
-func (e *ConnectionTypeEnum) Scan(src interface{}) error {
+func (e *ConnectionType) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = ConnectionTypeEnum(s)
+		*e = ConnectionType(s)
 	case string:
-		*e = ConnectionTypeEnum(s)
+		*e = ConnectionType(s)
 	default:
-		return fmt.Errorf("unsupported scan type for ConnectionTypeEnum: %T", src)
+		return fmt.Errorf("unsupported scan type for ConnectionType: %T", src)
 	}
 	return nil
 }
 
-type NullConnectionTypeEnum struct {
-	ConnectionTypeEnum ConnectionTypeEnum `json:"connection_type_enum"`
-	Valid              bool               `json:"valid"` // Valid is true if ConnectionTypeEnum is not NULL
+type NullConnectionType struct {
+	ConnectionType ConnectionType `json:"connection_type"`
+	Valid          bool           `json:"valid"` // Valid is true if ConnectionType is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullConnectionTypeEnum) Scan(value interface{}) error {
+func (ns *NullConnectionType) Scan(value interface{}) error {
 	if value == nil {
-		ns.ConnectionTypeEnum, ns.Valid = "", false
+		ns.ConnectionType, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.ConnectionTypeEnum.Scan(value)
+	return ns.ConnectionType.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullConnectionTypeEnum) Value() (driver.Value, error) {
+func (ns NullConnectionType) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.ConnectionTypeEnum), nil
+	return string(ns.ConnectionType), nil
 }
 
-func (e ConnectionTypeEnum) Valid() bool {
+func (e ConnectionType) Valid() bool {
 	switch e {
-	case ConnectionTypeEnumSsh,
-		ConnectionTypeEnumVscode,
-		ConnectionTypeEnumJetbrains,
-		ConnectionTypeEnumReconnectingPty,
-		ConnectionTypeEnumUnspecified:
+	case ConnectionTypeSsh,
+		ConnectionTypeVscode,
+		ConnectionTypeJetbrains,
+		ConnectionTypeReconnectingPty,
+		ConnectionTypeWeb:
 		return true
 	}
 	return false
 }
 
-func AllConnectionTypeEnumValues() []ConnectionTypeEnum {
-	return []ConnectionTypeEnum{
-		ConnectionTypeEnumSsh,
-		ConnectionTypeEnumVscode,
-		ConnectionTypeEnumJetbrains,
-		ConnectionTypeEnumReconnectingPty,
-		ConnectionTypeEnumUnspecified,
+func AllConnectionTypeValues() []ConnectionType {
+	return []ConnectionType{
+		ConnectionTypeSsh,
+		ConnectionTypeVscode,
+		ConnectionTypeJetbrains,
+		ConnectionTypeReconnectingPty,
+		ConnectionTypeWeb,
 	}
 }
 
@@ -2925,28 +2919,29 @@ type ChatMessage struct {
 }
 
 type ConnectionLog struct {
-	ID   uuid.UUID `db:"id" json:"id"`
-	Time time.Time `db:"time" json:"time"`
-	// Either the workspace app request ID or the SSH connection ID. Used to correlate connections and disconnections.
-	ConnectionID     uuid.UUID        `db:"connection_id" json:"connection_id"`
-	OrganizationID   uuid.UUID        `db:"organization_id" json:"organization_id"`
-	WorkspaceOwnerID uuid.UUID        `db:"workspace_owner_id" json:"workspace_owner_id"`
-	WorkspaceID      uuid.UUID        `db:"workspace_id" json:"workspace_id"`
-	WorkspaceName    string           `db:"workspace_name" json:"workspace_name"`
-	AgentName        string           `db:"agent_name" json:"agent_name"`
-	Action           ConnectionAction `db:"action" json:"action"`
-	// Either the HTTP status code for the workspace app request, or the exit code of an SSH connection.
+	ID               uuid.UUID      `db:"id" json:"id"`
+	Time             time.Time      `db:"time" json:"time"`
+	OrganizationID   uuid.UUID      `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID uuid.UUID      `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    string         `db:"workspace_name" json:"workspace_name"`
+	AgentName        string         `db:"agent_name" json:"agent_name"`
+	Type             ConnectionType `db:"type" json:"type"`
+	// Either the HTTP status code of the web request, or the exit code of an SSH connection.
 	Code int32       `db:"code" json:"code"`
 	Ip   pqtype.Inet `db:"ip" json:"ip"`
-	// Null for SSH actions. For workspace apps, this is the User-Agent header from the request.
+	// Null for SSH actions. For web connections, this is the User-Agent header from the request.
 	UserAgent sql.NullString `db:"user_agent" json:"user_agent"`
-	// uuid.Nil for SSH actions. For workspace apps, this is the ID of the user that made the request.
-	UserID     uuid.UUID      `db:"user_id" json:"user_id"`
+	// uuid.Nil for SSH actions. For web connections, this is the ID of the user that made the request.
+	UserID uuid.NullUUID `db:"user_id" json:"user_id"`
+	// Null for SSH actions. For web connections, this is the slug of the app or the port number being forwarded.
 	SlugOrPort sql.NullString `db:"slug_or_port" json:"slug_or_port"`
-	// Null for Workspace App actions. For SSH actions, this is the type of connection (e.g., "SSH", "VS Code").
-	ConnectionType NullConnectionTypeEnum `db:"connection_type" json:"connection_type"`
-	// Null for Workspace App actions. For SSH actions, this is the reason for the connection or disconnection, to be displayed in the UI.
-	Reason sql.NullString `db:"reason" json:"reason"`
+	// The SSH connection ID. Used to correlate connections and disconnections. As it originates from the agent, it is not guaranteed to be unique.
+	ConnectionID uuid.NullUUID `db:"connection_id" json:"connection_id"`
+	// Null for web connections. For SSH actions, Null until we receive a second event for the same connection_id. This is the time when the connection was closed.
+	CloseTime sql.NullTime `db:"close_time" json:"close_time"`
+	// Null for web connections. For SSH actions, this is the reason for the connection or disconnection, to be displayed in the UI.
+	CloseReason sql.NullString `db:"close_reason" json:"close_reason"`
 }
 
 type CryptoKey struct {

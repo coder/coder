@@ -25,25 +25,36 @@ OFFSET
 	@offset_opt;
 
 
--- name: InsertConnectionLog :one
-INSERT INTO
-	connection_logs (
-		id,
-		"time",
-		connection_id,
-		organization_id,
-		workspace_owner_id,
-		workspace_id,
-		workspace_name,
-		agent_name,
-		action,
-		code,
-		ip,
-		user_agent,
-		user_id,
-		slug_or_port,
-		connection_type,
-		reason
-	)
-VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *;
+-- name: UpsertConnectionLog :one
+INSERT INTO connection_logs (
+	id,
+	"time",
+	organization_id,
+	workspace_owner_id,
+	workspace_id,
+	workspace_name,
+	agent_name,
+	type,
+	code,
+	ip,
+	user_agent,
+	user_id,
+	slug_or_port,
+	connection_id,
+	close_reason
+) VALUES
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+ON CONFLICT (connection_id, workspace_id, agent_name)
+DO UPDATE SET
+	-- No-op if the connection is still open.
+    close_time = CASE
+        WHEN @connection_action::connection_action = 'disconnect'
+        THEN EXCLUDED."time"
+        ELSE connection_logs.close_time
+    END,
+    close_reason = CASE
+        WHEN @connection_action::connection_action = 'disconnect'
+        THEN EXCLUDED.close_reason
+        ELSE connection_logs.close_reason
+    END
+RETURNING *;

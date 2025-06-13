@@ -3495,10 +3495,6 @@ func (q *querier) InsertChatMessages(ctx context.Context, arg database.InsertCha
 	return q.db.InsertChatMessages(ctx, arg)
 }
 
-func (q *querier) InsertConnectionLog(ctx context.Context, arg database.InsertConnectionLogParams) (database.ConnectionLog, error) {
-	return insert(q.log, q.auth, rbac.ResourceConnectionLog, q.db.InsertConnectionLog)(ctx, arg)
-}
-
 func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -4988,6 +4984,10 @@ func (q *querier) UpsertApplicationName(ctx context.Context, value string) error
 		return err
 	}
 	return q.db.UpsertApplicationName(ctx, value)
+}
+
+func (q *querier) UpsertConnectionLog(ctx context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
+	return insert(q.log, q.auth, rbac.ResourceConnectionLog, q.db.UpsertConnectionLog)(ctx, arg)
 }
 
 func (q *querier) UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error {

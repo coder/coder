@@ -55,17 +55,15 @@ CREATE TYPE build_reason AS ENUM (
 
 CREATE TYPE connection_action AS ENUM (
     'connect',
-    'disconnect',
-    'open',
-    'close'
+    'disconnect'
 );
 
-CREATE TYPE connection_type_enum AS ENUM (
+CREATE TYPE connection_type AS ENUM (
     'ssh',
     'vscode',
     'jetbrains',
     'reconnecting_pty',
-    'unspecified'
+    'web'
 );
 
 CREATE TYPE crypto_key_feature AS ENUM (
@@ -865,33 +863,35 @@ CREATE TABLE chats (
 CREATE TABLE connection_logs (
     id uuid NOT NULL,
     "time" timestamp with time zone NOT NULL,
-    connection_id uuid NOT NULL,
     organization_id uuid NOT NULL,
     workspace_owner_id uuid NOT NULL,
     workspace_id uuid NOT NULL,
     workspace_name text NOT NULL,
     agent_name text NOT NULL,
-    action connection_action NOT NULL,
+    type connection_type NOT NULL,
     code integer NOT NULL,
     ip inet,
     user_agent text,
-    user_id uuid NOT NULL,
+    user_id uuid,
     slug_or_port text,
-    connection_type connection_type_enum,
-    reason text
+    connection_id uuid,
+    close_time timestamp with time zone,
+    close_reason text
 );
 
-COMMENT ON COLUMN connection_logs.connection_id IS 'Either the workspace app request ID or the SSH connection ID. Used to correlate connections and disconnections.';
+COMMENT ON COLUMN connection_logs.code IS 'Either the HTTP status code of the web request, or the exit code of an SSH connection.';
 
-COMMENT ON COLUMN connection_logs.code IS 'Either the HTTP status code for the workspace app request, or the exit code of an SSH connection.';
+COMMENT ON COLUMN connection_logs.user_agent IS 'Null for SSH actions. For web connections, this is the User-Agent header from the request.';
 
-COMMENT ON COLUMN connection_logs.user_agent IS 'Null for SSH actions. For workspace apps, this is the User-Agent header from the request.';
+COMMENT ON COLUMN connection_logs.user_id IS 'uuid.Nil for SSH actions. For web connections, this is the ID of the user that made the request.';
 
-COMMENT ON COLUMN connection_logs.user_id IS 'uuid.Nil for SSH actions. For workspace apps, this is the ID of the user that made the request.';
+COMMENT ON COLUMN connection_logs.slug_or_port IS 'Null for SSH actions. For web connections, this is the slug of the app or the port number being forwarded.';
 
-COMMENT ON COLUMN connection_logs.connection_type IS 'Null for Workspace App actions. For SSH actions, this is the type of connection (e.g., "SSH", "VS Code").';
+COMMENT ON COLUMN connection_logs.connection_id IS 'The SSH connection ID. Used to correlate connections and disconnections. As it originates from the agent, it is not guaranteed to be unique.';
 
-COMMENT ON COLUMN connection_logs.reason IS 'Null for Workspace App actions. For SSH actions, this is the reason for the connection or disconnection, to be displayed in the UI.';
+COMMENT ON COLUMN connection_logs.close_time IS 'Null for web connections. For SSH actions, Null until we receive a second event for the same connection_id. This is the time when the connection was closed.';
+
+COMMENT ON COLUMN connection_logs.close_reason IS 'Null for web connections. For SSH actions, this is the reason for the connection or disconnection, to be displayed in the UI.';
 
 CREATE TABLE crypto_keys (
     feature crypto_key_feature NOT NULL,
@@ -2686,6 +2686,8 @@ CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
+CREATE UNIQUE INDEX idx_connection_logs_connection_id_workspace_id_agent_name ON connection_logs USING btree (connection_id, workspace_id, agent_name);
+
 CREATE INDEX idx_connection_logs_organization_id ON connection_logs USING btree (organization_id);
 
 CREATE INDEX idx_connection_logs_time_desc ON connection_logs USING btree ("time" DESC);
@@ -2904,7 +2906,13 @@ ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY connection_logs
-    ADD CONSTRAINT connection_logs_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL;
+    ADD CONSTRAINT connection_logs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY connection_logs
+    ADD CONSTRAINT connection_logs_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY connection_logs
+    ADD CONSTRAINT connection_logs_workspace_owner_id_fkey FOREIGN KEY (workspace_owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
