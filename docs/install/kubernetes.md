@@ -127,25 +127,52 @@ We support two release channels: mainline and stable - read the
 
 - **Mainline** Coder release:
 
-  <!-- autoversion(mainline): "--version [version]" -->
+  - **Chart Registry**
 
-  ```shell
-  helm install coder coder-v2/coder \
-      --namespace coder \
-      --values values.yaml \
-      --version 2.23.1
-  ```
+    <!-- autoversion(mainline): "--version [version]" -->
+
+    ```shell
+    helm install coder coder-v2/coder \
+        --namespace coder \
+        --values values.yaml \
+        --version 2.23.1
+    ```
+  
+  - **OCI Registry**
+
+    <!-- autoversion(mainline): "--version [version]" -->
+
+    ```shell
+    helm install coder oci://ghcr.io/coder/chart/coder \
+        --namespace coder \
+        --values values.yaml \
+        --version 2.23.1
+    ```
+
 
 - **Stable** Coder release:
 
-  <!-- autoversion(stable): "--version [version]" -->
+  - **Chart Registry**
 
-  ```shell
-  helm install coder coder-v2/coder \
-      --namespace coder \
-      --values values.yaml \
-      --version 2.22.1
-  ```
+    <!-- autoversion(stable): "--version [version]" -->
+
+    ```shell
+    helm install coder coder-v2/coder \
+        --namespace coder \
+        --values values.yaml \
+        --version 2.22.1
+    ```
+  
+  - **OCI Registry**
+
+    <!-- autoversion(stable): "--version [version]" -->
+
+    ```shell
+    helm install coder oci://ghcr.io/coder/chart/coder \
+        --namespace coder \
+        --values values.yaml \
+        --version 2.22.1
+    ```
 
 You can watch Coder start up by running `kubectl get pods -n coder`. Once Coder
 has started, the `coder-*` pods should enter the `Running` state.
