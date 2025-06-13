@@ -1146,12 +1146,14 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 		var apps []SubAgentApp
 
-		if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath, []string{
-			fmt.Sprintf("CODER_AGENT_NAME=%s", dc.Name),
-			fmt.Sprintf("CODER_USER_NAME=%s", api.userName),
-			fmt.Sprintf("CODER_WORKSPACE_NAME=%s", api.workspaceName),
-			fmt.Sprintf("CODER_DEPLOYMENT_URL=%s", api.subAgentURL),
-		}); err != nil {
+		if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath,
+			[]string{
+				fmt.Sprintf("CODER_WORKSPACE_AGENT_NAME=%s", dc.Name),
+				fmt.Sprintf("CODER_WORKSPACE_OWNER_NAME=%s", api.userName),
+				fmt.Sprintf("CODER_WORKSPACE_NAME=%s", api.workspaceName),
+				fmt.Sprintf("CODER_DEPLOYMENT_URL=%s", api.subAgentURL),
+			},
+		); err != nil {
 			api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
 		} else {
 			coderCustomization := config.MergedConfiguration.Customizations.Coder
