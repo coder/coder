@@ -148,31 +148,35 @@ const CreateWorkspacePageExperimental: FC = () => {
 	useEffect(() => {
 		if (!realizedVersionId) return;
 
-		const socket = API.templateVersionDynamicParameters(realizedVersionId, {
-			onMessage,
-			onError: (error) => {
-				if (ws.current === socket) {
-					setWsError(error);
-				}
+		const socket = API.templateVersionDynamicParameters(
+			realizedVersionId,
+			defaultOwner.id,
+			{
+				onMessage,
+				onError: (error) => {
+					if (ws.current === socket) {
+						setWsError(error);
+					}
+				},
+				onClose: () => {
+					if (ws.current === socket) {
+						setWsError(
+							new DetailedError(
+								"Websocket connection for dynamic parameters unexpectedly closed.",
+								"Refresh the page to reset the form.",
+							),
+						);
+					}
+				},
 			},
-			onClose: () => {
-				if (ws.current === socket) {
-					setWsError(
-						new DetailedError(
-							"Websocket connection for dynamic parameters unexpectedly closed.",
-							"Refresh the page to reset the form.",
-						),
-					);
-				}
-			},
-		});
+		);
 
 		ws.current = socket;
 
 		return () => {
 			socket.close();
 		};
-	}, [realizedVersionId, onMessage]);
+	}, [realizedVersionId, onMessage, defaultOwner.id]);
 
 	const organizationId = templateQuery.data?.organization_id;
 

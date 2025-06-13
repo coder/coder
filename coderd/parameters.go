@@ -58,11 +58,25 @@ func (api *API) templateVersionDynamicParametersEvaluate(rw http.ResponseWriter,
 // @Router /templateversions/{templateversion}/dynamic-parameters [get]
 func (api *API) templateVersionDynamicParametersWebsocket(rw http.ResponseWriter, r *http.Request) {
 	apikey := httpmw.APIKey(r)
+	userID := apikey.UserID
+
+	qUserID := r.URL.Query().Get("user_id")
+	if qUserID != "" && qUserID != codersdk.Me {
+		uid, err := uuid.Parse(qUserID)
+		if err != nil {
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid user_id query parameter",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		userID = uid
+	}
 
 	api.templateVersionDynamicParameters(true, codersdk.DynamicParametersRequest{
 		ID:      -1,
 		Inputs:  map[string]string{},
-		OwnerID: apikey.UserID,
+		OwnerID: userID,
 	})(rw, r)
 }
 
