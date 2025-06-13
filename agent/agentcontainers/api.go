@@ -1099,7 +1099,16 @@ func (api *API) injectSubAgentIntoContainerLocked(ctx context.Context, dc coders
 		directory = DevcontainerDefaultContainerWorkspaceFolder
 	}
 
-	displayAppsMap := make(map[codersdk.DisplayApp]bool)
+	displayAppsMap := map[codersdk.DisplayApp]bool{
+		// NOTE(DanielleMaywood):
+		// We use the same defaults here as set in terraform-provider-coder.
+		// https://github.com/coder/terraform-provider-coder/blob/c1c33f6d556532e75662c0ca373ed8fdea220eb5/provider/agent.go#L38-L51
+		codersdk.DisplayAppVSCodeDesktop:  true,
+		codersdk.DisplayAppVSCodeInsiders: false,
+		codersdk.DisplayAppWebTerminal:    true,
+		codersdk.DisplayAppSSH:            true,
+		codersdk.DisplayAppPortForward:    true,
+	}
 
 	if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath); err != nil {
 		api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
