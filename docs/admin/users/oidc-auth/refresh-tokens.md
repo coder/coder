@@ -48,8 +48,7 @@ Go to the Azure Portal > **Azure Active Directory** > **App registrations** > Yo
 
    You can adjust these settings under **Authentication methods** > **Token lifetime** (or use Conditional-Access policies in Entra ID).
 
-> [!NOTE]
-> You don't need to configure the 'Expose an API' section for refresh tokens to work.
+You don't need to configure the 'Expose an API' section for refresh tokens to work.
 
 Learn more in the [Microsoft Entra documentation](https://learn.microsoft.com/en-us/entra/identity-platform/v2-protocols-oidc#enable-id-tokens).
 
