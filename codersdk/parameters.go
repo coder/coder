@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/websocket"
@@ -130,7 +131,7 @@ func (c *Client) TemplateVersionDynamicParameters(ctx context.Context, userID st
 	if userID != Me {
 		uid, err := uuid.Parse(userID)
 		if err != nil {
-			return nil, fmt.Errorf("invalid user ID: %w", err)
+			return nil, xerrors.Errorf("invalid user ID: %w", err)
 		}
 		endpoint += fmt.Sprintf("?user_id=%s", uid.String())
 	}

@@ -1029,7 +1029,8 @@ class ApiMethods {
 		},
 	): WebSocket => {
 		const socket = createWebSocket(
-			`/api/v2/templateversions/${versionId}/dynamic-parameters?user_id=${userId}`,
+			`/api/v2/templateversions/${versionId}/dynamic-parameters`,
+			new URLSearchParams({ user_id: userId }),
 		);
 
 		socket.addEventListener("message", (event) =>

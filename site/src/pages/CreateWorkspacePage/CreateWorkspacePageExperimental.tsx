@@ -148,24 +148,28 @@ const CreateWorkspacePageExperimental: FC = () => {
 	useEffect(() => {
 		if (!realizedVersionId) return;
 
-		const socket = API.templateVersionDynamicParameters(realizedVersionId, "me", {
-			onMessage,
-			onError: (error) => {
-				if (ws.current === socket) {
-					setWsError(error);
-				}
+		const socket = API.templateVersionDynamicParameters(
+			realizedVersionId,
+			"me",
+			{
+				onMessage,
+				onError: (error) => {
+					if (ws.current === socket) {
+						setWsError(error);
+					}
+				},
+				onClose: () => {
+					if (ws.current === socket) {
+						setWsError(
+							new DetailedError(
+								"Websocket connection for dynamic parameters unexpectedly closed.",
+								"Refresh the page to reset the form.",
+							),
+						);
+					}
+				},
 			},
-			onClose: () => {
-				if (ws.current === socket) {
-					setWsError(
-						new DetailedError(
-							"Websocket connection for dynamic parameters unexpectedly closed.",
-							"Refresh the page to reset the form.",
-						),
-					);
-				}
-			},
-		});
+		);
 
 		ws.current = socket;
 
