@@ -1,8 +1,8 @@
--- Remove 'organization' from the app_sharing_level enum
 
 -- Drop the view that depends on the templates table
 DROP VIEW template_with_names;
 
+-- Remove 'organization' from the app_sharing_level enum
 CREATE TYPE new_app_sharing_level AS ENUM (
 	'owner',
 	'authenticated',
