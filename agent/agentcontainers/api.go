@@ -661,13 +661,17 @@ func (api *API) getContainers() (codersdk.WorkspaceAgentListContainersResponse, 
 	if len(api.knownDevcontainers) > 0 {
 		devcontainers = make([]codersdk.WorkspaceAgentDevcontainer, 0, len(api.knownDevcontainers))
 		for _, dc := range api.knownDevcontainers {
-			// Include the agent if it's been created (we're iterating
-			// over copies, so mutating is fine).
-			if agent := api.injectedSubAgentProcs[dc.WorkspaceFolder].agent; agent.ID != uuid.Nil {
+			// Include the agent if it's been created (we're iterating over
+			// copies, so mutating is fine).
+			//
+			// NOTE(mafredri): We could filter on "proc.containerID == dc.Container.ID"
+			// here but not doing so allows us to do some tricks in the UI to
+			// make the experience more responsive for now.
+			if proc := api.injectedSubAgentProcs[dc.WorkspaceFolder]; proc.agent.ID != uuid.Nil {
 				dc.Agent = &codersdk.WorkspaceAgentDevcontainerAgent{
-					ID:        agent.ID,
-					Name:      agent.Name,
-					Directory: agent.Directory,
+					ID:        proc.agent.ID,
+					Name:      proc.agent.Name,
+					Directory: proc.agent.Directory,
 				}
 			}
 

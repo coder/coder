@@ -85,56 +85,6 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 	);
 };
 
-interface AgentDevcontainerSSHButtonProps {
-	workspace: string;
-	agentName: string;
-}
-
-export const AgentDevcontainerSSHButton: FC<
-	AgentDevcontainerSSHButtonProps
-> = ({ workspace, agentName }) => {
-	const paper = useClassName(classNames.paper, []);
-
-	return (
-		<Popover>
-			<PopoverTrigger>
-				<Button
-					size="sm"
-					variant="subtle"
-					css={{ fontSize: 13, padding: "8px 12px" }}
-				>
-					Connect via SSH
-					<ChevronDownIcon className="size-4 ml-2" />
-				</Button>
-			</PopoverTrigger>
-
-			<PopoverContent horizontal="right" classes={{ paper }}>
-				<HelpTooltipText>
-					Run the following commands to connect with SSH:
-				</HelpTooltipText>
-
-				<ol style={{ margin: 0, padding: 0 }}>
-					<Stack spacing={0.5} css={styles.codeExamples}>
-						<SSHStep
-							helpText="Connect to the dev container:"
-							codeExample={`coder ssh ${workspace}.${agentName}`}
-						/>
-					</Stack>
-				</ol>
-
-				<HelpTooltipLinksGroup>
-					<HelpTooltipLink href={docs("/install")}>
-						Install Coder CLI
-					</HelpTooltipLink>
-					<HelpTooltipLink href={docs("/user-guides/workspace-access#ssh")}>
-						SSH configuration
-					</HelpTooltipLink>
-				</HelpTooltipLinksGroup>
-			</PopoverContent>
-		</Popover>
-	);
-};
-
 interface SSHStepProps {
 	helpText: string;
 	codeExample: string;

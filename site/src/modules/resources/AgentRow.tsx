@@ -354,7 +354,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	);
 };
 
-type AppSection = {
+export type AppSection = {
 	/**
 	 * If there is no `group`, just render all of the apps inline. If there is a
 	 * group name, show them all in a dropdown.
@@ -409,13 +409,13 @@ export function organizeAgentApps(apps: readonly WorkspaceApp[]): AppSection[] {
 	return appGroups;
 }
 
-type AppsProps = {
+export type AppsProps = {
 	section: AppSection;
 	agent: WorkspaceAgent;
 	workspace: Workspace;
 };
 
-const Apps: FC<AppsProps> = ({ section, agent, workspace }) => {
+export const Apps: FC<AppsProps> = ({ section, agent, workspace }) => {
 	return section.group ? (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>

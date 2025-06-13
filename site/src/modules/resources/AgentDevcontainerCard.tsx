@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { alpha } from "@mui/material/styles";
 import type {
 	Template,
 	Workspace,
@@ -9,13 +8,6 @@ import type {
 import { Stack } from "components/Stack/Stack";
 import { Button } from "components/Button/Button";
 import { displayError } from "components/GlobalSnackbar/utils";
-import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipText,
-	HelpTooltipTitle,
-	HelpTooltipTrigger,
-} from "components/HelpTooltip/HelpTooltip";
 import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -28,22 +20,18 @@ import type { FC } from "react";
 import { useEffect, useState } from "react";
 import { portForwardURL } from "utils/portForward";
 import { AgentButton } from "./AgentButton";
-import {
-	AgentDevcontainerSSHButton,
-	AgentSSHButton,
-} from "./SSHButton/SSHButton";
+import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDevContainerButton } from "./VSCodeDevContainerButton/VSCodeDevContainerButton";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useProxy } from "contexts/ProxyContext";
 import { PortForwardButton } from "./PortForwardButton";
-import { AgentStatus, SubAgentStatus } from "./AgentStatus";
-import { AgentVersion } from "./AgentVersion";
+import { SubAgentStatus } from "./AgentStatus";
 import { AgentLatency } from "./AgentLatency";
 import Skeleton from "@mui/material/Skeleton";
 import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
-import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { SubAgentOutdatedTooltip } from "./SubAgentOutdatedTooltip";
+import { organizeAgentApps, Apps } from "./AgentRow";
 
 type AgentDevcontainerCardProps = {
 	parentAgent: WorkspaceAgent;
@@ -62,34 +50,47 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	template,
 	wildcardHostname,
 }) => {
-	const [isRebuilding, setIsRebuilding] = useState(false);
-	const [subAgentRemoved, setSubAgentRemoved] = useState(false);
-
 	const { browser_only } = useFeatureVisibility();
 	const { proxy } = useProxy();
 
+	const [isRebuilding, setIsRebuilding] = useState(false);
+
+	// Track sub agent removal state to improve UX. This will not be needed once
+	// the devcontainer and agent responses  are aligned.
+	const [subAgentRemoved, setSubAgentRemoved] = useState(false);
+
+	// The sub agent comes from the workspace response whereas the devcontainer
+	// comes from the agent containers endpoint. We need alignment between the
+	// two, so if the sub agent is not present or the IDs do not match, we
+	// assume it has been removed.
 	const subAgent = subAgents.find((sub) => sub.id === devcontainer.agent?.id);
-	const shouldDisplaySubAgentApps =
-		devcontainer.container && subAgent?.status === "connected";
-	const shouldNotDisplaySubAgentApps = !devcontainer.container || !subAgent;
 
-	const showSubAgentAppsAndElements =
+	const appSections = (subAgent && organizeAgentApps(subAgent.apps)) || [];
+	const displayApps =
+		subAgent?.display_apps.filter((app) => {
+			switch (true) {
+				case browser_only:
+					return ["web_terminal", "port_forwarding_helper"].includes(app);
+				default:
+					return true;
+			}
+		}) || [];
+	const showVSCode =
+		devcontainer.container &&
+		(displayApps.includes("vscode") || displayApps.includes("vscode_insiders"));
+	const hasAppsToDisplay =
+		displayApps.includes("web_terminal") ||
+		showVSCode ||
+		appSections.some((it) => it.apps.length > 0);
+
+	const showDevcontainerControls =
+		!subAgentRemoved && subAgent && devcontainer.container;
+	const showSubAgentApps =
 		!subAgentRemoved &&
-		subAgent &&
-		subAgent.status === "connected" &&
-		devcontainer.container;
-
-	// const appSections = organizeAgentApps(subAgent?.apps);
-	// const hasAppsToDisplay =
-	// 	!browser_only || appSections.some((it) => it.apps.length > 0);
-	const hasAppsToDisplay = true;
-	const shouldDisplayAgentApps =
-		(subAgent?.status === "connected" && hasAppsToDisplay) ||
-		subAgent?.status === "connecting";
-	const hasVSCodeApp =
-		subAgent?.display_apps.includes("vscode") ||
-		subAgent?.display_apps.includes("vscode_insiders");
-	const showVSCode = hasVSCodeApp && !browser_only;
+		((subAgent?.status === "connected" && hasAppsToDisplay) ||
+			subAgent?.status === "connecting");
+	const showSubAgentAppsPlaceholders =
+		subAgentRemoved || subAgent?.status === "connecting";
 
 	const handleRebuildDevcontainer = async () => {
 		setIsRebuilding(true);
@@ -127,22 +128,15 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	};
 
 	useEffect(() => {
-		// If the sub agent is removed, we set the state to true to avoid rendering it.
-		if (!subAgent?.id) {
-			setSubAgentRemoved(true);
-		} else {
+		if (subAgent?.id) {
 			setSubAgentRemoved(false);
+		} else {
+			setSubAgentRemoved(true);
 		}
 	}, [subAgent?.id]);
 
 	// If the devcontainer is starting, reflect this in the recreate button.
 	useEffect(() => {
-		console.log(
-			"Devcontainer status:",
-			devcontainer.status,
-			"Sub agent status:",
-			subAgent?.status,
-		);
 		if (devcontainer.status === "starting") {
 			setIsRebuilding(true);
 		} else {
@@ -155,12 +149,12 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 			key={devcontainer.id}
 			direction="column"
 			spacing={0}
-			css={[styles.subAgentRow]}
-			className="border border-border border-dashed rounded"
+			css={styles.devcontainerRow}
+			className="border border-border border-dashed rounded relative"
 		>
 			<div
 				css={styles.devContainerLabel}
-				className="flex items-center gap-2 text-content-secondary border border-border border-dashed rounded"
+				className="flex items-center gap-2 text-content-secondary"
 			>
 				<Container css={styles.devContainerIcon} size={12} />
 				<span>dev container</span>
@@ -208,17 +202,16 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						Rebuild
 					</Button>
 
-					{showSubAgentAppsAndElements &&
-						subAgent.display_apps.includes("ssh_helper") && (
-							<AgentSSHButton
-								workspaceName={workspace.name}
-								agentName={subAgent.name}
-								workspaceOwnerUsername={workspace.owner_name}
-							/>
-						)}
-					{showSubAgentAppsAndElements &&
-						proxy.preferredWildcardHostname !== "" &&
-						subAgent.display_apps.includes("port_forwarding_helper") && (
+					{showDevcontainerControls && displayApps.includes("ssh_helper") && (
+						<AgentSSHButton
+							workspaceName={workspace.name}
+							agentName={subAgent.name}
+							workspaceOwnerUsername={workspace.owner_name}
+						/>
+					)}
+					{showDevcontainerControls &&
+						displayApps.includes("port_forwarding_helper") &&
+						proxy.preferredWildcardHostname !== "" && (
 							<PortForwardButton
 								host={proxy.preferredWildcardHostname}
 								workspace={workspace}
@@ -228,71 +221,6 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						)}
 				</div>
 			</header>
-			{/* <header className="flex justify-between items-center mb-4">
-				<div className="flex items-center gap-2">
-					<h3 className="m-0 text-xs font-medium text-content-secondary">
-						dev container:{" "}
-						<span className="font-semibold">
-							{devcontainer.name}
-							{devcontainer.container && (
-								<span className="text-content-tertiary">
-									{" "}
-									({devcontainer.container.name})
-								</span>
-							)}
-						</span>
-					</h3>
-					{devcontainer.dirty && (
-						<HelpTooltip>
-							<HelpTooltipTrigger className="flex items-center text-xs text-content-warning ml-2">
-								<span>Outdated</span>
-							</HelpTooltipTrigger>
-							<HelpTooltipContent>
-								<HelpTooltipTitle>Devcontainer Outdated</HelpTooltipTitle>
-								<HelpTooltipText>
-									Devcontainer configuration has been modified and is outdated.
-									Rebuild to get an up-to-date container.
-								</HelpTooltipText>
-							</HelpTooltipContent>
-						</HelpTooltip>
-					)}
-				</div>
-
-				<div className="flex items-center gap-2">
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={handleRebuildDevcontainer}
-						disabled={isRebuilding}
-					>
-						<Spinner loading={isRebuilding} />
-						Rebuild
-					</Button>
-
-					{shouldDisplaySubAgentApps &&
-						!browser_only &&
-						// TODO(mafredri): We could use subAgent display apps here but we currently set none.
-						parentAgent.display_apps.includes("ssh_helper") && (
-							<AgentSSHButton
-								workspaceName={workspace.name}
-								agentName={subAgent.name}
-								workspaceOwnerUsername={workspace.owner_name}
-							/>
-						)}
-
-					{shouldDisplaySubAgentApps &&
-						proxy.preferredWildcardHostname === "" &&
-						// TODO(mafredri): We could use subAgent display apps here but we currently set none.
-						parentAgent.display_apps.includes("port_forwarding_helper") && (
-							<PortForwardButton
-								host={proxy.preferredWildcardHostname}
-								workspace={workspace}
-								agent={subAgent}
-								template={template}
-							/>
-						)}
-				</div>
-			</header> */}
 
 			<div css={styles.content}>
 				{subAgent && workspace.latest_app_status?.agent_id === subAgent.id && (
@@ -302,97 +230,75 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 					</section>
 				)}
 
-				<section css={styles.apps}>
-					{showSubAgentAppsAndElements && (
+				{showSubAgentApps && (
+					<section css={styles.apps}>
 						<>
 							{showVSCode && (
 								<VSCodeDevContainerButton
 									userName={workspace.owner_name}
 									workspaceName={workspace.name}
 									devContainerName={devcontainer.container.name}
-									devContainerFolder={subAgent.directory ?? "/"} // This will always be set on subagents but provide fallback anyway.
-									displayApps={subAgent.display_apps} // TODO(mafredri): We could use subAgent display apps here but we currently set none.
+									devContainerFolder={subAgent?.directory ?? ""}
+									displayApps={displayApps} // TODO(mafredri): We could use subAgent display apps here but we currently set none.
 									agentName={parentAgent.name}
 								/>
 							)}
-							{/* {appSections.map((section, i) => (
+							{appSections.map((section, i) => (
 								<Apps
 									key={section.group ?? i}
 									section={section}
-									agent={agent}
+									agent={subAgent}
 									workspace={workspace}
 								/>
-							))} */}
+							))}
 						</>
-					)}
 
-					{showSubAgentAppsAndElements &&
-						subAgent.display_apps.includes("web_terminal") && (
+						{displayApps.includes("web_terminal") && (
 							<TerminalLink
 								workspaceName={workspace.name}
 								agentName={subAgent.name}
 								userName={workspace.owner_name}
 							/>
 						)}
-				</section>
 
-				{/* <div className="flex gap-4 flex-wrap mt-4"> */}
-				{/* {showApps && subAgent && devcontainer.container && (
-					<VSCodeDevContainerButton
-						userName={workspace.owner_name}
-						workspaceName={workspace.name}
-						devContainerName={devcontainer.container.name}
-						devContainerFolder={subAgent.directory ?? "/"} // This will always be set on subagents but provide fallback anyway.
-						displayApps={parentAgent.display_apps} // TODO(mafredri): We could use subAgent display apps here but we currently set none.
-						agentName={parentAgent.name}
-					/>
+						{wildcardHostname !== "" &&
+							devcontainer.container?.ports.map((port) => {
+								const portLabel = `${port.port}/${port.network.toUpperCase()}`;
+								const hasHostBind =
+									port.host_port !== undefined && port.host_ip !== undefined;
+								const helperText = hasHostBind
+									? `${port.host_ip}:${port.host_port}`
+									: "Not bound to host";
+								const linkDest = hasHostBind
+									? portForwardURL(
+											wildcardHostname,
+											port.host_port,
+											subAgent.name,
+											workspace.name,
+											workspace.owner_name,
+											location.protocol === "https" ? "https" : "http",
+										)
+									: "";
+								return (
+									<TooltipProvider key={portLabel}>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<AgentButton disabled={!hasHostBind} asChild>
+													<a href={linkDest}>
+														<ExternalLinkIcon />
+														{portLabel}
+													</a>
+												</AgentButton>
+											</TooltipTrigger>
+											<TooltipContent>{helperText}</TooltipContent>
+										</Tooltip>
+									</TooltipProvider>
+								);
+							})}
+					</section>
 				)}
 
-				{showApps && parentAgent.display_apps.includes("web_terminal") && (
-					<TerminalLink
-						workspaceName={workspace.name}
-						agentName={subAgent.name}
-						userName={workspace.owner_name}
-					/>
-				)} */}
-
-				{showSubAgentAppsAndElements &&
-					wildcardHostname !== "" &&
-					devcontainer.container?.ports.map((port) => {
-						const portLabel = `${port.port}/${port.network.toUpperCase()}`;
-						const hasHostBind =
-							port.host_port !== undefined && port.host_ip !== undefined;
-						const helperText = hasHostBind
-							? `${port.host_ip}:${port.host_port}`
-							: "Not bound to host";
-						const linkDest = hasHostBind
-							? portForwardURL(
-									wildcardHostname,
-									port.host_port,
-									subAgent.name,
-									workspace.name,
-									workspace.owner_name,
-									location.protocol === "https" ? "https" : "http",
-								)
-							: "";
-						return (
-							<TooltipProvider key={portLabel}>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<AgentButton disabled={!hasHostBind} asChild>
-											<a href={linkDest}>
-												<ExternalLinkIcon />
-												{portLabel}
-											</a>
-										</AgentButton>
-									</TooltipTrigger>
-									<TooltipContent>{helperText}</TooltipContent>
-								</Tooltip>
-							</TooltipProvider>
-						);
-					})}
-
-				{!showSubAgentAppsAndElements && (
+				{showSubAgentAppsPlaceholders && (
 					<section css={styles.apps}>
 						<Skeleton
 							width={80}
@@ -409,25 +315,31 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 					</section>
 				)}
 			</div>
-
-			{/* </section> */}
 		</Stack>
 	);
 };
 
 const styles = {
-	// Many of these styles are borrowed or mimic those from AgentRow.tsx.
-	subAgentRow: (theme) => ({
-		fontSize: 14 - 2,
-		// TODO(mafredri): Not sure which color to use here, this comes
-		// from the border css classes.
-		border: `1px dashed hsl(var(--border-default))`,
-		borderRadius: 8,
-		position: "relative",
+	devContainerLabel: (theme) => ({
+		backgroundColor: theme.palette.background.default,
+		fontSize: 12,
+		lineHeight: 1,
+		padding: "4px 8px",
+		position: "absolute",
+		top: -11,
+		left: 20,
 	}),
+	devContainerIcon: {
+		marginRight: 5,
+	},
 
+	devcontainerRow: {
+		padding: "16px 0px",
+	},
+
+	// Many of these styles are borrowed or mimic those from AgentRow.tsx.
 	header: (theme) => ({
-		padding: "16px 16px 0 32px",
+		padding: "0px 16px 0px 32px",
 		display: "flex",
 		gap: 24,
 		alignItems: "center",
@@ -444,40 +356,16 @@ const styles = {
 		},
 	}),
 
-	devContainerLabel: (theme) => ({
-		backgroundColor: theme.palette.background.default,
-		fontSize: 12,
-		lineHeight: 1,
-		padding: "4px 8px",
-		position: "absolute",
-		top: -11,
-		left: 19,
-	}),
-	devContainerIcon: {
-		marginRight: 5,
-	},
-
 	agentInfo: (theme) => ({
 		display: "flex",
 		alignItems: "center",
 		gap: 24,
 		color: theme.palette.text.secondary,
-		fontSize: 14 - 2,
-	}),
-
-	agentNameAndInfo: (theme) => ({
-		display: "flex",
-		alignItems: "center",
-		gap: 24,
-		flexWrap: "wrap",
-
-		[theme.breakpoints.down("md")]: {
-			gap: 12,
-		},
+		fontSize: 12,
 	}),
 
 	content: {
-		padding: 32,
+		padding: "16px 32px 0px 32px",
 		display: "flex",
 		flexDirection: "column",
 		gap: 32,
@@ -498,11 +386,6 @@ const styles = {
 		},
 	}),
 
-	agentDescription: (theme) => ({
-		fontSize: 14 - 2,
-		color: theme.palette.text.secondary,
-	}),
-
 	agentNameAndStatus: (theme) => ({
 		display: "flex",
 		alignItems: "center",
@@ -521,7 +404,7 @@ const styles = {
 		fontWeight: 600,
 		flexShrink: 0,
 		width: "fit-content",
-		fontSize: 16 - 2,
+		fontSize: 14,
 		color: theme.palette.text.primary,
 
 		[theme.breakpoints.down("md")]: {
@@ -529,47 +412,7 @@ const styles = {
 		},
 	}),
 
-	agentDataGroup: {
-		display: "flex",
-		alignItems: "baseline",
-		gap: 48,
-	},
-
-	agentData: (theme) => ({
-		display: "flex",
-		flexDirection: "column",
-		fontSize: 12 - 2,
-
-		"& > *:first-of-type": {
-			fontWeight: 500,
-			color: theme.palette.text.secondary,
-		},
-	}),
-
 	buttonSkeleton: {
 		borderRadius: 4,
 	},
-
-	agentErrorMessage: (theme) => ({
-		fontSize: 12 - 2,
-		fontWeight: 400,
-		marginTop: 4,
-		color: theme.palette.warning.light,
-	}),
-
-	agentOS: {
-		textTransform: "capitalize",
-	},
-
-	startupLogs: (theme) => ({
-		maxHeight: 256,
-		borderBottom: `1px solid ${theme.palette.divider}`,
-		backgroundColor: theme.palette.background.paper,
-		paddingTop: 16,
-
-		// We need this to be able to apply the padding top from startupLogs
-		"& > div": {
-			position: "relative",
-		},
-	}),
 } satisfies Record<string, Interpolation<Theme>>;

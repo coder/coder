@@ -276,7 +276,7 @@ export const AgentStatus: FC<AgentStatusProps> = ({ agent }) => {
 
 export const SubAgentStatus: FC<SubAgentStatusProps> = ({ agent }) => {
 	if (!agent) {
-		return <ConnectingStatus />;
+		return <DisconnectedStatus />;
 	}
 	return (
 		<ChooseOne>
