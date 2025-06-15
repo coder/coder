@@ -226,7 +226,24 @@ func (w Workspace) WorkspaceTable() WorkspaceTable {
 }
 
 func (w Workspace) RBACObject() rbac.Object {
+	// if w.IsPrebuild() {
+	//	return w.PrebuildRBAC()
+	//}
 	return w.WorkspaceTable().RBACObject()
+}
+
+func (w Workspace) IsPrebuild() bool {
+	// TODO: avoid import cycle
+	return w.OwnerID == uuid.MustParse("c42fdf75-3097-471c-8c33-fb52454d81c0")
+}
+
+func (w Workspace) PrebuildRBAC() rbac.Object {
+	if w.IsPrebuild() {
+		return rbac.ResourcePrebuiltWorkspace.WithID(w.ID).
+			InOrg(w.OrganizationID).
+			WithOwner(w.OwnerID.String())
+	}
+	return w.RBACObject()
 }
 
 func (w WorkspaceTable) RBACObject() rbac.Object {
