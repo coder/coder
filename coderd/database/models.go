@@ -137,6 +137,7 @@ type AppSharingLevel string
 const (
 	AppSharingLevelOwner         AppSharingLevel = "owner"
 	AppSharingLevelAuthenticated AppSharingLevel = "authenticated"
+	AppSharingLevelOrganization  AppSharingLevel = "organization"
 	AppSharingLevelPublic        AppSharingLevel = "public"
 )
 
@@ -179,6 +180,7 @@ func (e AppSharingLevel) Valid() bool {
 	switch e {
 	case AppSharingLevelOwner,
 		AppSharingLevelAuthenticated,
+		AppSharingLevelOrganization,
 		AppSharingLevelPublic:
 		return true
 	}
@@ -189,6 +191,7 @@ func AllAppSharingLevelValues() []AppSharingLevel {
 	return []AppSharingLevel{
 		AppSharingLevelOwner,
 		AppSharingLevelAuthenticated,
+		AppSharingLevelOrganization,
 		AppSharingLevelPublic,
 	}
 }

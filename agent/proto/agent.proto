@@ -24,6 +24,7 @@ message WorkspaceApp {
 		OWNER = 1;
 		AUTHENTICATED = 2;
 		PUBLIC = 3;
+		ORGANIZATION = 4;
 	}
 	SharingLevel sharing_level = 10;
 
