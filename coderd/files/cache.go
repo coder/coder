@@ -127,8 +127,8 @@ type cacheMetrics struct {
 }
 
 type CacheEntryValue struct {
-	Object rbac.Object
 	fs.FS
+	Object rbac.Object
 	Size int64
 }
 
