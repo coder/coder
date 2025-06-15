@@ -242,6 +242,9 @@ export const Workspace: FC<WorkspaceProps> = ({
 									<AgentRow
 										key={agent.id}
 										agent={agent}
+										subAgents={selectedResource.agents?.filter(
+											(a) => a.parent_id === agent.id,
+										)}
 										workspace={workspace}
 										template={template}
 										onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated

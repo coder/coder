@@ -1403,15 +1403,13 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 				agentcontainers.DevcontainerConfigFileLabel:  configFile,
 			}
 			devContainer = codersdk.WorkspaceAgentContainer{
-				ID:                 uuid.NewString(),
-				CreatedAt:          dbtime.Now(),
-				FriendlyName:       testutil.GetRandomName(t),
-				Image:              "busybox:latest",
-				Labels:             dcLabels,
-				Running:            true,
-				Status:             "running",
-				DevcontainerDirty:  true,
-				DevcontainerStatus: codersdk.WorkspaceAgentDevcontainerStatusRunning,
+				ID:           uuid.NewString(),
+				CreatedAt:    dbtime.Now(),
+				FriendlyName: testutil.GetRandomName(t),
+				Image:        "busybox:latest",
+				Labels:       dcLabels,
+				Running:      true,
+				Status:       "running",
 			}
 			plainContainer = codersdk.WorkspaceAgentContainer{
 				ID:           uuid.NewString(),
