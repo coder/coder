@@ -101,4 +101,4 @@ Read [cursor rules](.cursorrules).
 
 ## Frontend
 
-For building Frontend refer to [this document](docs/contributing/frontend.md)
+For building Frontend refer to [this document](docs/about/contributing/frontend.md)

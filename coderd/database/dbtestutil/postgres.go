@@ -26,6 +26,8 @@ import (
 	"github.com/coder/retry"
 )
 
+const postgresImage = "us-docker.pkg.dev/coder-v2-images-public/public/postgres"
+
 type ConnectionParams struct {
 	Username string
 	Password string
@@ -379,8 +381,8 @@ func openContainer(t TBSubset, opts DBContainerOptions) (container, func(), erro
 			return container{}, nil, xerrors.Errorf("create tempdir: %w", err)
 		}
 		runOptions := dockertest.RunOptions{
-			Repository: "gcr.io/coder-dev-1/postgres",
-			Tag:        "13",
+			Repository: postgresImage,
+			Tag:        strconv.Itoa(minimumPostgreSQLVersion),
 			Env: []string{
 				"POSTGRES_PASSWORD=postgres",
 				"POSTGRES_USER=postgres",

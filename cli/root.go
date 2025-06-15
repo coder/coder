@@ -81,6 +81,7 @@ const (
 	envAgentToken = "CODER_AGENT_TOKEN"
 	//nolint:gosec
 	envAgentTokenFile = "CODER_AGENT_TOKEN_FILE"
+	envAgentURL       = "CODER_AGENT_URL"
 	envURL            = "CODER_URL"
 )
 
@@ -398,7 +399,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		},
 		{
 			Flag:        varAgentURL,
-			Env:         "CODER_AGENT_URL",
+			Env:         envAgentURL,
 			Description: "URL for an agent to access your deployment.",
 			Value:       serpent.URLOf(r.agentURL),
 			Hidden:      true,
@@ -668,9 +669,35 @@ func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *ur
 	return &client, err
 }
 
-// createAgentClient returns a new client from the command context.
-// It works just like CreateClient, but uses the agent token and URL instead.
+// createAgentClient returns a new client from the command context.  It works
+// just like InitClient, but uses the agent token and URL instead.
 func (r *RootCmd) createAgentClient() (*agentsdk.Client, error) {
+	agentURL := r.agentURL
+	if agentURL == nil || agentURL.String() == "" {
+		return nil, xerrors.Errorf("%s must be set", envAgentURL)
+	}
+	token := r.agentToken
+	if token == "" {
+		if r.agentTokenFile == "" {
+			return nil, xerrors.Errorf("Either %s or %s must be set", envAgentToken, envAgentTokenFile)
+		}
+		tokenBytes, err := os.ReadFile(r.agentTokenFile)
+		if err != nil {
+			return nil, xerrors.Errorf("read token file %q: %w", r.agentTokenFile, err)
+		}
+		token = strings.TrimSpace(string(tokenBytes))
+	}
+	client := agentsdk.New(agentURL)
+	client.SetSessionToken(token)
+	return client, nil
+}
+
+// tryCreateAgentClient returns a new client from the command context.  It works
+// just like tryCreateAgentClient, but does not error.
+func (r *RootCmd) tryCreateAgentClient() (*agentsdk.Client, error) {
+	// TODO: Why does this not actually return any errors despite the function
+	// signature?  Could we just use createAgentClient instead, or is it expected
+	// that we return a client in some cases even without a valid URL or token?
 	client := agentsdk.New(r.agentURL)
 	client.SetSessionToken(r.agentToken)
 	return client, nil

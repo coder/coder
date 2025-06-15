@@ -8747,6 +8747,12 @@ func (q *FakeQuerier) InsertFile(_ context.Context, arg database.InsertFileParam
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	if slices.ContainsFunc(q.files, func(file database.File) bool {
+		return file.CreatedBy == arg.CreatedBy && file.Hash == arg.Hash
+	}) {
+		return database.File{}, newUniqueConstraintError(database.UniqueFilesHashCreatedByKey)
+	}
+
 	//nolint:gosimple
 	file := database.File{
 		ID:        arg.ID,
@@ -9358,6 +9364,7 @@ func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		AllowUserAutostart:           true,
 		AllowUserAutostop:            true,
 		MaxPortSharingLevel:          arg.MaxPortSharingLevel,
+		UseClassicParameterFlow:      true,
 	}
 	q.templates = append(q.templates, template)
 	return nil

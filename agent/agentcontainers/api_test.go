@@ -60,11 +60,14 @@ func (f *fakeContainerCLI) ExecAs(ctx context.Context, name, user string, args .
 // fakeDevcontainerCLI implements the agentcontainers.DevcontainerCLI
 // interface for testing.
 type fakeDevcontainerCLI struct {
-	upID     string
-	upErr    error
-	upErrC   chan error // If set, send to return err, close to return upErr.
-	execErr  error
-	execErrC chan func(cmd string, args ...string) error // If set, send fn to return err, nil or close to return execErr.
+	upID           string
+	upErr          error
+	upErrC         chan error // If set, send to return err, close to return upErr.
+	execErr        error
+	execErrC       chan func(cmd string, args ...string) error // If set, send fn to return err, nil or close to return execErr.
+	readConfig     agentcontainers.DevcontainerConfig
+	readConfigErr  error
+	readConfigErrC chan error
 }
 
 func (f *fakeDevcontainerCLI) Up(ctx context.Context, _, _ string, _ ...agentcontainers.DevcontainerCLIUpOptions) (string, error) {
@@ -93,6 +96,20 @@ func (f *fakeDevcontainerCLI) Exec(ctx context.Context, _, _ string, cmd string,
 		}
 	}
 	return f.execErr
+}
+
+func (f *fakeDevcontainerCLI) ReadConfig(ctx context.Context, _, _ string, _ ...agentcontainers.DevcontainerCLIReadConfigOptions) (agentcontainers.DevcontainerConfig, error) {
+	if f.readConfigErrC != nil {
+		select {
+		case <-ctx.Done():
+			return agentcontainers.DevcontainerConfig{}, ctx.Err()
+		case err, ok := <-f.readConfigErrC:
+			if ok {
+				return f.readConfig, err
+			}
+		}
+	}
+	return f.readConfig, f.readConfigErr
 }
 
 // fakeWatcher implements the watcher.Watcher interface for testing.
@@ -1132,10 +1149,12 @@ func TestAPI(t *testing.T) {
 				Containers: []codersdk.WorkspaceAgentContainer{container},
 			},
 		}
+		fDCCLI := &fakeDevcontainerCLI{}
 
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		api := agentcontainers.NewAPI(
 			logger,
+			agentcontainers.WithDevcontainerCLI(fDCCLI),
 			agentcontainers.WithContainerCLI(fLister),
 			agentcontainers.WithWatcher(fWatcher),
 			agentcontainers.WithClock(mClock),
@@ -1276,8 +1295,6 @@ func TestAPI(t *testing.T) {
 			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
 			mCCLI.EXPECT().Copy(gomock.Any(), "test-container-id", coderBin, "/.coder-agent/coder").Return(nil),
 			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
-			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "chown", "0:0", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
-			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "setcap", "cap_net_admin+ep", "/.coder-agent/coder").Return(nil, nil),
 		)
 
 		mClock.Set(time.Now()).MustWait(ctx)
@@ -1333,8 +1350,6 @@ func TestAPI(t *testing.T) {
 			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
 			mCCLI.EXPECT().Copy(gomock.Any(), "test-container-id", coderBin, "/.coder-agent/coder").Return(nil),
 			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
-			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "chown", "0:0", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
-			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "setcap", "cap_net_admin+ep", "/.coder-agent/coder").Return(nil, nil),
 		)
 
 		// Terminate the agent and verify it is deleted.
@@ -1424,6 +1439,179 @@ func TestAPI(t *testing.T) {
 		// Verify agent was deleted.
 		assert.Contains(t, fakeSAC.deleted, existingAgentID)
 		assert.Empty(t, fakeSAC.agents)
+	})
+
+	t.Run("Create", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("Dev Container tests are not supported on Windows (this test uses mocks but fails due to Windows paths)")
+		}
+
+		tests := []struct {
+			name          string
+			customization []agentcontainers.CoderCustomization
+			afterCreate   func(t *testing.T, subAgent agentcontainers.SubAgent)
+		}{
+			{
+				name:          "WithoutCustomization",
+				customization: nil,
+			},
+			{
+				name:          "WithDefaultDisplayApps",
+				customization: []agentcontainers.CoderCustomization{},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.Len(t, subAgent.DisplayApps, 4)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppVSCodeDesktop)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppWebTerminal)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppSSH)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppPortForward)
+				},
+			},
+			{
+				name: "WithAllDisplayApps",
+				customization: []agentcontainers.CoderCustomization{
+					{
+						DisplayApps: map[codersdk.DisplayApp]bool{
+							codersdk.DisplayAppSSH:            true,
+							codersdk.DisplayAppWebTerminal:    true,
+							codersdk.DisplayAppVSCodeDesktop:  true,
+							codersdk.DisplayAppVSCodeInsiders: true,
+							codersdk.DisplayAppPortForward:    true,
+						},
+					},
+				},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.Len(t, subAgent.DisplayApps, 5)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppSSH)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppWebTerminal)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppVSCodeDesktop)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppVSCodeInsiders)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppPortForward)
+				},
+			},
+			{
+				name: "WithSomeDisplayAppsDisabled",
+				customization: []agentcontainers.CoderCustomization{
+					{
+						DisplayApps: map[codersdk.DisplayApp]bool{
+							codersdk.DisplayAppSSH:            false,
+							codersdk.DisplayAppWebTerminal:    false,
+							codersdk.DisplayAppVSCodeInsiders: false,
+
+							// We'll enable vscode in this layer, and disable
+							// it in the next layer to ensure a layer can be
+							// disabled.
+							codersdk.DisplayAppVSCodeDesktop: true,
+
+							// We disable port-forward in this layer, and
+							// then re-enable it in the next layer to ensure
+							// that behavior works.
+							codersdk.DisplayAppPortForward: false,
+						},
+					},
+					{
+						DisplayApps: map[codersdk.DisplayApp]bool{
+							codersdk.DisplayAppVSCodeDesktop: false,
+							codersdk.DisplayAppPortForward:   true,
+						},
+					},
+				},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.Len(t, subAgent.DisplayApps, 1)
+					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppPortForward)
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				var (
+					ctx    = testutil.Context(t, testutil.WaitMedium)
+					logger = testutil.Logger(t)
+					mClock = quartz.NewMock(t)
+					mCCLI  = acmock.NewMockContainerCLI(gomock.NewController(t))
+					fSAC   = &fakeSubAgentClient{createErrC: make(chan error, 1)}
+					fDCCLI = &fakeDevcontainerCLI{
+						readConfig: agentcontainers.DevcontainerConfig{
+							MergedConfiguration: agentcontainers.DevcontainerConfiguration{
+								Customizations: agentcontainers.DevcontainerCustomizations{
+									Coder: tt.customization,
+								},
+							},
+						},
+						execErrC: make(chan func(cmd string, args ...string) error, 1),
+					}
+
+					testContainer = codersdk.WorkspaceAgentContainer{
+						ID:           "test-container-id",
+						FriendlyName: "test-container",
+						Image:        "test-image",
+						Running:      true,
+						CreatedAt:    time.Now(),
+						Labels: map[string]string{
+							agentcontainers.DevcontainerLocalFolderLabel: "/workspaces",
+							agentcontainers.DevcontainerConfigFileLabel:  "/workspace/.devcontainer/devcontainer.json",
+						},
+					}
+				)
+
+				coderBin, err := os.Executable()
+				require.NoError(t, err)
+
+				// Mock the `List` function to always return out test container.
+				mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+					Containers: []codersdk.WorkspaceAgentContainer{testContainer},
+				}, nil).AnyTimes()
+
+				// Mock the steps used for injecting the coder agent.
+				gomock.InOrder(
+					mCCLI.EXPECT().DetectArchitecture(gomock.Any(), testContainer.ID).Return(runtime.GOARCH, nil),
+					mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
+					mCCLI.EXPECT().Copy(gomock.Any(), testContainer.ID, coderBin, "/.coder-agent/coder").Return(nil),
+					mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
+				)
+
+				mClock.Set(time.Now()).MustWait(ctx)
+				tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+
+				api := agentcontainers.NewAPI(logger,
+					agentcontainers.WithClock(mClock),
+					agentcontainers.WithContainerCLI(mCCLI),
+					agentcontainers.WithDevcontainerCLI(fDCCLI),
+					agentcontainers.WithSubAgentClient(fSAC),
+					agentcontainers.WithSubAgentURL("test-subagent-url"),
+					agentcontainers.WithWatcher(watcher.NewNoop()),
+				)
+				defer api.Close()
+
+				// Close before api.Close() defer to avoid deadlock after test.
+				defer close(fSAC.createErrC)
+				defer close(fDCCLI.execErrC)
+
+				// Given: We allow agent creation and injection to succeed.
+				testutil.RequireSend(ctx, t, fSAC.createErrC, nil)
+				testutil.RequireSend(ctx, t, fDCCLI.execErrC, func(cmd string, args ...string) error {
+					assert.Equal(t, "pwd", cmd)
+					assert.Empty(t, args)
+					return nil
+				})
+
+				// Wait until the ticker has been registered.
+				tickerTrap.MustWait(ctx).MustRelease(ctx)
+				tickerTrap.Close()
+
+				// Then: We expected it to succeed
+				require.Len(t, fSAC.created, 1)
+				assert.Equal(t, testContainer.FriendlyName, fSAC.created[0].Name)
+
+				if tt.afterCreate != nil {
+					tt.afterCreate(t, fSAC.created[0])
+				}
+			})
+		}
 	})
 }
 

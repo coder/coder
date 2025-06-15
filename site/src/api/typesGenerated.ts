@@ -830,7 +830,6 @@ export type Experiment =
 	| "ai-tasks"
 	| "agentic-chat"
 	| "auto-fill-parameters"
-	| "dynamic-parameters"
 	| "example"
 	| "notifications"
 	| "web-push"

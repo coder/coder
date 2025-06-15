@@ -19,13 +19,11 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
-	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
-	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -260,12 +258,14 @@ func getStateFilePath(workdir string) string {
 }
 
 // revive:disable-next-line:flag-parameter
-func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, metadata *proto.Metadata) (*proto.PlanComplete, error) {
+func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*proto.PlanComplete, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
 	e.mut.Lock()
 	defer e.mut.Unlock()
+
+	metadata := req.Metadata
 
 	planfilePath := getPlanFilePath(e.workdir)
 	args := []string{
@@ -314,10 +314,16 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	graphTimings.ingest(createGraphTimingsEvent(timingGraphComplete))
 
-	moduleFiles, err := GetModulesArchive(os.DirFS(e.workdir))
-	if err != nil {
-		// TODO: we probably want to persist this error or make it louder eventually
-		e.logger.Warn(ctx, "failed to archive terraform modules", slog.Error(err))
+	var moduleFiles []byte
+	// Skipping modules archiving is useful if the caller does not need it, eg during
+	// a workspace build. This removes some added costs of sending the modules
+	// payload back to coderd if coderd is just going to ignore it.
+	if !req.OmitModuleFiles {
+		moduleFiles, err = GetModulesArchive(os.DirFS(e.workdir))
+		if err != nil {
+			// TODO: we probably want to persist this error or make it louder eventually
+			e.logger.Warn(ctx, "failed to archive terraform modules", slog.Error(err))
+		}
 	}
 
 	// When a prebuild claim attempt is made, log a warning if a resource is due to be replaced, since this will obviate
@@ -355,11 +361,6 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		Plan:                  planJSON,
 		ResourceReplacements:  resReps,
 		ModuleFiles:           moduleFiles,
-	}
-
-	if protobuf.Size(msg) > drpcsdk.MaxMessageSize {
-		e.logger.Warn(ctx, "cannot persist terraform modules, message payload too big", slog.F("archive_size", len(msg.ModuleFiles)))
-		msg.ModuleFiles = nil
 	}
 
 	return msg, nil

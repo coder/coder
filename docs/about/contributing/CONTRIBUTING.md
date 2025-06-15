@@ -143,9 +143,9 @@ channel.
 
 ## Styling
 
-Visit our [documentation style guide](./contributing/documentation.md).
+- [Documentation style guide](./documentation.md)
 
-Frontend styling guide can be found [here](./contributing/frontend.md#styling).
+- [Frontend styling guide](./frontend.md#styling)
 
 ## Reviews
 

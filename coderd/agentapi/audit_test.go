@@ -135,7 +135,7 @@ func TestAuditReport(t *testing.T) {
 				},
 			})
 
-			mAudit.Contains(t, database.AuditLog{
+			require.True(t, mAudit.Contains(t, database.AuditLog{
 				Time:           dbtime.Time(tt.time).In(time.UTC),
 				Action:         agentProtoConnectionActionToAudit(t, *tt.action),
 				OrganizationID: workspace.OrganizationID,
@@ -146,7 +146,7 @@ func TestAuditReport(t *testing.T) {
 				ResourceTarget: agent.Name,
 				Ip:             pqtype.Inet{Valid: true, IPNet: net.IPNet{IP: net.ParseIP(tt.ip), Mask: net.CIDRMask(32, 32)}},
 				StatusCode:     tt.status,
-			})
+			}))
 
 			// Check some additional fields.
 			var m map[string]any
