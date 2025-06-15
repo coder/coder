@@ -148,7 +148,7 @@ integrations with Git providers, such as GitHub, GitLab, and Bitbucket.
 External authentication can also be used to integrate with external services
 like JFrog Artifactory and others.
 
-Please refer to the [external authentication](../external-auth.md) section for
+Please refer to the [external authentication](../external-auth/index.md) section for
 more information.
 
 ## Up Next

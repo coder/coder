@@ -49,7 +49,7 @@ Remote development offers several benefits for users and administrators, includi
 - **Increased security**
 
   - Centralize source code and other data onto private servers or cloud services instead of local developers' machines.
-  - Manage users and groups with [SSO](./admin/users/oidc-auth.md) and [Role-based access controlled (RBAC)](./admin/users/groups-roles.md#roles).
+  - Manage users and groups with [SSO](./admin/users/oidc-auth/index.md) and [Role-based access controlled (RBAC)](./admin/users/groups-roles.md#roles).
 
 - **Improved compatibility**
 
