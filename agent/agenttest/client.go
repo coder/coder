@@ -175,6 +175,10 @@ func (c *Client) GetSubAgentDisplayApps(id uuid.UUID) ([]agentproto.CreateSubAge
 	return c.fakeAgentAPI.GetSubAgentDisplayApps(id)
 }
 
+func (c *Client) GetSubAgentApps(id uuid.UUID) ([]*agentproto.CreateSubAgentRequest_App, error) {
+	return c.fakeAgentAPI.GetSubAgentApps(id)
+}
+
 type FakeAgentAPI struct {
 	sync.Mutex
 	t      testing.TB
@@ -192,6 +196,7 @@ type FakeAgentAPI struct {
 	subAgents           map[uuid.UUID]*agentproto.SubAgent
 	subAgentDirs        map[uuid.UUID]string
 	subAgentDisplayApps map[uuid.UUID][]agentproto.CreateSubAgentRequest_DisplayApp
+	subAgentApps        map[uuid.UUID][]*agentproto.CreateSubAgentRequest_App
 
 	getAnnouncementBannersFunc              func() ([]codersdk.BannerConfig, error)
 	getResourcesMonitoringConfigurationFunc func() (*agentproto.GetResourcesMonitoringConfigurationResponse, error)
@@ -410,6 +415,10 @@ func (f *FakeAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Creat
 		f.subAgentDisplayApps = make(map[uuid.UUID][]agentproto.CreateSubAgentRequest_DisplayApp)
 	}
 	f.subAgentDisplayApps[subAgentID] = req.GetDisplayApps()
+	if f.subAgentApps == nil {
+		f.subAgentApps = make(map[uuid.UUID][]*agentproto.CreateSubAgentRequest_App)
+	}
+	f.subAgentApps[subAgentID] = req.GetApps()
 
 	// For a fake implementation, we don't create workspace apps.
 	// Real implementations would handle req.Apps here.
@@ -500,6 +509,22 @@ func (f *FakeAgentAPI) GetSubAgentDisplayApps(id uuid.UUID) ([]agentproto.Create
 	}
 
 	return displayApps, nil
+}
+
+func (f *FakeAgentAPI) GetSubAgentApps(id uuid.UUID) ([]*agentproto.CreateSubAgentRequest_App, error) {
+	f.Lock()
+	defer f.Unlock()
+
+	if f.subAgentApps == nil {
+		return nil, xerrors.New("no sub-agent apps available")
+	}
+
+	apps, ok := f.subAgentApps[id]
+	if !ok {
+		return nil, xerrors.New("sub-agent apps not found")
+	}
+
+	return apps, nil
 }
 
 func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest, statsCh chan *agentproto.Stats) *FakeAgentAPI {
