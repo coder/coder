@@ -15,14 +15,13 @@ Installation instructions vary depending on your workspace's operating system,
 platform, and build system.
 
 As a starting point, see the
-[desktop-container](https://github.com/bpmct/coder-templates/tree/main/desktop-container)
-community template. It builds and provisions a Dockerized workspace with the
+[enterprise-desktop](https://github.com/coder/images/tree/main/images/desktop)
+image. It can be used to provision a Dockerized workspace with the
 following software:
 
-- Ubuntu 20.04
-- TigerVNC server
-- noVNC client
+- Ubuntu 24.04
 - XFCE Desktop
+- KasmVNC Server and Web Client
 
 ## RDP Desktop
 
@@ -30,22 +29,27 @@ To use RDP with Coder, you'll need to install an
 [RDP client](https://docs.microsoft.com/en-us/windows-server/remote/remote-desktop-services/clients/remote-desktop-clients)
 on your local machine, and enable RDP on your workspace.
 
+<div class="tabs">
+
+### Coder Desktop
+
+[Install Coder Desktop](https://coder.com/docs/user-guides/desktop#install-coder-desktop) and connect to you `<workspace-name>.coder:3389` from your favourite RDP client.
+
+### CLI
+
 Use the following command to forward the RDP port to your local machine:
 
 ```console
 coder port-forward <workspace-name> --tcp 3399:3389
 ```
 
-Then, connect to your workspace via RDP:
-
-```console
-mstsc /v localhost:3399
-```
-
-Or use your favorite RDP client to connect to `localhost:3399`.
+Then, connect to your workspace via RDP at `localhost:3399`.
 ![windows-rdp](../../images/ides/windows_rdp_client.png)
 
-The default username is `Administrator` and password is `coderRDP!`.
+</div>
+
+> [!NOTE]
+> The default username is `Administrator` and password is `coderRDP!`.
 
 ### Coder Desktop URI Handling (Beta)
 
