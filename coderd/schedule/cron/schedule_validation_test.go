@@ -348,6 +348,7 @@ func TestSchedulesOverlap(t *testing.T) {
 		overlap   bool
 		expectErr bool
 	}{
+		// Basic overlap cases
 		{
 			name:    "Same schedule",
 			s1:      "* 9-18 * * 1-5",
@@ -355,17 +356,99 @@ func TestSchedulesOverlap(t *testing.T) {
 			overlap: true,
 		},
 		{
-			name:    "Different hours",
+			name:    "Different hours - no overlap",
 			s1:      "* 9-12 * * 1-5",
 			s2:      "* 13-18 * * 1-5",
 			overlap: false,
 		},
 		{
-			name:    "Different DOW but wildcard DOM",
+			name:    "Different hours - partial overlap",
+			s1:      "* 9-14 * * 1-5",
+			s2:      "* 12-18 * * 1-5",
+			overlap: true,
+		},
+		{
+			name:    "Different hours - one contained in another",
+			s1:      "* 9-18 * * 1-5",
+			s2:      "* 12-14 * * 1-5",
+			overlap: true,
+		},
+
+		// Day of week overlap cases (with wildcard DOM)
+		{
+			name:    "Different DOW with wildcard DOM",
+			s1:      "* 9-18 * * 1,3,5",
+			s2:      "* 9-18 * * 2,4,6",
+			overlap: true, // Overlaps because of wildcard DOM
+		},
+		{
+			name:    "Different DOW with wildcard DOM - complex ranges",
 			s1:      "* 9-18 * * 1-3",
 			s2:      "* 9-18 * * 4-5",
-			overlap: true, // true because both have wildcard DOM
+			overlap: true, // Overlaps because of wildcard DOM
 		},
+
+		// Day of week overlap cases (with specific DOM)
+		{
+			name:    "Different DOW with specific DOM - no overlap",
+			s1:      "* 9-18 1 * 1-3",
+			s2:      "* 9-18 2 * 4-5",
+			overlap: false, // No overlap because different DOM and DOW
+		},
+		{
+			name:    "Different DOW with specific DOM - partial overlap",
+			s1:      "* 9-18 1 * 1-4",
+			s2:      "* 9-18 1 * 3-5",
+			overlap: true, // Overlaps because same DOM
+		},
+		{
+			name:    "Different DOW with specific DOM - complex ranges",
+			s1:      "* 9-18 1 * 1,3,5",
+			s2:      "* 9-18 1 * 2,4,6",
+			overlap: true, // Overlaps because same DOM
+		},
+
+		// Wildcard cases
+		{
+			name:    "Wildcard hours vs specific hours",
+			s1:      "* * * * 1-5",
+			s2:      "* 9-18 * * 1-5",
+			overlap: true,
+		},
+		{
+			name:    "Wildcard DOW vs specific DOW",
+			s1:      "* 9-18 * * *",
+			s2:      "* 9-18 * * 1-5",
+			overlap: true,
+		},
+		{
+			name:    "Both wildcard DOW",
+			s1:      "* 9-18 * * *",
+			s2:      "* 9-18 * * *",
+			overlap: true,
+		},
+
+		// Complex time ranges
+		{
+			name:    "Complex hour ranges - no overlap",
+			s1:      "* 9-11,13-15 * * 1-5",
+			s2:      "* 12,16-18 * * 1-5",
+			overlap: false,
+		},
+		{
+			name:    "Complex hour ranges - partial overlap",
+			s1:      "* 9-11,13-15 * * 1-5",
+			s2:      "* 10-12,14-16 * * 1-5",
+			overlap: true,
+		},
+		{
+			name:    "Complex hour ranges - contained",
+			s1:      "* 9-18 * * 1-5",
+			s2:      "* 10-11,13-14 * * 1-5",
+			overlap: true,
+		},
+
+		// Error cases (keeping minimal)
 		{
 			name:      "Invalid hour range",
 			s1:        "* 25-26 * * 1-5",
@@ -374,7 +457,7 @@ func TestSchedulesOverlap(t *testing.T) {
 		},
 		{
 			name:      "Invalid month range",
-			s1:        "* 9-18 13 * 1-5",
+			s1:        "* 9-18 * 13 1-5",
 			s2:        "* 9-18 * * 1-5",
 			expectErr: true,
 		},
@@ -384,21 +467,8 @@ func TestSchedulesOverlap(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			s1, err := cron.Weekly(testCase.s1)
-			if testCase.expectErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
 
-			s2, err := cron.Weekly(testCase.s2)
-			if testCase.expectErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-
-			overlap, err := cron.SchedulesOverlap(s1, s2)
+			overlap, err := cron.SchedulesOverlap(testCase.s1, testCase.s2)
 			if testCase.expectErr {
 				require.Error(t, err)
 				return

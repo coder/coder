@@ -8,7 +8,7 @@ import (
 )
 
 // ValidateSchedules checks if any schedules overlap
-func ValidateSchedules(schedules []*Schedule) error {
+func ValidateSchedules(schedules []string) error {
 	for i := 0; i < len(schedules); i++ {
 		for j := i + 1; j < len(schedules); j++ {
 			overlap, err := SchedulesOverlap(schedules[i], schedules[j])
@@ -17,7 +17,7 @@ func ValidateSchedules(schedules []*Schedule) error {
 			}
 			if overlap {
 				return xerrors.Errorf("schedules overlap: %s and %s",
-					schedules[i].Cron(), schedules[j].Cron())
+					schedules[i], schedules[j])
 			}
 		}
 	}
@@ -26,10 +26,10 @@ func ValidateSchedules(schedules []*Schedule) error {
 
 // SchedulesOverlap checks if two schedules overlap by checking
 // days, months, and hours separately
-func SchedulesOverlap(s1, s2 *Schedule) (bool, error) {
+func SchedulesOverlap(schedule1, schedule2 string) (bool, error) {
 	// Get cron fields
-	fields1 := strings.Fields(s1.Cron())
-	fields2 := strings.Fields(s2.Cron())
+	fields1 := strings.Fields(schedule1)
+	fields2 := strings.Fields(schedule2)
 
 	// Check if months overlap
 	monthsOverlap, err := MonthsOverlap(fields1[3], fields2[3])
