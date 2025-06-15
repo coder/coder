@@ -36,7 +36,7 @@ func authorizeMW(accessURL *url.URL) func(next http.Handler) http.Handler {
 			}
 
 			app := httpmw.OAuth2ProviderApp(r)
-			ua := httpmw.UserAuthorization(r)
+			ua := httpmw.UserAuthorization(r.Context())
 
 			// url.Parse() allows empty URLs, which is fine because the origin is not
 			// always set by browsers (or other tools like cURL).  If the origin does
