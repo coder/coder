@@ -218,6 +218,7 @@ type data struct {
 	auditLogs                            []database.AuditLog
 	chats                                []database.Chat
 	chatMessages                         []database.ChatMessage
+	connectionLogs                       []database.ConnectionLog
 	cryptoKeys                           []database.CryptoKey
 	dbcryptKeys                          []database.DBCryptKey
 	files                                []database.File
@@ -2943,6 +2944,10 @@ func (q *FakeQuerier) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) 
 		return chats[i].CreatedAt.After(chats[j].CreatedAt)
 	})
 	return chats, nil
+}
+
+func (q *FakeQuerier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
+	return q.GetAuthorizedConnectionLogsOffset(ctx, arg, nil)
 }
 
 func (q *FakeQuerier) GetCoordinatorResumeTokenSigningKey(_ context.Context) (string, error) {
@@ -12270,6 +12275,60 @@ func (q *FakeQuerier) UpsertApplicationName(_ context.Context, data string) erro
 	return nil
 }
 
+func (q *FakeQuerier) UpsertConnectionLog(_ context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.ConnectionLog{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, existing := range q.connectionLogs {
+		if existing.ConnectionID == arg.ConnectionID &&
+			existing.WorkspaceID == arg.WorkspaceID &&
+			existing.AgentName == arg.AgentName {
+			if arg.ConnectionAction != "disconnect" {
+				return q.connectionLogs[i], nil
+			}
+			// Update existing connection with close time and reason
+			q.connectionLogs[i].CloseTime = sql.NullTime{Valid: true, Time: arg.Time}
+			q.connectionLogs[i].CloseReason = arg.CloseReason
+			return q.connectionLogs[i], nil
+		}
+	}
+
+	log := database.ConnectionLog{
+		ID:               arg.ID,
+		Time:             arg.Time,
+		OrganizationID:   arg.OrganizationID,
+		WorkspaceOwnerID: arg.WorkspaceOwnerID,
+		WorkspaceID:      arg.WorkspaceID,
+		WorkspaceName:    arg.WorkspaceName,
+		AgentName:        arg.AgentName,
+		Type:             arg.Type,
+		Code:             arg.Code,
+		Ip:               arg.Ip,
+		UserAgent:        arg.UserAgent,
+		UserID:           arg.UserID,
+		SlugOrPort:       arg.SlugOrPort,
+		ConnectionID:     arg.ConnectionID,
+		CloseReason:      arg.CloseReason,
+	}
+
+	q.connectionLogs = append(q.connectionLogs, log)
+	slices.SortFunc(q.connectionLogs, func(a, b database.ConnectionLog) int {
+		if a.Time.Before(b.Time) {
+			return -1
+		} else if a.Time.Equal(b.Time) {
+			return 0
+		}
+		return 1
+	})
+
+	return log, nil
+}
+
 func (q *FakeQuerier) UpsertCoordinatorResumeTokenSigningKey(_ context.Context, value string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -13851,6 +13910,57 @@ func (q *FakeQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg data
 			Count:                   0,
 		})
 
+		if len(logs) >= int(arg.LimitOpt) {
+			break
+		}
+	}
+
+	count := int64(len(logs))
+	for i := range logs {
+		logs[i].Count = count
+	}
+
+	return logs, nil
+}
+
+func (q *FakeQuerier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams, prepared rbac.PreparedAuthorized) ([]database.GetConnectionLogsOffsetRow, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return nil, err
+	}
+
+	// Call this to match the same function calls as the SQL implementation.
+	// It functionally does nothing for filtering.
+	if prepared != nil {
+		_, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+			VariableConverter: regosql.ConnectionLogConverter(),
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if arg.LimitOpt == 0 {
+		// Default to 100 is set in the SQL query.
+		arg.LimitOpt = 100
+	}
+
+	logs := make([]database.GetConnectionLogsOffsetRow, 0, arg.LimitOpt)
+
+	for _, clog := range q.connectionLogs {
+		if arg.OffsetOpt > 0 {
+			arg.OffsetOpt--
+			continue
+		}
+		if prepared != nil && prepared.Authorize(ctx, clog.RBACObject()) != nil {
+			continue
+		}
+
+		logs = append(logs, database.GetConnectionLogsOffsetRow{
+			ConnectionLog: clog,
+		})
 		if len(logs) >= int(arg.LimitOpt) {
 			break
 		}

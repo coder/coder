@@ -50,6 +50,7 @@ type customQuerier interface {
 	workspaceQuerier
 	userQuerier
 	auditLogQuerier
+	connectionLogQuerier
 }
 
 type templateQuerier interface {
@@ -515,6 +516,68 @@ func (q *sqlQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg GetAu
 			&i.OrganizationName,
 			&i.OrganizationDisplayName,
 			&i.OrganizationIcon,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+type connectionLogQuerier interface {
+	GetAuthorizedConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams, prepared rbac.PreparedAuthorized) ([]GetConnectionLogsOffsetRow, error)
+}
+
+func (q *sqlQuerier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams, prepared rbac.PreparedAuthorized) ([]GetConnectionLogsOffsetRow, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+		VariableConverter: regosql.ConnectionLogConverter(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+	filtered, err := insertAuthorizedFilter(getConnectionLogsOffset, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	query := fmt.Sprintf("-- name: GetAuthorizedConnectionLogsOffset :many\n%s", filtered)
+	rows, err := q.db.QueryContext(ctx, query,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetConnectionLogsOffsetRow
+	for rows.Next() {
+		var i GetConnectionLogsOffsetRow
+		if err := rows.Scan(
+			&i.ConnectionLog.ID,
+			&i.ConnectionLog.Time,
+			&i.ConnectionLog.OrganizationID,
+			&i.ConnectionLog.WorkspaceOwnerID,
+			&i.ConnectionLog.WorkspaceID,
+			&i.ConnectionLog.WorkspaceName,
+			&i.ConnectionLog.AgentName,
+			&i.ConnectionLog.Type,
+			&i.ConnectionLog.Code,
+			&i.ConnectionLog.Ip,
+			&i.ConnectionLog.UserAgent,
+			&i.ConnectionLog.UserID,
+			&i.ConnectionLog.SlugOrPort,
+			&i.ConnectionLog.ConnectionID,
+			&i.ConnectionLog.CloseTime,
+			&i.ConnectionLog.CloseReason,
+			&i.UserUsername,
+			&i.WorkspaceOwnerUsername,
 			&i.Count,
 		); err != nil {
 			return nil, err
