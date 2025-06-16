@@ -116,7 +116,8 @@ SELECT
 	latest_build.canceled_at as latest_build_canceled_at,
 	latest_build.error as latest_build_error,
 	latest_build.transition as latest_build_transition,
-	latest_build.job_status as latest_build_status
+	latest_build.job_status as latest_build_status,
+	latest_build.has_ai_task as latest_build_has_ai_task
 FROM
 	workspaces_expanded as workspaces
 JOIN
@@ -128,6 +129,7 @@ LEFT JOIN LATERAL (
 		workspace_builds.id,
 		workspace_builds.transition,
 		workspace_builds.template_version_id,
+		workspace_builds.has_ai_task,
 		template_versions.name AS template_version_name,
 		provisioner_jobs.id AS provisioner_job_id,
 		provisioner_jobs.started_at,
@@ -345,6 +347,27 @@ WHERE
 			  (latest_build.template_version_id = template.active_version_id) = sqlc.narg('using_active') :: boolean
 		  ELSE true
 	END
+	-- Filter by has_ai_task in latest build
+	AND CASE
+		WHEN sqlc.narg('has_ai_task') :: boolean IS NOT NULL THEN
+			(COALESCE(latest_build.has_ai_task, false) OR (
+				-- If the build has no AI task, it means that the provisioner job is in progress
+				-- and we don't know if it has an AI task yet. In this case, we optimistically
+				-- assume that it has an AI task if the AI Prompt parameter is not empty. This
+				-- lets the AI Task frontend spawn a task and see it immediately after instead of
+				-- having to wait for the build to complete.
+				latest_build.has_ai_task IS NULL AND
+				latest_build.completed_at IS NULL AND
+				EXISTS (
+					SELECT 1
+					FROM workspace_build_parameters
+					WHERE workspace_build_parameters.workspace_build_id = latest_build.id
+					AND workspace_build_parameters.name = 'AI Prompt'
+					AND workspace_build_parameters.value != ''
+				)
+			)) = (sqlc.narg('has_ai_task') :: boolean)
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ), filtered_workspaces_order AS (
@@ -411,7 +434,8 @@ WHERE
 		'0001-01-01 00:00:00+00'::timestamptz, -- latest_build_canceled_at,
 		'', -- latest_build_error
 		'start'::workspace_transition, -- latest_build_transition
-		'unknown'::provisioner_job_status -- latest_build_status
+		'unknown'::provisioner_job_status, -- latest_build_status
+		false -- latest_build_has_ai_task
 	WHERE
 		@with_summary :: boolean = true
 ), total_count AS (
