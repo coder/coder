@@ -147,6 +147,23 @@ func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) int32 {
 		return p.Preset.DesiredInstances.Int32
 	}
 
+	// Validate that all prebuild schedules are valid and don't overlap with each other.
+	// If any schedule is invalid or schedules overlap, fall back to the default desired instance count.
+	cronSpecs := make([]string, len(p.PrebuildSchedules))
+	for i, schedule := range p.PrebuildSchedules {
+		cronSpecs[i] = schedule.CronExpression
+	}
+	err = cron.ValidateSchedules(cronSpecs)
+	if err != nil {
+		p.logger.Error(context.Background(), "schedules are invalid or overlap with each other",
+			slog.F("preset_id", p.Preset.ID),
+			slog.F("cron_specs", cronSpecs),
+			slog.Error(err))
+
+		// If schedules are invalid, fall back to the default desired instance count
+		return p.Preset.DesiredInstances.Int32
+	}
+
 	// Look for a schedule whose cron expression matches the provided time
 	for _, schedule := range p.PrebuildSchedules {
 		// Prefix the cron expression with timezone information
