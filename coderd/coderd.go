@@ -626,6 +626,7 @@ func New(options *Options) *API {
 		Entitlements:      options.Entitlements,
 		Telemetry:         options.Telemetry,
 		Logger:            options.Logger.Named("site"),
+		HideAITasks:       options.DeploymentValues.HideAITasks.Value(),
 	})
 	api.SiteHandler.Experiments.Store(&experiments)
 

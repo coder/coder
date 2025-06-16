@@ -399,6 +399,7 @@ type DeploymentValues struct {
 	AdditionalCSPPolicy             serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
 	WorkspaceHostnameSuffix         serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
 	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
+	HideAITasks                     serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -3115,6 +3116,16 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupPrebuilds,
 			YAML:        "failure_hard_limit",
 			Hidden:      true,
+		},
+		{
+			Name:        "Hide AI Tasks",
+			Description: "Hide AI tasks from the dashboard.",
+			Flag:        "hide-ai-tasks",
+			Env:         "CODER_HIDE_AI_TASKS",
+			Default:     "false",
+			Value:       &c.HideAITasks,
+			Group:       &deploymentGroupClient,
+			YAML:        "hideAITasks",
 		},
 	}
 
