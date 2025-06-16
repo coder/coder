@@ -8,8 +8,11 @@ import { forwardRef } from "react";
 import { cn } from "utils/cn";
 
 const badgeVariants = cva(
-	`inline-flex items-center rounded-md border px-2 py-1 transition-colors
-	[&_svg]:pointer-events-none [&_svg]:pr-0.5 [&_svg]:py-0.5 [&_svg]:mr-0.5`,
+	`
+	inline-flex items-center rounded-md border px-2 py-1 text-nowrap
+	transition-colors
+	[&_svg]:pointer-events-none [&_svg]:pr-0.5 [&_svg]:py-0.5 [&_svg]:mr-0.5
+	`,
 	{
 		variants: {
 			variant: {
