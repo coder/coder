@@ -133,7 +133,7 @@ func (api *API) handleDynamicParameters(listen bool, rw http.ResponseWriter, r *
 
 	// nolint:gocritic // We need to fetch the templates files for the Terraform
 	// evaluator, and the user likely does not have permission.
-	fileCtx := dbauthz.AsProvisionerd(ctx)
+	fileCtx := dbauthz.AsFileReader(ctx)
 	fileID, err := api.Database.GetFileIDByTemplateVersionID(fileCtx, templateVersion.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

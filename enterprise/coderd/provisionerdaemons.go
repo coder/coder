@@ -133,7 +133,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, org database.Organiza
 			tags:  tags,
 		}, nil
 	}
-	ua := httpmw.UserAuthorization(r)
+	ua := httpmw.UserAuthorization(r.Context())
 	err = p.authorizer.Authorize(ctx, ua, policy.ActionCreate, rbac.ResourceProvisionerDaemon.InOrg(org.ID))
 	if err != nil {
 		return provisiionerDaemonAuthResponse{}, xerrors.New("user unauthorized")
