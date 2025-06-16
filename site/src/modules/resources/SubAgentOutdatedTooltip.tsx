@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import type {
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
@@ -34,11 +33,6 @@ export const SubAgentOutdatedTooltip: FC<SubAgentOutdatedTooltipProps> = ({
 		return null;
 	}
 
-	const theme = useTheme();
-	const versionLabelStyles = {
-		fontWeight: 600,
-		color: theme.palette.text.primary,
-	};
 	const title = "Dev Container Outdated";
 	const opener = "This Dev Container is outdated.";
 	const text = `${opener} This can happen if you modify your devcontainer.json file after the Dev Container has been created. To fix this, you can rebuild the Dev Container.`;
@@ -46,7 +40,7 @@ export const SubAgentOutdatedTooltip: FC<SubAgentOutdatedTooltipProps> = ({
 	return (
 		<HelpTooltip>
 			<HelpTooltipTrigger>
-				<span role="status" css={{ cursor: "pointer" }}>
+				<span role="status" className="cursor-pointer">
 					Outdated
 				</span>
 			</HelpTooltipTrigger>
