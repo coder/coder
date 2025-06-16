@@ -1,6 +1,7 @@
 package prebuilds
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"time"
@@ -137,7 +138,13 @@ func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) (int32, error) {
 	// Validate that the provided timezone is valid
 	_, err := time.LoadLocation(p.Preset.AutoscalingTimezone)
 	if err != nil {
-		return 0, xerrors.Errorf("failed to parse location %v: %w", p.Preset.AutoscalingTimezone, err)
+		p.logger.Error(context.Background(), "invalid timezone in prebuild autoscaling configuration",
+			slog.F("preset_id", p.Preset.ID),
+			slog.F("timezone", p.Preset.AutoscalingTimezone),
+			slog.Error(err))
+
+		// If timezone is invalid, fall back to the default desired instance count
+		return p.Preset.DesiredInstances.Int32, nil
 	}
 
 	// Look for a schedule whose cron expression matches the provided time
@@ -146,7 +153,11 @@ func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) (int32, error) {
 		cronExprWithTimezone := fmt.Sprintf("CRON_TZ=%s %s", p.Preset.AutoscalingTimezone, schedule.CronExpression)
 		matches, err := MatchesCron(cronExprWithTimezone, at)
 		if err != nil {
-			return 0, xerrors.Errorf("failed to match cron expression: %w", err)
+			p.logger.Error(context.Background(), "cron expression is invalid",
+				slog.F("preset_id", p.Preset.ID),
+				slog.F("cron_expression", cronExprWithTimezone),
+				slog.Error(err))
+			continue
 		}
 		if matches {
 			return schedule.Instances, nil
