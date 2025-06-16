@@ -1100,15 +1100,13 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		directory = DevcontainerDefaultContainerWorkspaceFolder
 	}
 
-	if proc.agent.ID != uuid.Nil {
-		if recreateSubAgent {
-			logger.Debug(ctx, "deleting existing subagent for recreation", slog.F("agent_id", proc.agent.ID))
-			err = api.subAgentClient.Delete(ctx, proc.agent.ID)
-			if err != nil {
-				return xerrors.Errorf("delete existing subagent failed: %w", err)
-			}
-			proc.agent = SubAgent{}
+	if proc.agent.ID != uuid.Nil && recreateSubAgent {
+		logger.Debug(ctx, "deleting existing subagent for recreation", slog.F("agent_id", proc.agent.ID))
+		err = api.subAgentClient.Delete(ctx, proc.agent.ID)
+		if err != nil {
+			return xerrors.Errorf("delete existing subagent failed: %w", err)
 		}
+		proc.agent = SubAgent{}
 	}
 	if proc.agent.ID == uuid.Nil {
 		displayAppsMap := map[codersdk.DisplayApp]bool{
