@@ -425,6 +425,9 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 				UUID:  b.templateVersionPresetID,
 				Valid: b.templateVersionPresetID != uuid.Nil,
 			},
+			// appease the exhaustruct linter
+			// TODO: set this to whether the build included a `coder_ai_task` tf resource
+			HasAITask: false,
 		})
 		if err != nil {
 			code := http.StatusInternalServerError

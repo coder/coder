@@ -31,6 +31,13 @@ type Cleanable interface {
 	Cleanup(ctx context.Context, id string, logs io.Writer) error
 }
 
+// Collectable is an optional extension to Runnable that allows to get metrics from the runner.
+type Collectable interface {
+	Runnable
+	// Gets the bytes transferred
+	GetBytesTransferred() (int64, int64)
+}
+
 // AddRun creates a new *TestRun with the given name, ID and Runnable, adds it
 // to the harness and returns it. Panics if the harness has been started, or a
 // test with the given run.FullID() is already registered.
@@ -66,11 +73,13 @@ type TestRun struct {
 	id       string
 	runner   Runnable
 
-	logs     *syncBuffer
-	done     chan struct{}
-	started  time.Time
-	duration time.Duration
-	err      error
+	logs         *syncBuffer
+	done         chan struct{}
+	started      time.Time
+	duration     time.Duration
+	err          error
+	bytesRead    int64
+	bytesWritten int64
 }
 
 func NewTestRun(testName string, id string, runner Runnable) *TestRun {
@@ -98,6 +107,11 @@ func (r *TestRun) Run(ctx context.Context) (err error) {
 	defer func() {
 		r.duration = time.Since(r.started)
 		r.err = err
+		c, ok := r.runner.(Collectable)
+		if !ok {
+			return
+		}
+		r.bytesRead, r.bytesWritten = c.GetBytesTransferred()
 	}()
 	defer func() {
 		e := recover()
@@ -107,6 +121,7 @@ func (r *TestRun) Run(ctx context.Context) (err error) {
 	}()
 
 	err = r.runner.Run(ctx, r.id, r.logs)
+
 	//nolint:revive // we use named returns because we mutate it in a defer
 	return
 }
