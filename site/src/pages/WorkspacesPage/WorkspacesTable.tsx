@@ -545,7 +545,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 					<PrimaryAction
 						onClick={() => setIsStopConfirmOpen(true)}
 						isLoading={stopWorkspaceMutation.isPending}
-						disabled={stopWorkspaceMutation.isPending}
+		
 						label="Stop workspace"
 					>
 						<SquareIcon />
@@ -630,7 +630,7 @@ const PrimaryAction: FC<PrimaryActionProps> = ({
 						variant="outline"
 						size="icon-lg"
 						onClick={onClick}
-						disabled={disabled}
+						disabled={disabled || isLoading}
 					>
 						<Spinner loading={isLoading}>{children}</Spinner>
 						<span className="sr-only">{label}</span>
