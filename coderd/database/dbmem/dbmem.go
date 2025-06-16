@@ -8491,6 +8491,10 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 	return workspaces, nil
 }
 
+func (q *FakeQuerier) HasTemplateVersionsWithAITask(ctx context.Context) (bool, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.APIKey{}, err
