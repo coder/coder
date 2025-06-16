@@ -11809,10 +11809,11 @@ INSERT INTO
 		readme,
 		job_id,
 		created_by,
-		source_example_id
+		source_example_id,
+		has_ai_task
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 `
 
 type InsertTemplateVersionParams struct {
@@ -11827,6 +11828,7 @@ type InsertTemplateVersionParams struct {
 	JobID           uuid.UUID      `db:"job_id" json:"job_id"`
 	CreatedBy       uuid.UUID      `db:"created_by" json:"created_by"`
 	SourceExampleID sql.NullString `db:"source_example_id" json:"source_example_id"`
+	HasAITask       bool           `db:"has_ai_task" json:"has_ai_task"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) error {
@@ -11842,6 +11844,7 @@ func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTempla
 		arg.JobID,
 		arg.CreatedBy,
 		arg.SourceExampleID,
+		arg.HasAITask,
 	)
 	return err
 }
@@ -17521,10 +17524,11 @@ INSERT INTO
 		deadline,
 		max_deadline,
 		reason,
-		template_version_preset_id
+		template_version_preset_id,
+		has_ai_task
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 `
 
 type InsertWorkspaceBuildParams struct {
@@ -17542,6 +17546,7 @@ type InsertWorkspaceBuildParams struct {
 	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
 	Reason                  BuildReason         `db:"reason" json:"reason"`
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
+	HasAITask               bool                `db:"has_ai_task" json:"has_ai_task"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) error {
@@ -17560,6 +17565,7 @@ func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspa
 		arg.MaxDeadline,
 		arg.Reason,
 		arg.TemplateVersionPresetID,
+		arg.HasAITask,
 	)
 	return err
 }

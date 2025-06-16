@@ -19,7 +19,7 @@ import (
 // objects that the user is authorized to perform the given action on.
 // This is faster than calling Authorize() on each object.
 func AuthorizeFilter[O rbac.Objecter](h *HTTPAuthorizer, r *http.Request, action policy.Action, objects []O) ([]O, error) {
-	roles := httpmw.UserAuthorization(r)
+	roles := httpmw.UserAuthorization(r.Context())
 	objects, err := rbac.Filter(r.Context(), h.Authorizer, roles, action, objects)
 	if err != nil {
 		// Log the error as Filter should not be erroring.
@@ -65,7 +65,7 @@ func (api *API) Authorize(r *http.Request, action policy.Action, object rbac.Obj
 //		return
 //	}
 func (h *HTTPAuthorizer) Authorize(r *http.Request, action policy.Action, object rbac.Objecter) bool {
-	roles := httpmw.UserAuthorization(r)
+	roles := httpmw.UserAuthorization(r.Context())
 	err := h.Authorizer.Authorize(r.Context(), roles, action, object.RBACObject())
 	if err != nil {
 		// Log the errors for debugging
@@ -97,7 +97,7 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action policy.Action, object
 // call 'Authorize()' on the returned objects.
 // Note the authorization is only for the given action and object type.
 func (h *HTTPAuthorizer) AuthorizeSQLFilter(r *http.Request, action policy.Action, objectType string) (rbac.PreparedAuthorized, error) {
-	roles := httpmw.UserAuthorization(r)
+	roles := httpmw.UserAuthorization(r.Context())
 	prepared, err := h.Authorizer.Prepare(r.Context(), roles, action, objectType)
 	if err != nil {
 		return nil, xerrors.Errorf("prepare filter: %w", err)
@@ -120,7 +120,7 @@ func (h *HTTPAuthorizer) AuthorizeSQLFilter(r *http.Request, action policy.Actio
 // @Router /authcheck [post]
 func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	auth := httpmw.UserAuthorization(r)
+	auth := httpmw.UserAuthorization(r.Context())
 
 	var params codersdk.AuthorizationRequest
 	if !httpapi.Read(ctx, rw, r, &params) {
