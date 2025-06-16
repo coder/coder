@@ -18,7 +18,7 @@ terraform {
 // In reality, modules might have accidental bloat from non-terraform files such
 // as images & documentation.
 module "large-5mb-module" {
-  source = "git::https://github.com/Emyrk/large-module.git"
+  source = "git::https://github.com/coder/large-module.git"
 }
 
 locals {
