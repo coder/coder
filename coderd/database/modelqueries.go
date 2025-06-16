@@ -80,6 +80,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 		arg.FuzzyName,
 		pq.Array(arg.IDs),
 		arg.Deprecated,
+		arg.HasAITask,
 	)
 	if err != nil {
 		return nil, err
@@ -264,6 +265,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.LastUsedBefore,
 		arg.LastUsedAfter,
 		arg.UsingActive,
+		arg.HasAITask,
 		arg.RequesterID,
 		arg.Offset,
 		arg.Limit,
@@ -311,6 +313,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.LatestBuildError,
 			&i.LatestBuildTransition,
 			&i.LatestBuildStatus,
+			&i.LatestBuildHasAITask,
 			&i.Count,
 		); err != nil {
 			return nil, err
