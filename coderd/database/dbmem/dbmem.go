@@ -8491,8 +8491,17 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 	return workspaces, nil
 }
 
-func (q *FakeQuerier) HasTemplateVersionsWithAITask(ctx context.Context) (bool, error) {
-	panic("not implemented")
+func (q *FakeQuerier) HasTemplateVersionsWithAITask(_ context.Context) (bool, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, templateVersion := range q.templateVersions {
+		if templateVersion.HasAITask {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func (q *FakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {

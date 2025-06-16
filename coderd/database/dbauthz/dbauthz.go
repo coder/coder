@@ -3452,7 +3452,8 @@ func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now ti
 }
 
 func (q *querier) HasTemplateVersionsWithAITask(ctx context.Context) (bool, error) {
-	panic("not implemented")
+	// Anyone can call HasTemplateVersionsWithAITask.
+	return q.db.HasTemplateVersionsWithAITask(ctx)
 }
 
 func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {

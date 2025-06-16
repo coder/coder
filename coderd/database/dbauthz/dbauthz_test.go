@@ -4566,6 +4566,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetProvisionerJobByIDForUpdate", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(uuid.New()).Asserts(rbac.ResourceProvisionerJobs, policy.ActionRead).Errors(sql.ErrNoRows)
 	}))
+	s.Run("HasTemplateVersionsWithAITask", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().Asserts()
+	}))
 }
 
 func (s *MethodTestSuite) TestNotifications() {
