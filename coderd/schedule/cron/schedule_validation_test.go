@@ -377,15 +377,15 @@ func TestSchedulesOverlap(t *testing.T) {
 		// Day of week overlap cases (with wildcard DOM)
 		{
 			name:    "Different DOW with wildcard DOM",
-			s1:      "* 9-18 * * 1,3,5",
-			s2:      "* 9-18 * * 2,4,6",
-			overlap: true, // Overlaps because of wildcard DOM
+			s1:      "* 9-18 * * 1,3,5", // Mon,Wed,Fri
+			s2:      "* 9-18 * * 2,4,6", // Tue,Thu,Sat
+			overlap: false,              // No overlap because DOW ranges don't overlap
 		},
 		{
 			name:    "Different DOW with wildcard DOM - complex ranges",
-			s1:      "* 9-18 * * 1-3",
-			s2:      "* 9-18 * * 4-5",
-			overlap: true, // Overlaps because of wildcard DOM
+			s1:      "* 9-18 * * 1-3", // Mon-Wed
+			s2:      "* 9-18 * * 4-5", // Thu-Fri
+			overlap: false,            // No overlap because DOW ranges don't overlap
 		},
 
 		// Day of week overlap cases (with specific DOM)
@@ -499,11 +499,21 @@ func TestValidateSchedules(t *testing.T) {
 			},
 			expectErr: false,
 		},
+
+		// Non-overlapping schedules
 		{
 			name: "Multiple valid non-overlapping schedules",
 			schedules: []string{
 				"* 9-12 * * 1-5",
 				"* 13-18 * * 1-5",
+			},
+			expectErr: false,
+		},
+		{
+			name: "Multiple valid non-overlapping schedules",
+			schedules: []string{
+				"* 9-18 * * 1-5",
+				"* 9-13 * * 6,0",
 			},
 			expectErr: false,
 		},

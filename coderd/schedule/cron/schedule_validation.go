@@ -86,9 +86,20 @@ func DowOverlap(dow1, dow2 string) (bool, error) {
 }
 
 // DaysOverlap checks if two day ranges overlap, considering both DOM and DOW.
-// Returns true if either DOM ranges overlap OR DOW ranges overlap.
+// Returns true if both DOM and DOW overlap, or if one is * and the other overlaps.
 func DaysOverlap(dom1, dow1, dom2, dow2 string) (bool, error) {
-	// Check if either DOM or DOW overlaps
+	// If either DOM is *, we only need to check DOW overlap
+	if dom1 == "*" || dom2 == "*" {
+		return DowOverlap(dow1, dow2)
+	}
+
+	// If either DOW is *, we only need to check DOM overlap
+	if dow1 == "*" || dow2 == "*" {
+		return DomOverlap(dom1, dom2)
+	}
+
+	// If both DOM and DOW are specified, we need to check both
+	// because the schedule runs when either matches
 	domOverlap, err := DomOverlap(dom1, dom2)
 	if err != nil {
 		return false, err
@@ -98,6 +109,7 @@ func DaysOverlap(dom1, dow1, dom2, dow2 string) (bool, error) {
 		return false, err
 	}
 
+	// If either DOM or DOW overlaps, the schedules overlap
 	return domOverlap || dowOverlap, nil
 }
 
