@@ -243,11 +243,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 										Show the original workspace creation form and workspace
 										parameters settings form without dynamic parameters or live
 										updates. Recommended if your provisioners aren't updated or
-										the new form causes issues.{" "}
-										<strong>
-											Users can always manually switch experiences in the
-											workspace creation form.
-										</strong>
+										the dynamic form causes issues.
 									</span>
 								</StackLabelHelperText>
 							</StackLabel>
