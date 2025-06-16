@@ -22,7 +22,7 @@ import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import type { FC } from "react";
 import { useEffect, useState } from "react";
 import { portForwardURL } from "utils/portForward";
-import { Apps, organizeAgentApps } from "./AgentApps/AgentApps";
+import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentButton } from "./AgentButton";
 import { AgentLatency } from "./AgentLatency";
 import { SubAgentStatus } from "./AgentStatus";
@@ -253,7 +253,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 									/>
 								)}
 								{appSections.map((section, i) => (
-									<Apps
+									<AgentApps
 										key={section.group ?? i}
 										section={section}
 										agent={subAgent}

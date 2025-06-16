@@ -11,13 +11,17 @@ import type { FC } from "react";
 import { AgentButton } from "../AgentButton";
 import { AppLink } from "../AppLink/AppLink";
 
-type AppsProps = {
-	section: AppSection;
+type AgentAppsProps = {
+	section: AgentAppSection;
 	agent: WorkspaceAgent;
 	workspace: Workspace;
 };
 
-export const Apps: FC<AppsProps> = ({ section, agent, workspace }) => {
+export const AgentApps: FC<AgentAppsProps> = ({
+	section,
+	agent,
+	workspace,
+}) => {
 	return section.group ? (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
@@ -43,7 +47,7 @@ export const Apps: FC<AppsProps> = ({ section, agent, workspace }) => {
 	);
 };
 
-type AppSection = {
+type AgentAppSection = {
 	/**
 	 * If there is no `group`, just render all of the apps inline. If there is a
 	 * group name, show them all in a dropdown.
@@ -61,10 +65,12 @@ type AppSection = {
  * every ungrouped section is expected to have a group in between, to make the
  * algorithm a little simpler to implement.
  */
-export function organizeAgentApps(apps: readonly WorkspaceApp[]): AppSection[] {
-	let currentSection: AppSection | undefined = undefined;
-	const appGroups: AppSection[] = [];
-	const groupsByName = new Map<string, AppSection>();
+export function organizeAgentApps(
+	apps: readonly WorkspaceApp[],
+): AgentAppSection[] {
+	let currentSection: AgentAppSection | undefined = undefined;
+	const appGroups: AgentAppSection[] = [];
+	const groupsByName = new Map<string, AgentAppSection>();
 
 	for (const app of apps) {
 		if (app.hidden) {

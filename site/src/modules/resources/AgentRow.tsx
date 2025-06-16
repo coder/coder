@@ -28,7 +28,7 @@ import {
 import { useQuery } from "react-query";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
-import { Apps, organizeAgentApps } from "./AgentApps/AgentApps";
+import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 import { AgentLatency } from "./AgentLatency";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
@@ -240,7 +240,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 									/>
 								)}
 								{appSections.map((section, i) => (
-									<Apps
+									<AgentApps
 										key={section.group ?? i}
 										section={section}
 										agent={agent}
