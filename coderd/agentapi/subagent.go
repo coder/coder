@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -140,20 +141,15 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 				health = database.WorkspaceAppHealthInitializing
 			}
 
-			var sharingLevel database.AppSharingLevel
-			switch app.GetShare() {
-			case agentproto.CreateSubAgentRequest_App_OWNER:
-				sharingLevel = database.AppSharingLevelOwner
-			case agentproto.CreateSubAgentRequest_App_AUTHENTICATED:
-				sharingLevel = database.AppSharingLevelAuthenticated
-			case agentproto.CreateSubAgentRequest_App_PUBLIC:
-				sharingLevel = database.AppSharingLevelPublic
-			default:
+			share := app.GetShare()
+			protoSharingLevel, ok := agentproto.CreateSubAgentRequest_App_SharingLevel_name[int32(share)]
+			if !ok {
 				return codersdk.ValidationError{
 					Field:  "share",
-					Detail: fmt.Sprintf("%q is not a valid app sharing level", app.GetShare()),
+					Detail: fmt.Sprintf("%q is not a valid app sharing level", share.String()),
 				}
 			}
+			sharingLevel := database.AppSharingLevel(strings.ToLower(protoSharingLevel))
 
 			var openIn database.WorkspaceAppOpenIn
 			switch app.GetOpenIn() {
