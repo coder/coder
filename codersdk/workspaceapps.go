@@ -42,6 +42,7 @@ const (
 var MapWorkspaceAppSharingLevels = map[WorkspaceAppSharingLevel]struct{}{
 	WorkspaceAppSharingLevelOwner:         {},
 	WorkspaceAppSharingLevelAuthenticated: {},
+	WorkspaceAppSharingLevelOrganization:  {},
 	WorkspaceAppSharingLevelPublic:        {},
 }
 
