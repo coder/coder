@@ -663,11 +663,7 @@ func (api *API) getContainers() (codersdk.WorkspaceAgentListContainersResponse, 
 		for _, dc := range api.knownDevcontainers {
 			// Include the agent if it's been created (we're iterating over
 			// copies, so mutating is fine).
-			//
-			// NOTE(mafredri): We could filter on "proc.containerID == dc.Container.ID"
-			// here but not doing so allows us to do some tricks in the UI to
-			// make the experience more responsive for now.
-			if proc := api.injectedSubAgentProcs[dc.WorkspaceFolder]; proc.agent.ID != uuid.Nil {
+			if proc := api.injectedSubAgentProcs[dc.WorkspaceFolder]; proc.agent.ID != uuid.Nil && dc.Container != nil && proc.containerID == dc.Container.ID {
 				dc.Agent = &codersdk.WorkspaceAgentDevcontainerAgent{
 					ID:        proc.agent.ID,
 					Name:      proc.agent.Name,
@@ -762,6 +758,7 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	// Update the status so that we don't try to recreate the
 	// devcontainer multiple times in parallel.
 	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
+	dc.Container = nil
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	api.asyncWg.Add(1)
 	go api.recreateDevcontainer(dc, configPath)

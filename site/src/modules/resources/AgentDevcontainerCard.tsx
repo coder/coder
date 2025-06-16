@@ -4,6 +4,7 @@ import type {
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
+	WorkspaceAgentListContainersResponse,
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { displayError } from "components/GlobalSnackbar/utils";
@@ -20,7 +21,8 @@ import { Container, ExternalLinkIcon } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import type { FC } from "react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useMutation, useQueryClient } from "react-query";
 import { portForwardURL } from "utils/portForward";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentButton } from "./AgentButton";
@@ -51,12 +53,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 }) => {
 	const { browser_only } = useFeatureVisibility();
 	const { proxy } = useProxy();
-
-	const [isRebuilding, setIsRebuilding] = useState(false);
-
-	// Track sub agent removal state to improve UX. This will not be needed once
-	// the devcontainer and agent responses  are aligned.
-	const [subAgentRemoved, setSubAgentRemoved] = useState(false);
+	const queryClient = useQueryClient();
 
 	// The sub agent comes from the workspace response whereas the devcontainer
 	// comes from the agent containers endpoint. We need alignment between the
@@ -80,64 +77,105 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 		showVSCode ||
 		appSections.some((it) => it.apps.length > 0);
 
-	const showDevcontainerControls =
-		!subAgentRemoved && subAgent && devcontainer.container;
-	const showSubAgentApps =
-		!subAgentRemoved && subAgent?.status === "connected" && hasAppsToDisplay;
-	const showSubAgentAppsPlaceholders =
-		subAgentRemoved || subAgent?.status === "connecting";
-
-	const handleRebuildDevcontainer = async () => {
-		setIsRebuilding(true);
-		setSubAgentRemoved(true);
-		let rebuildSucceeded = false;
-		try {
+	const rebuildDevcontainerMutation = useMutation({
+		mutationFn: async () => {
 			const response = await fetch(
 				`/api/v2/workspaceagents/${parentAgent.id}/containers/devcontainers/container/${devcontainer.container?.id}/recreate`,
-				{
-					method: "POST",
-				},
+				{ method: "POST" },
 			);
 			if (!response.ok) {
 				const errorData = await response.json().catch(() => ({}));
 				throw new Error(
-					errorData.message || `Failed to recreate: ${response.statusText}`,
+					errorData.message || `Failed to rebuild: ${response.statusText}`,
 				);
 			}
-			// If the request was accepted (e.g. 202), we mark it as succeeded.
-			// Once complete, the component will unmount, so the spinner will
-			// disappear with it.
-			if (response.status === 202) {
-				rebuildSucceeded = true;
+			return response;
+		},
+		onMutate: async () => {
+			await queryClient.cancelQueries({
+				queryKey: ["agents", parentAgent.id, "containers"],
+			});
+
+			// Snapshot the previous data for rollback in case of error.
+			const previousData = queryClient.getQueryData([
+				"agents",
+				parentAgent.id,
+				"containers",
+			]);
+
+			// Optimistically update the devcontainer status to
+			// "starting" and zero the agent and container to mimic what
+			// the API does.
+			queryClient.setQueryData(
+				["agents", parentAgent.id, "containers"],
+				(oldData?: WorkspaceAgentListContainersResponse) => {
+					if (!oldData?.devcontainers) return oldData;
+					return {
+						...oldData,
+						devcontainers: oldData.devcontainers.map((dc) => {
+							if (dc.id === devcontainer.id) {
+								return {
+									...dc,
+									agent: null,
+									container: null,
+									status: "starting",
+								};
+							}
+							return dc;
+						}),
+					};
+				},
+			);
+
+			return { previousData };
+		},
+		onSuccess: async () => {
+			// Invalidate the containers query to refetch updated data.
+			await queryClient.invalidateQueries({
+				queryKey: ["agents", parentAgent.id, "containers"],
+			});
+		},
+		onError: (error, _, context) => {
+			// If the mutation fails, use the context returned from
+			// onMutate to roll back.
+			if (context?.previousData) {
+				queryClient.setQueryData(
+					["agents", parentAgent.id, "containers"],
+					context.previousData,
+				);
 			}
-		} catch (error) {
 			const errorMessage =
 				error instanceof Error ? error.message : "An unknown error occurred.";
-			displayError(`Failed to recreate devcontainer: ${errorMessage}`);
-			console.error("Failed to recreate devcontainer:", error);
-		} finally {
-			if (!rebuildSucceeded) {
-				setIsRebuilding(false);
-			}
+			displayError(`Failed to rebuild devcontainer: ${errorMessage}`);
+			console.error("Failed to rebuild devcontainer:", error);
+		},
+	});
+
+	// Re-fetch containers when the subAgent changes to ensure data is
+	// in sync.
+	const latestSubAgentByName = subAgents.find(
+		(agent) => agent.name === devcontainer.name,
+	);
+	useEffect(() => {
+		if (!latestSubAgentByName) {
+			return;
 		}
+		queryClient.invalidateQueries({
+			queryKey: ["agents", parentAgent.id, "containers"],
+		});
+	}, [latestSubAgentByName, queryClient, parentAgent.id]);
+
+	const showDevcontainerControls = subAgent && devcontainer.container;
+	const showSubAgentApps =
+		devcontainer.status !== "starting" &&
+		subAgent?.status === "connected" &&
+		hasAppsToDisplay;
+	const showSubAgentAppsPlaceholders =
+		devcontainer.status === "starting" || subAgent?.status === "connecting";
+
+	const handleRebuildDevcontainer = () => {
+		rebuildDevcontainerMutation.mutate();
 	};
-
-	useEffect(() => {
-		if (subAgent?.id) {
-			setSubAgentRemoved(false);
-		} else {
-			setSubAgentRemoved(true);
-		}
-	}, [subAgent?.id]);
-
-	// If the devcontainer is starting, reflect this in the recreate button.
-	useEffect(() => {
-		if (devcontainer.status === "starting") {
-			setIsRebuilding(true);
-		} else {
-			setIsRebuilding(false);
-		}
-	}, [devcontainer]);
 
 	const appsClasses = "flex flex-wrap gap-4 empty:hidden md:justify-start";
 
@@ -172,7 +210,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							md:overflow-visible"
 						>
 							{subAgent?.name ?? devcontainer.name}
-							{!isRebuilding && devcontainer.container && (
+							{devcontainer.container && (
 								<span className="text-content-tertiary">
 									{" "}
 									({devcontainer.container.name})
@@ -180,7 +218,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							)}
 						</span>
 					</div>
-					{!subAgentRemoved && subAgent?.status === "connected" && (
+					{subAgent?.status === "connected" && (
 						<>
 							<SubAgentOutdatedTooltip
 								devcontainer={devcontainer}
@@ -190,7 +228,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							<AgentLatency agent={subAgent} />
 						</>
 					)}
-					{!subAgentRemoved && subAgent?.status === "connecting" && (
+					{subAgent?.status === "connecting" && (
 						<>
 							<Skeleton width={160} variant="text" />
 							<Skeleton width={36} variant="text" />
@@ -203,9 +241,9 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						variant="outline"
 						size="sm"
 						onClick={handleRebuildDevcontainer}
-						disabled={isRebuilding}
+						disabled={devcontainer.status === "starting"}
 					>
-						<Spinner loading={isRebuilding} />
+						<Spinner loading={devcontainer.status === "starting"} />
 						Rebuild
 					</Button>
 
