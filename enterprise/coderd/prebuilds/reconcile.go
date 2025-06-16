@@ -442,11 +442,7 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		}
 	}
 
-	state, err := ps.CalculateState()
-	if err != nil {
-		logger.Error(ctx, "failed to calculate state for preset", slog.Error(err))
-		return err
-	}
+	state := ps.CalculateState()
 	actions, err := c.CalculateActions(ctx, ps)
 	if err != nil {
 		logger.Error(ctx, "failed to calculate actions for preset", slog.Error(err))
@@ -620,10 +616,7 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 		// Unexpected things happen (i.e. bugs or bitflips); let's defend against disastrous outcomes.
 		// See https://blog.robertelder.org/causes-of-bit-flips-in-computer-memory/.
 		// This is obviously not comprehensive protection against this sort of problem, but this is one essential check.
-		desired, err := ps.CalculateDesiredInstances(c.clock.Now())
-		if err != nil {
-			return xerrors.Errorf("failed to calculate desired instances: %w", err)
-		}
+		desired := ps.CalculateDesiredInstances(c.clock.Now())
 
 		if action.Create > desired {
 			logger.Critical(ctx, "determined excessive count of prebuilds to create; clamping to desired count",

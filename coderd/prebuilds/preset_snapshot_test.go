@@ -90,8 +90,7 @@ func TestNoPrebuilds(t *testing.T) {
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
-	state, err := ps.CalculateState()
-	require.NoError(t, err)
+	state := ps.CalculateState()
 	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 
@@ -113,8 +112,7 @@ func TestNetNew(t *testing.T) {
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
-	state, err := ps.CalculateState()
-	require.NoError(t, err)
+	state := ps.CalculateState()
 	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 
@@ -157,8 +155,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	require.NoError(t, err)
 
 	// THEN: we should identify that this prebuild is outdated and needs to be deleted.
-	state, err := ps.CalculateState()
-	require.NoError(t, err)
+	state := ps.CalculateState()
 	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
@@ -176,8 +173,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	require.NoError(t, err)
 
 	// THEN: we should not be blocked from creating a new prebuild while the outdate one deletes.
-	state, err = ps.CalculateState()
-	require.NoError(t, err)
+	state = ps.CalculateState()
 	actions, err = ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{Desired: 1}, *state)
@@ -226,8 +222,7 @@ func TestDeleteOutdatedPrebuilds(t *testing.T) {
 
 	// THEN: we should identify that this prebuild is outdated and needs to be deleted.
 	// Despite the fact that deletion of another outdated prebuild is already in progress.
-	state, err := ps.CalculateState()
-	require.NoError(t, err)
+	state := ps.CalculateState()
 	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
@@ -471,8 +466,7 @@ func TestInProgressActions(t *testing.T) {
 			require.NoError(t, err)
 
 			// THEN: we should identify that this prebuild is in progress.
-			state, err := ps.CalculateState()
-			require.NoError(t, err)
+			state := ps.CalculateState()
 			actions, err := ps.CalculateActions(clock, backoffInterval)
 			require.NoError(t, err)
 			tc.checkFn(*state, actions)
@@ -515,8 +509,7 @@ func TestExtraneous(t *testing.T) {
 	require.NoError(t, err)
 
 	// THEN: an extraneous prebuild is detected and marked for deletion.
-	state, err := ps.CalculateState()
-	require.NoError(t, err)
+	state := ps.CalculateState()
 	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
@@ -697,8 +690,7 @@ func TestExpiredPrebuilds(t *testing.T) {
 			require.NoError(t, err)
 
 			// THEN: we should identify that this prebuild is expired.
-			state, err := ps.CalculateState()
-			require.NoError(t, err)
+			state := ps.CalculateState()
 			actions, err := ps.CalculateActions(clock, backoffInterval)
 			require.NoError(t, err)
 			tc.checkFn(running, *state, actions)
@@ -734,8 +726,7 @@ func TestDeprecated(t *testing.T) {
 	require.NoError(t, err)
 
 	// THEN: all running prebuilds should be deleted because the template is deprecated.
-	state, err := ps.CalculateState()
-	require.NoError(t, err)
+	state := ps.CalculateState()
 	actions, err := ps.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
@@ -788,8 +779,7 @@ func TestLatestBuildFailed(t *testing.T) {
 	require.NoError(t, err)
 
 	// THEN: reconciliation should backoff.
-	state, err := psCurrent.CalculateState()
-	require.NoError(t, err)
+	state := psCurrent.CalculateState()
 	actions, err := psCurrent.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
@@ -807,8 +797,7 @@ func TestLatestBuildFailed(t *testing.T) {
 	require.NoError(t, err)
 
 	// THEN: it should NOT be in backoff because all is OK.
-	state, err = psOther.CalculateState()
-	require.NoError(t, err)
+	state = psOther.CalculateState()
 	actions, err = psOther.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
@@ -822,8 +811,7 @@ func TestLatestBuildFailed(t *testing.T) {
 	// THEN: a new prebuild should be created.
 	psCurrent, err = snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
-	state, err = psCurrent.CalculateState()
-	require.NoError(t, err)
+	state = psCurrent.CalculateState()
 	actions, err = psCurrent.CalculateActions(clock, backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
@@ -886,8 +874,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		ps, err := snapshot.FilterByPreset(presetOpts1.presetID)
 		require.NoError(t, err)
 
-		state, err := ps.CalculateState()
-		require.NoError(t, err)
+		state := ps.CalculateState()
 		actions, err := ps.CalculateActions(clock, backoffInterval)
 		require.NoError(t, err)
 
@@ -903,8 +890,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		ps, err := snapshot.FilterByPreset(presetOpts2.presetID)
 		require.NoError(t, err)
 
-		state, err := ps.CalculateState()
-		require.NoError(t, err)
+		state := ps.CalculateState()
 		actions, err := ps.CalculateActions(clock, backoffInterval)
 		require.NoError(t, err)
 
@@ -1008,8 +994,7 @@ func TestPrebuildAutoscaling(t *testing.T) {
 				ps, err := snapshot.FilterByPreset(presetOpts1.presetID)
 				require.NoError(t, err)
 
-				state, err := ps.CalculateState()
-				require.NoError(t, err)
+				state := ps.CalculateState()
 				actions, err := ps.CalculateActions(clock, backoffInterval)
 				require.NoError(t, err)
 
@@ -1030,8 +1015,7 @@ func TestPrebuildAutoscaling(t *testing.T) {
 				ps, err := snapshot.FilterByPreset(presetOpts2.presetID)
 				require.NoError(t, err)
 
-				state, err := ps.CalculateState()
-				require.NoError(t, err)
+				state := ps.CalculateState()
 				actions, err := ps.CalculateActions(clock, backoffInterval)
 				require.NoError(t, err)
 
@@ -1402,8 +1386,7 @@ func TestCalculateDesiredInstances(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			desiredInstances, err := tc.snapshot.CalculateDesiredInstances(tc.at)
-			require.NoError(t, err)
+			desiredInstances := tc.snapshot.CalculateDesiredInstances(tc.at)
 			require.Equal(t, tc.expectedCalculatedInstances, desiredInstances)
 		})
 	}

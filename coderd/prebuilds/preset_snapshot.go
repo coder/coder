@@ -129,10 +129,10 @@ func MatchesCron(cronExpression string, at time.Time) (bool, error) {
 // CalculateDesiredInstances returns the number of desired instances based on the provided time.
 // If the time matches any defined autoscaling schedule, the corresponding number of instances is returned.
 // Otherwise, it falls back to the default number of instances specified in the prebuild configuration.
-func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) (int32, error) {
+func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) int32 {
 	if len(p.PrebuildSchedules) == 0 {
 		// If no schedules are defined, fall back to the default desired instance count
-		return p.Preset.DesiredInstances.Int32, nil
+		return p.Preset.DesiredInstances.Int32
 	}
 
 	// Validate that the provided timezone is valid
@@ -144,7 +144,7 @@ func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) (int32, error) {
 			slog.Error(err))
 
 		// If timezone is invalid, fall back to the default desired instance count
-		return p.Preset.DesiredInstances.Int32, nil
+		return p.Preset.DesiredInstances.Int32
 	}
 
 	// Look for a schedule whose cron expression matches the provided time
@@ -160,12 +160,12 @@ func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) (int32, error) {
 			continue
 		}
 		if matches {
-			return schedule.Instances, nil
+			return schedule.Instances
 		}
 	}
 
 	// If no schedule matches, fall back to the default desired instance count
-	return p.Preset.DesiredInstances.Int32, nil
+	return p.Preset.DesiredInstances.Int32
 }
 
 // CalculateState computes the current state of prebuilds for a preset, including:
@@ -180,7 +180,7 @@ func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) (int32, error) {
 // and calculates appropriate counts based on the current state of running prebuilds and
 // in-progress transitions. This state information is used to determine what reconciliation
 // actions are needed to reach the desired state.
-func (p PresetSnapshot) CalculateState() (*ReconciliationState, error) {
+func (p PresetSnapshot) CalculateState() *ReconciliationState {
 	var (
 		actual     int32
 		desired    int32
@@ -196,11 +196,7 @@ func (p PresetSnapshot) CalculateState() (*ReconciliationState, error) {
 	expired = int32(len(p.Expired))
 
 	if p.isActive() {
-		var err error
-		desired, err = p.CalculateDesiredInstances(p.clock.Now())
-		if err != nil {
-			return nil, xerrors.Errorf("failed to calculate number of desired instances: %w", err)
-		}
+		desired = p.CalculateDesiredInstances(p.clock.Now())
 		eligible = p.countEligible()
 		extraneous = max(actual-expired-desired, 0)
 	}
@@ -217,7 +213,7 @@ func (p PresetSnapshot) CalculateState() (*ReconciliationState, error) {
 		Starting: starting,
 		Stopping: stopping,
 		Deleting: deleting,
-	}, nil
+	}
 }
 
 // CalculateActions determines what actions are needed to reconcile the current state with the desired state.
@@ -272,10 +268,7 @@ func (p PresetSnapshot) isActive() bool {
 //
 // The function returns a list of actions to be executed to achieve the desired state.
 func (p PresetSnapshot) handleActiveTemplateVersion() (actions []*ReconciliationActions, err error) {
-	state, err := p.CalculateState()
-	if err != nil {
-		return nil, xerrors.Errorf("failed to calculate state: %w", err)
-	}
+	state := p.CalculateState()
 
 	// If we have expired prebuilds, delete them
 	if state.Expired > 0 {

@@ -179,11 +179,7 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 			mc.logger.Error(context.Background(), "failed to filter by preset", slog.Error(err))
 			continue
 		}
-		state, err := presetSnapshot.CalculateState()
-		if err != nil {
-			mc.logger.Error(context.Background(), "failed to calculate state for preset", slog.Error(err))
-			continue
-		}
+		state := presetSnapshot.CalculateState()
 
 		metricsCh <- prometheus.MustNewConstMetric(desiredPrebuildsDesc, prometheus.GaugeValue, float64(state.Desired), preset.TemplateName, preset.Name, preset.OrganizationName)
 		metricsCh <- prometheus.MustNewConstMetric(runningPrebuildsDesc, prometheus.GaugeValue, float64(state.Actual), preset.TemplateName, preset.Name, preset.OrganizationName)
