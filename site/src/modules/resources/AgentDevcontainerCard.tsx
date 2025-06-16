@@ -67,12 +67,10 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	const appSections = (subAgent && organizeAgentApps(subAgent.apps)) || [];
 	const displayApps =
 		subAgent?.display_apps.filter((app) => {
-			switch (true) {
-				case browser_only:
-					return ["web_terminal", "port_forwarding_helper"].includes(app);
-				default:
-					return true;
+			if (browser_only) {
+				return ["web_terminal", "port_forwarding_helper"].includes(app);
 			}
+			return true;
 		}) || [];
 	const showVSCode =
 		devcontainer.container &&
