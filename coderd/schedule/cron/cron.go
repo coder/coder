@@ -71,6 +71,29 @@ func Daily(raw string) (*Schedule, error) {
 	return parse(raw)
 }
 
+// TimeRange parses a Schedule from a cron specification interpreted as a continuous time range.
+//
+// For example, the expression "* 9-18 * * 1-5" represents a continuous time span
+// from 09:00:00 to 18:59:59, Monday through Friday.
+//
+// The specification consists of space-delimited fields in the following order:
+// - (Optional) Timezone, e.g., CRON_TZ=US/Central
+// - Minutes: must be "*" to represent the full range within each hour
+// - Hour of day: e.g., 9-18 (required)
+// - Day of month: e.g., * or 1-15 (required)
+// - Month: e.g., * or 1-6 (required)
+// - Day of week: e.g., * or 1-5 (required)
+//
+// Unlike standard cron, this function interprets the input as a continuous active period
+// rather than discrete scheduled times.
+func TimeRange(raw string) (*Schedule, error) {
+	if err := validateTimeRangeSpec(raw); err != nil {
+		return nil, xerrors.Errorf("validate time range schedule: %w", err)
+	}
+
+	return parse(raw)
+}
+
 func parse(raw string) (*Schedule, error) {
 	// If schedule does not specify a timezone, default to UTC. Otherwise,
 	// the library will default to time.Local which we want to avoid.
@@ -278,6 +301,21 @@ func validateDailySpec(spec string) error {
 	}
 	if parts[2] != "*" || parts[3] != "*" || parts[4] != "*" {
 		return xerrors.Errorf("expected day-of-month, month and day-of-week to be *")
+	}
+	return nil
+}
+
+// validateTimeRangeSpec ensures that the minutes field is set to *
+func validateTimeRangeSpec(spec string) error {
+	parts := strings.Fields(spec)
+	if len(parts) < 5 {
+		return xerrors.Errorf("expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix")
+	}
+	if len(parts) == 6 {
+		parts = parts[1:]
+	}
+	if parts[0] != "*" {
+		return xerrors.Errorf("expected minutes to be *")
 	}
 	return nil
 }

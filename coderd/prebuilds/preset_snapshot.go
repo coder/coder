@@ -118,7 +118,7 @@ func (ra *ReconciliationActions) IsNoop() bool {
 // MatchesCron interprets a cron spec as a continuous time range,
 // and returns whether the provided time value falls within that range.
 func MatchesCron(cronExpression string, at time.Time) (bool, error) {
-	sched, err := cron.Weekly(cronExpression)
+	sched, err := cron.TimeRange(cronExpression)
 	if err != nil {
 		return false, xerrors.Errorf("failed to parse cron expression: %w", err)
 	}
