@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
 import type {
 	Template,
@@ -142,26 +141,38 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 		}
 	}, [devcontainer]);
 
+	const appsClasses = "flex flex-wrap gap-4 empty:hidden md:justify-start";
+
 	return (
 		<Stack
 			key={devcontainer.id}
 			direction="column"
 			spacing={0}
-			css={styles.devcontainerRow}
-			className="border border-border border-dashed rounded relative"
+			className="relative py-4 border border-dashed border-border rounded"
 		>
 			<div
-				css={styles.devContainerLabel}
-				className="flex items-center gap-2 text-content-secondary"
+				className="absolute -top-2 left-5
+				flex items-center gap-2
+				bg-surface-primary px-2
+				text-xs text-content-secondary"
 			>
-				<Container css={styles.devContainerIcon} size={12} />
+				<Container size={12} className="mr-1.5" />
 				<span>dev container</span>
 			</div>
-			<header css={styles.header}>
-				<div css={styles.agentInfo}>
-					<div css={styles.agentNameAndStatus}>
+			<header
+				className="flex items-center justify-between flex-wrap
+				gap-6 px-4 pl-8 leading-6
+				md:gap-4"
+			>
+				<div className="flex items-center gap-6 text-xs text-content-secondary">
+					<div className="flex items-center gap-4 md:w-full">
 						<SubAgentStatus agent={subAgent} />
-						<span css={styles.agentName}>
+						<span
+							className="max-w-xs shrink-0
+							overflow-hidden text-ellipsis whitespace-nowrap
+							text-sm font-semibold text-content-primary
+							md:overflow-visible"
+						>
 							{subAgent?.name ?? devcontainer.name}
 							{!isRebuilding && devcontainer.container && (
 								<span className="text-content-tertiary">
@@ -221,7 +232,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 			</header>
 
 			{(showSubAgentApps || showSubAgentAppsPlaceholders) && (
-				<div css={styles.content}>
+				<div className="flex flex-col gap-8 px-8 pt-4">
 					{subAgent &&
 						workspace.latest_app_status?.agent_id === subAgent.id && (
 							<section>
@@ -231,7 +242,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						)}
 
 					{showSubAgentApps && (
-						<section css={styles.apps}>
+						<section className={appsClasses}>
 							<>
 								{showVSCode && (
 									<VSCodeDevContainerButton
@@ -299,18 +310,18 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 					)}
 
 					{showSubAgentAppsPlaceholders && (
-						<section css={styles.apps}>
+						<section className={appsClasses}>
 							<Skeleton
 								width={80}
 								height={32}
 								variant="rectangular"
-								css={styles.buttonSkeleton}
+								className="rounded"
 							/>
 							<Skeleton
 								width={110}
 								height={32}
 								variant="rectangular"
-								css={styles.buttonSkeleton}
+								className="rounded"
 							/>
 						</section>
 					)}
@@ -319,101 +330,3 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 		</Stack>
 	);
 };
-
-const styles = {
-	devContainerLabel: (theme) => ({
-		backgroundColor: theme.palette.background.default,
-		fontSize: 12,
-		lineHeight: 1,
-		padding: "4px 8px",
-		position: "absolute",
-		top: -11,
-		left: 20,
-	}),
-	devContainerIcon: {
-		marginRight: 5,
-	},
-
-	devcontainerRow: {
-		padding: "16px 0px",
-	},
-
-	// Many of these styles are borrowed or mimic those from AgentRow.tsx.
-	header: (theme) => ({
-		padding: "0px 16px 0px 32px",
-		display: "flex",
-		gap: 24,
-		alignItems: "center",
-		justifyContent: "space-between",
-		flexWrap: "wrap",
-		lineHeight: "1.5",
-
-		"&:has(+ [role='alert'])": {
-			paddingBottom: 16,
-		},
-
-		[theme.breakpoints.down("md")]: {
-			gap: 16,
-		},
-	}),
-
-	agentInfo: (theme) => ({
-		display: "flex",
-		alignItems: "center",
-		gap: 24,
-		color: theme.palette.text.secondary,
-		fontSize: 12,
-	}),
-
-	content: {
-		padding: "16px 32px 0px 32px",
-		display: "flex",
-		flexDirection: "column",
-		gap: 32,
-	},
-
-	apps: (theme) => ({
-		display: "flex",
-		gap: 16,
-		flexWrap: "wrap",
-
-		"&:empty": {
-			display: "none",
-		},
-
-		[theme.breakpoints.down("md")]: {
-			marginLeft: 0,
-			justifyContent: "flex-start",
-		},
-	}),
-
-	agentNameAndStatus: (theme) => ({
-		display: "flex",
-		alignItems: "center",
-		gap: 16,
-
-		[theme.breakpoints.down("md")]: {
-			width: "100%",
-		},
-	}),
-
-	agentName: (theme) => ({
-		whiteSpace: "nowrap",
-		overflow: "hidden",
-		textOverflow: "ellipsis",
-		maxWidth: 260,
-		fontWeight: 600,
-		flexShrink: 0,
-		width: "fit-content",
-		fontSize: 14,
-		color: theme.palette.text.primary,
-
-		[theme.breakpoints.down("md")]: {
-			overflow: "unset",
-		},
-	}),
-
-	buttonSkeleton: {
-		borderRadius: 4,
-	},
-} satisfies Record<string, Interpolation<Theme>>;
