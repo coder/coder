@@ -485,7 +485,7 @@ require (
 	github.com/kylecarbs/aisdk-go v0.0.8
 	github.com/mark3labs/mcp-go v0.32.0
 	github.com/openai/openai-go v0.1.0-beta.10
-	google.golang.org/genai v0.7.0
+	google.golang.org/genai v1.11.1
 )
 
 require (
