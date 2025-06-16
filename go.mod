@@ -484,7 +484,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/kylecarbs/aisdk-go v0.0.8
 	github.com/mark3labs/mcp-go v0.32.0
-	github.com/openai/openai-go v0.1.0-beta.10
+	github.com/openai/openai-go v1.5.0
 	google.golang.org/genai v0.7.0
 )
 
