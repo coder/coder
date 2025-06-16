@@ -31,6 +31,13 @@ func SchedulesOverlap(schedule1, schedule2 string) (bool, error) {
 	fields1 := strings.Fields(schedule1)
 	fields2 := strings.Fields(schedule2)
 
+	if len(fields1) != 5 {
+		return false, xerrors.Errorf("schedule %q has %d fields, expected 5 fields (minute hour day-of-month month day-of-week)", schedule1, len(fields1))
+	}
+	if len(fields2) != 5 {
+		return false, xerrors.Errorf("schedule %q has %d fields, expected 5 fields (minute hour day-of-month month day-of-week)", schedule2, len(fields2))
+	}
+
 	// Check if months overlap
 	monthsOverlap, err := MonthsOverlap(fields1[3], fields2[3])
 	if err != nil {
