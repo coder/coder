@@ -545,7 +545,6 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 					<PrimaryAction
 						onClick={() => setIsStopConfirmOpen(true)}
 						isLoading={stopWorkspaceMutation.isPending}
-		
 						label="Stop workspace"
 					>
 						<SquareIcon />
