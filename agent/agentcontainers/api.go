@@ -944,7 +944,8 @@ func (api *API) cleanupSubAgents(ctx context.Context) error {
 
 // maybeInjectSubAgentIntoContainerLocked injects a subagent into a dev
 // container and starts the subagent process. This method assumes that
-// api.mu is held.
+// api.mu is held. This method is idempotent and will not re-inject the
+// subagent if it is already/still running in the container.
 //
 // This method uses an internal timeout to prevent blocking indefinitely
 // if something goes wrong with the injection.
