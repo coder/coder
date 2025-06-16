@@ -11,6 +11,16 @@ terraform {
   }
 }
 
+// This module is a terraform no-op. It contains 5mb worth of files to test
+// Coder's behavior dealing with larger modules. This is included to test
+// protobuf message size limits and the performance of module loading.
+//
+// In reality, modules might have accidental bloat from non-terraform files such
+// as images & documentation.
+module "large-5mb-module" {
+  source        = "git::https://github.com/Emyrk/large-module.git"
+}
+
 locals {
   // These are cluster service addresses mapped to Tailscale nodes. Ask Dean or
   // Kyle for help.
