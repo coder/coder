@@ -610,14 +610,12 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 type PrimaryActionProps = PropsWithChildren<{
 	label: string;
 	isLoading?: boolean;
-	disabled?: boolean;
 	onClick: () => void;
 }>;
 
 const PrimaryAction: FC<PrimaryActionProps> = ({
 	onClick,
 	isLoading,
-	disabled,
 	label,
 	children,
 }) => {
@@ -629,7 +627,7 @@ const PrimaryAction: FC<PrimaryActionProps> = ({
 						variant="outline"
 						size="icon-lg"
 						onClick={onClick}
-						disabled={disabled || isLoading}
+						disabled={isLoading}
 					>
 						<Spinner loading={isLoading}>{children}</Spinner>
 						<span className="sr-only">{label}</span>
