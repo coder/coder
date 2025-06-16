@@ -4005,7 +4005,7 @@ export const MockSharedPortsResponse: TypesGen.WorkspaceAgentPortShares = {
 		{
 			workspace_id: MockWorkspace.id,
 			agent_name: "a-workspace-agent",
-			port: 8080,
+			port: 4443,
 			share_level: "organization",
 			protocol: "http",
 		},
