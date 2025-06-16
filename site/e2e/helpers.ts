@@ -584,6 +584,7 @@ const createTemplateVersionTar = async (
 					resourceReplacements: [],
 					plan: emptyPlan,
 					moduleFiles: new Uint8Array(),
+					moduleFilesHash: new Uint8Array(),
 				},
 			};
 		});
@@ -711,6 +712,7 @@ const createTemplateVersionTar = async (
 			resourceReplacements: [],
 			plan: emptyPlan,
 			moduleFiles: new Uint8Array(),
+			moduleFilesHash: new Uint8Array(),
 			...response.plan,
 		} as PlanComplete;
 		response.plan.resources = response.plan.resources?.map(fillResource);

@@ -596,11 +596,18 @@ export const CreateWorkspacePageViewExperimental: FC<
 									const currentParameterValueIndex =
 										form.values.rich_parameter_values?.findIndex(
 											(p) => p.name === parameter.name,
-										) ?? -1;
+										);
 									const parameterFieldIndex =
-										currentParameterValueIndex !== -1
+										currentParameterValueIndex !== undefined
 											? currentParameterValueIndex
 											: index;
+									// Get the form value by parameter name to ensure correct value mapping
+									const formValue =
+										currentParameterValueIndex !== undefined
+											? form.values?.rich_parameter_values?.[
+													currentParameterValueIndex
+												]?.value || ""
+											: "";
 									const parameterField = `rich_parameter_values.${parameterFieldIndex}`;
 									const isPresetParameter = presetParameterNames.includes(
 										parameter.name,
@@ -621,14 +628,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 									) {
 										return null;
 									}
-
-									// Get the form value by parameter name to ensure correct value mapping
-									const formValue =
-										currentParameterValueIndex !== -1
-											? form.values?.rich_parameter_values?.[
-													currentParameterValueIndex
-												]?.value || ""
-											: "";
 
 									return (
 										<DynamicParameter
