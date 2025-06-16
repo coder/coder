@@ -305,6 +305,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						label="Maximum Port Sharing Level"
 					>
 						<MenuItem value="owner">Owner</MenuItem>
+						<MenuItem value="organization">Organization</MenuItem>
 						<MenuItem value="authenticated">Authenticated</MenuItem>
 						<MenuItem value="public">Public</MenuItem>
 					</TextField>
