@@ -171,7 +171,8 @@ If all verification steps pass successfully, your refresh token configuration is
 
 **Solution**:
 
-- Add `offline_access` to your `CODER_OIDC_SCOPES` configuration.
+- For most providers, add `offline_access` to your `CODER_OIDC_SCOPES` configuration.
+  - `"access_type": "offline"` for Google
 - Configure your identity provider according to the provider-specific instructions above.
 - Have users log out and log in again to obtain refresh tokens.
   Look for entries containing `failed to renew OIDC token` which might indicate specific provider issues.
