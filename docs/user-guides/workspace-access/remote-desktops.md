@@ -62,13 +62,14 @@ Use your favorite RDP client to connect to `<workspace-name>.coder` instead of `
 > To avoid this error, Coder's [Windows RDP](https://registry.coder.com/modules/windows-rdp) module
 > [disables RDP over UDP automatically](https://github.com/coder/registry/blob/b58bfebcf3bcdcde4f06a183f92eb3e01842d270/registry/coder/modules/windows-rdp/powershell-installation-script.tftpl#L22).
 >
-> To manually disable RDP over UDP, run the following in PowerShell:
+> To disable RDP over UDP, run the following in PowerShell:
 >
 > ```powershell
 > New-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name "SelectTransport" -Value 1 -PropertyType DWORD -Force
+> Restart-Service -Name "TermService" -Force
 > ```
 
-You can also use a URI handler to directly launch an RDP session without setting up port-forwarding.
+You can also use a URI handler to directly launch an RDP session.
 
 The URI format is:
 
