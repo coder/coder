@@ -32,8 +32,12 @@ func TestWorkspacePortSharePublic(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
+	templ, err := client.Template(ctx, r.workspace.TemplateID)
+	require.NoError(t, err)
+	require.Equal(t, templ.MaxPortShareLevel, codersdk.WorkspaceAgentPortShareLevelOwner)
+
 	// Try to update port share with template max port share level owner.
-	_, err := client.UpsertWorkspaceAgentPortShare(ctx, r.workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
+	_, err = client.UpsertWorkspaceAgentPortShare(ctx, r.workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
 		AgentName:  r.sdkAgent.Name,
 		Port:       8080,
 		ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
@@ -74,8 +78,12 @@ func TestWorkspacePortShareOrganization(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
+	templ, err := client.Template(ctx, r.workspace.TemplateID)
+	require.NoError(t, err)
+	require.Equal(t, templ.MaxPortShareLevel, codersdk.WorkspaceAgentPortShareLevelOwner)
+
 	// Try to update port share with template max port share level owner
-	_, err := client.UpsertWorkspaceAgentPortShare(ctx, r.workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
+	_, err = client.UpsertWorkspaceAgentPortShare(ctx, r.workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
 		AgentName:  r.sdkAgent.Name,
 		Port:       8080,
 		ShareLevel: codersdk.WorkspaceAgentPortShareLevelOrganization,
