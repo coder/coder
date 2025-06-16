@@ -478,3 +478,66 @@ func TestSchedulesOverlap(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateSchedules(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name      string
+		schedules []string
+		expectErr bool
+	}{
+		// Basic validation
+		{
+			name:      "Empty schedules",
+			schedules: []string{},
+			expectErr: false,
+		},
+		{
+			name: "Single valid schedule",
+			schedules: []string{
+				"* 9-18 * * 1-5",
+			},
+			expectErr: false,
+		},
+		{
+			name: "Multiple valid non-overlapping schedules",
+			schedules: []string{
+				"* 9-12 * * 1-5",
+				"* 13-18 * * 1-5",
+			},
+			expectErr: false,
+		},
+
+		// Overlapping schedules
+		{
+			name: "Two overlapping schedules",
+			schedules: []string{
+				"* 9-14 * * 1-5",
+				"* 12-18 * * 1-5",
+			},
+			expectErr: true,
+		},
+		{
+			name: "Three schedules with only second and third overlapping",
+			schedules: []string{
+				"* 9-11 * * 1-5",  // 9AM-11AM (no overlap)
+				"* 12-18 * * 1-5", // 12PM-6PM
+				"* 15-20 * * 1-5", // 3PM-8PM (overlaps with second)
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			err := cron.ValidateSchedules(testCase.schedules)
+			if testCase.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
