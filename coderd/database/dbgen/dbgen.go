@@ -369,6 +369,7 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 				UUID:  uuid.UUID{},
 				Valid: false,
 			}),
+			HasAITask: orig.HasAITask,
 		})
 		if err != nil {
 			return err
@@ -943,6 +944,7 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 			JobID:           takeFirst(orig.JobID, uuid.New()),
 			CreatedBy:       takeFirst(orig.CreatedBy, uuid.New()),
 			SourceExampleID: takeFirst(orig.SourceExampleID, sql.NullString{}),
+			HasAITask:       orig.HasAITask,
 		})
 		if err != nil {
 			return err
