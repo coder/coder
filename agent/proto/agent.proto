@@ -402,10 +402,14 @@ message CreateSubAgentRequest {
 			TAB = 1;
 		}
 
-		enum Share {
-			OWNER = 0;
-			AUTHENTICATED = 1;
-			PUBLIC = 2;
+
+
+		enum SharingLevel {
+		  SHARING_LEVEL_UNSPECIFIED = 0;
+			OWNER = 1;
+			AUTHENTICATED = 2;
+			PUBLIC = 3;
+			ORGANIZATION = 4;
 		}
 
 		string slug = 1;
@@ -418,7 +422,7 @@ message CreateSubAgentRequest {
 		optional string icon = 8;
 		optional OpenIn open_in = 9;
 		optional int32 order = 10;
-		optional Share share = 11;
+		optional SharingLevel share = 11;
 		optional bool subdomain = 12;
 		optional string url = 13;
 	}
