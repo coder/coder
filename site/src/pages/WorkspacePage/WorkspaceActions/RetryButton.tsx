@@ -2,8 +2,8 @@ import type { Workspace } from "api/typesGenerated";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
 import { RotateCcwIcon } from "lucide-react";
 import type { FC } from "react";
-import { ConditionalBuildParametersPopover } from "./ConditionalBuildParametersPopover";
 import type { ActionButtonProps } from "./Buttons";
+import { ConditionalBuildParametersPopover } from "./ConditionalBuildParametersPopover";
 
 type RetryButtonProps = Omit<ActionButtonProps, "loading"> & {
 	enableBuildParameters: boolean;

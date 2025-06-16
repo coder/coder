@@ -23,7 +23,7 @@ export const ConditionalBuildParametersPopover: FC<ConditionalBuildParametersPop
 	onSubmit,
 }) => {
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
-	
+
 	const { data: parameters } = useQuery({
 		queryKey: ["workspace", workspace.id, "parameters"],
 		queryFn: () => API.getWorkspaceParameters(workspace),
@@ -66,7 +66,7 @@ export const ConditionalBuildParametersPopover: FC<ConditionalBuildParametersPop
 				<ChevronDownIcon />
 				<span css={{ ...visuallyHidden }}>{label}</span>
 			</TopbarButton>
-			
+
 			<UpdateBuildParametersDialogExperimental
 				open={isDialogOpen}
 				onClose={() => setIsDialogOpen(false)}
