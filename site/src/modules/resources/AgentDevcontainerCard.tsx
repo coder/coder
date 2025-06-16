@@ -220,99 +220,102 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 				</div>
 			</header>
 
-			<div css={styles.content}>
-				{subAgent && workspace.latest_app_status?.agent_id === subAgent.id && (
-					<section>
-						<h3 className="sr-only">App statuses</h3>
-						<AppStatuses workspace={workspace} agent={subAgent} />
-					</section>
-				)}
-
-				{showSubAgentApps && (
-					<section css={styles.apps}>
-						<>
-							{showVSCode && (
-								<VSCodeDevContainerButton
-									userName={workspace.owner_name}
-									workspaceName={workspace.name}
-									devContainerName={devcontainer.container.name}
-									devContainerFolder={subAgent?.directory ?? ""}
-									displayApps={displayApps} // TODO(mafredri): We could use subAgent display apps here but we currently set none.
-									agentName={parentAgent.name}
-								/>
-							)}
-							{appSections.map((section, i) => (
-								<Apps
-									key={section.group ?? i}
-									section={section}
-									agent={subAgent}
-									workspace={workspace}
-								/>
-							))}
-						</>
-
-						{displayApps.includes("web_terminal") && (
-							<TerminalLink
-								workspaceName={workspace.name}
-								agentName={subAgent.name}
-								userName={workspace.owner_name}
-							/>
+			{(showSubAgentApps || showSubAgentAppsPlaceholders) && (
+				<div css={styles.content}>
+					{subAgent &&
+						workspace.latest_app_status?.agent_id === subAgent.id && (
+							<section>
+								<h3 className="sr-only">App statuses</h3>
+								<AppStatuses workspace={workspace} agent={subAgent} />
+							</section>
 						)}
 
-						{wildcardHostname !== "" &&
-							devcontainer.container?.ports.map((port) => {
-								const portLabel = `${port.port}/${port.network.toUpperCase()}`;
-								const hasHostBind =
-									port.host_port !== undefined && port.host_ip !== undefined;
-								const helperText = hasHostBind
-									? `${port.host_ip}:${port.host_port}`
-									: "Not bound to host";
-								const linkDest = hasHostBind
-									? portForwardURL(
-											wildcardHostname,
-											port.host_port,
-											subAgent.name,
-											workspace.name,
-											workspace.owner_name,
-											location.protocol === "https" ? "https" : "http",
-										)
-									: "";
-								return (
-									<TooltipProvider key={portLabel}>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<AgentButton disabled={!hasHostBind} asChild>
-													<a href={linkDest}>
-														<ExternalLinkIcon />
-														{portLabel}
-													</a>
-												</AgentButton>
-											</TooltipTrigger>
-											<TooltipContent>{helperText}</TooltipContent>
-										</Tooltip>
-									</TooltipProvider>
-								);
-							})}
-					</section>
-				)}
+					{showSubAgentApps && (
+						<section css={styles.apps}>
+							<>
+								{showVSCode && (
+									<VSCodeDevContainerButton
+										userName={workspace.owner_name}
+										workspaceName={workspace.name}
+										devContainerName={devcontainer.container.name}
+										devContainerFolder={subAgent?.directory ?? ""}
+										displayApps={displayApps} // TODO(mafredri): We could use subAgent display apps here but we currently set none.
+										agentName={parentAgent.name}
+									/>
+								)}
+								{appSections.map((section, i) => (
+									<Apps
+										key={section.group ?? i}
+										section={section}
+										agent={subAgent}
+										workspace={workspace}
+									/>
+								))}
+							</>
 
-				{showSubAgentAppsPlaceholders && (
-					<section css={styles.apps}>
-						<Skeleton
-							width={80}
-							height={32}
-							variant="rectangular"
-							css={styles.buttonSkeleton}
-						/>
-						<Skeleton
-							width={110}
-							height={32}
-							variant="rectangular"
-							css={styles.buttonSkeleton}
-						/>
-					</section>
-				)}
-			</div>
+							{displayApps.includes("web_terminal") && (
+								<TerminalLink
+									workspaceName={workspace.name}
+									agentName={subAgent.name}
+									userName={workspace.owner_name}
+								/>
+							)}
+
+							{wildcardHostname !== "" &&
+								devcontainer.container?.ports.map((port) => {
+									const portLabel = `${port.port}/${port.network.toUpperCase()}`;
+									const hasHostBind =
+										port.host_port !== undefined && port.host_ip !== undefined;
+									const helperText = hasHostBind
+										? `${port.host_ip}:${port.host_port}`
+										: "Not bound to host";
+									const linkDest = hasHostBind
+										? portForwardURL(
+												wildcardHostname,
+												port.host_port,
+												subAgent.name,
+												workspace.name,
+												workspace.owner_name,
+												location.protocol === "https" ? "https" : "http",
+											)
+										: "";
+									return (
+										<TooltipProvider key={portLabel}>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<AgentButton disabled={!hasHostBind} asChild>
+														<a href={linkDest}>
+															<ExternalLinkIcon />
+															{portLabel}
+														</a>
+													</AgentButton>
+												</TooltipTrigger>
+												<TooltipContent>{helperText}</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
+									);
+								})}
+						</section>
+					)}
+
+					{showSubAgentAppsPlaceholders && (
+						<section css={styles.apps}>
+							<Skeleton
+								width={80}
+								height={32}
+								variant="rectangular"
+								css={styles.buttonSkeleton}
+							/>
+							<Skeleton
+								width={110}
+								height={32}
+								variant="rectangular"
+								css={styles.buttonSkeleton}
+							/>
+						</section>
+					)}
+				</div>
+			)}
 		</Stack>
 	);
 };
