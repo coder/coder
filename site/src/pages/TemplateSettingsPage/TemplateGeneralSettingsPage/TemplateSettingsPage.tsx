@@ -14,8 +14,6 @@ import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 
 const TemplateSettingsPage: FC = () => {
-	const { experiments } = useDashboard();
-	const isDynamicParametersEnabled = experiments.includes("dynamic-parameters");
 	const { template: templateName } = useParams() as { template: string };
 	const navigate = useNavigate();
 	const getLink = useLinks();
@@ -81,7 +79,6 @@ const TemplateSettingsPage: FC = () => {
 				accessControlEnabled={accessControlEnabled}
 				advancedSchedulingEnabled={advancedSchedulingEnabled}
 				sharedPortControlsEnabled={sharedPortControlsEnabled}
-				isDynamicParametersEnabled={isDynamicParametersEnabled}
 			/>
 		</>
 	);

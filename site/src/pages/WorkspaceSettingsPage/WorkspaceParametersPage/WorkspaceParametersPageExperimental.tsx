@@ -7,7 +7,6 @@ import type {
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Link } from "components/Link/Link";
@@ -19,9 +18,9 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { CircleHelp, Undo2 } from "lucide-react";
+import { CircleHelp } from "lucide-react";
 import type { FC } from "react";
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -32,14 +31,12 @@ import {
 	type WorkspacePermissions,
 	workspaceChecks,
 } from "../../../modules/workspaces/permissions";
-import { ExperimentalFormContext } from "../../CreateWorkspacePage/ExperimentalFormContext";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import { WorkspaceParametersPageViewExperimental } from "./WorkspaceParametersPageViewExperimental";
 
 const WorkspaceParametersPageExperimental: FC = () => {
 	const workspace = useWorkspaceSettings();
 	const navigate = useNavigate();
-	const experimentalFormContext = useContext(ExperimentalFormContext);
 	const [searchParams] = useSearchParams();
 	const templateVersionId = searchParams.get("templateVersionId") ?? undefined;
 
@@ -114,6 +111,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 
 		const socket = API.templateVersionDynamicParameters(
 			templateVersionId ?? workspace.latest_build.template_version_id,
+			workspace.owner_id,
 			{
 				onMessage,
 				onError: (error) => {
@@ -143,6 +141,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		templateVersionId,
 		workspace.latest_build.template_version_id,
 		onMessage,
+		workspace.owner_id,
 	]);
 
 	const updateParameters = useMutation({
@@ -236,16 +235,6 @@ const WorkspaceParametersPageExperimental: FC = () => {
 							</Tooltip>
 						</TooltipProvider>
 					</span>
-					{experimentalFormContext && (
-						<Button
-							size="sm"
-							variant="outline"
-							onClick={experimentalFormContext.toggleOptedOut}
-						>
-							<Undo2 />
-							Classic workspace parameters
-						</Button>
-					)}
 				</span>
 				<FeatureStageBadge
 					contentType={"early_access"}

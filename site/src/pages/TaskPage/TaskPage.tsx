@@ -12,6 +12,7 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
 import { Link as RouterLink } from "react-router-dom";
+import { ellipsizeText } from "utils/ellipsizeText";
 import { pageTitle } from "utils/page";
 import { TaskApps } from "./TaskApps";
 import { TaskSidebar } from "./TaskSidebar";
@@ -163,7 +164,7 @@ const TaskPage = () => {
 	return (
 		<>
 			<Helmet>
-				<title>{pageTitle(task.prompt)}</title>
+				<title>{pageTitle(ellipsizeText(task.prompt, 64)!)}</title>
 			</Helmet>
 
 			<div className="h-full flex justify-stretch">

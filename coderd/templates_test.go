@@ -1548,7 +1548,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		require.False(t, template.UseClassicParameterFlow, "default is false")
+		require.True(t, template.UseClassicParameterFlow, "default is true")
 
 		bTrue := true
 		bFalse := false

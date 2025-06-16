@@ -58,11 +58,25 @@ func (api *API) templateVersionDynamicParametersEvaluate(rw http.ResponseWriter,
 // @Router /templateversions/{templateversion}/dynamic-parameters [get]
 func (api *API) templateVersionDynamicParametersWebsocket(rw http.ResponseWriter, r *http.Request) {
 	apikey := httpmw.APIKey(r)
+	userID := apikey.UserID
+
+	qUserID := r.URL.Query().Get("user_id")
+	if qUserID != "" && qUserID != codersdk.Me {
+		uid, err := uuid.Parse(qUserID)
+		if err != nil {
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid user_id query parameter",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		userID = uid
+	}
 
 	api.templateVersionDynamicParameters(true, codersdk.DynamicParametersRequest{
 		ID:      -1,
 		Inputs:  map[string]string{},
-		OwnerID: apikey.UserID,
+		OwnerID: userID,
 	})(rw, r)
 }
 
@@ -119,7 +133,7 @@ func (api *API) handleDynamicParameters(listen bool, rw http.ResponseWriter, r *
 
 	// nolint:gocritic // We need to fetch the templates files for the Terraform
 	// evaluator, and the user likely does not have permission.
-	fileCtx := dbauthz.AsProvisionerd(ctx)
+	fileCtx := dbauthz.AsFileReader(ctx)
 	fileID, err := api.Database.GetFileIDByTemplateVersionID(fileCtx, templateVersion.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

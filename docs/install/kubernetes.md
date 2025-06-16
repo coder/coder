@@ -133,7 +133,7 @@ We support two release channels: mainline and stable - read the
   helm install coder coder-v2/coder \
       --namespace coder \
       --values values.yaml \
-      --version 2.22.1
+      --version 2.23.1
   ```
 
 - **Stable** Coder release:
@@ -144,7 +144,7 @@ We support two release channels: mainline and stable - read the
   helm install coder coder-v2/coder \
       --namespace coder \
       --values values.yaml \
-      --version 2.19.0
+      --version 2.22.1
   ```
 
 You can watch Coder start up by running `kubectl get pods -n coder`. Once Coder
@@ -284,12 +284,16 @@ coder:
 
 ### Azure
 
-In certain enterprise environments, the
-[Azure Application Gateway](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview)
-was needed. The Application Gateway supports:
+Certain enterprise environments require the
+[Azure Application Gateway](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview).
+The Application Gateway supports:
 
 - Websocket traffic (required for workspace connections)
 - TLS termination
+
+Follow our doc on
+[how to deploy Coder on Azure with an Application Gateway](./kubernetes/kubernetes-azure-app-gateway.md)
+for an example.
 
 ## Troubleshooting
 

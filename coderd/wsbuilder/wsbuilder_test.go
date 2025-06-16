@@ -894,10 +894,11 @@ func withTemplate(mTx *dbmock.MockStore) {
 	mTx.EXPECT().GetTemplateByID(gomock.Any(), templateID).
 		Times(1).
 		Return(database.Template{
-			ID:              templateID,
-			OrganizationID:  orgID,
-			Provisioner:     database.ProvisionerTypeTerraform,
-			ActiveVersionID: activeVersionID,
+			ID:                      templateID,
+			OrganizationID:          orgID,
+			Provisioner:             database.ProvisionerTypeTerraform,
+			ActiveVersionID:         activeVersionID,
+			UseClassicParameterFlow: true,
 		}, nil)
 }
 

@@ -824,7 +824,7 @@ export const MockTemplate: TypesGen.Template = {
 	deprecated: false,
 	deprecation_message: "",
 	max_port_share_level: "public",
-	use_classic_parameter_flow: false,
+	use_classic_parameter_flow: true,
 };
 
 const MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -1410,7 +1410,7 @@ export const MockWorkspace: TypesGen.Workspace = {
 		MockTemplate.allow_user_cancel_workspace_jobs,
 	template_active_version_id: MockTemplate.active_version_id,
 	template_require_active_version: MockTemplate.require_active_version,
-	template_use_classic_parameter_flow: false,
+	template_use_classic_parameter_flow: true,
 	outdated: false,
 	owner_id: MockUserOwner.id,
 	organization_id: MockOrganization.id,
