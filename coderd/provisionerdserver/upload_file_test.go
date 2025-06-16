@@ -23,8 +23,6 @@ import (
 func TestUploadFileLargeModuleFiles(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitMedium)
-
 	// Create server
 	server, db, _, _ := setup(t, false, &overrides{
 		externalAuthConfigs: []*externalauth.Config{{}},
@@ -41,6 +39,8 @@ func TestUploadFileLargeModuleFiles(t *testing.T) {
 	for _, size := range testSizes {
 		t.Run(fmt.Sprintf("size_%d_bytes", size), func(t *testing.T) {
 			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			// Generate test module files data
 			moduleData := make([]byte, size)
