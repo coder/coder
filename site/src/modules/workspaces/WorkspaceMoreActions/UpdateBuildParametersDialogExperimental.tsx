@@ -47,14 +47,13 @@ export const UpdateBuildParametersDialogExperimental: FC<
 					<DialogDescription>
 						This template has{" "}
 						<strong className="text-content-primary">
-							{missedParameters.length} new parameter
+							{missedParameters.length} ephemeral parameter
 							{missedParameters.length === 1 ? "" : "s"}
 						</strong>{" "}
-						that must be configured to complete the update.
+						that need to be configured before continuing. Ephemeral parameters may depend on values of non-ephemeral parameters.
 					</DialogDescription>
 					<DialogDescription>
-						Would you like to go to the workspace parameters page to review and
-						update these parameters before continuing?
+						Please go to the workspace settings page to provide values for these ephemeral parameters before continuing.
 					</DialogDescription>
 				</DialogHeader>
 				<DialogFooter>

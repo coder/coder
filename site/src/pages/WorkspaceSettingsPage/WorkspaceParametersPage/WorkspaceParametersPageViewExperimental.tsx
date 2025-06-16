@@ -204,13 +204,14 @@ export const WorkspaceParametersPageViewExperimental: FC<
 			)}
 
 			<form onSubmit={form.handleSubmit} className="flex flex-col gap-8">
-				{standardParameters.length > 0 && (
+				{(standardParameters.length > 0 || ephemeralParameters.length > 0) && (
 					<section className="flex flex-col gap-9">
 						<hgroup>
 							<h2 className="text-xl font-medium mb-0">Parameters</h2>
 							<p className="text-sm text-content-secondary m-0">
 								These are the settings used by your template. Immutable
 								parameters cannot be modified once the workspace is created.
+								Ephemeral parameters only apply for a single workspace start.
 								<Link
 									href={docs(
 										"/admin/templates/extending-templates/parameters#enable-dynamic-parameters-early-access",
@@ -220,7 +221,8 @@ export const WorkspaceParametersPageViewExperimental: FC<
 								</Link>
 							</p>
 						</hgroup>
-						{standardParameters.map((parameter, index) => {
+						{/* Render all parameters together, with ephemeral parameters marked */}
+						{parameters.map((parameter, index) => {
 							const currentParameterValueIndex =
 								form.values.rich_parameter_values?.findIndex(
 									(p) => p.name === parameter.name,
@@ -241,57 +243,30 @@ export const WorkspaceParametersPageViewExperimental: FC<
 							const isDisabled =
 								disabled ||
 								parameter.styling?.disabled ||
-								!parameter.mutable ||
+								(!parameter.ephemeral && !parameter.mutable) ||
 								isSubmitting;
 
 							return (
-								<DynamicParameter
-									key={parameter.name}
-									parameter={parameter}
-									onChange={(value) =>
-										handleChange(parameter, parameterField, value)
-									}
-									autofill={false}
-									disabled={isDisabled}
-									value={formValue}
-								/>
-							);
-						})}
-					</section>
-				)}
-
-				{ephemeralParameters.length > 0 && (
-					<section className="flex flex-col gap-6">
-						<hgroup>
-							<h2 className="text-xl font-medium mb-1">Ephemeral Parameters</h2>
-							<p className="text-sm text-content-secondary m-0">
-								These parameters only apply for a single workspace start
-							</p>
-						</hgroup>
-
-						<div className="flex flex-col gap-9">
-							{ephemeralParameters.map((parameter, index) => {
-								const actualIndex = standardParameters.length + index;
-								const parameterField = `rich_parameter_values.${actualIndex}`;
-								const isDisabled =
-									disabled || parameter.styling?.disabled || isSubmitting;
-
-								return (
+								<div key={parameter.name} className="relative">
+									{parameter.ephemeral && (
+										<div className="mb-2">
+											<span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-md">
+												Ephemeral
+											</span>
+										</div>
+									)}
 									<DynamicParameter
-										key={parameter.name}
 										parameter={parameter}
 										onChange={(value) =>
 											handleChange(parameter, parameterField, value)
 										}
 										autofill={false}
 										disabled={isDisabled}
-										value={
-											form.values?.rich_parameter_values?.[index]?.value || ""
-										}
+										value={formValue}
 									/>
-								);
-							})}
-						</div>
+								</div>
+							);
+						})}
 					</section>
 				)}
 

@@ -12,7 +12,7 @@ import {
 	StarOffIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import { BuildParametersPopover } from "./BuildParametersPopover";
+import { ConditionalBuildParametersPopover } from "./ConditionalBuildParametersPopover";
 
 export interface ActionButtonProps {
 	loading?: boolean;
@@ -74,7 +74,7 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
 	return (
 		<div className="flex gap-1 items-center">
 			{mainButton}
-			<BuildParametersPopover
+			<ConditionalBuildParametersPopover
 				label="Start with build parameters"
 				workspace={workspace}
 				disabled={loading}
@@ -128,7 +128,7 @@ export const RestartButton: FC<ActionButtonPropsWithWorkspace> = ({
 				<RotateCcwIcon />
 				{loading ? <>Restarting&hellip;</> : <>Restart&hellip;</>}
 			</TopbarButton>
-			<BuildParametersPopover
+			<ConditionalBuildParametersPopover
 				label="Restart with build parameters"
 				workspace={workspace}
 				disabled={loading}

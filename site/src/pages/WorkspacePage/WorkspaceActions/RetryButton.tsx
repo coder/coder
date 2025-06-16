@@ -2,7 +2,7 @@ import type { Workspace } from "api/typesGenerated";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
 import { RotateCcwIcon } from "lucide-react";
 import type { FC } from "react";
-import { BuildParametersPopover } from "./BuildParametersPopover";
+import { ConditionalBuildParametersPopover } from "./ConditionalBuildParametersPopover";
 import type { ActionButtonProps } from "./Buttons";
 
 type RetryButtonProps = Omit<ActionButtonProps, "loading"> & {
@@ -29,7 +29,7 @@ export const RetryButton: FC<RetryButtonProps> = ({
 	return (
 		<div className="flex gap-1 items-center">
 			{mainAction}
-			<BuildParametersPopover
+			<ConditionalBuildParametersPopover
 				label="Retry with build parameters"
 				workspace={workspace}
 				onSubmit={handleAction}
