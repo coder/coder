@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/testutil"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -84,7 +86,7 @@ func TestNoPrebuilds(t *testing.T) {
 		preset(true, 0, current),
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, quartz.NewMock(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -107,7 +109,7 @@ func TestNetNew(t *testing.T) {
 		preset(true, 1, current),
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, quartz.NewMock(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -150,7 +152,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the outdated preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
@@ -218,7 +220,7 @@ func TestDeleteOutdatedPrebuilds(t *testing.T) {
 	}
 
 	// WHEN: calculating the outdated preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
@@ -464,7 +466,7 @@ func TestInProgressActions(t *testing.T) {
 			}
 
 			// WHEN: calculating the current preset's state.
-			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t))
+			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 			ps, err := snapshot.FilterByPreset(current.presetID)
 			require.NoError(t, err)
 
@@ -508,7 +510,7 @@ func TestExtraneous(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -690,7 +692,7 @@ func TestExpiredPrebuilds(t *testing.T) {
 			}
 
 			// WHEN: calculating the current preset's state.
-			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, nil, nil, nil, quartz.NewMock(t))
+			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 			ps, err := snapshot.FilterByPreset(current.presetID)
 			require.NoError(t, err)
 
@@ -727,7 +729,7 @@ func TestDeprecated(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -781,7 +783,7 @@ func TestLatestBuildFailed(t *testing.T) {
 	}
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, backoffs, nil, quartz.NewMock(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, backoffs, nil, quartz.NewMock(t), testutil.Logger(t))
 	psCurrent, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -877,7 +879,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		},
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, inProgress, nil, nil, quartz.NewMock(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, inProgress, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 
 	// Nothing has to be created for preset 1.
 	{
@@ -999,7 +1001,7 @@ func TestPrebuildAutoscaling(t *testing.T) {
 				schedule(presets[1].ID, "* 14-16 * * 1-5", 5),
 			}
 
-			snapshot := prebuilds.NewGlobalSnapshot(presets, schedules, nil, nil, nil, nil, clock)
+			snapshot := prebuilds.NewGlobalSnapshot(presets, schedules, nil, nil, nil, nil, clock, testutil.Logger(t))
 
 			// Check 1st preset.
 			{
@@ -1103,10 +1105,17 @@ func TestCalculateDesiredInstances(t *testing.T) {
 		}
 	}
 	mkSnapshot := func(preset database.GetTemplatePresetsWithPrebuildsRow, schedules ...database.TemplateVersionPresetPrebuildSchedule) prebuilds.PresetSnapshot {
-		return prebuilds.PresetSnapshot{
-			Preset:            preset,
-			PrebuildSchedules: schedules,
-		}
+		return prebuilds.NewPresetSnapshot(
+			preset,
+			schedules,
+			nil,
+			nil,
+			nil,
+			nil,
+			false,
+			quartz.NewMock(t),
+			testutil.Logger(t),
+		)
 	}
 
 	testCases := []struct {

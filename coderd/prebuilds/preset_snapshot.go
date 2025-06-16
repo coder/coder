@@ -5,6 +5,7 @@ import (
 	"slices"
 	"time"
 
+	"cdr.dev/slog"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -47,6 +48,31 @@ type PresetSnapshot struct {
 	Backoff           *database.GetPresetsBackoffRow
 	IsHardLimited     bool
 	clock             quartz.Clock
+	logger            slog.Logger
+}
+
+func NewPresetSnapshot(
+	preset database.GetTemplatePresetsWithPrebuildsRow,
+	prebuildSchedules []database.TemplateVersionPresetPrebuildSchedule,
+	running []database.GetRunningPrebuiltWorkspacesRow,
+	expired []database.GetRunningPrebuiltWorkspacesRow,
+	inProgress []database.CountInProgressPrebuildsRow,
+	backoff *database.GetPresetsBackoffRow,
+	isHardLimited bool,
+	clock quartz.Clock,
+	logger slog.Logger,
+) PresetSnapshot {
+	return PresetSnapshot{
+		Preset:            preset,
+		PrebuildSchedules: prebuildSchedules,
+		Running:           running,
+		Expired:           expired,
+		InProgress:        inProgress,
+		Backoff:           backoff,
+		IsHardLimited:     isHardLimited,
+		clock:             clock,
+		logger:            logger,
+	}
 }
 
 // ReconciliationState represents the processed state of a preset's prebuilds,

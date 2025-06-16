@@ -3,6 +3,7 @@ package prebuilds
 import (
 	"time"
 
+	"cdr.dev/slog"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -21,6 +22,7 @@ type GlobalSnapshot struct {
 	Backoffs              []database.GetPresetsBackoffRow
 	HardLimitedPresetsMap map[uuid.UUID]database.GetPresetsAtFailureLimitRow
 	clock                 quartz.Clock
+	logger                slog.Logger
 }
 
 func NewGlobalSnapshot(
@@ -31,6 +33,7 @@ func NewGlobalSnapshot(
 	backoffs []database.GetPresetsBackoffRow,
 	hardLimitedPresets []database.GetPresetsAtFailureLimitRow,
 	clock quartz.Clock,
+	logger slog.Logger,
 ) GlobalSnapshot {
 	hardLimitedPresetsMap := make(map[uuid.UUID]database.GetPresetsAtFailureLimitRow, len(hardLimitedPresets))
 	for _, preset := range hardLimitedPresets {
@@ -45,6 +48,7 @@ func NewGlobalSnapshot(
 		Backoffs:              backoffs,
 		HardLimitedPresetsMap: hardLimitedPresetsMap,
 		clock:                 clock,
+		logger:                logger,
 	}
 }
 
@@ -85,16 +89,19 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 
 	_, isHardLimited := s.HardLimitedPresetsMap[preset.ID]
 
-	return &PresetSnapshot{
-		Preset:            preset,
-		PrebuildSchedules: prebuildSchedules,
-		Running:           nonExpired,
-		Expired:           expired,
-		InProgress:        inProgress,
-		Backoff:           backoffPtr,
-		IsHardLimited:     isHardLimited,
-		clock:             s.clock,
-	}, nil
+	presetSnapshot := NewPresetSnapshot(
+		preset,
+		prebuildSchedules,
+		nonExpired,
+		expired,
+		inProgress,
+		backoffPtr,
+		isHardLimited,
+		s.clock,
+		s.logger,
+	)
+
+	return &presetSnapshot, nil
 }
 
 func (s GlobalSnapshot) IsHardLimited(presetID uuid.UUID) bool {
