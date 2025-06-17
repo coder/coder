@@ -27,15 +27,9 @@ import { Stack } from "components/Stack/Stack";
 import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
+import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
-import {
-	type FC,
-	useCallback,
-	useContext,
-	useEffect,
-	useMemo,
-	useState,
-} from "react";
+import { type FC, useCallback, useEffect, useMemo, useState } from "react";
 import {
 	getFormHelpers,
 	nameValidator,
@@ -47,11 +41,7 @@ import {
 	useValidationSchemaForRichParameters,
 } from "utils/richParameters";
 import * as Yup from "yup";
-import type {
-	CreateWorkspaceMode,
-	ExternalAuthPollingState,
-} from "./CreateWorkspacePage";
-import { ExperimentalFormContext } from "./ExperimentalFormContext";
+import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
@@ -106,7 +96,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	onSubmit,
 	onCancel,
 }) => {
-	const experimentalFormContext = useContext(ExperimentalFormContext);
 	const [owner, setOwner] = useState(defaultOwner);
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
@@ -220,20 +209,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		<Margins size="medium">
 			<PageHeader
 				actions={
-					<>
-						{experimentalFormContext && (
-							<Button
-								size="sm"
-								variant="outline"
-								onClick={experimentalFormContext.toggleOptedOut}
-							>
-								Try out the new workspace creation flow ✨
-							</Button>
-						)}
-						<Button size="sm" variant="outline" onClick={onCancel}>
-							Cancel
-						</Button>
-					</>
+					<Button size="sm" variant="outline" onClick={onCancel}>
+						Cancel
+					</Button>
 				}
 			>
 				<Stack direction="row">

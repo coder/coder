@@ -31,7 +31,7 @@ services:
   database:
     # Minimum supported version is 13.
     # More versions here: https://hub.docker.com/_/postgres
-    image: "postgres:16"
+    image: "postgres:17"
     ports:
       - "5432:5432"
     environment:

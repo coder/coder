@@ -37,8 +37,6 @@ function useSafeSearchParams() {
 }
 
 const WorkspacesPage: FC = () => {
-	const { experiments } = useDashboard();
-	const isDynamicParametersEnabled = experiments.includes("dynamic-parameters");
 	const queryClient = useQueryClient();
 	// If we use a useSearchParams for each hook, the values will not be in sync.
 	// So we have to use a single one, centralizing the values, and pass it to
@@ -166,7 +164,7 @@ const WorkspacesPage: FC = () => {
 				onConfirm={async () => {
 					await batchActions.updateAll({
 						workspaces: checkedWorkspaces,
-						isDynamicParametersEnabled,
+						isDynamicParametersEnabled: false,
 					});
 					setConfirmingBatchAction(null);
 				}}

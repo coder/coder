@@ -92,6 +92,7 @@ message CompletedJob {
     repeated provisioner.Preset presets = 8;
     bytes plan = 9;
     bytes module_files = 10;
+    bytes module_files_hash = 11;
   }
   message TemplateDryRun {
     repeated provisioner.Resource resources = 1;
@@ -153,6 +154,13 @@ message CommitQuotaResponse {
 
 message CancelAcquire {}
 
+message UploadFileRequest {
+  oneof type {
+    provisioner.DataUpload data_upload = 1;
+    provisioner.ChunkPiece chunk_piece = 2;
+  }
+}
+
 service ProvisionerDaemon {
   // AcquireJob requests a job. Implementations should
   // hold a lock on the job until CompleteJob() is
@@ -180,4 +188,8 @@ service ProvisionerDaemon {
 
   // CompleteJob indicates a job has been completed.
   rpc CompleteJob(CompletedJob) returns (Empty);
+
+  // UploadFile streams files to be inserted into the database.
+  // The file upload_type should be used to determine how to handle the file.
+  rpc UploadFile(stream UploadFileRequest) returns (Empty);
 }

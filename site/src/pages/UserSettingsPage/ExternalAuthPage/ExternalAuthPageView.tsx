@@ -27,8 +27,8 @@ import { Loader } from "components/Loader/Loader";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
+import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
 import { EllipsisVertical } from "lucide-react";
-import type { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
 import { type FC, useCallback, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 

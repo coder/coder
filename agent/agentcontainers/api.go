@@ -1062,20 +1062,23 @@ func (api *API) injectSubAgentIntoContainerLocked(ctx context.Context, dc coders
 
 	logger.Info(ctx, "copied agent binary to container")
 
-	// Make sure the agent binary is executable so we can run it.
+	// Make sure the agent binary is executable so we can run it (the
+	// user doesn't matter since we're making it executable for all).
 	if _, err := api.ccli.ExecAs(ctx, container.ID, "root", "chmod", "0755", path.Dir(coderPathInsideContainer), coderPathInsideContainer); err != nil {
 		return xerrors.Errorf("set agent binary executable: %w", err)
-	}
-	// Set the owner of the agent binary to root:root (UID 0, GID 0).
-	if _, err := api.ccli.ExecAs(ctx, container.ID, "root", "chown", "0:0", path.Dir(coderPathInsideContainer), coderPathInsideContainer); err != nil {
-		return xerrors.Errorf("set agent binary owner: %w", err)
 	}
 
 	// Attempt to add CAP_NET_ADMIN to the binary to improve network
 	// performance (optional, allow to fail). See `bootstrap_linux.sh`.
-	if _, err := api.ccli.ExecAs(ctx, container.ID, "root", "setcap", "cap_net_admin+ep", coderPathInsideContainer); err != nil {
-		logger.Warn(ctx, "set CAP_NET_ADMIN on agent binary failed", slog.Error(err))
-	}
+	// TODO(mafredri): Disable for now until we can figure out why this
+	// causes the following error on some images:
+	//
+	//	Image: mcr.microsoft.com/devcontainers/base:ubuntu
+	// 	Error: /.coder-agent/coder: Operation not permitted
+	//
+	// if _, err := api.ccli.ExecAs(ctx, container.ID, "root", "setcap", "cap_net_admin+ep", coderPathInsideContainer); err != nil {
+	// 	logger.Warn(ctx, "set CAP_NET_ADMIN on agent binary failed", slog.Error(err))
+	// }
 
 	// Detect workspace folder by executing `pwd` in the container.
 	// NOTE(mafredri): This is a quick and dirty way to detect the
@@ -1096,6 +1099,36 @@ func (api *API) injectSubAgentIntoContainerLocked(ctx context.Context, dc coders
 		directory = DevcontainerDefaultContainerWorkspaceFolder
 	}
 
+	displayAppsMap := map[codersdk.DisplayApp]bool{
+		// NOTE(DanielleMaywood):
+		// We use the same defaults here as set in terraform-provider-coder.
+		// https://github.com/coder/terraform-provider-coder/blob/c1c33f6d556532e75662c0ca373ed8fdea220eb5/provider/agent.go#L38-L51
+		codersdk.DisplayAppVSCodeDesktop:  true,
+		codersdk.DisplayAppVSCodeInsiders: false,
+		codersdk.DisplayAppWebTerminal:    true,
+		codersdk.DisplayAppSSH:            true,
+		codersdk.DisplayAppPortForward:    true,
+	}
+
+	if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath); err != nil {
+		api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
+	} else {
+		coderCustomization := config.MergedConfiguration.Customizations.Coder
+
+		for _, customization := range coderCustomization {
+			for app, enabled := range customization.DisplayApps {
+				displayAppsMap[app] = enabled
+			}
+		}
+	}
+
+	displayApps := make([]codersdk.DisplayApp, 0, len(displayAppsMap))
+	for app, enabled := range displayAppsMap {
+		if enabled {
+			displayApps = append(displayApps, app)
+		}
+	}
+
 	// The preparation of the subagent is done, now we can create the
 	// subagent record in the database to receive the auth token.
 	createdAgent, err := api.subAgentClient.Create(ctx, SubAgent{
@@ -1103,6 +1136,7 @@ func (api *API) injectSubAgentIntoContainerLocked(ctx context.Context, dc coders
 		Directory:       directory,
 		OperatingSystem: "linux", // Assuming Linux for dev containers.
 		Architecture:    arch,
+		DisplayApps:     displayApps,
 	})
 	if err != nil {
 		return xerrors.Errorf("create agent: %w", err)

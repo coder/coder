@@ -112,6 +112,8 @@ match our `coder_app`’s share option in
 
 - `owner` (Default): The implicit sharing level for all listening ports, only
   visible to the workspace owner
+- `organization`: Accessible by authenticated users in the same organization as
+  the workspace.
 - `authenticated`: Accessible by other authenticated Coder users on the same
   deployment.
 - `public`: Accessible by any user with the associated URL.

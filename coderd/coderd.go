@@ -572,7 +572,7 @@ func New(options *Options) *API {
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
-		FileCache:                   files.NewFromStore(options.Database, options.PrometheusRegistry),
+		FileCache:                   files.NewFromStore(options.Database, options.PrometheusRegistry, options.Authorizer),
 		Experiments:                 experiments,
 		WebpushDispatcher:           options.WebPushDispatcher,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
@@ -1153,9 +1153,6 @@ func New(options *Options) *API {
 			})
 
 			r.Group(func(r chi.Router) {
-				r.Use(
-					httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentDynamicParameters),
-				)
 				r.Route("/dynamic-parameters", func(r chi.Router) {
 					r.Post("/evaluate", api.templateVersionDynamicParametersEvaluate)
 					r.Get("/", api.templateVersionDynamicParametersWebsocket)

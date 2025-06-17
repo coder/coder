@@ -171,7 +171,7 @@ resource "coder_agent" "main" {
 Because Docker is running locally in the Coder server, there is no need to
 authenticate `coder_agent`. But if your `coder_agent` is running on a remote
 host, your template will need
-[authentication credentials](../admin/external-auth.md).
+[authentication credentials](../admin/external-auth/index.md).
 
 This template's agent also runs a startup script, sets environment variables,
 and provides metadata.
@@ -181,7 +181,7 @@ and provides metadata.
   - Installs [code-server](https://coder.com/docs/code-server), a browser-based
     [VS Code](https://code.visualstudio.com/) app that runs in the workspace.
 
-    We'll give users access to code-server through `coder_app`, later.
+    We'll give users access to code-server through `coder_app` later.
 
 - [`env` block](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#env)
 

@@ -366,6 +366,13 @@ message PlanRequest {
   repeated VariableValue variable_values = 3;
   repeated ExternalAuthProvider external_auth_providers = 4;
   repeated RichParameterValue previous_parameter_values = 5;
+
+  // If true, the provisioner can safely assume the caller does not need the
+  // module files downloaded by the `terraform init` command.
+  // Ideally this boolean would be flipped in its truthy value, however for
+  // backwards compatibility reasons, the zero value should be the previous
+  // behavior of downloading the module files.
+  bool omit_module_files = 6;
 }
 
 // PlanComplete indicates a request to plan completed.
@@ -380,6 +387,7 @@ message PlanComplete {
   bytes plan = 9;
   repeated ResourceReplacement resource_replacements = 10;
   bytes module_files = 11;
+  bytes module_files_hash = 12;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
@@ -433,7 +441,37 @@ message Response {
     ParseComplete parse = 2;
     PlanComplete plan = 3;
     ApplyComplete apply = 4;
+    DataUpload data_upload = 5;
+    ChunkPiece chunk_piece = 6;
   }
+}
+
+enum DataUploadType {
+  UPLOAD_TYPE_UNKNOWN = 0;
+  // UPLOAD_TYPE_MODULE_FILES is used to stream over terraform module files.
+  // These files are located in `.terraform/modules` and are used for dynamic
+  // parameters.
+  UPLOAD_TYPE_MODULE_FILES = 1;
+}
+
+message DataUpload {
+  DataUploadType upload_type = 1;
+  // data_hash is the sha256 of the payload to be uploaded.
+  // This is also used to uniquely identify the upload.
+  bytes data_hash = 2;
+  // file_size is the total size of the data being uploaded.
+  int64 file_size = 3;
+  // Number of chunks to be uploaded.
+  int32 chunks = 4;
+}
+
+// ChunkPiece is used to stream over large files (over the 4mb limit).
+message ChunkPiece {
+  bytes data = 1;
+  // full_data_hash should match the hash from the original
+  // DataUpload message
+  bytes full_data_hash = 2;
+  int32 piece_index = 3;
 }
 
 service Provisioner {
