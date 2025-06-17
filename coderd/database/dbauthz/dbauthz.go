@@ -150,6 +150,30 @@ func (q *querier) authorizeContext(ctx context.Context, action policy.Action, ob
 	return nil
 }
 
+// authorizeWorkspace handles authorization for workspace resource types.
+// prebuilt_workspaces are a subset of workspaces, currently limited to
+// supporting delete operations. Therefore, if the action is delete or
+// update and the workspace is a prebuild, a prebuilt-specific authorization
+// is attempted first. If that fails, it falls back to normal workspace
+// authorization.
+// Note: Delete operations of workspaces requires both update and delete
+// permissions.
+func (q *querier) authorizeWorkspace(ctx context.Context, action policy.Action, workspace database.Workspace) error {
+	var prebuiltErr error
+	// Special handling for prebuilt_workspace deletion authorization check
+	if (action == policy.ActionUpdate || action == policy.ActionDelete) && workspace.IsPrebuild() {
+		// Try prebuilt-specific authorization first
+		if prebuiltErr = q.authorizeContext(ctx, action, workspace.AsPrebuild()); prebuiltErr == nil {
+			return nil
+		}
+	}
+	// Fallback to normal workspace authorization check
+	if err := q.authorizeContext(ctx, action, workspace); err != nil {
+		return xerrors.Errorf("authorize context: %w", errors.Join(prebuiltErr, err))
+	}
+	return nil
+}
+
 type authContextKey struct{}
 
 // ActorFromContext returns the authorization subject from the context.
@@ -3915,15 +3939,9 @@ func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertW
 		action = policy.ActionWorkspaceStop
 	}
 
-	if action == policy.ActionDelete && w.IsPrebuild() {
-		if err := q.authorizeContext(ctx, action, w.PrebuildRBAC()); err != nil {
-			// Fallback to normal workspace auth check
-			if err = q.authorizeContext(ctx, action, w); err != nil {
-				return xerrors.Errorf("authorize context: %w", err)
-			}
-		}
-	} else if err = q.authorizeContext(ctx, action, w); err != nil {
-		return xerrors.Errorf("authorize context: %w", err)
+	// Special handling for prebuilt workspace deletion
+	if err := q.authorizeWorkspace(ctx, action, w); err != nil {
+		return err
 	}
 
 	// If we're starting a workspace we need to check the template.
@@ -3962,16 +3980,8 @@ func (q *querier) InsertWorkspaceBuildParameters(ctx context.Context, arg databa
 		return err
 	}
 
-	if workspace.IsPrebuild() {
-		err = q.authorizeContext(ctx, policy.ActionUpdate, workspace.PrebuildRBAC())
-		// Fallback to normal workspace auth check
-		if err != nil {
-			err = q.authorizeContext(ctx, policy.ActionUpdate, workspace)
-		}
-	} else {
-		err = q.authorizeContext(ctx, policy.ActionUpdate, workspace)
-	}
-	if err != nil {
+	// Special handling for prebuilt workspace deletion
+	if err := q.authorizeWorkspace(ctx, policy.ActionUpdate, workspace); err != nil {
 		return err
 	}
 
