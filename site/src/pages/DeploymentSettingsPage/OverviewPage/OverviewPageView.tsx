@@ -1,4 +1,4 @@
-import AlertTitle from "@mui/material/AlertTitle";
+
 import type {
 	DAUsResponse,
 	Experiment,
@@ -15,7 +15,7 @@ import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
 import { useDeploymentOptions } from "utils/deployOptions";
 import { docs } from "utils/docs";
-import { Alert } from "../../../components/Alert/Alert";
+import { Alert, AlertTitle } from "../../../components/Alert/Alert";
 import OptionsTable from "../OptionsTable";
 import { UserEngagementChart } from "./UserEngagementChart";
 

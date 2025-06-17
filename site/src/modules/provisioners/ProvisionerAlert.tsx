@@ -1,6 +1,10 @@
 import type { Theme } from "@emotion/react";
-import AlertTitle from "@mui/material/AlertTitle";
-import { Alert, type AlertColor, AlertDetail } from "components/Alert/Alert";
+import {
+	Alert,
+	type AlertColor,
+	AlertDetail,
+	AlertTitle,
+} from "components/Alert/Alert";
 import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
 import type { FC } from "react";
 export enum AlertVariant {
