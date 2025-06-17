@@ -130,7 +130,7 @@ func WithDevcontainerCLI(dccli DevcontainerCLI) Option {
 }
 
 // WithSubAgentClient sets the SubAgentClient implementation to use.
-// This is used to list, create and delete devcontainer agents.
+// This is used to list, create, and delete devcontainer agents.
 func WithSubAgentClient(client SubAgentClient) Option {
 	return func(api *API) {
 		api.subAgentClient = client
