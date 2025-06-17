@@ -712,6 +712,39 @@ func TestAuthorizeDomain(t *testing.T) {
 
 			{resource: ResourceWorkspace.WithOwner("not-me")},
 		}))
+
+	// Prebuild
+	prebuildUserID := uuid.MustParse("c42fdf75-3097-471c-8c33-fb52454d81c0").String()
+	prebuilder := Subject{
+		ID:    prebuildUserID,
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			{
+				Identifier: RoleIdentifier{Name: "Prebuilder"},
+				Site:       []Permission{},
+				Org: map[string][]Permission{
+					defOrg.String(): Permissions(map[string][]policy.Action{
+						ResourcePrebuiltWorkspace.Type: ResourcePrebuiltWorkspace.AvailableActions(),
+					}),
+				},
+				User: []Permission{},
+			},
+		},
+	}
+
+	testAuthorize(t, "AllWorkspaceActions", prebuilder,
+		cases(func(c authTestCase) authTestCase {
+			c.actions = ResourceWorkspace.AvailableActions()
+			return c
+		}, []authTestCase{
+			// Prebuild cannot access all workspaces
+			{allow: false, resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID)},
+			// They can access their workspaces because of the prebuild user ID
+			{allow: true, resource: ResourceWorkspace.InOrg(defOrg).WithOwner(prebuildUserID)},
+			// Also the prebuild type, although this should never be used directly.
+			{allow: true, resource: ResourcePrebuiltWorkspace.InOrg(defOrg).WithOwner(prebuildUserID)},
+		}),
+	)
 }
 
 // TestAuthorizeLevels ensures level overrides are acting appropriately
