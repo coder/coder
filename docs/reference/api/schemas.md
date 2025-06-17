@@ -9686,6 +9686,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Value      |
 |------------|
 | `working`  |
+| `idle`     |
 | `complete` |
 | `failure`  |
 
