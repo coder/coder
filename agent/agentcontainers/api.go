@@ -404,7 +404,8 @@ func (api *API) Routes() http.Handler {
 	r.Use(ensureInitialUpdateDoneMW)
 
 	r.Get("/", api.handleList)
-	// TODO(mafredri): Simplify this route.
+	// TODO(mafredri): Simplify this route as the previous /devcontainers
+	// /-route was dropped. We can drop the /devcontainers prefix here too.
 	r.Route("/devcontainers", func(r chi.Router) {
 		r.Post("/container/{container}/recreate", api.handleDevcontainerRecreate)
 	})
