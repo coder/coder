@@ -152,7 +152,9 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	});
 
 	// Re-fetch containers when the subAgent changes to ensure data is
-	// in sync.
+	// in sync. This relies on agent updates being pushed to the client
+	// to trigger the re-fetch. That is why we match on name here
+	// instead of ID as we need to fetch to get an up-to-date ID.
 	const latestSubAgentByName = subAgents.find(
 		(agent) => agent.name === devcontainer.name,
 	);
@@ -163,7 +165,12 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 		queryClient.invalidateQueries({
 			queryKey: ["agents", parentAgent.id, "containers"],
 		});
-	}, [latestSubAgentByName, queryClient, parentAgent.id]);
+	}, [
+		latestSubAgentByName?.id,
+		latestSubAgentByName?.status,
+		queryClient,
+		parentAgent.id,
+	]);
 
 	const showDevcontainerControls = subAgent && devcontainer.container;
 	const showSubAgentApps =
