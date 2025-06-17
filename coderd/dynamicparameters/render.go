@@ -26,7 +26,7 @@ type Renderer interface {
 }
 
 var (
-	ErrorTemplateVersionNotReady error = xerrors.New("template version job not finished")
+	ErrorTemplateVersionNotReady = xerrors.New("template version job not finished")
 )
 
 // Loader is used to load the necessary coder objects for rendering a template
@@ -144,10 +144,11 @@ func (r *Loader) dynamicRenderer(ctx context.Context, db database.Store, cache *
 	}
 
 	return &DynamicRenderer{
-		data:       r,
-		templateFS: templateFS,
-		db:         db,
-		plan:       plan,
+		data:         r,
+		templateFS:   templateFS,
+		db:           db,
+		plan:         plan,
+		failedOwners: make(map[uuid.UUID]error),
 		close: func() {
 			cache.Release(r.job.FileID)
 			if moduleFilesFS != nil {
@@ -171,8 +172,14 @@ type DynamicRenderer struct {
 }
 
 func (r *DynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
-	err := r.getWorkspaceOwnerData(ctx, ownerID)
-	if err != nil || r.currentOwner == nil {
+	// Always start with the cached error, if we have one.
+	ownerErr := r.failedOwners[ownerID]
+	if ownerErr == nil {
+		ownerErr = r.getWorkspaceOwnerData(ctx, ownerID)
+	}
+
+	if ownerErr != nil || r.currentOwner == nil {
+		r.failedOwners[ownerID] = ownerErr
 		return nil, hcl.Diagnostics{
 			{
 				Severity: hcl.DiagError,
@@ -199,16 +206,24 @@ func (r *DynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uui
 		return nil // already fetched
 	}
 
-	if r.failedOwners[ownerID] != nil {
-		// previously failed, do not try again
-		return r.failedOwners[ownerID]
-	}
-
 	var g errgroup.Group
 
-	// TODO: @emyrk we should only need read access on the org member, not the
-	//   site wide user object. Figure out a better way to handle this.
-	user, err := r.db.GetUserByID(ctx, ownerID)
+	// You only need to be able to read the organization member to get the owner
+	// data. Only the terraform files can therefore leak more information than the
+	// caller should have access to. All this info should be public assuming you can
+	// read the user though.
+	mem, err := database.ExpectOne(r.db.OrganizationMembers(ctx, database.OrganizationMembersParams{
+		OrganizationID: r.data.templateVersion.OrganizationID,
+		UserID:         ownerID,
+		IncludeSystem:  false,
+	}))
+	if err != nil {
+		return err
+	}
+
+	// User data is required for the form. Org member is checked above
+	// nolint:gocritic
+	user, err := r.db.GetUserByID(dbauthz.AsProvisionerd(ctx), mem.OrganizationMember.UserID)
 	if err != nil {
 		return xerrors.Errorf("fetch user: %w", err)
 	}
@@ -218,7 +233,7 @@ func (r *DynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uui
 		// nolint:gocritic // This is kind of the wrong query to use here, but it
 		// matches how the provisioner currently works. We should figure out
 		// something that needs less escalation but has the correct behavior.
-		row, err := r.db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), ownerID)
+		row, err := r.db.GetAuthorizationUserRoles(dbauthz.AsProvisionerd(ctx), ownerID)
 		if err != nil {
 			return err
 		}
@@ -248,7 +263,7 @@ func (r *DynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uui
 		// The correct public key has to be sent. This will not be leaked
 		// unless the template leaks it.
 		// nolint:gocritic
-		key, err := r.db.GetGitSSHKey(dbauthz.AsSystemRestricted(ctx), ownerID)
+		key, err := r.db.GetGitSSHKey(dbauthz.AsProvisionerd(ctx), ownerID)
 		if err != nil {
 			return err
 		}
@@ -262,7 +277,7 @@ func (r *DynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uui
 		// user, unless the template does it through the parameters. Regardless, we need
 		// the correct groups, and a user might not have read access.
 		// nolint:gocritic
-		groups, err := r.db.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{
+		groups, err := r.db.GetGroups(dbauthz.AsProvisionerd(ctx), database.GetGroupsParams{
 			OrganizationID: r.data.templateVersion.OrganizationID,
 			HasMemberID:    ownerID,
 		})
@@ -282,10 +297,10 @@ func (r *DynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uui
 	}
 
 	r.currentOwner = &previewtypes.WorkspaceOwner{
-		ID:           user.ID.String(),
-		Name:         user.Username,
-		FullName:     user.Name,
-		Email:        user.Email,
+		ID:           mem.OrganizationMember.UserID.String(),
+		Name:         mem.Username,
+		FullName:     mem.Name,
+		Email:        mem.Email,
 		LoginType:    string(user.LoginType),
 		RBACRoles:    ownerRoles,
 		SSHPublicKey: publicKey,

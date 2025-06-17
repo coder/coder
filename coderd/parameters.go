@@ -112,7 +112,6 @@ func (api *API) templateVersionDynamicParameters(listen bool, initial codersdk.D
 		} else {
 			api.handleParameterEvaluate(rw, r, initial, renderer)
 		}
-
 	}
 }
 

@@ -203,11 +203,16 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 			provisionerDaemonVersion: provProto.CurrentVersion.String(),
 			mainTF:                   dynamicParametersTerraformSource,
 			modulesArchive:           modulesArchive,
-			expectWebsocketError:     true,
 		})
-		// This is checked in setupDynamicParamsTest. Just doing this in the
-		// test to make it obvious what this test is doing.
-		require.Zero(t, setup.api.FileCache.Count())
+
+		stream := setup.stream
+		previews := stream.Chan()
+
+		// Assert the failed owner
+		ctx := testutil.Context(t, testutil.WaitShort)
+		preview := testutil.RequireReceive(ctx, t, previews)
+		require.Len(t, preview.Diagnostics, 1)
+		require.Equal(t, preview.Diagnostics[0].Summary, "Failed to fetch workspace owner")
 	})
 
 	t.Run("RebuildParameters", func(t *testing.T) {
