@@ -736,6 +736,7 @@ export interface DeploymentValues {
 	readonly additional_csp_policy?: string;
 	readonly workspace_hostname_suffix?: string;
 	readonly workspace_prebuilds?: PrebuildsConfig;
+	readonly hide_ai_tasks?: boolean;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	readonly address?: string;
