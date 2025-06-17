@@ -186,7 +186,7 @@ func TestRelease(t *testing.T) {
 		for batchIdx := range batchSize {
 			it, err := c.Acquire(ctx, id)
 			require.NoError(t, err)
-			require.Equal(t, emptyFS, it)
+			require.Equal(t, emptyFS, it.FS)
 			releases[id] = append(releases[id], it.Close)
 
 			// Each time a new file is opened, the metrics should be updated as so:
