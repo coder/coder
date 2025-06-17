@@ -992,7 +992,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			logger.Debug(ctx, "container ID changed, injecting subagent into new container",
 				slog.F("old_container_id", proc.containerID),
 			)
-			maybeRecreateSubAgent = true
+			maybeRecreateSubAgent = proc.agent.ID != uuid.Nil
 		}
 
 		// Container ID changed or the subagent process is not running,
@@ -1157,7 +1157,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		subAgentConfig.DisplayApps = displayApps
 	}
 
-	deleteSubAgent := maybeRecreateSubAgent && !proc.agent.EqualConfig(subAgentConfig)
+	deleteSubAgent := proc.agent.ID != uuid.Nil && maybeRecreateSubAgent && !proc.agent.EqualConfig(subAgentConfig)
 	if deleteSubAgent {
 		logger.Debug(ctx, "deleting existing subagent for recreation", slog.F("agent_id", proc.agent.ID))
 		client := *api.subAgentClient.Load()
