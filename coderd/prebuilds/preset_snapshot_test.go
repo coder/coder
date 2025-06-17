@@ -1084,8 +1084,8 @@ func TestCalculateDesiredInstances(t *testing.T) {
 	}
 	mkSchedule := func(cronExpr string, instances int32) database.TemplateVersionPresetPrebuildSchedule {
 		return database.TemplateVersionPresetPrebuildSchedule{
-			CronExpression: cronExpr,
-			Instances:      instances,
+			CronExpression:   cronExpr,
+			DesiredInstances: instances,
 		}
 	}
 	mkSnapshot := func(preset database.GetTemplatePresetsWithPrebuildsRow, schedules ...database.TemplateVersionPresetPrebuildSchedule) prebuilds.PresetSnapshot {
@@ -1430,10 +1430,10 @@ func preset(active bool, instances int32, opts options, muts ...func(row databas
 
 func schedule(presetID uuid.UUID, cronExpr string, instances int32) database.TemplateVersionPresetPrebuildSchedule {
 	return database.TemplateVersionPresetPrebuildSchedule{
-		ID:             uuid.New(),
-		PresetID:       presetID,
-		CronExpression: cronExpr,
-		Instances:      instances,
+		ID:               uuid.New(),
+		PresetID:         presetID,
+		CronExpression:   cronExpr,
+		DesiredInstances: instances,
 	}
 }
 

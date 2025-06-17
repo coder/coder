@@ -614,24 +614,24 @@ func TestPrebuildAutoscaling(t *testing.T) {
 			)
 
 			dbgen.PresetPrebuildSchedule(t, db, database.InsertPresetPrebuildScheduleParams{
-				PresetID:       preset1.ID,
-				CronExpression: "* 2-4 * * 1-5",
-				Instances:      2,
+				PresetID:         preset1.ID,
+				CronExpression:   "* 2-4 * * 1-5",
+				DesiredInstances: 2,
 			})
 			dbgen.PresetPrebuildSchedule(t, db, database.InsertPresetPrebuildScheduleParams{
-				PresetID:       preset1.ID,
-				CronExpression: "* 6-8 * * 1-5",
-				Instances:      3,
+				PresetID:         preset1.ID,
+				CronExpression:   "* 6-8 * * 1-5",
+				DesiredInstances: 3,
 			})
 			dbgen.PresetPrebuildSchedule(t, db, database.InsertPresetPrebuildScheduleParams{
-				PresetID:       preset2.ID,
-				CronExpression: "* 10-12 * * 1-5",
-				Instances:      4,
+				PresetID:         preset2.ID,
+				CronExpression:   "* 10-12 * * 1-5",
+				DesiredInstances: 4,
 			})
 			dbgen.PresetPrebuildSchedule(t, db, database.InsertPresetPrebuildScheduleParams{
-				PresetID:       preset2.ID,
-				CronExpression: "* 14-16 * * 1-5",
-				Instances:      5,
+				PresetID:         preset2.ID,
+				CronExpression:   "* 14-16 * * 1-5",
+				DesiredInstances: 5,
 			})
 
 			err := controller.ReconcileAll(ctx)

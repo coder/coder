@@ -3421,10 +3421,10 @@ type TemplateVersionPresetParameter struct {
 }
 
 type TemplateVersionPresetPrebuildSchedule struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	PresetID       uuid.UUID `db:"preset_id" json:"preset_id"`
-	CronExpression string    `db:"cron_expression" json:"cron_expression"`
-	Instances      int32     `db:"instances" json:"instances"`
+	ID               uuid.UUID `db:"id" json:"id"`
+	PresetID         uuid.UUID `db:"preset_id" json:"preset_id"`
+	CronExpression   string    `db:"cron_expression" json:"cron_expression"`
+	DesiredInstances int32     `db:"desired_instances" json:"desired_instances"`
 }
 
 type TemplateVersionTable struct {

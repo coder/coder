@@ -1500,7 +1500,7 @@ CREATE TABLE template_version_preset_prebuild_schedules (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     preset_id uuid NOT NULL,
     cron_expression text NOT NULL,
-    instances integer NOT NULL
+    desired_instances integer NOT NULL
 );
 
 CREATE TABLE template_version_presets (

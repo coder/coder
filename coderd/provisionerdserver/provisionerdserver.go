@@ -2237,9 +2237,9 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 		if autoscalingEnabled {
 			for _, schedule := range autoscalingSchedules {
 				_, err := tx.InsertPresetPrebuildSchedule(ctx, database.InsertPresetPrebuildScheduleParams{
-					PresetID:       dbPreset.ID,
-					CronExpression: schedule.Cron,
-					Instances:      schedule.Instances,
+					PresetID:         dbPreset.ID,
+					CronExpression:   schedule.Cron,
+					DesiredInstances: schedule.Instances,
 				})
 				if err != nil {
 					return xerrors.Errorf("failed to insert preset prebuild schedule: %w", err)

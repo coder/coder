@@ -6725,7 +6725,7 @@ func (q *sqlQuerier) GetPresetParametersByTemplateVersionID(ctx context.Context,
 }
 
 const getPresetPrebuildSchedules = `-- name: GetPresetPrebuildSchedules :many
-SELECT id, preset_id, cron_expression, instances FROM template_version_preset_prebuild_schedules
+SELECT id, preset_id, cron_expression, desired_instances FROM template_version_preset_prebuild_schedules
 `
 
 func (q *sqlQuerier) GetPresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error) {
@@ -6741,7 +6741,7 @@ func (q *sqlQuerier) GetPresetPrebuildSchedules(ctx context.Context) ([]Template
 			&i.ID,
 			&i.PresetID,
 			&i.CronExpression,
-			&i.Instances,
+			&i.DesiredInstances,
 		); err != nil {
 			return nil, err
 		}
@@ -6900,29 +6900,29 @@ const insertPresetPrebuildSchedule = `-- name: InsertPresetPrebuildSchedule :one
 INSERT INTO template_version_preset_prebuild_schedules (
 	preset_id,
 	cron_expression,
-	instances
+	desired_instances
 )
 VALUES (
 	$1,
 	$2,
 	$3
-) RETURNING id, preset_id, cron_expression, instances
+) RETURNING id, preset_id, cron_expression, desired_instances
 `
 
 type InsertPresetPrebuildScheduleParams struct {
-	PresetID       uuid.UUID `db:"preset_id" json:"preset_id"`
-	CronExpression string    `db:"cron_expression" json:"cron_expression"`
-	Instances      int32     `db:"instances" json:"instances"`
+	PresetID         uuid.UUID `db:"preset_id" json:"preset_id"`
+	CronExpression   string    `db:"cron_expression" json:"cron_expression"`
+	DesiredInstances int32     `db:"desired_instances" json:"desired_instances"`
 }
 
 func (q *sqlQuerier) InsertPresetPrebuildSchedule(ctx context.Context, arg InsertPresetPrebuildScheduleParams) (TemplateVersionPresetPrebuildSchedule, error) {
-	row := q.db.QueryRowContext(ctx, insertPresetPrebuildSchedule, arg.PresetID, arg.CronExpression, arg.Instances)
+	row := q.db.QueryRowContext(ctx, insertPresetPrebuildSchedule, arg.PresetID, arg.CronExpression, arg.DesiredInstances)
 	var i TemplateVersionPresetPrebuildSchedule
 	err := row.Scan(
 		&i.ID,
 		&i.PresetID,
 		&i.CronExpression,
-		&i.Instances,
+		&i.DesiredInstances,
 	)
 	return i, err
 }

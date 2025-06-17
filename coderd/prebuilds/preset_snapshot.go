@@ -180,7 +180,7 @@ func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) int32 {
 			continue
 		}
 		if matches {
-			return schedule.Instances
+			return schedule.DesiredInstances
 		}
 	}
 

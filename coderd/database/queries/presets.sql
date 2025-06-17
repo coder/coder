@@ -31,12 +31,12 @@ RETURNING *;
 INSERT INTO template_version_preset_prebuild_schedules (
 	preset_id,
 	cron_expression,
-	instances
+	desired_instances
 )
 VALUES (
 	@preset_id,
 	@cron_expression,
-	@instances
+	@desired_instances
 ) RETURNING *;
 
 -- name: UpdatePresetPrebuildStatus :exec
