@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -59,7 +60,7 @@ type API struct {
 	dccli                       DevcontainerCLI
 	clock                       quartz.Clock
 	scriptLogger                func(logSourceID uuid.UUID) ScriptLogger
-	subAgentClient              SubAgentClient
+	subAgentClient              atomic.Pointer[SubAgentClient]
 	subAgentURL                 string
 	subAgentEnv                 []string
 
@@ -133,7 +134,7 @@ func WithDevcontainerCLI(dccli DevcontainerCLI) Option {
 // This is used to list, create, and delete devcontainer agents.
 func WithSubAgentClient(client SubAgentClient) Option {
 	return func(api *API) {
-		api.subAgentClient = client
+		api.subAgentClient.Store(&client)
 	}
 }
 
@@ -230,7 +231,6 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 		logger:                      logger,
 		clock:                       quartz.NewReal(),
 		execer:                      agentexec.DefaultExecer,
-		subAgentClient:              noopSubAgentClient{},
 		containerLabelIncludeFilter: make(map[string]string),
 		devcontainerNames:           make(map[string]bool),
 		knownDevcontainers:          make(map[string]codersdk.WorkspaceAgentDevcontainer),
@@ -258,6 +258,10 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 			logger.Error(ctx, "create file watcher service failed", slog.Error(err))
 			api.watcher = watcher.NewNoop()
 		}
+	}
+	if api.subAgentClient.Load() == nil {
+		var c SubAgentClient = noopSubAgentClient{}
+		api.subAgentClient.Store(&c)
 	}
 
 	go api.watcherLoop()
@@ -373,6 +377,11 @@ func (api *API) updaterLoop() {
 			done <- api.updateContainers(api.ctx)
 		}
 	}
+}
+
+// UpdateSubAgentClient updates the `SubAgentClient` for the API.
+func (api *API) UpdateSubAgentClient(client SubAgentClient) {
+	api.subAgentClient.Store(&client)
 }
 
 // Routes returns the HTTP handler for container-related routes.
@@ -623,9 +632,9 @@ func safeFriendlyName(name string) string {
 	return name
 }
 
-// refreshContainers triggers an immediate update of the container list
+// RefreshContainers triggers an immediate update of the container list
 // and waits for it to complete.
-func (api *API) refreshContainers(ctx context.Context) (err error) {
+func (api *API) RefreshContainers(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
 			err = xerrors.Errorf("refresh containers failed: %w", err)
@@ -860,7 +869,7 @@ func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, con
 
 	// Ensure an immediate refresh to accurately reflect the
 	// devcontainer state after recreation.
-	if err := api.refreshContainers(ctx); err != nil {
+	if err := api.RefreshContainers(ctx); err != nil {
 		logger.Error(ctx, "failed to trigger immediate refresh after devcontainer recreation", slog.Error(err))
 	}
 }
@@ -904,7 +913,8 @@ func (api *API) markDevcontainerDirty(configPath string, modifiedAt time.Time) {
 // slate. This method has an internal timeout to prevent blocking
 // indefinitely if something goes wrong with the subagent deletion.
 func (api *API) cleanupSubAgents(ctx context.Context) error {
-	agents, err := api.subAgentClient.List(ctx)
+	client := *api.subAgentClient.Load()
+	agents, err := client.List(ctx)
 	if err != nil {
 		return xerrors.Errorf("list agents: %w", err)
 	}
@@ -927,7 +937,8 @@ func (api *API) cleanupSubAgents(ctx context.Context) error {
 		if injected[agent.ID] {
 			continue
 		}
-		err := api.subAgentClient.Delete(ctx, agent.ID)
+		client := *api.subAgentClient.Load()
+		err := client.Delete(ctx, agent.ID)
 		if err != nil {
 			api.logger.Error(ctx, "failed to delete agent",
 				slog.Error(err),
@@ -1101,7 +1112,8 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 	if proc.agent.ID != uuid.Nil && recreateSubAgent {
 		logger.Debug(ctx, "deleting existing subagent for recreation", slog.F("agent_id", proc.agent.ID))
-		err = api.subAgentClient.Delete(ctx, proc.agent.ID)
+		client := *api.subAgentClient.Load()
+		err = client.Delete(ctx, proc.agent.ID)
 		if err != nil {
 			return xerrors.Errorf("delete existing subagent failed: %w", err)
 		}
@@ -1144,7 +1156,8 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		)
 
 		// Create new subagent record in the database to receive the auth token.
-		proc.agent, err = api.subAgentClient.Create(ctx, SubAgent{
+		client := *api.subAgentClient.Load()
+		proc.agent, err = client.Create(ctx, SubAgent{
 			Name:            dc.Name,
 			Directory:       directory,
 			OperatingSystem: "linux", // Assuming Linux for devcontainers.
@@ -1163,7 +1176,8 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 	if api.closed {
 		deleteCtx, deleteCancel := context.WithTimeout(context.Background(), defaultOperationTimeout)
 		defer deleteCancel()
-		err := api.subAgentClient.Delete(deleteCtx, proc.agent.ID)
+		client := *api.subAgentClient.Load()
+		err := client.Delete(deleteCtx, proc.agent.ID)
 		if err != nil {
 			return xerrors.Errorf("delete existing subagent failed after API closed: %w", err)
 		}
@@ -1249,8 +1263,9 @@ func (api *API) Close() error {
 	// Note: We can't use api.ctx here because it's canceled.
 	deleteCtx, deleteCancel := context.WithTimeout(context.Background(), defaultOperationTimeout)
 	defer deleteCancel()
+	client := *api.subAgentClient.Load()
 	for _, id := range subAgentIDs {
-		err := api.subAgentClient.Delete(deleteCtx, id)
+		err := client.Delete(deleteCtx, id)
 		if err != nil {
 			api.logger.Error(api.ctx, "delete subagent record during shutdown failed",
 				slog.Error(err),
