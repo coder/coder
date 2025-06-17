@@ -68,16 +68,28 @@ determining the nature and scope of the impact.
 
 ### Disable path-based apps
 
-By default, path-based apps are enabled in Coder to make demos and trials easier for new users.
+For production deployments, disable path-based apps.
 
-In production deployments, however, path-based apps reduce security significantly as it allows user workspace apps to be hosted on the same domain as other apps and the Coder API itself in the default region.
+Path-based apps share the same origin as the Coder API.
+This setup is convenient for demos, but can expose the deployment to cross-site-scripting (XSS) attacks in production.
+A malicious workspace could reuse Coder cookies to call the API or interact with other workspaces owned by the same user.
 
-We recommend turning off path-based apps after you have configured and enabled subdomain apps via a wildcard DNS entry.
+1. [Enable sub-domain apps with a wildcard DNS record](../../admin/setup/index.md#wildcard-access-url) (like `*.coder.example.com`)
 
-The impact of having path-based apps enabled is mitigated by default, but we still recommend disabling it to prevent malicious workspaces accessing other workspaces owned by the same user or performing requests against the Coder API:
+1. Disable path-based apps:
 
-- Path-based apps cannot be shared with other users without a special flag `--dangerous-allow-path-app-sharing`
-- Users with the site "owner" role cannot use their admin privileges to access path-based apps for workspace they do not own without a special flag `--dangerous-allow-path-app-site-owner-access`
+   ```shell
+   coderd server --disable-path-apps
+   # or
+   export CODER_DISABLE_PATH_APPS=true
+   ```
+
+By default, Coder mitigates the impact of having path-based apps enabled, but we still recommend disabling it to prevent malicious workspaces accessing other workspaces owned by the same user or performing requests against the Coder API.
+
+If you do keep path-based apps enabled, Coder limits the risk:
+
+- Path-based apps cannot be shared with other users unless you start the Coder server with `--dangerous-allow-path-app-sharing`.
+- Users with the site `owner` role cannot use their admin privileges to access path-based apps for workspace unless the server is started with `--dangerous-allow-path-app-site-owner-access`.
 
 ## PostgreSQL
 
