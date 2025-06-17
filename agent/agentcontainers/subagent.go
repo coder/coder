@@ -181,6 +181,8 @@ func (a *subAgentAPIClient) Create(ctx context.Context, agent SubAgent) (SubAgen
 				share = agentproto.CreateSubAgentRequest_App_OWNER.Enum()
 			case codersdk.WorkspaceAppSharingLevelPublic:
 				share = agentproto.CreateSubAgentRequest_App_PUBLIC.Enum()
+			case codersdk.WorkspaceAppSharingLevelOrganization:
+				share = agentproto.CreateSubAgentRequest_App_ORGANIZATION.Enum()
 			default:
 				return SubAgent{}, xerrors.Errorf("unexpected codersdk.WorkspaceAppSharingLevel: %#v", app.Share)
 			}

@@ -1183,6 +1183,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		slices.Sort(displayApps)
 
 		subAgentConfig.DisplayApps = displayApps
+		subAgentConfig.Apps = apps
 	}
 
 	deleteSubAgent := proc.agent.ID != uuid.Nil && maybeRecreateSubAgent && !proc.agent.EqualConfig(subAgentConfig)
