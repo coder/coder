@@ -3,6 +3,7 @@ package files
 import (
 	"bytes"
 	"context"
+	"io"
 	"io/fs"
 	"sync"
 
@@ -140,20 +141,34 @@ type cacheEntry struct {
 
 type fetcher func(context.Context, uuid.UUID) (CacheEntryValue, error)
 
+var _ fs.FS = (*CloseFS)(nil)
+var _ io.Closer = (*CloseFS)(nil)
+
+// CloseFS is a wrapper around fs.FS that implements io.Closer. The Close()
+// method tells the cache to release the fileID. Once all open references are
+// closed, the file is removed from the cache.
+type CloseFS struct {
+	fs.FS
+
+	close func() error
+}
+
+func (f *CloseFS) Close() error { return f.close() }
+
 // Acquire will load the fs.FS for the given file. It guarantees that parallel
 // calls for the same fileID will only result in one fetch, and that parallel
 // calls for distinct fileIDs will fetch in parallel.
 //
 // Safety: Every call to Acquire that does not return an error must have a
 // matching call to Release.
-func (c *Cache) Acquire(ctx context.Context, fileID uuid.UUID) (fs.FS, error) {
+func (c *Cache) Acquire(ctx context.Context, fileID uuid.UUID) (*CloseFS, error) {
 	// It's important that this `Load` call occurs outside of `prepare`, after the
 	// mutex has been released, or we would continue to hold the lock until the
 	// entire file has been fetched, which may be slow, and would prevent other
 	// files from being fetched in parallel.
 	it, err := c.prepare(ctx, fileID).Load()
 	if err != nil {
-		c.Release(fileID)
+		c.release(fileID)
 		return nil, err
 	}
 
@@ -163,11 +178,20 @@ func (c *Cache) Acquire(ctx context.Context, fileID uuid.UUID) (fs.FS, error) {
 	}
 	// Always check the caller can actually read the file.
 	if err := c.authz.Authorize(ctx, subject, policy.ActionRead, it.Object); err != nil {
-		c.Release(fileID)
+		c.release(fileID)
 		return nil, err
 	}
 
-	return it.FS, err
+	var once sync.Once
+	return &CloseFS{
+		FS: it.FS,
+		close: func() error {
+			// sync.Once makes the Close() idempotent, so we can call it
+			// multiple times without worrying about double-releasing.
+			once.Do(func() { c.release(fileID) })
+			return nil
+		},
+	}, nil
 }
 
 func (c *Cache) prepare(ctx context.Context, fileID uuid.UUID) *lazy.ValueWithError[CacheEntryValue] {
@@ -203,9 +227,12 @@ func (c *Cache) prepare(ctx context.Context, fileID uuid.UUID) *lazy.ValueWithEr
 	return entry.value
 }
 
-// Release decrements the reference count for the given fileID, and frees the
+// release decrements the reference count for the given fileID, and frees the
 // backing data if there are no further references being held.
-func (c *Cache) Release(fileID uuid.UUID) {
+//
+// release should only be called after a successful call to Acquire using the Release()
+// method on the returned *CloseFS.
+func (c *Cache) release(fileID uuid.UUID) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
