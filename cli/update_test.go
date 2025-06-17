@@ -79,6 +79,22 @@ func TestUpdate(t *testing.T) {
 		require.NoError(t, err, "member failed to get workspace they themselves own after update")
 		require.Equal(t, version2.ID.String(), ws.LatestBuild.TemplateVersionID.String(), "workspace must have latest template version after update")
 		require.False(t, ws.Outdated, "workspace must not be outdated after update")
+
+		// Then: the workspace must have been started with the new template version
+		require.Equal(t, int32(3), ws.LatestBuild.BuildNumber, "workspace must have 3 builds after update")
+		require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "latest build must be a start transition")
+
+		// Then: the previous workspace build must be a stop transition with the old
+		// template version.
+		// This is important to ensure that the workspace resources are recreated
+		// correctly. Simply running a start transition with the new template
+		// version may not recreate resources that were changed in the new
+		// template version. This can happen, for example, if a user specifies
+		// ignore_changes in the template.
+		prevBuild, err := member.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(ctx, codersdk.Me, ws.Name, "2")
+		require.NoError(t, err, "failed to get previous workspace build")
+		require.Equal(t, codersdk.WorkspaceTransitionStop, prevBuild.Transition, "previous build must be a stop transition")
+		require.Equal(t, version1.ID.String(), prevBuild.TemplateVersionID.String(), "previous build must have the old template version")
 	})
 }
 
