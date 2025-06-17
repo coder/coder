@@ -141,8 +141,10 @@ type cacheEntry struct {
 
 type fetcher func(context.Context, uuid.UUID) (CacheEntryValue, error)
 
-var _ fs.FS = (*CloseFS)(nil)
-var _ io.Closer = (*CloseFS)(nil)
+var (
+	_ fs.FS     = (*CloseFS)(nil)
+	_ io.Closer = (*CloseFS)(nil)
+)
 
 // CloseFS is a wrapper around fs.FS that implements io.Closer. The Close()
 // method tells the cache to release the fileID. Once all open references are
