@@ -69,7 +69,7 @@ type fakeDevcontainerCLI struct {
 	execErrC       chan func(cmd string, args ...string) error // If set, send fn to return err, nil or close to return execErr.
 	readConfig     agentcontainers.DevcontainerConfig
 	readConfigErr  error
-	readConfigErrC chan func(envs []string) (agentcontainers.DevcontainerConfig, error)
+	readConfigErrC chan func(envs []string) error
 }
 
 func (f *fakeDevcontainerCLI) Up(ctx context.Context, _, _ string, _ ...agentcontainers.DevcontainerCLIUpOptions) (string, error) {
@@ -107,7 +107,7 @@ func (f *fakeDevcontainerCLI) ReadConfig(ctx context.Context, _, _ string, envs 
 			return agentcontainers.DevcontainerConfig{}, ctx.Err()
 		case fn, ok := <-f.readConfigErrC:
 			if ok {
-				return fn(envs)
+				return f.readConfig, fn(envs)
 			}
 		}
 	}
@@ -1255,7 +1255,7 @@ func TestAPI(t *testing.T) {
 			}
 			fakeDCCLI = &fakeDevcontainerCLI{
 				execErrC:       make(chan func(cmd string, args ...string) error, 1),
-				readConfigErrC: make(chan func(envs []string) (agentcontainers.DevcontainerConfig, error), 1),
+				readConfigErrC: make(chan func(envs []string) error, 1),
 			}
 
 			testContainer = codersdk.WorkspaceAgentContainer{
@@ -1304,7 +1304,7 @@ func TestAPI(t *testing.T) {
 				close(fakeSAC.createErrC)
 				close(fakeSAC.deleteErrC)
 				close(fakeDCCLI.execErrC)
-				defer close(fakeDCCLI.readConfigErrC)
+				close(fakeDCCLI.readConfigErrC)
 
 				_ = api.Close()
 			})
@@ -1318,12 +1318,12 @@ func TestAPI(t *testing.T) {
 			assert.Empty(t, args)
 			return nil
 		}) // Exec pwd.
-		testutil.RequireSend(ctx, t, fakeDCCLI.readConfigErrC, func(envs []string) (agentcontainers.DevcontainerConfig, error) {
+		testutil.RequireSend(ctx, t, fakeDCCLI.readConfigErrC, func(envs []string) error {
 			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=test-container")
 			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
 			assert.Contains(t, envs, "CODER_WORKSPACE_OWNER_NAME=test-user")
 			assert.Contains(t, envs, "CODER_DEPLOYMENT_URL=test-subagent-url")
-			return agentcontainers.DevcontainerConfig{}, nil
+			return nil
 		})
 
 		// Make sure the ticker function has been registered
@@ -1465,12 +1465,12 @@ func TestAPI(t *testing.T) {
 			assert.Empty(t, args)
 			return nil
 		}) // Exec pwd.
-		testutil.RequireSend(ctx, t, fakeDCCLI.readConfigErrC, func(envs []string) (agentcontainers.DevcontainerConfig, error) {
+		testutil.RequireSend(ctx, t, fakeDCCLI.readConfigErrC, func(envs []string) error {
 			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=test-container")
 			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
 			assert.Contains(t, envs, "CODER_WORKSPACE_OWNER_NAME=test-user")
 			assert.Contains(t, envs, "CODER_DEPLOYMENT_URL=test-subagent-url")
-			return agentcontainers.DevcontainerConfig{}, nil
+			return nil
 		})
 
 		err = api.RefreshContainers(ctx)
