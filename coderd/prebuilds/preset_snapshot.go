@@ -13,6 +13,8 @@ import (
 
 	"github.com/coder/quartz"
 
+	tf_provider_helpers "github.com/coder/terraform-provider-coder/v2/provider/helpers"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 )
@@ -154,7 +156,7 @@ func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) int32 {
 	for i, schedule := range p.PrebuildSchedules {
 		cronSpecs[i] = schedule.CronExpression
 	}
-	err = cron.ValidateSchedules(cronSpecs)
+	err = tf_provider_helpers.ValidateSchedules(cronSpecs)
 	if err != nil {
 		p.logger.Error(context.Background(), "schedules are invalid or overlap with each other",
 			slog.F("preset_id", p.Preset.ID),
