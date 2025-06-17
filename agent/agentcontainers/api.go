@@ -977,7 +977,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 	)
 
 	// Check if subagent already exists for this devcontainer.
-	recreateSubAgent := false
+	maybeRecreateSubAgent := false
 	proc, injected := api.injectedSubAgentProcs[dc.WorkspaceFolder]
 	if injected {
 		if proc.containerID == container.ID && proc.ctx.Err() == nil {
@@ -992,12 +992,15 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			logger.Debug(ctx, "container ID changed, injecting subagent into new container",
 				slog.F("old_container_id", proc.containerID),
 			)
-			recreateSubAgent = true
+			maybeRecreateSubAgent = true
 		}
 
 		// Container ID changed or the subagent process is not running,
 		// stop the existing subagent context to replace it.
 		proc.stop()
+	} else {
+		// Set SubAgent defaults.
+		proc.agent.OperatingSystem = "linux" // Assuming Linux for devcontainers.
 	}
 
 	// Prepare the subAgentProcess to be used when running the subagent.
@@ -1090,36 +1093,29 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 	// 	logger.Warn(ctx, "set CAP_NET_ADMIN on agent binary failed", slog.Error(err))
 	// }
 
-	// Detect workspace folder by executing `pwd` in the container.
-	// NOTE(mafredri): This is a quick and dirty way to detect the
-	// workspace folder inside the container. In the future we will
-	// rely more on `devcontainer read-configuration`.
-	var pwdBuf bytes.Buffer
-	err = api.dccli.Exec(ctx, dc.WorkspaceFolder, dc.ConfigPath, "pwd", []string{},
-		WithExecOutput(&pwdBuf, io.Discard),
-		WithExecContainerID(container.ID),
-	)
-	if err != nil {
-		return xerrors.Errorf("check workspace folder in container: %w", err)
-	}
-	directory := strings.TrimSpace(pwdBuf.String())
-	if directory == "" {
-		logger.Warn(ctx, "detected workspace folder is empty, using default workspace folder",
-			slog.F("default_workspace_folder", DevcontainerDefaultContainerWorkspaceFolder),
+	subAgentConfig := proc.agent.CloneConfig(dc)
+	if proc.agent.ID == uuid.Nil || maybeRecreateSubAgent {
+		// Detect workspace folder by executing `pwd` in the container.
+		// NOTE(mafredri): This is a quick and dirty way to detect the
+		// workspace folder inside the container. In the future we will
+		// rely more on `devcontainer read-configuration`.
+		var pwdBuf bytes.Buffer
+		err = api.dccli.Exec(ctx, dc.WorkspaceFolder, dc.ConfigPath, "pwd", []string{},
+			WithExecOutput(&pwdBuf, io.Discard),
+			WithExecContainerID(container.ID),
 		)
-		directory = DevcontainerDefaultContainerWorkspaceFolder
-	}
-
-	if proc.agent.ID != uuid.Nil && recreateSubAgent {
-		logger.Debug(ctx, "deleting existing subagent for recreation", slog.F("agent_id", proc.agent.ID))
-		client := *api.subAgentClient.Load()
-		err = client.Delete(ctx, proc.agent.ID)
 		if err != nil {
-			return xerrors.Errorf("delete existing subagent failed: %w", err)
+			return xerrors.Errorf("check workspace folder in container: %w", err)
 		}
-		proc.agent = SubAgent{}
-	}
-	if proc.agent.ID == uuid.Nil {
+		directory := strings.TrimSpace(pwdBuf.String())
+		if directory == "" {
+			logger.Warn(ctx, "detected workspace folder is empty, using default workspace folder",
+				slog.F("default_workspace_folder", DevcontainerDefaultContainerWorkspaceFolder),
+			)
+			directory = DevcontainerDefaultContainerWorkspaceFolder
+		}
+		subAgentConfig.Directory = directory
+
 		displayAppsMap := map[codersdk.DisplayApp]bool{
 			// NOTE(DanielleMaywood):
 			// We use the same defaults here as set in terraform-provider-coder.
@@ -1138,6 +1134,13 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 			for _, customization := range coderCustomization {
 				for app, enabled := range customization.DisplayApps {
+					if _, ok := displayAppsMap[app]; !ok {
+						logger.Warn(ctx, "unknown display app in devcontainer customization, ignoring",
+							slog.F("app", app),
+							slog.F("enabled", enabled),
+						)
+						continue
+					}
 					displayAppsMap[app] = enabled
 				}
 			}
@@ -1149,26 +1152,41 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				displayApps = append(displayApps, app)
 			}
 		}
+		slices.Sort(displayApps)
 
+		subAgentConfig.DisplayApps = displayApps
+	}
+
+	deleteSubAgent := maybeRecreateSubAgent && !proc.agent.EqualConfig(subAgentConfig)
+	if deleteSubAgent {
+		logger.Debug(ctx, "deleting existing subagent for recreation", slog.F("agent_id", proc.agent.ID))
+		client := *api.subAgentClient.Load()
+		err = client.Delete(ctx, proc.agent.ID)
+		if err != nil {
+			return xerrors.Errorf("delete existing subagent failed: %w", err)
+		}
+		proc.agent = SubAgent{} // Clear agent to signal that we need to create a new one.
+	}
+
+	if proc.agent.ID == uuid.Nil {
 		logger.Debug(ctx, "creating new subagent",
-			slog.F("directory", directory),
-			slog.F("display_apps", displayApps),
+			slog.F("directory", subAgentConfig.Directory),
+			slog.F("display_apps", subAgentConfig.DisplayApps),
 		)
 
 		// Create new subagent record in the database to receive the auth token.
 		client := *api.subAgentClient.Load()
-		proc.agent, err = client.Create(ctx, SubAgent{
-			Name:            dc.Name,
-			Directory:       directory,
-			OperatingSystem: "linux", // Assuming Linux for devcontainers.
-			Architecture:    arch,
-			DisplayApps:     displayApps,
-		})
+		newSubAgent, err := client.Create(ctx, subAgentConfig)
 		if err != nil {
 			return xerrors.Errorf("create subagent failed: %w", err)
 		}
+		proc.agent = newSubAgent
 
 		logger.Info(ctx, "created new subagent", slog.F("agent_id", proc.agent.ID))
+	} else {
+		logger.Debug(ctx, "subagent already exists, skipping recreation",
+			slog.F("agent_id", proc.agent.ID),
+		)
 	}
 
 	api.mu.Lock() // Re-lock to update the agent.
