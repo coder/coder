@@ -129,12 +129,11 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 				</div>
 				
 				<Button
-					as={Link}
-					to={parametersPageUrl}
+					asChild
 					css={{ width: "100%" }}
 					onClick={() => popover.setOpen(false)}
 				>
-					Go to Parameters Page
+					<Link to={parametersPageUrl}>Go to Parameters Page</Link>
 				</Button>
 			</div>
 		);

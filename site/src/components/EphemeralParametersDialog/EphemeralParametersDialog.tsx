@@ -40,8 +40,8 @@ export const EphemeralParametersDialog: FC<EphemeralParametersDialogProps> = ({
 			</div>
 			<p>You can continue without setting values for these parameters, or go to the workspace parameters page to configure them.</p>
 			<div style={{ marginTop: "16px" }}>
-				<Button as={Link} to={parametersPageUrl} onClick={onClose}>
-					Go to Parameters Page
+				<Button asChild onClick={onClose}>
+					<Link to={parametersPageUrl}>Go to Parameters Page</Link>
 				</Button>
 			</div>
 		</>
