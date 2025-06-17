@@ -16,6 +16,7 @@ import {
 	type ConfirmDialogProps,
 } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { EphemeralParametersDialog } from "components/EphemeralParametersDialog";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import {
 	WorkspaceUpdateDialogs,
@@ -53,6 +54,13 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		open: boolean;
 		buildParameters?: TypesGen.WorkspaceBuildParameter[];
 	}>({ open: false });
+
+	const [ephemeralParametersDialog, setEphemeralParametersDialog] = useState<{
+		open: boolean;
+		action: 'start' | 'restart';
+		buildParameters?: TypesGen.WorkspaceBuildParameter[];
+		ephemeralParameters: TypesGen.TemplateVersionParameter[];
+	}>({ open: false, action: 'start', ephemeralParameters: [] });
 	const { mutate: mutateRestartWorkspace, isPending: isRestarting } =
 		useMutation({
 			mutationFn: API.restartWorkspace,
@@ -137,6 +145,33 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		},
 	});
 
+	const checkEphemeralParameters = async (
+		action: 'start' | 'restart',
+		buildParameters?: TypesGen.WorkspaceBuildParameter[],
+	) => {
+		// Only check for ephemeral parameters if template doesn't use classic parameter flow
+		if (workspace.template_use_classic_parameter_flow) {
+			return { hasEphemeral: false, ephemeralParameters: [] };
+		}
+
+		try {
+			const dynamicParameters = await API.getDynamicParameters(
+				workspace.latest_build.template_version_id,
+				workspace.owner_id,
+				buildParameters || [],
+			);
+
+			const ephemeralParameters = dynamicParameters.filter(param => param.ephemeral);
+			return {
+				hasEphemeral: ephemeralParameters.length > 0,
+				ephemeralParameters,
+			};
+		} catch (error) {
+			console.error('Error checking ephemeral parameters:', error);
+			return { hasEphemeral: false, ephemeralParameters: [] };
+		}
+	};
+
 	const runLastBuild = (
 		buildParameters: TypesGen.WorkspaceBuildParameter[] | undefined,
 		debug: boolean,
@@ -196,14 +231,34 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				template={template}
 				buildLogs={buildLogs}
 				timings={timingsQuery.data}
-				handleStart={(buildParameters) => {
-					startWorkspaceMutation.mutate({ buildParameters });
+				handleStart={async (buildParameters) => {
+					const { hasEphemeral, ephemeralParameters } = await checkEphemeralParameters('start', buildParameters);
+					if (hasEphemeral) {
+						setEphemeralParametersDialog({
+							open: true,
+							action: 'start',
+							buildParameters,
+							ephemeralParameters,
+						});
+					} else {
+						startWorkspaceMutation.mutate({ buildParameters });
+					}
 				}}
 				handleStop={() => {
 					stopWorkspaceMutation.mutate({});
 				}}
-				handleRestart={(buildParameters) => {
-					setConfirmingRestart({ open: true, buildParameters });
+				handleRestart={async (buildParameters) => {
+					const { hasEphemeral, ephemeralParameters } = await checkEphemeralParameters('restart', buildParameters);
+					if (hasEphemeral) {
+						setEphemeralParametersDialog({
+							open: true,
+							action: 'restart',
+							buildParameters,
+							ephemeralParameters,
+						});
+					} else {
+						setConfirmingRestart({ open: true, buildParameters });
+					}
 				}}
 				handleUpdate={workspaceUpdate.update}
 				handleCancel={cancelBuildMutation.mutate}
@@ -240,6 +295,22 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 						<strong>delete non-persistent data</strong>.
 					</>
 				}
+			/>
+
+			<EphemeralParametersDialog
+				open={ephemeralParametersDialog.open}
+				onClose={() => setEphemeralParametersDialog({ ...ephemeralParametersDialog, open: false })}
+				onContinue={() => {
+					if (ephemeralParametersDialog.action === 'start') {
+						startWorkspaceMutation.mutate({ buildParameters: ephemeralParametersDialog.buildParameters });
+					} else {
+						setConfirmingRestart({ open: true, buildParameters: ephemeralParametersDialog.buildParameters });
+					}
+					setEphemeralParametersDialog({ ...ephemeralParametersDialog, open: false });
+				}}
+				ephemeralParameters={ephemeralParametersDialog.ephemeralParameters}
+				workspaceOwner={workspace.owner_name}
+				workspaceName={workspace.name}
 			/>
 
 			<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />

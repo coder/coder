@@ -315,7 +315,9 @@ export const WorkspaceParametersPageViewExperimental: FC<
 						}
 					>
 						<Spinner loading={isSubmitting} />
-						Update and restart
+						{templateVersionId !== workspace.latest_build.template_version_id
+							? "Update and restart"
+							: "Restart"}
 					</Button>
 				</div>
 			</form>

@@ -1,5 +1,5 @@
 import { useTheme } from "@emotion/react";
-import Button from "@mui/material/Button";
+import { Button } from "components/Button/Button";
 import visuallyHidden from "@mui/utils/visuallyHidden";
 import { API } from "api/api";
 import type {
@@ -28,6 +28,7 @@ import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { docs } from "utils/docs";
+import { Link } from "components/Link/Link";
 import { getFormHelpers } from "utils/formUtils";
 import {
 	type AutofillBuildParameter,
@@ -72,6 +73,7 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 				css={{ ".MuiPaper-root": { width: 304 } }}
 			>
 				<BuildParametersPopoverContent
+					workspace={workspace}
 					ephemeralParameters={ephemeralParameters}
 					buildParameters={parameters?.buildParameters}
 					onSubmit={onSubmit}
@@ -82,18 +84,61 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 };
 
 interface BuildParametersPopoverContentProps {
+	workspace: Workspace;
 	ephemeralParameters?: TemplateVersionParameter[];
 	buildParameters?: WorkspaceBuildParameter[];
 	onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
 }
 
 const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
+	workspace,
 	ephemeralParameters,
 	buildParameters,
 	onSubmit,
 }) => {
 	const theme = useTheme();
 	const popover = usePopover();
+
+	// For templates that don't use classic parameter flow, show different UI
+	if (!workspace.template_use_classic_parameter_flow && ephemeralParameters && ephemeralParameters.length > 0) {
+		const parametersPageUrl = `/@${workspace.owner_name}/${workspace.name}/settings/parameters`;
+		
+		return (
+			<div
+				css={{
+					color: theme.palette.text.secondary,
+					padding: 20,
+				}}
+			>
+				<HelpTooltipTitle>Ephemeral Parameters</HelpTooltipTitle>
+				<HelpTooltipText css={{ marginBottom: 16 }}>
+					This template has ephemeral parameters that must be configured on the workspace parameters page:
+				</HelpTooltipText>
+				
+				<div css={{ marginBottom: 16 }}>
+					{ephemeralParameters.map((param) => (
+						<div key={param.name} css={{ marginBottom: 8 }}>
+							<strong>{param.display_name || param.name}</strong>
+							{param.description && (
+								<div css={{ fontSize: 14, color: theme.palette.text.secondary }}>
+									{param.description}
+								</div>
+							)}
+						</div>
+					))}
+				</div>
+				
+				<Button
+					as={Link}
+					to={parametersPageUrl}
+					css={{ width: "100%" }}
+					onClick={() => popover.setOpen(false)}
+				>
+					Go to Parameters Page
+				</Button>
+			</div>
+		);
+	}
 
 	return (
 		<>
@@ -206,8 +251,6 @@ const Form: FC<FormProps> = ({
 				<Button
 					data-testid="build-parameters-submit"
 					type="submit"
-					variant="contained"
-					color="primary"
 					css={{ width: "100%" }}
 				>
 					Build workspace
