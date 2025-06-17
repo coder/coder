@@ -1397,7 +1397,7 @@ type Template struct {
 	AutostartAllowedDays           []string `json:"autostart_allowed_days"`
 	RequireActiveVersion           bool     `json:"require_active_version"`
 	Deprecated                     bool     `json:"deprecated"`
-	UseClassicParameterFlow        bool     `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
+	UseClassicParameterFlow        bool     `json:"use_classic_parameter_flow"`
 }
 
 type TemplateVersion struct {
