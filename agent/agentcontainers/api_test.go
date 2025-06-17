@@ -1347,14 +1347,11 @@ func TestAPI(t *testing.T) {
 			}
 			return errTestTermination
 		})
-		<-terminated
+		testutil.RequireReceive(ctx, t, terminated)
 
 		t.Log("Waiting for agent reinjection...")
 
 		// Expect the agent to be reinjected.
-		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
-			Containers: []codersdk.WorkspaceAgentContainer{testContainer},
-		}, nil).Times(1) // 1 update.
 		gomock.InOrder(
 			mCCLI.EXPECT().DetectArchitecture(gomock.Any(), "test-container-id").Return(runtime.GOARCH, nil),
 			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
@@ -1362,11 +1359,42 @@ func TestAPI(t *testing.T) {
 			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
 		)
 
-		// Agent reinjection will succeed and we will not re-create the
-		// agent, nor re-probe pwd.
-		err = api.RefreshContainers(ctx)
-		require.NoError(t, err, "refresh containers should not fail")
-		t.Logf("Agents created: %d, deleted: %d", len(fakeSAC.created), len(fakeSAC.deleted))
+		// Verify that the agent has started.
+		agentStarted := make(chan struct{})
+		continueTerminate := make(chan struct{})
+		terminated = make(chan struct{})
+		testutil.RequireSend(ctx, t, fakeDCCLI.execErrC, func(_ string, args ...string) error {
+			defer close(terminated)
+			if len(args) > 0 {
+				assert.Equal(t, "agent", args[0])
+			} else {
+				assert.Fail(t, `want "agent" command argument`)
+			}
+			close(agentStarted)
+			<-continueTerminate
+			return errTestTermination
+		})
+
+	WaitStartLoop:
+		for {
+			// Agent reinjection will succeed and we will not re-create the
+			// agent, nor re-probe pwd.
+			mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+				Containers: []codersdk.WorkspaceAgentContainer{testContainer},
+			}, nil).Times(1) // 1 update.
+			err = api.RefreshContainers(ctx)
+			require.NoError(t, err, "refresh containers should not fail")
+
+			t.Logf("Agents created: %d, deleted: %d", len(fakeSAC.created), len(fakeSAC.deleted))
+
+			select {
+			case <-agentStarted:
+				break WaitStartLoop
+			case <-ctx.Done():
+				t.Fatal("timeout waiting for agent to start")
+			default:
+			}
+		}
 
 		// Verify that the agent was reused.
 		require.Len(t, fakeSAC.created, 1)
@@ -1387,19 +1415,6 @@ func TestAPI(t *testing.T) {
 			mCCLI.EXPECT().ExecAs(gomock.Any(), "new-test-container-id", "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
 		)
 
-		// Terminate the agent and verify it can be reinjected.
-		terminated = make(chan struct{})
-		testutil.RequireSend(ctx, t, fakeDCCLI.execErrC, func(_ string, args ...string) error {
-			defer close(terminated)
-			if len(args) > 0 {
-				assert.Equal(t, "agent", args[0])
-			} else {
-				assert.Fail(t, `want "agent" command argument`)
-			}
-			return errTestTermination
-		})
-		<-terminated
-
 		fakeDCCLI.readConfig.MergedConfiguration.Customizations.Coder = []agentcontainers.CoderCustomization{
 			{
 				DisplayApps: map[codersdk.DisplayApp]bool{
@@ -1411,6 +1426,10 @@ func TestAPI(t *testing.T) {
 				},
 			},
 		}
+
+		// Terminate the running agent.
+		close(continueTerminate)
+		testutil.RequireReceive(ctx, t, terminated)
 
 		// Simulate the agent deletion (this happens because the
 		// devcontainer configuration changed).
