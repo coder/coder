@@ -13,33 +13,41 @@ import (
 
 	archivefs "github.com/coder/coder/v2/archive/fs"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/lazy"
 )
 
 // NewFromStore returns a file cache that will fetch files from the provided
 // database.
-func NewFromStore(store database.Store, registerer prometheus.Registerer) *Cache {
-	fetch := func(ctx context.Context, fileID uuid.UUID) (cacheEntryValue, error) {
-		file, err := store.GetFileByID(ctx, fileID)
+func NewFromStore(store database.Store, registerer prometheus.Registerer, authz rbac.Authorizer) *Cache {
+	fetch := func(ctx context.Context, fileID uuid.UUID) (CacheEntryValue, error) {
+		// Make sure the read does not fail due to authorization issues.
+		// Authz is checked on the Acquire call, so this is safe.
+		//nolint:gocritic
+		file, err := store.GetFileByID(dbauthz.AsFileReader(ctx), fileID)
 		if err != nil {
-			return cacheEntryValue{}, xerrors.Errorf("failed to read file from database: %w", err)
+			return CacheEntryValue{}, xerrors.Errorf("failed to read file from database: %w", err)
 		}
 
 		content := bytes.NewBuffer(file.Data)
-		return cacheEntryValue{
-			FS:   archivefs.FromTarReader(content),
-			size: int64(content.Len()),
+		return CacheEntryValue{
+			Object: file.RBACObject(),
+			FS:     archivefs.FromTarReader(content),
+			Size:   int64(len(file.Data)),
 		}, nil
 	}
 
-	return New(fetch, registerer)
+	return New(fetch, registerer, authz)
 }
 
-func New(fetch fetcher, registerer prometheus.Registerer) *Cache {
+func New(fetch fetcher, registerer prometheus.Registerer, authz rbac.Authorizer) *Cache {
 	return (&Cache{
 		lock:    sync.Mutex{},
 		data:    make(map[uuid.UUID]*cacheEntry),
 		fetcher: fetch,
+		authz:   authz,
 	}).registerMetrics(registerer)
 }
 
@@ -101,6 +109,7 @@ type Cache struct {
 	lock sync.Mutex
 	data map[uuid.UUID]*cacheEntry
 	fetcher
+	authz rbac.Authorizer
 
 	// metrics
 	cacheMetrics
@@ -117,18 +126,19 @@ type cacheMetrics struct {
 	totalCacheSize   prometheus.Counter
 }
 
-type cacheEntryValue struct {
+type CacheEntryValue struct {
 	fs.FS
-	size int64
+	Object rbac.Object
+	Size   int64
 }
 
 type cacheEntry struct {
 	// refCount must only be accessed while the Cache lock is held.
 	refCount int
-	value    *lazy.ValueWithError[cacheEntryValue]
+	value    *lazy.ValueWithError[CacheEntryValue]
 }
 
-type fetcher func(context.Context, uuid.UUID) (cacheEntryValue, error)
+type fetcher func(context.Context, uuid.UUID) (CacheEntryValue, error)
 
 // Acquire will load the fs.FS for the given file. It guarantees that parallel
 // calls for the same fileID will only result in one fetch, and that parallel
@@ -146,22 +156,33 @@ func (c *Cache) Acquire(ctx context.Context, fileID uuid.UUID) (fs.FS, error) {
 		c.Release(fileID)
 		return nil, err
 	}
+
+	subject, ok := dbauthz.ActorFromContext(ctx)
+	if !ok {
+		return nil, dbauthz.ErrNoActor
+	}
+	// Always check the caller can actually read the file.
+	if err := c.authz.Authorize(ctx, subject, policy.ActionRead, it.Object); err != nil {
+		c.Release(fileID)
+		return nil, err
+	}
+
 	return it.FS, err
 }
 
-func (c *Cache) prepare(ctx context.Context, fileID uuid.UUID) *lazy.ValueWithError[cacheEntryValue] {
+func (c *Cache) prepare(ctx context.Context, fileID uuid.UUID) *lazy.ValueWithError[CacheEntryValue] {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
 	entry, ok := c.data[fileID]
 	if !ok {
-		value := lazy.NewWithError(func() (cacheEntryValue, error) {
+		value := lazy.NewWithError(func() (CacheEntryValue, error) {
 			val, err := c.fetcher(ctx, fileID)
 
 			// Always add to the cache size the bytes of the file loaded.
 			if err == nil {
-				c.currentCacheSize.Add(float64(val.size))
-				c.totalCacheSize.Add(float64(val.size))
+				c.currentCacheSize.Add(float64(val.Size))
+				c.totalCacheSize.Add(float64(val.Size))
 			}
 
 			return val, err
@@ -206,7 +227,7 @@ func (c *Cache) Release(fileID uuid.UUID) {
 
 	ev, err := entry.value.Load()
 	if err == nil {
-		c.currentCacheSize.Add(-1 * float64(ev.size))
+		c.currentCacheSize.Add(-1 * float64(ev.Size))
 	}
 
 	delete(c.data, fileID)

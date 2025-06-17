@@ -3354,8 +3354,6 @@ export interface WorkspaceAgentContainer {
 	readonly ports: readonly WorkspaceAgentContainerPort[];
 	readonly status: string;
 	readonly volumes: Record<string, string>;
-	readonly devcontainer_status?: WorkspaceAgentDevcontainerStatus;
-	readonly devcontainer_dirty: boolean;
 }
 
 // From codersdk/workspaceagents.go
@@ -3375,6 +3373,14 @@ export interface WorkspaceAgentDevcontainer {
 	readonly status: WorkspaceAgentDevcontainerStatus;
 	readonly dirty: boolean;
 	readonly container?: WorkspaceAgentContainer;
+	readonly agent?: WorkspaceAgentDevcontainerAgent;
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentDevcontainerAgent {
+	readonly id: string;
+	readonly name: string;
+	readonly directory: string;
 }
 
 // From codersdk/workspaceagents.go
@@ -3386,11 +3392,6 @@ export type WorkspaceAgentDevcontainerStatus =
 
 export const WorkspaceAgentDevcontainerStatuses: WorkspaceAgentDevcontainerStatus[] =
 	["error", "running", "starting", "stopped"];
-
-// From codersdk/workspaceagents.go
-export interface WorkspaceAgentDevcontainersResponse {
-	readonly devcontainers: readonly WorkspaceAgentDevcontainer[];
-}
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentHealth {
@@ -3424,6 +3425,7 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentListContainersResponse {
+	readonly devcontainers: readonly WorkspaceAgentDevcontainer[];
 	readonly containers: readonly WorkspaceAgentContainer[];
 	readonly warnings?: readonly string[];
 }
@@ -3491,10 +3493,15 @@ export interface WorkspaceAgentPortShare {
 }
 
 // From codersdk/workspaceagentportshare.go
-export type WorkspaceAgentPortShareLevel = "authenticated" | "owner" | "public";
+export type WorkspaceAgentPortShareLevel =
+	| "authenticated"
+	| "organization"
+	| "owner"
+	| "public";
 
 export const WorkspaceAgentPortShareLevels: WorkspaceAgentPortShareLevel[] = [
 	"authenticated",
+	"organization",
 	"owner",
 	"public",
 ];
@@ -3584,10 +3591,15 @@ export type WorkspaceAppOpenIn = "slim-window" | "tab";
 export const WorkspaceAppOpenIns: WorkspaceAppOpenIn[] = ["slim-window", "tab"];
 
 // From codersdk/workspaceapps.go
-export type WorkspaceAppSharingLevel = "authenticated" | "owner" | "public";
+export type WorkspaceAppSharingLevel =
+	| "authenticated"
+	| "organization"
+	| "owner"
+	| "public";
 
 export const WorkspaceAppSharingLevels: WorkspaceAppSharingLevel[] = [
 	"authenticated",
+	"organization",
 	"owner",
 	"public",
 ];

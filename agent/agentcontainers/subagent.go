@@ -2,6 +2,7 @@ package agentcontainers
 
 import (
 	"context"
+	"slices"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -21,6 +22,26 @@ type SubAgent struct {
 	Architecture    string
 	OperatingSystem string
 	DisplayApps     []codersdk.DisplayApp
+}
+
+// CloneConfig makes a copy of SubAgent without ID and AuthToken. The
+// name is inherited from the devcontainer.
+func (s SubAgent) CloneConfig(dc codersdk.WorkspaceAgentDevcontainer) SubAgent {
+	return SubAgent{
+		Name:            dc.Name,
+		Directory:       s.Directory,
+		Architecture:    s.Architecture,
+		OperatingSystem: s.OperatingSystem,
+		DisplayApps:     slices.Clone(s.DisplayApps),
+	}
+}
+
+func (s SubAgent) EqualConfig(other SubAgent) bool {
+	return s.Name == other.Name &&
+		s.Directory == other.Directory &&
+		s.Architecture == other.Architecture &&
+		s.OperatingSystem == other.OperatingSystem &&
+		slices.Equal(s.DisplayApps, other.DisplayApps)
 }
 
 // SubAgentClient is an interface for managing sub agents and allows

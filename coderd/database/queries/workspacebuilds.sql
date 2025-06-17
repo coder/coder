@@ -121,10 +121,11 @@ INSERT INTO
 		deadline,
 		max_deadline,
 		reason,
-		template_version_preset_id
+		template_version_preset_id,
+		has_ai_task
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);
 
 -- name: UpdateWorkspaceBuildCostByID :exec
 UPDATE
