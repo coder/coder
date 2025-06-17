@@ -3015,7 +3015,7 @@ export const MockPreviewParameter: TypesGen.PreviewParameter = {
 	value: { valid: true, value: "" },
 	diagnostics: [],
 	options: [],
-	ephemeral: true,
+	ephemeral: false,
 	required: true,
 	icon: "",
 	styling: {},
