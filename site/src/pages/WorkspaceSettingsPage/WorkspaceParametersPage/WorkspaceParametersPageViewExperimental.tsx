@@ -74,9 +74,6 @@ export const WorkspaceParametersPageViewExperimental: FC<
 		validateOnChange: true,
 		validateOnBlur: true,
 	});
-	// Group parameters by ephemeral status
-	const ephemeralParameters = parameters.filter((p) => p.ephemeral);
-	const standardParameters = parameters.filter((p) => !p.ephemeral);
 
 	const disabled =
 		workspace.outdated &&
@@ -204,7 +201,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 			)}
 
 			<form onSubmit={form.handleSubmit} className="flex flex-col gap-8">
-				{standardParameters.length > 0 && (
+				{parameters.length > 0 && (
 					<section className="flex flex-col gap-9">
 						<hgroup>
 							<h2 className="text-xl font-medium mb-0">Parameters</h2>
@@ -220,7 +217,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 								</Link>
 							</p>
 						</hgroup>
-						{standardParameters.map((parameter, index) => {
+						{parameters.map((parameter, index) => {
 							const currentParameterValueIndex =
 								form.values.rich_parameter_values?.findIndex(
 									(p) => p.name === parameter.name,
@@ -260,41 +257,6 @@ export const WorkspaceParametersPageViewExperimental: FC<
 					</section>
 				)}
 
-				{ephemeralParameters.length > 0 && (
-					<section className="flex flex-col gap-6">
-						<hgroup>
-							<h2 className="text-xl font-medium mb-1">Ephemeral Parameters</h2>
-							<p className="text-sm text-content-secondary m-0">
-								These parameters only apply for a single workspace start
-							</p>
-						</hgroup>
-
-						<div className="flex flex-col gap-9">
-							{ephemeralParameters.map((parameter, index) => {
-								const actualIndex = standardParameters.length + index;
-								const parameterField = `rich_parameter_values.${actualIndex}`;
-								const isDisabled =
-									disabled || parameter.styling?.disabled || isSubmitting;
-
-								return (
-									<DynamicParameter
-										key={parameter.name}
-										parameter={parameter}
-										onChange={(value) =>
-											handleChange(parameter, parameterField, value)
-										}
-										autofill={false}
-										disabled={isDisabled}
-										value={
-											form.values?.rich_parameter_values?.[index]?.value || ""
-										}
-									/>
-								);
-							})}
-						</div>
-					</section>
-				)}
-
 				<div className="flex justify-end gap-2">
 					<Button onClick={onCancel} variant="outline">
 						Cancel
@@ -315,9 +277,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 						}
 					>
 						<Spinner loading={isSubmitting} />
-						{templateVersionId !== workspace.latest_build.template_version_id
-							? "Update and restart"
-							: "Restart"}
+						Update and restart
 					</Button>
 				</div>
 			</form>

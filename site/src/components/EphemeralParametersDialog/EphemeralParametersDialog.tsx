@@ -1,8 +1,15 @@
 import type { TemplateVersionParameter } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { Link } from "components/Link/Link";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "components/Dialog/Dialog";
 import type { FC } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface EphemeralParametersDialogProps {
 	open: boolean;
@@ -11,6 +18,7 @@ interface EphemeralParametersDialogProps {
 	ephemeralParameters: TemplateVersionParameter[];
 	workspaceOwner: string;
 	workspaceName: string;
+	templateVersionId: string;
 }
 
 export const EphemeralParametersDialog: FC<EphemeralParametersDialogProps> = ({
@@ -20,42 +28,57 @@ export const EphemeralParametersDialog: FC<EphemeralParametersDialogProps> = ({
 	ephemeralParameters,
 	workspaceOwner,
 	workspaceName,
+	templateVersionId,
 }) => {
-	const parametersPageUrl = `/@${workspaceOwner}/${workspaceName}/settings/parameters`;
+	const navigate = useNavigate();
 
-	const description = (
-		<>
-			<p>This workspace template has ephemeral parameters that will be reset to their default values:</p>
-			<div style={{ margin: "16px 0" }}>
-				{ephemeralParameters.map((param) => (
-					<div key={param.name} style={{ marginBottom: "8px" }}>
-						<strong>{param.display_name || param.name}</strong>
-						{param.description && (
-							<div style={{ fontSize: "14px", color: "#666" }}>
-								{param.description}
-							</div>
-						)}
-					</div>
-				))}
-			</div>
-			<p>You can continue without setting values for these parameters, or go to the workspace parameters page to configure them.</p>
-			<div style={{ marginTop: "16px" }}>
-				<Button asChild onClick={onClose}>
-					<Link to={parametersPageUrl}>Go to Parameters Page</Link>
-				</Button>
-			</div>
-		</>
-	);
+	const handleGoToParameters = () => {
+		onClose();
+		navigate(
+			`/@${workspaceOwner}/${workspaceName}/settings/parameters?templateVersionId=${templateVersionId}`,
+		);
+	};
 
 	return (
-		<ConfirmDialog
-			open={open}
-			onClose={onClose}
-			onConfirm={onContinue}
-			title="Ephemeral Parameters Detected"
-			confirmText="Continue Without Setting"
-			description={description}
-			type="info"
-		/>
+		<Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>Ephemeral Parameters Detected</DialogTitle>
+					<DialogDescription>
+						This workspace template has{" "}
+						<strong className="text-content-primary">
+							{ephemeralParameters.length}
+						</strong>{" "}
+						ephemeral parameters that will be reset to their default values
+					</DialogDescription>
+					<DialogDescription>
+						{ephemeralParameters.map((param) => (
+							<div key={param.name}>
+								<p className="text-content-primary m-0 font-bold">
+									{param.display_name || param.name}
+								</p>
+								{param.description && (
+									<p className="m-0 text-sm text-content-secondary">
+										{param.description}
+									</p>
+								)}
+							</div>
+						))}
+					</DialogDescription>
+					<DialogDescription>
+						Would you like to go to the workspace parameters page to review and
+						update these parameters before continuing?
+					</DialogDescription>
+				</DialogHeader>
+				<DialogFooter>
+					<Button onClick={onContinue} variant="outline">
+						Continue
+					</Button>
+					<Button onClick={handleGoToParameters}>
+						Go to workspace parameters
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
 	);
 };

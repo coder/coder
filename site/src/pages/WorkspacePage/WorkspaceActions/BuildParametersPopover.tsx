@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import { Button } from "components/Button/Button";
 import visuallyHidden from "@mui/utils/visuallyHidden";
 import { API } from "api/api";
 import type {
@@ -7,6 +6,7 @@ import type {
 	Workspace,
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { FormFields } from "components/Form/Form";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
 import {
@@ -27,8 +27,8 @@ import { useFormik } from "formik";
 import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
+import { useNavigate } from "react-router-dom";
 import { docs } from "utils/docs";
-import { Link } from "components/Link/Link";
 import { getFormHelpers } from "utils/formUtils";
 import {
 	type AutofillBuildParameter,
@@ -98,42 +98,47 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 }) => {
 	const theme = useTheme();
 	const popover = usePopover();
+	const navigate = useNavigate();
 
-	// For templates that don't use classic parameter flow, show different UI
-	if (!workspace.template_use_classic_parameter_flow && ephemeralParameters && ephemeralParameters.length > 0) {
-		const parametersPageUrl = `/@${workspace.owner_name}/${workspace.name}/settings/parameters`;
-		
+	if (
+		!workspace.template_use_classic_parameter_flow &&
+		ephemeralParameters &&
+		ephemeralParameters.length > 0
+	) {
+		const handleGoToParameters = () => {
+			popover.setOpen(false);
+			navigate(
+				`/@${workspace.owner_name}/${workspace.name}/settings/parameters`,
+			);
+		};
+
 		return (
-			<div
-				css={{
-					color: theme.palette.text.secondary,
-					padding: 20,
-				}}
-			>
-				<HelpTooltipTitle>Ephemeral Parameters</HelpTooltipTitle>
-				<HelpTooltipText css={{ marginBottom: 16 }}>
-					This template has ephemeral parameters that must be configured on the workspace parameters page:
-				</HelpTooltipText>
-				
-				<div css={{ marginBottom: 16 }}>
+			<div className="flex flex-col gap-4 p-5">
+				<h1 className="text-xl m-0 text-content-primary font-semibold leading-none ">
+					Ephemeral Parameters
+				</h1>
+				<p className="m-0 text-sm text-content-secondary">
+					This template has ephemeral parameters that must be configured on the
+					workspace parameters page
+				</p>
+
+				<div className="flex flex-col gap-2">
 					{ephemeralParameters.map((param) => (
-						<div key={param.name} css={{ marginBottom: 8 }}>
-							<strong>{param.display_name || param.name}</strong>
+						<div key={param.name} className="flex flex-col gap-2">
+							<p className="text-content-primary m-0 font-bold">
+								{param.display_name || param.name}
+							</p>
 							{param.description && (
-								<div css={{ fontSize: 14, color: theme.palette.text.secondary }}>
+								<div className="m-0 text-sm text-content-secondary">
 									{param.description}
 								</div>
 							)}
 						</div>
 					))}
 				</div>
-				
-				<Button
-					asChild
-					css={{ width: "100%" }}
-					onClick={() => popover.setOpen(false)}
-				>
-					<Link to={parametersPageUrl}>Go to Parameters Page</Link>
+
+				<Button className="w-full" onClick={handleGoToParameters}>
+					Go to workspace parameters
 				</Button>
 			</div>
 		);
