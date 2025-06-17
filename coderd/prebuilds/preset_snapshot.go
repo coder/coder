@@ -6,9 +6,10 @@ import (
 	"slices"
 	"time"
 
-	"cdr.dev/slog"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/quartz"
 
