@@ -1,8 +1,7 @@
-import AlertTitle from "@mui/material/AlertTitle";
 import { getErrorDetail, getErrorMessage, getErrorStatus } from "api/errors";
 import type { FC } from "react";
 import { Link } from "../Link/Link";
-import { Alert, AlertDetail, type AlertProps } from "./Alert";
+import { Alert, AlertDetail, AlertTitle, type AlertProps } from "./Alert";
 
 type ErrorAlertProps = Readonly<
 	Omit<AlertProps, "severity" | "children"> & { error: unknown }
