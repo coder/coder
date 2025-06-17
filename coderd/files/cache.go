@@ -35,7 +35,7 @@ func NewFromStore(store database.Store, registerer prometheus.Registerer, authz 
 		return CacheEntryValue{
 			Object: file.RBACObject(),
 			FS:     archivefs.FromTarReader(content),
-			Size:   int64(content.Len()),
+			Size:   int64(len(file.Data)),
 		}, nil
 	}
 
