@@ -6725,7 +6725,18 @@ func (q *sqlQuerier) GetPresetParametersByTemplateVersionID(ctx context.Context,
 }
 
 const getPresetPrebuildSchedules = `-- name: GetPresetPrebuildSchedules :many
-SELECT id, preset_id, cron_expression, desired_instances FROM template_version_preset_prebuild_schedules
+SELECT
+	tvpps.id, tvpps.preset_id, tvpps.cron_expression, tvpps.desired_instances
+FROM
+	template_version_preset_prebuild_schedules tvpps
+		INNER JOIN template_version_presets tvp ON tvp.id = tvpps.preset_id
+		INNER JOIN template_versions tv ON tv.id = tvp.template_version_id
+		INNER JOIN templates t ON t.id = tv.template_id
+WHERE
+	-- Template version is active, and template is not deleted or deprecated
+	tv.id = t.active_version_id
+	AND NOT t.deleted
+	AND t.deprecated = ''
 `
 
 func (q *sqlQuerier) GetPresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error) {

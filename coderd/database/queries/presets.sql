@@ -85,4 +85,15 @@ SELECT tvp.*, tv.template_id, tv.organization_id FROM
 WHERE tvp.id = @preset_id;
 
 -- name: GetPresetPrebuildSchedules :many
-SELECT * FROM template_version_preset_prebuild_schedules;
+SELECT
+	tvpps.*
+FROM
+	template_version_preset_prebuild_schedules tvpps
+		INNER JOIN template_version_presets tvp ON tvp.id = tvpps.preset_id
+		INNER JOIN template_versions tv ON tv.id = tvp.template_version_id
+		INNER JOIN templates t ON t.id = tv.template_id
+WHERE
+	-- Template version is active, and template is not deleted or deprecated
+	tv.id = t.active_version_id
+	AND NOT t.deleted
+	AND t.deprecated = '';
