@@ -194,7 +194,7 @@ func (r *DynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values 
 
 	input := preview.Input{
 		PlanJSON:        r.data.terraformValues.CachedPlan,
-		ParameterValues: map[string]string{},
+		ParameterValues: values,
 		Owner:           *r.currentOwner,
 	}
 
