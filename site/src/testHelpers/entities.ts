@@ -970,38 +970,15 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 	],
 };
 
-export const MockWorkspaceChildAgent: TypesGen.WorkspaceAgent = {
+export const MockWorkspaceSubAgent: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
 	apps: [],
-	architecture: "amd64",
-	created_at: "",
-	environment_variables: {},
-	id: "test-workspace-child-agent",
+	id: "test-workspace-sub-agent",
 	parent_id: "test-workspace-agent",
-	name: "a-workspace-child-agent",
-	operating_system: "linux",
-	resource_id: "",
-	status: "connected",
-	updated_at: "",
-	version: MockBuildInfo.version,
-	api_version: MockBuildInfo.agent_api_version,
-	latency: {
-		"Coder Embedded DERP": {
-			latency_ms: 32.55,
-			preferred: true,
-		},
-	},
-	connection_timeout_seconds: 120,
-	troubleshooting_url: "https://coder.com/troubleshoot",
-	lifecycle_state: "starting",
-	logs_length: 0,
-	logs_overflowed: false,
-	log_sources: [MockWorkspaceAgentLogSource],
+	name: "a-workspace-sub-agent",
+	log_sources: [],
 	scripts: [],
-	startup_script_behavior: "non-blocking",
-	subsystems: ["envbox", "exectrace"],
-	health: {
-		healthy: true,
-	},
+	directory: "/workspace/test",
 	display_apps: [
 		"ssh_helper",
 		"port_forwarding_helper",
@@ -4397,8 +4374,23 @@ export const MockWorkspaceAgentContainer: TypesGen.WorkspaceAgentContainer = {
 	volumes: {
 		"/mnt/volume1": "/volume1",
 	},
-	devcontainer_dirty: false,
 };
+
+export const MockWorkspaceAgentDevcontainer: TypesGen.WorkspaceAgentDevcontainer =
+	{
+		id: "test-devcontainer-id",
+		name: "test-devcontainer",
+		workspace_folder: "/workspace/test",
+		config_path: "/workspace/test/.devcontainer/devcontainer.json",
+		status: "running",
+		dirty: false,
+		container: MockWorkspaceAgentContainer,
+		agent: {
+			id: MockWorkspaceSubAgent.id,
+			name: MockWorkspaceSubAgent.name,
+			directory: MockWorkspaceSubAgent?.directory ?? "/workspace/test",
+		},
+	};
 
 export const MockWorkspaceAppStatuses: TypesGen.WorkspaceAppStatus[] = [
 	{
