@@ -358,7 +358,8 @@ BEGIN
 	JOIN workspace_builds ON workspace_builds.job_id = workspace_resources.job_id
 	WHERE workspace_builds.id = workspace_build_id
 		AND workspace_agents.name = NEW.name
-		AND workspace_agents.id != NEW.id;
+		AND workspace_agents.id != NEW.id
+		AND workspace_agents.deleted = FALSE;  -- Ensure we only count non-deleted agents.
 
 	-- If there's already an agent with this name, raise an error
 	IF agents_with_name > 0 THEN
@@ -1916,6 +1917,7 @@ CREATE TABLE workspace_agents (
     display_order integer DEFAULT 0 NOT NULL,
     parent_id uuid,
     api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
@@ -1943,6 +1945,8 @@ COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the r
 COMMENT ON COLUMN workspace_agents.display_order IS 'Specifies the order in which to display agents in user interfaces.';
 
 COMMENT ON COLUMN workspace_agents.api_key_scope IS 'Defines the scope of the API key associated with the agent. ''all'' allows access to everything, ''no_user_data'' restricts it to exclude user data.';
+
+COMMENT ON COLUMN workspace_agents.deleted IS 'Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.';
 
 CREATE UNLOGGED TABLE workspace_app_audit_sessions (
     agent_id uuid NOT NULL,

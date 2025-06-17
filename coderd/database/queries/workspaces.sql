@@ -303,6 +303,7 @@ WHERE
 				WHERE
 					workspace_resources.job_id = latest_build.provisioner_job_id AND
 					latest_build.transition = 'start'::workspace_transition AND
+					workspace_agents.deleted = FALSE AND
 					@has_agent = (
 						CASE
 							WHEN workspace_agents.first_connected_at IS NULL THEN
@@ -846,7 +847,10 @@ LEFT JOIN LATERAL (
 		workspace_agents.name as agent_name,
 		job_id
 	FROM workspace_resources
-	JOIN workspace_agents ON workspace_agents.resource_id = workspace_resources.id
+	JOIN workspace_agents ON (
+		workspace_agents.resource_id = workspace_resources.id
+		AND workspace_agents.deleted = FALSE
+	)
 	WHERE job_id = latest_build.job_id
 ) resources ON true
 WHERE

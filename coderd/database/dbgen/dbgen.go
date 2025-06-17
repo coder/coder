@@ -209,7 +209,7 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		},
 		ConnectionTimeoutSeconds: takeFirst(orig.ConnectionTimeoutSeconds, 3600),
 		TroubleshootingURL:       takeFirst(orig.TroubleshootingURL, "https://example.com"),
-		MOTDFile:                 takeFirst(orig.TroubleshootingURL, ""),
+		MOTDFile:                 takeFirst(orig.MOTDFile, ""),
 		DisplayApps:              append([]database.DisplayApp{}, orig.DisplayApps...),
 		DisplayOrder:             takeFirst(orig.DisplayOrder, 1),
 		APIKeyScope:              takeFirst(orig.APIKeyScope, database.AgentKeyScopeEnumAll),
@@ -226,6 +226,35 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		})
 		require.NoError(t, err, "update workspace agent first connected at")
 	}
+
+	// Add a test antagonist. For every agent we add a deleted sub agent
+	// to discover cases where deletion should be handled.
+	subAgt, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
+		ID:                       uuid.New(),
+		ParentID:                 uuid.NullUUID{UUID: agt.ID, Valid: true},
+		CreatedAt:                dbtime.Now(),
+		UpdatedAt:                dbtime.Now(),
+		Name:                     testutil.GetRandomName(t),
+		ResourceID:               agt.ResourceID,
+		AuthToken:                uuid.New(),
+		AuthInstanceID:           sql.NullString{},
+		Architecture:             agt.Architecture,
+		EnvironmentVariables:     pqtype.NullRawMessage{},
+		OperatingSystem:          agt.OperatingSystem,
+		Directory:                agt.Directory,
+		InstanceMetadata:         pqtype.NullRawMessage{},
+		ResourceMetadata:         pqtype.NullRawMessage{},
+		ConnectionTimeoutSeconds: agt.ConnectionTimeoutSeconds,
+		TroubleshootingURL:       agt.TroubleshootingURL,
+		MOTDFile:                 "",
+		DisplayApps:              nil,
+		DisplayOrder:             agt.DisplayOrder,
+		APIKeyScope:              agt.APIKeyScope,
+	})
+	require.NoError(t, err, "insert workspace agent subagent antagonist")
+	err = db.DeleteWorkspaceSubAgentByID(genCtx, subAgt.ID)
+	require.NoError(t, err, "delete workspace agent subagent antagonist")
+
 	return agt
 }
 
