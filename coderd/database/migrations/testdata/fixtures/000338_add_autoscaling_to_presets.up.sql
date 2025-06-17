@@ -3,7 +3,7 @@ INSERT INTO
 		id,
 		preset_id,
 		cron_expression,
-		instances
+		desired_instances
 	)
 	VALUES (
 		'e387cac1-9bf1-4fb6-8a34-db8cfb750dd0',
