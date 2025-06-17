@@ -66,6 +66,19 @@ logs (which have `msg: audit_log`) and retain them for a minimum of two years
 If a security incident with Coder does occur, audit logs are invaluable in
 determining the nature and scope of the impact.
 
+### Disable path-based apps
+
+By default, path-based apps are enabled in Coder to make demos and trials easier for new users.
+
+In production deployments, however, path-based apps reduce security significantly as it allows user workspace apps to be hosted on the same domain as other apps and the Coder API itself in the default region.
+
+We recommend turning off path-based apps after you have configured and enabled subdomain apps via a wildcard DNS entry.
+
+The impact of having path-based apps enabled is mitigated by default, but we still recommend disabling it to prevent malicious workspaces accessing other workspaces owned by the same user or performing requests against the Coder API:
+
+- Path-based apps cannot be shared with other users without a special flag `--dangerous-allow-path-app-sharing`
+- Users with the site "owner" role cannot use their admin privileges to access path-based apps for workspace they do not own without a special flag `--dangerous-allow-path-app-site-owner-access`
+
 ## PostgreSQL
 
 PostgreSQL is the persistent datastore underlying the entire Coder deployment.
