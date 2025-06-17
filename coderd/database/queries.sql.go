@@ -6585,6 +6585,49 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 	return items, nil
 }
 
+const getActivePresetPrebuildSchedules = `-- name: GetActivePresetPrebuildSchedules :many
+SELECT
+	tvpps.id, tvpps.preset_id, tvpps.cron_expression, tvpps.desired_instances
+FROM
+	template_version_preset_prebuild_schedules tvpps
+		INNER JOIN template_version_presets tvp ON tvp.id = tvpps.preset_id
+		INNER JOIN template_versions tv ON tv.id = tvp.template_version_id
+		INNER JOIN templates t ON t.id = tv.template_id
+WHERE
+	-- Template version is active, and template is not deleted or deprecated
+	tv.id = t.active_version_id
+	AND NOT t.deleted
+	AND t.deprecated = ''
+`
+
+func (q *sqlQuerier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error) {
+	rows, err := q.db.QueryContext(ctx, getActivePresetPrebuildSchedules)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TemplateVersionPresetPrebuildSchedule
+	for rows.Next() {
+		var i TemplateVersionPresetPrebuildSchedule
+		if err := rows.Scan(
+			&i.ID,
+			&i.PresetID,
+			&i.CronExpression,
+			&i.DesiredInstances,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPresetByID = `-- name: GetPresetByID :one
 SELECT tvp.id, tvp.template_version_id, tvp.name, tvp.created_at, tvp.desired_instances, tvp.invalidate_after_secs, tvp.prebuild_status, tvp.autoscaling_timezone, tv.template_id, tv.organization_id FROM
 	template_version_presets tvp
@@ -6710,49 +6753,6 @@ func (q *sqlQuerier) GetPresetParametersByTemplateVersionID(ctx context.Context,
 			&i.TemplateVersionPresetID,
 			&i.Name,
 			&i.Value,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getPresetPrebuildSchedules = `-- name: GetPresetPrebuildSchedules :many
-SELECT
-	tvpps.id, tvpps.preset_id, tvpps.cron_expression, tvpps.desired_instances
-FROM
-	template_version_preset_prebuild_schedules tvpps
-		INNER JOIN template_version_presets tvp ON tvp.id = tvpps.preset_id
-		INNER JOIN template_versions tv ON tv.id = tvp.template_version_id
-		INNER JOIN templates t ON t.id = tv.template_id
-WHERE
-	-- Template version is active, and template is not deleted or deprecated
-	tv.id = t.active_version_id
-	AND NOT t.deleted
-	AND t.deprecated = ''
-`
-
-func (q *sqlQuerier) GetPresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error) {
-	rows, err := q.db.QueryContext(ctx, getPresetPrebuildSchedules)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []TemplateVersionPresetPrebuildSchedule
-	for rows.Next() {
-		var i TemplateVersionPresetPrebuildSchedule
-		if err := rows.Scan(
-			&i.ID,
-			&i.PresetID,
-			&i.CronExpression,
-			&i.DesiredInstances,
 		); err != nil {
 			return nil, err
 		}

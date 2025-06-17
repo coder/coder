@@ -2764,6 +2764,10 @@ func (q *FakeQuerier) GetAPIKeysLastUsedAfter(_ context.Context, after time.Time
 	return apiKeys, nil
 }
 
+func (q *FakeQuerier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
+	return nil, ErrUnimplemented
+}
+
 // nolint:revive // It's not a control flag, it's a filter.
 func (q *FakeQuerier) GetActiveUserCount(_ context.Context, includeSystem bool) (int64, error) {
 	q.mutex.RLock()
@@ -4367,10 +4371,6 @@ func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, 
 	}
 
 	return parameters, nil
-}
-
-func (q *FakeQuerier) GetPresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
-	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetPresetsAtFailureLimit(ctx context.Context, hardLimit int64) ([]database.GetPresetsAtFailureLimitRow, error) {

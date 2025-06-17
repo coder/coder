@@ -84,7 +84,7 @@ SELECT tvp.*, tv.template_id, tv.organization_id FROM
 	INNER JOIN template_versions tv ON tvp.template_version_id = tv.id
 WHERE tvp.id = @preset_id;
 
--- name: GetPresetPrebuildSchedules :many
+-- name: GetActivePresetPrebuildSchedules :many
 SELECT
 	tvpps.*
 FROM

@@ -366,7 +366,7 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			return nil
 		}
 
-		presetPrebuildSchedules, err := db.GetPresetPrebuildSchedules(ctx)
+		presetPrebuildSchedules, err := db.GetActivePresetPrebuildSchedules(ctx)
 		if err != nil {
 			return xerrors.Errorf("failed to get preset prebuild schedules: %w", err)
 		}

@@ -1686,6 +1686,13 @@ func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Tim
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysLastUsedAfter)(ctx, lastUsed)
 }
 
+func (q *querier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetActivePresetPrebuildSchedules(ctx)
+}
+
 func (q *querier) GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return 0, err
@@ -2303,13 +2310,6 @@ func (q *querier) GetPresetParametersByTemplateVersionID(ctx context.Context, ar
 	}
 
 	return q.db.GetPresetParametersByTemplateVersionID(ctx, args)
-}
-
-func (q *querier) GetPresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate.All()); err != nil {
-		return nil, err
-	}
-	return q.db.GetPresetPrebuildSchedules(ctx)
 }
 
 func (q *querier) GetPresetsAtFailureLimit(ctx context.Context, hardLimit int64) ([]database.GetPresetsAtFailureLimitRow, error) {

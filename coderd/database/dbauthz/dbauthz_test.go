@@ -4936,7 +4936,7 @@ func (s *MethodTestSuite) TestPrebuilds() {
 			Asserts(template.RBACObject(), policy.ActionRead).
 			Returns(insertedParameters)
 	}))
-	s.Run("GetPresetPrebuildSchedules", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetActivePresetPrebuildSchedules", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().
 			Asserts(rbac.ResourceTemplate.All(), policy.ActionRead).
 			Returns([]database.TemplateVersionPresetPrebuildSchedule{}).

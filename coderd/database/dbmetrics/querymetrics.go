@@ -564,6 +564,13 @@ func (m queryMetricsStore) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed
 	return apiKeys, err
 }
 
+func (m queryMetricsStore) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetActivePresetPrebuildSchedules(ctx)
+	m.queryLatencies.WithLabelValues("GetActivePresetPrebuildSchedules").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error) {
 	start := time.Now()
 	count, err := m.s.GetActiveUserCount(ctx, includeSystem)
@@ -1142,13 +1149,6 @@ func (m queryMetricsStore) GetPresetParametersByTemplateVersionID(ctx context.Co
 	start := time.Now()
 	r0, r1 := m.s.GetPresetParametersByTemplateVersionID(ctx, templateVersionID)
 	m.queryLatencies.WithLabelValues("GetPresetParametersByTemplateVersionID").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetPresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetPresetPrebuildSchedules(ctx)
-	m.queryLatencies.WithLabelValues("GetPresetPrebuildSchedules").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

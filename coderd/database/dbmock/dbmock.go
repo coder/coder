@@ -1022,6 +1022,21 @@ func (mr *MockStoreMockRecorder) GetAPIKeysLastUsedAfter(ctx, lastUsed any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAPIKeysLastUsedAfter", reflect.TypeOf((*MockStore)(nil).GetAPIKeysLastUsedAfter), ctx, lastUsed)
 }
 
+// GetActivePresetPrebuildSchedules mocks base method.
+func (m *MockStore) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActivePresetPrebuildSchedules", ctx)
+	ret0, _ := ret[0].([]database.TemplateVersionPresetPrebuildSchedule)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActivePresetPrebuildSchedules indicates an expected call of GetActivePresetPrebuildSchedules.
+func (mr *MockStoreMockRecorder) GetActivePresetPrebuildSchedules(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActivePresetPrebuildSchedules", reflect.TypeOf((*MockStore)(nil).GetActivePresetPrebuildSchedules), ctx)
+}
+
 // GetActiveUserCount mocks base method.
 func (m *MockStore) GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error) {
 	m.ctrl.T.Helper()
@@ -2340,21 +2355,6 @@ func (m *MockStore) GetPresetParametersByTemplateVersionID(ctx context.Context, 
 func (mr *MockStoreMockRecorder) GetPresetParametersByTemplateVersionID(ctx, templateVersionID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPresetParametersByTemplateVersionID", reflect.TypeOf((*MockStore)(nil).GetPresetParametersByTemplateVersionID), ctx, templateVersionID)
-}
-
-// GetPresetPrebuildSchedules mocks base method.
-func (m *MockStore) GetPresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPresetPrebuildSchedules", ctx)
-	ret0, _ := ret[0].([]database.TemplateVersionPresetPrebuildSchedule)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetPresetPrebuildSchedules indicates an expected call of GetPresetPrebuildSchedules.
-func (mr *MockStoreMockRecorder) GetPresetPrebuildSchedules(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPresetPrebuildSchedules", reflect.TypeOf((*MockStore)(nil).GetPresetPrebuildSchedules), ctx)
 }
 
 // GetPresetsAtFailureLimit mocks base method.
