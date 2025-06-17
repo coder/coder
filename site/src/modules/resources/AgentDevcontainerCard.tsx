@@ -159,7 +159,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 		(agent) => agent.name === devcontainer.name,
 	);
 	useEffect(() => {
-		if (!latestSubAgentByName) {
+		if (!latestSubAgentByName?.id || !latestSubAgentByName?.status) {
 			return;
 		}
 		queryClient.invalidateQueries({
