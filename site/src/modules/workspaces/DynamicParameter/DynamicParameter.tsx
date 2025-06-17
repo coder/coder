@@ -36,11 +36,11 @@ import { useDebouncedValue } from "hooks/debounce";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import {
 	CircleAlert,
+	Hourglass,
 	Info,
 	LinkIcon,
 	Settings,
 	TriangleAlert,
-	Hourglass,
 } from "lucide-react";
 import { type FC, useEffect, useId, useRef, useState } from "react";
 import type { AutofillBuildParameter } from "utils/richParameters";
