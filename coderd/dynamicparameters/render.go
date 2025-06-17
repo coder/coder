@@ -2,8 +2,12 @@ package dynamicparameters
 
 import (
 	"context"
+	"encoding/json"
+	"io/fs"
+	"sync"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/apiversion"
@@ -11,10 +15,24 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/preview"
+	previewtypes "github.com/coder/preview/types"
 
 	"github.com/hashicorp/hcl/v2"
 )
 
+type Renderer interface {
+	Render(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics)
+	Close()
+}
+
+var (
+	ErrorTemplateVersionNotReady error = xerrors.New("template version job not finished")
+)
+
+// Loader is used to load the necessary coder objects for rendering a template
+// version's parameters. The output is a Renderer, which is the object that uses
+// the cached objects to render the template version's parameters. Closing the
+// Renderer will release the cached files.
 type Loader struct {
 	templateVersionID uuid.UUID
 
@@ -24,7 +42,7 @@ type Loader struct {
 	terraformValues *database.TemplateVersionTerraformValue
 }
 
-func New(ctx context.Context, versionID uuid.UUID) *Loader {
+func New(versionID uuid.UUID) *Loader {
 	return &Loader{
 		templateVersionID: versionID,
 	}
@@ -70,7 +88,7 @@ func (r *Loader) Load(ctx context.Context, db database.Store) error {
 	}
 
 	if !r.job.CompletedAt.Valid {
-		return xerrors.Errorf("job has not completed")
+		return ErrorTemplateVersionNotReady
 	}
 
 	if r.terraformValues == nil {
@@ -88,11 +106,21 @@ func (r *Loader) loaded() bool {
 	return r.templateVersion != nil && r.job != nil && r.terraformValues != nil
 }
 
-func (r *Loader) Renderer(ctx context.Context, cache *files.Cache) (any, error) {
+func (r *Loader) Renderer(ctx context.Context, db database.Store, cache *files.Cache) (Renderer, error) {
 	if !r.loaded() {
 		return nil, xerrors.New("Load() must be called before Renderer()")
 	}
 
+	if !ProvisionerVersionSupportsDynamicParameters(r.terraformValues.ProvisionerdVersion) {
+		return r.staticRender(ctx, db)
+	}
+
+	return r.dynamicRenderer(ctx, db, cache)
+}
+
+// Renderer caches all the necessary files when rendering a template version's
+// parameters. It must be closed after use to release the cached files.
+func (r *Loader) dynamicRenderer(ctx context.Context, db database.Store, cache *files.Cache) (*DynamicRenderer, error) {
 	// If they can read the template version, then they can read the file.
 	fileCtx := dbauthz.AsFileReader(ctx)
 	templateFS, err := cache.Acquire(fileCtx, r.job.FileID)
@@ -100,11 +128,174 @@ func (r *Loader) Renderer(ctx context.Context, cache *files.Cache) (any, error) 
 		return nil, xerrors.Errorf("acquire template file: %w", err)
 	}
 
+	var moduleFilesFS fs.FS
+	if r.terraformValues.CachedModuleFiles.Valid {
+		moduleFilesFS, err = cache.Acquire(fileCtx, r.terraformValues.CachedModuleFiles.UUID)
+		if err != nil {
+			cache.Release(r.job.FileID)
+			return nil, xerrors.Errorf("acquire module files: %w", err)
+		}
+		templateFS = files.NewOverlayFS(templateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
+	}
+
+	plan := json.RawMessage("{}")
+	if len(r.terraformValues.CachedPlan) > 0 {
+		plan = r.terraformValues.CachedPlan
+	}
+
+	return &DynamicRenderer{
+		data:       r,
+		templateFS: templateFS,
+		db:         db,
+		plan:       plan,
+		close: func() {
+			cache.Release(r.job.FileID)
+			if moduleFilesFS != nil {
+				cache.Release(r.terraformValues.CachedModuleFiles.UUID)
+			}
+		},
+	}, nil
 }
 
-func (r *Loader) Render(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+type DynamicRenderer struct {
+	db         database.Store
+	data       *Loader
+	templateFS fs.FS
+	plan       json.RawMessage
 
-	return nil, nil
+	failedOwners map[uuid.UUID]error
+	currentOwner *previewtypes.WorkspaceOwner
+
+	once  sync.Once
+	close func()
+}
+
+func (r *DynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+	err := r.getWorkspaceOwnerData(ctx, ownerID)
+	if err != nil || r.currentOwner == nil {
+		return nil, hcl.Diagnostics{
+			{
+				Severity: hcl.DiagError,
+				Summary:  "Failed to fetch workspace owner",
+				Detail:   "Please check your permissions or the user may not exist.",
+				Extra: previewtypes.DiagnosticExtra{
+					Code: "owner_not_found",
+				},
+			},
+		}
+	}
+
+	input := preview.Input{
+		PlanJSON:        r.data.terraformValues.CachedPlan,
+		ParameterValues: map[string]string{},
+		Owner:           *r.currentOwner,
+	}
+
+	return preview.Preview(ctx, input, r.templateFS)
+}
+
+func (r *DynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uuid.UUID) error {
+	if r.currentOwner != nil && r.currentOwner.ID == ownerID.String() {
+		return nil // already fetched
+	}
+
+	if r.failedOwners[ownerID] != nil {
+		// previously failed, do not try again
+		return r.failedOwners[ownerID]
+	}
+
+	var g errgroup.Group
+
+	// TODO: @emyrk we should only need read access on the org member, not the
+	//   site wide user object. Figure out a better way to handle this.
+	user, err := r.db.GetUserByID(ctx, ownerID)
+	if err != nil {
+		return xerrors.Errorf("fetch user: %w", err)
+	}
+
+	var ownerRoles []previewtypes.WorkspaceOwnerRBACRole
+	g.Go(func() error {
+		// nolint:gocritic // This is kind of the wrong query to use here, but it
+		// matches how the provisioner currently works. We should figure out
+		// something that needs less escalation but has the correct behavior.
+		row, err := r.db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), ownerID)
+		if err != nil {
+			return err
+		}
+		roles, err := row.RoleNames()
+		if err != nil {
+			return err
+		}
+		ownerRoles = make([]previewtypes.WorkspaceOwnerRBACRole, 0, len(roles))
+		for _, it := range roles {
+			if it.OrganizationID != uuid.Nil && it.OrganizationID != r.data.templateVersion.OrganizationID {
+				continue
+			}
+			var orgID string
+			if it.OrganizationID != uuid.Nil {
+				orgID = it.OrganizationID.String()
+			}
+			ownerRoles = append(ownerRoles, previewtypes.WorkspaceOwnerRBACRole{
+				Name:  it.Name,
+				OrgID: orgID,
+			})
+		}
+		return nil
+	})
+
+	var publicKey string
+	g.Go(func() error {
+		// The correct public key has to be sent. This will not be leaked
+		// unless the template leaks it.
+		// nolint:gocritic
+		key, err := r.db.GetGitSSHKey(dbauthz.AsSystemRestricted(ctx), ownerID)
+		if err != nil {
+			return err
+		}
+		publicKey = key.PublicKey
+		return nil
+	})
+
+	var groupNames []string
+	g.Go(func() error {
+		// The groups need to be sent to preview. These groups are not exposed to the
+		// user, unless the template does it through the parameters. Regardless, we need
+		// the correct groups, and a user might not have read access.
+		// nolint:gocritic
+		groups, err := r.db.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{
+			OrganizationID: r.data.templateVersion.OrganizationID,
+			HasMemberID:    ownerID,
+		})
+		if err != nil {
+			return err
+		}
+		groupNames = make([]string, 0, len(groups))
+		for _, it := range groups {
+			groupNames = append(groupNames, it.Group.Name)
+		}
+		return nil
+	})
+
+	err = g.Wait()
+	if err != nil {
+		return err
+	}
+
+	r.currentOwner = &previewtypes.WorkspaceOwner{
+		ID:           user.ID.String(),
+		Name:         user.Username,
+		FullName:     user.Name,
+		Email:        user.Email,
+		LoginType:    string(user.LoginType),
+		RBACRoles:    ownerRoles,
+		SSHPublicKey: publicKey,
+		Groups:       groupNames,
+	}
+	return nil
+}
+
+func (r *DynamicRenderer) Close() {
+	r.once.Do(r.close)
 }
 
 func ProvisionerVersionSupportsDynamicParameters(version string) bool {
