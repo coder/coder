@@ -51,7 +51,6 @@ func TestMarshalJSONEmpty(t *testing.T) {
 			`{"field":"","mapping":{},"assign_default":false}`,
 			string(output))
 	})
-
 }
 
 func TestParseStringSliceClaim(t *testing.T) {
