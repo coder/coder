@@ -1273,7 +1273,7 @@ func PresetPrebuildSchedule(t testing.TB, db database.Store, seed database.Inser
 		CronExpression: takeFirst(seed.CronExpression, "* 9-18 * * 1-5"),
 		Instances:      takeFirst(seed.Instances, 1),
 	})
-	require.NoError(t, err, "insert preset")
+	require.NoError(t, err, "insert preset prebuild schedule")
 	return schedule
 }
 
