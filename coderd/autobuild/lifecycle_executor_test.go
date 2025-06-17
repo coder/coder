@@ -47,7 +47,7 @@ func TestExecutorAutostartOK(t *testing.T) {
 		})
 	)
 	// Given: workspace is stopped
-	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 	// When: the autobuild executor ticks after the scheduled time
 	go func() {
@@ -105,7 +105,7 @@ func TestMultipleLifecycleExecutors(t *testing.T) {
 	)
 
 	// Have the workspace stopped so we can perform an autostart
-	workspace = coderdtest.MustTransitionWorkspace(t, clientA, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	workspace = coderdtest.MustTransitionWorkspace(t, clientA, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 	// Get both clients to perform a lifecycle execution tick
 	next := sched.Next(workspace.LatestBuild.CreatedAt)
@@ -204,7 +204,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 			)
 			// Given: workspace is stopped
 			workspace = coderdtest.MustTransitionWorkspace(
-				t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+				t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 			orgs, err := client.OrganizationsByUser(ctx, workspace.OwnerID.String())
 			require.NoError(t, err)
@@ -345,7 +345,7 @@ func TestExecutorAutostartNotEnabled(t *testing.T) {
 	require.Empty(t, workspace.AutostartSchedule)
 
 	// Given: workspace is stopped
-	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 	// When: the autobuild executor ticks way into the future
 	go func() {
@@ -385,7 +385,7 @@ func TestExecutorAutostartUserSuspended(t *testing.T) {
 	workspace = coderdtest.MustWorkspace(t, userClient, workspace.ID)
 
 	// Given: workspace is stopped, and the user is suspended.
-	workspace = coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	workspace = coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 
@@ -508,7 +508,7 @@ func TestExecutorAutostopAlreadyStopped(t *testing.T) {
 	)
 
 	// Given: workspace is stopped
-	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 	// When: the autobuild executor ticks past the TTL
 	go func() {
@@ -579,7 +579,7 @@ func TestExecutorWorkspaceDeleted(t *testing.T) {
 	)
 
 	// Given: workspace is deleted
-	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionDelete)
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionDelete)
 
 	// When: the autobuild executor ticks
 	go func() {
@@ -768,7 +768,7 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 		})
 	)
 	// Given: workspace is stopped
-	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 	// When: the autobuild executor ticks past the scheduled time
 	go func() {
@@ -833,7 +833,7 @@ func TestExecutorAutostartWithParameters(t *testing.T) {
 		})
 	)
 	// Given: workspace is stopped
-	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 	// When: the autobuild executor ticks after the scheduled time
 	go func() {
@@ -883,7 +883,7 @@ func TestExecutorAutostartTemplateDisabled(t *testing.T) {
 		})
 	)
 	// Given: workspace is stopped
-	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 	// When: the autobuild executor ticks before the next scheduled time
 	go func() {
@@ -1002,7 +1002,7 @@ func TestExecutorRequireActiveVersion(t *testing.T) {
 		cwr.AutostartSchedule = ptr.Ref(sched.String())
 	})
 	_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, ownerClient, ws.LatestBuild.ID)
-	ws = coderdtest.MustTransitionWorkspace(t, memberClient, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop, func(req *codersdk.CreateWorkspaceBuildRequest) {
+	ws = coderdtest.MustTransitionWorkspace(t, memberClient, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop, func(req *codersdk.CreateWorkspaceBuildRequest) {
 		req.TemplateVersionID = inactiveVersion.ID
 	})
 	require.Equal(t, inactiveVersion.ID, ws.LatestBuild.TemplateVersionID)
@@ -1160,7 +1160,7 @@ func TestNotifications(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
 
 		// Stop workspace
-		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
 
 		// Wait for workspace to become dormant
