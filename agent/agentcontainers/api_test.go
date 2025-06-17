@@ -1347,7 +1347,11 @@ func TestAPI(t *testing.T) {
 			}
 			return errTestTermination
 		})
-		testutil.RequireReceive(ctx, t, terminated)
+		select {
+		case <-ctx.Done():
+			t.Fatal("timeout waiting for agent termination")
+		case <-terminated:
+		}
 
 		t.Log("Waiting for agent reinjection...")
 
@@ -1371,7 +1375,11 @@ func TestAPI(t *testing.T) {
 				assert.Fail(t, `want "agent" command argument`)
 			}
 			close(agentStarted)
-			<-continueTerminate
+			select {
+			case <-ctx.Done():
+				t.Error("timeout waiting for agent continueTerminate")
+			case <-continueTerminate:
+			}
 			return errTestTermination
 		})
 
@@ -1429,7 +1437,11 @@ func TestAPI(t *testing.T) {
 
 		// Terminate the running agent.
 		close(continueTerminate)
-		testutil.RequireReceive(ctx, t, terminated)
+		select {
+		case <-ctx.Done():
+			t.Fatal("timeout waiting for agent termination")
+		case <-terminated:
+		}
 
 		// Simulate the agent deletion (this happens because the
 		// devcontainer configuration changed).
