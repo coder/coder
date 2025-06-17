@@ -64,6 +64,24 @@ export const IdleState: Story = {
 		]),
 	},
 };
+
+export const NoMessage: Story = {
+	args: {
+		agent: mockAgent([
+			{
+				...MockWorkspaceAppStatus,
+				id: "status-8",
+				icon: "",
+				message: "",
+				created_at: createTimestamp(5, 20),
+				uri: "",
+				state: "idle" as const,
+			},
+			...MockWorkspaceAppStatuses,
+		]),
+	},
+};
+
 export const LongStatusText: Story = {
 	args: {
 		agent: mockAgent([

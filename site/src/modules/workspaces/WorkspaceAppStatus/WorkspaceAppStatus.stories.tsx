@@ -49,6 +49,16 @@ export const Idle: Story = {
 	},
 };
 
+export const NoMessage: Story = {
+	args: {
+		status: {
+			...MockWorkspaceAppStatus,
+			state: "idle",
+			message: "",
+		},
+	},
+};
+
 export const LongMessage: Story = {
 	args: {
 		status: {
