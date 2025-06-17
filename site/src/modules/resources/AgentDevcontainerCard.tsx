@@ -116,7 +116,6 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							if (dc.id === devcontainer.id) {
 								return {
 									...dc,
-									agent: null,
 									container: null,
 									status: "starting",
 								};
