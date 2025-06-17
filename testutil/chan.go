@@ -3,6 +3,9 @@ package testutil
 import (
 	"context"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TryReceive will attempt to receive a value from the chan and return it. If
@@ -14,7 +17,7 @@ func TryReceive[A any](ctx context.Context, t testing.TB, c <-chan A) A {
 	t.Helper()
 	select {
 	case <-ctx.Done():
-		t.Fatal("timeout")
+		require.Fail(t, "TryReceive: context expired")
 		var a A
 		return a
 	case a := <-c:
@@ -31,12 +34,12 @@ func RequireReceive[A any](ctx context.Context, t testing.TB, c <-chan A) A {
 	t.Helper()
 	select {
 	case <-ctx.Done():
-		t.Fatal("timeout")
+		require.Fail(t, "RequireReceive: context expired")
 		var a A
 		return a
 	case a, ok := <-c:
 		if !ok {
-			t.Fatal("channel closed")
+			require.Fail(t, "RequireReceive: channel closed")
 		}
 		return a
 	}
@@ -50,7 +53,7 @@ func RequireSend[A any](ctx context.Context, t testing.TB, c chan<- A, a A) {
 	t.Helper()
 	select {
 	case <-ctx.Done():
-		t.Fatal("timeout")
+		require.Fail(t, "RequireSend: context expired")
 	case c <- a:
 		// OK!
 	}
@@ -68,7 +71,7 @@ func SoftTryReceive[A any](ctx context.Context, t testing.TB, c <-chan A) (A, bo
 	t.Helper()
 	select {
 	case <-ctx.Done():
-		t.Error("timeout")
+		assert.Fail(t, "SoftTryReceive: context expired")
 		var a A
 		return a, false
 	case a := <-c:
@@ -86,12 +89,12 @@ func AssertReceive[A any](ctx context.Context, t testing.TB, c <-chan A) (A, boo
 	t.Helper()
 	select {
 	case <-ctx.Done():
-		t.Error("timeout")
+		assert.Fail(t, "AssertReceive: context expired")
 		var a A
 		return a, false
 	case a, ok := <-c:
 		if !ok {
-			t.Error("channel closed")
+			assert.Fail(t, "AssertReceive: channel closed")
 		}
 		return a, ok
 	}
@@ -107,7 +110,7 @@ func AssertSend[A any](ctx context.Context, t testing.TB, c chan<- A, a A) bool 
 	t.Helper()
 	select {
 	case <-ctx.Done():
-		t.Error("timeout")
+		assert.Fail(t, "AssertSend: context expired")
 		return false
 	case c <- a:
 		return true
