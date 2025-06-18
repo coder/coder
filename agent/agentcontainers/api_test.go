@@ -26,7 +26,6 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
 	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -1629,31 +1628,31 @@ func TestAPI(t *testing.T) {
 						Apps: []agentcontainers.SubAgentApp{
 							{
 								Slug:        "web-app",
-								DisplayName: ptr.Ref("Web Application"),
-								URL:         ptr.Ref("http://localhost:8080"),
-								OpenIn:      ptr.Ref(codersdk.WorkspaceAppOpenInTab),
-								Share:       ptr.Ref(codersdk.WorkspaceAppSharingLevelOwner),
-								Icon:        ptr.Ref("/icons/web.svg"),
-								Order:       ptr.Ref(int32(1)),
+								DisplayName: "Web Application",
+								URL:         "http://localhost:8080",
+								OpenIn:      codersdk.WorkspaceAppOpenInTab,
+								Share:       codersdk.WorkspaceAppSharingLevelOwner,
+								Icon:        "/icons/web.svg",
+								Order:       int32(1),
 							},
 							{
 								Slug:        "api-server",
-								DisplayName: ptr.Ref("API Server"),
-								URL:         ptr.Ref("http://localhost:3000"),
-								OpenIn:      ptr.Ref(codersdk.WorkspaceAppOpenInSlimWindow),
-								Share:       ptr.Ref(codersdk.WorkspaceAppSharingLevelAuthenticated),
-								Icon:        ptr.Ref("/icons/api.svg"),
-								Order:       ptr.Ref(int32(2)),
-								Hidden:      ptr.Ref(true),
+								DisplayName: "API Server",
+								URL:         "http://localhost:3000",
+								OpenIn:      codersdk.WorkspaceAppOpenInSlimWindow,
+								Share:       codersdk.WorkspaceAppSharingLevelAuthenticated,
+								Icon:        "/icons/api.svg",
+								Order:       int32(2),
+								Hidden:      true,
 							},
 							{
 								Slug:        "docs",
-								DisplayName: ptr.Ref("Documentation"),
-								URL:         ptr.Ref("http://localhost:4000"),
-								OpenIn:      ptr.Ref(codersdk.WorkspaceAppOpenInTab),
-								Share:       ptr.Ref(codersdk.WorkspaceAppSharingLevelPublic),
-								Icon:        ptr.Ref("/icons/book.svg"),
-								Order:       ptr.Ref(int32(3)),
+								DisplayName: "Documentation",
+								URL:         "http://localhost:4000",
+								OpenIn:      codersdk.WorkspaceAppOpenInTab,
+								Share:       codersdk.WorkspaceAppSharingLevelPublic,
+								Icon:        "/icons/book.svg",
+								Order:       int32(3),
 							},
 						},
 					},
@@ -1663,31 +1662,31 @@ func TestAPI(t *testing.T) {
 
 					// Verify first app
 					assert.Equal(t, "web-app", subAgent.Apps[0].Slug)
-					assert.Equal(t, "Web Application", *subAgent.Apps[0].DisplayName)
-					assert.Equal(t, "http://localhost:8080", *subAgent.Apps[0].URL)
-					assert.Equal(t, codersdk.WorkspaceAppOpenInTab, *subAgent.Apps[0].OpenIn)
-					assert.Equal(t, codersdk.WorkspaceAppSharingLevelOwner, *subAgent.Apps[0].Share)
-					assert.Equal(t, "/icons/web.svg", *subAgent.Apps[0].Icon)
-					assert.Equal(t, int32(1), *subAgent.Apps[0].Order)
+					assert.Equal(t, "Web Application", subAgent.Apps[0].DisplayName)
+					assert.Equal(t, "http://localhost:8080", subAgent.Apps[0].URL)
+					assert.Equal(t, codersdk.WorkspaceAppOpenInTab, subAgent.Apps[0].OpenIn)
+					assert.Equal(t, codersdk.WorkspaceAppSharingLevelOwner, subAgent.Apps[0].Share)
+					assert.Equal(t, "/icons/web.svg", subAgent.Apps[0].Icon)
+					assert.Equal(t, int32(1), subAgent.Apps[0].Order)
 
 					// Verify second app
 					assert.Equal(t, "api-server", subAgent.Apps[1].Slug)
-					assert.Equal(t, "API Server", *subAgent.Apps[1].DisplayName)
-					assert.Equal(t, "http://localhost:3000", *subAgent.Apps[1].URL)
-					assert.Equal(t, codersdk.WorkspaceAppOpenInSlimWindow, *subAgent.Apps[1].OpenIn)
-					assert.Equal(t, codersdk.WorkspaceAppSharingLevelAuthenticated, *subAgent.Apps[1].Share)
-					assert.Equal(t, "/icons/api.svg", *subAgent.Apps[1].Icon)
-					assert.Equal(t, int32(2), *subAgent.Apps[1].Order)
-					assert.Equal(t, true, *subAgent.Apps[1].Hidden)
+					assert.Equal(t, "API Server", subAgent.Apps[1].DisplayName)
+					assert.Equal(t, "http://localhost:3000", subAgent.Apps[1].URL)
+					assert.Equal(t, codersdk.WorkspaceAppOpenInSlimWindow, subAgent.Apps[1].OpenIn)
+					assert.Equal(t, codersdk.WorkspaceAppSharingLevelAuthenticated, subAgent.Apps[1].Share)
+					assert.Equal(t, "/icons/api.svg", subAgent.Apps[1].Icon)
+					assert.Equal(t, int32(2), subAgent.Apps[1].Order)
+					assert.Equal(t, true, subAgent.Apps[1].Hidden)
 
 					// Verify third app
 					assert.Equal(t, "docs", subAgent.Apps[2].Slug)
-					assert.Equal(t, "Documentation", *subAgent.Apps[2].DisplayName)
-					assert.Equal(t, "http://localhost:4000", *subAgent.Apps[2].URL)
-					assert.Equal(t, codersdk.WorkspaceAppOpenInTab, *subAgent.Apps[2].OpenIn)
-					assert.Equal(t, codersdk.WorkspaceAppSharingLevelPublic, *subAgent.Apps[2].Share)
-					assert.Equal(t, "/icons/book.svg", *subAgent.Apps[2].Icon)
-					assert.Equal(t, int32(3), *subAgent.Apps[2].Order)
+					assert.Equal(t, "Documentation", subAgent.Apps[2].DisplayName)
+					assert.Equal(t, "http://localhost:4000", subAgent.Apps[2].URL)
+					assert.Equal(t, codersdk.WorkspaceAppOpenInTab, subAgent.Apps[2].OpenIn)
+					assert.Equal(t, codersdk.WorkspaceAppSharingLevelPublic, subAgent.Apps[2].Share)
+					assert.Equal(t, "/icons/book.svg", subAgent.Apps[2].Icon)
+					assert.Equal(t, int32(3), subAgent.Apps[2].Order)
 				},
 			},
 		}

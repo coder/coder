@@ -47,19 +47,81 @@ func (s SubAgent) EqualConfig(other SubAgent) bool {
 }
 
 type SubAgentApp struct {
-	Slug        string                             `json:"slug"`
-	Command     *string                            `json:"command"`
-	DisplayName *string                            `json:"displayName"`
-	External    *bool                              `json:"external"`
-	Group       *string                            `json:"group"`
-	HealthCheck *SubAgentHealthCheck               `json:"healthCheck"`
-	Hidden      *bool                              `json:"hidden"`
-	Icon        *string                            `json:"icon"`
-	OpenIn      *codersdk.WorkspaceAppOpenIn       `json:"openIn"`
-	Order       *int32                             `json:"order"`
-	Share       *codersdk.WorkspaceAppSharingLevel `json:"share"`
-	Subdomain   *bool                              `json:"subdomain"`
-	URL         *string                            `json:"url"`
+	Slug        string                            `json:"slug"`
+	Command     string                            `json:"command"`
+	DisplayName string                            `json:"displayName"`
+	External    bool                              `json:"external"`
+	Group       string                            `json:"group"`
+	HealthCheck SubAgentHealthCheck               `json:"healthCheck"`
+	Hidden      bool                              `json:"hidden"`
+	Icon        string                            `json:"icon"`
+	OpenIn      codersdk.WorkspaceAppOpenIn       `json:"openIn"`
+	Order       int32                             `json:"order"`
+	Share       codersdk.WorkspaceAppSharingLevel `json:"share"`
+	Subdomain   bool                              `json:"subdomain"`
+	URL         string                            `json:"url"`
+}
+
+func (app SubAgentApp) ToProtoApp() (*agentproto.CreateSubAgentRequest_App, error) {
+	proto := agentproto.CreateSubAgentRequest_App{
+		Slug:      app.Slug,
+		External:  &app.External,
+		Hidden:    &app.Hidden,
+		Order:     &app.Order,
+		Subdomain: &app.Subdomain,
+	}
+
+	if app.Command != "" {
+		proto.Command = &app.Command
+	}
+	if app.DisplayName != "" {
+		proto.DisplayName = &app.DisplayName
+	}
+	if app.Group != "" {
+		proto.Group = &app.Group
+	}
+	if app.Icon != "" {
+		proto.Icon = &app.Icon
+	}
+	if app.URL != "" {
+		proto.Url = &app.URL
+	}
+
+	if app.HealthCheck.URL != "" {
+		proto.Healthcheck = &agentproto.CreateSubAgentRequest_App_Healthcheck{
+			Interval:  app.HealthCheck.Interval,
+			Threshold: app.HealthCheck.Threshold,
+			Url:       app.HealthCheck.URL,
+		}
+	}
+
+	if app.OpenIn != "" {
+		switch app.OpenIn {
+		case codersdk.WorkspaceAppOpenInSlimWindow:
+			proto.OpenIn = agentproto.CreateSubAgentRequest_App_SLIM_WINDOW.Enum()
+		case codersdk.WorkspaceAppOpenInTab:
+			proto.OpenIn = agentproto.CreateSubAgentRequest_App_TAB.Enum()
+		default:
+			return nil, xerrors.Errorf("unexpected codersdk.WorkspaceAppOpenIn: %#v", app.OpenIn)
+		}
+	}
+
+	if app.Share != "" {
+		switch app.Share {
+		case codersdk.WorkspaceAppSharingLevelAuthenticated:
+			proto.Share = agentproto.CreateSubAgentRequest_App_AUTHENTICATED.Enum()
+		case codersdk.WorkspaceAppSharingLevelOwner:
+			proto.Share = agentproto.CreateSubAgentRequest_App_OWNER.Enum()
+		case codersdk.WorkspaceAppSharingLevelPublic:
+			proto.Share = agentproto.CreateSubAgentRequest_App_PUBLIC.Enum()
+		case codersdk.WorkspaceAppSharingLevelOrganization:
+			proto.Share = agentproto.CreateSubAgentRequest_App_ORGANIZATION.Enum()
+		default:
+			return nil, xerrors.Errorf("unexpected codersdk.WorkspaceAppSharingLevel: %#v", app.Share)
+		}
+	}
+
+	return &proto, nil
 }
 
 type SubAgentHealthCheck struct {
@@ -151,58 +213,12 @@ func (a *subAgentAPIClient) Create(ctx context.Context, agent SubAgent) (SubAgen
 
 	apps := make([]*agentproto.CreateSubAgentRequest_App, 0, len(agent.Apps))
 	for _, app := range agent.Apps {
-		var healthCheck *agentproto.CreateSubAgentRequest_App_Healthcheck
-		if app.HealthCheck != nil {
-			healthCheck = &agentproto.CreateSubAgentRequest_App_Healthcheck{
-				Interval:  app.HealthCheck.Interval,
-				Threshold: app.HealthCheck.Threshold,
-				Url:       app.HealthCheck.URL,
-			}
+		protoApp, err := app.ToProtoApp()
+		if err != nil {
+			return SubAgent{}, xerrors.Errorf("convert app: %w", err)
 		}
 
-		var openIn *agentproto.CreateSubAgentRequest_App_OpenIn
-		if app.OpenIn != nil {
-			switch *app.OpenIn {
-			case codersdk.WorkspaceAppOpenInSlimWindow:
-				openIn = agentproto.CreateSubAgentRequest_App_SLIM_WINDOW.Enum()
-			case codersdk.WorkspaceAppOpenInTab:
-				openIn = agentproto.CreateSubAgentRequest_App_TAB.Enum()
-			default:
-				return SubAgent{}, xerrors.Errorf("unexpected codersdk.WorkspaceAppOpenIn: %#v", app.OpenIn)
-			}
-		}
-
-		var share *agentproto.CreateSubAgentRequest_App_SharingLevel
-		if app.Share != nil {
-			switch *app.Share {
-			case codersdk.WorkspaceAppSharingLevelAuthenticated:
-				share = agentproto.CreateSubAgentRequest_App_AUTHENTICATED.Enum()
-			case codersdk.WorkspaceAppSharingLevelOwner:
-				share = agentproto.CreateSubAgentRequest_App_OWNER.Enum()
-			case codersdk.WorkspaceAppSharingLevelPublic:
-				share = agentproto.CreateSubAgentRequest_App_PUBLIC.Enum()
-			case codersdk.WorkspaceAppSharingLevelOrganization:
-				share = agentproto.CreateSubAgentRequest_App_ORGANIZATION.Enum()
-			default:
-				return SubAgent{}, xerrors.Errorf("unexpected codersdk.WorkspaceAppSharingLevel: %#v", app.Share)
-			}
-		}
-
-		apps = append(apps, &agentproto.CreateSubAgentRequest_App{
-			Slug:        app.Slug,
-			Command:     app.Command,
-			DisplayName: app.DisplayName,
-			External:    app.External,
-			Group:       app.Group,
-			Healthcheck: healthCheck,
-			Hidden:      app.Hidden,
-			Icon:        app.Icon,
-			OpenIn:      openIn,
-			Order:       app.Order,
-			Share:       share,
-			Subdomain:   app.Subdomain,
-			Url:         app.URL,
-		})
+		apps = append(apps, protoApp)
 	}
 
 	resp, err := a.api.CreateSubAgent(ctx, &agentproto.CreateSubAgentRequest{

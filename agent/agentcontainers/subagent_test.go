@@ -131,22 +131,22 @@ func TestSubAgentClient_CreateWithDisplayApps(t *testing.T) {
 				apps: []agentcontainers.SubAgentApp{
 					{
 						Slug:        "jupyter",
-						Command:     ptr.Ref("jupyter lab --port=8888"),
-						DisplayName: ptr.Ref("Jupyter Lab"),
-						External:    ptr.Ref(false),
-						Group:       ptr.Ref("Development"),
-						HealthCheck: &agentcontainers.SubAgentHealthCheck{
+						Command:     "jupyter lab --port=8888",
+						DisplayName: "Jupyter Lab",
+						External:    false,
+						Group:       "Development",
+						HealthCheck: agentcontainers.SubAgentHealthCheck{
 							Interval:  30,
 							Threshold: 3,
 							URL:       "http://localhost:8888/api",
 						},
-						Hidden:    ptr.Ref(false),
-						Icon:      ptr.Ref("/icon/jupyter.svg"),
-						OpenIn:    ptr.Ref(codersdk.WorkspaceAppOpenInTab),
-						Order:     ptr.Ref(int32(1)),
-						Share:     ptr.Ref(codersdk.WorkspaceAppSharingLevelAuthenticated),
-						Subdomain: ptr.Ref(true),
-						URL:       ptr.Ref("http://localhost:8888"),
+						Hidden:    false,
+						Icon:      "/icon/jupyter.svg",
+						OpenIn:    codersdk.WorkspaceAppOpenInTab,
+						Order:     int32(1),
+						Share:     codersdk.WorkspaceAppSharingLevelAuthenticated,
+						Subdomain: true,
+						URL:       "http://localhost:8888",
 					},
 				},
 				expectedApps: []*agentproto.CreateSubAgentRequest_App{
@@ -176,19 +176,19 @@ func TestSubAgentClient_CreateWithDisplayApps(t *testing.T) {
 				apps: []agentcontainers.SubAgentApp{
 					{
 						Slug:  "owner-app",
-						Share: ptr.Ref(codersdk.WorkspaceAppSharingLevelOwner),
+						Share: codersdk.WorkspaceAppSharingLevelOwner,
 					},
 					{
 						Slug:  "authenticated-app",
-						Share: ptr.Ref(codersdk.WorkspaceAppSharingLevelAuthenticated),
+						Share: codersdk.WorkspaceAppSharingLevelAuthenticated,
 					},
 					{
 						Slug:  "public-app",
-						Share: ptr.Ref(codersdk.WorkspaceAppSharingLevelPublic),
+						Share: codersdk.WorkspaceAppSharingLevelPublic,
 					},
 					{
 						Slug:  "organization-app",
-						Share: ptr.Ref(codersdk.WorkspaceAppSharingLevelOrganization),
+						Share: codersdk.WorkspaceAppSharingLevelOrganization,
 					},
 				},
 				expectedApps: []*agentproto.CreateSubAgentRequest_App{
@@ -215,7 +215,7 @@ func TestSubAgentClient_CreateWithDisplayApps(t *testing.T) {
 				apps: []agentcontainers.SubAgentApp{
 					{
 						Slug: "health-app",
-						HealthCheck: &agentcontainers.SubAgentHealthCheck{
+						HealthCheck: agentcontainers.SubAgentHealthCheck{
 							Interval:  60,
 							Threshold: 5,
 							URL:       "http://localhost:3000/health",
@@ -271,12 +271,12 @@ func TestSubAgentClient_CreateWithDisplayApps(t *testing.T) {
 					assert.Equal(t, expectedApp.Slug, actualApp.Slug)
 					assert.Equal(t, expectedApp.Command, actualApp.Command)
 					assert.Equal(t, expectedApp.DisplayName, actualApp.DisplayName)
-					assert.Equal(t, expectedApp.External, actualApp.External)
+					assert.Equal(t, ptr.NilToEmpty(expectedApp.External), ptr.NilToEmpty(actualApp.External))
 					assert.Equal(t, expectedApp.Group, actualApp.Group)
-					assert.Equal(t, expectedApp.Hidden, actualApp.Hidden)
+					assert.Equal(t, ptr.NilToEmpty(expectedApp.Hidden), ptr.NilToEmpty(actualApp.Hidden))
 					assert.Equal(t, expectedApp.Icon, actualApp.Icon)
-					assert.Equal(t, expectedApp.Order, actualApp.Order)
-					assert.Equal(t, expectedApp.Subdomain, actualApp.Subdomain)
+					assert.Equal(t, ptr.NilToEmpty(expectedApp.Order), ptr.NilToEmpty(actualApp.Order))
+					assert.Equal(t, ptr.NilToEmpty(expectedApp.Subdomain), ptr.NilToEmpty(actualApp.Subdomain))
 					assert.Equal(t, expectedApp.Url, actualApp.Url)
 
 					if expectedApp.OpenIn != nil {
