@@ -60,7 +60,7 @@ If you are providing TLS certificates directly to the Coder server, either
    options (these both take a comma separated list of files; list certificates
    and their respective keys in the same order).
 
-After you enable a wildcard sub-domain, [disable path-based apps](../../tutorials/best-practices/security-best-practices.md#disable-path-based-apps).
+After you enable the wildcard access URL, you should [disable path-based apps](../../tutorials/best-practices/security-best-practices.md#disable-path-based-apps) for security.
 
 ## TLS & Reverse Proxy
 
