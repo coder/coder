@@ -20,6 +20,12 @@ import (
 	"github.com/hashicorp/hcl/v2"
 )
 
+// Renderer is able to execute and evaluate terraform with the given inputs.
+// It may use the database to fetch additional state, such as a user's groups,
+// roles, etc. Therefore, it requires an authenticated `ctx`.
+//
+// 'Close()' **must** be called once the renderer is no longer needed.
+// Forgetting to do so will result in a memory leak.
 type Renderer interface {
 	Render(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics)
 	Close()
@@ -31,8 +37,7 @@ var (
 
 // Loader is used to load the necessary coder objects for rendering a template
 // version's parameters. The output is a Renderer, which is the object that uses
-// the cached objects to render the template version's parameters. Closing the
-// Renderer will release the cached files.
+// the cached objects to render the template version's parameters.
 type Loader struct {
 	templateVersionID uuid.UUID
 
@@ -106,6 +111,13 @@ func (r *Loader) loaded() bool {
 	return r.templateVersion != nil && r.job != nil && r.terraformValues != nil
 }
 
+// Renderer returns a Renderer that can be used to render the template version's
+// parameters. It automatically determines whether to use a static or dynamic
+// renderer based on the template version's state.
+//
+// Static parameter rendering is required to support older template versions that
+// do not have the database state to support dynamic parameters. A constant
+// warning will be displayed for these template versions.
 func (r *Loader) Renderer(ctx context.Context, db database.Store, cache *files.Cache) (Renderer, error) {
 	if !r.loaded() {
 		return nil, xerrors.New("Load() must be called before Renderer()")
