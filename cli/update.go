@@ -39,13 +39,22 @@ func (r *RootCmd) update() *serpent.Command {
 			// updating. Simply performing a new start transition may not work if the
 			// template specifies ignore_changes.
 			if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionStart {
-				build, err := stopWorkspace(inv, client, workspace, bflags)
-				if err != nil {
-					return xerrors.Errorf("stop workspace: %w", err)
-				}
-				// Wait for the stop to complete.
-				if err := cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, build.ID); err != nil {
-					return xerrors.Errorf("wait for stop: %w", err)
+				// It's polite to ask the user before stopping their workspace.
+				cliui.Info(inv.Stdout, "Your workspace is currently running. We recommend stopping it before proceeding.")
+				if _, err := cliui.Prompt(inv, cliui.PromptOptions{
+					Text:      "Confirm stop workspace?",
+					IsConfirm: true,
+				}); err != nil {
+					cliui.Warnf(inv.Stderr, "Updating without stop.")
+				} else {
+					build, err := stopWorkspace(inv, client, workspace, bflags)
+					if err != nil {
+						return xerrors.Errorf("stop workspace: %w", err)
+					}
+					// Wait for the stop to complete.
+					if err := cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, build.ID); err != nil {
+						return xerrors.Errorf("wait for stop: %w", err)
+					}
 				}
 			}
 
