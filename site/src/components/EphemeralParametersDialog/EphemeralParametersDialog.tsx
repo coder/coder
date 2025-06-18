@@ -52,18 +52,20 @@ export const EphemeralParametersDialog: FC<EphemeralParametersDialogProps> = ({
 						ephemeral parameters that will be reset to their default values
 					</DialogDescription>
 					<DialogDescription>
-						{ephemeralParameters.map((param) => (
-							<div key={param.name}>
-								<p className="text-content-primary m-0 font-bold">
-									{param.display_name || param.name}
-								</p>
-								{param.description && (
-									<p className="m-0 text-sm text-content-secondary">
-										{param.description}
+						<ul className="list-none pl-6 space-y-2">
+							{ephemeralParameters.map((param) => (
+								<li key={param.name}>
+									<p className="text-content-primary m-0 font-bold">
+										{param.display_name || param.name}
 									</p>
-								)}
-							</div>
-						))}
+									{param.description && (
+										<p className="m-0 text-sm text-content-secondary">
+											{param.description}
+										</p>
+									)}
+								</li>
+							))}
+						</ul>
 					</DialogDescription>
 					<DialogDescription>
 						Would you like to go to the workspace parameters page to review and

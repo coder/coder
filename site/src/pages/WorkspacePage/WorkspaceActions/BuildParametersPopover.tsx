@@ -122,19 +122,21 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 					workspace parameters page
 				</p>
 
-				<div className="flex flex-col gap-2">
-					{ephemeralParameters.map((param) => (
-						<div key={param.name} className="flex flex-col gap-2">
-							<p className="text-content-primary m-0 font-bold">
-								{param.display_name || param.name}
-							</p>
-							{param.description && (
-								<div className="m-0 text-sm text-content-secondary">
-									{param.description}
-								</div>
-							)}
-						</div>
-					))}
+				<div>
+					<ul className="list-none pl-3 space-y-2">
+						{ephemeralParameters.map((param) => (
+							<li key={param.name}>
+								<p className="text-content-primary m-0 font-bold">
+									{param.display_name || param.name}
+								</p>
+								{param.description && (
+									<p className="m-0 text-sm text-content-secondary">
+										{param.description}
+									</p>
+								)}
+							</li>
+						))}
+					</ul>
 				</div>
 
 				<Button className="w-full" onClick={handleGoToParameters}>
