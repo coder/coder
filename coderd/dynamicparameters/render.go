@@ -163,6 +163,9 @@ func (r *Loader) dynamicRenderer(ctx context.Context, db database.Store, cache *
 		plan:        plan,
 		ownerErrors: make(map[uuid.UUID]error),
 		close: func() {
+			// Up to 2 files are cached, and must be released when rendering is complete.
+			// TODO: Might be smart to always call release when the context is
+			//  cancelled.
 			cache.Release(r.job.FileID)
 			if moduleFilesFS != nil {
 				cache.Release(r.terraformValues.CachedModuleFiles.UUID)
