@@ -1,4 +1,3 @@
-import Collapse from "@mui/material/Collapse";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Button } from "components/Button/Button";
 import {
@@ -10,23 +9,23 @@ import {
 } from "react";
 import { cn } from "utils/cn";
 
-const alertVariants = cva("relative w-full rounded-lg border p-4 text-left", {
-	variants: {
-		variant: {
-			default: "bg-surface-primary text-content-primary border-border-default",
-			info: "bg-blue-50 text-blue-900 border-blue-200 dark:bg-blue-950 dark:text-blue-100 dark:border-blue-800",
-			success:
-				"bg-green-50 text-green-900 border-green-200 dark:bg-green-950 dark:text-green-100 dark:border-green-800",
-			warning:
-				"bg-yellow-50 text-yellow-900 border-yellow-200 dark:bg-yellow-950 dark:text-yellow-100 dark:border-yellow-800",
-			error:
-				"bg-red-50 text-red-900 border-red-200 dark:bg-red-950 dark:text-red-100 dark:border-red-800",
+const alertVariants = cva(
+	"relative w-full rounded-lg border border-solid p-4 text-left",
+	{
+		variants: {
+			variant: {
+				default: "border-border-default",
+				info: "border-surface-sky",
+				success: "border-surface-green",
+				warning: "border-border-warning",
+				error: "border-border-destructive",
+			},
 		},
-	},
-	defaultVariants: {
-		variant: "default",
-	},
-});
+		defaultVariants: {
+			variant: "default",
+		},
+	}
+)
 
 // Map MUI severity to our variant
 const severityToVariant = {
@@ -59,9 +58,6 @@ export const Alert: FC<AlertProps> = ({
 }) => {
 	const [open, setOpen] = useState(true);
 
-	// Can't only rely on MUI's hiding behavior inside flex layouts, because even
-	// though MUI will make a dismissed alert have zero height, the alert will
-	// still behave as a flex child and introduce extra row/column gaps
 	if (!open) {
 		return null;
 	}
@@ -72,36 +68,33 @@ export const Alert: FC<AlertProps> = ({
 		(severity in severityToVariant ? severityToVariant[severity] : "default");
 
 	return (
-		<Collapse in>
-			<div
-				role="alert"
-				className={cn(alertVariants({ variant: finalVariant }), className)}
-				{...props}
-			>
-				<div className="flex items-start justify-between">
-					<div className="flex-1">{children}</div>
-					<div className="flex items-center gap-2 ml-4">
-						{/* CTAs passed in by the consumer */}
-						{actions}
+		<div
+			role="alert"
+			className={cn(alertVariants({ variant: finalVariant }), className)}
+			{...props}
+		>
+			<div className="flex items-start justify-between text-sm">
+				<div className="flex-1">{children}</div>
+				<div className="flex items-center gap-2 ml-4">
+					{/* CTAs passed in by the consumer */}
+					{actions}
 
-						{/* close CTA */}
-						{dismissible && (
-							<Button
-								variant="subtle"
-								size="sm"
-								onClick={() => {
-									setOpen(false);
-									onDismiss?.();
-								}}
-								data-testid="dismiss-banner-btn"
-							>
-								Dismiss
-							</Button>
-						)}
-					</div>
+					{dismissible && (
+						<Button
+							variant="subtle"
+							size="sm"
+							onClick={() => {
+								setOpen(false);
+								onDismiss?.();
+							}}
+							data-testid="dismiss-banner-btn"
+						>
+							Dismiss
+						</Button>
+					)}
 				</div>
 			</div>
-		</Collapse>
+		</div>
 	);
 };
 
@@ -124,17 +117,5 @@ export const AlertTitle = forwardRef<
 		{...props}
 	/>
 ));
+
 AlertTitle.displayName = "AlertTitle";
-
-export const AlertDescription = forwardRef<
-	HTMLDivElement,
-	React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-	<div
-		ref={ref}
-		className={cn("text-sm [&_p]:leading-relaxed", className)}
-		{...props}
-	/>
-));
-
-AlertDescription.displayName = "AlertDescription";
