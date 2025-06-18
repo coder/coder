@@ -45,6 +45,10 @@ type Loader struct {
 	terraformValues *database.TemplateVersionTerraformValue
 }
 
+// Prepare is the entrypoint for this package. It is broken into 2 steps to allow
+// prepopulating some of the existing data and saving some database queries.
+//
+// Usage: dynamicparameters.Prepare(...).Renderer(...)
 func Prepare(versionID uuid.UUID) *Loader {
 	return &Loader{
 		templateVersionID: versionID,
@@ -127,7 +131,7 @@ func (r *Loader) Renderer(ctx context.Context, db database.Store, cache *files.C
 
 // Renderer caches all the necessary files when rendering a template version's
 // parameters. It must be closed after use to release the cached files.
-func (r *Loader) dynamicRenderer(ctx context.Context, db database.Store, cache *files.Cache) (*DynamicRenderer, error) {
+func (r *Loader) dynamicRenderer(ctx context.Context, db database.Store, cache *files.Cache) (*dynamicRenderer, error) {
 	// If they can read the template version, then they can read the file for
 	// parameter loading purposes.
 	//nolint:gocritic
@@ -152,7 +156,7 @@ func (r *Loader) dynamicRenderer(ctx context.Context, db database.Store, cache *
 		plan = r.terraformValues.CachedPlan
 	}
 
-	return &DynamicRenderer{
+	return &dynamicRenderer{
 		data:        r,
 		templateFS:  templateFS,
 		db:          db,
@@ -167,7 +171,7 @@ func (r *Loader) dynamicRenderer(ctx context.Context, db database.Store, cache *
 	}, nil
 }
 
-type DynamicRenderer struct {
+type dynamicRenderer struct {
 	db         database.Store
 	data       *Loader
 	templateFS fs.FS
@@ -180,7 +184,7 @@ type DynamicRenderer struct {
 	close func()
 }
 
-func (r *DynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
 	// Always start with the cached error, if we have one.
 	ownerErr := r.ownerErrors[ownerID]
 	if ownerErr == nil {
@@ -210,7 +214,7 @@ func (r *DynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values 
 	return preview.Preview(ctx, input, r.templateFS)
 }
 
-func (r *DynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uuid.UUID) error {
+func (r *dynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uuid.UUID) error {
 	if r.currentOwner != nil && r.currentOwner.ID == ownerID.String() {
 		return nil // already fetched
 	}
@@ -318,7 +322,7 @@ func (r *DynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uui
 	return nil
 }
 
-func (r *DynamicRenderer) Close() {
+func (r *dynamicRenderer) Close() {
 	r.once.Do(r.close)
 }
 

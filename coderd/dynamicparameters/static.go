@@ -16,11 +16,11 @@ import (
 	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
-type StaticRender struct {
+type staticRender struct {
 	staticParams []previewtypes.Parameter
 }
 
-func (r *Loader) staticRender(ctx context.Context, db database.Store) (*StaticRender, error) {
+func (r *Loader) staticRender(ctx context.Context, db database.Store) (*staticRender, error) {
 	dbTemplateVersionParameters, err := db.GetTemplateVersionParameters(ctx, r.templateVersionID)
 	if err != nil {
 		return nil, xerrors.Errorf("template version parameters: %w", err)
@@ -101,12 +101,12 @@ func (r *Loader) staticRender(ctx context.Context, db database.Store) (*StaticRe
 		params = append(params, param)
 	}
 
-	return &StaticRender{
+	return &staticRender{
 		staticParams: params,
 	}, nil
 }
 
-func (r *StaticRender) Render(_ context.Context, _ uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
+func (r *staticRender) Render(_ context.Context, _ uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
 	params := r.staticParams
 	for i := range params {
 		param := &params[i]
@@ -131,4 +131,4 @@ func (r *StaticRender) Render(_ context.Context, _ uuid.UUID, values map[string]
 		}
 }
 
-func (*StaticRender) Close() {}
+func (*staticRender) Close() {}
