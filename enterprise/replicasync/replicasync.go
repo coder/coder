@@ -408,8 +408,6 @@ func (m *Manager) AllPrimary() []database.Replica {
 			continue
 		}
 
-		// When we assign the non-pointer to a
-		// variable it loses the reference.
 		replicas = append(replicas, replica)
 	}
 	return replicas
