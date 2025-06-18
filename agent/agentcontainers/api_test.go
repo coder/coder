@@ -1294,8 +1294,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithSubAgentClient(fakeSAC),
 			agentcontainers.WithSubAgentURL("test-subagent-url"),
 			agentcontainers.WithDevcontainerCLI(fakeDCCLI),
-			agentcontainers.WithUserName("test-user"),
-			agentcontainers.WithWorkspaceName("test-workspace"),
+			agentcontainers.WithManifestInfo("test-user", "test-workspace"),
 		)
 		apiClose := func() {
 			closeOnce.Do(func() {

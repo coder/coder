@@ -51,8 +51,7 @@ func (a *agent) apiHandler(aAPI proto.DRPCAgentClient26) (http.Handler, func() e
 		manifest := a.manifest.Load()
 		if manifest != nil {
 			containerAPIOpts = append(containerAPIOpts,
-				agentcontainers.WithUserName(manifest.OwnerName),
-				agentcontainers.WithWorkspaceName(manifest.WorkspaceName),
+				agentcontainers.WithManifestInfo(manifest.OwnerName, manifest.WorkspaceName),
 			)
 
 			if len(manifest.Devcontainers) > 0 {

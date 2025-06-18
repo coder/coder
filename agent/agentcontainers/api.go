@@ -64,7 +64,7 @@ type API struct {
 	subAgentURL                 string
 	subAgentEnv                 []string
 
-	userName      string
+	ownerName     string
 	workspaceName string
 
 	mu                      sync.RWMutex
@@ -156,17 +156,12 @@ func WithSubAgentEnv(env ...string) Option {
 	}
 }
 
-// WithWorkspaceName sets the workspace name for the sub-agent.
-func WithWorkspaceName(name string) Option {
+// WithManifestInfo sets the owner name, and workspace name
+// for the sub-agent.
+func WithManifestInfo(owner, workspace string) Option {
 	return func(api *API) {
-		api.workspaceName = name
-	}
-}
-
-// WithUserName sets the user name for the sub-agent.
-func WithUserName(name string) Option {
-	return func(api *API) {
-		api.userName = name
+		api.ownerName = owner
+		api.workspaceName = workspace
 	}
 }
 
@@ -1149,7 +1144,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath,
 			[]string{
 				fmt.Sprintf("CODER_WORKSPACE_AGENT_NAME=%s", dc.Name),
-				fmt.Sprintf("CODER_WORKSPACE_OWNER_NAME=%s", api.userName),
+				fmt.Sprintf("CODER_WORKSPACE_OWNER_NAME=%s", api.ownerName),
 				fmt.Sprintf("CODER_WORKSPACE_NAME=%s", api.workspaceName),
 				fmt.Sprintf("CODER_URL=%s", api.subAgentURL),
 			},
