@@ -168,6 +168,7 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 	// As the user types into the form, reprocess the state using their input,
 	// and respond with updates.
 	updates := stream.Chan()
+	ownerID := initial.OwnerID
 	for {
 		select {
 		case <-ctx.Done():
@@ -178,6 +179,14 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 				// The connection has been closed, so there is no one to write to
 				return
 			}
+
+			// Take a nil uuid to mean the previous owner ID.
+			// This just removes the need to constantly send who you are.
+			if update.OwnerID == uuid.Nil {
+				update.OwnerID = ownerID
+			}
+
+			ownerID = update.OwnerID
 
 			result, diagnostics := render.Render(ctx, update.OwnerID, update.Inputs)
 			response := codersdk.DynamicParametersResponse{

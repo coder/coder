@@ -105,7 +105,7 @@ func (r *Loader) Load(ctx context.Context, db database.Store) error {
 	return nil
 }
 
-func (r *Loader) loaded() bool {
+func (r *Loader) isReady() bool {
 	return r.templateVersion != nil && r.job != nil && r.terraformValues != nil
 }
 
@@ -117,7 +117,7 @@ func (r *Loader) loaded() bool {
 // do not have the database state to support dynamic parameters. A constant
 // warning will be displayed for these template versions.
 func (r *Loader) Renderer(ctx context.Context, db database.Store, cache *files.Cache) (Renderer, error) {
-	if !r.loaded() {
+	if !r.isReady() {
 		return nil, xerrors.New("Load() must be called before Renderer()")
 	}
 
@@ -154,11 +154,11 @@ func (r *Loader) dynamicRenderer(ctx context.Context, db database.Store, cache *
 	}
 
 	return &DynamicRenderer{
-		data:         r,
-		templateFS:   templateFS,
-		db:           db,
-		plan:         plan,
-		failedOwners: make(map[uuid.UUID]error),
+		data:        r,
+		templateFS:  templateFS,
+		db:          db,
+		plan:        plan,
+		ownerErrors: make(map[uuid.UUID]error),
 		close: func() {
 			cache.Release(r.job.FileID)
 			if moduleFilesFS != nil {
@@ -174,8 +174,9 @@ type DynamicRenderer struct {
 	templateFS fs.FS
 	plan       json.RawMessage
 
-	failedOwners map[uuid.UUID]error
-	currentOwner *previewtypes.WorkspaceOwner
+	ownerErrors    map[uuid.UUID]error
+	currentOwner   *previewtypes.WorkspaceOwner
+	currentOwnerID uuid.UUID
 
 	once  sync.Once
 	close func()
@@ -183,13 +184,13 @@ type DynamicRenderer struct {
 
 func (r *DynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values map[string]string) (*preview.Output, hcl.Diagnostics) {
 	// Always start with the cached error, if we have one.
-	ownerErr := r.failedOwners[ownerID]
+	ownerErr := r.ownerErrors[ownerID]
 	if ownerErr == nil {
 		ownerErr = r.getWorkspaceOwnerData(ctx, ownerID)
 	}
 
 	if ownerErr != nil || r.currentOwner == nil {
-		r.failedOwners[ownerID] = ownerErr
+		r.ownerErrors[ownerID] = ownerErr
 		return nil, hcl.Diagnostics{
 			{
 				Severity: hcl.DiagError,
