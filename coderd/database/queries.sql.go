@@ -11806,6 +11806,18 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 	return items, nil
 }
 
+const hasTemplateVersionsWithAITask = `-- name: HasTemplateVersionsWithAITask :one
+SELECT EXISTS (SELECT 1 FROM template_versions WHERE has_ai_task = TRUE)
+`
+
+// Determines if the template versions table has any rows with has_ai_task = TRUE.
+func (q *sqlQuerier) HasTemplateVersionsWithAITask(ctx context.Context) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasTemplateVersionsWithAITask)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const insertTemplateVersion = `-- name: InsertTemplateVersion :exec
 INSERT INTO
 	template_versions (
