@@ -255,6 +255,8 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 	err = db.DeleteWorkspaceSubAgentByID(genCtx, subAgt.ID)
 	require.NoError(t, err, "delete workspace agent subagent antagonist")
 
+	t.Logf("inserted workspace agent %s (%v) with deleted subagent antagonist %s (%v)", agt.Name, agt.ID, subAgt.Name, subAgt.ID)
+
 	return agt
 }
 
