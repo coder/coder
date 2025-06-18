@@ -140,9 +140,7 @@ type cacheEntry struct {
 
 type fetcher func(context.Context, uuid.UUID) (CacheEntryValue, error)
 
-var (
-	_ fs.FS = (*CloseFS)(nil)
-)
+var _ fs.FS = (*CloseFS)(nil)
 
 // CloseFS is a wrapper around fs.FS that implements io.Closer. The Close()
 // method tells the cache to release the fileID. Once all open references are
@@ -162,7 +160,7 @@ func (f *CloseFS) Close() { f.close() }
 // Safety: Every call to Acquire that does not return an error must have a
 // matching call to Release.
 func (c *Cache) Acquire(ctx context.Context, fileID uuid.UUID) (*CloseFS, error) {
-	// It's important that this `Load` call occurs outside of `prepare`, after the
+	// It's important that this `Load` call occurs outside `prepare`, after the
 	// mutex has been released, or we would continue to hold the lock until the
 	// entire file has been fetched, which may be slow, and would prevent other
 	// files from being fetched in parallel.
