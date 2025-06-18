@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
+	"github.com/google/uuid"
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
@@ -93,6 +94,7 @@ type agentDisplayAppsAttributes struct {
 
 // A mapping of attributes on the "coder_app" resource.
 type agentAppAttributes struct {
+	ID      string `mapstructure:"id"`
 	AgentID string `mapstructure:"agent_id"`
 	// Slug is required in terraform, but to avoid breaking existing users we
 	// will default to the resource name if it is not specified.
@@ -160,9 +162,28 @@ type State struct {
 	Parameters            []*proto.RichParameter
 	Presets               []*proto.Preset
 	ExternalAuthProviders []*proto.ExternalAuthProviderResource
+	AITasks               []*proto.AITask
+	HasAITasks            bool
 }
 
 var ErrInvalidTerraformAddr = xerrors.New("invalid terraform address")
+
+// hasAITaskResources is used to determine if a template has *any* `coder_ai_task` resources defined. During template
+// import, it's possible that none of these have `count=1` since count may be dependent on the value of a `coder_parameter`
+// or something else.
+// We need to know at template import if these resources exist to inform the frontend of their existence.
+func hasAITaskResources(graph *gographviz.Graph) bool {
+	for _, node := range graph.Nodes.Lookup {
+		// Check if this node is a coder_ai_task resource
+		if label, exists := node.Attrs["label"]; exists {
+			labelValue := strings.Trim(label, `"`)
+			if strings.Contains(labelValue, "coder_ai_task.") {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // ConvertState consumes Terraform state and a GraphViz representation
 // produced by `terraform graph` to produce resources consumable by Coder.
@@ -187,6 +208,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	// Extra array to preserve the order of rich parameters.
 	tfResourcesRichParameters := make([]*tfjson.StateResource, 0)
 	tfResourcesPresets := make([]*tfjson.StateResource, 0)
+	tfResourcesAITasks := make([]*tfjson.StateResource, 0)
 	var findTerraformResources func(mod *tfjson.StateModule)
 	findTerraformResources = func(mod *tfjson.StateModule) {
 		for _, module := range mod.ChildModules {
@@ -198,6 +220,9 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			}
 			if resource.Type == "coder_workspace_preset" {
 				tfResourcesPresets = append(tfResourcesPresets, resource)
+			}
+			if resource.Type == "coder_ai_task" {
+				tfResourcesAITasks = append(tfResourcesAITasks, resource)
 			}
 
 			label := convertAddressToLabel(resource.Address)
@@ -522,7 +547,17 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 						continue
 					}
 
+					id := attrs.ID
+					if id == "" {
+						// This should never happen since the "id" attribute is set on creation:
+						// https://github.com/coder/terraform-provider-coder/blob/cfa101df4635e405e66094fa7779f9a89d92f400/provider/app.go#L37
+						logger.Warn(ctx, "coder_app's id was unexpectedly empty", slog.F("name", attrs.Name))
+
+						id = uuid.NewString()
+					}
+
 					agent.Apps = append(agent.Apps, &proto.App{
+						Id:           id,
 						Slug:         attrs.Slug,
 						DisplayName:  attrs.DisplayName,
 						Command:      attrs.Command,
@@ -940,6 +975,27 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		)
 	}
 
+	// This will only pick up resources which will actually be created.
+	aiTasks := make([]*proto.AITask, 0, len(tfResourcesAITasks))
+	for _, resource := range tfResourcesAITasks {
+		var task provider.AITask
+		err = mapstructure.Decode(resource.AttributeValues, &task)
+		if err != nil {
+			return nil, xerrors.Errorf("decode coder_ai_task attributes: %w", err)
+		}
+
+		if len(task.SidebarApp) < 1 {
+			return nil, xerrors.Errorf("coder_ai_task has no sidebar_app defined")
+		}
+
+		aiTasks = append(aiTasks, &proto.AITask{
+			Id: task.ID,
+			SidebarApp: &proto.AITaskSidebarApp{
+				Id: task.SidebarApp[0].ID,
+			},
+		})
+	}
+
 	// A map is used to ensure we don't have duplicates!
 	externalAuthProvidersMap := map[string]*proto.ExternalAuthProviderResource{}
 	for _, tfResources := range tfResourcesByLabel {
@@ -975,6 +1031,8 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		Parameters:            parameters,
 		Presets:               presets,
 		ExternalAuthProviders: externalAuthProviders,
+		HasAITasks:            hasAITaskResources(graph),
+		AITasks:               aiTasks,
 	}, nil
 }
 

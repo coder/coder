@@ -361,6 +361,8 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		Plan:                  planJSON,
 		ResourceReplacements:  resReps,
 		ModuleFiles:           moduleFiles,
+		HasAiTasks:            state.HasAITasks,
+		AiTasks:               state.AITasks,
 	}
 
 	return msg, nil
@@ -577,6 +579,7 @@ func (e *executor) apply(
 		ExternalAuthProviders: state.ExternalAuthProviders,
 		State:                 stateContent,
 		Timings:               e.timings.aggregate(),
+		AiTasks:               state.AITasks,
 	}, nil
 }
 
