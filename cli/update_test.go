@@ -71,16 +71,8 @@ func TestUpdate(t *testing.T) {
 		inv, root := clitest.New(t, "update", ws.Name)
 		clitest.SetupConfig(t, member, root)
 
-		doneCh := make(chan error)
-		pty := ptytest.New(t).Attach(inv)
-		go func() {
-			defer close(doneCh)
-			doneCh <- inv.Run()
-		}()
-
-		pty.ExpectMatch("Confirm stop workspace?")
-		pty.WriteLine("yes")
-		require.NoError(t, testutil.TryReceive(ctx, t, doneCh), "update command failed to run")
+		err = inv.Run()
+		require.NoError(t, err, "update command failed")
 
 		// Then: the workspace is no longer 'outdated'
 		ws, err = member.WorkspaceByOwnerAndName(ctx, codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
