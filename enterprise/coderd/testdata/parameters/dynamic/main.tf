@@ -91,3 +91,13 @@ data "coder_parameter" "thing" {
     }
   }
 }
+
+// Cool people like blue. Idk what to tell you.
+data "coder_parameter" "cool" {
+  count        = contains(local.selected, "blue") ? 1 : 0
+  name         = "cool"
+  type         = "bool"
+  form_type    = "switch"
+  order = 102
+  default = "true"
+}

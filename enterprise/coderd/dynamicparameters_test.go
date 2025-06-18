@@ -71,13 +71,13 @@ func TestDynamicParameterTemplate(t *testing.T) {
 	// Initial response
 	preview, pop := coderdtest.SynchronousStream(stream)
 	init := pop()
+	require.Len(t, init.Diagnostics, 0, "no top level diags")
 	coderdtest.AssertParameter(t, "isAdmin", init.Parameters).
 		Exists().Value("false")
 	coderdtest.AssertParameter(t, "adminonly", init.Parameters).
 		NotExists()
 	coderdtest.AssertParameter(t, "groups", init.Parameters).
 		Exists().Options(database.EveryoneGroup, "developer")
-	require.Len(t, init.Diagnostics, 0, "no top level diags")
 
 	// Switch to an admin
 	resp, err := preview(codersdk.DynamicParametersRequest{
@@ -90,6 +90,7 @@ func TestDynamicParameterTemplate(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, resp.ID, 1)
+	require.Len(t, resp.Diagnostics, 0, "no top level diags")
 
 	coderdtest.AssertParameter(t, "isAdmin", resp.Parameters).
 		Exists().Value("true")
@@ -101,7 +102,8 @@ func TestDynamicParameterTemplate(t *testing.T) {
 		Exists().Value(`["red"]`)
 	coderdtest.AssertParameter(t, "thing", resp.Parameters).
 		Exists().Value("apple").Options("apple", "ruby")
-	require.Len(t, init.Diagnostics, 0, "no top level diags")
+	coderdtest.AssertParameter(t, "cool", resp.Parameters).
+		NotExists()
 
 	// Try some other colors
 	resp, err = preview(codersdk.DynamicParametersRequest{
@@ -114,7 +116,10 @@ func TestDynamicParameterTemplate(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, resp.ID, 2)
+	require.Len(t, resp.Diagnostics, 0, "no top level diags")
 
+	coderdtest.AssertParameter(t, "cool", resp.Parameters).
+		Exists()
 	coderdtest.AssertParameter(t, "isAdmin", resp.Parameters).
 		Exists().Value("true")
 	coderdtest.AssertParameter(t, "colors", resp.Parameters).
