@@ -8500,7 +8500,7 @@ func (q *FakeQuerier) HasTemplateVersionsWithAITask(_ context.Context) (bool, er
 	defer q.mutex.RUnlock()
 
 	for _, templateVersion := range q.templateVersions {
-		if templateVersion.HasAITask {
+		if templateVersion.HasAITask.Valid && templateVersion.HasAITask.Bool {
 			return true, nil
 		}
 	}
