@@ -56,7 +56,6 @@ To connect to a Coder deployment that uses internal certificates, configure the 
 1. Add your certificate path in the **CA Path** field.
    ![JetBrains Toolbox Coder Provider certificate path](../../../images/user-guides/jetbrains/toolbox/certificate.png)
 
-
 ## Troubleshooting
 
 If you encounter issues connecting to your Coder workspace via JetBrains Toolbox, follow these steps to enable and capture debug logs:
