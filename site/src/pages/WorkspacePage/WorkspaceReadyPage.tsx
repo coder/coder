@@ -15,7 +15,7 @@ import {
 	ConfirmDialog,
 	type ConfirmDialogProps,
 } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { EphemeralParametersDialog } from "components/EphemeralParametersDialog";
+import { EphemeralParametersDialog } from "components/EphemeralParametersDialog/EphemeralParametersDialog";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import {
