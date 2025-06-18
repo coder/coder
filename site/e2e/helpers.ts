@@ -584,6 +584,7 @@ const createTemplateVersionTar = async (
 					resourceReplacements: [],
 					plan: emptyPlan,
 					moduleFiles: new Uint8Array(),
+					moduleFilesHash: new Uint8Array(),
 				},
 			};
 		});
@@ -711,6 +712,7 @@ const createTemplateVersionTar = async (
 			resourceReplacements: [],
 			plan: emptyPlan,
 			moduleFiles: new Uint8Array(),
+			moduleFilesHash: new Uint8Array(),
 			...response.plan,
 		} as PlanComplete;
 		response.plan.resources = response.plan.resources?.map(fillResource);
@@ -1010,6 +1012,8 @@ export const updateWorkspace = async (
 
 	await page.getByTestId("workspace-update-button").click();
 	await page.getByTestId("confirm-button").click();
+
+	await page.waitForSelector('[data-testid="dialog"]', { state: "visible" });
 
 	await fillParameters(page, richParameters, buildParameters);
 	await page.getByRole("button", { name: /update parameters/i }).click();

@@ -194,7 +194,7 @@ var (
 				DisplayName: "Provisioner Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceProvisionerJobs.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
-					rbac.ResourceFile.Type:            {policy.ActionRead},
+					rbac.ResourceFile.Type:            {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceSystem.Type:          {policy.WildcardSymbol},
 					rbac.ResourceTemplate.Type:        {policy.ActionRead, policy.ActionUpdate},
 					// Unsure why provisionerd needs update and read personal
@@ -461,6 +461,25 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	subjectFileReader = rbac.Subject{
+		Type:         rbac.SubjectTypeFileReader,
+		FriendlyName: "Can Read All Files",
+		// Arbitrary uuid to have a unique ID for this subject.
+		ID: rbac.SubjectTypeFileReaderID,
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "file-reader"},
+				DisplayName: "FileReader",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceFile.Type: {policy.ActionRead},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -525,6 +544,10 @@ func AsSystemReadProvisionerDaemons(ctx context.Context) context.Context {
 // to read orchestrator workspace prebuilds.
 func AsPrebuildsOrchestrator(ctx context.Context) context.Context {
 	return As(ctx, subjectPrebuildsOrchestrator)
+}
+
+func AsFileReader(ctx context.Context) context.Context {
+	return As(ctx, subjectFileReader)
 }
 
 var AsRemoveActor = rbac.Subject{

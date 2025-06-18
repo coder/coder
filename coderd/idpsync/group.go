@@ -274,6 +274,17 @@ func (s *GroupSyncSettings) String() string {
 	return runtimeconfig.JSONString(s)
 }
 
+func (s *GroupSyncSettings) MarshalJSON() ([]byte, error) {
+	if s.Mapping == nil {
+		s.Mapping = make(map[string][]uuid.UUID)
+	}
+
+	// Aliasing the struct to avoid infinite recursion when calling json.Marshal
+	// on the struct itself.
+	type Alias GroupSyncSettings
+	return json.Marshal(&struct{ *Alias }{Alias: (*Alias)(s)})
+}
+
 type ExpectedGroup struct {
 	OrganizationID uuid.UUID
 	GroupID        *uuid.UUID

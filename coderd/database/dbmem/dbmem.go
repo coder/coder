@@ -8741,6 +8741,12 @@ func (q *FakeQuerier) InsertFile(_ context.Context, arg database.InsertFileParam
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	if slices.ContainsFunc(q.files, func(file database.File) bool {
+		return file.CreatedBy == arg.CreatedBy && file.Hash == arg.Hash
+	}) {
+		return database.File{}, newUniqueConstraintError(database.UniqueFilesHashCreatedByKey)
+	}
+
 	//nolint:gosimple
 	file := database.File{
 		ID:        arg.ID,
@@ -9343,6 +9349,7 @@ func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		AllowUserAutostart:           true,
 		AllowUserAutostop:            true,
 		MaxPortSharingLevel:          arg.MaxPortSharingLevel,
+		UseClassicParameterFlow:      true,
 	}
 	q.templates = append(q.templates, template)
 	return nil
@@ -9373,6 +9380,7 @@ func (q *FakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 		JobID:           arg.JobID,
 		CreatedBy:       arg.CreatedBy,
 		SourceExampleID: arg.SourceExampleID,
+		HasAITask:       arg.HasAITask,
 	}
 	q.templateVersions = append(q.templateVersions, version)
 	return nil
@@ -10052,6 +10060,7 @@ func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		MaxDeadline:             arg.MaxDeadline,
 		Reason:                  arg.Reason,
 		TemplateVersionPresetID: arg.TemplateVersionPresetID,
+		HasAITask:               arg.HasAITask,
 	}
 	q.workspaceBuilds = append(q.workspaceBuilds, workspaceBuild)
 	return nil

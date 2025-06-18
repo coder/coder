@@ -55,6 +55,7 @@ import (
 //   - Added support for CreateSubAgent RPC on the Agent API.
 //   - Added support for DeleteSubAgent RPC on the Agent API.
 //   - Added support for ListSubAgents RPC on the Agent API.
+//   - Add ORGANIZATION SharingLevel
 const (
 	CurrentMajor = 2
 	CurrentMinor = 6

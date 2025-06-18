@@ -234,6 +234,10 @@ func (r *RecordingAuthorizer) AssertOutOfOrder(t *testing.T, actor rbac.Subject,
 // AssertActor asserts in order. If the order of authz calls does not match,
 // this will fail.
 func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did ...ActionObjectPair) {
+	r.AssertActorID(t, actor.ID, did...)
+}
+
+func (r *RecordingAuthorizer) AssertActorID(t *testing.T, id string, did ...ActionObjectPair) {
 	r.Lock()
 	defer r.Unlock()
 	ptr := 0
@@ -242,7 +246,7 @@ func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did 
 			// Finished all assertions
 			return
 		}
-		if call.Actor.ID == actor.ID {
+		if call.Actor.ID == id {
 			action, object := did[ptr].Action, did[ptr].Object
 			assert.Equalf(t, action, call.Action, "assert action %d", ptr)
 			assert.Equalf(t, object, call.Object, "assert object %d", ptr)

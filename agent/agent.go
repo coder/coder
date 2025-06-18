@@ -1188,6 +1188,14 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 				a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 				a.scriptRunner.StartCron()
+
+				// If the container API is enabled, trigger an immediate refresh
+				// for quick sub agent injection.
+				if cAPI := a.containerAPI.Load(); cAPI != nil {
+					if err := cAPI.RefreshContainers(ctx); err != nil {
+						a.logger.Error(ctx, "failed to refresh containers", slog.Error(err))
+					}
+				}
 			})
 			if err != nil {
 				return xerrors.Errorf("track conn goroutine: %w", err)
@@ -1253,6 +1261,12 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 			network.SetDERPMap(manifest.DERPMap)
 			network.SetDERPForceWebSockets(manifest.DERPForceWebSockets)
 			network.SetBlockEndpoints(manifest.DisableDirectConnections)
+
+			// Update the subagent client if the container API is available.
+			if cAPI := a.containerAPI.Load(); cAPI != nil {
+				client := agentcontainers.NewSubAgentClientFromAPI(a.logger, aAPI)
+				cAPI.UpdateSubAgentClient(client)
+			}
 		}
 		return nil
 	}

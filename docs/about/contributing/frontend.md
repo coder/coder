@@ -250,7 +250,7 @@ new conventions, but all new components should follow these guidelines.
 
 ## Styling
 
-We use [Emotion](https://emotion.sh/) to handle css styles.
+We use [Emotion](https://emotion.sh/) to handle CSS styles.
 
 ## Forms
 

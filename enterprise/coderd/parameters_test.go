@@ -21,8 +21,6 @@ import (
 func TestDynamicParametersOwnerGroups(t *testing.T) {
 	t.Parallel()
 
-	cfg := coderdtest.DeploymentValues(t)
-	cfg.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
 	ownerClient, owner := coderdenttest.New(t,
 		&coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -30,10 +28,11 @@ func TestDynamicParametersOwnerGroups(t *testing.T) {
 					codersdk.FeatureTemplateRBAC: 1,
 				},
 			},
-			Options: &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: cfg},
+			Options: &coderdtest.Options{IncludeProvisionerDaemon: true},
 		},
 	)
 	templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+	_, noGroupUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
 	// Create the group to be asserted
 	group := coderdtest.CreateGroup(t, ownerClient, owner.OrganizationID, "bloob", templateAdminUser)
@@ -59,7 +58,24 @@ func TestDynamicParametersOwnerGroups(t *testing.T) {
 	_ = coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, version.ID)
+
+	// First check with a no group admin user, that they do not see the extra group
+	// Use the admin client, as the user might not have access to the template.
+	// Also checking that the admin can see the form for the other user.
+	noGroupStream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, noGroupUser.ID.String(), version.ID)
+	require.NoError(t, err)
+	defer noGroupStream.Close(websocket.StatusGoingAway)
+	noGroupPreviews := noGroupStream.Chan()
+	noGroupPreview := testutil.RequireReceive(ctx, t, noGroupPreviews)
+	require.Equal(t, -1, noGroupPreview.ID)
+	require.Empty(t, noGroupPreview.Diagnostics)
+	require.Equal(t, "group", noGroupPreview.Parameters[0].Name)
+	require.Equal(t, database.EveryoneGroup, noGroupPreview.Parameters[0].Value.Value)
+	require.Equal(t, 1, len(noGroupPreview.Parameters[0].Options)) // Only 1 group
+	noGroupStream.Close(websocket.StatusGoingAway)
+
+	// Now try with a user with more than 1 group
+	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, codersdk.Me, version.ID)
 	require.NoError(t, err)
 	defer stream.Close(websocket.StatusGoingAway)
 

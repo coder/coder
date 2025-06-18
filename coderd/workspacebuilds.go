@@ -384,20 +384,8 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			builder = builder.State(createBuild.ProvisionerState)
 		}
 
-		// Only defer to dynamic parameters if the experiment is enabled.
-		if api.Experiments.Enabled(codersdk.ExperimentDynamicParameters) {
-			if createBuild.EnableDynamicParameters != nil {
-				// Explicit opt-in
-				builder = builder.DynamicParameters(*createBuild.EnableDynamicParameters)
-			}
-		} else {
-			if createBuild.EnableDynamicParameters != nil {
-				api.Logger.Warn(ctx, "ignoring dynamic parameter field sent by request, the experiment is not enabled",
-					slog.F("field", *createBuild.EnableDynamicParameters),
-					slog.F("user", apiKey.UserID.String()),
-					slog.F("transition", string(createBuild.Transition)),
-				)
-			}
+		if createBuild.EnableDynamicParameters != nil {
+			builder = builder.DynamicParameters(*createBuild.EnableDynamicParameters)
 		}
 
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(

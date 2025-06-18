@@ -2,6 +2,7 @@ package agentcontainers
 
 import (
 	"context"
+	"slices"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -9,6 +10,7 @@ import (
 	"cdr.dev/slog"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // SubAgent represents an agent running in a dev container.
@@ -19,6 +21,27 @@ type SubAgent struct {
 	Directory       string
 	Architecture    string
 	OperatingSystem string
+	DisplayApps     []codersdk.DisplayApp
+}
+
+// CloneConfig makes a copy of SubAgent without ID and AuthToken. The
+// name is inherited from the devcontainer.
+func (s SubAgent) CloneConfig(dc codersdk.WorkspaceAgentDevcontainer) SubAgent {
+	return SubAgent{
+		Name:            dc.Name,
+		Directory:       s.Directory,
+		Architecture:    s.Architecture,
+		OperatingSystem: s.OperatingSystem,
+		DisplayApps:     slices.Clone(s.DisplayApps),
+	}
+}
+
+func (s SubAgent) EqualConfig(other SubAgent) bool {
+	return s.Name == other.Name &&
+		s.Directory == other.Directory &&
+		s.Architecture == other.Architecture &&
+		s.OperatingSystem == other.OperatingSystem &&
+		slices.Equal(s.DisplayApps, other.DisplayApps)
 }
 
 // SubAgentClient is an interface for managing sub agents and allows
@@ -80,11 +103,34 @@ func (a *subAgentAPIClient) List(ctx context.Context) ([]SubAgent, error) {
 
 func (a *subAgentAPIClient) Create(ctx context.Context, agent SubAgent) (SubAgent, error) {
 	a.logger.Debug(ctx, "creating sub agent", slog.F("name", agent.Name), slog.F("directory", agent.Directory))
+
+	displayApps := make([]agentproto.CreateSubAgentRequest_DisplayApp, 0, len(agent.DisplayApps))
+	for _, displayApp := range agent.DisplayApps {
+		var app agentproto.CreateSubAgentRequest_DisplayApp
+		switch displayApp {
+		case codersdk.DisplayAppPortForward:
+			app = agentproto.CreateSubAgentRequest_PORT_FORWARDING_HELPER
+		case codersdk.DisplayAppSSH:
+			app = agentproto.CreateSubAgentRequest_SSH_HELPER
+		case codersdk.DisplayAppVSCodeDesktop:
+			app = agentproto.CreateSubAgentRequest_VSCODE
+		case codersdk.DisplayAppVSCodeInsiders:
+			app = agentproto.CreateSubAgentRequest_VSCODE_INSIDERS
+		case codersdk.DisplayAppWebTerminal:
+			app = agentproto.CreateSubAgentRequest_WEB_TERMINAL
+		default:
+			return SubAgent{}, xerrors.Errorf("unexpected codersdk.DisplayApp: %#v", displayApp)
+		}
+
+		displayApps = append(displayApps, app)
+	}
+
 	resp, err := a.api.CreateSubAgent(ctx, &agentproto.CreateSubAgentRequest{
 		Name:            agent.Name,
 		Directory:       agent.Directory,
 		Architecture:    agent.Architecture,
 		OperatingSystem: agent.OperatingSystem,
+		DisplayApps:     displayApps,
 	})
 	if err != nil {
 		return SubAgent{}, err

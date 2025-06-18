@@ -1090,6 +1090,7 @@ func ConvertTemplate(dbTemplate database.Template) Template {
 		AutostartAllowedDays:          codersdk.BitmapToWeekdays(dbTemplate.AutostartAllowedDays()),
 		RequireActiveVersion:          dbTemplate.RequireActiveVersion,
 		Deprecated:                    dbTemplate.Deprecated != "",
+		UseClassicParameterFlow:       dbTemplate.UseClassicParameterFlow,
 	}
 }
 
@@ -1396,6 +1397,7 @@ type Template struct {
 	AutostartAllowedDays           []string `json:"autostart_allowed_days"`
 	RequireActiveVersion           bool     `json:"require_active_version"`
 	Deprecated                     bool     `json:"deprecated"`
+	UseClassicParameterFlow        bool     `json:"use_classic_parameter_flow"`
 }
 
 type TemplateVersion struct {

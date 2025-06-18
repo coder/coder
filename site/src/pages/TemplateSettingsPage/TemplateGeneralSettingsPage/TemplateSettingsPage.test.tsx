@@ -54,7 +54,7 @@ const validFormValues: FormValues = {
 	require_active_version: false,
 	disable_everyone_group_access: false,
 	max_port_share_level: "owner",
-	use_classic_parameter_flow: false,
+	use_classic_parameter_flow: true,
 };
 
 const renderTemplateSettingsPage = async () => {
