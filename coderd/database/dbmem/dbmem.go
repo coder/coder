@@ -23,11 +23,9 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/notifications/types"
-	"github.com/coder/coder/v2/coderd/prebuilds"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -159,7 +157,7 @@ func New() database.Store {
 	q.mutex.Lock()
 	// We can't insert this user using the interface, because it's a system user.
 	q.data.users = append(q.data.users, database.User{
-		ID:             prebuilds.SystemUserID,
+		ID:             database.PrebuildsSystemUserID,
 		Email:          "prebuilds@coder.com",
 		Username:       "prebuilds",
 		CreatedAt:      dbtime.Now(),

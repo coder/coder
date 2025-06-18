@@ -235,8 +235,7 @@ func (w Workspace) RBACObject() rbac.Object {
 // IsPrebuild returns true if the workspace is a prebuild workspace.
 // A workspace is considered a prebuild if its owner is the prebuild system user.
 func (w Workspace) IsPrebuild() bool {
-	// TODO: avoid import cycle
-	return w.OwnerID == uuid.MustParse("c42fdf75-3097-471c-8c33-fb52454d81c0")
+	return w.OwnerID == PrebuildsSystemUserID
 }
 
 // AsPrebuild returns the RBAC object corresponding to the workspace type.
