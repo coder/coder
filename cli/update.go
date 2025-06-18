@@ -19,7 +19,7 @@ func (r *RootCmd) update() *serpent.Command {
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "update <workspace>",
-		Short:       "Will update and start a given workspace if it is out of date",
+		Short:       "Will update and start a given workspace if it is out of date. If the workspace is already running, it will be stopped first.",
 		Long:        "Use --always-prompt to change the parameter values of the workspace.",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
