@@ -5,7 +5,6 @@ import {
 	BanIcon,
 	CirclePlayIcon,
 	CircleStopIcon,
-	CloudIcon,
 	PowerIcon,
 	RotateCcwIcon,
 	StarIcon,

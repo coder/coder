@@ -18,10 +18,10 @@ import {
 	RestartButton,
 	StartButton,
 	StopButton,
-	UpdateAndRestartButtonRequireActiveVersion,
 	UpdateAndRestartButton,
-	UpdateAndStartButtonRequireActiveVersion,
+	UpdateAndRestartButtonRequireActiveVersion,
 	UpdateAndStartButton,
+	UpdateAndStartButtonRequireActiveVersion,
 } from "./Buttons";
 import { DebugButton } from "./DebugButton";
 import { RetryButton } from "./RetryButton";
