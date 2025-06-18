@@ -1688,6 +1688,48 @@ func TestAPI(t *testing.T) {
 					assert.Equal(t, int32(3), subAgent.Apps[2].Order)
 				},
 			},
+			{
+				name: "AppDeduplication",
+				customization: []agentcontainers.CoderCustomization{
+					{
+						Apps: []agentcontainers.SubAgentApp{
+							{
+								Slug:   "foo-app",
+								Hidden: true,
+								Order:  1,
+							},
+							{
+								Slug: "bar-app",
+							},
+						},
+					},
+					{
+						Apps: []agentcontainers.SubAgentApp{
+							{
+								Slug:  "foo-app",
+								Order: 2,
+							},
+							{
+								Slug: "baz-app",
+							},
+						},
+					},
+				},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.Len(t, subAgent.Apps, 3)
+
+					// As the original "foo-app" gets overriden by the later "foo-app",
+					// we expect "bar-app" to be first in the order.
+					assert.Equal(t, "bar-app", subAgent.Apps[0].Slug)
+					assert.Equal(t, "foo-app", subAgent.Apps[1].Slug)
+					assert.Equal(t, "baz-app", subAgent.Apps[2].Slug)
+
+					// We do not expect the properties from the original "foo-app" to be
+					// carried over.
+					assert.Equal(t, false, subAgent.Apps[1].Hidden)
+					assert.Equal(t, int32(2), subAgent.Apps[1].Order)
+				},
+			},
 		}
 
 		for _, tt := range tests {

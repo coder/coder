@@ -1139,7 +1139,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			codersdk.DisplayAppPortForward:    true,
 		}
 
-		var apps []SubAgentApp
+		var appsWithPossibleDuplicates []SubAgentApp
 
 		if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath,
 			[]string{
@@ -1165,7 +1165,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 					displayAppsMap[app] = enabled
 				}
 
-				apps = append(apps, customization.Apps...)
+				appsWithPossibleDuplicates = append(appsWithPossibleDuplicates, customization.Apps...)
 			}
 		}
 
@@ -1176,6 +1176,25 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			}
 		}
 		slices.Sort(displayApps)
+
+		appSlugs := make(map[string]struct{})
+		apps := make([]SubAgentApp, 0, len(appsWithPossibleDuplicates))
+
+		// We want to deduplicate the apps based on their slugs here.
+		// As we want to prioritize later apps, we will walk through this
+		// backwards.
+		for _, app := range slices.Backward(appsWithPossibleDuplicates) {
+			if _, slugAlreadyExists := appSlugs[app.Slug]; slugAlreadyExists {
+				continue
+			}
+
+			appSlugs[app.Slug] = struct{}{}
+			apps = append(apps, app)
+		}
+
+		// Apps is currently in reverse order here, so by reversing it we restore
+		// it to the original order.
+		slices.Reverse(apps)
 
 		subAgentConfig.DisplayApps = displayApps
 		subAgentConfig.Apps = apps
