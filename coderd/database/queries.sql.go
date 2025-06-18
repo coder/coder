@@ -11831,11 +11831,10 @@ INSERT INTO
 		readme,
 		job_id,
 		created_by,
-		source_example_id,
-		has_ai_task
+		source_example_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 `
 
 type InsertTemplateVersionParams struct {
@@ -11850,7 +11849,6 @@ type InsertTemplateVersionParams struct {
 	JobID           uuid.UUID      `db:"job_id" json:"job_id"`
 	CreatedBy       uuid.UUID      `db:"created_by" json:"created_by"`
 	SourceExampleID sql.NullString `db:"source_example_id" json:"source_example_id"`
-	HasAITask       sql.NullBool   `db:"has_ai_task" json:"has_ai_task"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) error {
@@ -11866,7 +11864,6 @@ func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTempla
 		arg.JobID,
 		arg.CreatedBy,
 		arg.SourceExampleID,
-		arg.HasAITask,
 	)
 	return err
 }
@@ -11889,6 +11886,27 @@ type UnarchiveTemplateVersionParams struct {
 // This will always work regardless of the current state of the template version.
 func (q *sqlQuerier) UnarchiveTemplateVersion(ctx context.Context, arg UnarchiveTemplateVersionParams) error {
 	_, err := q.db.ExecContext(ctx, unarchiveTemplateVersion, arg.UpdatedAt, arg.TemplateVersionID)
+	return err
+}
+
+const updateTemplateVersionAITaskByJobID = `-- name: UpdateTemplateVersionAITaskByJobID :exec
+UPDATE
+	template_versions
+SET
+	has_ai_task = $2,
+	updated_at = $3
+WHERE
+	job_id = $1
+`
+
+type UpdateTemplateVersionAITaskByJobIDParams struct {
+	JobID     uuid.UUID    `db:"job_id" json:"job_id"`
+	HasAITask sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
+	UpdatedAt time.Time    `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateTemplateVersionAITaskByJobID(ctx context.Context, arg UpdateTemplateVersionAITaskByJobIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateTemplateVersionAITaskByJobID, arg.JobID, arg.HasAITask, arg.UpdatedAt)
 	return err
 }
 
@@ -17546,11 +17564,10 @@ INSERT INTO
 		deadline,
 		max_deadline,
 		reason,
-		template_version_preset_id,
-		has_ai_task
+		template_version_preset_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 `
 
 type InsertWorkspaceBuildParams struct {
@@ -17568,7 +17585,6 @@ type InsertWorkspaceBuildParams struct {
 	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
 	Reason                  BuildReason         `db:"reason" json:"reason"`
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
-	HasAITask               sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) error {
@@ -17587,7 +17603,33 @@ func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspa
 		arg.MaxDeadline,
 		arg.Reason,
 		arg.TemplateVersionPresetID,
+	)
+	return err
+}
+
+const updateWorkspaceBuildAITaskByID = `-- name: UpdateWorkspaceBuildAITaskByID :exec
+UPDATE
+	workspace_builds
+SET
+	has_ai_task = $1,
+	ai_tasks_sidebar_app_id = $2,
+	updated_at = $3::timestamptz
+WHERE id = $4::uuid
+`
+
+type UpdateWorkspaceBuildAITaskByIDParams struct {
+	HasAITask    sql.NullBool  `db:"has_ai_task" json:"has_ai_task"`
+	SidebarAppID uuid.NullUUID `db:"sidebar_app_id" json:"sidebar_app_id"`
+	UpdatedAt    time.Time     `db:"updated_at" json:"updated_at"`
+	ID           uuid.UUID     `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceBuildAITaskByID(ctx context.Context, arg UpdateWorkspaceBuildAITaskByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildAITaskByID,
 		arg.HasAITask,
+		arg.SidebarAppID,
+		arg.UpdatedAt,
+		arg.ID,
 	)
 	return err
 }
