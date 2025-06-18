@@ -18091,6 +18091,10 @@ const docTemplate = `{
         "codersdk.WorkspaceBuild": {
             "type": "object",
             "properties": {
+                "ai_task_sidebar_app_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "build_number": {
                     "type": "integer"
                 },
@@ -18104,6 +18108,9 @@ const docTemplate = `{
                 "deadline": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "has_ai_task": {
+                    "type": "boolean"
                 },
                 "id": {
                     "type": "string",
