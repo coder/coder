@@ -1,0 +1,12 @@
+digraph G {
+  rankdir = "RL";
+  node [shape = rect, fontname = "sans-serif"];
+  "data.coder_parameter.instance_type" [label="data.coder_parameter.instance_type"];
+  "data.coder_workspace_preset.development" [label="data.coder_workspace_preset.development"];
+  "data.coder_workspace_preset.production" [label="data.coder_workspace_preset.production"];
+  "coder_agent.dev" [label="coder_agent.dev"];
+  "null_resource.dev" [label="null_resource.dev"];
+  "data.coder_workspace_preset.development" -> "data.coder_parameter.instance_type";
+  "data.coder_workspace_preset.production" -> "data.coder_parameter.instance_type";
+  "null_resource.dev" -> "coder_agent.dev";
+}
