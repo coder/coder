@@ -837,7 +837,7 @@ func Permissions(perms map[string][]policy.Action) []Permission {
 	list := make([]Permission, 0, len(perms))
 	for k, actions := range perms {
 		for _, act := range actions {
-			act := act
+
 			list = append(list, Permission{
 				Negate:       false,
 				ResourceType: k,

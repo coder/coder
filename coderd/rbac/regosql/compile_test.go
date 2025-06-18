@@ -265,7 +265,7 @@ neq(input.object.owner, "");
 	}
 
 	for _, tc := range testCases {
-		tc := tc
+
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			part := partialQueries(tc.Queries...)

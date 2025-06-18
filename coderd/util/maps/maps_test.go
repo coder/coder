@@ -70,7 +70,7 @@ func TestSubset(t *testing.T) {
 			expected: true,
 		},
 	} {
-		tc := tc
+
 		t.Run("#"+strconv.Itoa(idx), func(t *testing.T) {
 			t.Parallel()
 

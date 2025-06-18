@@ -60,7 +60,7 @@ func TestUsernameValid(t *testing.T) {
 		{"123456789012345678901234567890123123456789012345678901234567890123", false},
 	}
 	for _, testCase := range testCases {
-		testCase := testCase
+
 		t.Run(testCase.Username, func(t *testing.T) {
 			t.Parallel()
 			valid := codersdk.NameValid(testCase.Username)
@@ -115,7 +115,7 @@ func TestTemplateDisplayNameValid(t *testing.T) {
 		{"12345678901234567890123456789012345678901234567890123456789012345", false},
 	}
 	for _, testCase := range testCases {
-		testCase := testCase
+
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
 			valid := codersdk.DisplayNameValid(testCase.Name)
@@ -156,7 +156,7 @@ func TestTemplateVersionNameValid(t *testing.T) {
 		{"!!!!1 ?????", false},
 	}
 	for _, testCase := range testCases {
-		testCase := testCase
+
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
 			valid := codersdk.TemplateVersionNameValid(testCase.Name)
@@ -197,7 +197,7 @@ func TestFrom(t *testing.T) {
 		{"", ""},
 	}
 	for _, testCase := range testCases {
-		testCase := testCase
+
 		t.Run(testCase.From, func(t *testing.T) {
 			t.Parallel()
 			converted := codersdk.UsernameFrom(testCase.From)
@@ -243,7 +243,7 @@ func TestUserRealNameValid(t *testing.T) {
 		{strings.Repeat("a", 129), false},
 	}
 	for _, testCase := range testCases {
-		testCase := testCase
+
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
 			err := codersdk.UserRealNameValid(testCase.Name)
@@ -277,7 +277,7 @@ func TestGroupNameValid(t *testing.T) {
 		{random256String, false},
 	}
 	for _, testCase := range testCases {
-		testCase := testCase
+
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
 			err := codersdk.GroupNameValid(testCase.Name)

@@ -312,7 +312,7 @@ func TestProvision_Cancel(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
+
 		// below we exec fake_cancel.sh, which causes the kernel to execute it, and if more than
 		// one process tries to do this, it can cause "text file busy"
 		// nolint: paralleltest
@@ -1067,7 +1067,7 @@ func TestProvision(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
+
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
 

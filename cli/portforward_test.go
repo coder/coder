@@ -145,7 +145,7 @@ func TestPortForward(t *testing.T) {
 	)
 
 	for _, c := range cases {
-		c := c
+
 		t.Run(c.name+"_OnePort", func(t *testing.T) {
 			t.Parallel()
 			p1 := setupTestListener(t, c.setupRemote(t))

@@ -282,7 +282,7 @@ resourceLoop:
 
 		// Connect to each region.
 		for _, r := range connInfo.DERPMap.Regions {
-			r := r
+
 			if len(r.Nodes) == 1 && r.Nodes[0].STUNOnly {
 				// Skip STUN-only regions.
 				continue
@@ -654,7 +654,7 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 			replicaPingDone = [count]bool{}
 		)
 		for i := range proxies {
-			i := i
+
 			proxies[i] = coderdenttest.NewWorkspaceProxyReplica(t, api, client, &coderdenttest.ProxyOptions{
 				Name:     "proxy-1",
 				Token:    sessionToken,

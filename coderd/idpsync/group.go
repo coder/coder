@@ -99,7 +99,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 		// membership via the groups the user is in.
 		userOrgs := make(map[uuid.UUID][]database.GetGroupsRow)
 		for _, g := range userGroups {
-			g := g
+
 			userOrgs[g.Group.OrganizationID] = append(userOrgs[g.Group.OrganizationID], g)
 		}
 
@@ -337,7 +337,6 @@ func (s GroupSyncSettings) ParseClaims(orgID uuid.UUID, mergedClaims jwt.MapClai
 
 	groups := make([]ExpectedGroup, 0)
 	for _, group := range parsedGroups {
-		group := group
 
 		// Legacy group mappings happen before the regex filter.
 		mappedGroupName, ok := s.LegacyNameMapping[group]
@@ -355,7 +354,7 @@ func (s GroupSyncSettings) ParseClaims(orgID uuid.UUID, mergedClaims jwt.MapClai
 		mappedGroupIDs, ok := s.Mapping[group]
 		if ok {
 			for _, gid := range mappedGroupIDs {
-				gid := gid
+
 				groups = append(groups, ExpectedGroup{OrganizationID: orgID, GroupID: &gid})
 			}
 			continue

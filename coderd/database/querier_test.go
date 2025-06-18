@@ -1157,7 +1157,7 @@ func TestProxyByHostname(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
+
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1395,7 +1395,7 @@ func TestGetUsers_IncludeSystem(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
+
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1863,7 +1863,6 @@ func TestReadCustomRoles(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
@@ -2507,7 +2506,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // Capture loop variable to avoid data races
+		// Capture loop variable to avoid data races
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			db, _ := dbtestutil.NewDB(t)
@@ -2948,7 +2947,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 	}
 
 	for _, tz := range timezones {
-		tz := tz
+
 		t.Run(tz, func(t *testing.T) {
 			t.Parallel()
 
@@ -2996,7 +2995,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 				}
 
 				for _, tc := range testCases {
-					tc := tc
+
 					t.Run(tc.name, func(t *testing.T) {
 						t.Parallel()
 						db, _ := dbtestutil.NewDB(t)
@@ -3164,7 +3163,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 				}
 
 				for _, tc := range testCases {
-					tc := tc
+
 					t.Run(tc.name, func(t *testing.T) {
 						t.Parallel()
 						db, _ := dbtestutil.NewDB(t)
@@ -3297,7 +3296,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 				}
 
 				for _, tc := range testCases {
-					tc := tc
+
 					t.Run(tc.name, func(t *testing.T) {
 						t.Parallel()
 

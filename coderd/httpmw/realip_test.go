@@ -200,7 +200,7 @@ func TestExtractAddress(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
+
 		t.Run(test.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -235,9 +235,7 @@ func TestTrustedOrigins(t *testing.T) {
 		// ipv6: trust an IPv4 network
 		for _, trusted := range []string{"none", "ipv4", "ipv6"} {
 			for _, header := range []string{"Cf-Connecting-Ip", "True-Client-Ip", "X-Real-Ip", "X-Forwarded-For"} {
-				trusted := trusted
-				header := header
-				proto := proto
+
 				name := fmt.Sprintf("%s-%s-%s", trusted, proto, strings.ToLower(header))
 
 				t.Run(name, func(t *testing.T) {
@@ -311,7 +309,7 @@ func TestCorruptedHeaders(t *testing.T) {
 	t.Parallel()
 
 	for _, header := range []string{"Cf-Connecting-Ip", "True-Client-Ip", "X-Real-Ip", "X-Forwarded-For"} {
-		header := header
+
 		name := strings.ToLower(header)
 
 		t.Run(name, func(t *testing.T) {
@@ -364,9 +362,7 @@ func TestAddressFamilies(t *testing.T) {
 	for _, clientFamily := range []string{"ipv4", "ipv6"} {
 		for _, proxyFamily := range []string{"ipv4", "ipv6"} {
 			for _, header := range []string{"Cf-Connecting-Ip", "True-Client-Ip", "X-Real-Ip", "X-Forwarded-For"} {
-				clientFamily := clientFamily
-				proxyFamily := proxyFamily
-				header := header
+
 				name := fmt.Sprintf("%s-%s-%s", strings.ToLower(header), clientFamily, proxyFamily)
 
 				t.Run(name, func(t *testing.T) {
@@ -466,7 +462,7 @@ func TestFilterUntrusted(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
+
 		t.Run(test.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -612,7 +608,7 @@ func TestApplicationProxy(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
+
 		t.Run(test.Name, func(t *testing.T) {
 			t.Parallel()
 

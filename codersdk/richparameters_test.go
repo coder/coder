@@ -322,7 +322,7 @@ func TestRichParameterValidation(t *testing.T) {
 		}
 
 		for _, tc := range tests {
-			tc := tc
+
 			t.Run(tc.parameterName+"-"+tc.value, func(t *testing.T) {
 				t.Parallel()
 

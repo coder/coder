@@ -1065,7 +1065,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 				},
 			},
 		} {
-			tc := tc
+
 			t.Run("OK_"+tc.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -1340,7 +1340,7 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 				},
 			},
 		} {
-			tc := tc
+
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -1692,7 +1692,7 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 		}
 		//nolint:paralleltest // No race between setting the state and getting the workspace.
 		for _, tt := range tests {
-			tt := tt
+
 			t.Run(string(tt.state), func(t *testing.T) {
 				state, err := agentsdk.ProtoFromLifecycleState(tt.state)
 				if tt.wantErr {

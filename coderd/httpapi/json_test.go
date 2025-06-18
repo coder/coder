@@ -46,7 +46,6 @@ func TestDuration(t *testing.T) {
 		}
 
 		for _, c := range cases {
-			c := c
 
 			t.Run(c.expected, func(t *testing.T) {
 				t.Parallel()
@@ -109,7 +108,6 @@ func TestDuration(t *testing.T) {
 		}
 
 		for _, c := range cases {
-			c := c
 
 			t.Run(c.value, func(t *testing.T) {
 				t.Parallel()
@@ -153,7 +151,6 @@ func TestDuration(t *testing.T) {
 		}
 
 		for _, c := range cases {
-			c := c
 
 			t.Run(c.value, func(t *testing.T) {
 				t.Parallel()
