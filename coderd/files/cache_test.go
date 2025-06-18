@@ -75,7 +75,7 @@ func TestCacheRBAC(t *testing.T) {
 		require.Equal(t, 0, cache.Count())
 
 		// Read the file with a file reader to put it into the cache.
-		_, err := cache.Acquire(cacheReader, file.ID)
+		a, err := cache.Acquire(cacheReader, file.ID)
 		require.NoError(t, err)
 		require.Equal(t, 1, cache.Count())
 
@@ -86,12 +86,12 @@ func TestCacheRBAC(t *testing.T) {
 		require.Equal(t, 1, cache.Count())
 
 		// UserReader can
-		_, err = cache.Acquire(userReader, file.ID)
+		b, err := cache.Acquire(userReader, file.ID)
 		require.NoError(t, err)
 		require.Equal(t, 1, cache.Count())
 
-		cache.Release(file.ID)
-		cache.Release(file.ID)
+		a.Close()
+		b.Close()
 		require.Equal(t, 0, cache.Count())
 
 		rec.AssertActorID(t, nobodyID.String(), rec.Pair(policy.ActionRead, file))
@@ -179,13 +179,15 @@ func TestRelease(t *testing.T) {
 		ids = append(ids, uuid.New())
 	}
 
+	releases := make(map[uuid.UUID][]func(), 0)
 	// Acquire a bunch of references
 	batchSize := 10
 	for openedIdx, id := range ids {
 		for batchIdx := range batchSize {
 			it, err := c.Acquire(ctx, id)
 			require.NoError(t, err)
-			require.Equal(t, emptyFS, it)
+			require.Equal(t, emptyFS, it.FS)
+			releases[id] = append(releases[id], it.Close)
 
 			// Each time a new file is opened, the metrics should be updated as so:
 			opened := openedIdx + 1
@@ -206,7 +208,8 @@ func TestRelease(t *testing.T) {
 	for closedIdx, id := range ids {
 		stillOpen := len(ids) - closedIdx
 		for closingIdx := range batchSize {
-			c.Release(id)
+			releases[id][0]()
+			releases[id] = releases[id][1:]
 
 			// Each time a file is released, the metrics should decrement the file refs
 			require.Equal(t, (stillOpen*batchSize)-(closingIdx+1), promhelp.GaugeValue(t, reg, cachePromMetricName("open_file_refs_current"), nil))

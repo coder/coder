@@ -141,14 +141,15 @@ func (r *Loader) dynamicRenderer(ctx context.Context, db database.Store, cache *
 		return nil, xerrors.Errorf("acquire template file: %w", err)
 	}
 
-	var moduleFilesFS fs.FS
+	var terraformFS fs.FS = templateFS
+	var moduleFilesFS *files.CloseFS
 	if r.terraformValues.CachedModuleFiles.Valid {
 		moduleFilesFS, err = cache.Acquire(fileCtx, r.terraformValues.CachedModuleFiles.UUID)
 		if err != nil {
-			cache.Release(r.job.FileID)
+			templateFS.Close()
 			return nil, xerrors.Errorf("acquire module files: %w", err)
 		}
-		templateFS = files.NewOverlayFS(templateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
+		terraformFS = files.NewOverlayFS(templateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
 	}
 
 	plan := json.RawMessage("{}")
@@ -158,7 +159,7 @@ func (r *Loader) dynamicRenderer(ctx context.Context, db database.Store, cache *
 
 	return &dynamicRenderer{
 		data:        r,
-		templateFS:  templateFS,
+		templateFS:  terraformFS,
 		db:          db,
 		plan:        plan,
 		ownerErrors: make(map[uuid.UUID]error),
@@ -166,9 +167,9 @@ func (r *Loader) dynamicRenderer(ctx context.Context, db database.Store, cache *
 			// Up to 2 files are cached, and must be released when rendering is complete.
 			// TODO: Might be smart to always call release when the context is
 			//  cancelled.
-			cache.Release(r.job.FileID)
+			templateFS.Close()
 			if moduleFilesFS != nil {
-				cache.Release(r.terraformValues.CachedModuleFiles.UUID)
+				moduleFilesFS.Close()
 			}
 		},
 	}, nil
