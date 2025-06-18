@@ -6,16 +6,11 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import {
-	EllipsisVertical,
-	ExternalLinkIcon,
-	HouseIcon,
-	RotateCwIcon,
-} from "lucide-react";
-import { openAppInNewWindow } from "modules/apps/apps";
+import { EllipsisVertical, ExternalLinkIcon, HouseIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import type { Task } from "modules/tasks/tasks";
 import { type FC, useRef } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { cn } from "utils/cn";
 
 type TaskAppIFrameProps = {
@@ -70,20 +65,6 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 					onClick={(e) => {
 						e.preventDefault();
 						if (frameRef.current?.contentWindow) {
-							frameRef.current.contentWindow.location.reload();
-						}
-					}}
-				>
-					<RotateCwIcon />
-					<span className="sr-only">Refresh</span>
-				</Button>
-
-				<Button
-					size="icon"
-					variant="subtle"
-					onClick={(e) => {
-						e.preventDefault();
-						if (frameRef.current?.contentWindow) {
 							frameRef.current.contentWindow.location.href = appHref();
 						}
 					}}
@@ -104,13 +85,11 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
-						<DropdownMenuItem
-							onClick={() => {
-								openAppInNewWindow(frameSrc);
-							}}
-						>
-							<ExternalLinkIcon />
-							Open app in new tab
+						<DropdownMenuItem asChild>
+							<RouterLink to={frameSrc} target="_blank">
+								<ExternalLinkIcon />
+								Open app in new tab
+							</RouterLink>
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
