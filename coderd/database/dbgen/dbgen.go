@@ -1261,6 +1261,7 @@ func Preset(t testing.TB, db database.Store, seed database.InsertPresetParams) d
 		CreatedAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
 		DesiredInstances:    seed.DesiredInstances,
 		InvalidateAfterSecs: seed.InvalidateAfterSecs,
+		IsDefault:           seed.IsDefault,
 	})
 	require.NoError(t, err, "insert preset")
 	return preset

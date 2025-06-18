@@ -395,6 +395,7 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 			CreatedAt:           version.CreatedAt,
 			DesiredInstances:    preset.DesiredInstances,
 			InvalidateAfterSecs: preset.InvalidateAfterSecs,
+			IsDefault:           false,
 		})
 	}
 

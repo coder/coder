@@ -5,7 +5,8 @@ INSERT INTO template_version_presets (
 	name,
 	created_at,
 	desired_instances,
-	invalidate_after_secs
+	invalidate_after_secs,
+	is_default
 )
 VALUES (
 	@id,
@@ -13,7 +14,8 @@ VALUES (
 	@name,
 	@created_at,
 	@desired_instances,
-	@invalidate_after_secs
+	@invalidate_after_secs,
+	@is_default
 ) RETURNING *;
 
 -- name: InsertPresetParameters :many
@@ -69,3 +71,4 @@ SELECT tvp.*, tv.template_id, tv.organization_id FROM
 	template_version_presets tvp
 	INNER JOIN template_versions tv ON tvp.template_version_id = tv.id
 WHERE tvp.id = @preset_id;
+

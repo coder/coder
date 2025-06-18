@@ -6583,7 +6583,7 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 }
 
 const getPresetByID = `-- name: GetPresetByID :one
-SELECT tvp.id, tvp.template_version_id, tvp.name, tvp.created_at, tvp.desired_instances, tvp.invalidate_after_secs, tvp.prebuild_status, tv.template_id, tv.organization_id FROM
+SELECT tvp.id, tvp.template_version_id, tvp.name, tvp.created_at, tvp.desired_instances, tvp.invalidate_after_secs, tvp.prebuild_status, tvp.is_default, tv.template_id, tv.organization_id FROM
 	template_version_presets tvp
 	INNER JOIN template_versions tv ON tvp.template_version_id = tv.id
 WHERE tvp.id = $1
@@ -6597,6 +6597,7 @@ type GetPresetByIDRow struct {
 	DesiredInstances    sql.NullInt32  `db:"desired_instances" json:"desired_instances"`
 	InvalidateAfterSecs sql.NullInt32  `db:"invalidate_after_secs" json:"invalidate_after_secs"`
 	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
+	IsDefault           bool           `db:"is_default" json:"is_default"`
 	TemplateID          uuid.NullUUID  `db:"template_id" json:"template_id"`
 	OrganizationID      uuid.UUID      `db:"organization_id" json:"organization_id"`
 }
@@ -6612,6 +6613,7 @@ func (q *sqlQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (Get
 		&i.DesiredInstances,
 		&i.InvalidateAfterSecs,
 		&i.PrebuildStatus,
+		&i.IsDefault,
 		&i.TemplateID,
 		&i.OrganizationID,
 	)
@@ -6620,7 +6622,7 @@ func (q *sqlQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (Get
 
 const getPresetByWorkspaceBuildID = `-- name: GetPresetByWorkspaceBuildID :one
 SELECT
-	template_version_presets.id, template_version_presets.template_version_id, template_version_presets.name, template_version_presets.created_at, template_version_presets.desired_instances, template_version_presets.invalidate_after_secs, template_version_presets.prebuild_status
+	template_version_presets.id, template_version_presets.template_version_id, template_version_presets.name, template_version_presets.created_at, template_version_presets.desired_instances, template_version_presets.invalidate_after_secs, template_version_presets.prebuild_status, template_version_presets.is_default
 FROM
 	template_version_presets
 	INNER JOIN workspace_builds ON workspace_builds.template_version_preset_id = template_version_presets.id
@@ -6639,6 +6641,7 @@ func (q *sqlQuerier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceB
 		&i.DesiredInstances,
 		&i.InvalidateAfterSecs,
 		&i.PrebuildStatus,
+		&i.IsDefault,
 	)
 	return i, err
 }
@@ -6720,7 +6723,7 @@ func (q *sqlQuerier) GetPresetParametersByTemplateVersionID(ctx context.Context,
 
 const getPresetsByTemplateVersionID = `-- name: GetPresetsByTemplateVersionID :many
 SELECT
-	id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status
+	id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status, is_default
 FROM
 	template_version_presets
 WHERE
@@ -6744,6 +6747,7 @@ func (q *sqlQuerier) GetPresetsByTemplateVersionID(ctx context.Context, template
 			&i.DesiredInstances,
 			&i.InvalidateAfterSecs,
 			&i.PrebuildStatus,
+			&i.IsDefault,
 		); err != nil {
 			return nil, err
 		}
@@ -6765,7 +6769,8 @@ INSERT INTO template_version_presets (
 	name,
 	created_at,
 	desired_instances,
-	invalidate_after_secs
+	invalidate_after_secs,
+	is_default
 )
 VALUES (
 	$1,
@@ -6773,8 +6778,9 @@ VALUES (
 	$3,
 	$4,
 	$5,
-	$6
-) RETURNING id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status
+	$6,
+	$7
+) RETURNING id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status, is_default
 `
 
 type InsertPresetParams struct {
@@ -6784,6 +6790,7 @@ type InsertPresetParams struct {
 	CreatedAt           time.Time     `db:"created_at" json:"created_at"`
 	DesiredInstances    sql.NullInt32 `db:"desired_instances" json:"desired_instances"`
 	InvalidateAfterSecs sql.NullInt32 `db:"invalidate_after_secs" json:"invalidate_after_secs"`
+	IsDefault           bool          `db:"is_default" json:"is_default"`
 }
 
 func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error) {
@@ -6794,6 +6801,7 @@ func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (
 		arg.CreatedAt,
 		arg.DesiredInstances,
 		arg.InvalidateAfterSecs,
+		arg.IsDefault,
 	)
 	var i TemplateVersionPreset
 	err := row.Scan(
@@ -6804,6 +6812,7 @@ func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (
 		&i.DesiredInstances,
 		&i.InvalidateAfterSecs,
 		&i.PrebuildStatus,
+		&i.IsDefault,
 	)
 	return i, err
 }

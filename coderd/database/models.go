@@ -3410,6 +3410,7 @@ type TemplateVersionPreset struct {
 	DesiredInstances    sql.NullInt32  `db:"desired_instances" json:"desired_instances"`
 	InvalidateAfterSecs sql.NullInt32  `db:"invalidate_after_secs" json:"invalidate_after_secs"`
 	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
+	IsDefault           bool           `db:"is_default" json:"is_default"`
 }
 
 type TemplateVersionPresetParameter struct {
