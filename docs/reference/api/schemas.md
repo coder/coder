@@ -2443,6 +2443,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "refresh": 0,
       "threshold_database": 0
     },
+    "hide_ai_tasks": true,
     "http_address": "string",
     "http_cookies": {
       "same_site": "string",
@@ -2943,6 +2944,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "refresh": 0,
     "threshold_database": 0
   },
+  "hide_ai_tasks": true,
   "http_address": "string",
   "http_cookies": {
     "same_site": "string",
@@ -3243,6 +3245,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `external_auth`                      | [serpent.Struct-array_codersdk_ExternalAuthConfig](#serpentstruct-array_codersdk_externalauthconfig) | false    |              |                                                                    |
 | `external_token_encryption_keys`     | array of string                                                                                      | false    |              |                                                                    |
 | `healthcheck`                        | [codersdk.HealthcheckConfig](#codersdkhealthcheckconfig)                                             | false    |              |                                                                    |
+| `hide_ai_tasks`                      | boolean                                                                                              | false    |              |                                                                    |
 | `http_address`                       | string                                                                                               | false    |              | Http address is a string because it may be set to zero to disable. |
 | `http_cookies`                       | [codersdk.HTTPCookieConfig](#codersdkhttpcookieconfig)                                               | false    |              |                                                                    |
 | `in_memory_database`                 | boolean                                                                                              | false    |              |                                                                    |

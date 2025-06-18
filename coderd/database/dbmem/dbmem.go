@@ -1389,6 +1389,17 @@ func isDeprecated(template database.Template) bool {
 	return template.Deprecated != ""
 }
 
+func (q *FakeQuerier) getWorkspaceBuildParametersNoLock(workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
+	params := make([]database.WorkspaceBuildParameter, 0)
+	for _, param := range q.workspaceBuildParameters {
+		if param.WorkspaceBuildID != workspaceBuildID {
+			continue
+		}
+		params = append(params, param)
+	}
+	return params, nil
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -7898,14 +7909,7 @@ func (q *FakeQuerier) GetWorkspaceBuildParameters(_ context.Context, workspaceBu
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	params := make([]database.WorkspaceBuildParameter, 0)
-	for _, param := range q.workspaceBuildParameters {
-		if param.WorkspaceBuildID != workspaceBuildID {
-			continue
-		}
-		params = append(params, param)
-	}
-	return params, nil
+	return q.getWorkspaceBuildParametersNoLock(workspaceBuildID)
 }
 
 func (q *FakeQuerier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
@@ -8489,6 +8493,19 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 	}
 
 	return workspaces, nil
+}
+
+func (q *FakeQuerier) HasTemplateVersionsWithAITask(_ context.Context) (bool, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, templateVersion := range q.templateVersions {
+		if templateVersion.HasAITask {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func (q *FakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
@@ -13233,6 +13250,18 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 				continue
 			}
 		}
+
+		if arg.HasAITask.Valid {
+			tv, err := q.getTemplateVersionByIDNoLock(ctx, template.ActiveVersionID)
+			if err != nil {
+				return nil, xerrors.Errorf("get template version: %w", err)
+			}
+			tvHasAITask := tv.HasAITask.Valid && tv.HasAITask.Bool
+			if tvHasAITask != arg.HasAITask.Bool {
+				continue
+			}
+		}
+
 		templates = append(templates, template)
 	}
 	if len(templates) > 0 {
@@ -13558,6 +13587,43 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 				}
 			}
 			if !match {
+				continue
+			}
+		}
+
+		if arg.HasAITask.Valid {
+			hasAITask, err := func() (bool, error) {
+				build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
+				if err != nil {
+					return false, xerrors.Errorf("get latest build: %w", err)
+				}
+				if build.HasAITask.Valid {
+					return build.HasAITask.Bool, nil
+				}
+				// If the build has a nil AI task, check if the job is in progress
+				// and if it has a non-empty AI Prompt parameter
+				job, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID)
+				if err != nil {
+					return false, xerrors.Errorf("get provisioner job: %w", err)
+				}
+				if job.CompletedAt.Valid {
+					return false, nil
+				}
+				parameters, err := q.getWorkspaceBuildParametersNoLock(build.ID)
+				if err != nil {
+					return false, xerrors.Errorf("get workspace build parameters: %w", err)
+				}
+				for _, param := range parameters {
+					if param.Name == "AI Prompt" && param.Value != "" {
+						return true, nil
+					}
+				}
+				return false, nil
+			}()
+			if err != nil {
+				return nil, xerrors.Errorf("get hasAITask: %w", err)
+			}
+			if hasAITask != arg.HasAITask.Bool {
 				continue
 			}
 		}

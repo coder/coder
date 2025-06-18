@@ -30,6 +30,7 @@ type AvailableMetadata = Readonly<{
 	entitlements: Entitlements;
 	regions: readonly Region[];
 	"build-info": BuildInfoResponse;
+	tasksTabVisible: boolean;
 }>;
 
 export type MetadataKey = keyof AvailableMetadata;
@@ -91,6 +92,7 @@ export class MetadataManager implements MetadataManagerApi {
 			experiments: this.registerValue<Experiments>("experiments"),
 			"build-info": this.registerValue<BuildInfoResponse>("build-info"),
 			regions: this.registerRegionValue(),
+			tasksTabVisible: this.registerValue<boolean>("tasksTabVisible"),
 		};
 	}
 

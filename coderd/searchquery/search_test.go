@@ -222,6 +222,36 @@ func TestSearchWorkspace(t *testing.T) {
 				OrganizationID: uuid.MustParse("08eb6715-02f8-45c5-b86d-03786fcfbb4e"),
 			},
 		},
+		{
+			Name:  "HasAITaskTrue",
+			Query: "has-ai-task:true",
+			Expected: database.GetWorkspacesParams{
+				HasAITask: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasAITaskFalse",
+			Query: "has-ai-task:false",
+			Expected: database.GetWorkspacesParams{
+				HasAITask: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasAITaskMissing",
+			Query: "",
+			Expected: database.GetWorkspacesParams{
+				HasAITask: sql.NullBool{
+					Bool:  false,
+					Valid: false,
+				},
+			},
+		},
 
 		// Failures
 		{
@@ -557,6 +587,36 @@ func TestSearchTemplates(t *testing.T) {
 			Query: "foobar",
 			Expected: database.GetTemplatesWithFilterParams{
 				FuzzyName: "foobar",
+			},
+		},
+		{
+			Name:  "HasAITaskTrue",
+			Query: "has-ai-task:true",
+			Expected: database.GetTemplatesWithFilterParams{
+				HasAITask: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasAITaskFalse",
+			Query: "has-ai-task:false",
+			Expected: database.GetTemplatesWithFilterParams{
+				HasAITask: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasAITaskMissing",
+			Query: "",
+			Expected: database.GetTemplatesWithFilterParams{
+				HasAITask: sql.NullBool{
+					Bool:  false,
+					Valid: false,
+				},
 			},
 		},
 	}

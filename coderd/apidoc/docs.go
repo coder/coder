@@ -9653,7 +9653,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task.",
                         "name": "q",
                         "in": "query"
                     },
@@ -12482,6 +12482,9 @@ const docTemplate = `{
                 },
                 "healthcheck": {
                     "$ref": "#/definitions/codersdk.HealthcheckConfig"
+                },
+                "hide_ai_tasks": {
+                    "type": "boolean"
                 },
                 "http_address": {
                     "description": "HTTPAddress is a string because it may be set to zero to disable.",
