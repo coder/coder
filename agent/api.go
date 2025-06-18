@@ -49,7 +49,7 @@ func (a *agent) apiHandler(aAPI proto.DRPCAgentClient26) (http.Handler, func() e
 			agentcontainers.WithSubAgentClient(agentcontainers.NewSubAgentClientFromAPI(a.logger, aAPI)),
 		}
 		manifest := a.manifest.Load()
-		if manifest != nil && len(manifest.Devcontainers) > 0 {
+		if manifest != nil {
 			containerAPIOpts = append(containerAPIOpts,
 				agentcontainers.WithUserName(manifest.OwnerName),
 				agentcontainers.WithWorkspaceName(manifest.WorkspaceName),
