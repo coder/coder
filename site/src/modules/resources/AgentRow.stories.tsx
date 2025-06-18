@@ -288,6 +288,7 @@ export const GroupApp: Story = {
 export const Devcontainer: Story = {
 	beforeEach: () => {
 		spyOn(API, "getAgentContainers").mockResolvedValue({
+			devcontainers: [M.MockWorkspaceAgentDevcontainer],
 			containers: [M.MockWorkspaceAgentContainer],
 		});
 	},

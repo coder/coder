@@ -2080,6 +2080,10 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 	subAgentConnected := make(chan subAgentRequestPayload, 1)
 	subAgentReady := make(chan struct{}, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v2/workspaceagents/me/") {
+			return
+		}
+
 		t.Logf("Sub-agent request received: %s %s", r.Method, r.URL.Path)
 
 		if r.Method != http.MethodPost {
@@ -2226,11 +2230,22 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 	// Ensure the container update routine runs.
 	tickerFuncTrap.MustWait(ctx).MustRelease(ctx)
 	tickerFuncTrap.Close()
-	_, next := mClock.AdvanceNext()
-	next.MustWait(ctx)
 
-	// Verify that a subagent was created.
-	subAgents := agentClient.GetSubAgents()
+	// Since the agent does RefreshContainers, and the ticker function
+	// is set to skip instead of queue, we must advance the clock
+	// multiple times to ensure that the sub-agent is created.
+	var subAgents []*proto.SubAgent
+	for {
+		_, next := mClock.AdvanceNext()
+		next.MustWait(ctx)
+
+		// Verify that a subagent was created.
+		subAgents = agentClient.GetSubAgents()
+		if len(subAgents) > 0 {
+			t.Logf("Found sub-agents: %d", len(subAgents))
+			break
+		}
+	}
 	require.Len(t, subAgents, 1, "expected one sub agent")
 
 	subAgent := subAgents[0]

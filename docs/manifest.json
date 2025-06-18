@@ -402,7 +402,14 @@
 						{
 							"title": "OIDC Authentication",
 							"description": "Configure OpenID Connect authentication with identity providers like Okta or Active Directory",
-							"path": "./admin/users/oidc-auth.md"
+							"path": "./admin/users/oidc-auth/index.md",
+							"children": [
+								{
+									"title": "Configure OIDC refresh tokens",
+									"description": "How to configure OIDC refresh tokens",
+									"path": "./admin/users/oidc-auth/refresh-tokens.md"
+								}
+							]
 						},
 						{
 							"title": "GitHub Authentication",
@@ -646,7 +653,7 @@
 				{
 					"title": "External Authentication",
 					"description": "Learn how to configure external authentication",
-					"path": "./admin/external-auth.md",
+					"path": "./admin/external-auth/index.md",
 					"icon_path": "./images/icons/plug.svg"
 				},
 				{

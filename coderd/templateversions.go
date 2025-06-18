@@ -1732,7 +1732,10 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			},
 			// appease the exhaustruct linter
 			// TODO: set this to whether the template version defines a `coder_ai_task` tf resource
-			HasAITask: false,
+			HasAITask: sql.NullBool{
+				Bool:  false,
+				Valid: false,
+			},
 		})
 		if err != nil {
 			if database.IsUniqueViolation(err, database.UniqueTemplateVersionsTemplateIDNameKey) {

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { userEvent, within } from "@storybook/test";
 import {
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
@@ -26,11 +27,13 @@ const meta: Meta<typeof PortForwardPopoverView> = {
 		),
 	],
 	args: {
+		listeningPorts: MockListeningPortsResponse.ports,
+		sharedPorts: MockSharedPortsResponse.shares,
 		agent: MockWorkspaceAgent,
 		template: MockTemplate,
 		workspace: MockWorkspace,
 		portSharingControlsEnabled: true,
-		host: "coder.com",
+		host: "*.coder.com",
 	},
 };
 
@@ -51,7 +54,6 @@ export const WithManyPorts: Story = {
 			network: "",
 			port: 3000 + i,
 		})),
-		sharedPorts: MockSharedPortsResponse.shares,
 	},
 };
 
@@ -64,7 +66,6 @@ export const Empty: Story = {
 
 export const AGPLPortSharing: Story = {
 	args: {
-		listeningPorts: MockListeningPortsResponse.ports,
 		portSharingControlsEnabled: false,
 		sharedPorts: MockSharedPortsResponse.shares,
 	},
@@ -72,8 +73,6 @@ export const AGPLPortSharing: Story = {
 
 export const EnterprisePortSharingControlsOwner: Story = {
 	args: {
-		listeningPorts: MockListeningPortsResponse.ports,
-		sharedPorts: [],
 		template: {
 			...MockTemplate,
 			max_port_share_level: "owner",
@@ -83,13 +82,29 @@ export const EnterprisePortSharingControlsOwner: Story = {
 
 export const EnterprisePortSharingControlsAuthenticated: Story = {
 	args: {
-		listeningPorts: MockListeningPortsResponse.ports,
 		template: {
 			...MockTemplate,
 			max_port_share_level: "authenticated",
 		},
-		sharedPorts: MockSharedPortsResponse.shares.filter((share) => {
-			return share.share_level === "authenticated";
-		}),
+		sharedPorts: MockSharedPortsResponse.shares.filter(
+			(share) => share.share_level === "authenticated",
+		),
+	},
+};
+
+export const DisabledOptions: Story = {
+	args: {
+		template: {
+			...MockTemplate,
+			max_port_share_level: "organization",
+		},
+		sharedPorts: MockSharedPortsResponse.shares.filter(
+			(share) => share.share_level === "organization",
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const dropdown = canvas.getByLabelText("Sharing Level");
+		await userEvent.click(dropdown);
 	},
 };

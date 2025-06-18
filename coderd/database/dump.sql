@@ -18,6 +18,7 @@ CREATE TYPE api_key_scope AS ENUM (
 CREATE TYPE app_sharing_level AS ENUM (
     'owner',
     'authenticated',
+    'organization',
     'public'
 );
 
@@ -1554,7 +1555,7 @@ CREATE TABLE template_versions (
     message character varying(1048576) DEFAULT ''::character varying NOT NULL,
     archived boolean DEFAULT false NOT NULL,
     source_example_id text,
-    has_ai_task boolean DEFAULT false NOT NULL
+    has_ai_task boolean
 );
 
 COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';
@@ -2083,7 +2084,7 @@ CREATE TABLE workspace_builds (
     daily_cost integer DEFAULT 0 NOT NULL,
     max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     template_version_preset_id uuid,
-    has_ai_task boolean DEFAULT false NOT NULL,
+    has_ai_task boolean,
     ai_tasks_sidebar_app_id uuid
 );
 

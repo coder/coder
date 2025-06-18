@@ -410,3 +410,59 @@ func TestCompileHostnamePattern(t *testing.T) {
 		})
 	}
 }
+
+func TestConvertAppURLForCSP(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		host     string
+		wildcard string
+		expected string
+	}{
+		{
+			name:     "Empty",
+			host:     "example.com",
+			wildcard: "",
+			expected: "example.com",
+		},
+		{
+			name:     "NoAsterisk",
+			host:     "example.com",
+			wildcard: "coder.com",
+			expected: "coder.com",
+		},
+		{
+			name:     "Asterisk",
+			host:     "example.com",
+			wildcard: "*.coder.com",
+			expected: "*.coder.com",
+		},
+		{
+			name:     "FirstPrefix",
+			host:     "example.com",
+			wildcard: "*--apps.coder.com",
+			expected: "*.coder.com",
+		},
+		{
+			name:     "FirstSuffix",
+			host:     "example.com",
+			wildcard: "apps--*.coder.com",
+			expected: "*.coder.com",
+		},
+		{
+			name:     "Middle",
+			host:     "example.com",
+			wildcard: "apps.*.com",
+			expected: "example.com",
+		},
+	}
+
+	for _, c := range testCases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, c.expected, appurl.ConvertAppHostForCSP(c.host, c.wildcard))
+		})
+	}
+}

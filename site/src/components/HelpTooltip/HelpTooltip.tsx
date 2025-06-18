@@ -84,20 +84,20 @@ export const HelpTooltipTrigger = forwardRef<
 				ref={ref}
 				css={[
 					css`
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 4px 0;
-            border: 0;
-            background: transparent;
-            cursor: pointer;
-            color: inherit;
+						display: flex;
+						align-items: center;
+						justify-content: center;
+						padding: 4px 0;
+						border: 0;
+						background: transparent;
+						cursor: pointer;
+						color: inherit;
 
-            & svg {
-              width: ${getIconSpacingFromSize(size)}px;
-              height: ${getIconSpacingFromSize(size)}px;
-            }
-          `,
+						& svg {
+							width: ${getIconSpacingFromSize(size)}px;
+							height: ${getIconSpacingFromSize(size)}px;
+						}
+					`,
 					hoverEffect ? hoverEffectStyles : null,
 				]}
 			>

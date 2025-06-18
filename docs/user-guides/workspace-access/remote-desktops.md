@@ -51,9 +51,30 @@ Then, connect to your workspace via RDP at `localhost:3399`.
 > [!NOTE]
 > The default username is `Administrator` and password is `coderRDP!`.
 
-### Coder Desktop URI Handling (Beta)
+### RDP with Coder Desktop (Beta)
 
-[Coder Desktop](../desktop) can use a URI handler to directly launch an RDP session without setting up port-forwarding.
+[Coder Desktop](../desktop/index.md)'s Coder Connect feature creates a connection to your workspaces in the background.
+There is no need for port forwarding when it is enabled.
+
+Use your favorite RDP client to connect to `<workspace-name>.coder` instead of `localhost:3399`.
+
+> [!NOTE]
+> Some versions of Windows, including Windows Server 2022, do not communicate correctly over UDP
+> when using Coder Connect because they do not respect the maximum transmission unit (MTU) of the link.
+> When this happens the RDP client will appear to connect, but displays a blank screen.
+>
+> To avoid this error, Coder's [Windows RDP](https://registry.coder.com/modules/windows-rdp) module
+> [disables RDP over UDP automatically](https://github.com/coder/registry/blob/b58bfebcf3bcdcde4f06a183f92eb3e01842d270/registry/coder/modules/windows-rdp/powershell-installation-script.tftpl#L22).
+>
+> To disable RDP over UDP, run the following in PowerShell:
+>
+> ```powershell
+> New-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name "SelectTransport" -Value 1 -PropertyType DWORD -Force
+> Restart-Service -Name "TermService" -Force
+> ```
+
+You can also use a URI handler to directly launch an RDP session.
+
 The URI format is:
 
 ```text
@@ -85,7 +106,7 @@ resource "coder_app" "rdp-coder-desktop" {
 
 ## RDP Web
 
-Our [WebRDP](https://registry.coder.com/modules/windows-rdp) module in the Coder
+Our [Windows RDP](https://registry.coder.com/modules/windows-rdp) module in the Coder
 Registry adds a one-click button to open an RDP session in the browser. This
 requires just a few lines of Terraform in your template, see the documentation
 on our registry for setup.
