@@ -61,7 +61,7 @@ Use your favorite RDP client to connect to `<workspace-name>.coder` instead of `
 > [!NOTE]
 > Some versions of Windows, including Windows Server 2022, do not communicate correctly over UDP
 > when using Coder Connect because they do not respect the maximum transmission unit (MTU) of the link.
-> When this happens, the RDP client will appear to connect, but display a blank screen.
+> When this happens, the RDP client will appear to connect, but displays a blank screen.
 >
 > To avoid this error, Coder's [Windows RDP](https://registry.coder.com/modules/windows-rdp) module
 > [disables RDP over UDP automatically](https://github.com/coder/registry/blob/b58bfebcf3bcdcde4f06a183f92eb3e01842d270/registry/coder/modules/windows-rdp/powershell-installation-script.tftpl#L22).
@@ -87,7 +87,7 @@ For example:
 coder://coder.example.com/v0/open/ws/myworkspace/agent/main/rdp?username=Administrator&password=coderRDP!
 ```
 
-To include a Coder Desktop button to the workspace dashboard page, add a `coder_app` resource to the template:
+To include a Coder Desktop button on the workspace dashboard page, add a `coder_app` resource to the template:
 
 ```tf
 locals {
@@ -111,7 +111,7 @@ Registry adds a one-click button to open an RDP session in the browser. This
 requires just a few lines of Terraform in your template, see the documentation
 on our registry for setup.
 
-![Web RDP Module in a Workspace](../../images/user-guides/web-rdp-demo.png)
+![Windows RDP Module in a Workspace](../../images/user-guides/web-rdp-demo.png)
 
 ## Amazon DCV Windows
 
