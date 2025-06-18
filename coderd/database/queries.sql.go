@@ -10812,34 +10812,36 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
+	t.id, t.created_at, t.updated_at, t.organization_id, t.deleted, t.name, t.provisioner, t.active_version_id, t.description, t.default_ttl, t.created_by, t.icon, t.user_acl, t.group_acl, t.display_name, t.allow_user_cancel_workspace_jobs, t.allow_user_autostart, t.allow_user_autostop, t.failure_ttl, t.time_til_dormant, t.time_til_dormant_autodelete, t.autostop_requirement_days_of_week, t.autostop_requirement_weeks, t.autostart_block_days_of_week, t.require_active_version, t.deprecated, t.activity_bump, t.max_port_sharing_level, t.use_classic_parameter_flow, t.created_by_avatar_url, t.created_by_username, t.created_by_name, t.organization_name, t.organization_display_name, t.organization_icon
 FROM
-	template_with_names AS templates
+	template_with_names AS t
+LEFT JOIN
+	template_versions tv ON t.active_version_id = tv.id
 WHERE
 	-- Optionally include deleted templates
-	templates.deleted = $1
+	t.deleted = $1
 	-- Filter by organization_id
 	AND CASE
 		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			organization_id = $2
+			t.organization_id = $2
 		ELSE true
 	END
 	-- Filter by exact name
 	AND CASE
 		WHEN $3 :: text != '' THEN
-			LOWER("name") = LOWER($3)
+			LOWER(t.name) = LOWER($3)
 		ELSE true
 	END
 	-- Filter by name, matching on substring
 	AND CASE
 		WHEN $4 :: text != '' THEN
-			lower(name) ILIKE '%' || lower($4) || '%'
+			lower(t.name) ILIKE '%' || lower($4) || '%'
 		ELSE true
 	END
 	-- Filter by ids
 	AND CASE
 		WHEN array_length($5 :: uuid[], 1) > 0 THEN
-			id = ANY($5)
+			t.id = ANY($5)
 		ELSE true
 	END
 	-- Filter by deprecated
@@ -10847,15 +10849,21 @@ WHERE
 		WHEN $6 :: boolean IS NOT NULL THEN
 			CASE
 				WHEN $6 :: boolean THEN
-					deprecated != ''
+					t.deprecated != ''
 				ELSE
-					deprecated = ''
+					t.deprecated = ''
 			END
+		ELSE true
+	END
+	-- Filter by has_ai_task in latest version
+	AND CASE
+		WHEN $7 :: boolean IS NOT NULL THEN
+			tv.has_ai_task = $7 :: boolean
 		ELSE true
 	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
   -- @authorize_filter
-ORDER BY (name, id) ASC
+ORDER BY (t.name, t.id) ASC
 `
 
 type GetTemplatesWithFilterParams struct {
@@ -10865,6 +10873,7 @@ type GetTemplatesWithFilterParams struct {
 	FuzzyName      string       `db:"fuzzy_name" json:"fuzzy_name"`
 	IDs            []uuid.UUID  `db:"ids" json:"ids"`
 	Deprecated     sql.NullBool `db:"deprecated" json:"deprecated"`
+	HasAITask      sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
 }
 
 func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error) {
@@ -10875,6 +10884,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		arg.FuzzyName,
 		pq.Array(arg.IDs),
 		arg.Deprecated,
+		arg.HasAITask,
 	)
 	if err != nil {
 		return nil, err
@@ -18572,7 +18582,8 @@ SELECT
 	latest_build.canceled_at as latest_build_canceled_at,
 	latest_build.error as latest_build_error,
 	latest_build.transition as latest_build_transition,
-	latest_build.job_status as latest_build_status
+	latest_build.job_status as latest_build_status,
+	latest_build.has_ai_task as latest_build_has_ai_task
 FROM
 	workspaces_expanded as workspaces
 JOIN
@@ -18584,6 +18595,7 @@ LEFT JOIN LATERAL (
 		workspace_builds.id,
 		workspace_builds.transition,
 		workspace_builds.template_version_id,
+		workspace_builds.has_ai_task,
 		template_versions.name AS template_version_name,
 		provisioner_jobs.id AS provisioner_job_id,
 		provisioner_jobs.started_at,
@@ -18801,16 +18813,37 @@ WHERE
 			  (latest_build.template_version_id = template.active_version_id) = $18 :: boolean
 		  ELSE true
 	END
+	-- Filter by has_ai_task in latest build
+	AND CASE
+		WHEN $19 :: boolean IS NOT NULL THEN
+			(COALESCE(latest_build.has_ai_task, false) OR (
+				-- If the build has no AI task, it means that the provisioner job is in progress
+				-- and we don't know if it has an AI task yet. In this case, we optimistically
+				-- assume that it has an AI task if the AI Prompt parameter is not empty. This
+				-- lets the AI Task frontend spawn a task and see it immediately after instead of
+				-- having to wait for the build to complete.
+				latest_build.has_ai_task IS NULL AND
+				latest_build.completed_at IS NULL AND
+				EXISTS (
+					SELECT 1
+					FROM workspace_build_parameters
+					WHERE workspace_build_parameters.workspace_build_id = latest_build.id
+					AND workspace_build_parameters.name = 'AI Prompt'
+					AND workspace_build_parameters.value != ''
+				)
+			)) = ($19 :: boolean)
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ), filtered_workspaces_order AS (
 	SELECT
-		fw.id, fw.created_at, fw.updated_at, fw.owner_id, fw.organization_id, fw.template_id, fw.deleted, fw.name, fw.autostart_schedule, fw.ttl, fw.last_used_at, fw.dormant_at, fw.deleting_at, fw.automatic_updates, fw.favorite, fw.next_start_at, fw.owner_avatar_url, fw.owner_username, fw.owner_name, fw.organization_name, fw.organization_display_name, fw.organization_icon, fw.organization_description, fw.template_name, fw.template_display_name, fw.template_icon, fw.template_description, fw.template_version_id, fw.template_version_name, fw.latest_build_completed_at, fw.latest_build_canceled_at, fw.latest_build_error, fw.latest_build_transition, fw.latest_build_status
+		fw.id, fw.created_at, fw.updated_at, fw.owner_id, fw.organization_id, fw.template_id, fw.deleted, fw.name, fw.autostart_schedule, fw.ttl, fw.last_used_at, fw.dormant_at, fw.deleting_at, fw.automatic_updates, fw.favorite, fw.next_start_at, fw.owner_avatar_url, fw.owner_username, fw.owner_name, fw.organization_name, fw.organization_display_name, fw.organization_icon, fw.organization_description, fw.template_name, fw.template_display_name, fw.template_icon, fw.template_description, fw.template_version_id, fw.template_version_name, fw.latest_build_completed_at, fw.latest_build_canceled_at, fw.latest_build_error, fw.latest_build_transition, fw.latest_build_status, fw.latest_build_has_ai_task
 	FROM
 		filtered_workspaces fw
 	ORDER BY
 		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-		CASE WHEN owner_id = $19 AND favorite THEN 0 ELSE 1 END ASC,
+		CASE WHEN owner_id = $20 AND favorite THEN 0 ELSE 1 END ASC,
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
@@ -18819,14 +18852,14 @@ WHERE
 		LOWER(name) ASC
 	LIMIT
 		CASE
-			WHEN $21 :: integer > 0 THEN
-				$21
+			WHEN $22 :: integer > 0 THEN
+				$22
 		END
 	OFFSET
-		$20
+		$21
 ), filtered_workspaces_order_with_summary AS (
 	SELECT
-		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.next_start_at, fwo.owner_avatar_url, fwo.owner_username, fwo.owner_name, fwo.organization_name, fwo.organization_display_name, fwo.organization_icon, fwo.organization_description, fwo.template_name, fwo.template_display_name, fwo.template_icon, fwo.template_description, fwo.template_version_id, fwo.template_version_name, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status
+		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.next_start_at, fwo.owner_avatar_url, fwo.owner_username, fwo.owner_name, fwo.organization_name, fwo.organization_display_name, fwo.organization_icon, fwo.organization_description, fwo.template_name, fwo.template_display_name, fwo.template_icon, fwo.template_description, fwo.template_version_id, fwo.template_version_name, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status, fwo.latest_build_has_ai_task
 	FROM
 		filtered_workspaces_order fwo
 	-- Return a technical summary row with total count of workspaces.
@@ -18867,9 +18900,10 @@ WHERE
 		'0001-01-01 00:00:00+00'::timestamptz, -- latest_build_canceled_at,
 		'', -- latest_build_error
 		'start'::workspace_transition, -- latest_build_transition
-		'unknown'::provisioner_job_status -- latest_build_status
+		'unknown'::provisioner_job_status, -- latest_build_status
+		false -- latest_build_has_ai_task
 	WHERE
-		$22 :: boolean = true
+		$23 :: boolean = true
 ), total_count AS (
 	SELECT
 		count(*) AS count
@@ -18877,7 +18911,7 @@ WHERE
 		filtered_workspaces
 )
 SELECT
-	fwos.id, fwos.created_at, fwos.updated_at, fwos.owner_id, fwos.organization_id, fwos.template_id, fwos.deleted, fwos.name, fwos.autostart_schedule, fwos.ttl, fwos.last_used_at, fwos.dormant_at, fwos.deleting_at, fwos.automatic_updates, fwos.favorite, fwos.next_start_at, fwos.owner_avatar_url, fwos.owner_username, fwos.owner_name, fwos.organization_name, fwos.organization_display_name, fwos.organization_icon, fwos.organization_description, fwos.template_name, fwos.template_display_name, fwos.template_icon, fwos.template_description, fwos.template_version_id, fwos.template_version_name, fwos.latest_build_completed_at, fwos.latest_build_canceled_at, fwos.latest_build_error, fwos.latest_build_transition, fwos.latest_build_status,
+	fwos.id, fwos.created_at, fwos.updated_at, fwos.owner_id, fwos.organization_id, fwos.template_id, fwos.deleted, fwos.name, fwos.autostart_schedule, fwos.ttl, fwos.last_used_at, fwos.dormant_at, fwos.deleting_at, fwos.automatic_updates, fwos.favorite, fwos.next_start_at, fwos.owner_avatar_url, fwos.owner_username, fwos.owner_name, fwos.organization_name, fwos.organization_display_name, fwos.organization_icon, fwos.organization_description, fwos.template_name, fwos.template_display_name, fwos.template_icon, fwos.template_description, fwos.template_version_id, fwos.template_version_name, fwos.latest_build_completed_at, fwos.latest_build_canceled_at, fwos.latest_build_error, fwos.latest_build_transition, fwos.latest_build_status, fwos.latest_build_has_ai_task,
 	tc.count
 FROM
 	filtered_workspaces_order_with_summary fwos
@@ -18904,6 +18938,7 @@ type GetWorkspacesParams struct {
 	LastUsedBefore                        time.Time    `db:"last_used_before" json:"last_used_before"`
 	LastUsedAfter                         time.Time    `db:"last_used_after" json:"last_used_after"`
 	UsingActive                           sql.NullBool `db:"using_active" json:"using_active"`
+	HasAITask                             sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
 	RequesterID                           uuid.UUID    `db:"requester_id" json:"requester_id"`
 	Offset                                int32        `db:"offset_" json:"offset_"`
 	Limit                                 int32        `db:"limit_" json:"limit_"`
@@ -18945,6 +18980,7 @@ type GetWorkspacesRow struct {
 	LatestBuildError        sql.NullString       `db:"latest_build_error" json:"latest_build_error"`
 	LatestBuildTransition   WorkspaceTransition  `db:"latest_build_transition" json:"latest_build_transition"`
 	LatestBuildStatus       ProvisionerJobStatus `db:"latest_build_status" json:"latest_build_status"`
+	LatestBuildHasAITask    sql.NullBool         `db:"latest_build_has_ai_task" json:"latest_build_has_ai_task"`
 	Count                   int64                `db:"count" json:"count"`
 }
 
@@ -18971,6 +19007,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.LastUsedBefore,
 		arg.LastUsedAfter,
 		arg.UsingActive,
+		arg.HasAITask,
 		arg.RequesterID,
 		arg.Offset,
 		arg.Limit,
@@ -19018,6 +19055,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.LatestBuildError,
 			&i.LatestBuildTransition,
 			&i.LatestBuildStatus,
+			&i.LatestBuildHasAITask,
 			&i.Count,
 		); err != nil {
 			return nil, err

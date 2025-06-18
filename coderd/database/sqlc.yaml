@@ -149,6 +149,7 @@ sql:
           stale_interval_ms: StaleIntervalMS
           has_ai_task: HasAITask
           ai_tasks_sidebar_app_id: AITasksSidebarAppID
+          latest_build_has_ai_task: LatestBuildHasAITask
 rules:
   - name: do-not-use-public-schema-in-queries
     message: "do not use public schema in queries"
