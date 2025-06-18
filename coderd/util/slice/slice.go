@@ -217,3 +217,16 @@ func CountConsecutive[T comparable](needle T, haystack ...T) int {
 
 	return max(maxLength, curLength)
 }
+
+// Convert converts a slice of type F to a slice of type T using the provided function f.
+func Convert[F any, T any](a []F, f func(F) T) []T {
+	if a == nil {
+		return nil
+	}
+
+	tmp := make([]T, 0, len(a))
+	for _, v := range a {
+		tmp = append(tmp, f(v))
+	}
+	return tmp
+}

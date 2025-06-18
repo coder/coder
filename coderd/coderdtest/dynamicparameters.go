@@ -1,0 +1,129 @@
+package coderdtest
+
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
+)
+
+type DynamicParameterTemplateParams struct {
+	MainTF         string
+	Plan           json.RawMessage
+	ModulesArchive []byte
+
+	// StaticParams is used if the provisioner daemon version does not support dynamic parameters.
+	StaticParams []*proto.RichParameter
+}
+
+func DynamicParameterTemplate(t *testing.T, client *codersdk.Client, org uuid.UUID, args DynamicParameterTemplateParams) (codersdk.Template, codersdk.TemplateVersion) {
+	t.Helper()
+
+	files := echo.WithExtraFiles(map[string][]byte{
+		"main.tf": []byte(args.MainTF),
+	})
+	files.ProvisionPlan = []*proto.Response{{
+		Type: &proto.Response_Plan{
+			Plan: &proto.PlanComplete{
+				Plan:        args.Plan,
+				ModuleFiles: args.ModulesArchive,
+				Parameters:  args.StaticParams,
+			},
+		},
+	}}
+
+	version := CreateTemplateVersion(t, client, org, files)
+	AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	tpl := CreateTemplate(t, client, org, version.ID)
+
+	var err error
+	tpl, err = client.UpdateTemplateMeta(t.Context(), tpl.ID, codersdk.UpdateTemplateMeta{
+		UseClassicParameterFlow: ptr.Ref(false),
+	})
+	require.NoError(t, err)
+
+	return tpl, version
+}
+
+type ParameterAsserter struct {
+	Name   string
+	Params []codersdk.PreviewParameter
+	t      *testing.T
+}
+
+func AssertParameter(t *testing.T, name string, params []codersdk.PreviewParameter) *ParameterAsserter {
+	return &ParameterAsserter{
+		Name:   name,
+		Params: params,
+		t:      t,
+	}
+}
+
+func (a *ParameterAsserter) find(name string) *codersdk.PreviewParameter {
+	a.t.Helper()
+	for _, p := range a.Params {
+		if p.Name == name {
+			return &p
+		}
+	}
+
+	assert.Fail(a.t, "parameter not found", "expected parameter %q to exist", a.Name)
+	return nil
+}
+
+func (a *ParameterAsserter) NotExists() *ParameterAsserter {
+	a.t.Helper()
+
+	names := slice.Convert(a.Params, func(p codersdk.PreviewParameter) string {
+		return p.Name
+	})
+
+	assert.NotContains(a.t, names, a.Name)
+	return a
+}
+
+func (a *ParameterAsserter) Exists() *ParameterAsserter {
+	a.t.Helper()
+
+	names := slice.Convert(a.Params, func(p codersdk.PreviewParameter) string {
+		return p.Name
+	})
+
+	assert.Contains(a.t, names, a.Name)
+	return a
+}
+
+func (a *ParameterAsserter) Value(expected string) *ParameterAsserter {
+	a.t.Helper()
+
+	p := a.find(a.Name)
+	if p == nil {
+		return a
+	}
+
+	assert.Equal(a.t, expected, p.Value.Value)
+	return a
+}
+
+func (a *ParameterAsserter) Options(expected ...string) *ParameterAsserter {
+	a.t.Helper()
+
+	p := a.find(a.Name)
+	if p == nil {
+		return a
+	}
+
+	optValues := slice.Convert(p.Options, func(p codersdk.PreviewParameterOption) string {
+		return p.Value.Value
+	})
+	assert.ElementsMatch(a.t, expected, optValues, "parameter %q options", a.Name)
+	return a
+}
