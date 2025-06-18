@@ -52,7 +52,7 @@ func TestDynamicParameterTemplate(t *testing.T) {
 		StaticParams:   nil,
 	})
 
-	var _ = userAdmin
+	_ = userAdmin
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 

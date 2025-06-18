@@ -31,9 +31,7 @@ type Renderer interface {
 	Close()
 }
 
-var (
-	ErrorTemplateVersionNotReady = xerrors.New("template version job not finished")
-)
+var ErrorTemplateVersionNotReady = xerrors.New("template version job not finished")
 
 // Loader is used to load the necessary coder objects for rendering a template
 // version's parameters. The output is a Renderer, which is the object that uses
