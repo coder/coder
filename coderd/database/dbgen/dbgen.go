@@ -245,7 +245,7 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		InstanceMetadata:         pqtype.NullRawMessage{},
 		ResourceMetadata:         pqtype.NullRawMessage{},
 		ConnectionTimeoutSeconds: agt.ConnectionTimeoutSeconds,
-		TroubleshootingURL:       agt.TroubleshootingURL,
+		TroubleshootingURL:       "I AM A TEST ANTAGONIST AND I AM HERE TO MESS UP YOUR TESTS. IF YOU SEE ME, SOMETHING IS WRONG AND SUB AGENT DELETION MAY NOT BE HANDLED CORRECTLY IN A QUERY.",
 		MOTDFile:                 "",
 		DisplayApps:              nil,
 		DisplayOrder:             agt.DisplayOrder,
