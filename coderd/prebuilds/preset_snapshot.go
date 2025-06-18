@@ -130,7 +130,7 @@ func MatchesCron(cronExpression string, at time.Time) (bool, error) {
 }
 
 // CalculateDesiredInstances returns the number of desired instances based on the provided time.
-// If the time matches any defined scheduling schedule, the corresponding number of instances is returned.
+// If the time matches any defined prebuild schedule, the corresponding number of instances is returned.
 // Otherwise, it falls back to the default number of instances specified in the prebuild configuration.
 func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) int32 {
 	if len(p.PrebuildSchedules) == 0 {

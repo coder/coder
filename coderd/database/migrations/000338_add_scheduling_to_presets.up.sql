@@ -2,7 +2,7 @@
 ALTER TABLE template_version_presets
 ADD COLUMN scheduling_timezone TEXT DEFAULT 'UTC' NOT NULL;
 
--- Add table for scheduling schedules
+-- Add table for prebuild schedules
 CREATE TABLE template_version_preset_prebuild_schedules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
     preset_id UUID NOT NULL,

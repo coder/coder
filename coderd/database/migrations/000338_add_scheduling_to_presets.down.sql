@@ -1,4 +1,4 @@
--- Drop the scheduling schedules table
+-- Drop the prebuild schedules table
 DROP TABLE template_version_preset_prebuild_schedules;
 
 -- Remove scheduling_timezone column from template_version_presets table

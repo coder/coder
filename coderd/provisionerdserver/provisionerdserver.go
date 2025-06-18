@@ -2198,11 +2198,11 @@ func InsertWorkspacePresetsAndParameters(ctx context.Context, logger slog.Logger
 func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, templateVersionID uuid.UUID, protoPreset *sdkproto.Preset, t time.Time) error {
 	err := db.InTx(func(tx database.Store) error {
 		var (
-			desiredInstances    sql.NullInt32
-			ttl                 sql.NullInt32
-			schedulingEnabled   bool
-			schedulingTimezone  string
-			schedulingSchedules []*sdkproto.Schedule
+			desiredInstances   sql.NullInt32
+			ttl                sql.NullInt32
+			schedulingEnabled  bool
+			schedulingTimezone string
+			prebuildSchedules  []*sdkproto.Schedule
 		)
 		if protoPreset != nil && protoPreset.Prebuild != nil {
 			desiredInstances = sql.NullInt32{
@@ -2218,7 +2218,7 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 			if protoPreset.Prebuild.Scheduling != nil {
 				schedulingEnabled = true
 				schedulingTimezone = protoPreset.Prebuild.Scheduling.Timezone
-				schedulingSchedules = protoPreset.Prebuild.Scheduling.Schedule
+				prebuildSchedules = protoPreset.Prebuild.Scheduling.Schedule
 			}
 		}
 		dbPreset, err := tx.InsertPreset(ctx, database.InsertPresetParams{
@@ -2235,7 +2235,7 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 		}
 
 		if schedulingEnabled {
-			for _, schedule := range schedulingSchedules {
+			for _, schedule := range prebuildSchedules {
 				_, err := tx.InsertPresetPrebuildSchedule(ctx, database.InsertPresetPrebuildScheduleParams{
 					PresetID:         dbPreset.ID,
 					CronExpression:   schedule.Cron,
