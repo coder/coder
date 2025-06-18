@@ -131,4 +131,4 @@ func (r *StaticRender) Render(_ context.Context, _ uuid.UUID, values map[string]
 		}
 }
 
-func (r *StaticRender) Close() {}
+func (*StaticRender) Close() {}

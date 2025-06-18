@@ -68,6 +68,7 @@ func (api *API) templateVersionDynamicParametersWebsocket(rw http.ResponseWriter
 	})(rw, r)
 }
 
+//nolint:revive // listen is a control flag
 func (api *API) templateVersionDynamicParameters(listen bool, initial codersdk.DynamicParametersRequest) func(rw http.ResponseWriter, r *http.Request) {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -78,16 +79,16 @@ func (api *API) templateVersionDynamicParameters(listen bool, initial codersdk.D
 
 		err := loader.Load(ctx, api.Database)
 		if err != nil {
-
 			if httpapi.Is404Error(err) {
 				httpapi.ResourceNotFound(rw)
 				return
 			}
 
-			if xerrors.Is(err, dynamicparameters.ErrorTemplateVersionNotReady) {
+			if xerrors.Is(err, dynamicparameters.ErrTemplateVersionNotReady) {
 				httpapi.Write(ctx, rw, http.StatusTooEarly, codersdk.Response{
 					Message: "Template version job has not finished",
 				})
+				return
 			}
 
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

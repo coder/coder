@@ -31,7 +31,7 @@ type Renderer interface {
 	Close()
 }
 
-var ErrorTemplateVersionNotReady = xerrors.New("template version job not finished")
+var ErrTemplateVersionNotReady = xerrors.New("template version job not finished")
 
 // Loader is used to load the necessary coder objects for rendering a template
 // version's parameters. The output is a Renderer, which is the object that uses
@@ -91,7 +91,7 @@ func (r *Loader) Load(ctx context.Context, db database.Store) error {
 	}
 
 	if !r.job.CompletedAt.Valid {
-		return ErrorTemplateVersionNotReady
+		return ErrTemplateVersionNotReady
 	}
 
 	if r.terraformValues == nil {
@@ -131,7 +131,9 @@ func (r *Loader) Renderer(ctx context.Context, db database.Store, cache *files.C
 // Renderer caches all the necessary files when rendering a template version's
 // parameters. It must be closed after use to release the cached files.
 func (r *Loader) dynamicRenderer(ctx context.Context, db database.Store, cache *files.Cache) (*DynamicRenderer, error) {
-	// If they can read the template version, then they can read the file.
+	// If they can read the template version, then they can read the file for
+	// parameter loading purposes.
+	//nolint:gocritic
 	fileCtx := dbauthz.AsFileReader(ctx)
 	templateFS, err := cache.Acquire(fileCtx, r.job.FileID)
 	if err != nil {
@@ -174,9 +176,8 @@ type DynamicRenderer struct {
 	templateFS fs.FS
 	plan       json.RawMessage
 
-	ownerErrors    map[uuid.UUID]error
-	currentOwner   *previewtypes.WorkspaceOwner
-	currentOwnerID uuid.UUID
+	ownerErrors  map[uuid.UUID]error
+	currentOwner *previewtypes.WorkspaceOwner
 
 	once  sync.Once
 	close func()
