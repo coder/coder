@@ -3,7 +3,6 @@ package files
 import (
 	"bytes"
 	"context"
-	"io"
 	"io/fs"
 	"sync"
 
@@ -142,8 +141,7 @@ type cacheEntry struct {
 type fetcher func(context.Context, uuid.UUID) (CacheEntryValue, error)
 
 var (
-	_ fs.FS     = (*CloseFS)(nil)
-	_ io.Closer = (*CloseFS)(nil)
+	_ fs.FS = (*CloseFS)(nil)
 )
 
 // CloseFS is a wrapper around fs.FS that implements io.Closer. The Close()
@@ -152,10 +150,10 @@ var (
 type CloseFS struct {
 	fs.FS
 
-	close func() error
+	close func()
 }
 
-func (f *CloseFS) Close() error { return f.close() }
+func (f *CloseFS) Close() { f.close() }
 
 // Acquire will load the fs.FS for the given file. It guarantees that parallel
 // calls for the same fileID will only result in one fetch, and that parallel
@@ -187,11 +185,10 @@ func (c *Cache) Acquire(ctx context.Context, fileID uuid.UUID) (*CloseFS, error)
 	var once sync.Once
 	return &CloseFS{
 		FS: it.FS,
-		close: func() error {
+		close: func() {
 			// sync.Once makes the Close() idempotent, so we can call it
 			// multiple times without worrying about double-releasing.
 			once.Do(func() { c.release(fileID) })
-			return nil
 		},
 	}, nil
 }
