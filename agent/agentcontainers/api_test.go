@@ -1718,7 +1718,7 @@ func TestAPI(t *testing.T) {
 				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
 					require.Len(t, subAgent.Apps, 3)
 
-					// As the original "foo-app" gets overriden by the later "foo-app",
+					// As the original "foo-app" gets overridden by the later "foo-app",
 					// we expect "bar-app" to be first in the order.
 					assert.Equal(t, "bar-app", subAgent.Apps[0].Slug)
 					assert.Equal(t, "foo-app", subAgent.Apps[1].Slug)
