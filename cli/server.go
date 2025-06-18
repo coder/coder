@@ -2360,10 +2360,12 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 		return nil, xerrors.Errorf("get postgres version: %w", err)
 	}
 	defer version.Close()
-	if version.Err() != nil {
-		return nil, xerrors.Errorf("version select: %w", version.Err())
-	}
 	if !version.Next() {
+		// it's critical we assign to the err variable, otherwise the defer statement
+		// that runs db.Close() will not execute it
+		if err = version.Err(); err != nil {
+			return nil, xerrors.Errorf("no rows returned for version select: %w", err)
+		}
 		return nil, xerrors.Errorf("no rows returned for version select")
 	}
 	var versionNum int
