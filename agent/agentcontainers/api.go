@@ -1151,7 +1151,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				fmt.Sprintf("CODER_WORKSPACE_AGENT_NAME=%s", dc.Name),
 				fmt.Sprintf("CODER_WORKSPACE_OWNER_NAME=%s", api.userName),
 				fmt.Sprintf("CODER_WORKSPACE_NAME=%s", api.workspaceName),
-				fmt.Sprintf("CODER_DEPLOYMENT_URL=%s", api.subAgentURL),
+				fmt.Sprintf("CODER_URL=%s", api.subAgentURL),
 			},
 		); err != nil {
 			api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))

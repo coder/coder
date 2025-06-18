@@ -1322,7 +1322,7 @@ func TestAPI(t *testing.T) {
 			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=test-container")
 			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
 			assert.Contains(t, envs, "CODER_WORKSPACE_OWNER_NAME=test-user")
-			assert.Contains(t, envs, "CODER_DEPLOYMENT_URL=test-subagent-url")
+			assert.Contains(t, envs, "CODER_URL=test-subagent-url")
 			return nil
 		})
 
@@ -1469,7 +1469,7 @@ func TestAPI(t *testing.T) {
 			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=test-container")
 			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
 			assert.Contains(t, envs, "CODER_WORKSPACE_OWNER_NAME=test-user")
-			assert.Contains(t, envs, "CODER_DEPLOYMENT_URL=test-subagent-url")
+			assert.Contains(t, envs, "CODER_URL=test-subagent-url")
 			return nil
 		})
 
