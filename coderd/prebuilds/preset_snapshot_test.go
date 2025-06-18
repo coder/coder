@@ -907,7 +907,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 	}
 }
 
-func TestPrebuildAutoscaling(t *testing.T) {
+func TestPrebuildScheduling(t *testing.T) {
 	t.Parallel()
 
 	// The test includes 2 presets, each with 2 schedules.
@@ -972,13 +972,13 @@ func TestPrebuildAutoscaling(t *testing.T) {
 
 			clock := quartz.NewMock(t)
 			clock.Set(tc.now)
-			enableAutoscaling := func(preset database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow {
-				preset.AutoscalingTimezone = "UTC"
+			enableScheduling := func(preset database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow {
+				preset.SchedulingTimezone = "UTC"
 				return preset
 			}
 			presets := []database.GetTemplatePresetsWithPrebuildsRow{
-				preset(true, 1, presetOpts1, enableAutoscaling),
-				preset(true, 1, presetOpts2, enableAutoscaling),
+				preset(true, 1, presetOpts1, enableScheduling),
+				preset(true, 1, presetOpts2, enableScheduling),
 			}
 			schedules := []database.TemplateVersionPresetPrebuildSchedule{
 				schedule(presets[0].ID, "* 2-4 * * 1-5", 2),
@@ -1079,7 +1079,7 @@ func TestCalculateDesiredInstances(t *testing.T) {
 				Int32: instances,
 				Valid: true,
 			},
-			AutoscalingTimezone: timezone,
+			SchedulingTimezone: timezone,
 		}
 	}
 	mkSchedule := func(cronExpr string, instances int32) database.TemplateVersionPresetPrebuildSchedule {

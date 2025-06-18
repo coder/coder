@@ -130,7 +130,7 @@ func MatchesCron(cronExpression string, at time.Time) (bool, error) {
 }
 
 // CalculateDesiredInstances returns the number of desired instances based on the provided time.
-// If the time matches any defined autoscaling schedule, the corresponding number of instances is returned.
+// If the time matches any defined scheduling schedule, the corresponding number of instances is returned.
 // Otherwise, it falls back to the default number of instances specified in the prebuild configuration.
 func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) int32 {
 	if len(p.PrebuildSchedules) == 0 {
@@ -139,11 +139,11 @@ func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) int32 {
 	}
 
 	// Validate that the provided timezone is valid
-	_, err := time.LoadLocation(p.Preset.AutoscalingTimezone)
+	_, err := time.LoadLocation(p.Preset.SchedulingTimezone)
 	if err != nil {
-		p.logger.Error(context.Background(), "invalid timezone in prebuild autoscaling configuration",
+		p.logger.Error(context.Background(), "invalid timezone in prebuild scheduling configuration",
 			slog.F("preset_id", p.Preset.ID),
-			slog.F("timezone", p.Preset.AutoscalingTimezone),
+			slog.F("timezone", p.Preset.SchedulingTimezone),
 			slog.Error(err))
 
 		// If timezone is invalid, fall back to the default desired instance count
@@ -170,7 +170,7 @@ func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) int32 {
 	// Look for a schedule whose cron expression matches the provided time
 	for _, schedule := range p.PrebuildSchedules {
 		// Prefix the cron expression with timezone information
-		cronExprWithTimezone := fmt.Sprintf("CRON_TZ=%s %s", p.Preset.AutoscalingTimezone, schedule.CronExpression)
+		cronExprWithTimezone := fmt.Sprintf("CRON_TZ=%s %s", p.Preset.SchedulingTimezone, schedule.CronExpression)
 		matches, err := MatchesCron(cronExprWithTimezone, at)
 		if err != nil {
 			p.logger.Error(context.Background(), "cron expression is invalid",

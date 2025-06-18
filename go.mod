@@ -102,7 +102,7 @@ require (
 	github.com/coder/retry v1.5.1
 	github.com/coder/serpent v0.10.0
 	// TODO: release new provider version and set it here
-	github.com/coder/terraform-provider-coder/v2 v2.5.4-0.20250617154450-17b2adb93132
+	github.com/coder/terraform-provider-coder/v2 v2.5.4-0.20250618154309-30979f0473e0
 	github.com/coder/websocket v1.8.13
 	github.com/coder/wgtunnel v0.1.13-0.20240522110300-ade90dfb2da0
 	github.com/coreos/go-oidc/v3 v3.14.1

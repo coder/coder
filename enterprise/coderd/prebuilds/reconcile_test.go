@@ -522,7 +522,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 	}
 }
 
-func TestPrebuildAutoscaling(t *testing.T) {
+func TestPrebuildScheduling(t *testing.T) {
 	t.Parallel()
 
 	if !dbtestutil.WillUsePostgres() {
@@ -596,7 +596,7 @@ func TestPrebuildAutoscaling(t *testing.T) {
 				ownerID,
 				template.ID,
 			)
-			preset1 := setupTestDBPresetWithAutoscaling(
+			preset1 := setupTestDBPresetWithScheduling(
 				t,
 				db,
 				templateVersionID,
@@ -604,7 +604,7 @@ func TestPrebuildAutoscaling(t *testing.T) {
 				uuid.New().String(),
 				"UTC",
 			)
-			preset2 := setupTestDBPresetWithAutoscaling(
+			preset2 := setupTestDBPresetWithScheduling(
 				t,
 				db,
 				templateVersionID,
@@ -1966,13 +1966,13 @@ func setupTestDBPreset(
 	return preset
 }
 
-func setupTestDBPresetWithAutoscaling(
+func setupTestDBPresetWithScheduling(
 	t *testing.T,
 	db database.Store,
 	templateVersionID uuid.UUID,
 	desiredInstances int32,
 	presetName string,
-	autoscalingTimezone string,
+	schedulingTimezone string,
 ) database.TemplateVersionPreset {
 	t.Helper()
 	preset := dbgen.Preset(t, db, database.InsertPresetParams{
@@ -1982,7 +1982,7 @@ func setupTestDBPresetWithAutoscaling(
 			Valid: true,
 			Int32: desiredInstances,
 		},
-		AutoscalingTimezone: autoscalingTimezone,
+		SchedulingTimezone: schedulingTimezone,
 	})
 	dbgen.PresetParameter(t, db, database.InsertPresetParametersParams{
 		TemplateVersionPresetID: preset.ID,

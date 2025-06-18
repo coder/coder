@@ -1261,7 +1261,7 @@ func Preset(t testing.TB, db database.Store, seed database.InsertPresetParams) d
 		CreatedAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
 		DesiredInstances:    seed.DesiredInstances,
 		InvalidateAfterSecs: seed.InvalidateAfterSecs,
-		AutoscalingTimezone: seed.AutoscalingTimezone,
+		SchedulingTimezone:  seed.SchedulingTimezone,
 	})
 	require.NoError(t, err, "insert preset")
 	return preset

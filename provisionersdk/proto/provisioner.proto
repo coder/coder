@@ -84,7 +84,7 @@ message Schedule {
 	int32 instances = 2;
 }
 
-message Autoscaling {
+message Scheduling {
     string timezone = 1;
     repeated Schedule schedule = 2;
 }
@@ -92,7 +92,7 @@ message Autoscaling {
 message Prebuild {
     int32 instances = 1;
     ExpirationPolicy expiration_policy = 2;
-    Autoscaling autoscaling = 3;
+    Scheduling scheduling = 3;
 }
 
 // Preset represents a set of preset parameters for a template version.

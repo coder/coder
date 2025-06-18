@@ -35,7 +35,7 @@ SELECT
 		tvp.id,
 		tvp.name,
 		tvp.desired_instances       AS desired_instances,
-		tvp.autoscaling_timezone,
+		tvp.scheduling_timezone,
 		tvp.invalidate_after_secs   AS ttl,
 		tvp.prebuild_status,
 		t.deleted,

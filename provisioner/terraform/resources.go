@@ -907,7 +907,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		}
 		var prebuildInstances int32
 		var expirationPolicy *proto.ExpirationPolicy
-		var autoscaling *proto.Autoscaling
+		var scheduling *proto.Scheduling
 		if len(preset.Prebuilds) > 0 {
 			prebuildInstances = int32(math.Min(math.MaxInt32, float64(preset.Prebuilds[0].Instances)))
 			if len(preset.Prebuilds[0].ExpirationPolicy) > 0 {
@@ -915,8 +915,8 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 					Ttl: int32(math.Min(math.MaxInt32, float64(preset.Prebuilds[0].ExpirationPolicy[0].TTL))),
 				}
 			}
-			if len(preset.Prebuilds[0].Autoscaling) > 0 {
-				autoscaling = convertAutoscaling(preset.Prebuilds[0].Autoscaling[0])
+			if len(preset.Prebuilds[0].Scheduling) > 0 {
+				scheduling = convertScheduling(preset.Prebuilds[0].Scheduling[0])
 			}
 		}
 		protoPreset := &proto.Preset{
@@ -925,7 +925,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			Prebuild: &proto.Prebuild{
 				Instances:        prebuildInstances,
 				ExpirationPolicy: expirationPolicy,
-				Autoscaling:      autoscaling,
+				Scheduling:       scheduling,
 			},
 		}
 
@@ -983,10 +983,10 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	}, nil
 }
 
-func convertAutoscaling(autoscaling provider.Autoscaling) *proto.Autoscaling {
-	return &proto.Autoscaling{
-		Timezone: autoscaling.Timezone,
-		Schedule: convertSchedules(autoscaling.Schedule),
+func convertScheduling(scheduling provider.Scheduling) *proto.Scheduling {
+	return &proto.Scheduling{
+		Timezone: scheduling.Timezone,
+		Schedule: convertSchedules(scheduling.Schedule),
 	}
 }
 

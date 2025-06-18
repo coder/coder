@@ -145,7 +145,7 @@ export interface Schedule {
   instances: number;
 }
 
-export interface Autoscaling {
+export interface Scheduling {
   timezone: string;
   schedule: Schedule[];
 }
@@ -153,7 +153,7 @@ export interface Autoscaling {
 export interface Prebuild {
   instances: number;
   expirationPolicy: ExpirationPolicy | undefined;
-  autoscaling: Autoscaling | undefined;
+  scheduling: Scheduling | undefined;
 }
 
 /** Preset represents a set of preset parameters for a template version. */
@@ -652,8 +652,8 @@ export const Schedule = {
   },
 };
 
-export const Autoscaling = {
-  encode(message: Autoscaling, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+export const Scheduling = {
+  encode(message: Scheduling, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.timezone !== "") {
       writer.uint32(10).string(message.timezone);
     }
@@ -672,8 +672,8 @@ export const Prebuild = {
     if (message.expirationPolicy !== undefined) {
       ExpirationPolicy.encode(message.expirationPolicy, writer.uint32(18).fork()).ldelim();
     }
-    if (message.autoscaling !== undefined) {
-      Autoscaling.encode(message.autoscaling, writer.uint32(26).fork()).ldelim();
+    if (message.scheduling !== undefined) {
+      Scheduling.encode(message.scheduling, writer.uint32(26).fork()).ldelim();
     }
     return writer;
   },

@@ -6,7 +6,7 @@ INSERT INTO template_version_presets (
 	created_at,
 	desired_instances,
 	invalidate_after_secs,
-	autoscaling_timezone
+	scheduling_timezone
 )
 VALUES (
 	@id,
@@ -15,7 +15,7 @@ VALUES (
 	@created_at,
 	@desired_instances,
 	@invalidate_after_secs,
-	@autoscaling_timezone
+	@scheduling_timezone
 ) RETURNING *;
 
 -- name: InsertPresetParameters :many
