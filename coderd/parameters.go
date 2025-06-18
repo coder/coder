@@ -77,7 +77,6 @@ func (api *API) templateVersionDynamicParameters(listen bool, initial codersdk.D
 		renderer, err := dynamicparameters.Prepare(templateVersion.ID).
 			WithTemplateVersion(templateVersion).
 			Renderer(ctx, api.Database, api.FileCache)
-
 		if err != nil {
 			if httpapi.Is404Error(err) {
 				httpapi.ResourceNotFound(rw)
