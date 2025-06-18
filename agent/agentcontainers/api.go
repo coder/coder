@@ -64,6 +64,9 @@ type API struct {
 	subAgentURL                 string
 	subAgentEnv                 []string
 
+	ownerName     string
+	workspaceName string
+
 	mu                      sync.RWMutex
 	closed                  bool
 	containers              codersdk.WorkspaceAgentListContainersResponse  // Output from the last list operation.
@@ -150,6 +153,15 @@ func WithSubAgentURL(url string) Option {
 func WithSubAgentEnv(env ...string) Option {
 	return func(api *API) {
 		api.subAgentEnv = env
+	}
+}
+
+// WithManifestInfo sets the owner name, and workspace name
+// for the sub-agent.
+func WithManifestInfo(owner, workspace string) Option {
+	return func(api *API) {
+		api.ownerName = owner
+		api.workspaceName = workspace
 	}
 }
 
@@ -1127,7 +1139,16 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			codersdk.DisplayAppPortForward:    true,
 		}
 
-		if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath); err != nil {
+		var appsWithPossibleDuplicates []SubAgentApp
+
+		if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath,
+			[]string{
+				fmt.Sprintf("CODER_WORKSPACE_AGENT_NAME=%s", dc.Name),
+				fmt.Sprintf("CODER_WORKSPACE_OWNER_NAME=%s", api.ownerName),
+				fmt.Sprintf("CODER_WORKSPACE_NAME=%s", api.workspaceName),
+				fmt.Sprintf("CODER_URL=%s", api.subAgentURL),
+			},
+		); err != nil {
 			api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
 		} else {
 			coderCustomization := config.MergedConfiguration.Customizations.Coder
@@ -1143,6 +1164,8 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 					}
 					displayAppsMap[app] = enabled
 				}
+
+				appsWithPossibleDuplicates = append(appsWithPossibleDuplicates, customization.Apps...)
 			}
 		}
 
@@ -1154,7 +1177,27 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		}
 		slices.Sort(displayApps)
 
+		appSlugs := make(map[string]struct{})
+		apps := make([]SubAgentApp, 0, len(appsWithPossibleDuplicates))
+
+		// We want to deduplicate the apps based on their slugs here.
+		// As we want to prioritize later apps, we will walk through this
+		// backwards.
+		for _, app := range slices.Backward(appsWithPossibleDuplicates) {
+			if _, slugAlreadyExists := appSlugs[app.Slug]; slugAlreadyExists {
+				continue
+			}
+
+			appSlugs[app.Slug] = struct{}{}
+			apps = append(apps, app)
+		}
+
+		// Apps is currently in reverse order here, so by reversing it we restore
+		// it to the original order.
+		slices.Reverse(apps)
+
 		subAgentConfig.DisplayApps = displayApps
+		subAgentConfig.Apps = apps
 	}
 
 	deleteSubAgent := proc.agent.ID != uuid.Nil && maybeRecreateSubAgent && !proc.agent.EqualConfig(subAgentConfig)
