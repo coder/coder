@@ -33,7 +33,7 @@ on your local machine, and enable RDP on your workspace.
 
 ### Coder Desktop
 
-[Install Coder Desktop](https://coder.com/docs/user-guides/desktop#install-coder-desktop) and connect to you `<workspace-name>.coder:3389` from your favourite RDP client.
+[Install Coder Desktop](https://coder.com/docs/user-guides/desktop#install-coder-desktop) and connect to you `<workspace-name>.coder` from your favourite RDP client.
 
 ### CLI
 
