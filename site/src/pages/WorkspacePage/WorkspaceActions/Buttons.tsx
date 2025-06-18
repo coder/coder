@@ -21,19 +21,39 @@ export interface ActionButtonProps {
 	tooltipText?: string;
 }
 
-export const UpdateButton: FC<ActionButtonProps> = ({
+export const UpdateAndStartButton: FC<ActionButtonProps> = ({
 	handleAction,
 	loading,
 }) => {
 	return (
-		<TopbarButton
-			disabled={loading}
-			data-testid="workspace-update-button"
-			onClick={() => handleAction()}
-		>
-			<CloudIcon />
-			{loading ? <>Updating&hellip;</> : <>Update&hellip;</>}
-		</TopbarButton>
+		<Tooltip title="Start workspace with the latest template version.">
+			<TopbarButton
+				disabled={loading}
+				data-testid="workspace-update-button"
+				onClick={() => handleAction()}
+			>
+				<CirclePlayIcon />
+				{loading ? <>Updating&hellip;</> : <>Update&hellip;</>}
+			</TopbarButton>
+		</Tooltip>
+	);
+};
+
+export const UpdateAndRestartButton: FC<ActionButtonProps> = ({
+	handleAction,
+	loading,
+}) => {
+	return (
+		<Tooltip title="Stop workspace, if running, and restart it with the latest template version.">
+			<TopbarButton
+				disabled={loading}
+				data-testid="workspace-update-and-restart-button"
+				onClick={() => handleAction()}
+			>
+				<RotateCcwIcon />
+				{loading ? <>Updating&hellip;</> : <>Update and restart&hellip;</>}
+			</TopbarButton>
+		</Tooltip>
 	);
 };
 
@@ -84,9 +104,9 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
 	);
 };
 
-export const UpdateAndStartButton: FC<ActionButtonProps> = ({
-	handleAction,
-}) => {
+export const UpdateAndStartButtonRequireActiveVersion: FC<
+	ActionButtonProps
+> = ({ handleAction }) => {
 	return (
 		<Tooltip title="This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version.">
 			<TopbarButton onClick={() => handleAction()}>
@@ -138,9 +158,9 @@ export const RestartButton: FC<ActionButtonPropsWithWorkspace> = ({
 	);
 };
 
-export const UpdateAndRestartButton: FC<ActionButtonProps> = ({
-	handleAction,
-}) => {
+export const UpdateAndRestartButtonRequireActiveVersion: FC<
+	ActionButtonProps
+> = ({ handleAction }) => {
 	return (
 		<Tooltip title="This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version.">
 			<TopbarButton onClick={() => handleAction()}>

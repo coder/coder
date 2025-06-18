@@ -18,9 +18,10 @@ import {
 	RestartButton,
 	StartButton,
 	StopButton,
+	UpdateAndRestartButtonRequireActiveVersion,
 	UpdateAndRestartButton,
+	UpdateAndStartButtonRequireActiveVersion,
 	UpdateAndStartButton,
-	UpdateButton,
 } from "./Buttons";
 import { DebugButton } from "./DebugButton";
 import { RetryButton } from "./RetryButton";
@@ -81,10 +82,15 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
 	// A mapping of button type to the corresponding React component
 	const buttonMapping: Record<ActionType, ReactNode> = {
-		update: <UpdateButton handleAction={handleUpdate} />,
 		updateAndStart: <UpdateAndStartButton handleAction={handleUpdate} />,
+		updateAndStartRequireActiveVersion: (
+			<UpdateAndStartButtonRequireActiveVersion handleAction={handleUpdate} />
+		),
 		updateAndRestart: <UpdateAndRestartButton handleAction={handleUpdate} />,
-		updating: <UpdateButton loading handleAction={handleUpdate} />,
+		updateAndRestartRequireActiveVersion: (
+			<UpdateAndRestartButtonRequireActiveVersion handleAction={handleUpdate} />
+		),
+		updating: <UpdateAndStartButton loading handleAction={handleUpdate} />,
 		start: (
 			<StartButton
 				workspace={workspace}
