@@ -74,10 +74,10 @@ func (api *API) templateVersionDynamicParameters(listen bool, initial codersdk.D
 		ctx := r.Context()
 		templateVersion := httpmw.TemplateVersionParam(r)
 
-		loader := dynamicparameters.New(templateVersion.ID).
-			WithTemplateVersion(templateVersion)
+		renderer, err := dynamicparameters.Prepare(templateVersion.ID).
+			WithTemplateVersion(templateVersion).
+			Renderer(ctx, api.Database, api.FileCache)
 
-		err := loader.Load(ctx, api.Database)
 		if err != nil {
 			if httpapi.Is404Error(err) {
 				httpapi.ResourceNotFound(rw)
@@ -93,15 +93,6 @@ func (api *API) templateVersionDynamicParameters(listen bool, initial codersdk.D
 
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching template version data.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
-		renderer, err := loader.Renderer(ctx, api.Database, api.FileCache)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error creating renderer for template version.",
 				Detail:  err.Error(),
 			})
 			return

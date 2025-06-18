@@ -45,7 +45,7 @@ type Loader struct {
 	terraformValues *database.TemplateVersionTerraformValue
 }
 
-func New(versionID uuid.UUID) *Loader {
+func Prepare(versionID uuid.UUID) *Loader {
 	return &Loader{
 		templateVersionID: versionID,
 	}
@@ -73,7 +73,7 @@ func (r *Loader) WithTerraformValues(values database.TemplateVersionTerraformVal
 	return r
 }
 
-func (r *Loader) Load(ctx context.Context, db database.Store) error {
+func (r *Loader) loadData(ctx context.Context, db database.Store) error {
 	if r.templateVersion == nil {
 		tv, err := db.GetTemplateVersionByID(ctx, r.templateVersionID)
 		if err != nil {
@@ -105,10 +105,6 @@ func (r *Loader) Load(ctx context.Context, db database.Store) error {
 	return nil
 }
 
-func (r *Loader) isReady() bool {
-	return r.templateVersion != nil && r.job != nil && r.terraformValues != nil
-}
-
 // Renderer returns a Renderer that can be used to render the template version's
 // parameters. It automatically determines whether to use a static or dynamic
 // renderer based on the template version's state.
@@ -117,8 +113,9 @@ func (r *Loader) isReady() bool {
 // do not have the database state to support dynamic parameters. A constant
 // warning will be displayed for these template versions.
 func (r *Loader) Renderer(ctx context.Context, db database.Store, cache *files.Cache) (Renderer, error) {
-	if !r.isReady() {
-		return nil, xerrors.New("Load() must be called before Renderer()")
+	err := r.loadData(ctx, db)
+	if err != nil {
+		return nil, xerrors.Errorf("load data: %w", err)
 	}
 
 	if !ProvisionerVersionSupportsDynamicParameters(r.terraformValues.ProvisionerdVersion) {
