@@ -186,6 +186,10 @@ func TestSubAgentClient_CreateWithDisplayApps(t *testing.T) {
 						Slug:  "public-app",
 						Share: ptr.Ref(codersdk.WorkspaceAppSharingLevelPublic),
 					},
+					{
+						Slug:  "organization-app",
+						Share: ptr.Ref(codersdk.WorkspaceAppSharingLevelOrganization),
+					},
 				},
 				expectedApps: []*agentproto.CreateSubAgentRequest_App{
 					{
@@ -199,6 +203,10 @@ func TestSubAgentClient_CreateWithDisplayApps(t *testing.T) {
 					{
 						Slug:  "public-app",
 						Share: agentproto.CreateSubAgentRequest_App_PUBLIC.Enum(),
+					},
+					{
+						Slug:  "organization-app",
+						Share: agentproto.CreateSubAgentRequest_App_ORGANIZATION.Enum(),
 					},
 				},
 			},
