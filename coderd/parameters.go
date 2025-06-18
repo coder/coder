@@ -155,6 +155,8 @@ func (api *API) handleDynamicParameters(listen bool, rw http.ResponseWriter, r *
 		return
 	}
 	defer closeableTemplateFS.Close()
+	// templateFS does not implement the Close method. For it to be later merged with
+	// the module files, we need to convert it to an OverlayFS.
 	templateFS = closeableTemplateFS
 
 	// Having the Terraform plan available for the evaluation engine is helpful
