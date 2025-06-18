@@ -369,7 +369,6 @@ func TestAgent(t *testing.T) {
 			wantErr: true,
 		},
 	} {
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -648,7 +647,6 @@ func TestPeerDiagnostics(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			r, w := io.Pipe()
@@ -852,7 +850,6 @@ func TestConnDiagnostics(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			r, w := io.Pipe()

@@ -196,7 +196,6 @@ func TestSSHConfig_ParseOptions(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
 			c := codersdk.SSHConfig{
@@ -277,7 +276,6 @@ func TestTimezoneOffsets(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -524,7 +522,6 @@ func TestFeatureComparison(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -618,7 +615,6 @@ func TestNotificationsCanBeDisabled(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

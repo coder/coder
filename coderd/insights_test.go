@@ -550,7 +550,6 @@ func TestTemplateInsights_Golden(t *testing.T) {
 
 		// Prepare all the templates.
 		for _, template := range templates {
-
 			var parameters []*proto.RichParameter
 			for _, parameter := range template.parameters {
 				var options []*proto.RichParameterOption
@@ -581,9 +580,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			)
 			var resources []*proto.Resource
 			for _, user := range users {
-
 				for _, workspace := range user.workspaces {
-
 					if workspace.template != template {
 						continue
 					}
@@ -1244,7 +1241,6 @@ func TestTemplateInsights_Golden(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1259,7 +1255,6 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			_, _ = <-events, <-events
 
 			for _, req := range tt.requests {
-
 				t.Run(req.name, func(t *testing.T) {
 					t.Parallel()
 
@@ -1487,7 +1482,6 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 
 		// Prepare all the templates.
 		for _, template := range templates {
-
 			// Prepare all workspace resources (agents and apps).
 			var (
 				createWorkspaces []func(uuid.UUID)
@@ -1495,9 +1489,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			)
 			var resources []*proto.Resource
 			for _, user := range users {
-
 				for _, workspace := range user.workspaces {
-
 					if workspace.template != template {
 						continue
 					}
@@ -2027,7 +2019,6 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -2042,7 +2033,6 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			_, _ = <-events, <-events
 
 			for _, req := range tt.requests {
-
 				t.Run(req.name, func(t *testing.T) {
 					t.Parallel()
 
@@ -2155,7 +2145,6 @@ func TestTemplateInsights_RBAC(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-
 		t.Run(fmt.Sprintf("with interval=%q", tt.interval), func(t *testing.T) {
 			t.Parallel()
 
@@ -2274,7 +2263,6 @@ func TestGenericInsights_RBAC(t *testing.T) {
 	}
 
 	for endpointName, endpoint := range endpoints {
-
 		t.Run(fmt.Sprintf("With%sEndpoint", endpointName), func(t *testing.T) {
 			t.Parallel()
 
@@ -2284,7 +2272,6 @@ func TestGenericInsights_RBAC(t *testing.T) {
 			}
 
 			for _, tt := range tests {
-
 				t.Run("AsOwner", func(t *testing.T) {
 					t.Parallel()
 

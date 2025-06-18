@@ -49,7 +49,6 @@ ExtractCommandPathsLoop:
 	}
 
 	for _, tt := range cases {
-
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
 

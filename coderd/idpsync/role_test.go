@@ -186,7 +186,6 @@ func TestRoleSyncTable(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-
 		// The final test, "AllTogether", cannot run in parallel.
 		// These tests are nearly instant using the memory db, so
 		// this is still fast without being in parallel.
@@ -248,7 +247,6 @@ func TestRoleSyncTable(t *testing.T) {
 		var asserts []func(t *testing.T)
 
 		for _, tc := range testCases {
-
 			orgID := uuid.New()
 			SetupOrganization(t, s, db, user, orgID, tc)
 			asserts = append(asserts, func(t *testing.T) {

@@ -32,7 +32,6 @@ func TestStripSlashesMW(t *testing.T) {
 	})
 
 	for _, tt := range tests {
-
 		t.Run("chi/"+tt.name, func(t *testing.T) {
 			t.Parallel()
 			req := httptest.NewRequest("GET", tt.inputPath, nil)

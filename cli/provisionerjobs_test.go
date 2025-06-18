@@ -152,7 +152,6 @@ func TestProvisionerJobs(t *testing.T) {
 			{"Member", memberClient, "TemplateVersionImport", prepareTemplateVersionImportJob, false},
 			{"Member", memberClient, "TemplateVersionImportDryRun", prepareTemplateVersionImportJobDryRun, false},
 		} {
-
 			wantMsg := "OK"
 			if !tt.wantCancelled {
 				wantMsg = "FAIL"

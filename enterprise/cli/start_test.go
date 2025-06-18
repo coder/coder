@@ -121,11 +121,9 @@ func TestStart(t *testing.T) {
 		}
 
 		for _, cmd := range []string{"start", "restart"} {
-
 			t.Run(cmd, func(t *testing.T) {
 				t.Parallel()
 				for _, c := range cases {
-
 					t.Run(c.Name, func(t *testing.T) {
 						t.Parallel()
 

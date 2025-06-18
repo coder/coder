@@ -40,7 +40,6 @@ func TestRenderAgentVersion(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			actual := renderAgentVersion(testCase.agentVersion, testCase.serverVersion)

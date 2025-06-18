@@ -1473,7 +1473,6 @@ func TestUserOIDC(t *testing.T) {
 			},
 		},
 	} {
-
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			opts := []oidctest.FakeIDPOpt{

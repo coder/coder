@@ -28,7 +28,6 @@ func TestRemoveTrailingVersionInfo(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-
 		stripped := removeTrailingVersionInfo(tc.Version)
 		require.Equal(t, tc.ExpectedAfterStrippingInfo, stripped)
 	}

@@ -587,7 +587,6 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 			expectTags: map[string]string{"foo": "bar", "a": "1"},
 		},
 	} {
-
 		t.Run(tc.name+"/tar", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)

@@ -1953,7 +1953,6 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 				}`,
 		},
 	} {
-
 		t.Run(tc.name, func(t *testing.T) {
 			client, owner := coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{

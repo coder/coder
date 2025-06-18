@@ -1517,7 +1517,6 @@ func TestSSH(t *testing.T) {
 		pty.ExpectMatchContext(ctx, "ping pong")
 
 		for i, sock := range sockets {
-
 			// Start the listener on the "local machine".
 			l, err := net.Listen("unix", sock.local)
 			require.NoError(t, err)
@@ -1641,7 +1640,6 @@ func TestSSH(t *testing.T) {
 		}
 
 		for _, tc := range tcs {
-
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 

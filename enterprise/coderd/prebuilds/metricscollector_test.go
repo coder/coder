@@ -177,19 +177,12 @@ func TestMetricsCollector(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		// capture for parallel
 		for _, transition := range test.transitions {
-			// capture for parallel
 			for _, jobStatus := range test.jobStatuses {
-				// capture for parallel
 				for _, initiatorID := range test.initiatorIDs {
-					// capture for parallel
 					for _, ownerID := range test.ownerIDs {
-						// capture for parallel
 						for _, templateDeleted := range test.templateDeleted {
-							// capture for parallel
 							for _, eligible := range test.eligible {
-								// capture for parallel
 								t.Run(fmt.Sprintf("%v/transition:%s/jobStatus:%s", test.name, transition, jobStatus), func(t *testing.T) {
 									t.Parallel()
 
@@ -260,7 +253,6 @@ func TestMetricsCollector(t *testing.T) {
 										require.Equal(t, 1, len(presets))
 
 										for _, preset := range presets {
-											// capture for parallel
 											labels := map[string]string{
 												"template_name":     template.Name,
 												"preset_name":       preset.Name,

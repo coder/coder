@@ -823,7 +823,6 @@ func verifyBinSha1IsCurrent(dest string, siteFS fs.FS, shaFiles map[string]strin
 
 	// Verify the hash of each on-disk binary.
 	for file, hash1 := range shaFiles {
-
 		eg.Go(func() error {
 			hash2, err := sha1HashFile(filepath.Join(dest, file))
 			if err != nil {

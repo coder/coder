@@ -99,7 +99,6 @@ func TestActiveUsers(t *testing.T) {
 		},
 		Count: 2,
 	}} {
-
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
@@ -161,7 +160,6 @@ func TestUsers(t *testing.T) {
 		},
 		Count: map[database.UserStatus]int{database.UserStatusActive: 3},
 	}} {
-
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -250,7 +248,6 @@ func TestWorkspaceLatestBuildTotals(t *testing.T) {
 			codersdk.ProvisionerJobRunning:   1,
 		},
 	}} {
-
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
@@ -327,7 +324,6 @@ func TestWorkspaceLatestBuildStatuses(t *testing.T) {
 			codersdk.ProvisionerJobRunning:   1,
 		},
 	}} {
-
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
@@ -660,7 +656,6 @@ func TestExperimentsMetric(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			reg := prometheus.NewRegistry()

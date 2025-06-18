@@ -652,7 +652,6 @@ func TestWorkspace(t *testing.T) {
 		}
 
 		for _, tc := range testCases {
-			// Capture range variable
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -1802,7 +1801,6 @@ func TestWorkspaceFilter(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			workspaces, err := client.Workspaces(ctx, c.Filter)
@@ -2583,7 +2581,6 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			var (
@@ -2763,7 +2760,6 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -2864,7 +2860,6 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		}
 
 		for _, testCase := range testCases {
-
 			t.Run(testCase.name, func(t *testing.T) {
 				t.Parallel()
 

@@ -67,7 +67,6 @@ func TestLabelsEqual(t *testing.T) {
 			eq: false,
 		},
 	} {
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tc.eq, proto.LabelsEqual(tc.a, tc.b))

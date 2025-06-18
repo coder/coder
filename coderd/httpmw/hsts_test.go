@@ -77,7 +77,6 @@ func TestHSTS(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
 

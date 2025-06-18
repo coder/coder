@@ -144,7 +144,6 @@ func Test_parseInsightsStartAndEndTime(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -253,7 +252,6 @@ func Test_parseInsightsInterval_week(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -322,7 +320,6 @@ func TestLastReportIntervalHasAtLeastSixDays(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

@@ -148,7 +148,6 @@ func TestSummarize(t *testing.T) {
 			},
 		},
 	} {
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			actual := tt.br.Summarize(tt.pfx, tt.docsURL)

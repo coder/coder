@@ -267,7 +267,6 @@ func TestSearchWorkspace(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			// TODO: Replace this with the mock database.
@@ -352,7 +351,6 @@ func TestSearchAudit(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			// Do not use a real database, this is only used for an
@@ -520,7 +518,6 @@ func TestSearchUsers(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			values, errs := searchquery.Users(c.Query)
@@ -562,7 +559,6 @@ func TestSearchTemplates(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			// Do not use a real database, this is only used for an

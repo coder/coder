@@ -177,7 +177,6 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript, scriptCompleted S
 		if script.Cron == "" {
 			continue
 		}
-
 		_, err := r.cron.AddFunc(script.Cron, func() {
 			err := r.trackRun(r.cronCtx, script.WorkspaceAgentScript, ExecuteCronScripts)
 			if err != nil {

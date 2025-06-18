@@ -458,7 +458,6 @@ type AssertRBAC struct {
 func values(ins ...any) []reflect.Value {
 	out := make([]reflect.Value, 0)
 	for _, input := range ins {
-
 		out = append(out, reflect.ValueOf(input))
 	}
 	return out

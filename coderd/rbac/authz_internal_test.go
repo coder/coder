@@ -243,7 +243,6 @@ func TestFilter(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			actor := tc.Actor
@@ -1135,7 +1134,6 @@ func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTes
 	authorizer := NewAuthorizer(prometheus.NewRegistry())
 	for _, cases := range sets {
 		for i, c := range cases {
-
 			caseName := fmt.Sprintf("%s/%d", name, i)
 			t.Run(caseName, func(t *testing.T) {
 				t.Parallel()

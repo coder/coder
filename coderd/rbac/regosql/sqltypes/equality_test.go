@@ -114,7 +114,6 @@ func TestEquality(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 

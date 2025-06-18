@@ -46,7 +46,6 @@ func TestInsertCustomRoles(t *testing.T) {
 	merge := func(u ...interface{}) rbac.Roles {
 		all := make([]rbac.Role, 0)
 		for _, v := range u {
-
 			switch t := v.(type) {
 			case rbac.Role:
 				all = append(all, t)
@@ -201,7 +200,6 @@ func TestInsertCustomRoles(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			db := dbmem.New()

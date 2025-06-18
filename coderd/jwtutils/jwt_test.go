@@ -149,11 +149,9 @@ func TestClaims(t *testing.T) {
 	}
 
 	for _, tt := range types {
-
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
 			for _, c := range cases {
-
 				t.Run(c.name, func(t *testing.T) {
 					t.Parallel()
 

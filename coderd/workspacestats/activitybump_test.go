@@ -158,9 +158,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			expectedBump:         0,
 		},
 	} {
-
 		for _, tz := range timezones {
-
 			t.Run(tt.name+"/"+tz, func(t *testing.T) {
 				t.Parallel()
 				nextAutostart := tt.nextAutostart

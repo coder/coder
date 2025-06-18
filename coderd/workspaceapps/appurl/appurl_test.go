@@ -56,7 +56,6 @@ func TestApplicationURLString(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -158,7 +157,6 @@ func TestParseSubdomainAppURL(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -378,7 +376,6 @@ func TestCompileHostnamePattern(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -390,7 +387,6 @@ func TestCompileHostnamePattern(t *testing.T) {
 				require.Equal(t, expected, regex.String(), "generated regex does not match")
 
 				for i, m := range c.matchCases {
-
 					t.Run(fmt.Sprintf("MatchCase%d", i), func(t *testing.T) {
 						t.Parallel()
 
@@ -459,7 +455,6 @@ func TestConvertAppURLForCSP(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, c.expected, appurl.ConvertAppHostForCSP(c.host, c.wildcard))

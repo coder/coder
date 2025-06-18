@@ -77,7 +77,6 @@ func Test_Middleware(t *testing.T) {
 		}
 
 		for _, c := range cases {
-
 			name := strings.ReplaceAll(strings.TrimPrefix(c.path, "/"), "/", "_")
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()

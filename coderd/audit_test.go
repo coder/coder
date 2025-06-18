@@ -454,7 +454,6 @@ func TestAuditLogsFilter(t *testing.T) {
 		}
 
 		for _, testCase := range testCases {
-
 			// Test filtering
 			t.Run(testCase.Name, func(t *testing.T) {
 				t.Parallel()

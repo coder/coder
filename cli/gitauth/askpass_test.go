@@ -60,7 +60,6 @@ func TestParse(t *testing.T) {
 			wantHost: "http://wow.io",
 		},
 	} {
-
 		t.Run(tc.in, func(t *testing.T) {
 			t.Parallel()
 			user, host, err := gitauth.ParseAskpass(tc.in)

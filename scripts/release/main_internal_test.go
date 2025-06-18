@@ -115,7 +115,6 @@ Enjoy.
 	}
 
 	for _, tt := range tests {
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			if diff := cmp.Diff(removeMainlineBlurb(tt.body), tt.want); diff != "" {
@@ -167,7 +166,6 @@ func Test_release_autoversion(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, file := range files {
-
 		t.Run(file, func(t *testing.T) {
 			t.Parallel()
 

@@ -335,7 +335,6 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			expectedItems: []healthsdk.ProvisionerDaemonsReportItem{},
 		},
 	} {
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

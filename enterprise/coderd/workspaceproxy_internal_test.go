@@ -47,7 +47,6 @@ func Test_validateProxyURL(t *testing.T) {
 	}
 
 	for _, tt := range testcases {
-
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
 
