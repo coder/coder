@@ -90,8 +90,8 @@ func TestCacheRBAC(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 1, cache.Count())
 
-		_ = a.Close()
-		_ = b.Close()
+		a.Close()
+		b.Close()
 		require.Equal(t, 0, cache.Count())
 
 		rec.AssertActorID(t, nobodyID.String(), rec.Pair(policy.ActionRead, file))
@@ -179,7 +179,7 @@ func TestRelease(t *testing.T) {
 		ids = append(ids, uuid.New())
 	}
 
-	releases := make(map[uuid.UUID][]func() error, 0)
+	releases := make(map[uuid.UUID][]func(), 0)
 	// Acquire a bunch of references
 	batchSize := 10
 	for openedIdx, id := range ids {
@@ -208,7 +208,7 @@ func TestRelease(t *testing.T) {
 	for closedIdx, id := range ids {
 		stillOpen := len(ids) - closedIdx
 		for closingIdx := range batchSize {
-			_ = releases[id][0]()
+			releases[id][0]()
 			releases[id] = releases[id][1:]
 
 			// Each time a file is released, the metrics should decrement the file refs
