@@ -34,6 +34,7 @@ func (s SubAgent) CloneConfig(dc codersdk.WorkspaceAgentDevcontainer) SubAgent {
 		Architecture:    s.Architecture,
 		OperatingSystem: s.OperatingSystem,
 		DisplayApps:     slices.Clone(s.DisplayApps),
+		Apps:            slices.Clone(s.Apps),
 	}
 }
 
