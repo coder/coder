@@ -1051,6 +1051,10 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		)
 		return nil
 	}
+	if proc.agent.ID == uuid.Nil {
+		proc.agent.Architecture = arch
+	}
+
 	agentBinaryPath, err := os.Executable()
 	if err != nil {
 		return xerrors.Errorf("get agent binary path: %w", err)
@@ -1095,6 +1099,8 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 	subAgentConfig := proc.agent.CloneConfig(dc)
 	if proc.agent.ID == uuid.Nil || maybeRecreateSubAgent {
+		subAgentConfig.Architecture = arch
+
 		// Detect workspace folder by executing `pwd` in the container.
 		// NOTE(mafredri): This is a quick and dirty way to detect the
 		// workspace folder inside the container. In the future we will

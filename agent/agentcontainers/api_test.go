@@ -252,6 +252,15 @@ func (m *fakeSubAgentClient) Create(ctx context.Context, agent agentcontainers.S
 			}
 		}
 	}
+	if agent.Name == "" {
+		return agentcontainers.SubAgent{}, xerrors.New("name must be set")
+	}
+	if agent.Architecture == "" {
+		return agentcontainers.SubAgent{}, xerrors.New("architecture must be set")
+	}
+	if agent.OperatingSystem == "" {
+		return agentcontainers.SubAgent{}, xerrors.New("operating system must be set")
+	}
 	agent.ID = uuid.New()
 	agent.AuthToken = uuid.New()
 	if m.agents == nil {
