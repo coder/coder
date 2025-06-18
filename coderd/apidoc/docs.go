@@ -10192,8 +10192,8 @@ const docTemplate = `{
                 "tags": [
                     "PortSharing"
                 ],
-                "summary": "Get workspace agent port shares",
-                "operationId": "get-workspace-agent-port-shares",
+                "summary": "Delete workspace agent port share",
+                "operationId": "delete-workspace-agent-port-share",
                 "parameters": [
                     {
                         "type": "string",
