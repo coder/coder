@@ -225,7 +225,6 @@ var (
 	// ResourcePrebuiltWorkspace
 	// Valid Actions
 	//  - "ActionDelete" :: delete prebuilt workspace
-	//  - "ActionRead" :: read prebuilt workspace data
 	//  - "ActionUpdate" :: update prebuilt workspace settings
 	ResourcePrebuiltWorkspace = Object{
 		Type: "prebuilt_workspace",

@@ -3,8 +3,9 @@ package rbac_test
 import (
 	"context"
 	"fmt"
-	"github.com/coder/coder/v2/coderd/database"
 	"testing"
+
+	"github.com/coder/coder/v2/coderd/database"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -499,7 +500,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "PrebuiltWorkspace",
-			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Actions:  []policy.Action{policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourcePrebuiltWorkspace.WithID(uuid.New()).InOrg(orgID).WithOwner(database.PrebuildsSystemUserID.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, templateAdmin, orgTemplateAdmin},

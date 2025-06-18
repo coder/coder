@@ -149,7 +149,7 @@ func (q *querier) authorizeContext(ctx context.Context, action policy.Action, ob
 	return nil
 }
 
-// authorizeWorkspace handles authorization for workspace resource types.
+// authorizePrebuiltWorkspace handles authorization for workspace resource types.
 // prebuilt_workspaces are a subset of workspaces, currently limited to
 // supporting delete operations. Therefore, if the action is delete or
 // update and the workspace is a prebuild, a prebuilt-specific authorization
@@ -157,7 +157,7 @@ func (q *querier) authorizeContext(ctx context.Context, action policy.Action, ob
 // authorization.
 // Note: Delete operations of workspaces requires both update and delete
 // permissions.
-func (q *querier) authorizeWorkspace(ctx context.Context, action policy.Action, workspace database.Workspace) error {
+func (q *querier) authorizePrebuiltWorkspace(ctx context.Context, action policy.Action, workspace database.Workspace) error {
 	var prebuiltErr error
 	// Special handling for prebuilt_workspace deletion authorization check
 	if (action == policy.ActionUpdate || action == policy.ActionDelete) && workspace.IsPrebuild() {
@@ -439,7 +439,7 @@ var (
 					// Explicitly setting PrebuiltWorkspace permissions for clarity.
 					// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
 					rbac.ResourcePrebuiltWorkspace.Type: {
-						policy.ActionRead, policy.ActionUpdate, policy.ActionDelete,
+						policy.ActionUpdate, policy.ActionDelete,
 					},
 					// Should be able to add the prebuilds system user as a member to any organization that needs prebuilds.
 					rbac.ResourceOrganizationMember.Type: {
@@ -3962,7 +3962,7 @@ func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertW
 	}
 
 	// Special handling for prebuilt workspace deletion
-	if err := q.authorizeWorkspace(ctx, action, w); err != nil {
+	if err := q.authorizePrebuiltWorkspace(ctx, action, w); err != nil {
 		return err
 	}
 
@@ -4003,7 +4003,7 @@ func (q *querier) InsertWorkspaceBuildParameters(ctx context.Context, arg databa
 	}
 
 	// Special handling for prebuilt workspace deletion
-	if err := q.authorizeWorkspace(ctx, policy.ActionUpdate, workspace); err != nil {
+	if err := q.authorizePrebuiltWorkspace(ctx, policy.ActionUpdate, workspace); err != nil {
 		return err
 	}
 

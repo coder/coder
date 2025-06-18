@@ -92,7 +92,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceOauth2AppSecret:               {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceOrganization:                  {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceOrganizationMember:            {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourcePrebuiltWorkspace:             {ActionDelete, ActionRead, ActionUpdate},
+	ResourcePrebuiltWorkspace:             {ActionDelete, ActionUpdate},
 	ResourceProvisionerDaemon:             {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceProvisionerJobs:               {ActionCreate, ActionRead, ActionUpdate},
 	ResourceReplicas:                      {ActionRead},
