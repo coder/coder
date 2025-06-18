@@ -1,10 +1,10 @@
 import {
+	MockStoppedWorkspace,
 	MockTemplate,
 	MockTemplateVersion2,
 	MockTemplateVersionParameter1,
 	MockTemplateVersionParameter2,
 	MockWorkspace,
-	MockStoppedWorkspace,
 	MockWorkspaceBuild,
 	MockWorkspaceBuildParameter1,
 } from "testHelpers/entities";
