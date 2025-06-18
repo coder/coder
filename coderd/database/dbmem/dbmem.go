@@ -9463,7 +9463,6 @@ func (q *FakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 		JobID:           arg.JobID,
 		CreatedBy:       arg.CreatedBy,
 		SourceExampleID: arg.SourceExampleID,
-		HasAITask:       arg.HasAITask,
 	}
 	q.templateVersions = append(q.templateVersions, version)
 	return nil
@@ -10143,7 +10142,6 @@ func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		MaxDeadline:             arg.MaxDeadline,
 		Reason:                  arg.Reason,
 		TemplateVersionPresetID: arg.TemplateVersionPresetID,
-		HasAITask:               arg.HasAITask,
 	}
 	q.workspaceBuilds = append(q.workspaceBuilds, workspaceBuild)
 	return nil
@@ -11348,6 +11346,26 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateTemplateVersionAITaskByJobID(_ context.Context, arg database.UpdateTemplateVersionAITaskByJobIDParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, templateVersion := range q.templateVersions {
+		if templateVersion.JobID != arg.JobID {
+			continue
+		}
+		templateVersion.HasAITask = arg.HasAITask
+		templateVersion.UpdatedAt = arg.UpdatedAt
+		q.templateVersions[index] = templateVersion
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.UpdateTemplateVersionByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -12040,6 +12058,27 @@ func (q *FakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.U
 		return nil
 	}
 
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateWorkspaceBuildAITaskByID(_ context.Context, arg database.UpdateWorkspaceBuildAITaskByIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, workspaceBuild := range q.workspaceBuilds {
+		if workspaceBuild.ID != arg.ID {
+			continue
+		}
+		workspaceBuild.HasAITask = arg.HasAITask
+		workspaceBuild.UpdatedAt = dbtime.Now()
+		q.workspaceBuilds[index] = workspaceBuild
+		return nil
+	}
 	return sql.ErrNoRows
 }
 
