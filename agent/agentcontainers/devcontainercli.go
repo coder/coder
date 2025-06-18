@@ -265,7 +265,7 @@ func (d *devcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, confi
 	}
 
 	c := d.execer.CommandContext(ctx, "devcontainer", args...)
-	c.Env = append(c.Env, os.Environ()...)
+	c.Env = append(c.Env, "PATH="+os.Getenv("PATH"))
 	c.Env = append(c.Env, env...)
 
 	var stdoutBuf bytes.Buffer
