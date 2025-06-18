@@ -226,9 +226,6 @@ func (w Workspace) WorkspaceTable() WorkspaceTable {
 }
 
 func (w Workspace) RBACObject() rbac.Object {
-	// if w.IsPrebuild() {
-	//	return w.AsPrebuild()
-	//}
 	return w.WorkspaceTable().RBACObject()
 }
 
