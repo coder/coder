@@ -104,12 +104,15 @@ When both template-level autostop requirements and user-configurable autostop ar
 #### Example scenarios
 
 **Scenario 1**: Template requires daily stops, user sets 7-day autostop
+
 - **Result**: Workspace stops daily during quiet hours (requirement takes precedence)
 
 **Scenario 2**: Template requires weekly stops, user sets 2-day autostop
+
 - **Result**: Workspace stops after 2 days of inactivity (user setting is shorter)
 
 **Scenario 3**: Template requires daily stops, user disables autostop
+
 - **Result**: Workspace still stops daily during quiet hours (requirement cannot be overridden)
 
 ## User quiet hours
