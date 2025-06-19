@@ -33,6 +33,37 @@
 				}
 			}
 		},
+		"/aitasks/prompts": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["AITasks"],
+				"summary": "Get AI tasks prompts",
+				"operationId": "get-ai-tasks-prompts",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Comma-separated workspace build IDs",
+						"name": "build_ids",
+						"in": "query",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.AITasksPromptsResponse"
+						}
+					}
+				}
+			}
+		},
 		"/appearance": {
 			"get": {
 				"security": [
@@ -9709,6 +9740,18 @@
 				"type": {
 					"description": "Type is the type of the API provider.",
 					"type": "string"
+				}
+			}
+		},
+		"codersdk.AITasksPromptsResponse": {
+			"type": "object",
+			"properties": {
+				"prompts": {
+					"description": "Prompts is a map of workspace build IDs to prompts.",
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
 				}
 			}
 		},
