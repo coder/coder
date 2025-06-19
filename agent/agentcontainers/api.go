@@ -1160,7 +1160,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				if provisioner.AgentNameRegex.Match([]byte(name)) {
 					subAgentConfig.Name = name
 				} else {
-					logger.Warn(ctx, "invalid agent name in devcontainer customization, ignoring", slog.F("name", name))
+					logger.Warn(ctx, "invalid name in devcontainer customization, ignoring", slog.F("name", name))
 				}
 			}
 		}
