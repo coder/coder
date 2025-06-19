@@ -1177,12 +1177,10 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			}
 
 			// NOTE(DanielleMaywood):
-			// We only want to take an agent name specified in the very last customization layer.
+			// We only want to take an agent name specified in the root customization layer.
 			// This restricts the ability for a feature to specify the agent name. We may revisit
 			// this in the future, but for now we want to restrict this behavior.
-			if len(coderCustomization) > 0 {
-				name := coderCustomization[len(coderCustomization)-1].Name
-
+			if name := config.Configuration.Customizations.Coder.Name; name != "" {
 				// We only want to pick this name if it is a valid name.
 				if provisioner.AgentNameRegex.Match([]byte(name)) {
 					possibleAgentName = name

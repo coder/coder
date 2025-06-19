@@ -1556,17 +1556,18 @@ func TestAPI(t *testing.T) {
 		}
 
 		tests := []struct {
-			name          string
-			customization []agentcontainers.CoderCustomization
-			afterCreate   func(t *testing.T, subAgent agentcontainers.SubAgent)
+			name                 string
+			customization        agentcontainers.CoderCustomization
+			mergedCustomizations []agentcontainers.CoderCustomization
+			afterCreate          func(t *testing.T, subAgent agentcontainers.SubAgent)
 		}{
 			{
-				name:          "WithoutCustomization",
-				customization: nil,
+				name:                 "WithoutCustomization",
+				mergedCustomizations: nil,
 			},
 			{
-				name:          "WithDefaultDisplayApps",
-				customization: []agentcontainers.CoderCustomization{},
+				name:                 "WithDefaultDisplayApps",
+				mergedCustomizations: []agentcontainers.CoderCustomization{},
 				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
 					require.Len(t, subAgent.DisplayApps, 4)
 					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppVSCodeDesktop)
@@ -1577,7 +1578,7 @@ func TestAPI(t *testing.T) {
 			},
 			{
 				name: "WithAllDisplayApps",
-				customization: []agentcontainers.CoderCustomization{
+				mergedCustomizations: []agentcontainers.CoderCustomization{
 					{
 						DisplayApps: map[codersdk.DisplayApp]bool{
 							codersdk.DisplayAppSSH:            true,
@@ -1599,7 +1600,7 @@ func TestAPI(t *testing.T) {
 			},
 			{
 				name: "WithSomeDisplayAppsDisabled",
-				customization: []agentcontainers.CoderCustomization{
+				mergedCustomizations: []agentcontainers.CoderCustomization{
 					{
 						DisplayApps: map[codersdk.DisplayApp]bool{
 							codersdk.DisplayAppSSH:            false,
@@ -1631,7 +1632,7 @@ func TestAPI(t *testing.T) {
 			},
 			{
 				name: "WithApps",
-				customization: []agentcontainers.CoderCustomization{
+				mergedCustomizations: []agentcontainers.CoderCustomization{
 					{
 						Apps: []agentcontainers.SubAgentApp{
 							{
@@ -1699,7 +1700,7 @@ func TestAPI(t *testing.T) {
 			},
 			{
 				name: "AppDeduplication",
-				customization: []agentcontainers.CoderCustomization{
+				mergedCustomizations: []agentcontainers.CoderCustomization{
 					{
 						Apps: []agentcontainers.SubAgentApp{
 							{
@@ -1741,25 +1742,27 @@ func TestAPI(t *testing.T) {
 			},
 			{
 				name: "Name",
-				customization: []agentcontainers.CoderCustomization{
+				customization: agentcontainers.CoderCustomization{
+					Name: "this-name",
+				},
+				mergedCustomizations: []agentcontainers.CoderCustomization{
 					{
 						Name: "not-this-name",
 					},
 					{
-						Name: "custom-name",
+						Name: "or-this-name",
 					},
 				},
 				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
-					require.Equal(t, "custom-name", subAgent.Name)
+					require.Equal(t, "this-name", subAgent.Name)
 				},
 			},
 			{
-				name: "NameIsOnlyUsedWhenInLastLayer",
-				customization: []agentcontainers.CoderCustomization{
+				name: "NameIsOnlyUsedFromRoot",
+				mergedCustomizations: []agentcontainers.CoderCustomization{
 					{
 						Name: "custom-name",
 					},
-					{},
 				},
 				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
 					require.NotEqual(t, "custom-name", subAgent.Name)
@@ -1767,10 +1770,8 @@ func TestAPI(t *testing.T) {
 			},
 			{
 				name: "EmptyNameIsIgnored",
-				customization: []agentcontainers.CoderCustomization{
-					{
-						Name: "",
-					},
+				customization: agentcontainers.CoderCustomization{
+					Name: "",
 				},
 				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
 					require.NotEmpty(t, subAgent.Name)
@@ -1778,10 +1779,8 @@ func TestAPI(t *testing.T) {
 			},
 			{
 				name: "InvalidNameIsIgnored",
-				customization: []agentcontainers.CoderCustomization{
-					{
-						Name: "This--Is_An_Invalid--Name",
-					},
+				customization: agentcontainers.CoderCustomization{
+					Name: "This--Is_An_Invalid--Name",
 				},
 				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
 					require.NotEqual(t, "This--Is_An_Invalid--Name", subAgent.Name)
@@ -1804,9 +1803,14 @@ func TestAPI(t *testing.T) {
 					}
 					fDCCLI = &fakeDevcontainerCLI{
 						readConfig: agentcontainers.DevcontainerConfig{
-							MergedConfiguration: agentcontainers.DevcontainerConfiguration{
+							Configuration: agentcontainers.DevcontainerConfiguration{
 								Customizations: agentcontainers.DevcontainerCustomizations{
 									Coder: tt.customization,
+								},
+							},
+							MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
+								Customizations: agentcontainers.DevcontainerMergedCustomizations{
+									Coder: tt.mergedCustomizations,
 								},
 							},
 						},
