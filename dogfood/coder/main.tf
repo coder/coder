@@ -336,10 +336,11 @@ module "windsurf" {
 }
 
 module "zed" {
-  count    = data.coder_workspace.me.start_count
-  source   = "./zed"
-  agent_id = coder_agent.dev.id
-  folder   = local.repo_dir
+  count      = data.coder_workspace.me.start_count
+  source     = "./zed"
+  agent_id   = coder_agent.dev.id
+  agent_name = "dev"
+  folder     = local.repo_dir
 }
 
 resource "coder_agent" "dev" {
