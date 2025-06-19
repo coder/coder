@@ -7,13 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/terraform-provider-coder/v2/provider"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
@@ -800,16 +798,6 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 					return nil, xerrors.Errorf("module files hash mismatch, uploaded: %x, expected: %x", moduleFilesUpload.Hash, c.ModuleFilesHash)
 				}
 			}
-
-			if c.HasAiTasks {
-				hasPromptParam := slices.ContainsFunc(c.Parameters, func(param *sdkproto.RichParameter) bool {
-					return param.Name == provider.TaskPromptParameterName
-				})
-				if !hasPromptParam {
-					return nil, xerrors.Errorf("coder_parameter named '%s' is required when 'coder_ai_task' resource is defined", provider.TaskPromptParameterName)
-				}
-			}
-
 			return &templateImportProvision{
 				Resources:             c.Resources,
 				Parameters:            c.Parameters,

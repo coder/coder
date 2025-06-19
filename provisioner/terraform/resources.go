@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
@@ -1031,12 +1032,22 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		externalAuthProviders = append(externalAuthProviders, it)
 	}
 
+	hasAITasks := hasAITaskResources(graph)
+	if hasAITasks {
+		hasPromptParam := slices.ContainsFunc(parameters, func(param *proto.RichParameter) bool {
+			return param.Name == provider.TaskPromptParameterName
+		})
+		if !hasPromptParam {
+			return nil, xerrors.Errorf("coder_parameter named '%s' is required when 'coder_ai_task' resource is defined", provider.TaskPromptParameterName)
+		}
+	}
+
 	return &State{
 		Resources:             resources,
 		Parameters:            parameters,
 		Presets:               presets,
 		ExternalAuthProviders: externalAuthProviders,
-		HasAITasks:            hasAITaskResources(graph),
+		HasAITasks:            hasAITasks,
 		AITasks:               aiTasks,
 	}, nil
 }

@@ -130,7 +130,7 @@
             "type": "coder_parameter",
             "name": "sample",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 0,
+            "schema_version": 1,
             "values": {
               "default": "ok",
               "description": "blah blah",
@@ -159,7 +159,7 @@
             "type": "coder_workspace_preset",
             "name": "MyFirstProject",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 0,
+            "schema_version": 1,
             "values": {
               "id": "My First Project",
               "name": "My First Project",
@@ -174,21 +174,7 @@
                     }
                   ],
                   "instances": 4,
-                  "scheduling": [
-                    {
-                      "schedule": [
-                        {
-                          "cron": "* 8-18 * * 1-5",
-                          "instances": 3
-                        },
-                        {
-                          "cron": "* 8-14 * * 6",
-                          "instances": 1
-                        }
-                      ],
-                      "timezone": "America/Los_Angeles"
-                    }
-                  ]
+                  "scheduling": []
                 }
               ]
             },
@@ -199,14 +185,7 @@
                   "expiration_policy": [
                     {}
                   ],
-                  "scheduling": [
-                    {
-                      "schedule": [
-                        {},
-                        {}
-                      ]
-                    }
-                  ]
+                  "scheduling": []
                 }
               ]
             }
@@ -221,7 +200,7 @@
                 "type": "coder_parameter",
                 "name": "first_parameter_from_module",
                 "provider_name": "registry.terraform.io/coder/coder",
-                "schema_version": 0,
+                "schema_version": 1,
                 "values": {
                   "default": "abcdef",
                   "description": "First parameter from module",
@@ -250,7 +229,7 @@
                 "type": "coder_parameter",
                 "name": "second_parameter_from_module",
                 "provider_name": "registry.terraform.io/coder/coder",
-                "schema_version": 0,
+                "schema_version": 1,
                 "values": {
                   "default": "ghijkl",
                   "description": "Second parameter from module",
@@ -284,7 +263,7 @@
                     "type": "coder_parameter",
                     "name": "child_first_parameter_from_module",
                     "provider_name": "registry.terraform.io/coder/coder",
-                    "schema_version": 0,
+                    "schema_version": 1,
                     "values": {
                       "default": "abcdef",
                       "description": "First parameter from child module",
@@ -313,7 +292,7 @@
                     "type": "coder_parameter",
                     "name": "child_second_parameter_from_module",
                     "provider_name": "registry.terraform.io/coder/coder",
-                    "schema_version": 0,
+                    "schema_version": 1,
                     "values": {
                       "default": "ghijkl",
                       "description": "Second parameter from child module",
@@ -412,7 +391,7 @@
               "constant_value": "string"
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "data.coder_workspace_preset.MyFirstProject",
@@ -441,36 +420,11 @@
                 ],
                 "instances": {
                   "constant_value": 4
-                },
-                "scheduling": [
-                  {
-                    "schedule": [
-                      {
-                        "cron": {
-                          "constant_value": "* 8-18 * * 1-5"
-                        },
-                        "instances": {
-                          "constant_value": 3
-                        }
-                      },
-                      {
-                        "cron": {
-                          "constant_value": "* 8-14 * * 6"
-                        },
-                        "instances": {
-                          "constant_value": 1
-                        }
-                      }
-                    ],
-                    "timezone": {
-                      "constant_value": "America/Los_Angeles"
-                    }
-                  }
-                ]
+                }
               }
             ]
           },
-          "schema_version": 0
+          "schema_version": 1
         }
       ],
       "module_calls": {
@@ -501,7 +455,7 @@
                     "constant_value": "string"
                   }
                 },
-                "schema_version": 0
+                "schema_version": 1
               },
               {
                 "address": "data.coder_parameter.second_parameter_from_module",
@@ -526,7 +480,7 @@
                     "constant_value": "string"
                   }
                 },
-                "schema_version": 0
+                "schema_version": 1
               }
             ],
             "module_calls": {
@@ -557,7 +511,7 @@
                           "constant_value": "string"
                         }
                       },
-                      "schema_version": 0
+                      "schema_version": 1
                     },
                     {
                       "address": "data.coder_parameter.child_second_parameter_from_module",
@@ -582,7 +536,7 @@
                           "constant_value": "string"
                         }
                       },
-                      "schema_version": 0
+                      "schema_version": 1
                     }
                   ]
                 }
