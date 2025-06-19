@@ -189,6 +189,11 @@ func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) int32 {
 			continue
 		}
 		if matches {
+			p.logger.Debug(context.Background(), "current time matched cron expression",
+				slog.F("preset_id", p.Preset.ID),
+				slog.F("current_time", at.String()),
+				slog.F("cron_expression", cronExprWithTimezone))
+
 			return schedule.DesiredInstances
 		}
 	}
