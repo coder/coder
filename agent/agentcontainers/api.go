@@ -1177,7 +1177,10 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 					subAgentConfig.Name = name
 					configOutdated = true
 				} else {
-					logger.Warn(ctx, "invalid name in devcontainer customization, ignoring", slog.F("name", name))
+					logger.Warn(ctx, "invalid name in devcontainer customization, ignoring",
+						slog.F("name", name),
+						slog.F("regex", provisioner.AgentNameRegex.String()),
+					)
 				}
 			}
 
