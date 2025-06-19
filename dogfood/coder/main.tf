@@ -343,6 +343,13 @@ module "zed" {
   folder     = local.repo_dir
 }
 
+module "devcontainers-cli" {
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/modules/devcontainers-cli/coder"
+  version  = ">= 1.0.0"
+  agent_id = coder_agent.dev.id
+}
+
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
