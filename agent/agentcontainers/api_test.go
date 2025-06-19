@@ -1739,6 +1739,32 @@ func TestAPI(t *testing.T) {
 					assert.Equal(t, int32(2), subAgent.Apps[1].Order)
 				},
 			},
+			{
+				name: "Name",
+				customization: []agentcontainers.CoderCustomization{
+					{
+						Name: "not-this-name",
+					},
+					{
+						Name: "custom-name",
+					},
+				},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.Equal(t, "custom-name", subAgent.Name)
+				},
+			},
+			{
+				name: "NameIsOnlyUsedWhenInLastLayer",
+				customization: []agentcontainers.CoderCustomization{
+					{
+						Name: "custom-name",
+					},
+					{},
+				},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.NotEqual(t, "custom-name", subAgent.Name)
+				},
+			},
 		}
 
 		for _, tt := range tests {
@@ -1825,7 +1851,6 @@ func TestAPI(t *testing.T) {
 
 				// Then: We expected it to succeed
 				require.Len(t, fSAC.created, 1)
-				assert.Equal(t, testContainer.FriendlyName, fSAC.created[0].Name)
 
 				if tt.afterCreate != nil {
 					tt.afterCreate(t, fSAC.created[0])

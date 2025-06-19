@@ -1146,6 +1146,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		}
 
 		var appsWithPossibleDuplicates []SubAgentApp
+		var possibleAgentName string
 
 		if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath,
 			[]string{
@@ -1172,6 +1173,14 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				}
 
 				appsWithPossibleDuplicates = append(appsWithPossibleDuplicates, customization.Apps...)
+			}
+
+			// NOTE(DanielleMaywood):
+			// We only want to take an agent name specified in the very last customization layer.
+			// This restricts the ability for a feature to specify the agent name. We may revisit
+			// this in the future, but for now we want to restrict this behavior.
+			if len(coderCustomization) > 0 {
+				possibleAgentName = coderCustomization[len(coderCustomization)-1].Name
 			}
 		}
 
@@ -1204,6 +1213,10 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 		subAgentConfig.DisplayApps = displayApps
 		subAgentConfig.Apps = apps
+
+		if possibleAgentName != "" {
+			subAgentConfig.Name = possibleAgentName
+		}
 	}
 
 	deleteSubAgent := proc.agent.ID != uuid.Nil && maybeRecreateSubAgent && !proc.agent.EqualConfig(subAgentConfig)

@@ -34,6 +34,7 @@ type DevcontainerCustomizations struct {
 type CoderCustomization struct {
 	DisplayApps map[codersdk.DisplayApp]bool `json:"displayApps,omitempty"`
 	Apps        []SubAgentApp                `json:"apps,omitempty"`
+	Name        string                       `json:"name,omitempty"`
 }
 
 // DevcontainerCLI is an interface for the devcontainer CLI.
