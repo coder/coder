@@ -225,7 +225,7 @@ data "coder_parameter" "res_mon_volume_path" {
 }
 
 data "coder_parameter" "devcontainer_autostart" {
-  type        = "boolean"
+  type        = "bool"
   name        = "Automatically start devcontainer for coder/coder"
   default     = false
   description = "If enabled, a devcontainer will be automatically started for the [coder/coder](https://github.com/coder/coder) repository."
