@@ -454,7 +454,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 
 	x11, hasX11 := session.X11()
 	if hasX11 {
-		display, handled := s.x11Handler(session.Context(), x11)
+		display, handled := s.x11Handler(ctx, x11)
 		if !handled {
 			logger.Error(ctx, "x11 handler failed")
 			closeCause("x11 handler failed")
@@ -973,7 +973,7 @@ func (s *Server) handleConn(l net.Listener, c net.Conn) {
 		return
 	}
 	defer s.trackConn(l, c, false)
-	logger.Info(context.Background(), "started serving connection")
+	logger.Info(context.Background(), "started serving ssh connection")
 	// note: srv.ConnectionCompleteCallback logs completion of the connection
 	s.srv.HandleConn(c)
 }

@@ -321,7 +321,7 @@ func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Acquire
 	acqCtx, acqCancel := context.WithTimeout(ctx, s.acquireJobLongPollDur)
 	defer acqCancel()
 	job, err := s.Acquirer.AcquireJob(acqCtx, s.OrganizationID, s.ID, s.Provisioners, s.Tags)
-	if xerrors.Is(err, context.DeadlineExceeded) {
+	if database.IsQueryCanceledError(err) {
 		s.Logger.Debug(ctx, "successful cancel")
 		return &proto.AcquiredJob{}, nil
 	}
@@ -368,7 +368,7 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 		je = <-jec
 	case je = <-jec:
 	}
-	if xerrors.Is(je.err, context.Canceled) {
+	if database.IsQueryCanceledError(je.err) {
 		s.Logger.Debug(streamCtx, "successful cancel")
 		err := stream.Send(&proto.AcquiredJob{})
 		if err != nil {
