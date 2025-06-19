@@ -66,7 +66,7 @@ export const useAppLink = (
 					);
 				} else if (isCoderApp) {
 					displayError(
-						`To use ${label} you need Coder Desktop to be installed first.`,
+						`To use ${label} you need to have Coder Desktop installed`,
 					);
 				} else {
 					displayError(`${label} must be installed first.`);
