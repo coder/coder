@@ -875,13 +875,8 @@ func TestSubAgentAPI(t *testing.T) {
 			require.NoError(t, err)
 		})
 
-		t.Run("DeletesWorkspaceApps", func(t *testing.T) {
+		t.Run("DeleteRetainsWorkspaceApps", func(t *testing.T) {
 			t.Parallel()
-
-			// Skip test on in-memory database since CASCADE DELETE is not implemented
-			if !dbtestutil.WillUsePostgres() {
-				t.Skip("CASCADE DELETE behavior requires PostgreSQL")
-			}
 
 			log := testutil.Logger(t)
 			ctx := testutil.Context(t, testutil.WaitShort)
@@ -931,11 +926,11 @@ func TestSubAgentAPI(t *testing.T) {
 			_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), subAgentID) //nolint:gocritic // this is a test.
 			require.ErrorIs(t, err, sql.ErrNoRows)
 
-			// And: The apps are also deleted (due to CASCADE DELETE)
-			// Use raw database since authorization layer requires agent to exist
+			// And: The apps are *retained* to avoid causing issues
+			// where the resources are expected to be present.
 			appsAfterDeletion, err := db.GetWorkspaceAppsByAgentID(ctx, subAgentID)
 			require.NoError(t, err)
-			require.Empty(t, appsAfterDeletion)
+			require.NotEmpty(t, appsAfterDeletion)
 		})
 	})
 

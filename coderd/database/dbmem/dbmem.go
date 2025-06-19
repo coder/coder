@@ -792,7 +792,7 @@ func (q *FakeQuerier) getWorkspaceAgentByIDNoLock(_ context.Context, id uuid.UUI
 	// The schema sorts this by created at, so we iterate the array backwards.
 	for i := len(q.workspaceAgents) - 1; i >= 0; i-- {
 		agent := q.workspaceAgents[i]
-		if agent.ID == id {
+		if !agent.Deleted && agent.ID == id {
 			return agent, nil
 		}
 	}
@@ -802,6 +802,9 @@ func (q *FakeQuerier) getWorkspaceAgentByIDNoLock(_ context.Context, id uuid.UUI
 func (q *FakeQuerier) getWorkspaceAgentsByResourceIDsNoLock(_ context.Context, resourceIDs []uuid.UUID) ([]database.WorkspaceAgent, error) {
 	workspaceAgents := make([]database.WorkspaceAgent, 0)
 	for _, agent := range q.workspaceAgents {
+		if agent.Deleted {
+			continue
+		}
 		for _, resourceID := range resourceIDs {
 			if agent.ResourceID != resourceID {
 				continue
@@ -2554,13 +2557,13 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortSharesByTemplate(_ context.Context
 	return nil
 }
 
-func (q *FakeQuerier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID) error {
+func (q *FakeQuerier) DeleteWorkspaceSubAgentByID(_ context.Context, id uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	for i, agent := range q.workspaceAgents {
 		if agent.ID == id && agent.ParentID.Valid {
-			q.workspaceAgents = slices.Delete(q.workspaceAgents, i, i+1)
+			q.workspaceAgents[i].Deleted = true
 			return nil
 		}
 	}
@@ -7077,6 +7080,10 @@ func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Conte
 	latestBuildNumber := make(map[uuid.UUID]int32)
 
 	for _, agt := range q.workspaceAgents {
+		if agt.Deleted {
+			continue
+		}
+
 		// get the related workspace and user
 		for _, res := range q.workspaceResources {
 			if agt.ResourceID != res.ID {
@@ -7146,7 +7153,7 @@ func (q *FakeQuerier) GetWorkspaceAgentByInstanceID(_ context.Context, instanceI
 	// The schema sorts this by created at, so we iterate the array backwards.
 	for i := len(q.workspaceAgents) - 1; i >= 0; i-- {
 		agent := q.workspaceAgents[i]
-		if agent.AuthInstanceID.Valid && agent.AuthInstanceID.String == instanceID {
+		if !agent.Deleted && agent.AuthInstanceID.Valid && agent.AuthInstanceID.String == instanceID {
 			return agent, nil
 		}
 	}
@@ -7706,13 +7713,13 @@ func (q *FakeQuerier) GetWorkspaceAgentUsageStatsAndLabels(_ context.Context, cr
 	return stats, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceAgentsByParentID(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
+func (q *FakeQuerier) GetWorkspaceAgentsByParentID(_ context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	workspaceAgents := make([]database.WorkspaceAgent, 0)
 	for _, agent := range q.workspaceAgents {
-		if !agent.ParentID.Valid || agent.ParentID.UUID != parentID {
+		if !agent.ParentID.Valid || agent.ParentID.UUID != parentID || agent.Deleted {
 			continue
 		}
 
@@ -7759,6 +7766,9 @@ func (q *FakeQuerier) GetWorkspaceAgentsCreatedAfter(_ context.Context, after ti
 
 	workspaceAgents := make([]database.WorkspaceAgent, 0)
 	for _, agent := range q.workspaceAgents {
+		if agent.Deleted {
+			continue
+		}
 		if agent.CreatedAt.After(after) {
 			workspaceAgents = append(workspaceAgents, agent)
 		}
