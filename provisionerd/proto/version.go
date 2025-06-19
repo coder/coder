@@ -34,6 +34,7 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Added DataUpload and ChunkPiece messages to support uploading large files
 //     back to Coderd. Used for uploading module files in support of dynamic
 //     parameters.
+//   - Added new field named `default` to `Preset`.
 const (
 	CurrentMajor = 1
 	CurrentMinor = 7

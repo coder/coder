@@ -14,6 +14,7 @@ type Preset struct {
 	ID         uuid.UUID
 	Name       string
 	Parameters []PresetParameter
+	Default    bool
 }
 
 type PresetParameter struct {

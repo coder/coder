@@ -41,8 +41,9 @@ func (api *API) templateVersionPresets(rw http.ResponseWriter, r *http.Request) 
 	var res []codersdk.Preset
 	for _, preset := range presets {
 		sdkPreset := codersdk.Preset{
-			ID:   preset.ID,
-			Name: preset.Name,
+			ID:      preset.ID,
+			Name:    preset.Name,
+			Default: preset.IsDefault,
 		}
 		for _, presetParam := range presetParams {
 			if presetParam.TemplateVersionPresetID != preset.ID {
