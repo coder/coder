@@ -168,13 +168,27 @@
               },
               "prebuilds": [
                 {
-                  "autoscaling": [],
                   "expiration_policy": [
                     {
                       "ttl": 86400
                     }
                   ],
-                  "instances": 4
+                  "instances": 4,
+                  "scheduling": [
+                    {
+                      "schedule": [
+                        {
+                          "cron": "* 8-18 * * 1-5",
+                          "instances": 3
+                        },
+                        {
+                          "cron": "* 8-14 * * 6",
+                          "instances": 1
+                        }
+                      ],
+                      "timezone": "America/Los_Angeles"
+                    }
+                  ]
                 }
               ]
             },
@@ -182,9 +196,16 @@
               "parameters": {},
               "prebuilds": [
                 {
-                  "autoscaling": [],
                   "expiration_policy": [
                     {}
+                  ],
+                  "scheduling": [
+                    {
+                      "schedule": [
+                        {},
+                        {}
+                      ]
+                    }
                   ]
                 }
               ]
@@ -420,7 +441,32 @@
                 ],
                 "instances": {
                   "constant_value": 4
-                }
+                },
+                "scheduling": [
+                  {
+                    "schedule": [
+                      {
+                        "cron": {
+                          "constant_value": "* 8-18 * * 1-5"
+                        },
+                        "instances": {
+                          "constant_value": 3
+                        }
+                      },
+                      {
+                        "cron": {
+                          "constant_value": "* 8-14 * * 6"
+                        },
+                        "instances": {
+                          "constant_value": 1
+                        }
+                      }
+                    ],
+                    "timezone": {
+                      "constant_value": "America/Los_Angeles"
+                    }
+                  }
+                ]
               }
             ]
           },
