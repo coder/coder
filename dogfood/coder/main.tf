@@ -224,6 +224,14 @@ data "coder_parameter" "res_mon_volume_path" {
   mutable     = true
 }
 
+data "coder_parameter" "devcontainer_autostart" {
+  type        = "boolean"
+  name        = "Automatically start devcontainer for coder/coder"
+  default     = false
+  description = "If enabled, a devcontainer will be automatically started for the [coder/coder](https://github.com/coder/coder) repository."
+  mutable     = true
+}
+
 provider "docker" {
   host = lookup(local.docker_host, data.coder_parameter.region.value)
 }
@@ -500,6 +508,12 @@ resource "coder_agent" "dev" {
     # Stop the Docker service to prevent errors during workspace destroy.
     sudo service docker stop
   EOT
+}
+
+resource "coder_devcontainer" "coder" {
+  count            = data.coder_parameter.devcontainer_autostart.value ? data.coder_workspace.me.start_count : 0
+  agent_id         = coder_agent.dev.id
+  workspace_folder = local.repo_dir
 }
 
 # Add a cost so we get some quota usage in dev.coder.com
