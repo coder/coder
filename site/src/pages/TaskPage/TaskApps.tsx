@@ -15,7 +15,6 @@ import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { cn } from "utils/cn";
 import { TaskAppIFrame } from "./TaskAppIframe";
-import { AI_APP_CHAT_SLUG } from "./constants";
 
 type TaskAppsProps = {
 	task: Task;
@@ -30,7 +29,9 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	// it here
 	const apps = agents
 		.flatMap((a) => a?.apps)
-		.filter((a) => !!a && a.slug !== AI_APP_CHAT_SLUG);
+		.filter(
+			(a) => !!a && a.id !== task.workspace.latest_build.ai_task_sidebar_app_id,
+		);
 
 	const embeddedApps = apps.filter((app) => !app.external);
 	const externalApps = apps.filter((app) => app.external);
