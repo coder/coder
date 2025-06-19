@@ -3281,8 +3281,13 @@ func (q *querier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuil
 	return q.db.GetWorkspaceBuildParameters(ctx, workspaceBuildID)
 }
 
-func (q *querier) GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIds []uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
-	panic("not implemented")
+func (q *querier) GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIDs []uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceWorkspace.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+
+	return q.db.GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx, workspaceBuildIDs, prep)
 }
 
 func (q *querier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
@@ -5268,6 +5273,10 @@ func (q *querier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetW
 
 func (q *querier) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID, _ rbac.PreparedAuthorized) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
 	return q.GetWorkspacesAndAgentsByOwnerID(ctx, ownerID)
+}
+
+func (q *querier) GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIDs []uuid.UUID, _ rbac.PreparedAuthorized) ([]database.WorkspaceBuildParameter, error) {
+	return q.GetWorkspaceBuildParametersByBuildIDs(ctx, workspaceBuildIDs)
 }
 
 // GetAuthorizedUsers is not required for dbauthz since GetUsers is already
