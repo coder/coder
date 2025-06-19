@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = ">= 2.3.0-pre2"
+      version = ">= 2.3.0"
     }
   }
 }
@@ -16,7 +16,7 @@ data "coder_parameter" "instance_type" {
 
 data "coder_workspace_preset" "development" {
   name    = "development"
-  default = false
+  default = true
   parameters = {
     (data.coder_parameter.instance_type.name) = "t3.micro"
   }

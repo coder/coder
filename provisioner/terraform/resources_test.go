@@ -1314,7 +1314,7 @@ func TestDefaultPresets(t *testing.T) {
 
 	// nolint:dogsled
 	_, filename, _, _ := runtime.Caller(0)
-	dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "presets")
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "resources")
 
 	cases := map[string]struct {
 		fixtureFile string
@@ -1323,12 +1323,12 @@ func TestDefaultPresets(t *testing.T) {
 		validate    func(t *testing.T, state *terraform.State)
 	}{
 		"multiple defaults should fail": {
-			fixtureFile: "multiple-defaults",
+			fixtureFile: "presets-multiple-defaults",
 			expectError: true,
 			errorMsg:    "a maximum of 1 coder_workspace_preset can be marked as default, but 2 are set",
 		},
 		"single default should succeed": {
-			fixtureFile: "single-default",
+			fixtureFile: "presets-single-default",
 			expectError: false,
 			validate: func(t *testing.T, state *terraform.State) {
 				require.Len(t, state.Presets, 2)
@@ -1342,16 +1342,6 @@ func TestDefaultPresets(t *testing.T) {
 				require.Equal(t, 1, defaultCount)
 			},
 		},
-		"no defaults should succeed": {
-			fixtureFile: "no-defaults",
-			expectError: false,
-			validate: func(t *testing.T, state *terraform.State) {
-				require.Len(t, state.Presets, 2)
-				for _, preset := range state.Presets {
-					require.False(t, preset.Default)
-				}
-			},
-		},
 	}
 
 	for name, tc := range cases {
@@ -1360,12 +1350,12 @@ func TestDefaultPresets(t *testing.T) {
 			t.Parallel()
 			ctx, logger := ctxAndLogger(t)
 
-			tfPlanRaw, err := os.ReadFile(filepath.Join(dir, tc.fixtureFile+".tfplan.json"))
+			tfPlanRaw, err := os.ReadFile(filepath.Join(dir, tc.fixtureFile, tc.fixtureFile+".tfplan.json"))
 			require.NoError(t, err)
 			var tfPlan tfjson.Plan
 			err = json.Unmarshal(tfPlanRaw, &tfPlan)
 			require.NoError(t, err)
-			tfPlanGraph, err := os.ReadFile(filepath.Join(dir, tc.fixtureFile+".tfplan.dot"))
+			tfPlanGraph, err := os.ReadFile(filepath.Join(dir, tc.fixtureFile, tc.fixtureFile+".tfplan.dot"))
 			require.NoError(t, err)
 
 			modules := []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}

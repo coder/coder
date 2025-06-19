@@ -130,7 +130,7 @@
             "type": "coder_parameter",
             "name": "sample",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 0,
+            "schema_version": 1,
             "values": {
               "default": "ok",
               "description": "blah blah",
@@ -159,8 +159,9 @@
             "type": "coder_workspace_preset",
             "name": "MyFirstProject",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 0,
+            "schema_version": 1,
             "values": {
+              "default": false,
               "id": "My First Project",
               "name": "My First Project",
               "parameters": {
@@ -173,7 +174,8 @@
                       "ttl": 86400
                     }
                   ],
-                  "instances": 4
+                  "instances": 4,
+                  "scheduling": []
                 }
               ]
             },
@@ -183,7 +185,8 @@
                 {
                   "expiration_policy": [
                     {}
-                  ]
+                  ],
+                  "scheduling": []
                 }
               ]
             }
@@ -198,7 +201,7 @@
                 "type": "coder_parameter",
                 "name": "first_parameter_from_module",
                 "provider_name": "registry.terraform.io/coder/coder",
-                "schema_version": 0,
+                "schema_version": 1,
                 "values": {
                   "default": "abcdef",
                   "description": "First parameter from module",
@@ -227,7 +230,7 @@
                 "type": "coder_parameter",
                 "name": "second_parameter_from_module",
                 "provider_name": "registry.terraform.io/coder/coder",
-                "schema_version": 0,
+                "schema_version": 1,
                 "values": {
                   "default": "ghijkl",
                   "description": "Second parameter from module",
@@ -261,7 +264,7 @@
                     "type": "coder_parameter",
                     "name": "child_first_parameter_from_module",
                     "provider_name": "registry.terraform.io/coder/coder",
-                    "schema_version": 0,
+                    "schema_version": 1,
                     "values": {
                       "default": "abcdef",
                       "description": "First parameter from child module",
@@ -290,7 +293,7 @@
                     "type": "coder_parameter",
                     "name": "child_second_parameter_from_module",
                     "provider_name": "registry.terraform.io/coder/coder",
-                    "schema_version": 0,
+                    "schema_version": 1,
                     "values": {
                       "default": "ghijkl",
                       "description": "Second parameter from child module",
@@ -327,7 +330,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "2.3.0-pre2"
+        "version_constraint": ">= 2.3.0"
       },
       "module.this_is_external_module:docker": {
         "name": "docker",
@@ -389,7 +392,7 @@
               "constant_value": "string"
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "data.coder_workspace_preset.MyFirstProject",
@@ -422,7 +425,7 @@
               }
             ]
           },
-          "schema_version": 0
+          "schema_version": 1
         }
       ],
       "module_calls": {
@@ -453,7 +456,7 @@
                     "constant_value": "string"
                   }
                 },
-                "schema_version": 0
+                "schema_version": 1
               },
               {
                 "address": "data.coder_parameter.second_parameter_from_module",
@@ -478,7 +481,7 @@
                     "constant_value": "string"
                   }
                 },
-                "schema_version": 0
+                "schema_version": 1
               }
             ],
             "module_calls": {
@@ -509,7 +512,7 @@
                           "constant_value": "string"
                         }
                       },
-                      "schema_version": 0
+                      "schema_version": 1
                     },
                     {
                       "address": "data.coder_parameter.child_second_parameter_from_module",
@@ -534,7 +537,7 @@
                           "constant_value": "string"
                         }
                       },
-                      "schema_version": 0
+                      "schema_version": 1
                     }
                   ]
                 }
