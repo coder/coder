@@ -57,8 +57,7 @@ export const useAppLink = (
 						app.url.startsWith("jetbrains:"));
 
 				// Check if this is a coder:// URL
-				const isCoderApp =
-					app.url && app.url.startsWith("coder://");
+				const isCoderApp = app.url?.startsWith("coder://");
 
 				if (isJetBrainsApp) {
 					displayError(
