@@ -113,7 +113,7 @@ const TasksPage: FC = () => {
 					{permissions.viewDeploymentConfig && (
 						<TasksFilter filter={filter} onFilterChange={setFilter} />
 					)}
-					<TasksTable templates={templates} filter={filter} />
+					<TasksTable filter={filter} />
 				</>
 			);
 	} else {
@@ -322,18 +322,17 @@ const TasksFilter: FC<TasksFilterProps> = ({ filter, onFilterChange }) => {
 };
 
 type TasksTableProps = {
-	templates: Template[];
 	filter: TasksFilter;
 };
 
-const TasksTable: FC<TasksTableProps> = ({ templates, filter }) => {
+const TasksTable: FC<TasksTableProps> = ({ filter }) => {
 	const {
 		data: tasks,
 		error,
 		refetch,
 	} = useQuery({
 		queryKey: ["tasks", filter],
-		queryFn: () => data.fetchTasks(templates, filter),
+		queryFn: () => data.fetchTasks(filter),
 		refetchInterval: 10_000,
 	});
 
@@ -472,69 +471,30 @@ const TasksTable: FC<TasksTableProps> = ({ templates, filter }) => {
 };
 
 export const data = {
-	// TODO: This function is currently inefficient because it fetches all templates
-	// and their parameters individually, resulting in many API calls and slow
-	// performance. After confirming the requirements, consider adding a backend
-	// endpoint that returns only AI templates (those with an "AI Prompt" parameter)
-	// in a single request.
 	async fetchAITemplates() {
-		const templates = await API.getTemplates();
-		const parameters = await Promise.all(
-			templates.map(async (template) =>
-				API.getTemplateVersionRichParameters(template.active_version_id),
-			),
-		);
-		return templates.filter((_template, index) => {
-			return parameters[index].some((p) => p.name === AI_PROMPT_PARAMETER_NAME);
-		});
+		return API.getTemplates({ q: "has-ai-task:true" });
 	},
 
-	// TODO: This function is inefficient because it fetches workspaces for each
-	// template individually and its build parameters resulting in excessive API
-	// calls and slow performance. Consider implementing a backend endpoint that
-	// returns all AI-related workspaces in a single request to improve efficiency.
-	async fetchTasks(aiTemplates: Template[], filter: TasksFilter) {
-		const workspaces = await Promise.all(
-			aiTemplates.map((template) => {
-				const queryParts = [`template:${template.name}`];
-				if (filter.user) {
-					queryParts.push(`owner:${filter.user.value}`);
-				}
-
-				return API.getWorkspaces({
-					q: queryParts.join(" "),
-					limit: 100,
-				});
-			}),
-		).then((results) =>
-			results
-				.flatMap((r) => r.workspaces)
-				.toSorted((a, b) => {
-					return (
-						new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-					);
-				}),
+	async fetchTasks(filter: TasksFilter) {
+		let filterQuery = "has-ai-task:true";
+		if (filter.user) {
+			filterQuery += ` owner:${filter.user.value}`;
+		}
+		const workspaces = await API.getWorkspaces({
+			q: filterQuery,
+		});
+		const prompts = await API.getAITasksPrompts(
+			workspaces.workspaces.map((workspace) => workspace.latest_build.id),
 		);
-
-		return Promise.all(
-			workspaces.map(async (workspace) => {
-				const parameters = await API.getWorkspaceBuildParameters(
-					workspace.latest_build.id,
-				);
-				const prompt = parameters.find(
-					(p) => p.name === AI_PROMPT_PARAMETER_NAME,
-				)?.value;
-
-				if (!prompt) {
-					return;
-				}
-
-				return {
+		return workspaces.workspaces.map(
+			(workspace) =>
+				({
 					workspace,
-					prompt,
-				} satisfies Task;
-			}),
-		).then((tasks) => tasks.filter((t) => t !== undefined));
+					prompt:
+						(prompts.prompts[workspace.latest_build.id] ?? "Unknown prompt") ||
+						"Empty prompt",
+				}) satisfies Task,
+		);
 	},
 
 	async createTask(
