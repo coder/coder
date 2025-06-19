@@ -1896,6 +1896,10 @@ func TestAPI(t *testing.T) {
 	t.Run("CreateReadsConfigTwice", func(t *testing.T) {
 		t.Parallel()
 
+		if runtime.GOOS == "windows" {
+			t.Skip("Dev Container tests are not supported on Windows (this test uses mocks but fails due to Windows paths)")
+		}
+
 		var (
 			ctx    = testutil.Context(t, testutil.WaitMedium)
 			logger = testutil.Logger(t)
