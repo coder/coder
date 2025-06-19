@@ -5,6 +5,7 @@ import {
 	BanIcon,
 	CirclePlayIcon,
 	CircleStopIcon,
+	CloudIcon,
 	PowerIcon,
 	RotateCcwIcon,
 	StarIcon,
@@ -43,8 +44,14 @@ export const UpdateButton: FC<ActionButtonProps> = ({
 				disabled={loading}
 				onClick={() => handleAction()}
 			>
-				{isRunning ? <RotateCcwIcon /> : <CirclePlayIcon />}
-				{loading ? <>Updating&hellip;</> : <>Update&hellip;</>}
+				{requireActiveVersion ? <CirclePlayIcon /> : <CloudIcon />}
+				{loading ? (
+					<>Updating&hellip;</>
+				) : isRunning ? (
+					<>Update and restart&hellip;</>
+				) : (
+					<>Update and start&hellip;</>
+				)}
 			</TopbarButton>
 		</Tooltip>
 	);
