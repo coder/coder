@@ -518,7 +518,7 @@ func (c *StoreReconciler) CalculateActions(ctx context.Context, snapshot prebuil
 		return nil, ctx.Err()
 	}
 
-	return snapshot.CalculateActions(c.clock, c.cfg.ReconciliationBackoffInterval.Value())
+	return snapshot.CalculateActions(c.cfg.ReconciliationBackoffInterval.Value())
 }
 
 func (c *StoreReconciler) WithReconciliationLock(
