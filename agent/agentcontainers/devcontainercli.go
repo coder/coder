@@ -20,7 +20,16 @@ import (
 // Unfortunately we cannot make use of `dcspec` as the output doesn't appear to
 // match.
 type DevcontainerConfig struct {
-	MergedConfiguration DevcontainerConfiguration `json:"mergedConfiguration"`
+	MergedConfiguration DevcontainerMergedConfiguration `json:"mergedConfiguration"`
+	Configuration       DevcontainerConfiguration       `json:"configuration"`
+}
+
+type DevcontainerMergedConfiguration struct {
+	Customizations DevcontainerMergedCustomizations `json:"customizations,omitempty"`
+}
+
+type DevcontainerMergedCustomizations struct {
+	Coder []CoderCustomization `json:"coder,omitempty"`
 }
 
 type DevcontainerConfiguration struct {
@@ -28,12 +37,13 @@ type DevcontainerConfiguration struct {
 }
 
 type DevcontainerCustomizations struct {
-	Coder []CoderCustomization `json:"coder,omitempty"`
+	Coder CoderCustomization `json:"coder,omitempty"`
 }
 
 type CoderCustomization struct {
 	DisplayApps map[codersdk.DisplayApp]bool `json:"displayApps,omitempty"`
 	Apps        []SubAgentApp                `json:"apps,omitempty"`
+	Name        string                       `json:"name,omitempty"`
 }
 
 // DevcontainerCLI is an interface for the devcontainer CLI.
