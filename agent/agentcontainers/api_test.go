@@ -1776,6 +1776,17 @@ func TestAPI(t *testing.T) {
 					require.NotEmpty(t, subAgent.Name)
 				},
 			},
+			{
+				name: "InvalidNameIsIgnored",
+				customization: []agentcontainers.CoderCustomization{
+					{
+						Name: "This--Is_An_Invalid--Name",
+					},
+				},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.NotEqual(t, "This--Is_An_Invalid--Name", subAgent.Name)
+				},
+			},
 		}
 
 		for _, tt := range tests {

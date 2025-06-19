@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/quartz"
 )
 
@@ -1180,7 +1181,14 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			// This restricts the ability for a feature to specify the agent name. We may revisit
 			// this in the future, but for now we want to restrict this behavior.
 			if len(coderCustomization) > 0 {
-				possibleAgentName = coderCustomization[len(coderCustomization)-1].Name
+				name := coderCustomization[len(coderCustomization)-1].Name
+
+				// We only want to pick this name if it is a valid name.
+				if provisioner.AgentNameRegex.Match([]byte(name)) {
+					possibleAgentName = name
+				} else {
+					logger.Warn(ctx, "invalid agent name in devcontainer customization, ignoring", slog.F("name", name))
+				}
 			}
 		}
 
