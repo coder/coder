@@ -366,20 +366,8 @@ func Test_getWorkspaceAgent(t *testing.T) {
 
 	createAgent := func(name string) codersdk.WorkspaceAgent {
 		return codersdk.WorkspaceAgent{
-			ID:       uuid.New(),
-			Name:     name,
-			ParentID: uuid.NullUUID{},
-		}
-	}
-
-	createSubAgent := func(name string, parentID uuid.UUID) codersdk.WorkspaceAgent {
-		return codersdk.WorkspaceAgent{
 			ID:   uuid.New(),
 			Name: name,
-			ParentID: uuid.NullUUID{
-				UUID:  parentID,
-				Valid: true,
-			},
 		}
 	}
 
@@ -394,20 +382,7 @@ func Test_getWorkspaceAgent(t *testing.T) {
 		assert.Equal(t, "main", result.Name)
 	})
 
-	t.Run("SingleSubAgent_NoNameSpecified", func(t *testing.T) {
-		t.Parallel()
-		parentAgent := createAgent("main")
-		subAgent := createSubAgent("devcontainer", parentAgent.ID)
-		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{parentAgent, subAgent})
-
-		// Should prefer the sub-agent when no name is specified.
-		result, err := getWorkspaceAgent(workspace, "")
-		require.NoError(t, err)
-		assert.Equal(t, subAgent.ID, result.ID)
-		assert.Equal(t, "devcontainer", result.Name)
-	})
-
-	t.Run("MultipleAgents_NoSubAgents_NoNameSpecified", func(t *testing.T) {
+	t.Run("MultipleAgents_NoNameSpecified", func(t *testing.T) {
 		t.Parallel()
 		agent1 := createAgent("main1")
 		agent2 := createAgent("main2")
@@ -419,20 +394,7 @@ func Test_getWorkspaceAgent(t *testing.T) {
 		assert.Contains(t, err.Error(), "available agents: [main1 main2]")
 	})
 
-	t.Run("MultipleSubAgents_NoNameSpecified", func(t *testing.T) {
-		t.Parallel()
-		parentAgent := createAgent("main")
-		subAgent1 := createSubAgent("devcontainer1", parentAgent.ID)
-		subAgent2 := createSubAgent("devcontainer2", parentAgent.ID)
-		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{parentAgent, subAgent1, subAgent2})
-
-		_, err := getWorkspaceAgent(workspace, "")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "multiple sub-agents found")
-		assert.Contains(t, err.Error(), "available agents: [devcontainer1 devcontainer2 main]")
-	})
-
-	t.Run("AgentNameSpecified_Found_RegularAgent", func(t *testing.T) {
+	t.Run("AgentNameSpecified_Found", func(t *testing.T) {
 		t.Parallel()
 		agent1 := createAgent("main1")
 		agent2 := createAgent("main2")
@@ -442,18 +404,6 @@ func Test_getWorkspaceAgent(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, agent1.ID, result.ID)
 		assert.Equal(t, "main1", result.Name)
-	})
-
-	t.Run("AgentNameSpecified_Found_SubAgent", func(t *testing.T) {
-		t.Parallel()
-		agent := createAgent("main")
-		subAgent := createSubAgent("devcontainer", agent.ID)
-		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent, subAgent})
-
-		result, err := getWorkspaceAgent(workspace, "devcontainer")
-		require.NoError(t, err)
-		assert.Equal(t, subAgent.ID, result.ID)
-		assert.Equal(t, "devcontainer", result.Name)
 	})
 
 	t.Run("AgentNameSpecified_NotFound", func(t *testing.T) {
@@ -477,65 +427,17 @@ func Test_getWorkspaceAgent(t *testing.T) {
 		assert.Contains(t, err.Error(), `workspace "test-workspace" has no agents`)
 	})
 
-	t.Run("MixedAgents_SubAgentPreferred", func(t *testing.T) {
-		t.Parallel()
-		agent := createAgent("main")
-		subAgent := createSubAgent("devcontainer", agent.ID)
-		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent, subAgent})
-
-		// When no name is specified and there's one sub-agent,
-		// it should be preferred.
-		result, err := getWorkspaceAgent(workspace, "")
-		require.NoError(t, err)
-		assert.Equal(t, subAgent.ID, result.ID)
-		assert.Equal(t, "devcontainer", result.Name)
-	})
-
-	t.Run("MixedAgents_SpecificNameFound", func(t *testing.T) {
-		t.Parallel()
-		agent := createAgent("main")
-		subAgent := createSubAgent("devcontainer", agent.ID)
-		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent, subAgent})
-
-		// Should be able to find regular agent by name.
-		result, err := getWorkspaceAgent(workspace, "main")
-		require.NoError(t, err)
-		assert.Equal(t, agent.ID, result.ID)
-		assert.Equal(t, "main", result.Name)
-
-		// Should be able to find sub-agent by name.
-		result, err = getWorkspaceAgent(workspace, "devcontainer")
-		require.NoError(t, err)
-		assert.Equal(t, subAgent.ID, result.ID)
-		assert.Equal(t, "devcontainer", result.Name)
-	})
-
 	t.Run("AvailableAgentNames_SortedCorrectly", func(t *testing.T) {
 		t.Parallel()
 		// Define agents in non-alphabetical order.
 		agent2 := createAgent("zod")
 		agent1 := createAgent("clark")
-		subAgent := createSubAgent("krypton", agent1.ID)
-		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent2, agent1, subAgent})
+		agent3 := createAgent("krypton")
+		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent2, agent1, agent3})
 
 		_, err := getWorkspaceAgent(workspace, "nonexistent")
 		require.Error(t, err)
 		// Available agents should be sorted alphabetically.
 		assert.Contains(t, err.Error(), "available agents: [clark krypton zod]")
-	})
-
-	t.Run("MultipleAgentsAndSubAgents_NoNameSpecified", func(t *testing.T) {
-		t.Parallel()
-		agent1 := createAgent("main1")
-		agent2 := createAgent("main2")
-		subAgent1 := createSubAgent("dev1", agent1.ID)
-		subAgent2 := createSubAgent("dev2", agent1.ID)
-		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent1, agent2, subAgent1, subAgent2})
-
-		// Should error because there are multiple sub-agents.
-		_, err := getWorkspaceAgent(workspace, "")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "multiple sub-agents found")
-		assert.Contains(t, err.Error(), "available agents: [dev1 dev2 main1 main2]")
 	})
 }

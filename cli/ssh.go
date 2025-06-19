@@ -928,16 +928,11 @@ func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (workspac
 	var (
 		availableNames []string
 		agents         []codersdk.WorkspaceAgent
-		subAgents      []codersdk.WorkspaceAgent
 	)
 	for _, resource := range resources {
 		for _, agent := range resource.Agents {
 			availableNames = append(availableNames, agent.Name)
-			if agent.ParentID.UUID == uuid.Nil {
-				agents = append(agents, agent)
-			} else {
-				subAgents = append(subAgents, agent)
-			}
+			agents = append(agents, agent)
 		}
 	}
 	if len(agents) == 0 {
@@ -945,7 +940,6 @@ func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (workspac
 	}
 	slices.Sort(availableNames)
 	if agentName != "" {
-		agents = append(agents, subAgents...)
 		for _, otherAgent := range agents {
 			if otherAgent.Name != agentName {
 				continue
@@ -953,11 +947,6 @@ func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (workspac
 			return otherAgent, nil
 		}
 		return codersdk.WorkspaceAgent{}, xerrors.Errorf("agent not found by name %q, available agents: %v", agentName, availableNames)
-	}
-	if len(subAgents) == 1 {
-		return subAgents[0], nil
-	} else if len(subAgents) > 1 {
-		return codersdk.WorkspaceAgent{}, xerrors.Errorf("multiple sub-agents found, please specify the agent name, available agents: %v", availableNames)
 	}
 	if len(agents) == 1 {
 		return agents[0], nil
