@@ -2778,6 +2778,10 @@ func (q *FakeQuerier) GetAPIKeysLastUsedAfter(_ context.Context, after time.Time
 	return apiKeys, nil
 }
 
+func (q *FakeQuerier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
+	return nil, ErrUnimplemented
+}
+
 // nolint:revive // It's not a control flag, it's a filter.
 func (q *FakeQuerier) GetActiveUserCount(_ context.Context, includeSystem bool) (int64, error) {
 	q.mutex.RLock()
@@ -9189,6 +9193,15 @@ func (q *FakeQuerier) InsertPresetParameters(_ context.Context, arg database.Ins
 	}
 
 	return presetParameters, nil
+}
+
+func (q *FakeQuerier) InsertPresetPrebuildSchedule(ctx context.Context, arg database.InsertPresetPrebuildScheduleParams) (database.TemplateVersionPresetPrebuildSchedule, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.TemplateVersionPresetPrebuildSchedule{}, err
+	}
+
+	return database.TemplateVersionPresetPrebuildSchedule{}, ErrUnimplemented
 }
 
 func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
