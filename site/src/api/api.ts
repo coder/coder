@@ -1235,6 +1235,12 @@ class ApiMethods {
 			data,
 		);
 
+		if (response.status === 204) {
+			if (data.transition === "delete" && data.orphan) {
+				return {} as TypesGen.WorkspaceBuild;
+			}
+		}
+
 		return response.data;
 	};
 

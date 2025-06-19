@@ -365,6 +365,8 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			builder = builder.VersionID(createBuild.TemplateVersionID)
 		}
 
+		// Deleting with the --orphan flag means we will not attempt to create a
+		// provisioner job, and we will just mark the workspace as deleted.
 		if createBuild.Orphan {
 			if createBuild.Transition != codersdk.WorkspaceTransitionDelete {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -430,29 +432,37 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	apiBuild, err := api.convertWorkspaceBuild(
-		*workspaceBuild,
-		workspace,
-		database.GetProvisionerJobsByIDsWithQueuePositionRow{
-			ProvisionerJob: *provisionerJob,
-			QueuePosition:  0,
-		},
-		[]database.WorkspaceResource{},
-		[]database.WorkspaceResourceMetadatum{},
-		[]database.WorkspaceAgent{},
-		[]database.WorkspaceApp{},
-		[]database.WorkspaceAppStatus{},
-		[]database.WorkspaceAgentScript{},
-		[]database.WorkspaceAgentLogSource{},
-		database.TemplateVersion{},
-		provisionerDaemons,
-	)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspace build.",
-			Detail:  err.Error(),
-		})
-		return
+	if workspaceBuild == nil {
+		// IETF suggests 204 No Content for successful DELETE requests
+		// This isn't an actual DELETE request, but it is a request to delete.
+		httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+	} else {
+		apiBuild, err := api.convertWorkspaceBuild(
+			*workspaceBuild,
+			workspace,
+			database.GetProvisionerJobsByIDsWithQueuePositionRow{
+				ProvisionerJob: *provisionerJob,
+				QueuePosition:  0,
+			},
+			[]database.WorkspaceResource{},
+			[]database.WorkspaceResourceMetadatum{},
+			[]database.WorkspaceAgent{},
+			[]database.WorkspaceApp{},
+			[]database.WorkspaceAppStatus{},
+			[]database.WorkspaceAgentScript{},
+			[]database.WorkspaceAgentLogSource{},
+			database.TemplateVersion{},
+			provisionerDaemons,
+		)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error converting workspace build.",
+				Detail:  err.Error(),
+			})
+			// No early return here as we still want to publish the workspace update.
+		} else {
+			httpapi.Write(ctx, rw, http.StatusCreated, apiBuild)
+		}
 	}
 
 	// If this workspace build has a different template version ID to the previous build
@@ -478,8 +488,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		Kind:        wspubsub.WorkspaceEventKindStateChange,
 		WorkspaceID: workspace.ID,
 	})
-
-	httpapi.Write(ctx, rw, http.StatusCreated, apiBuild)
 }
 
 func (api *API) notifyWorkspaceUpdated(

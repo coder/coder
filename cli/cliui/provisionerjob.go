@@ -19,6 +19,9 @@ import (
 )
 
 func WorkspaceBuild(ctx context.Context, writer io.Writer, client *codersdk.Client, build uuid.UUID) error {
+	if build == uuid.Nil {
+		return nil
+	}
 	return ProvisionerJob(ctx, writer, ProvisionerJobOptions{
 		Fetch: func() (codersdk.ProvisionerJob, error) {
 			build, err := client.WorkspaceBuild(ctx, build)

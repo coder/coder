@@ -188,11 +188,19 @@ func (c *Client) CreateWorkspaceBuild(ctx context.Context, workspace uuid.UUID, 
 		return WorkspaceBuild{}, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
+	switch res.StatusCode {
+	case http.StatusCreated:
+		var workspaceBuild WorkspaceBuild
+		return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
+	case http.StatusNoContent:
+		// 204 No Content is only expected in response to an orphan-delete.
+		if request.Transition == WorkspaceTransitionDelete && request.Orphan {
+			return WorkspaceBuild{}, nil
+		}
+		fallthrough
+	default:
 		return WorkspaceBuild{}, ReadBodyAsError(res)
 	}
-	var workspaceBuild WorkspaceBuild
-	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
 }
 
 func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Workspace, error) {

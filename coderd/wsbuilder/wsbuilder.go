@@ -108,7 +108,7 @@ type versionTarget struct {
 // The zero value of this struct means to use state from the last build.  If there is no last build, no state is
 // provided (i.e. first build on a newly created workspace).
 //
-// setting orphan: true means not to send any state.  This can be used to deleted orphaned workspaces
+// setting orphan: true means not to not create any build job and immediately mark the workspace as deleted.
 //
 // setting explicit to a non-nil value means to use the provided state
 //
@@ -333,6 +333,31 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	// default reason is initiator
 	if b.reason == "" {
 		b.reason = database.BuildReasonInitiator
+	}
+
+	// Deleting a workspace with orphan set does not require creating any
+	// workspace build or provisioner job. In fact, creating a workspace build
+	// job in this case would be counter-productive.
+	if b.state.orphan {
+		if b.trans != database.WorkspaceTransitionDelete {
+			// This may also be checked by the caller, but we check it here for the
+			// sake of completeness.
+			return nil, nil, nil, BuildError{
+				Status:  http.StatusBadRequest,
+				Message: "Orphan can only be set when deleting a workspace",
+				Wrapped: xerrors.New("orphan can only be set when deleting a workspace"),
+			}
+		}
+		if err := b.store.UpdateWorkspaceDeletedByID(b.ctx, database.UpdateWorkspaceDeletedByIDParams{
+			ID:      b.workspace.ID,
+			Deleted: true,
+		}); err != nil {
+			return nil, nil, nil, BuildError{
+				Status:  http.StatusInternalServerError,
+				Message: "Internal error marking workspace as deleted",
+			}
+		}
+		return nil, nil, nil, nil
 	}
 
 	workspaceBuildID := uuid.New()
@@ -939,9 +964,25 @@ func (b *Builder) authorize(authFunc func(action policy.Action, object rbac.Obje
 
 	// If custom state, deny request since user could be corrupting or leaking
 	// cloud state.
-	if b.state.explicit != nil || b.state.orphan {
+	if b.state.explicit != nil {
 		if !authFunc(policy.ActionUpdate, template.RBACObject()) {
 			return BuildError{http.StatusForbidden, "Only template managers may provide custom state", xerrors.New("Only template managers may provide custom state")}
+		}
+	}
+	// Orphaning can only be done by template managers, since it may require
+	// manual cleanup of cloud resource.
+	if b.state.orphan {
+		if !authFunc(policy.ActionUpdate, template.RBACObject()) {
+			return BuildError{http.StatusForbidden, "Only template managers may orphan", xerrors.New("Only template managers may orphan")}
+		}
+	}
+
+	// Requesting both custom state and orphan is unclear, so deny it.
+	if b.state.explicit != nil && b.state.orphan {
+		return BuildError{
+			http.StatusBadRequest,
+			"Orphaning a workspace build with custom state is not allowed as the intent is unclear.",
+			xerrors.New("Orphaning a workspace build with custom state is not allowed as the intent is unclear."),
 		}
 	}
 

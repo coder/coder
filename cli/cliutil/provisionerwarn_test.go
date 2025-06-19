@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/cliutil"
@@ -20,12 +21,19 @@ func TestWarnMatchedProvisioners(t *testing.T) {
 		expect string
 	}{
 		{
+			name:   "empty",
+			mp:     nil,
+			job:    codersdk.ProvisionerJob{},
+			expect: "",
+		},
+		{
 			name: "no_match",
 			mp: &codersdk.MatchedProvisioners{
 				Count:     0,
 				Available: 0,
 			},
 			job: codersdk.ProvisionerJob{
+				ID:     uuid.New(),
 				Status: codersdk.ProvisionerJobPending,
 			},
 			expect: `there are no provisioners that accept the required tags`,
@@ -37,6 +45,7 @@ func TestWarnMatchedProvisioners(t *testing.T) {
 				Available: 0,
 			},
 			job: codersdk.ProvisionerJob{
+				ID:     uuid.New(),
 				Status: codersdk.ProvisionerJobPending,
 			},
 			expect: `Provisioners that accept the required tags have not responded for longer than expected`,
@@ -48,6 +57,7 @@ func TestWarnMatchedProvisioners(t *testing.T) {
 				Available: 1,
 			},
 			job: codersdk.ProvisionerJob{
+				ID:     uuid.New(),
 				Status: codersdk.ProvisionerJobPending,
 			},
 		},
@@ -55,6 +65,7 @@ func TestWarnMatchedProvisioners(t *testing.T) {
 			name: "not_pending",
 			mp:   &codersdk.MatchedProvisioners{},
 			job: codersdk.ProvisionerJob{
+				ID:     uuid.New(),
 				Status: codersdk.ProvisionerJobRunning,
 			},
 		},

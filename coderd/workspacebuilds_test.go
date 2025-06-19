@@ -373,40 +373,66 @@ func TestWorkspaceBuildsProvisionerState(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		first := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleTemplateAdmin())
+		member, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		version := coderdtest.CreateTemplateVersion(t, templateAdmin, first.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, templateAdmin, first.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
 
-		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		workspace := coderdtest.CreateWorkspace(t, templateAdmin, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, workspace.LatestBuild.ID)
 
-		// Providing both state and orphan fails.
+		// Trying to orphan without delete transition fails.
 		_, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
-			Transition:        codersdk.WorkspaceTransitionDelete,
-			ProvisionerState:  []byte(" "),
+			Transition:        codersdk.WorkspaceTransitionStart,
 			Orphan:            true,
 		})
 		require.Error(t, err)
 		cerr := coderdtest.SDKError(t, err)
 		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 
+		// Providing both state and orphan fails.
+		_, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
+			Transition:        codersdk.WorkspaceTransitionDelete,
+			ProvisionerState:  []byte(" "),
+			Orphan:            true,
+		})
+		require.Error(t, err)
+		cerr = coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+
+		// Trying to orphan without being a template admin fails.
+		memberWorkspace := coderdtest.CreateWorkspace(t, member, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, memberWorkspace.LatestBuild.ID)
+		_, err = member.CreateWorkspaceBuild(ctx, memberWorkspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
+			Transition:        codersdk.WorkspaceTransitionDelete,
+			Orphan:            true,
+		})
+		require.Error(t, err)
+		cerr = coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusForbidden, cerr.StatusCode())
+		require.Contains(t, cerr.Message, "Only template managers may orphan")
+
 		// Regular orphan operation succeeds.
-		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		build, err := templateAdmin.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
 			Transition:        codersdk.WorkspaceTransitionDelete,
 			Orphan:            true,
 		})
 		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+		require.Empty(t, build)
 
-		_, err = client.Workspace(ctx, workspace.ID)
-		require.Error(t, err)
+		ws, err := client.Workspace(ctx, workspace.ID)
+		require.Empty(t, ws)
 		require.Equal(t, http.StatusGone, coderdtest.SDKError(t, err).StatusCode())
+		require.Error(t, err)
 	})
 }
 

@@ -865,6 +865,101 @@ func TestProvisionerVersionSupportsDynamicParameters(t *testing.T) {
 	}
 }
 
+func TestBuilder_Orphan(t *testing.T) {
+	t.Parallel()
+
+	expects := func(mTx *dbmock.MockStore) {
+		mTx.EXPECT().GetTemplateByID(gomock.Any(), templateID).
+			Times(1).
+			Return(database.Template{
+				ID:                      templateID,
+				OrganizationID:          orgID,
+				Provisioner:             database.ProvisionerTypeTerraform,
+				ActiveVersionID:         activeVersionID,
+				UseClassicParameterFlow: true,
+			}, nil)
+		mTx.EXPECT().GetTemplateVersionByID(gomock.Any(), activeVersionID).
+			Times(1).
+			Return(database.TemplateVersion{
+				ID:             activeVersionID,
+				TemplateID:     uuid.NullUUID{UUID: templateID, Valid: true},
+				OrganizationID: orgID,
+				Name:           "active",
+				JobID:          lastBuildJobID,
+			}, nil)
+		mTx.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+			Times(1).
+			Return(database.WorkspaceBuild{
+				ID:                lastBuildID,
+				WorkspaceID:       workspaceID,
+				TemplateVersionID: activeVersionID,
+				BuildNumber:       1,
+				Transition:        database.WorkspaceTransitionStart,
+				InitiatorID:       userID,
+				JobID:             lastBuildJobID,
+				ProvisionerState:  []byte("last build state"),
+				Reason:            database.BuildReasonInitiator,
+			}, nil)
+
+		mTx.EXPECT().GetProvisionerJobByID(gomock.Any(), lastBuildJobID).
+			Times(2).
+			Return(database.ProvisionerJob{
+				ID:             lastBuildJobID,
+				OrganizationID: orgID,
+				InitiatorID:    userID,
+				Provisioner:    database.ProvisionerTypeTerraform,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				FileID:         activeFileID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				StartedAt:      sql.NullTime{Time: dbtime.Now(), Valid: true},
+				UpdatedAt:      time.Now(),
+				CompletedAt:    sql.NullTime{Time: dbtime.Now(), Valid: true},
+			}, nil)
+	}
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		req := require.New(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		mDB := expectDB(t,
+			// Inputs
+			expects,
+			// Outputs
+			func(mTx *dbmock.MockStore) {
+				mTx.EXPECT().UpdateWorkspaceDeletedByID(gomock.Any(), database.UpdateWorkspaceDeletedByIDParams{
+					ID:      workspaceID,
+					Deleted: true,
+				}).Times(1).Return(nil)
+			},
+		)
+
+		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
+		uut := wsbuilder.New(ws, database.WorkspaceTransitionDelete).Orphan()
+		// nolint: dogsled
+		_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		req.NoError(err)
+	})
+
+	t.Run("NotDelete", func(t *testing.T) {
+		t.Parallel()
+		req := require.New(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		mDB := expectDB(t,
+			// Inputs
+			expects,
+			// No Outputs
+		)
+
+		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
+		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).Orphan()
+		// nolint: dogsled
+		_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		req.ErrorContains(err, "orphan can only be set when deleting a workspace")
+	})
+}
+
 type txExpect func(mTx *dbmock.MockStore)
 
 func expectDB(t *testing.T, opts ...txExpect) *dbmock.MockStore {

@@ -6,6 +6,8 @@ import (
 	"io"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -26,10 +28,13 @@ Details:
 
 // WarnMatchedProvisioners warns the user if there are no provisioners that
 // match the requested tags for a given provisioner job.
-// If the job is not pending, it is ignored.
+// If the job is not pending or its ID is nil, it is ignored.
 func WarnMatchedProvisioners(w io.Writer, mp *codersdk.MatchedProvisioners, job codersdk.ProvisionerJob) {
 	if mp == nil {
 		// Nothing in the response, nothing to do here!
+		return
+	}
+	if job.ID == uuid.Nil {
 		return
 	}
 	if job.Status != codersdk.ProvisionerJobPending {
