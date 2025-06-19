@@ -2610,6 +2610,9 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				openIn = database.WorkspaceAppOpenInSlimWindow
 			}
 
+			if app.Id == "" || app.Id == uuid.Nil.String() {
+				app.Id = uuid.NewString()
+			}
 			id, err := uuid.Parse(app.Id)
 			if err != nil {
 				return xerrors.Errorf("parse app uuid: %w", err)

@@ -3255,6 +3255,9 @@ type PlanComplete struct {
 	ModuleFiles           []byte                          `protobuf:"bytes,11,opt,name=module_files,json=moduleFiles,proto3" json:"module_files,omitempty"`
 	ModuleFilesHash       []byte                          `protobuf:"bytes,12,opt,name=module_files_hash,json=moduleFilesHash,proto3" json:"module_files_hash,omitempty"`
 	// Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
+	// During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
+	// still need to know that such resources are defined.
+	//
 	// See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
 	HasAiTasks bool      `protobuf:"varint,13,opt,name=has_ai_tasks,json=hasAiTasks,proto3" json:"has_ai_tasks,omitempty"`
 	AiTasks    []*AITask `protobuf:"bytes,14,rep,name=ai_tasks,json=aiTasks,proto3" json:"ai_tasks,omitempty"`
