@@ -39,6 +39,9 @@ workspace if you're still using it. It will wait for the user to become inactive
 before checking connections again (1 hour by default). Template admins can
 modify this duration with the **activity bump** template setting.
 
+> [!NOTE]
+> If your template administrator has configured an "Autostop Requirement", your workspace may shut down more frequently than your configured autostop duration. The autostop requirement ensures compliance and template updates by enforcing mandatory shutdowns during your quiet hours, regardless of your personal autostop settings.
+
 ![Autostop UI](../images/workspaces/autostop.png)
 
 ## Activity detection
@@ -140,3 +143,21 @@ determines how long workspaces will remain in the dormant state before automatic
 
 Licensed admins may also configure failure cleanup, which will automatically
 delete workspaces that remain in a `failed` state for too long.
+
+## Frequently Asked Questions
+
+**Q: Why did my workspace shut down even though I set a 7-day autostop?**
+
+A: Your template likely has an autostop requirement (daily, weekly, etc.) that takes precedence over user settings. Autostop requirements are enforced by template administrators to ensure compliance and apply template updates. Check with your administrator about the template's scheduling policies.
+
+**Q: Can I prevent the autostop requirement from shutting down my workspace?**
+
+A: No, autostop requirements cannot be overridden by users as they are enforced for compliance and updates. However, you can configure your quiet hours to ensure shutdowns happen at convenient times for you in your timezone.
+
+**Q: When exactly will my workspace shut down if there's an autostop requirement?**
+
+A: Workspaces with autostop requirements will shut down at the start of your configured quiet hours on the days specified by the template (e.g., daily, weekly). This ensures shutdowns don't happen during your working hours.
+
+**Q: What happens if I set a shorter autostop duration than the template requirement?**
+
+A: Your workspace will shut down based on whichever deadline comes first. For example, if the template requires weekly stops but you set a 2-day autostop, your workspace will stop after 2 days of inactivity.

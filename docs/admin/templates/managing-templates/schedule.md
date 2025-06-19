@@ -93,6 +93,25 @@ Autostop requirement is disabled when the template is using the deprecated max
 lifetime feature. Templates can choose to use a max lifetime or an autostop
 requirement during the deprecation period, but only one can be used at a time.
 
+### Priority and interaction with user settings
+
+When both template-level autostop requirements and user-configurable autostop are enabled:
+
+- **Autostop requirement always takes precedence** - This sets the maximum deadline that cannot be extended by user settings
+- **User autostop settings act as minimums** - Users can set shorter autostop durations but cannot exceed the requirement
+- **The earliest deadline wins** - The system will use whichever shutdown time comes first
+
+#### Example scenarios
+
+**Scenario 1**: Template requires daily stops, user sets 7-day autostop
+- **Result**: Workspace stops daily during quiet hours (requirement takes precedence)
+
+**Scenario 2**: Template requires weekly stops, user sets 2-day autostop  
+- **Result**: Workspace stops after 2 days of inactivity (user setting is shorter)
+
+**Scenario 3**: Template requires daily stops, user disables autostop
+- **Result**: Workspace still stops daily during quiet hours (requirement cannot be overridden)
+
 ## User quiet hours
 
 > [!NOTE]
