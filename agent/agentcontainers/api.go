@@ -1146,11 +1146,27 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			codersdk.DisplayAppPortForward:    true,
 		}
 
-		// We need to read the config twice. This first time is so that we can extract the
-		// agent's name.
-		if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath, []string{}); err != nil {
-			api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
-		} else {
+		var appsWithPossibleDuplicates []SubAgentApp
+
+		if err := func() error {
+			var (
+				config         DevcontainerConfig
+				configOutdated bool
+			)
+
+			readConfig := func() (DevcontainerConfig, error) {
+				return api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath, []string{
+					fmt.Sprintf("CODER_WORKSPACE_AGENT_NAME=%s", subAgentConfig.Name),
+					fmt.Sprintf("CODER_WORKSPACE_OWNER_NAME=%s", api.ownerName),
+					fmt.Sprintf("CODER_WORKSPACE_NAME=%s", api.workspaceName),
+					fmt.Sprintf("CODER_URL=%s", api.subAgentURL),
+				})
+			}
+
+			if config, err = readConfig(); err != nil {
+				return err
+			}
+
 			// NOTE(DanielleMaywood):
 			// We only want to take an agent name specified in the root customization layer.
 			// This restricts the ability for a feature to specify the agent name. We may revisit
@@ -1159,24 +1175,18 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				// We only want to pick this name if it is a valid name.
 				if provisioner.AgentNameRegex.Match([]byte(name)) {
 					subAgentConfig.Name = name
+					configOutdated = true
 				} else {
 					logger.Warn(ctx, "invalid name in devcontainer customization, ignoring", slog.F("name", name))
 				}
 			}
-		}
 
-		var appsWithPossibleDuplicates []SubAgentApp
+			if configOutdated {
+				if config, err = readConfig(); err != nil {
+					return err
+				}
+			}
 
-		if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath,
-			[]string{
-				fmt.Sprintf("CODER_WORKSPACE_AGENT_NAME=%s", subAgentConfig.Name),
-				fmt.Sprintf("CODER_WORKSPACE_OWNER_NAME=%s", api.ownerName),
-				fmt.Sprintf("CODER_WORKSPACE_NAME=%s", api.workspaceName),
-				fmt.Sprintf("CODER_URL=%s", api.subAgentURL),
-			},
-		); err != nil {
-			api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
-		} else {
 			coderCustomization := config.MergedConfiguration.Customizations.Coder
 
 			for _, customization := range coderCustomization {
@@ -1193,6 +1203,10 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 				appsWithPossibleDuplicates = append(appsWithPossibleDuplicates, customization.Apps...)
 			}
+
+			return nil
+		}(); err != nil {
+			api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
 		}
 
 		displayApps := make([]codersdk.DisplayApp, 0, len(displayAppsMap))

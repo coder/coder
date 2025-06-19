@@ -1326,10 +1326,6 @@ func TestAPI(t *testing.T) {
 			return nil
 		}) // Exec pwd.
 		testutil.RequireSend(ctx, t, fakeDCCLI.readConfigErrC, func(envs []string) error {
-			assert.Empty(t, envs)
-			return nil
-		}) // We run 'ReadConfig' twice, once to get the agent name, second to read the rest.
-		testutil.RequireSend(ctx, t, fakeDCCLI.readConfigErrC, func(envs []string) error {
 			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=test-container")
 			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
 			assert.Contains(t, envs, "CODER_WORKSPACE_OWNER_NAME=test-user")
@@ -1476,10 +1472,6 @@ func TestAPI(t *testing.T) {
 			assert.Empty(t, args)
 			return nil
 		}) // Exec pwd.
-		testutil.RequireSend(ctx, t, fakeDCCLI.readConfigErrC, func(envs []string) error {
-			assert.Empty(t, envs)
-			return nil
-		}) // We run 'ReadConfig' twice, once to get the agent name, second to read the rest.
 		testutil.RequireSend(ctx, t, fakeDCCLI.readConfigErrC, func(envs []string) error {
 			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=test-container")
 			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
@@ -1979,12 +1971,12 @@ func TestAPI(t *testing.T) {
 			return nil
 		})
 		testutil.RequireSend(ctx, t, fDCCLI.readConfigErrC, func(env []string) error {
-			// We expect no env args to be passed into the first read.
-			assert.Empty(t, env)
+			// We expect the wrong workspace agent name passed in first.
+			assert.Contains(t, env, "CODER_WORKSPACE_AGENT_NAME=test-container")
 			return nil
 		})
 		testutil.RequireSend(ctx, t, fDCCLI.readConfigErrC, func(env []string) error {
-			// We expect the agent name passed here to have been read from the config.
+			// We then expect the agent name passed here to have been read from the config.
 			assert.Contains(t, env, "CODER_WORKSPACE_AGENT_NAME=custom-name")
 			assert.NotContains(t, env, "CODER_WORKSPACE_AGENT_NAME=test-container")
 			return nil
