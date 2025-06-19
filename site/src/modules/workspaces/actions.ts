@@ -6,7 +6,7 @@ import type { Workspace } from "api/typesGenerated";
 const actionTypes = [
 	"start",
 	"starting",
-	// Replaces start when an update is available.
+	// Appears beside start when an update is available.
 	"updateAndStart",
 	// Replaces start when an update is required.
 	"updateAndStartRequireActiveVersion",
@@ -14,7 +14,7 @@ const actionTypes = [
 	"stopping",
 	"restart",
 	"restarting",
-	// Replaces restart when an update is available.
+	// Appears beside restart when an update is available.
 	"updateAndRestart",
 	// Replaces restart when an update is required.
 	"updateAndRestartRequireActiveVersion",
