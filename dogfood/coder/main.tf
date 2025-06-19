@@ -454,6 +454,11 @@ resource "coder_agent" "dev" {
       threshold = data.coder_parameter.res_mon_volume_threshold.value
       path      = data.coder_parameter.res_mon_volume_path.value
     }
+    volume {
+      enabled   = true
+      threshold = data.coder_parameter.res_mon_volume_threshold.value
+      path      = "/var/lib/docker"
+    }
   }
 
   startup_script = <<-EOT
@@ -483,15 +488,13 @@ resource "coder_agent" "dev" {
     #!/usr/bin/env bash
     set -eux -o pipefail
 
-    # Stop all running containers and prune the system to clean up
-    # /var/lib/docker to prevent errors during workspace destroy.
+    # Clean up the unused resources to keep storage usage low.
     #
     # WARNING! This will remove:
-    # - all containers
-    # - all networks
-    # - all images
-    # - all build cache
-    docker ps -q | xargs docker stop
+    #   - all stopped containers
+    #   - all networks not used by at least one container
+    #   - all images without at least one container associated to them
+    #   - all build cache
     docker system prune -a -f
 
     # Stop the Docker service to prevent errors during workspace destroy.
@@ -507,6 +510,38 @@ resource "coder_metadata" "home_volume" {
 
 resource "docker_volume" "home_volume" {
   name = "coder-${data.coder_workspace.me.id}-home"
+  # Protect the volume from being deleted due to changes in attributes.
+  lifecycle {
+    ignore_changes = all
+  }
+  # Add labels in Docker to keep track of orphan resources.
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace_owner.me.name
+  }
+  labels {
+    label = "coder.owner_id"
+    value = data.coder_workspace_owner.me.id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+  # This field becomes outdated if the workspace is renamed but can
+  # be useful for debugging or cleaning out dangling volumes.
+  labels {
+    label = "coder.workspace_name_at_creation"
+    value = data.coder_workspace.me.name
+  }
+}
+
+resource "coder_metadata" "docker_volume" {
+  resource_id = docker_volume.docker_volume.id
+  hide        = true # Hide it as it is not useful to see in the UI.
+}
+
+resource "docker_volume" "docker_volume" {
+  name = "coder-${data.coder_workspace.me.id}-docker"
   # Protect the volume from being deleted due to changes in attributes.
   lifecycle {
     ignore_changes = all
@@ -591,6 +626,11 @@ resource "docker_container" "workspace" {
   volumes {
     container_path = "/home/coder/"
     volume_name    = docker_volume.home_volume.name
+    read_only      = false
+  }
+  volumes {
+    container_path = "/var/lib/docker/"
+    volume_name    = docker_volume.docker_volume.name
     read_only      = false
   }
   capabilities {
