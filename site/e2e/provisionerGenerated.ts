@@ -440,6 +440,9 @@ export interface PlanComplete {
   moduleFilesHash: Uint8Array;
   /**
    * Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
+   * During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
+   * still need to know that such resources are defined.
+   *
    * See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
    */
   hasAiTasks: boolean;
