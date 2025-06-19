@@ -1146,12 +1146,30 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			codersdk.DisplayAppPortForward:    true,
 		}
 
+		// We need to read the config twice. This first time is so that we can extract the
+		// agent's name.
+		if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath, []string{}); err != nil {
+			api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
+		} else {
+			// NOTE(DanielleMaywood):
+			// We only want to take an agent name specified in the root customization layer.
+			// This restricts the ability for a feature to specify the agent name. We may revisit
+			// this in the future, but for now we want to restrict this behavior.
+			if name := config.Configuration.Customizations.Coder.Name; name != "" {
+				// We only want to pick this name if it is a valid name.
+				if provisioner.AgentNameRegex.Match([]byte(name)) {
+					subAgentConfig.Name = name
+				} else {
+					logger.Warn(ctx, "invalid agent name in devcontainer customization, ignoring", slog.F("name", name))
+				}
+			}
+		}
+
 		var appsWithPossibleDuplicates []SubAgentApp
-		var possibleAgentName string
 
 		if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath,
 			[]string{
-				fmt.Sprintf("CODER_WORKSPACE_AGENT_NAME=%s", dc.Name),
+				fmt.Sprintf("CODER_WORKSPACE_AGENT_NAME=%s", subAgentConfig.Name),
 				fmt.Sprintf("CODER_WORKSPACE_OWNER_NAME=%s", api.ownerName),
 				fmt.Sprintf("CODER_WORKSPACE_NAME=%s", api.workspaceName),
 				fmt.Sprintf("CODER_URL=%s", api.subAgentURL),
@@ -1174,19 +1192,6 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				}
 
 				appsWithPossibleDuplicates = append(appsWithPossibleDuplicates, customization.Apps...)
-			}
-
-			// NOTE(DanielleMaywood):
-			// We only want to take an agent name specified in the root customization layer.
-			// This restricts the ability for a feature to specify the agent name. We may revisit
-			// this in the future, but for now we want to restrict this behavior.
-			if name := config.Configuration.Customizations.Coder.Name; name != "" {
-				// We only want to pick this name if it is a valid name.
-				if provisioner.AgentNameRegex.Match([]byte(name)) {
-					possibleAgentName = name
-				} else {
-					logger.Warn(ctx, "invalid agent name in devcontainer customization, ignoring", slog.F("name", name))
-				}
 			}
 		}
 
@@ -1219,10 +1224,6 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 		subAgentConfig.DisplayApps = displayApps
 		subAgentConfig.Apps = apps
-
-		if possibleAgentName != "" {
-			subAgentConfig.Name = possibleAgentName
-		}
 	}
 
 	deleteSubAgent := proc.agent.ID != uuid.Nil && maybeRecreateSubAgent && !proc.agent.EqualConfig(subAgentConfig)
