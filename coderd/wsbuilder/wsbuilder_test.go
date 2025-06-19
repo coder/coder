@@ -839,6 +839,142 @@ func TestWorkspaceBuildWithPreset(t *testing.T) {
 	req.NoError(err)
 }
 
+func TestWorkspaceBuildDeleteOrphan(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Provisioners", func(t *testing.T) {
+		t.Parallel()
+		req := require.New(t)
+		asrt := assert.New(t)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		var buildID uuid.UUID
+
+		mDB := expectDB(t,
+			// Inputs
+			withTemplate,
+			withInactiveVersion(nil),
+			withLastBuildFound,
+			withTemplateVersionVariables(inactiveVersionID, nil),
+			withRichParameters(nil),
+			withWorkspaceTags(inactiveVersionID, nil),
+			withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{{
+				JobID:             inactiveJobID,
+				ProvisionerDaemon: database.ProvisionerDaemon{},
+			}}),
+
+			// Outputs
+			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
+				asrt.Equal(userID, job.InitiatorID)
+				asrt.Equal(inactiveFileID, job.FileID)
+				input := provisionerdserver.WorkspaceProvisionJob{}
+				err := json.Unmarshal(job.Input, &input)
+				req.NoError(err)
+				// store build ID for later
+				buildID = input.WorkspaceBuildID
+			}),
+
+			withInTx,
+			expectBuild(func(bld database.InsertWorkspaceBuildParams) {
+				asrt.Equal(inactiveVersionID, bld.TemplateVersionID)
+				asrt.Equal(workspaceID, bld.WorkspaceID)
+				asrt.Equal(int32(2), bld.BuildNumber)
+				asrt.Empty(string(bld.ProvisionerState))
+				asrt.Equal(userID, bld.InitiatorID)
+				asrt.Equal(database.WorkspaceTransitionDelete, bld.Transition)
+				asrt.Equal(database.BuildReasonInitiator, bld.Reason)
+				asrt.Equal(buildID, bld.ID)
+			}),
+			withBuild,
+			expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
+				asrt.Equal(buildID, params.WorkspaceBuildID)
+				asrt.Empty(params.Name)
+				asrt.Empty(params.Value)
+			}),
+		)
+
+		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
+		uut := wsbuilder.New(ws, database.WorkspaceTransitionDelete).Orphan()
+		// nolint: dogsled
+		_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		req.NoError(err)
+	})
+
+	t.Run("NoProvisioners", func(t *testing.T) {
+		t.Parallel()
+		req := require.New(t)
+		asrt := assert.New(t)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		var buildID uuid.UUID
+		var jobID uuid.UUID
+
+		mDB := expectDB(t,
+			// Inputs
+			withTemplate,
+			withInactiveVersion(nil),
+			withLastBuildFound,
+			withTemplateVersionVariables(inactiveVersionID, nil),
+			withRichParameters(nil),
+			withWorkspaceTags(inactiveVersionID, nil),
+			withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
+
+			// Outputs
+			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
+				asrt.Equal(userID, job.InitiatorID)
+				asrt.Equal(inactiveFileID, job.FileID)
+				input := provisionerdserver.WorkspaceProvisionJob{}
+				err := json.Unmarshal(job.Input, &input)
+				req.NoError(err)
+				// store build ID for later
+				buildID = input.WorkspaceBuildID
+				// store job ID for later
+				jobID = job.ID
+			}),
+
+			withInTx,
+			expectBuild(func(bld database.InsertWorkspaceBuildParams) {
+				asrt.Equal(inactiveVersionID, bld.TemplateVersionID)
+				asrt.Equal(workspaceID, bld.WorkspaceID)
+				asrt.Equal(int32(2), bld.BuildNumber)
+				asrt.Empty(string(bld.ProvisionerState))
+				asrt.Equal(userID, bld.InitiatorID)
+				asrt.Equal(database.WorkspaceTransitionDelete, bld.Transition)
+				asrt.Equal(database.BuildReasonInitiator, bld.Reason)
+				asrt.Equal(buildID, bld.ID)
+			}),
+			withBuild,
+			expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
+				asrt.Equal(buildID, params.WorkspaceBuildID)
+				asrt.Empty(params.Name)
+				asrt.Empty(params.Value)
+			}),
+
+			// Because no provisioners were available and the request was to delete --orphan
+			expectUpdateProvisionerJobWithCompleteWithStartedAtByID(func(params database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) {
+				asrt.Equal(jobID, params.ID)
+				asrt.Contains(params.Error.String, "No provisioners were available")
+				asrt.True(params.CompletedAt.Valid)
+				asrt.True(params.StartedAt.Valid)
+			}),
+			expectUpdateWorkspaceDeletedByID(func(params database.UpdateWorkspaceDeletedByIDParams) {
+				asrt.Equal(workspaceID, params.ID)
+				asrt.True(params.Deleted)
+			}),
+		)
+
+		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
+		uut := wsbuilder.New(ws, database.WorkspaceTransitionDelete).Orphan()
+		// nolint: dogsled
+		_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		req.NoError(err)
+	})
+}
+
 func TestProvisionerVersionSupportsDynamicParameters(t *testing.T) {
 	t.Parallel()
 
@@ -1102,6 +1238,37 @@ func expectProvisionerJob(
 					// there is no point copying anything other than the ID, since this object is just
 					// returned to our test code, and we've already asserted what we care about.
 					return database.ProvisionerJob{ID: params.ID}, nil
+				},
+			)
+	}
+}
+
+// expectUpdateProvisionerJobWithCompleteWithStartedAtByID asserts a call to
+// expectUpdateProvisionerJobWithCompleteWithStartedAtByID and runs the provided
+// assertions against it.
+func expectUpdateProvisionerJobWithCompleteWithStartedAtByID(assertions func(params database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams)) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
+		mTx.EXPECT().UpdateProvisionerJobWithCompleteWithStartedAtByID(gomock.Any(), gomock.Any()).
+			Times(1).
+			DoAndReturn(
+				func(ctx context.Context, params database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) error {
+					assertions(params)
+					return nil
+				},
+			)
+	}
+}
+
+// expectUpdateWorkspaceDeletedByID asserts a call to UpdateWorkspaceDeletedByID
+// and runs the provided assertions against it.
+func expectUpdateWorkspaceDeletedByID(assertions func(params database.UpdateWorkspaceDeletedByIDParams)) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
+		mTx.EXPECT().UpdateWorkspaceDeletedByID(gomock.Any(), gomock.Any()).
+			Times(1).
+			DoAndReturn(
+				func(ctx context.Context, params database.UpdateWorkspaceDeletedByIDParams) error {
+					assertions(params)
+					return nil
 				},
 			)
 	}

@@ -4464,7 +4464,7 @@ func (q *FakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.Provi
 	defer q.mutex.RUnlock()
 
 	if len(q.provisionerDaemons) == 0 {
-		return nil, sql.ErrNoRows
+		return []database.ProvisionerDaemon{}, nil
 	}
 	// copy the data so that the caller can't manipulate any data inside dbmem
 	// after returning

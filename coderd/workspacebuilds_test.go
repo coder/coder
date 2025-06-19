@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -371,42 +372,140 @@ func TestWorkspaceBuildsProvisionerState(t *testing.T) {
 
 	t.Run("Orphan", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		first := coderdtest.CreateFirstUser(t, client)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		t.Run("WithoutDelete", func(t *testing.T) {
+			t.Parallel()
+			client, store := coderdtest.NewWithDatabase(t, nil)
+			first := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleTemplateAdmin())
 
-		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OwnerID:        templateAdminUser.ID,
+				OrganizationID: first.OrganizationID,
+			}).Do()
 
-		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
 
-		// Providing both state and orphan fails.
-		_, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
-			Transition:        codersdk.WorkspaceTransitionDelete,
-			ProvisionerState:  []byte(" "),
-			Orphan:            true,
+			// Trying to orphan without delete transition fails.
+			_, err := templateAdmin.CreateWorkspaceBuild(ctx, r.Workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+				TemplateVersionID: r.TemplateVersion.ID,
+				Transition:        codersdk.WorkspaceTransitionStart,
+				Orphan:            true,
+			})
+			require.Error(t, err, "Orphan is only permitted when deleting a workspace.")
+			cerr := coderdtest.SDKError(t, err)
+			require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 		})
-		require.Error(t, err)
-		cerr := coderdtest.SDKError(t, err)
-		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 
-		// Regular orphan operation succeeds.
-		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
-			Transition:        codersdk.WorkspaceTransitionDelete,
-			Orphan:            true,
+		t.Run("WithState", func(t *testing.T) {
+			t.Parallel()
+			client, store := coderdtest.NewWithDatabase(t, nil)
+			first := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleTemplateAdmin())
+
+			r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OwnerID:        templateAdminUser.ID,
+				OrganizationID: first.OrganizationID,
+			}).Do()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			// Providing both state and orphan fails.
+			_, err := templateAdmin.CreateWorkspaceBuild(ctx, r.Workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+				TemplateVersionID: r.TemplateVersion.ID,
+				Transition:        codersdk.WorkspaceTransitionDelete,
+				ProvisionerState:  []byte(" "),
+				Orphan:            true,
+			})
+			require.Error(t, err)
+			cerr := coderdtest.SDKError(t, err)
+			require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 		})
-		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
-		_, err = client.Workspace(ctx, workspace.ID)
-		require.Error(t, err)
-		require.Equal(t, http.StatusGone, coderdtest.SDKError(t, err).StatusCode())
+		t.Run("NoPermission", func(t *testing.T) {
+			t.Parallel()
+			client, store := coderdtest.NewWithDatabase(t, nil)
+			first := coderdtest.CreateFirstUser(t, client)
+			member, memberUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+			r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OwnerID:        memberUser.ID,
+				OrganizationID: first.OrganizationID,
+			}).Do()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			// Trying to orphan without being a template admin fails.
+			_, err := member.CreateWorkspaceBuild(ctx, r.Workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+				TemplateVersionID: r.TemplateVersion.ID,
+				Transition:        codersdk.WorkspaceTransitionDelete,
+				Orphan:            true,
+			})
+			require.Error(t, err)
+			cerr := coderdtest.SDKError(t, err)
+			require.Equal(t, http.StatusForbidden, cerr.StatusCode())
+		})
+
+		t.Run("OK", func(t *testing.T) {
+			// Include a provisioner so that we can test that provisionerdserver
+			// performs deletion.
+			client, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			first := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleTemplateAdmin())
+
+			r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OwnerID:        templateAdminUser.ID,
+				OrganizationID: first.OrganizationID,
+			}).Do()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			// Regular orphan operation succeeds.
+			build, err := templateAdmin.CreateWorkspaceBuild(ctx, r.Workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+				TemplateVersionID: r.TemplateVersion.ID,
+				Transition:        codersdk.WorkspaceTransitionDelete,
+				Orphan:            true,
+			})
+			require.NoError(t, err)
+			require.Equal(t, codersdk.WorkspaceTransitionDelete, build.Transition)
+			require.Equal(t, codersdk.ProvisionerJobPending, build.Job.Status)
+		})
+
+		t.Run("NoProvisioners", func(t *testing.T) {
+			t.Parallel()
+			client, store := coderdtest.NewWithDatabase(t, nil)
+			first := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleTemplateAdmin())
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+			r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OwnerID:        templateAdminUser.ID,
+				OrganizationID: first.OrganizationID,
+			}).Do()
+
+			// nolint:gocritic // For testing
+			daemons, err := store.GetProvisionerDaemons(dbauthz.AsSystemReadProvisionerDaemons(ctx))
+			require.NoError(t, err)
+			require.Empty(t, daemons, "Provisioner daemons should be empty for this test")
+
+			// Orphan deletion still succeeds despite no provisioners being available.
+			build, err := templateAdmin.CreateWorkspaceBuild(ctx, r.Workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+				TemplateVersionID: r.TemplateVersion.ID,
+				Transition:        codersdk.WorkspaceTransitionDelete,
+				Orphan:            true,
+			})
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, build.ID)
+
+			ws, err := client.Workspace(ctx, r.Workspace.ID)
+			require.Empty(t, ws)
+			require.Equal(t, http.StatusGone, coderdtest.SDKError(t, err).StatusCode())
+		})
 	})
 }
 

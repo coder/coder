@@ -423,7 +423,10 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var qpr database.GetProvisionerJobsByIDsWithQueuePositionRow
 	if provisionerJob != nil {
+		qpr.ProvisionerJob = *provisionerJob
+		qpr.QueuePosition = 0
 		if err := provisionerjobs.PostJob(api.Pubsub, *provisionerJob); err != nil {
 			// Client probably doesn't care about this error, so just log it.
 			api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
@@ -433,10 +436,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	apiBuild, err := api.convertWorkspaceBuild(
 		*workspaceBuild,
 		workspace,
-		database.GetProvisionerJobsByIDsWithQueuePositionRow{
-			ProvisionerJob: *provisionerJob,
-			QueuePosition:  0,
-		},
+		qpr,
 		[]database.WorkspaceResource{},
 		[]database.WorkspaceResourceMetadatum{},
 		[]database.WorkspaceAgent{},
