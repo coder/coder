@@ -243,6 +243,20 @@ func (a *subAgentAPIClient) Create(ctx context.Context, agent SubAgent) (SubAgen
 	if err != nil {
 		return agent, err
 	}
+
+	for _, appError := range resp.AppCreationErrors {
+		app := apps[appError.Index]
+
+		a.logger.Warn(ctx, "unable to create app",
+			slog.F("agent_name", agent.Name),
+			slog.F("agent_id", agent.ID),
+			slog.F("directory", agent.Directory),
+			slog.F("app_slug", app.Slug),
+			slog.F("field", appError.GetField()),
+			slog.F("error", appError.GetError()),
+		)
+	}
+
 	return agent, nil
 }
 
