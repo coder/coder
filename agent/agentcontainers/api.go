@@ -72,6 +72,7 @@ type API struct {
 	closed                  bool
 	containers              codersdk.WorkspaceAgentListContainersResponse  // Output from the last list operation.
 	containersErr           error                                          // Error from the last list operation.
+	autostartDevcontainer   map[string]bool                                // Tracks workspace folder.
 	devcontainerNames       map[string]bool                                // By devcontainer name.
 	knownDevcontainers      map[string]codersdk.WorkspaceAgentDevcontainer // By workspace folder.
 	configFileModifiedTimes map[string]time.Time                           // By config file path.
@@ -178,6 +179,11 @@ func WithDevcontainers(devcontainers []codersdk.WorkspaceAgentDevcontainer, scri
 		api.devcontainerNames = make(map[string]bool, len(devcontainers))
 		api.devcontainerLogSourceIDs = make(map[string]uuid.UUID)
 		for _, dc := range devcontainers {
+			// Assumption: given devcontainers will be autostarted by the agent.
+			api.autostartDevcontainer[dc.WorkspaceFolder] = true
+			// Set starting to reflect status (and act as lock, see recreate).
+			dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
+
 			api.knownDevcontainers[dc.WorkspaceFolder] = dc
 			api.devcontainerNames[dc.Name] = true
 			for _, script := range scripts {
@@ -590,6 +596,12 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 				// TODO(mafredri): Parse the container label (i.e. devcontainer.json) for customization.
 				dc.Name = safeFriendlyName(dc.Container.FriendlyName)
 			}
+		}
+
+		if len(api.autostartDevcontainer) > 0 && dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting && dc.Container != nil && api.autostartDevcontainer[dc.WorkspaceFolder] {
+			delete(api.autostartDevcontainer, dc.WorkspaceFolder)
+			// Unlock the devcontainer status so that it can be updated.
+			dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStopped
 		}
 
 		switch {
