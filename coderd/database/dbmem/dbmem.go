@@ -7926,6 +7926,10 @@ func (q *FakeQuerier) GetWorkspaceBuildParameters(_ context.Context, workspaceBu
 	return q.getWorkspaceBuildParametersNoLock(workspaceBuildID)
 }
 
+func (q *FakeQuerier) GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIds []uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
