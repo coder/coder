@@ -227,37 +227,47 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		require.NoError(t, err, "update workspace agent first connected at")
 	}
 
-	// Add a test antagonist. For every agent we add a deleted sub agent
-	// to discover cases where deletion should be handled.
-	subAgt, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
-		ID:                       uuid.New(),
-		ParentID:                 uuid.NullUUID{UUID: agt.ID, Valid: true},
-		CreatedAt:                dbtime.Now(),
-		UpdatedAt:                dbtime.Now(),
-		Name:                     testutil.GetRandomName(t),
-		ResourceID:               agt.ResourceID,
-		AuthToken:                uuid.New(),
-		AuthInstanceID:           sql.NullString{},
-		Architecture:             agt.Architecture,
-		EnvironmentVariables:     pqtype.NullRawMessage{},
-		OperatingSystem:          agt.OperatingSystem,
-		Directory:                agt.Directory,
-		InstanceMetadata:         pqtype.NullRawMessage{},
-		ResourceMetadata:         pqtype.NullRawMessage{},
-		ConnectionTimeoutSeconds: agt.ConnectionTimeoutSeconds,
-		TroubleshootingURL:       "I AM A TEST ANTAGONIST AND I AM HERE TO MESS UP YOUR TESTS. IF YOU SEE ME, SOMETHING IS WRONG AND SUB AGENT DELETION MAY NOT BE HANDLED CORRECTLY IN A QUERY.",
-		MOTDFile:                 "",
-		DisplayApps:              nil,
-		DisplayOrder:             agt.DisplayOrder,
-		APIKeyScope:              agt.APIKeyScope,
-	})
-	require.NoError(t, err, "insert workspace agent subagent antagonist")
-	err = db.DeleteWorkspaceSubAgentByID(genCtx, subAgt.ID)
-	require.NoError(t, err, "delete workspace agent subagent antagonist")
+	if orig.ParentID.UUID == uuid.Nil {
+		// Add a test antagonist. For every agent we add a deleted sub agent
+		// to discover cases where deletion should be handled.
+		// See also `(dbfake.WorkspaceBuildBuilder).Do()`.
+		subAgt, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
+			ID:                       uuid.New(),
+			ParentID:                 uuid.NullUUID{UUID: agt.ID, Valid: true},
+			CreatedAt:                dbtime.Now(),
+			UpdatedAt:                dbtime.Now(),
+			Name:                     testutil.GetRandomName(t),
+			ResourceID:               agt.ResourceID,
+			AuthToken:                uuid.New(),
+			AuthInstanceID:           sql.NullString{},
+			Architecture:             agt.Architecture,
+			EnvironmentVariables:     pqtype.NullRawMessage{},
+			OperatingSystem:          agt.OperatingSystem,
+			Directory:                agt.Directory,
+			InstanceMetadata:         pqtype.NullRawMessage{},
+			ResourceMetadata:         pqtype.NullRawMessage{},
+			ConnectionTimeoutSeconds: agt.ConnectionTimeoutSeconds,
+			TroubleshootingURL:       "I AM A TEST ANTAGONIST AND I AM HERE TO MESS UP YOUR TESTS. IF YOU SEE ME, SOMETHING IS WRONG AND SUB AGENT DELETION MAY NOT BE HANDLED CORRECTLY IN A QUERY.",
+			MOTDFile:                 "",
+			DisplayApps:              nil,
+			DisplayOrder:             agt.DisplayOrder,
+			APIKeyScope:              agt.APIKeyScope,
+		})
+		require.NoError(t, err, "insert workspace agent subagent antagonist")
+		err = db.DeleteWorkspaceSubAgentByID(genCtx, subAgt.ID)
+		require.NoError(t, err, "delete workspace agent subagent antagonist")
 
-	t.Logf("inserted workspace agent %s (%v) with deleted subagent antagonist %s (%v)", agt.Name, agt.ID, subAgt.Name, subAgt.ID)
+		t.Logf("inserted deleted subagent antagonist %s (%v) for workspace agent %s (%v)", subAgt.Name, subAgt.ID, agt.Name, agt.ID)
+	}
 
 	return agt
+}
+
+func WorkspaceSubAgent(t testing.TB, db database.Store, parentAgent database.WorkspaceAgent, orig database.WorkspaceAgent) database.WorkspaceAgent {
+	orig.ParentID = uuid.NullUUID{UUID: parentAgent.ID, Valid: true}
+	orig.ResourceID = parentAgent.ResourceID
+	subAgt := WorkspaceAgent(t, db, orig)
+	return subAgt
 }
 
 func WorkspaceAgentScript(t testing.TB, db database.Store, orig database.WorkspaceAgentScript) database.WorkspaceAgentScript {
