@@ -1512,7 +1512,7 @@ CREATE TABLE template_version_presets (
     desired_instances integer,
     invalidate_after_secs integer DEFAULT 0,
     prebuild_status prebuild_status DEFAULT 'healthy'::prebuild_status NOT NULL,
-    scheduling_timezone text DEFAULT 'UTC'::text NOT NULL
+    scheduling_timezone text DEFAULT ''::text NOT NULL
 );
 
 CREATE TABLE template_version_terraform_values (

@@ -138,6 +138,15 @@ func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) int32 {
 		return p.Preset.DesiredInstances.Int32
 	}
 
+	if p.Preset.SchedulingTimezone == "" {
+		p.logger.Error(context.Background(), "timezone is not set in prebuild scheduling configuration",
+			slog.F("preset_id", p.Preset.ID),
+			slog.F("timezone", p.Preset.SchedulingTimezone))
+
+		// If timezone is not set, fall back to the default desired instance count
+		return p.Preset.DesiredInstances.Int32
+	}
+
 	// Validate that the provided timezone is valid
 	_, err := time.LoadLocation(p.Preset.SchedulingTimezone)
 	if err != nil {
