@@ -3281,6 +3281,10 @@ func (q *querier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuil
 	return q.db.GetWorkspaceBuildParameters(ctx, workspaceBuildID)
 }
 
+func (q *querier) GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIds []uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err

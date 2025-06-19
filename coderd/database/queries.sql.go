@@ -17035,6 +17035,44 @@ func (q *sqlQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspaceB
 	return items, nil
 }
 
+const getWorkspaceBuildParametersByBuildIDs = `-- name: GetWorkspaceBuildParametersByBuildIDs :many
+SELECT
+    workspace_build_parameters.workspace_build_id, workspace_build_parameters.name, workspace_build_parameters.value
+FROM
+    workspace_build_parameters
+JOIN
+    workspace_builds ON workspace_builds.id = workspace_build_parameters.workspace_build_id
+JOIN
+    workspaces ON workspaces.id = workspace_builds.workspace_id
+WHERE
+    workspace_build_parameters.workspace_build_id = ANY($1 :: uuid[])
+    -- Authorize Filter clause will be injected below in GetAuthorizedWorkspaceBuildParametersByBuildIDs
+    -- @authorize_filter
+`
+
+func (q *sqlQuerier) GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIds []uuid.UUID) ([]WorkspaceBuildParameter, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildParametersByBuildIDs, pq.Array(workspaceBuildIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceBuildParameter
+	for rows.Next() {
+		var i WorkspaceBuildParameter
+		if err := rows.Scan(&i.WorkspaceBuildID, &i.Name, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertWorkspaceBuildParameters = `-- name: InsertWorkspaceBuildParameters :exec
 INSERT INTO
     workspace_build_parameters (workspace_build_id, name, value)
