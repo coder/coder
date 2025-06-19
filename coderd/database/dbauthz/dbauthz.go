@@ -3458,6 +3458,11 @@ func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now ti
 	return q.db.GetWorkspacesEligibleForTransition(ctx, now)
 }
 
+func (q *querier) HasTemplateVersionsWithAITask(ctx context.Context) (bool, error) {
+	// Anyone can call HasTemplateVersionsWithAITask.
+	return q.db.HasTemplateVersionsWithAITask(ctx)
+}
+
 func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	return insert(q.log, q.auth,
 		rbac.ResourceApiKey.WithOwner(arg.UserID.String()),

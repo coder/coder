@@ -534,6 +534,8 @@ export const MockUserAppearanceSettings: TypesGen.UserAppearanceSettings = {
 	terminal_font: "",
 };
 
+export const MockTasksTabVisible: boolean = false;
+
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	organization_id: MockOrganization.id,
 	user_id: MockUserOwner.id,

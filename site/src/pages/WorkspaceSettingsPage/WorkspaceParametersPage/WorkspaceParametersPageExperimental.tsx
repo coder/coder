@@ -237,7 +237,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 					</span>
 				</span>
 				<FeatureStageBadge
-					contentType={"early_access"}
+					contentType={"beta"}
 					size="sm"
 					labelText="Dynamic parameters"
 				/>

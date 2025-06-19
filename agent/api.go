@@ -49,11 +49,17 @@ func (a *agent) apiHandler(aAPI proto.DRPCAgentClient26) (http.Handler, func() e
 			agentcontainers.WithSubAgentClient(agentcontainers.NewSubAgentClientFromAPI(a.logger, aAPI)),
 		}
 		manifest := a.manifest.Load()
-		if manifest != nil && len(manifest.Devcontainers) > 0 {
-			containerAPIOpts = append(
-				containerAPIOpts,
-				agentcontainers.WithDevcontainers(manifest.Devcontainers, manifest.Scripts),
+		if manifest != nil {
+			containerAPIOpts = append(containerAPIOpts,
+				agentcontainers.WithManifestInfo(manifest.OwnerName, manifest.WorkspaceName),
 			)
+
+			if len(manifest.Devcontainers) > 0 {
+				containerAPIOpts = append(
+					containerAPIOpts,
+					agentcontainers.WithDevcontainers(manifest.Devcontainers, manifest.Scripts),
+				)
+			}
 		}
 
 		// Append after to allow the agent options to override the default options.

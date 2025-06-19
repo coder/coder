@@ -4,7 +4,9 @@ SELECT
 FROM
 	workspace_agents
 WHERE
-	id = $1;
+	id = $1
+	-- Filter out deleted sub agents.
+	AND deleted = FALSE;
 
 -- name: GetWorkspaceAgentByInstanceID :one
 SELECT
@@ -13,6 +15,8 @@ FROM
 	workspace_agents
 WHERE
 	auth_instance_id = @auth_instance_id :: TEXT
+	-- Filter out deleted sub agents.
+	AND deleted = FALSE
 ORDER BY
 	created_at DESC;
 
@@ -22,10 +26,16 @@ SELECT
 FROM
 	workspace_agents
 WHERE
-	resource_id = ANY(@ids :: uuid [ ]);
+	resource_id = ANY(@ids :: uuid [ ])
+	-- Filter out deleted sub agents.
+	AND deleted = FALSE;
 
 -- name: GetWorkspaceAgentsCreatedAfter :many
-SELECT * FROM workspace_agents WHERE created_at > $1;
+SELECT * FROM workspace_agents
+WHERE
+	created_at > $1
+	-- Filter out deleted sub agents.
+	AND deleted = FALSE;
 
 -- name: InsertWorkspaceAgent :one
 INSERT INTO
@@ -252,7 +262,9 @@ WHERE
 			workspace_builds AS wb
     	WHERE
 			wb.workspace_id = @workspace_id :: uuid
-	);
+	)
+	-- Filter out deleted sub agents.
+	AND workspace_agents.deleted = FALSE;
 
 -- name: GetWorkspaceAgentsByWorkspaceAndBuildNumber :many
 SELECT
@@ -265,7 +277,9 @@ JOIN
 	workspace_builds ON workspace_resources.job_id = workspace_builds.job_id
 WHERE
 	workspace_builds.workspace_id = @workspace_id :: uuid AND
-	workspace_builds.build_number = @build_number :: int;
+	workspace_builds.build_number = @build_number :: int
+	-- Filter out deleted sub agents.
+	AND workspace_agents.deleted = FALSE;
 
 -- name: GetWorkspaceAgentAndLatestBuildByAuthToken :one
 SELECT
@@ -290,6 +304,8 @@ WHERE
 	-- This should only match 1 agent, so 1 returned row or 0.
 	workspace_agents.auth_token = @auth_token::uuid
 	AND workspaces.deleted = FALSE
+	-- Filter out deleted sub agents.
+	AND workspace_agents.deleted = FALSE
 	-- Filter out builds that are not the latest.
 	AND workspace_build_with_user.build_number = (
 		-- Select from workspace_builds as it's one less join compared
@@ -332,7 +348,20 @@ WHERE workspace_builds.id = $1
 ORDER BY workspace_agent_script_timings.script_id, workspace_agent_script_timings.started_at;
 
 -- name: GetWorkspaceAgentsByParentID :many
-SELECT * FROM workspace_agents WHERE parent_id = @parent_id::uuid;
+SELECT
+	*
+FROM
+	workspace_agents
+WHERE
+	parent_id = @parent_id::uuid
+	AND deleted = FALSE;
 
 -- name: DeleteWorkspaceSubAgentByID :exec
-DELETE FROM workspace_agents WHERE id = $1 AND parent_id IS NOT NULL;
+UPDATE
+	workspace_agents
+SET
+	deleted = TRUE
+WHERE
+	id = $1
+	AND parent_id IS NOT NULL
+	AND deleted = FALSE;

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"io/fs"
 	"net/http"
 	"time"
 
@@ -144,7 +145,8 @@ func (api *API) handleDynamicParameters(listen bool, rw http.ResponseWriter, r *
 	}
 
 	// Add the file first. Calling `Release` if it fails is a no-op, so this is safe.
-	templateFS, err := api.FileCache.Acquire(fileCtx, fileID)
+	var templateFS fs.FS
+	closeableTemplateFS, err := api.FileCache.Acquire(fileCtx, fileID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "Internal error fetching template version Terraform.",
@@ -152,7 +154,10 @@ func (api *API) handleDynamicParameters(listen bool, rw http.ResponseWriter, r *
 		})
 		return
 	}
-	defer api.FileCache.Release(fileID)
+	defer closeableTemplateFS.Close()
+	// templateFS does not implement the Close method. For it to be later merged with
+	// the module files, we need to convert it to an OverlayFS.
+	templateFS = closeableTemplateFS
 
 	// Having the Terraform plan available for the evaluation engine is helpful
 	// for populating values from data blocks, but isn't strictly required. If
@@ -171,9 +176,9 @@ func (api *API) handleDynamicParameters(listen bool, rw http.ResponseWriter, r *
 			})
 			return
 		}
-		defer api.FileCache.Release(tf.CachedModuleFiles.UUID)
+		defer moduleFilesFS.Close()
 
-		templateFS = files.NewOverlayFS(templateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
+		templateFS = files.NewOverlayFS(closeableTemplateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
 	}
 
 	owner, err := getWorkspaceOwnerData(ctx, api.Database, apikey.UserID, templateVersion.OrganizationID)

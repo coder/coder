@@ -68,7 +68,7 @@ type fakeDevcontainerCLI struct {
 	execErrC       chan func(cmd string, args ...string) error // If set, send fn to return err, nil or close to return execErr.
 	readConfig     agentcontainers.DevcontainerConfig
 	readConfigErr  error
-	readConfigErrC chan error
+	readConfigErrC chan func(envs []string) error
 }
 
 func (f *fakeDevcontainerCLI) Up(ctx context.Context, _, _ string, _ ...agentcontainers.DevcontainerCLIUpOptions) (string, error) {
@@ -99,14 +99,14 @@ func (f *fakeDevcontainerCLI) Exec(ctx context.Context, _, _ string, cmd string,
 	return f.execErr
 }
 
-func (f *fakeDevcontainerCLI) ReadConfig(ctx context.Context, _, _ string, _ ...agentcontainers.DevcontainerCLIReadConfigOptions) (agentcontainers.DevcontainerConfig, error) {
+func (f *fakeDevcontainerCLI) ReadConfig(ctx context.Context, _, _ string, envs []string, _ ...agentcontainers.DevcontainerCLIReadConfigOptions) (agentcontainers.DevcontainerConfig, error) {
 	if f.readConfigErrC != nil {
 		select {
 		case <-ctx.Done():
 			return agentcontainers.DevcontainerConfig{}, ctx.Err()
-		case err, ok := <-f.readConfigErrC:
+		case fn, ok := <-f.readConfigErrC:
 			if ok {
-				return f.readConfig, err
+				return f.readConfig, fn(envs)
 			}
 		}
 	}
@@ -251,6 +251,15 @@ func (m *fakeSubAgentClient) Create(ctx context.Context, agent agentcontainers.S
 				return agentcontainers.SubAgent{}, err
 			}
 		}
+	}
+	if agent.Name == "" {
+		return agentcontainers.SubAgent{}, xerrors.New("name must be set")
+	}
+	if agent.Architecture == "" {
+		return agentcontainers.SubAgent{}, xerrors.New("architecture must be set")
+	}
+	if agent.OperatingSystem == "" {
+		return agentcontainers.SubAgent{}, xerrors.New("operating system must be set")
 	}
 	agent.ID = uuid.New()
 	agent.AuthToken = uuid.New()
@@ -1253,7 +1262,8 @@ func TestAPI(t *testing.T) {
 				deleteErrC: make(chan error, 1),
 			}
 			fakeDCCLI = &fakeDevcontainerCLI{
-				execErrC: make(chan func(cmd string, args ...string) error, 1),
+				execErrC:       make(chan func(cmd string, args ...string) error, 1),
+				readConfigErrC: make(chan func(envs []string) error, 1),
 			}
 
 			testContainer = codersdk.WorkspaceAgentContainer{
@@ -1293,6 +1303,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithSubAgentClient(fakeSAC),
 			agentcontainers.WithSubAgentURL("test-subagent-url"),
 			agentcontainers.WithDevcontainerCLI(fakeDCCLI),
+			agentcontainers.WithManifestInfo("test-user", "test-workspace"),
 		)
 		apiClose := func() {
 			closeOnce.Do(func() {
@@ -1300,6 +1311,7 @@ func TestAPI(t *testing.T) {
 				close(fakeSAC.createErrC)
 				close(fakeSAC.deleteErrC)
 				close(fakeDCCLI.execErrC)
+				close(fakeDCCLI.readConfigErrC)
 
 				_ = api.Close()
 			})
@@ -1313,6 +1325,13 @@ func TestAPI(t *testing.T) {
 			assert.Empty(t, args)
 			return nil
 		}) // Exec pwd.
+		testutil.RequireSend(ctx, t, fakeDCCLI.readConfigErrC, func(envs []string) error {
+			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=test-container")
+			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
+			assert.Contains(t, envs, "CODER_WORKSPACE_OWNER_NAME=test-user")
+			assert.Contains(t, envs, "CODER_URL=test-subagent-url")
+			return nil
+		})
 
 		// Make sure the ticker function has been registered
 		// before advancing the clock.
@@ -1453,6 +1472,13 @@ func TestAPI(t *testing.T) {
 			assert.Empty(t, args)
 			return nil
 		}) // Exec pwd.
+		testutil.RequireSend(ctx, t, fakeDCCLI.readConfigErrC, func(envs []string) error {
+			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=test-container")
+			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
+			assert.Contains(t, envs, "CODER_WORKSPACE_OWNER_NAME=test-user")
+			assert.Contains(t, envs, "CODER_URL=test-subagent-url")
+			return nil
+		})
 
 		err = api.RefreshContainers(ctx)
 		require.NoError(t, err, "refresh containers should not fail")
@@ -1530,17 +1556,18 @@ func TestAPI(t *testing.T) {
 		}
 
 		tests := []struct {
-			name          string
-			customization []agentcontainers.CoderCustomization
-			afterCreate   func(t *testing.T, subAgent agentcontainers.SubAgent)
+			name                 string
+			customization        agentcontainers.CoderCustomization
+			mergedCustomizations []agentcontainers.CoderCustomization
+			afterCreate          func(t *testing.T, subAgent agentcontainers.SubAgent)
 		}{
 			{
-				name:          "WithoutCustomization",
-				customization: nil,
+				name:                 "WithoutCustomization",
+				mergedCustomizations: nil,
 			},
 			{
-				name:          "WithDefaultDisplayApps",
-				customization: []agentcontainers.CoderCustomization{},
+				name:                 "WithDefaultDisplayApps",
+				mergedCustomizations: []agentcontainers.CoderCustomization{},
 				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
 					require.Len(t, subAgent.DisplayApps, 4)
 					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppVSCodeDesktop)
@@ -1551,7 +1578,7 @@ func TestAPI(t *testing.T) {
 			},
 			{
 				name: "WithAllDisplayApps",
-				customization: []agentcontainers.CoderCustomization{
+				mergedCustomizations: []agentcontainers.CoderCustomization{
 					{
 						DisplayApps: map[codersdk.DisplayApp]bool{
 							codersdk.DisplayAppSSH:            true,
@@ -1573,7 +1600,7 @@ func TestAPI(t *testing.T) {
 			},
 			{
 				name: "WithSomeDisplayAppsDisabled",
-				customization: []agentcontainers.CoderCustomization{
+				mergedCustomizations: []agentcontainers.CoderCustomization{
 					{
 						DisplayApps: map[codersdk.DisplayApp]bool{
 							codersdk.DisplayAppSSH:            false,
@@ -1603,6 +1630,162 @@ func TestAPI(t *testing.T) {
 					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppPortForward)
 				},
 			},
+			{
+				name: "WithApps",
+				mergedCustomizations: []agentcontainers.CoderCustomization{
+					{
+						Apps: []agentcontainers.SubAgentApp{
+							{
+								Slug:        "web-app",
+								DisplayName: "Web Application",
+								URL:         "http://localhost:8080",
+								OpenIn:      codersdk.WorkspaceAppOpenInTab,
+								Share:       codersdk.WorkspaceAppSharingLevelOwner,
+								Icon:        "/icons/web.svg",
+								Order:       int32(1),
+							},
+							{
+								Slug:        "api-server",
+								DisplayName: "API Server",
+								URL:         "http://localhost:3000",
+								OpenIn:      codersdk.WorkspaceAppOpenInSlimWindow,
+								Share:       codersdk.WorkspaceAppSharingLevelAuthenticated,
+								Icon:        "/icons/api.svg",
+								Order:       int32(2),
+								Hidden:      true,
+							},
+							{
+								Slug:        "docs",
+								DisplayName: "Documentation",
+								URL:         "http://localhost:4000",
+								OpenIn:      codersdk.WorkspaceAppOpenInTab,
+								Share:       codersdk.WorkspaceAppSharingLevelPublic,
+								Icon:        "/icons/book.svg",
+								Order:       int32(3),
+							},
+						},
+					},
+				},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.Len(t, subAgent.Apps, 3)
+
+					// Verify first app
+					assert.Equal(t, "web-app", subAgent.Apps[0].Slug)
+					assert.Equal(t, "Web Application", subAgent.Apps[0].DisplayName)
+					assert.Equal(t, "http://localhost:8080", subAgent.Apps[0].URL)
+					assert.Equal(t, codersdk.WorkspaceAppOpenInTab, subAgent.Apps[0].OpenIn)
+					assert.Equal(t, codersdk.WorkspaceAppSharingLevelOwner, subAgent.Apps[0].Share)
+					assert.Equal(t, "/icons/web.svg", subAgent.Apps[0].Icon)
+					assert.Equal(t, int32(1), subAgent.Apps[0].Order)
+
+					// Verify second app
+					assert.Equal(t, "api-server", subAgent.Apps[1].Slug)
+					assert.Equal(t, "API Server", subAgent.Apps[1].DisplayName)
+					assert.Equal(t, "http://localhost:3000", subAgent.Apps[1].URL)
+					assert.Equal(t, codersdk.WorkspaceAppOpenInSlimWindow, subAgent.Apps[1].OpenIn)
+					assert.Equal(t, codersdk.WorkspaceAppSharingLevelAuthenticated, subAgent.Apps[1].Share)
+					assert.Equal(t, "/icons/api.svg", subAgent.Apps[1].Icon)
+					assert.Equal(t, int32(2), subAgent.Apps[1].Order)
+					assert.Equal(t, true, subAgent.Apps[1].Hidden)
+
+					// Verify third app
+					assert.Equal(t, "docs", subAgent.Apps[2].Slug)
+					assert.Equal(t, "Documentation", subAgent.Apps[2].DisplayName)
+					assert.Equal(t, "http://localhost:4000", subAgent.Apps[2].URL)
+					assert.Equal(t, codersdk.WorkspaceAppOpenInTab, subAgent.Apps[2].OpenIn)
+					assert.Equal(t, codersdk.WorkspaceAppSharingLevelPublic, subAgent.Apps[2].Share)
+					assert.Equal(t, "/icons/book.svg", subAgent.Apps[2].Icon)
+					assert.Equal(t, int32(3), subAgent.Apps[2].Order)
+				},
+			},
+			{
+				name: "AppDeduplication",
+				mergedCustomizations: []agentcontainers.CoderCustomization{
+					{
+						Apps: []agentcontainers.SubAgentApp{
+							{
+								Slug:   "foo-app",
+								Hidden: true,
+								Order:  1,
+							},
+							{
+								Slug: "bar-app",
+							},
+						},
+					},
+					{
+						Apps: []agentcontainers.SubAgentApp{
+							{
+								Slug:  "foo-app",
+								Order: 2,
+							},
+							{
+								Slug: "baz-app",
+							},
+						},
+					},
+				},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.Len(t, subAgent.Apps, 3)
+
+					// As the original "foo-app" gets overridden by the later "foo-app",
+					// we expect "bar-app" to be first in the order.
+					assert.Equal(t, "bar-app", subAgent.Apps[0].Slug)
+					assert.Equal(t, "foo-app", subAgent.Apps[1].Slug)
+					assert.Equal(t, "baz-app", subAgent.Apps[2].Slug)
+
+					// We do not expect the properties from the original "foo-app" to be
+					// carried over.
+					assert.Equal(t, false, subAgent.Apps[1].Hidden)
+					assert.Equal(t, int32(2), subAgent.Apps[1].Order)
+				},
+			},
+			{
+				name: "Name",
+				customization: agentcontainers.CoderCustomization{
+					Name: "this-name",
+				},
+				mergedCustomizations: []agentcontainers.CoderCustomization{
+					{
+						Name: "not-this-name",
+					},
+					{
+						Name: "or-this-name",
+					},
+				},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.Equal(t, "this-name", subAgent.Name)
+				},
+			},
+			{
+				name: "NameIsOnlyUsedFromRoot",
+				mergedCustomizations: []agentcontainers.CoderCustomization{
+					{
+						Name: "custom-name",
+					},
+				},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.NotEqual(t, "custom-name", subAgent.Name)
+				},
+			},
+			{
+				name: "EmptyNameIsIgnored",
+				customization: agentcontainers.CoderCustomization{
+					Name: "",
+				},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.NotEmpty(t, subAgent.Name)
+				},
+			},
+			{
+				name: "InvalidNameIsIgnored",
+				customization: agentcontainers.CoderCustomization{
+					Name: "This--Is_An_Invalid--Name",
+				},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.NotEqual(t, "This--Is_An_Invalid--Name", subAgent.Name)
+				},
+			},
 		}
 
 		for _, tt := range tests {
@@ -1620,9 +1803,14 @@ func TestAPI(t *testing.T) {
 					}
 					fDCCLI = &fakeDevcontainerCLI{
 						readConfig: agentcontainers.DevcontainerConfig{
-							MergedConfiguration: agentcontainers.DevcontainerConfiguration{
+							Configuration: agentcontainers.DevcontainerConfiguration{
 								Customizations: agentcontainers.DevcontainerCustomizations{
 									Coder: tt.customization,
+								},
+							},
+							MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
+								Customizations: agentcontainers.DevcontainerMergedCustomizations{
+									Coder: tt.mergedCustomizations,
 								},
 							},
 						},
@@ -1689,7 +1877,6 @@ func TestAPI(t *testing.T) {
 
 				// Then: We expected it to succeed
 				require.Len(t, fSAC.created, 1)
-				assert.Equal(t, testContainer.FriendlyName, fSAC.created[0].Name)
 
 				if tt.afterCreate != nil {
 					tt.afterCreate(t, fSAC.created[0])

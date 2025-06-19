@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/quartz"
 )
 
@@ -63,6 +64,9 @@ type API struct {
 	subAgentClient              atomic.Pointer[SubAgentClient]
 	subAgentURL                 string
 	subAgentEnv                 []string
+
+	ownerName     string
+	workspaceName string
 
 	mu                      sync.RWMutex
 	closed                  bool
@@ -150,6 +154,15 @@ func WithSubAgentURL(url string) Option {
 func WithSubAgentEnv(env ...string) Option {
 	return func(api *API) {
 		api.subAgentEnv = env
+	}
+}
+
+// WithManifestInfo sets the owner name, and workspace name
+// for the sub-agent.
+func WithManifestInfo(owner, workspace string) Option {
+	return func(api *API) {
+		api.ownerName = owner
+		api.workspaceName = workspace
 	}
 }
 
@@ -1051,6 +1064,10 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		)
 		return nil
 	}
+	if proc.agent.ID == uuid.Nil {
+		proc.agent.Architecture = arch
+	}
+
 	agentBinaryPath, err := os.Executable()
 	if err != nil {
 		return xerrors.Errorf("get agent binary path: %w", err)
@@ -1095,6 +1112,8 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 	subAgentConfig := proc.agent.CloneConfig(dc)
 	if proc.agent.ID == uuid.Nil || maybeRecreateSubAgent {
+		subAgentConfig.Architecture = arch
+
 		// Detect workspace folder by executing `pwd` in the container.
 		// NOTE(mafredri): This is a quick and dirty way to detect the
 		// workspace folder inside the container. In the future we will
@@ -1127,7 +1146,17 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			codersdk.DisplayAppPortForward:    true,
 		}
 
-		if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath); err != nil {
+		var appsWithPossibleDuplicates []SubAgentApp
+		var possibleAgentName string
+
+		if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath,
+			[]string{
+				fmt.Sprintf("CODER_WORKSPACE_AGENT_NAME=%s", dc.Name),
+				fmt.Sprintf("CODER_WORKSPACE_OWNER_NAME=%s", api.ownerName),
+				fmt.Sprintf("CODER_WORKSPACE_NAME=%s", api.workspaceName),
+				fmt.Sprintf("CODER_URL=%s", api.subAgentURL),
+			},
+		); err != nil {
 			api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
 		} else {
 			coderCustomization := config.MergedConfiguration.Customizations.Coder
@@ -1143,6 +1172,21 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 					}
 					displayAppsMap[app] = enabled
 				}
+
+				appsWithPossibleDuplicates = append(appsWithPossibleDuplicates, customization.Apps...)
+			}
+
+			// NOTE(DanielleMaywood):
+			// We only want to take an agent name specified in the root customization layer.
+			// This restricts the ability for a feature to specify the agent name. We may revisit
+			// this in the future, but for now we want to restrict this behavior.
+			if name := config.Configuration.Customizations.Coder.Name; name != "" {
+				// We only want to pick this name if it is a valid name.
+				if provisioner.AgentNameRegex.Match([]byte(name)) {
+					possibleAgentName = name
+				} else {
+					logger.Warn(ctx, "invalid agent name in devcontainer customization, ignoring", slog.F("name", name))
+				}
 			}
 		}
 
@@ -1154,7 +1198,31 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		}
 		slices.Sort(displayApps)
 
+		appSlugs := make(map[string]struct{})
+		apps := make([]SubAgentApp, 0, len(appsWithPossibleDuplicates))
+
+		// We want to deduplicate the apps based on their slugs here.
+		// As we want to prioritize later apps, we will walk through this
+		// backwards.
+		for _, app := range slices.Backward(appsWithPossibleDuplicates) {
+			if _, slugAlreadyExists := appSlugs[app.Slug]; slugAlreadyExists {
+				continue
+			}
+
+			appSlugs[app.Slug] = struct{}{}
+			apps = append(apps, app)
+		}
+
+		// Apps is currently in reverse order here, so by reversing it we restore
+		// it to the original order.
+		slices.Reverse(apps)
+
 		subAgentConfig.DisplayApps = displayApps
+		subAgentConfig.Apps = apps
+
+		if possibleAgentName != "" {
+			subAgentConfig.Name = possibleAgentName
+		}
 	}
 
 	deleteSubAgent := proc.agent.ID != uuid.Nil && maybeRecreateSubAgent && !proc.agent.EqualConfig(subAgentConfig)
