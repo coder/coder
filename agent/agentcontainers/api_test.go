@@ -1263,7 +1263,7 @@ func TestAPI(t *testing.T) {
 			}
 			fakeDCCLI = &fakeDevcontainerCLI{
 				execErrC:       make(chan func(cmd string, args ...string) error, 1),
-				readConfigErrC: make(chan func(envs []string) error, 2),
+				readConfigErrC: make(chan func(envs []string) error, 1),
 			}
 
 			testContainer = codersdk.WorkspaceAgentContainer{
