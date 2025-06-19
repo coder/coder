@@ -1765,6 +1765,17 @@ func TestAPI(t *testing.T) {
 					require.NotEqual(t, "custom-name", subAgent.Name)
 				},
 			},
+			{
+				name: "EmptyNameIsIgnored",
+				customization: []agentcontainers.CoderCustomization{
+					{
+						Name: "",
+					},
+				},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.NotEmpty(t, subAgent.Name)
+				},
+			},
 		}
 
 		for _, tt := range tests {
