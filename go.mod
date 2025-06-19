@@ -537,4 +537,4 @@ require (
 )
 
 // TODO: replace once new version is cut.
-replace github.com/coder/terraform-provider-coder/v2 v2.5.3 => github.com/coder/terraform-provider-coder/v2 v2.5.4-0.20250618103053-97e45841d2c8
+replace github.com/coder/terraform-provider-coder/v2 => github.com/coder/terraform-provider-coder/v2 v2.5.4-0.20250619093524-d9b0f892f9c2
