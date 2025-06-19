@@ -34,6 +34,12 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Added DataUpload and ChunkPiece messages to support uploading large files
 //     back to Coderd. Used for uploading module files in support of dynamic
 //     parameters.
+//   - Added various fields in support of AI Tasks:
+//       - `ai_tasks` in `CompleteJob.WorkspaceBuild`
+//       - `has_ai_tasks` in `CompleteJob.TemplateImport`
+//       - `has_ai_tasks` and `ai_tasks` in `PlanComplete`
+//       - `id` in `App` (coder_app)
+//       - new message types `AITaskSidebarApp` and `AITask`
 const (
 	CurrentMajor = 1
 	CurrentMinor = 7
