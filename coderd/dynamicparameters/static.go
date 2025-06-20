@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/preview"
@@ -26,89 +27,7 @@ func (r *loader) staticRender(ctx context.Context, db database.Store) (*staticRe
 		return nil, xerrors.Errorf("template version parameters: %w", err)
 	}
 
-	params := make([]previewtypes.Parameter, 0, len(dbTemplateVersionParameters))
-	for _, it := range dbTemplateVersionParameters {
-		param := previewtypes.Parameter{
-			ParameterData: previewtypes.ParameterData{
-				Name:         it.Name,
-				DisplayName:  it.DisplayName,
-				Description:  it.Description,
-				Type:         previewtypes.ParameterType(it.Type),
-				FormType:     provider.ParameterFormType(it.FormType),
-				Styling:      previewtypes.ParameterStyling{},
-				Mutable:      it.Mutable,
-				DefaultValue: previewtypes.StringLiteral(it.DefaultValue),
-				Icon:         it.Icon,
-				Options:      make([]*previewtypes.ParameterOption, 0),
-				Validations:  make([]*previewtypes.ParameterValidation, 0),
-				Required:     it.Required,
-				Order:        int64(it.DisplayOrder),
-				Ephemeral:    it.Ephemeral,
-				Source:       nil,
-			},
-			// Always use the default, since we used to assume the empty string
-			Value:       previewtypes.StringLiteral(it.DefaultValue),
-			Diagnostics: make(previewtypes.Diagnostics, 0),
-		}
-
-		if it.ValidationError != "" || it.ValidationRegex != "" || it.ValidationMonotonic != "" {
-			var reg *string
-			if it.ValidationRegex != "" {
-				reg = ptr.Ref(it.ValidationRegex)
-			}
-
-			var vMin *int64
-			if it.ValidationMin.Valid {
-				vMin = ptr.Ref(int64(it.ValidationMin.Int32))
-			}
-
-			var vMax *int64
-			if it.ValidationMax.Valid {
-				vMax = ptr.Ref(int64(it.ValidationMax.Int32))
-			}
-
-			var monotonic *string
-			if it.ValidationMonotonic != "" {
-				monotonic = ptr.Ref(it.ValidationMonotonic)
-			}
-
-			param.Validations = append(param.Validations, &previewtypes.ParameterValidation{
-				Error:     it.ValidationError,
-				Regex:     reg,
-				Min:       vMin,
-				Max:       vMax,
-				Monotonic: monotonic,
-			})
-		}
-
-		var protoOptions []*sdkproto.RichParameterOption
-		err := json.Unmarshal(it.Options, &protoOptions)
-		if err != nil {
-			param.Diagnostics = append(param.Diagnostics, &hcl.Diagnostic{
-				Severity: hcl.DiagError,
-				Summary:  "Failed to parse json parameter options",
-				Detail:   err.Error(),
-			})
-		}
-
-		for _, opt := range protoOptions {
-			param.Options = append(param.Options, &previewtypes.ParameterOption{
-				Name:        opt.Name,
-				Description: opt.Description,
-				Value:       previewtypes.StringLiteral(opt.Value),
-				Icon:        opt.Icon,
-			})
-		}
-
-		// Take the form type from the ValidateFormType function. This is a bit
-		// unfortunate we have to do this, but it will return the default form_type
-		// for a given set of conditions.
-		_, param.FormType, _ = provider.ValidateFormType(provider.OptionType(param.Type), len(param.Options), param.FormType)
-
-		param.Diagnostics = append(param.Diagnostics, previewtypes.Diagnostics(param.Valid(param.Value))...)
-		params = append(params, param)
-	}
-
+	params := db2sdk.List(dbTemplateVersionParameters, TemplateVersionParameter)
 	return &staticRender{
 		staticParams: params,
 	}, nil
@@ -140,3 +59,85 @@ func (r *staticRender) Render(_ context.Context, _ uuid.UUID, values map[string]
 }
 
 func (*staticRender) Close() {}
+
+func TemplateVersionParameter(it database.TemplateVersionParameter) previewtypes.Parameter {
+	param := previewtypes.Parameter{
+		ParameterData: previewtypes.ParameterData{
+			Name:         it.Name,
+			DisplayName:  it.DisplayName,
+			Description:  it.Description,
+			Type:         previewtypes.ParameterType(it.Type),
+			FormType:     provider.ParameterFormType(it.FormType),
+			Styling:      previewtypes.ParameterStyling{},
+			Mutable:      it.Mutable,
+			DefaultValue: previewtypes.StringLiteral(it.DefaultValue),
+			Icon:         it.Icon,
+			Options:      make([]*previewtypes.ParameterOption, 0),
+			Validations:  make([]*previewtypes.ParameterValidation, 0),
+			Required:     it.Required,
+			Order:        int64(it.DisplayOrder),
+			Ephemeral:    it.Ephemeral,
+			Source:       nil,
+		},
+		// Always use the default, since we used to assume the empty string
+		Value:       previewtypes.StringLiteral(it.DefaultValue),
+		Diagnostics: make(previewtypes.Diagnostics, 0),
+	}
+
+	if it.ValidationError != "" || it.ValidationRegex != "" || it.ValidationMonotonic != "" {
+		var reg *string
+		if it.ValidationRegex != "" {
+			reg = ptr.Ref(it.ValidationRegex)
+		}
+
+		var vMin *int64
+		if it.ValidationMin.Valid {
+			vMin = ptr.Ref(int64(it.ValidationMin.Int32))
+		}
+
+		var vMax *int64
+		if it.ValidationMax.Valid {
+			vMax = ptr.Ref(int64(it.ValidationMax.Int32))
+		}
+
+		var monotonic *string
+		if it.ValidationMonotonic != "" {
+			monotonic = ptr.Ref(it.ValidationMonotonic)
+		}
+
+		param.Validations = append(param.Validations, &previewtypes.ParameterValidation{
+			Error:     it.ValidationError,
+			Regex:     reg,
+			Min:       vMin,
+			Max:       vMax,
+			Monotonic: monotonic,
+		})
+	}
+
+	var protoOptions []*sdkproto.RichParameterOption
+	err := json.Unmarshal(it.Options, &protoOptions)
+	if err != nil {
+		param.Diagnostics = append(param.Diagnostics, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Failed to parse json parameter options",
+			Detail:   err.Error(),
+		})
+	}
+
+	for _, opt := range protoOptions {
+		param.Options = append(param.Options, &previewtypes.ParameterOption{
+			Name:        opt.Name,
+			Description: opt.Description,
+			Value:       previewtypes.StringLiteral(opt.Value),
+			Icon:        opt.Icon,
+		})
+	}
+
+	// Take the form type from the ValidateFormType function. This is a bit
+	// unfortunate we have to do this, but it will return the default form_type
+	// for a given set of conditions.
+	_, param.FormType, _ = provider.ValidateFormType(provider.OptionType(param.Type), len(param.Options), param.FormType)
+
+	param.Diagnostics = append(param.Diagnostics, previewtypes.Diagnostics(param.Valid(param.Value))...)
+	return param
+}
