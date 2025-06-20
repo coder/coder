@@ -29,9 +29,7 @@ import (
 func TestDynamicParametersOwnerSSHPublicKey(t *testing.T) {
 	t.Parallel()
 
-	cfg := coderdtest.DeploymentValues(t)
-	cfg.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
-	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: cfg})
+	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
@@ -58,7 +56,7 @@ func TestDynamicParametersOwnerSSHPublicKey(t *testing.T) {
 	_ = coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, version.ID)
+	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, codersdk.Me, version.ID)
 	require.NoError(t, err)
 	defer stream.Close(websocket.StatusGoingAway)
 
@@ -205,11 +203,16 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 			provisionerDaemonVersion: provProto.CurrentVersion.String(),
 			mainTF:                   dynamicParametersTerraformSource,
 			modulesArchive:           modulesArchive,
-			expectWebsocketError:     true,
 		})
-		// This is checked in setupDynamicParamsTest. Just doing this in the
-		// test to make it obvious what this test is doing.
-		require.Zero(t, setup.api.FileCache.Count())
+
+		stream := setup.stream
+		previews := stream.Chan()
+
+		// Assert the failed owner
+		ctx := testutil.Context(t, testutil.WaitShort)
+		preview := testutil.RequireReceive(ctx, t, previews)
+		require.Len(t, preview.Diagnostics, 1)
+		require.Equal(t, preview.Diagnostics[0].Summary, "Failed to fetch workspace owner")
 	})
 
 	t.Run("RebuildParameters", func(t *testing.T) {
@@ -251,6 +254,7 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 					Value: "GO",
 				},
 			}
+			request.EnableDynamicParameters = true
 		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, wrk.LatestBuild.ID)
 
@@ -276,7 +280,7 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 				EnableDynamicParameters: ptr.Ref(true),
 			})
 			require.NoError(t, err)
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, wrk.LatestBuild.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, bld.ID)
 
 			latestParams, err := setup.client.WorkspaceBuildParameters(ctx, bld.ID)
 			require.NoError(t, err)
@@ -354,38 +358,25 @@ type dynamicParamsTest struct {
 }
 
 func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dynamicParamsTest {
-	cfg := coderdtest.DeploymentValues(t)
-	cfg.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
 	ownerClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		Database:                 args.db,
 		Pubsub:                   args.ps,
 		IncludeProvisionerDaemon: true,
 		ProvisionerDaemonVersion: args.provisionerDaemonVersion,
-		DeploymentValues:         cfg,
 	})
 
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
-	files := echo.WithExtraFiles(map[string][]byte{
-		"main.tf": args.mainTF,
+	tpl, version := coderdtest.DynamicParameterTemplate(t, templateAdmin, owner.OrganizationID, coderdtest.DynamicParameterTemplateParams{
+		MainTF:         string(args.mainTF),
+		Plan:           args.plan,
+		ModulesArchive: args.modulesArchive,
+		StaticParams:   args.static,
 	})
-	files.ProvisionPlan = []*proto.Response{{
-		Type: &proto.Response_Plan{
-			Plan: &proto.PlanComplete{
-				Plan:        args.plan,
-				ModuleFiles: args.modulesArchive,
-				Parameters:  args.static,
-			},
-		},
-	}}
-
-	version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, files)
-	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
-	tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, version.ID)
+	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, codersdk.Me, version.ID)
 	if args.expectWebsocketError {
 		require.Errorf(t, err, "expected error forming websocket")
 	} else {

@@ -162,7 +162,10 @@ const WorkspacesPage: FC = () => {
 				checkedWorkspaces={checkedWorkspaces}
 				open={confirmingBatchAction === "update"}
 				onConfirm={async () => {
-					await batchActions.updateAll(checkedWorkspaces);
+					await batchActions.updateAll({
+						workspaces: checkedWorkspaces,
+						isDynamicParametersEnabled: false,
+					});
 					setConfirmingBatchAction(null);
 				}}
 				onClose={() => {

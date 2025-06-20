@@ -18,6 +18,8 @@ const (
 	// DevcontainerConfigFileLabel is the label that contains the path to
 	// the devcontainer.json configuration file.
 	DevcontainerConfigFileLabel = "devcontainer.config_file"
+	// The default workspace folder inside the devcontainer.
+	DevcontainerDefaultContainerWorkspaceFolder = "/workspaces"
 )
 
 const devcontainerUpScriptTemplate = `

@@ -1252,6 +1252,9 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 		}).Do()
 		_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
 			o.ExperimentalDevcontainersEnabled = true
+			o.ContainerAPIOptions = append(o.ContainerAPIOptions,
+				agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
+			)
 		})
 		resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
 		require.Len(t, resources, 1, "expected one resource")
@@ -1320,18 +1323,18 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 
 		for _, tc := range []struct {
 			name      string
-			setupMock func(*acmock.MockLister) (codersdk.WorkspaceAgentListContainersResponse, error)
+			setupMock func(*acmock.MockContainerCLI) (codersdk.WorkspaceAgentListContainersResponse, error)
 		}{
 			{
 				name: "test response",
-				setupMock: func(mcl *acmock.MockLister) (codersdk.WorkspaceAgentListContainersResponse, error) {
+				setupMock: func(mcl *acmock.MockContainerCLI) (codersdk.WorkspaceAgentListContainersResponse, error) {
 					mcl.EXPECT().List(gomock.Any()).Return(testResponse, nil).AnyTimes()
 					return testResponse, nil
 				},
 			},
 			{
 				name: "error response",
-				setupMock: func(mcl *acmock.MockLister) (codersdk.WorkspaceAgentListContainersResponse, error) {
+				setupMock: func(mcl *acmock.MockContainerCLI) (codersdk.WorkspaceAgentListContainersResponse, error) {
 					mcl.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{}, assert.AnError).AnyTimes()
 					return codersdk.WorkspaceAgentListContainersResponse{}, assert.AnError
 				},
@@ -1342,7 +1345,7 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 				t.Parallel()
 
 				ctrl := gomock.NewController(t)
-				mcl := acmock.NewMockLister(ctrl)
+				mcl := acmock.NewMockContainerCLI(ctrl)
 				expected, expectedErr := tc.setupMock(mcl)
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 				client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
@@ -1358,7 +1361,10 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 				_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
 					o.Logger = logger.Named("agent")
 					o.ExperimentalDevcontainersEnabled = true
-					o.ContainerAPIOptions = append(o.ContainerAPIOptions, agentcontainers.WithLister(mcl))
+					o.ContainerAPIOptions = append(o.ContainerAPIOptions,
+						agentcontainers.WithContainerCLI(mcl),
+						agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
+					)
 				})
 				resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
 				require.Len(t, resources, 1, "expected one resource")
@@ -1397,14 +1403,13 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 				agentcontainers.DevcontainerConfigFileLabel:  configFile,
 			}
 			devContainer = codersdk.WorkspaceAgentContainer{
-				ID:                uuid.NewString(),
-				CreatedAt:         dbtime.Now(),
-				FriendlyName:      testutil.GetRandomName(t),
-				Image:             "busybox:latest",
-				Labels:            dcLabels,
-				Running:           true,
-				Status:            "running",
-				DevcontainerDirty: true,
+				ID:           uuid.NewString(),
+				CreatedAt:    dbtime.Now(),
+				FriendlyName: testutil.GetRandomName(t),
+				Image:        "busybox:latest",
+				Labels:       dcLabels,
+				Running:      true,
+				Status:       "running",
 			}
 			plainContainer = codersdk.WorkspaceAgentContainer{
 				ID:           uuid.NewString(),
@@ -1419,29 +1424,31 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 
 		for _, tc := range []struct {
 			name      string
-			setupMock func(*acmock.MockLister, *acmock.MockDevcontainerCLI) (status int)
+			setupMock func(mccli *acmock.MockContainerCLI, mdccli *acmock.MockDevcontainerCLI) (status int)
 		}{
 			{
 				name: "Recreate",
-				setupMock: func(mcl *acmock.MockLister, mdccli *acmock.MockDevcontainerCLI) int {
-					mcl.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+				setupMock: func(mccli *acmock.MockContainerCLI, mdccli *acmock.MockDevcontainerCLI) int {
+					mccli.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
 						Containers: []codersdk.WorkspaceAgentContainer{devContainer},
 					}, nil).AnyTimes()
+					// DetectArchitecture always returns "<none>" for this test to disable agent injection.
+					mccli.EXPECT().DetectArchitecture(gomock.Any(), devContainer.ID).Return("<none>", nil).AnyTimes()
 					mdccli.EXPECT().Up(gomock.Any(), workspaceFolder, configFile, gomock.Any()).Return("someid", nil).Times(1)
 					return 0
 				},
 			},
 			{
 				name: "Container does not exist",
-				setupMock: func(mcl *acmock.MockLister, mdccli *acmock.MockDevcontainerCLI) int {
-					mcl.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{}, nil).AnyTimes()
+				setupMock: func(mccli *acmock.MockContainerCLI, mdccli *acmock.MockDevcontainerCLI) int {
+					mccli.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{}, nil).AnyTimes()
 					return http.StatusNotFound
 				},
 			},
 			{
 				name: "Not a devcontainer",
-				setupMock: func(mcl *acmock.MockLister, mdccli *acmock.MockDevcontainerCLI) int {
-					mcl.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+				setupMock: func(mccli *acmock.MockContainerCLI, mdccli *acmock.MockDevcontainerCLI) int {
+					mccli.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
 						Containers: []codersdk.WorkspaceAgentContainer{plainContainer},
 					}, nil).AnyTimes()
 					return http.StatusNotFound
@@ -1452,9 +1459,9 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 				t.Parallel()
 
 				ctrl := gomock.NewController(t)
-				mcl := acmock.NewMockLister(ctrl)
+				mccli := acmock.NewMockContainerCLI(ctrl)
 				mdccli := acmock.NewMockDevcontainerCLI(ctrl)
-				wantStatus := tc.setupMock(mcl, mdccli)
+				wantStatus := tc.setupMock(mccli, mdccli)
 				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 				client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 					Logger: &logger,
@@ -1471,9 +1478,10 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 					o.ExperimentalDevcontainersEnabled = true
 					o.ContainerAPIOptions = append(
 						o.ContainerAPIOptions,
-						agentcontainers.WithLister(mcl),
+						agentcontainers.WithContainerCLI(mccli),
 						agentcontainers.WithDevcontainerCLI(mdccli),
 						agentcontainers.WithWatcher(watcher.NewNoop()),
+						agentcontainers.WithContainerLabelIncludeFilter(agentcontainers.DevcontainerLocalFolderLabel, workspaceFolder),
 					)
 				})
 				resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()

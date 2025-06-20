@@ -2443,6 +2443,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "refresh": 0,
       "threshold_database": 0
     },
+    "hide_ai_tasks": true,
     "http_address": "string",
     "http_cookies": {
       "same_site": "string",
@@ -2625,6 +2626,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "default_duration": 0,
       "default_token_lifetime": 0,
       "disable_expiry_refresh": true,
+      "max_admin_token_lifetime": 0,
       "max_token_lifetime": 0
     },
     "ssh_keygen_algorithm": "string",
@@ -2942,6 +2944,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "refresh": 0,
     "threshold_database": 0
   },
+  "hide_ai_tasks": true,
   "http_address": "string",
   "http_cookies": {
     "same_site": "string",
@@ -3124,6 +3127,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "default_duration": 0,
     "default_token_lifetime": 0,
     "disable_expiry_refresh": true,
+    "max_admin_token_lifetime": 0,
     "max_token_lifetime": 0
   },
   "ssh_keygen_algorithm": "string",
@@ -3241,6 +3245,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `external_auth`                      | [serpent.Struct-array_codersdk_ExternalAuthConfig](#serpentstruct-array_codersdk_externalauthconfig) | false    |              |                                                                    |
 | `external_token_encryption_keys`     | array of string                                                                                      | false    |              |                                                                    |
 | `healthcheck`                        | [codersdk.HealthcheckConfig](#codersdkhealthcheckconfig)                                             | false    |              |                                                                    |
+| `hide_ai_tasks`                      | boolean                                                                                              | false    |              |                                                                    |
 | `http_address`                       | string                                                                                               | false    |              | Http address is a string because it may be set to zero to disable. |
 | `http_cookies`                       | [codersdk.HTTPCookieConfig](#codersdkhttpcookieconfig)                                               | false    |              |                                                                    |
 | `in_memory_database`                 | boolean                                                                                              | false    |              |                                                                    |
@@ -3510,7 +3515,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `notifications`        |
 | `workspace-usage`      |
 | `web-push`             |
-| `dynamic-parameters`   |
 | `workspace-prebuilds`  |
 | `agentic-chat`         |
 | `ai-tasks`             |
@@ -6325,6 +6329,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `oauth2_app_secret`                |
 | `organization`                     |
 | `organization_member`              |
+| `prebuilt_workspace`               |
 | `provisioner_daemon`               |
 | `provisioner_jobs`                 |
 | `replicas`                         |
@@ -6767,18 +6772,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "default_duration": 0,
   "default_token_lifetime": 0,
   "disable_expiry_refresh": true,
+  "max_admin_token_lifetime": 0,
   "max_token_lifetime": 0
 }
 ```
 
 ### Properties
 
-| Name                     | Type    | Required | Restrictions | Description                                                                                                                                                                        |
-|--------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `default_duration`       | integer | false    |              | Default duration is only for browser, workspace app and oauth sessions.                                                                                                            |
-| `default_token_lifetime` | integer | false    |              |                                                                                                                                                                                    |
-| `disable_expiry_refresh` | boolean | false    |              | Disable expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key. |
-| `max_token_lifetime`     | integer | false    |              |                                                                                                                                                                                    |
+| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                        |
+|----------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `default_duration`         | integer | false    |              | Default duration is only for browser, workspace app and oauth sessions.                                                                                                            |
+| `default_token_lifetime`   | integer | false    |              |                                                                                                                                                                                    |
+| `disable_expiry_refresh`   | boolean | false    |              | Disable expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key. |
+| `max_admin_token_lifetime` | integer | false    |              |                                                                                                                                                                                    |
+| `max_token_lifetime`       | integer | false    |              |                                                                                                                                                                                    |
 
 ## codersdk.SlimRole
 
@@ -8081,6 +8088,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `protocol`    | `https`         |
 | `share_level` | `owner`         |
 | `share_level` | `authenticated` |
+| `share_level` | `organization`  |
 | `share_level` | `public`        |
 
 ## codersdk.UsageAppName
@@ -8581,10 +8589,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
   "latest_build": {
+    "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "has_ai_task": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -9008,8 +9018,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
-  "devcontainer_dirty": true,
-  "devcontainer_status": "running",
   "id": "string",
   "image": "string",
   "labels": {
@@ -9036,21 +9044,19 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                  | Type                                                                                   | Required | Restrictions | Description                                                                                                                                                                                    |
-|-----------------------|----------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `created_at`          | string                                                                                 | false    |              | Created at is the time the container was created.                                                                                                                                              |
-| `devcontainer_dirty`  | boolean                                                                                | false    |              | Devcontainer dirty is true if the devcontainer configuration has changed since the container was created. This is used to determine if the container needs to be rebuilt.                      |
-| `devcontainer_status` | [codersdk.WorkspaceAgentDevcontainerStatus](#codersdkworkspaceagentdevcontainerstatus) | false    |              | Devcontainer status is the status of the devcontainer, if this container is a devcontainer. This is used to determine if the devcontainer is running, stopped, starting, or in an error state. |
-| `id`                  | string                                                                                 | false    |              | ID is the unique identifier of the container.                                                                                                                                                  |
-| `image`               | string                                                                                 | false    |              | Image is the name of the container image.                                                                                                                                                      |
-| `labels`              | object                                                                                 | false    |              | Labels is a map of key-value pairs of container labels.                                                                                                                                        |
-| » `[any property]`    | string                                                                                 | false    |              |                                                                                                                                                                                                |
-| `name`                | string                                                                                 | false    |              | Name is the human-readable name of the container.                                                                                                                                              |
-| `ports`               | array of [codersdk.WorkspaceAgentContainerPort](#codersdkworkspaceagentcontainerport)  | false    |              | Ports includes ports exposed by the container.                                                                                                                                                 |
-| `running`             | boolean                                                                                | false    |              | Running is true if the container is currently running.                                                                                                                                         |
-| `status`              | string                                                                                 | false    |              | Status is the current status of the container. This is somewhat implementation-dependent, but should generally be a human-readable string.                                                     |
-| `volumes`             | object                                                                                 | false    |              | Volumes is a map of "things" mounted into the container. Again, this is somewhat implementation-dependent.                                                                                     |
-| » `[any property]`    | string                                                                                 | false    |              |                                                                                                                                                                                                |
+| Name               | Type                                                                                  | Required | Restrictions | Description                                                                                                                                |
+|--------------------|---------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`       | string                                                                                | false    |              | Created at is the time the container was created.                                                                                          |
+| `id`               | string                                                                                | false    |              | ID is the unique identifier of the container.                                                                                              |
+| `image`            | string                                                                                | false    |              | Image is the name of the container image.                                                                                                  |
+| `labels`           | object                                                                                | false    |              | Labels is a map of key-value pairs of container labels.                                                                                    |
+| » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
+| `name`             | string                                                                                | false    |              | Name is the human-readable name of the container.                                                                                          |
+| `ports`            | array of [codersdk.WorkspaceAgentContainerPort](#codersdkworkspaceagentcontainerport) | false    |              | Ports includes ports exposed by the container.                                                                                             |
+| `running`          | boolean                                                                               | false    |              | Running is true if the container is currently running.                                                                                     |
+| `status`           | string                                                                                | false    |              | Status is the current status of the container. This is somewhat implementation-dependent, but should generally be a human-readable string. |
+| `volumes`          | object                                                                                | false    |              | Volumes is a map of "things" mounted into the container. Again, this is somewhat implementation-dependent.                                 |
+| » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
 
 ## codersdk.WorkspaceAgentContainerPort
 
@@ -9071,6 +9077,79 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `host_port` | integer | false    |              | Host port is the port number *outside* the container.                                                                      |
 | `network`   | string  | false    |              | Network is the network protocol used by the port (tcp, udp, etc).                                                          |
 | `port`      | integer | false    |              | Port is the port number *inside* the container.                                                                            |
+
+## codersdk.WorkspaceAgentDevcontainer
+
+```json
+{
+  "agent": {
+    "directory": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string"
+  },
+  "config_path": "string",
+  "container": {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": "string",
+    "image": "string",
+    "labels": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "name": "string",
+    "ports": [
+      {
+        "host_ip": "string",
+        "host_port": 0,
+        "network": "string",
+        "port": 0
+      }
+    ],
+    "running": true,
+    "status": "string",
+    "volumes": {
+      "property1": "string",
+      "property2": "string"
+    }
+  },
+  "dirty": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "status": "running",
+  "workspace_folder": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                                                   | Required | Restrictions | Description                |
+|--------------------|----------------------------------------------------------------------------------------|----------|--------------|----------------------------|
+| `agent`            | [codersdk.WorkspaceAgentDevcontainerAgent](#codersdkworkspaceagentdevcontaineragent)   | false    |              |                            |
+| `config_path`      | string                                                                                 | false    |              |                            |
+| `container`        | [codersdk.WorkspaceAgentContainer](#codersdkworkspaceagentcontainer)                   | false    |              |                            |
+| `dirty`            | boolean                                                                                | false    |              |                            |
+| `id`               | string                                                                                 | false    |              |                            |
+| `name`             | string                                                                                 | false    |              |                            |
+| `status`           | [codersdk.WorkspaceAgentDevcontainerStatus](#codersdkworkspaceagentdevcontainerstatus) | false    |              | Additional runtime fields. |
+| `workspace_folder` | string                                                                                 | false    |              |                            |
+
+## codersdk.WorkspaceAgentDevcontainerAgent
+
+```json
+{
+  "directory": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name        | Type   | Required | Restrictions | Description |
+|-------------|--------|----------|--------------|-------------|
+| `directory` | string | false    |              |             |
+| `id`        | string | false    |              |             |
+| `name`      | string | false    |              |             |
 
 ## codersdk.WorkspaceAgentDevcontainerStatus
 
@@ -9134,8 +9213,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "containers": [
     {
       "created_at": "2019-08-24T14:15:22Z",
-      "devcontainer_dirty": true,
-      "devcontainer_status": "running",
       "id": "string",
       "image": "string",
       "labels": {
@@ -9159,6 +9236,45 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       }
     }
   ],
+  "devcontainers": [
+    {
+      "agent": {
+        "directory": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      },
+      "config_path": "string",
+      "container": {
+        "created_at": "2019-08-24T14:15:22Z",
+        "id": "string",
+        "image": "string",
+        "labels": {
+          "property1": "string",
+          "property2": "string"
+        },
+        "name": "string",
+        "ports": [
+          {
+            "host_ip": "string",
+            "host_port": 0,
+            "network": "string",
+            "port": 0
+          }
+        ],
+        "running": true,
+        "status": "string",
+        "volumes": {
+          "property1": "string",
+          "property2": "string"
+        }
+      },
+      "dirty": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "status": "running",
+      "workspace_folder": "string"
+    }
+  ],
   "warnings": [
     "string"
   ]
@@ -9167,10 +9283,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name         | Type                                                                          | Required | Restrictions | Description                                                                                                                           |
-|--------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
-| `containers` | array of [codersdk.WorkspaceAgentContainer](#codersdkworkspaceagentcontainer) | false    |              | Containers is a list of containers visible to the workspace agent.                                                                    |
-| `warnings`   | array of string                                                               | false    |              | Warnings is a list of warnings that may have occurred during the process of listing containers. This should not include fatal errors. |
+| Name            | Type                                                                                | Required | Restrictions | Description                                                                                                                           |
+|-----------------|-------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `containers`    | array of [codersdk.WorkspaceAgentContainer](#codersdkworkspaceagentcontainer)       | false    |              | Containers is a list of containers visible to the workspace agent.                                                                    |
+| `devcontainers` | array of [codersdk.WorkspaceAgentDevcontainer](#codersdkworkspaceagentdevcontainer) | false    |              | Devcontainers is a list of devcontainers visible to the workspace agent.                                                              |
+| `warnings`      | array of string                                                                     | false    |              | Warnings is a list of warnings that may have occurred during the process of listing containers. This should not include fatal errors. |
 
 ## codersdk.WorkspaceAgentListeningPort
 
@@ -9284,6 +9401,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `protocol`    | `https`         |
 | `share_level` | `owner`         |
 | `share_level` | `authenticated` |
+| `share_level` | `organization`  |
 | `share_level` | `public`        |
 
 ## codersdk.WorkspaceAgentPortShareLevel
@@ -9300,6 +9418,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |-----------------|
 | `owner`         |
 | `authenticated` |
+| `organization`  |
 | `public`        |
 
 ## codersdk.WorkspaceAgentPortShareProtocol
@@ -9470,6 +9589,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |-----------------|-----------------|
 | `sharing_level` | `owner`         |
 | `sharing_level` | `authenticated` |
+| `sharing_level` | `organization`  |
 | `sharing_level` | `public`        |
 
 ## codersdk.WorkspaceAppHealth
@@ -9518,6 +9638,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |-----------------|
 | `owner`         |
 | `authenticated` |
+| `organization`  |
 | `public`        |
 
 ## codersdk.WorkspaceAppStatus
@@ -9572,10 +9693,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
   "build_number": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
+  "has_ai_task": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",
@@ -9778,10 +9901,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                         | Type                                                              | Required | Restrictions | Description                                                         |
 |------------------------------|-------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
+| `ai_task_sidebar_app_id`     | string                                                            | false    |              |                                                                     |
 | `build_number`               | integer                                                           | false    |              |                                                                     |
 | `created_at`                 | string                                                            | false    |              |                                                                     |
 | `daily_cost`                 | integer                                                           | false    |              |                                                                     |
 | `deadline`                   | string                                                            | false    |              |                                                                     |
+| `has_ai_task`                | boolean                                                           | false    |              |                                                                     |
 | `id`                         | string                                                            | false    |              |                                                                     |
 | `initiator_id`               | string                                                            | false    |              |                                                                     |
 | `initiator_name`             | string                                                            | false    |              |                                                                     |
@@ -10298,10 +10423,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
       },
       "latest_build": {
+        "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
         "build_number": 0,
         "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
         "deadline": "2019-08-24T14:15:22Z",
+        "has_ai_task": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
         "initiator_name": "string",

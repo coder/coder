@@ -10,11 +10,12 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/agent/agentcontainers"
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (a *agent) apiHandler() (http.Handler, func() error) {
+func (a *agent) apiHandler(aAPI proto.DRPCAgentClient26) (http.Handler, func() error) {
 	r := chi.NewRouter()
 	r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
@@ -45,13 +46,20 @@ func (a *agent) apiHandler() (http.Handler, func() error) {
 			agentcontainers.WithScriptLogger(func(logSourceID uuid.UUID) agentcontainers.ScriptLogger {
 				return a.logSender.GetScriptLogger(logSourceID)
 			}),
+			agentcontainers.WithSubAgentClient(agentcontainers.NewSubAgentClientFromAPI(a.logger, aAPI)),
 		}
 		manifest := a.manifest.Load()
-		if manifest != nil && len(manifest.Devcontainers) > 0 {
-			containerAPIOpts = append(
-				containerAPIOpts,
-				agentcontainers.WithDevcontainers(manifest.Devcontainers, manifest.Scripts),
+		if manifest != nil {
+			containerAPIOpts = append(containerAPIOpts,
+				agentcontainers.WithManifestInfo(manifest.OwnerName, manifest.WorkspaceName),
 			)
+
+			if len(manifest.Devcontainers) > 0 {
+				containerAPIOpts = append(
+					containerAPIOpts,
+					agentcontainers.WithDevcontainers(manifest.Devcontainers, manifest.Scripts),
+				)
+			}
 		}
 
 		// Append after to allow the agent options to override the default options.

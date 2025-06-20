@@ -40,6 +40,10 @@ You can install Coder Desktop on macOS or Windows.
 
 ### Windows
 
+If you use [WinGet](https://github.com/microsoft/winget-cli), run `winget install Coder.CoderDesktop`.
+
+To manually install Coder Desktop:
+
 1. Download the latest `CoderDesktop` installer executable (`.exe`) from the [coder-desktop-windows release page](https://github.com/coder/coder-desktop-windows/releases).
 
    Choose the architecture that fits your Windows system, `x64` or `arm64`.
@@ -95,9 +99,7 @@ Before you can use Coder Desktop, you will need to sign in.
 
    Windows: Select **Generate a token via the Web UI**.
 
-1. In your web browser, you may be prompted to sign in to Coder with your credentials:
-
-   ![Sign in to your Coder deployment](../../images/templates/coder-login-web.png)
+1. In your web browser, you may be prompted to sign in to Coder with your credentials.
 
 1. Copy the session token to the clipboard:
 

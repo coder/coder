@@ -736,6 +736,7 @@ export interface DeploymentValues {
 	readonly additional_csp_policy?: string;
 	readonly workspace_hostname_suffix?: string;
 	readonly workspace_prebuilds?: PrebuildsConfig;
+	readonly hide_ai_tasks?: boolean;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	readonly address?: string;
@@ -830,7 +831,6 @@ export type Experiment =
 	| "ai-tasks"
 	| "agentic-chat"
 	| "auto-fill-parameters"
-	| "dynamic-parameters"
 	| "example"
 	| "notifications"
 	| "web-push"
@@ -2192,6 +2192,7 @@ export type RBACResource =
 	| "oauth2_app_secret"
 	| "organization"
 	| "organization_member"
+	| "prebuilt_workspace"
 	| "provisioner_daemon"
 	| "provisioner_jobs"
 	| "replicas"
@@ -2231,6 +2232,7 @@ export const RBACResources: RBACResource[] = [
 	"oauth2_app_secret",
 	"organization",
 	"organization_member",
+	"prebuilt_workspace",
 	"provisioner_daemon",
 	"provisioner_jobs",
 	"replicas",
@@ -2519,6 +2521,7 @@ export interface SessionLifetime {
 	readonly default_duration: number;
 	readonly default_token_lifetime?: number;
 	readonly max_token_lifetime?: number;
+	readonly max_admin_token_lifetime?: number;
 }
 
 // From codersdk/client.go
@@ -3354,8 +3357,6 @@ export interface WorkspaceAgentContainer {
 	readonly ports: readonly WorkspaceAgentContainerPort[];
 	readonly status: string;
 	readonly volumes: Record<string, string>;
-	readonly devcontainer_status?: WorkspaceAgentDevcontainerStatus;
-	readonly devcontainer_dirty: boolean;
 }
 
 // From codersdk/workspaceagents.go
@@ -3375,6 +3376,14 @@ export interface WorkspaceAgentDevcontainer {
 	readonly status: WorkspaceAgentDevcontainerStatus;
 	readonly dirty: boolean;
 	readonly container?: WorkspaceAgentContainer;
+	readonly agent?: WorkspaceAgentDevcontainerAgent;
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentDevcontainerAgent {
+	readonly id: string;
+	readonly name: string;
+	readonly directory: string;
 }
 
 // From codersdk/workspaceagents.go
@@ -3386,11 +3395,6 @@ export type WorkspaceAgentDevcontainerStatus =
 
 export const WorkspaceAgentDevcontainerStatuses: WorkspaceAgentDevcontainerStatus[] =
 	["error", "running", "starting", "stopped"];
-
-// From codersdk/workspaceagents.go
-export interface WorkspaceAgentDevcontainersResponse {
-	readonly devcontainers: readonly WorkspaceAgentDevcontainer[];
-}
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentHealth {
@@ -3424,6 +3428,7 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentListContainersResponse {
+	readonly devcontainers: readonly WorkspaceAgentDevcontainer[];
 	readonly containers: readonly WorkspaceAgentContainer[];
 	readonly warnings?: readonly string[];
 }
@@ -3491,10 +3496,15 @@ export interface WorkspaceAgentPortShare {
 }
 
 // From codersdk/workspaceagentportshare.go
-export type WorkspaceAgentPortShareLevel = "authenticated" | "owner" | "public";
+export type WorkspaceAgentPortShareLevel =
+	| "authenticated"
+	| "organization"
+	| "owner"
+	| "public";
 
 export const WorkspaceAgentPortShareLevels: WorkspaceAgentPortShareLevel[] = [
 	"authenticated",
+	"organization",
 	"owner",
 	"public",
 ];
@@ -3584,10 +3594,15 @@ export type WorkspaceAppOpenIn = "slim-window" | "tab";
 export const WorkspaceAppOpenIns: WorkspaceAppOpenIn[] = ["slim-window", "tab"];
 
 // From codersdk/workspaceapps.go
-export type WorkspaceAppSharingLevel = "authenticated" | "owner" | "public";
+export type WorkspaceAppSharingLevel =
+	| "authenticated"
+	| "organization"
+	| "owner"
+	| "public";
 
 export const WorkspaceAppSharingLevels: WorkspaceAppSharingLevel[] = [
 	"authenticated",
+	"organization",
 	"owner",
 	"public",
 ];
@@ -3640,6 +3655,8 @@ export interface WorkspaceBuild {
 	readonly daily_cost: number;
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
+	readonly has_ai_task?: boolean;
+	readonly ai_task_sidebar_app_id?: string;
 }
 
 // From codersdk/workspacebuilds.go

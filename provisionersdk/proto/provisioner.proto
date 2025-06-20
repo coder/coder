@@ -11,340 +11,351 @@ message Empty {}
 
 // TemplateVariable represents a Terraform variable.
 message TemplateVariable {
-    string name = 1;
-    string description = 2;
-    string type = 3;
-    string default_value = 4;
-    bool required = 5;
-    bool sensitive = 6;
+  string name = 1;
+  string description = 2;
+  string type = 3;
+  string default_value = 4;
+  bool required = 5;
+  bool sensitive = 6;
 }
 
 // RichParameterOption represents a singular option that a parameter may expose.
 message RichParameterOption {
-    string name = 1;
-    string description = 2;
-    string value = 3;
-    string icon = 4;
+  string name = 1;
+  string description = 2;
+  string value = 3;
+  string icon = 4;
 }
 
 enum ParameterFormType {
-    DEFAULT = 0;
-    FORM_ERROR = 1;
-    RADIO = 2;
-    DROPDOWN = 3;
-    INPUT = 4;
-    TEXTAREA = 5;
-    SLIDER = 6;
-    CHECKBOX = 7;
-    SWITCH = 8;
-    TAGSELECT = 9;
-    MULTISELECT = 10;
+  DEFAULT = 0;
+  FORM_ERROR = 1;
+  RADIO = 2;
+  DROPDOWN = 3;
+  INPUT = 4;
+  TEXTAREA = 5;
+  SLIDER = 6;
+  CHECKBOX = 7;
+  SWITCH = 8;
+  TAGSELECT = 9;
+  MULTISELECT = 10;
 }
 
 // RichParameter represents a variable that is exposed.
 message RichParameter {
-    reserved 14;
-    reserved "legacy_variable_name";
+  reserved 14;
+  reserved "legacy_variable_name";
 
-    string name = 1;
-    string description = 2;
-    string type = 3;
-    bool mutable = 4;
-    string default_value = 5;
-    string icon = 6;
-    repeated RichParameterOption options = 7;
-    string validation_regex = 8;
-    string validation_error = 9;
-    optional int32 validation_min = 10;
-    optional int32 validation_max = 11;
-    string validation_monotonic = 12;
-    bool required = 13;
-    // legacy_variable_name was removed (= 14)
-    string display_name = 15;
-    int32 order = 16;
-    bool ephemeral = 17;
-    ParameterFormType form_type = 18;
+  string name = 1;
+  string description = 2;
+  string type = 3;
+  bool mutable = 4;
+  string default_value = 5;
+  string icon = 6;
+  repeated RichParameterOption options = 7;
+  string validation_regex = 8;
+  string validation_error = 9;
+  optional int32 validation_min = 10;
+  optional int32 validation_max = 11;
+  string validation_monotonic = 12;
+  bool required = 13;
+  // legacy_variable_name was removed (= 14)
+  string display_name = 15;
+  int32 order = 16;
+  bool ephemeral = 17;
+  ParameterFormType form_type = 18;
 }
 
 // RichParameterValue holds the key/value mapping of a parameter.
 message RichParameterValue {
-    string name = 1;
-    string value = 2;
+  string name = 1;
+  string value = 2;
 }
 
 // ExpirationPolicy defines the policy for expiring unclaimed prebuilds.
 // If a prebuild remains unclaimed for longer than ttl seconds, it is deleted and
 // recreated to prevent staleness.
 message ExpirationPolicy {
-	int32 ttl = 1;
+  int32 ttl = 1;
+}
+
+message Schedule {
+	string cron = 1;
+	int32 instances = 2;
+}
+
+message Scheduling {
+    string timezone = 1;
+    repeated Schedule schedule = 2;
 }
 
 message Prebuild {
     int32 instances = 1;
-	ExpirationPolicy expiration_policy = 2;
+    ExpirationPolicy expiration_policy = 2;
+    Scheduling scheduling = 3;
 }
 
 // Preset represents a set of preset parameters for a template version.
 message Preset {
-    string name = 1;
-    repeated PresetParameter parameters = 2;
-    Prebuild prebuild = 3;
+  string name = 1;
+  repeated PresetParameter parameters = 2;
+  Prebuild prebuild = 3;
 }
 
 message PresetParameter {
-    string name = 1;
-    string value = 2;
+  string name = 1;
+  string value = 2;
 }
 
 message ResourceReplacement {
-    string resource = 1;
-    repeated string paths = 2;
+  string resource = 1;
+  repeated string paths = 2;
 }
 
 // VariableValue holds the key/value mapping of a Terraform variable.
 message VariableValue {
-    string name = 1;
-    string value = 2;
-    bool sensitive = 3;
+  string name = 1;
+  string value = 2;
+  bool sensitive = 3;
 }
 
 // LogLevel represents severity of the log.
 enum LogLevel {
-    TRACE = 0;
-    DEBUG = 1;
-    INFO = 2;
-    WARN = 3;
-    ERROR = 4;
+  TRACE = 0;
+  DEBUG = 1;
+  INFO = 2;
+  WARN = 3;
+  ERROR = 4;
 }
 
 // Log represents output from a request.
 message Log {
-    LogLevel level = 1;
-    string output = 2;
+  LogLevel level = 1;
+  string output = 2;
 }
 
 message InstanceIdentityAuth {
-    string instance_id = 1;
+  string instance_id = 1;
 }
 
 message ExternalAuthProviderResource {
-    string id = 1;
-    bool optional = 2;
+  string id = 1;
+  bool optional = 2;
 }
 
 message ExternalAuthProvider {
-    string id = 1;
-    string access_token = 2;
+  string id = 1;
+  string access_token = 2;
 }
 
 // Agent represents a running agent on the workspace.
 message Agent {
-    message Metadata {
-        string key = 1;
-        string display_name = 2;
-        string script = 3;
-        int64 interval = 4;
-        int64 timeout = 5;
-        int64 order = 6;
-    }
-    reserved 14;
-    reserved "login_before_ready";
+  message Metadata {
+    string key = 1;
+    string display_name = 2;
+    string script = 3;
+    int64 interval = 4;
+    int64 timeout = 5;
+    int64 order = 6;
+  }
+  reserved 14;
+  reserved "login_before_ready";
 
-    string id = 1;
-    string name = 2;
-    map<string, string> env = 3;
-	// Field 4 was startup_script, now removed.
-    string operating_system = 5;
-    string architecture = 6;
-    string directory = 7;
-    repeated App apps = 8;
-    oneof auth {
-        string token = 9;
-        string instance_id = 10;
-    }
-    int32 connection_timeout_seconds = 11;
-    string troubleshooting_url = 12;
-    string motd_file = 13;
-    // Field 14 was bool login_before_ready = 14, now removed.
-	// Field 15, 16, 17 were related to scripts, which are now removed.
-    repeated Metadata metadata = 18;
-	// Field 19 was startup_script_behavior, now removed.
-    DisplayApps display_apps = 20;
-	repeated Script scripts = 21;
-	repeated Env extra_envs = 22;
-	int64 order = 23;
-	ResourcesMonitoring resources_monitoring = 24;
-	repeated Devcontainer devcontainers = 25;
-	string api_key_scope = 26;
+  string id = 1;
+  string name = 2;
+  map<string, string> env = 3;
+  // Field 4 was startup_script, now removed.
+  string operating_system = 5;
+  string architecture = 6;
+  string directory = 7;
+  repeated App apps = 8;
+  oneof auth {
+    string token = 9;
+    string instance_id = 10;
+  }
+  int32 connection_timeout_seconds = 11;
+  string troubleshooting_url = 12;
+  string motd_file = 13;
+  // Field 14 was bool login_before_ready = 14, now removed.
+  // Field 15, 16, 17 were related to scripts, which are now removed.
+  repeated Metadata metadata = 18;
+  // Field 19 was startup_script_behavior, now removed.
+  DisplayApps display_apps = 20;
+  repeated Script scripts = 21;
+  repeated Env extra_envs = 22;
+  int64 order = 23;
+  ResourcesMonitoring resources_monitoring = 24;
+  repeated Devcontainer devcontainers = 25;
+  string api_key_scope = 26;
 }
 
 enum AppSharingLevel {
-    OWNER = 0;
-    AUTHENTICATED = 1;
-    PUBLIC = 2;
+  OWNER = 0;
+  AUTHENTICATED = 1;
+  PUBLIC = 2;
 }
 
 message ResourcesMonitoring {
-	MemoryResourceMonitor memory = 1;
-	repeated VolumeResourceMonitor volumes = 2;
+  MemoryResourceMonitor memory = 1;
+  repeated VolumeResourceMonitor volumes = 2;
 }
 
 message MemoryResourceMonitor {
-	bool enabled = 1;
-	int32 threshold = 2;
+  bool enabled = 1;
+  int32 threshold = 2;
 }
 
 message VolumeResourceMonitor {
-	string path = 1;
-	bool enabled = 2;
-	int32 threshold = 3;
+  string path = 1;
+  bool enabled = 2;
+  int32 threshold = 3;
 }
 
 message DisplayApps {
-    bool vscode = 1;
-    bool vscode_insiders = 2;
-    bool web_terminal = 3;
-    bool ssh_helper = 4;
-    bool port_forwarding_helper = 5;
+  bool vscode = 1;
+  bool vscode_insiders = 2;
+  bool web_terminal = 3;
+  bool ssh_helper = 4;
+  bool port_forwarding_helper = 5;
 }
 
 message Env {
-	string name = 1;
-	string value = 2;
+  string name = 1;
+  string value = 2;
 }
 
 // Script represents a script to be run on the workspace.
 message Script {
-	string display_name = 1;
-	string icon = 2;
-	string script = 3;
-	string cron = 4;
-	bool start_blocks_login = 5;
-	bool run_on_start = 6;
-	bool run_on_stop = 7;
-	int32 timeout_seconds = 8;
-	string log_path = 9;
+  string display_name = 1;
+  string icon = 2;
+  string script = 3;
+  string cron = 4;
+  bool start_blocks_login = 5;
+  bool run_on_start = 6;
+  bool run_on_stop = 7;
+  int32 timeout_seconds = 8;
+  string log_path = 9;
 }
 
 message Devcontainer {
-	string workspace_folder = 1;
-	string config_path = 2;
-	string name = 3;
+  string workspace_folder = 1;
+  string config_path = 2;
+  string name = 3;
 }
 
 enum AppOpenIn {
-    WINDOW = 0 [deprecated = true];
-    SLIM_WINDOW = 1;
-    TAB = 2;
+  WINDOW = 0 [deprecated = true];
+  SLIM_WINDOW = 1;
+  TAB = 2;
 }
 
 // App represents a dev-accessible application on the workspace.
 message App {
-    // slug is the unique identifier for the app, usually the name from the
-    // template. It must be URL-safe and hostname-safe.
-    string slug = 1;
-    string display_name = 2;
-    string command = 3;
-    string url = 4;
-    string icon = 5;
-    bool subdomain = 6;
-    Healthcheck healthcheck = 7;
-    AppSharingLevel sharing_level = 8;
-    bool external = 9;
-    int64 order = 10;
-    bool hidden = 11;
-    AppOpenIn open_in = 12;
-    string group = 13;
+  // slug is the unique identifier for the app, usually the name from the
+  // template. It must be URL-safe and hostname-safe.
+  string slug = 1;
+  string display_name = 2;
+  string command = 3;
+  string url = 4;
+  string icon = 5;
+  bool subdomain = 6;
+  Healthcheck healthcheck = 7;
+  AppSharingLevel sharing_level = 8;
+  bool external = 9;
+  int64 order = 10;
+  bool hidden = 11;
+  AppOpenIn open_in = 12;
+  string group = 13;
 }
 
 // Healthcheck represents configuration for checking for app readiness.
 message Healthcheck {
-    string url = 1;
-    int32 interval = 2;
-    int32 threshold = 3;
+  string url = 1;
+  int32 interval = 2;
+  int32 threshold = 3;
 }
 
 // Resource represents created infrastructure.
 message Resource {
-    string name = 1;
-    string type = 2;
-    repeated Agent agents = 3;
+  string name = 1;
+  string type = 2;
+  repeated Agent agents = 3;
 
-    message Metadata {
-        string key = 1;
-        string value = 2;
-        bool sensitive = 3;
-        bool is_null = 4;
-    }
-    repeated Metadata metadata = 4;
-    bool hide = 5;
-    string icon = 6;
-    string instance_type = 7;
-    int32 daily_cost = 8;
-    string module_path = 9;
+  message Metadata {
+    string key = 1;
+    string value = 2;
+    bool sensitive = 3;
+    bool is_null = 4;
+  }
+  repeated Metadata metadata = 4;
+  bool hide = 5;
+  string icon = 6;
+  string instance_type = 7;
+  int32 daily_cost = 8;
+  string module_path = 9;
 }
 
 message Module {
-    string source = 1;
-    string version = 2;
-    string key = 3;
-    string dir = 4;
+  string source = 1;
+  string version = 2;
+  string key = 3;
+  string dir = 4;
 }
 
 // WorkspaceTransition is the desired outcome of a build
 enum WorkspaceTransition {
-    START = 0;
-    STOP = 1;
-    DESTROY = 2;
+  START = 0;
+  STOP = 1;
+  DESTROY = 2;
 }
 
 message Role {
-    string name = 1;
-    string org_id = 2;
+  string name = 1;
+  string org_id = 2;
 }
 
 message RunningAgentAuthToken {
-    string agent_id = 1;
-    string token = 2;
+  string agent_id = 1;
+  string token = 2;
 }
 enum PrebuiltWorkspaceBuildStage {
-	NONE = 0;   // Default value for builds unrelated to prebuilds.
-	CREATE = 1; // A prebuilt workspace is being provisioned.
-	CLAIM = 2;  // A prebuilt workspace is being claimed.
+  NONE = 0;   // Default value for builds unrelated to prebuilds.
+  CREATE = 1; // A prebuilt workspace is being provisioned.
+  CLAIM = 2;  // A prebuilt workspace is being claimed.
 }
 
 // Metadata is information about a workspace used in the execution of a build
 message Metadata {
-    string coder_url = 1;
-    WorkspaceTransition workspace_transition = 2;
-    string workspace_name = 3;
-    string workspace_owner = 4;
-    string workspace_id = 5;
-    string workspace_owner_id = 6;
-    string workspace_owner_email = 7;
-    string template_name = 8;
-    string template_version = 9;
-    string workspace_owner_oidc_access_token = 10;
-    string workspace_owner_session_token = 11;
-    string template_id = 12;
-    string workspace_owner_name = 13;
-    repeated string workspace_owner_groups = 14;
-    string workspace_owner_ssh_public_key = 15;
-    string workspace_owner_ssh_private_key = 16;
-    string workspace_build_id = 17;
-    string workspace_owner_login_type =  18;
-    repeated Role workspace_owner_rbac_roles = 19;
-    PrebuiltWorkspaceBuildStage prebuilt_workspace_build_stage = 20; // Indicates that a prebuilt workspace is being built.
-    repeated RunningAgentAuthToken running_agent_auth_tokens = 21;
+  string coder_url = 1;
+  WorkspaceTransition workspace_transition = 2;
+  string workspace_name = 3;
+  string workspace_owner = 4;
+  string workspace_id = 5;
+  string workspace_owner_id = 6;
+  string workspace_owner_email = 7;
+  string template_name = 8;
+  string template_version = 9;
+  string workspace_owner_oidc_access_token = 10;
+  string workspace_owner_session_token = 11;
+  string template_id = 12;
+  string workspace_owner_name = 13;
+  repeated string workspace_owner_groups = 14;
+  string workspace_owner_ssh_public_key = 15;
+  string workspace_owner_ssh_private_key = 16;
+  string workspace_build_id = 17;
+  string workspace_owner_login_type =  18;
+  repeated Role workspace_owner_rbac_roles = 19;
+  PrebuiltWorkspaceBuildStage prebuilt_workspace_build_stage = 20; // Indicates that a prebuilt workspace is being built.
+  repeated RunningAgentAuthToken running_agent_auth_tokens = 21;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session
 message Config {
-    // template_source_archive is a tar of the template source files
-    bytes template_source_archive = 1;
-    // state is the provisioner state (if any)
-    bytes state = 2;
-    string provisioner_log_level = 3;
+  // template_source_archive is a tar of the template source files
+  bytes template_source_archive = 1;
+  // state is the provisioner state (if any)
+  bytes state = 2;
+  string provisioner_log_level = 3;
 }
 
 // ParseRequest consumes source-code to produce inputs.
@@ -353,99 +364,137 @@ message ParseRequest {
 
 // ParseComplete indicates a request to parse completed.
 message ParseComplete {
-    string error = 1;
-    repeated TemplateVariable template_variables = 2;
-    bytes readme = 3;
-    map<string, string> workspace_tags = 4;
+  string error = 1;
+  repeated TemplateVariable template_variables = 2;
+  bytes readme = 3;
+  map<string, string> workspace_tags = 4;
 }
 
 // PlanRequest asks the provisioner to plan what resources & parameters it will create
 message PlanRequest {
-    Metadata metadata = 1;
-    repeated RichParameterValue rich_parameter_values = 2;
-    repeated VariableValue variable_values = 3;
-    repeated ExternalAuthProvider external_auth_providers = 4;
-    repeated RichParameterValue previous_parameter_values = 5;
+  Metadata metadata = 1;
+  repeated RichParameterValue rich_parameter_values = 2;
+  repeated VariableValue variable_values = 3;
+  repeated ExternalAuthProvider external_auth_providers = 4;
+  repeated RichParameterValue previous_parameter_values = 5;
+
+  // If true, the provisioner can safely assume the caller does not need the
+  // module files downloaded by the `terraform init` command.
+  // Ideally this boolean would be flipped in its truthy value, however for
+  // backwards compatibility reasons, the zero value should be the previous
+  // behavior of downloading the module files.
+  bool omit_module_files = 6;
 }
 
 // PlanComplete indicates a request to plan completed.
 message PlanComplete {
-    string error = 1;
-    repeated Resource resources = 2;
-    repeated RichParameter parameters = 3;
-    repeated ExternalAuthProviderResource external_auth_providers = 4;
-    repeated Timing timings = 6;
-    repeated Module modules = 7;
-    repeated Preset presets = 8;
-    bytes plan = 9;
-    repeated ResourceReplacement resource_replacements = 10;
-    bytes module_files = 11;
+  string error = 1;
+  repeated Resource resources = 2;
+  repeated RichParameter parameters = 3;
+  repeated ExternalAuthProviderResource external_auth_providers = 4;
+  repeated Timing timings = 6;
+  repeated Module modules = 7;
+  repeated Preset presets = 8;
+  bytes plan = 9;
+  repeated ResourceReplacement resource_replacements = 10;
+  bytes module_files = 11;
+  bytes module_files_hash = 12;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
 // in the same Session.  The plan data is not transmitted over the wire and is cached by the provisioner in the Session.
 message ApplyRequest {
-    Metadata metadata = 1;
+  Metadata metadata = 1;
 }
 
 // ApplyComplete indicates a request to apply completed.
 message ApplyComplete {
-    bytes state = 1;
-    string error = 2;
-    repeated Resource resources = 3;
-    repeated RichParameter parameters = 4;
-    repeated ExternalAuthProviderResource external_auth_providers = 5;
-    repeated Timing timings = 6;
+  bytes state = 1;
+  string error = 2;
+  repeated Resource resources = 3;
+  repeated RichParameter parameters = 4;
+  repeated ExternalAuthProviderResource external_auth_providers = 5;
+  repeated Timing timings = 6;
 }
 
 message Timing {
-    google.protobuf.Timestamp start = 1;
-    google.protobuf.Timestamp end = 2;
-    string action = 3;
-    string source = 4;
-    string resource = 5;
-    string stage = 6;
-    TimingState state = 7;
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end = 2;
+  string action = 3;
+  string source = 4;
+  string resource = 5;
+  string stage = 6;
+  TimingState state = 7;
 }
 
 enum TimingState {
-    STARTED = 0;
-    COMPLETED = 1;
-    FAILED = 2;
+  STARTED = 0;
+  COMPLETED = 1;
+  FAILED = 2;
 }
 
 // CancelRequest requests that the previous request be canceled gracefully.
 message CancelRequest {}
 
 message Request {
-    oneof type {
-        Config config = 1;
-        ParseRequest parse = 2;
-        PlanRequest plan = 3;
-        ApplyRequest apply = 4;
-        CancelRequest cancel = 5;
-    }
+  oneof type {
+    Config config = 1;
+    ParseRequest parse = 2;
+    PlanRequest plan = 3;
+    ApplyRequest apply = 4;
+    CancelRequest cancel = 5;
+  }
 }
 
 message Response {
-    oneof type {
-        Log log = 1;
-        ParseComplete parse = 2;
-        PlanComplete plan = 3;
-        ApplyComplete apply = 4;
-    }
+  oneof type {
+    Log log = 1;
+    ParseComplete parse = 2;
+    PlanComplete plan = 3;
+    ApplyComplete apply = 4;
+    DataUpload data_upload = 5;
+    ChunkPiece chunk_piece = 6;
+  }
+}
+
+enum DataUploadType {
+  UPLOAD_TYPE_UNKNOWN = 0;
+  // UPLOAD_TYPE_MODULE_FILES is used to stream over terraform module files.
+  // These files are located in `.terraform/modules` and are used for dynamic
+  // parameters.
+  UPLOAD_TYPE_MODULE_FILES = 1;
+}
+
+message DataUpload {
+  DataUploadType upload_type = 1;
+  // data_hash is the sha256 of the payload to be uploaded.
+  // This is also used to uniquely identify the upload.
+  bytes data_hash = 2;
+  // file_size is the total size of the data being uploaded.
+  int64 file_size = 3;
+  // Number of chunks to be uploaded.
+  int32 chunks = 4;
+}
+
+// ChunkPiece is used to stream over large files (over the 4mb limit).
+message ChunkPiece {
+  bytes data = 1;
+  // full_data_hash should match the hash from the original
+  // DataUpload message
+  bytes full_data_hash = 2;
+  int32 piece_index = 3;
 }
 
 service Provisioner {
-    // Session represents provisioning a single template import or workspace.  The daemon always sends Config followed
-    // by one of the requests (ParseRequest, PlanRequest, ApplyRequest).  The provisioner should respond with a stream
-    // of zero or more Logs, followed by the corresponding complete message (ParseComplete, PlanComplete,
-    // ApplyComplete).  The daemon may then send a new request.  A request to apply MUST be preceded by a request plan,
-    // and the provisioner should store the plan data on the Session after a successful plan, so that the daemon may
-    // request an apply.  If the daemon closes the Session without an apply, the plan data may be safely discarded.
-    //
-    // The daemon may send a CancelRequest, asynchronously to ask the provisioner to cancel the previous ParseRequest,
-    // PlanRequest, or ApplyRequest.  The provisioner MUST reply with a complete message corresponding to the request
-    // that was canceled.  If the provisioner has already completed the request, it may ignore the CancelRequest.
-    rpc Session(stream Request) returns (stream Response);
+  // Session represents provisioning a single template import or workspace.  The daemon always sends Config followed
+  // by one of the requests (ParseRequest, PlanRequest, ApplyRequest).  The provisioner should respond with a stream
+  // of zero or more Logs, followed by the corresponding complete message (ParseComplete, PlanComplete,
+  // ApplyComplete).  The daemon may then send a new request.  A request to apply MUST be preceded by a request plan,
+  // and the provisioner should store the plan data on the Session after a successful plan, so that the daemon may
+  // request an apply.  If the daemon closes the Session without an apply, the plan data may be safely discarded.
+  //
+  // The daemon may send a CancelRequest, asynchronously to ask the provisioner to cancel the previous ParseRequest,
+  // PlanRequest, or ApplyRequest.  The provisioner MUST reply with a complete message corresponding to the request
+  // that was canceled.  If the provisioner has already completed the request, it may ignore the CancelRequest.
+  rpc Session(stream Request) returns (stream Response);
 }

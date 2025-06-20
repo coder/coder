@@ -384,26 +384,24 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			builder = builder.State(createBuild.ProvisionerState)
 		}
 
-		// Only defer to dynamic parameters if the experiment is enabled.
-		if api.Experiments.Enabled(codersdk.ExperimentDynamicParameters) {
-			if createBuild.EnableDynamicParameters != nil {
-				// Explicit opt-in
-				builder = builder.DynamicParameters(*createBuild.EnableDynamicParameters)
-			}
-		} else {
-			if createBuild.EnableDynamicParameters != nil {
-				api.Logger.Warn(ctx, "ignoring dynamic parameter field sent by request, the experiment is not enabled",
-					slog.F("field", *createBuild.EnableDynamicParameters),
-					slog.F("user", apiKey.UserID.String()),
-					slog.F("transition", string(createBuild.Transition)),
-				)
-			}
+		if createBuild.EnableDynamicParameters != nil {
+			builder = builder.DynamicParameters(*createBuild.EnableDynamicParameters)
 		}
 
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
 			ctx,
 			tx,
 			func(action policy.Action, object rbac.Objecter) bool {
+				// Special handling for prebuilt workspace deletion
+				if object.RBACObject().Type == rbac.ResourceWorkspace.Type && action == policy.ActionDelete {
+					if workspaceObj, ok := object.(database.Workspace); ok {
+						// Try prebuilt-specific authorization first
+						if auth := api.Authorize(r, action, workspaceObj.AsPrebuild()); auth {
+							return auth
+						}
+					}
+				}
+				// Fallback to default authorization
 				return api.Authorize(r, action, object)
 			},
 			audit.WorkspaceBuildBaggageFromRequest(r),
@@ -1090,6 +1088,14 @@ func (api *API) convertWorkspaceBuild(
 	if build.TemplateVersionPresetID.Valid {
 		presetID = &build.TemplateVersionPresetID.UUID
 	}
+	var hasAITask *bool
+	if build.HasAITask.Valid {
+		hasAITask = &build.HasAITask.Bool
+	}
+	var aiTasksSidebarAppID *uuid.UUID
+	if build.AITasksSidebarAppID.Valid {
+		aiTasksSidebarAppID = &build.AITasksSidebarAppID.UUID
+	}
 
 	apiJob := convertProvisionerJob(job)
 	transition := codersdk.WorkspaceTransition(build.Transition)
@@ -1117,6 +1123,8 @@ func (api *API) convertWorkspaceBuild(
 		DailyCost:               build.DailyCost,
 		MatchedProvisioners:     &matchedProvisioners,
 		TemplateVersionPresetID: presetID,
+		HasAITask:               hasAITask,
+		AITaskSidebarAppID:      aiTasksSidebarAppID,
 	}, nil
 }
 

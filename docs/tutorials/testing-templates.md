@@ -3,8 +3,6 @@
 <div>
   <a href="https://github.com/matifali" style="text-decoration: none; color: inherit;">
     <span style="vertical-align:middle;">Muhammad Atif Ali</span>
-    <img src="https://github.com/matifali.png" alt="matifali" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
-
   </a>
 </div>
 November 15, 2024

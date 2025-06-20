@@ -651,9 +651,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				AppHostname:                 appHostname,
 				AppHostnameRegex:            appHostnameRegex,
 				Logger:                      logger.Named("coderd"),
-				Database:                    dbmem.New(),
+				Database:                    nil,
 				BaseDERPMap:                 derpMap,
-				Pubsub:                      pubsub.NewInMemory(),
+				Pubsub:                      nil,
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
 				ExternalAuthConfigs:         externalAuthConfigs,
@@ -2312,19 +2312,20 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 
 	var err error
 	var sqlDB *sql.DB
+	dbNeedsClosing := true
 	// Try to connect for 30 seconds.
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	defer func() {
-		if err == nil {
+		if !dbNeedsClosing {
 			return
 		}
 		if sqlDB != nil {
 			_ = sqlDB.Close()
 			sqlDB = nil
+			logger.Debug(ctx, "closed db before returning from ConnectToPostgres")
 		}
-		logger.Error(ctx, "connect to postgres failed", slog.Error(err))
 	}()
 
 	var tries int
@@ -2359,15 +2360,15 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	if err != nil {
 		return nil, xerrors.Errorf("get postgres version: %w", err)
 	}
+	defer version.Close()
 	if !version.Next() {
-		return nil, xerrors.Errorf("no rows returned for version select")
+		return nil, xerrors.Errorf("no rows returned for version select: %w", version.Err())
 	}
 	var versionNum int
 	err = version.Scan(&versionNum)
 	if err != nil {
 		return nil, xerrors.Errorf("scan version: %w", err)
 	}
-	_ = version.Close()
 
 	if versionNum < 130000 {
 		return nil, xerrors.Errorf("PostgreSQL version must be v13.0.0 or higher! Got: %d", versionNum)
@@ -2403,6 +2404,7 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	// of connection churn.
 	sqlDB.SetMaxIdleConns(3)
 
+	dbNeedsClosing = false
 	return sqlDB, nil
 }
 

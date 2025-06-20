@@ -29,9 +29,17 @@ import "github.com/coder/coder/v2/apiversion"
 //     `ttl` to define TTL-based expiration for unclaimed prebuilds.
 //   - Add `group` field to `App`
 //   - Add `form_type` field to parameters
+//
+// API v1.7:
+//   - Added DataUpload and ChunkPiece messages to support uploading large files
+//     back to Coderd. Used for uploading module files in support of dynamic
+//     parameters.
+//   - Add new field named `scheduling` to `Prebuild`, with fields for timezone
+//     and schedule rules to define cron-based scaling of prebuilt workspace
+//     instances based on time patterns.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 6
+	CurrentMinor = 7
 )
 
 // CurrentVersion is the current provisionerd API version.

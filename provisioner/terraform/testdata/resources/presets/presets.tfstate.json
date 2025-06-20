@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.11.4",
+  "terraform_version": "1.12.2",
   "values": {
     "root_module": {
       "resources": [
@@ -53,7 +53,22 @@
                     "ttl": 86400
                   }
                 ],
-                "instances": 4
+                "instances": 4,
+                "scheduling": [
+                  {
+                    "schedule": [
+                      {
+                        "cron": "* 8-18 * * 1-5",
+                        "instances": 3
+                      },
+                      {
+                        "cron": "* 8-14 * * 6",
+                        "instances": 1
+                      }
+                    ],
+                    "timezone": "America/Los_Angeles"
+                  }
+                ]
               }
             ]
           },
@@ -63,6 +78,14 @@
               {
                 "expiration_policy": [
                   {}
+                ],
+                "scheduling": [
+                  {
+                    "schedule": [
+                      {},
+                      {}
+                    ]
+                  }
                 ]
               }
             ]

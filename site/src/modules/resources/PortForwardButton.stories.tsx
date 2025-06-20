@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { userEvent, within } from "@storybook/test";
 import {
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
@@ -14,6 +15,7 @@ const meta: Meta<typeof PortForwardButton> = {
 	component: PortForwardButton,
 	decorators: [withDashboardProvider],
 	args: {
+		host: "*.coder.com",
 		agent: MockWorkspaceAgent,
 		workspace: MockWorkspace,
 		template: MockTemplate,
@@ -35,6 +37,11 @@ export const Example: Story = {
 				data: MockSharedPortsResponse,
 			},
 		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const button = canvas.getByRole("button");
+		await userEvent.click(button);
 	},
 };
 

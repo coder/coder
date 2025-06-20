@@ -32,7 +32,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -496,7 +495,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 		}).Do()
 
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OwnerID:    prebuilds.SystemUserID,
+			OwnerID:    database.PrebuildsSystemUserID,
 			TemplateID: tv.Template.ID,
 		}).Seed(database.WorkspaceBuild{
 			TemplateVersionID: tv.TemplateVersion.ID,
@@ -1698,7 +1697,7 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false})
 	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentDynamicParameters)}
+
 	client, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			Logger: &logger,
@@ -1736,6 +1735,12 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	require.NoError(t, err, "failed to create template version")
 	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
 	tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
+
+	// Set to dynamic params
+	tpl, err = client.UpdateTemplateMeta(ctx, tpl.ID, codersdk.UpdateTemplateMeta{
+		UseClassicParameterFlow: ptr.Ref(false),
+	})
+	require.NoError(t, err, "failed to update template meta")
 	require.False(t, tpl.UseClassicParameterFlow, "template to use dynamic parameters")
 
 	// When: we create a workspace build using the above template but with

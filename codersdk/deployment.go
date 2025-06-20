@@ -399,6 +399,7 @@ type DeploymentValues struct {
 	AdditionalCSPPolicy             serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
 	WorkspaceHostnameSuffix         serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
 	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
+	HideAITasks                     serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -468,6 +469,8 @@ type SessionLifetime struct {
 	DefaultTokenDuration serpent.Duration `json:"default_token_lifetime,omitempty" typescript:",notnull"`
 
 	MaximumTokenDuration serpent.Duration `json:"max_token_lifetime,omitempty" typescript:",notnull"`
+
+	MaximumAdminTokenDuration serpent.Duration `json:"max_admin_token_lifetime,omitempty" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -2341,6 +2344,17 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
+			Name:        "Maximum Admin Token Lifetime",
+			Description: "The maximum lifetime duration administrators can specify when creating an API token.",
+			Flag:        "max-admin-token-lifetime",
+			Env:         "CODER_MAX_ADMIN_TOKEN_LIFETIME",
+			Default:     (7 * 24 * time.Hour).String(),
+			Value:       &c.Sessions.MaximumAdminTokenDuration,
+			Group:       &deploymentGroupNetworkingHTTP,
+			YAML:        "maxAdminTokenLifetime",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
 			Name:        "Default Token Lifetime",
 			Description: "The default lifetime duration for API tokens. This value is used when creating a token without specifying a duration, such as when authenticating the CLI or an IDE plugin.",
 			Flag:        "default-token-lifetime",
@@ -3103,6 +3117,16 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "failure_hard_limit",
 			Hidden:      true,
 		},
+		{
+			Name:        "Hide AI Tasks",
+			Description: "Hide AI tasks from the dashboard.",
+			Flag:        "hide-ai-tasks",
+			Env:         "CODER_HIDE_AI_TASKS",
+			Default:     "false",
+			Value:       &c.HideAITasks,
+			Group:       &deploymentGroupClient,
+			YAML:        "hideAITasks",
+		},
 	}
 
 	return opts
@@ -3343,7 +3367,6 @@ const (
 	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
-	ExperimentDynamicParameters  Experiment = "dynamic-parameters"   // Enables dynamic parameters when creating a workspace.
 	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
 	ExperimentAgenticChat        Experiment = "agentic-chat"         // Enables the new agentic AI chat feature.
 	ExperimentAITasks            Experiment = "ai-tasks"             // Enables the new AI tasks feature.

@@ -85,6 +85,9 @@ Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
           is detected. By default it instructs users to update using 'curl -L
           https://coder.com/install.sh | sh'.
 
+      --hide-ai-tasks bool, $CODER_HIDE_AI_TASKS (default: false)
+          Hide AI tasks from the dashboard.
+
       --ssh-config-options string-array, $CODER_SSH_CONFIG_OPTIONS
           These SSH config options will override the default SSH config options.
           Provide options in "key=value" or "key value" format separated by
@@ -331,6 +334,10 @@ NETWORKING / HTTP OPTIONS:
       --max-token-lifetime duration, $CODER_MAX_TOKEN_LIFETIME (default: 876600h0m0s)
           The maximum lifetime duration users can specify when creating an API
           token.
+
+      --max-admin-token-lifetime duration, $CODER_MAX_ADMIN_TOKEN_LIFETIME (default: 168h0m0s)
+          The maximum lifetime duration administrators can specify when creating
+          an API token.
 
       --proxy-health-interval duration, $CODER_PROXY_HEALTH_INTERVAL (default: 1m0s)
           The interval in which coderd should be checking the status of

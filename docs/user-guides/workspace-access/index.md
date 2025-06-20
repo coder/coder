@@ -140,7 +140,7 @@ Supported IDEs:
 Our [Module Registry](https://registry.coder.com/modules) also hosts a variety
 of tools for extending the capability of your workspace. If you have a request
 for a new IDE or tool, please file an issue in our
-[Modules repo](https://github.com/coder/modules/issues).
+[Modules repo](https://github.com/coder/registry/issues).
 
 ## Ports and Port forwarding
 

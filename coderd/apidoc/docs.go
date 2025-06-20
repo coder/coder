@@ -9653,7 +9653,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task.",
                         "name": "q",
                         "in": "query"
                     },
@@ -10192,8 +10192,8 @@ const docTemplate = `{
                 "tags": [
                     "PortSharing"
                 ],
-                "summary": "Get workspace agent port shares",
-                "operationId": "get-workspace-agent-port-shares",
+                "summary": "Delete workspace agent port share",
+                "operationId": "delete-workspace-agent-port-share",
                 "parameters": [
                     {
                         "type": "string",
@@ -12483,6 +12483,9 @@ const docTemplate = `{
                 "healthcheck": {
                     "$ref": "#/definitions/codersdk.HealthcheckConfig"
                 },
+                "hide_ai_tasks": {
+                    "type": "boolean"
+                },
                 "http_address": {
                     "description": "HTTPAddress is a string because it may be set to zero to disable.",
                     "type": "string"
@@ -12745,7 +12748,6 @@ const docTemplate = `{
                 "notifications",
                 "workspace-usage",
                 "web-push",
-                "dynamic-parameters",
                 "workspace-prebuilds",
                 "agentic-chat",
                 "ai-tasks"
@@ -12754,7 +12756,6 @@ const docTemplate = `{
                 "ExperimentAITasks": "Enables the new AI tasks feature.",
                 "ExperimentAgenticChat": "Enables the new agentic AI chat feature.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
-                "ExperimentDynamicParameters": "Enables dynamic parameters when creating a workspace.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
@@ -12767,7 +12768,6 @@ const docTemplate = `{
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
                 "ExperimentWebPush",
-                "ExperimentDynamicParameters",
                 "ExperimentWorkspacePrebuilds",
                 "ExperimentAgenticChat",
                 "ExperimentAITasks"
@@ -15259,6 +15259,7 @@ const docTemplate = `{
                 "oauth2_app_secret",
                 "organization",
                 "organization_member",
+                "prebuilt_workspace",
                 "provisioner_daemon",
                 "provisioner_jobs",
                 "replicas",
@@ -15298,6 +15299,7 @@ const docTemplate = `{
                 "ResourceOauth2AppSecret",
                 "ResourceOrganization",
                 "ResourceOrganizationMember",
+                "ResourcePrebuiltWorkspace",
                 "ResourceProvisionerDaemon",
                 "ResourceProvisionerJobs",
                 "ResourceReplicas",
@@ -15704,6 +15706,9 @@ const docTemplate = `{
                 "disable_expiry_refresh": {
                     "description": "DisableExpiryRefresh will disable automatically refreshing api\nkeys when they are used from the api. This means the api key lifetime at\ncreation is the lifetime of the api key.",
                     "type": "boolean"
+                },
+                "max_admin_token_lifetime": {
+                    "type": "integer"
                 },
                 "max_token_lifetime": {
                     "type": "integer"
@@ -16833,6 +16838,7 @@ const docTemplate = `{
                     "enum": [
                         "owner",
                         "authenticated",
+                        "organization",
                         "public"
                     ],
                     "allOf": [
@@ -17500,18 +17506,6 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
-                "devcontainer_dirty": {
-                    "description": "DevcontainerDirty is true if the devcontainer configuration has changed\nsince the container was created. This is used to determine if the\ncontainer needs to be rebuilt.",
-                    "type": "boolean"
-                },
-                "devcontainer_status": {
-                    "description": "DevcontainerStatus is the status of the devcontainer, if this\ncontainer is a devcontainer. This is used to determine if the\ndevcontainer is running, stopped, starting, or in an error state.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainerStatus"
-                        }
-                    ]
-                },
                 "id": {
                     "description": "ID is the unique identifier of the container.",
                     "type": "string"
@@ -17573,6 +17567,56 @@ const docTemplate = `{
                 "port": {
                     "description": "Port is the port number *inside* the container.",
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentDevcontainer": {
+            "type": "object",
+            "properties": {
+                "agent": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainerAgent"
+                },
+                "config_path": {
+                    "type": "string"
+                },
+                "container": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentContainer"
+                },
+                "dirty": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Additional runtime fields.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainerStatus"
+                        }
+                    ]
+                },
+                "workspace_folder": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentDevcontainerAgent": {
+            "type": "object",
+            "properties": {
+                "directory": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },
@@ -17639,6 +17683,13 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceAgentContainer"
+                    }
+                },
+                "devcontainers": {
+                    "description": "Devcontainers is a list of devcontainers visible to the workspace agent.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainer"
                     }
                 },
                 "warnings": {
@@ -17747,6 +17798,7 @@ const docTemplate = `{
                     "enum": [
                         "owner",
                         "authenticated",
+                        "organization",
                         "public"
                     ],
                     "allOf": [
@@ -17766,11 +17818,13 @@ const docTemplate = `{
             "enum": [
                 "owner",
                 "authenticated",
+                "organization",
                 "public"
             ],
             "x-enum-varnames": [
                 "WorkspaceAgentPortShareLevelOwner",
                 "WorkspaceAgentPortShareLevelAuthenticated",
+                "WorkspaceAgentPortShareLevelOrganization",
                 "WorkspaceAgentPortShareLevelPublic"
             ]
         },
@@ -17905,6 +17959,7 @@ const docTemplate = `{
                     "enum": [
                         "owner",
                         "authenticated",
+                        "organization",
                         "public"
                     ],
                     "allOf": [
@@ -17969,11 +18024,13 @@ const docTemplate = `{
             "enum": [
                 "owner",
                 "authenticated",
+                "organization",
                 "public"
             ],
             "x-enum-varnames": [
                 "WorkspaceAppSharingLevelOwner",
                 "WorkspaceAppSharingLevelAuthenticated",
+                "WorkspaceAppSharingLevelOrganization",
                 "WorkspaceAppSharingLevelPublic"
             ]
         },
@@ -18036,6 +18093,10 @@ const docTemplate = `{
         "codersdk.WorkspaceBuild": {
             "type": "object",
             "properties": {
+                "ai_task_sidebar_app_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "build_number": {
                     "type": "integer"
                 },
@@ -18049,6 +18110,9 @@ const docTemplate = `{
                 "deadline": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "has_ai_task": {
+                    "type": "boolean"
                 },
                 "id": {
                     "type": "string",

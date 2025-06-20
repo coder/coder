@@ -7,7 +7,6 @@ import type {
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Link } from "components/Link/Link";
@@ -19,12 +18,12 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { CircleHelp, Undo2 } from "lucide-react";
+import { CircleHelp } from "lucide-react";
 import type { FC } from "react";
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
@@ -32,14 +31,14 @@ import {
 	type WorkspacePermissions,
 	workspaceChecks,
 } from "../../../modules/workspaces/permissions";
-import { ExperimentalFormContext } from "../../CreateWorkspacePage/ExperimentalFormContext";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import { WorkspaceParametersPageViewExperimental } from "./WorkspaceParametersPageViewExperimental";
 
 const WorkspaceParametersPageExperimental: FC = () => {
 	const workspace = useWorkspaceSettings();
 	const navigate = useNavigate();
-	const experimentalFormContext = useContext(ExperimentalFormContext);
+	const [searchParams] = useSearchParams();
+	const templateVersionId = searchParams.get("templateVersionId") ?? undefined;
 
 	// autofill the form with the workspace build parameters from the latest build
 	const {
@@ -107,10 +106,12 @@ const WorkspaceParametersPageExperimental: FC = () => {
 	});
 
 	useEffect(() => {
-		if (!workspace.latest_build.template_version_id) return;
+		if (!templateVersionId && !workspace.latest_build.template_version_id)
+			return;
 
 		const socket = API.templateVersionDynamicParameters(
-			workspace.latest_build.template_version_id,
+			templateVersionId ?? workspace.latest_build.template_version_id,
+			workspace.owner_id,
 			{
 				onMessage,
 				onError: (error) => {
@@ -136,12 +137,18 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		return () => {
 			socket.close();
 		};
-	}, [workspace.latest_build.template_version_id, onMessage]);
+	}, [
+		templateVersionId,
+		workspace.latest_build.template_version_id,
+		onMessage,
+		workspace.owner_id,
+	]);
 
 	const updateParameters = useMutation({
 		mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
 			API.postWorkspaceBuild(workspace.id, {
 				transition: "start",
+				template_version_id: templateVersionId,
 				rich_parameter_values: buildParameters,
 			}),
 		onSuccess: () => {
@@ -228,19 +235,9 @@ const WorkspaceParametersPageExperimental: FC = () => {
 							</Tooltip>
 						</TooltipProvider>
 					</span>
-					{experimentalFormContext && (
-						<Button
-							size="sm"
-							variant="outline"
-							onClick={experimentalFormContext.toggleOptedOut}
-						>
-							<Undo2 />
-							Classic workspace parameters
-						</Button>
-					)}
 				</span>
 				<FeatureStageBadge
-					contentType={"early_access"}
+					contentType={"beta"}
 					size="sm"
 					labelText="Dynamic parameters"
 				/>
@@ -250,6 +247,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 
 			{sortedParams.length > 0 ? (
 				<WorkspaceParametersPageViewExperimental
+					templateVersionId={templateVersionId}
 					workspace={workspace}
 					autofillParameters={autofillParameters}
 					canChangeVersions={canChangeVersions}

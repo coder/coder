@@ -251,8 +251,8 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 
 	logger.Debug(ctx, "starting reconciliation")
 
-	err := c.WithReconciliationLock(ctx, logger, func(ctx context.Context, db database.Store) error {
-		snapshot, err := c.SnapshotState(ctx, db)
+	err := c.WithReconciliationLock(ctx, logger, func(ctx context.Context, _ database.Store) error {
+		snapshot, err := c.SnapshotState(ctx, c.store)
 		if err != nil {
 			return xerrors.Errorf("determine current snapshot: %w", err)
 		}
@@ -262,6 +262,12 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 		if len(snapshot.Presets) == 0 {
 			logger.Debug(ctx, "no templates found with prebuilds configured")
 			return nil
+		}
+
+		membershipReconciler := NewStoreMembershipReconciler(c.store, c.clock)
+		err = membershipReconciler.ReconcileAll(ctx, database.PrebuildsSystemUserID, snapshot.Presets)
+		if err != nil {
+			return xerrors.Errorf("reconcile prebuild membership: %w", err)
 		}
 
 		var eg errgroup.Group
@@ -360,6 +366,11 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			return nil
 		}
 
+		presetPrebuildSchedules, err := db.GetActivePresetPrebuildSchedules(ctx)
+		if err != nil {
+			return xerrors.Errorf("failed to get preset prebuild schedules: %w", err)
+		}
+
 		allRunningPrebuilds, err := db.GetRunningPrebuiltWorkspaces(ctx)
 		if err != nil {
 			return xerrors.Errorf("failed to get running prebuilds: %w", err)
@@ -382,10 +393,13 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 
 		state = prebuilds.NewGlobalSnapshot(
 			presetsWithPrebuilds,
+			presetPrebuildSchedules,
 			allRunningPrebuilds,
 			allPrebuildsInProgress,
 			presetsBackoff,
 			hardLimitedPresets,
+			c.clock,
+			c.logger,
 		)
 		return nil
 	}, &database.TxOptions{
@@ -504,7 +518,7 @@ func (c *StoreReconciler) CalculateActions(ctx context.Context, snapshot prebuil
 		return nil, ctx.Err()
 	}
 
-	return snapshot.CalculateActions(c.clock, c.cfg.ReconciliationBackoffInterval.Value())
+	return snapshot.CalculateActions(c.cfg.ReconciliationBackoffInterval.Value())
 }
 
 func (c *StoreReconciler) WithReconciliationLock(
@@ -602,7 +616,8 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 		// Unexpected things happen (i.e. bugs or bitflips); let's defend against disastrous outcomes.
 		// See https://blog.robertelder.org/causes-of-bit-flips-in-computer-memory/.
 		// This is obviously not comprehensive protection against this sort of problem, but this is one essential check.
-		desired := ps.Preset.DesiredInstances.Int32
+		desired := ps.CalculateDesiredInstances(c.clock.Now())
+
 		if action.Create > desired {
 			logger.Critical(ctx, "determined excessive count of prebuilds to create; clamping to desired count",
 				slog.F("create_count", action.Create), slog.F("desired_count", desired))
@@ -661,7 +676,7 @@ func (c *StoreReconciler) createPrebuiltWorkspace(ctx context.Context, prebuiltW
 			ID:                prebuiltWorkspaceID,
 			CreatedAt:         now,
 			UpdatedAt:         now,
-			OwnerID:           prebuilds.SystemUserID,
+			OwnerID:           database.PrebuildsSystemUserID,
 			OrganizationID:    template.OrganizationID,
 			TemplateID:        template.ID,
 			Name:              name,
@@ -703,7 +718,7 @@ func (c *StoreReconciler) deletePrebuiltWorkspace(ctx context.Context, prebuiltW
 			return xerrors.Errorf("failed to get template: %w", err)
 		}
 
-		if workspace.OwnerID != prebuilds.SystemUserID {
+		if workspace.OwnerID != database.PrebuildsSystemUserID {
 			return xerrors.Errorf("prebuilt workspace is not owned by prebuild user anymore, probably it was claimed")
 		}
 
@@ -746,7 +761,7 @@ func (c *StoreReconciler) provision(
 
 	builder := wsbuilder.New(workspace, transition).
 		Reason(database.BuildReasonInitiator).
-		Initiator(prebuilds.SystemUserID).
+		Initiator(database.PrebuildsSystemUserID).
 		MarkPrebuild()
 
 	if transition != database.WorkspaceTransitionDelete {

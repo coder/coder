@@ -26,7 +26,8 @@ import {
 } from "components/Tooltip/Tooltip";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
-import { ArrowLeft, CircleHelp, Undo2 } from "lucide-react";
+import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
+import { ArrowLeft, CircleHelp } from "lucide-react";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
 import { Diagnostics } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import {
@@ -38,7 +39,6 @@ import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName"
 import {
 	type FC,
 	useCallback,
-	useContext,
 	useEffect,
 	useId,
 	useRef,
@@ -48,11 +48,7 @@ import { docs } from "utils/docs";
 import { nameValidator } from "utils/formUtils";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
-import type {
-	CreateWorkspaceMode,
-	ExternalAuthPollingState,
-} from "./CreateWorkspacePage";
-import { ExperimentalFormContext } from "./ExperimentalFormContext";
+import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
@@ -112,7 +108,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 	owner,
 	setOwner,
 }) => {
-	const experimentalFormContext = useContext(ExperimentalFormContext);
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
 	);
@@ -372,16 +367,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 								</Badge>
 							)}
 						</span>
-						{experimentalFormContext && (
-							<Button
-								size="sm"
-								variant="outline"
-								onClick={experimentalFormContext.toggleOptedOut}
-							>
-								<Undo2 />
-								Classic workspace creation
-							</Button>
-						)}
 					</div>
 					<span className="flex flex-row items-center gap-2">
 						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
@@ -408,7 +393,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 						</TooltipProvider>
 					</span>
 					<FeatureStageBadge
-						contentType={"early_access"}
+						contentType={"beta"}
 						size="sm"
 						labelText="Dynamic parameters"
 					/>
@@ -608,7 +593,22 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 							<div className="flex flex-col gap-9">
 								{parameters.map((parameter, index) => {
-									const parameterField = `rich_parameter_values.${index}`;
+									const currentParameterValueIndex =
+										form.values.rich_parameter_values?.findIndex(
+											(p) => p.name === parameter.name,
+										);
+									const parameterFieldIndex =
+										currentParameterValueIndex !== undefined
+											? currentParameterValueIndex
+											: index;
+									// Get the form value by parameter name to ensure correct value mapping
+									const formValue =
+										currentParameterValueIndex !== undefined
+											? form.values?.rich_parameter_values?.[
+													currentParameterValueIndex
+												]?.value || ""
+											: "";
+									const parameterField = `rich_parameter_values.${parameterFieldIndex}`;
 									const isPresetParameter = presetParameterNames.includes(
 										parameter.name,
 									);
@@ -620,13 +620,14 @@ export const CreateWorkspacePageViewExperimental: FC<
 										creatingWorkspace ||
 										isPresetParameter;
 
-									// Hide preset parameters if showPresetParameters is false
-									if (!showPresetParameters && isPresetParameter) {
+									// Always show preset parameters if they have any diagnostics
+									if (
+										!showPresetParameters &&
+										isPresetParameter &&
+										parameter.diagnostics.length === 0
+									) {
 										return null;
 									}
-
-									const formValue =
-										form.values?.rich_parameter_values?.[index]?.value || "";
 
 									return (
 										<DynamicParameter

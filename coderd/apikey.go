@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
@@ -75,7 +76,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if createToken.Lifetime != 0 {
-		err := api.validateAPIKeyLifetime(createToken.Lifetime)
+		err := api.validateAPIKeyLifetime(ctx, user.ID, createToken.Lifetime)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Failed to validate create API key request.",
@@ -338,33 +339,67 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.TokenConfig
 // @Router /users/{user}/keys/tokens/tokenconfig [get]
 func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
-	values, err := api.DeploymentValues.WithoutSecrets()
+	user := httpmw.UserParam(r)
+	maxLifetime, err := api.getMaxTokenLifetime(r.Context(), user.ID)
 	if err != nil {
-		httpapi.InternalServerError(rw, err)
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get token configuration.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
 	httpapi.Write(
 		r.Context(), rw, http.StatusOK,
 		codersdk.TokenConfig{
-			MaxTokenLifetime: values.Sessions.MaximumTokenDuration.Value(),
+			MaxTokenLifetime: maxLifetime,
 		},
 	)
 }
 
-func (api *API) validateAPIKeyLifetime(lifetime time.Duration) error {
+func (api *API) validateAPIKeyLifetime(ctx context.Context, userID uuid.UUID, lifetime time.Duration) error {
 	if lifetime <= 0 {
 		return xerrors.New("lifetime must be positive number greater than 0")
 	}
 
-	if lifetime > api.DeploymentValues.Sessions.MaximumTokenDuration.Value() {
+	maxLifetime, err := api.getMaxTokenLifetime(ctx, userID)
+	if err != nil {
+		return xerrors.Errorf("failed to get max token lifetime: %w", err)
+	}
+
+	if lifetime > maxLifetime {
 		return xerrors.Errorf(
 			"lifetime must be less than %v",
-			api.DeploymentValues.Sessions.MaximumTokenDuration,
+			maxLifetime,
 		)
 	}
 
 	return nil
+}
+
+// getMaxTokenLifetime returns the maximum allowed token lifetime for a user.
+// It distinguishes between regular users and owners.
+func (api *API) getMaxTokenLifetime(ctx context.Context, userID uuid.UUID) (time.Duration, error) {
+	subject, _, err := httpmw.UserRBACSubject(ctx, api.Database, userID, rbac.ScopeAll)
+	if err != nil {
+		return 0, xerrors.Errorf("failed to get user rbac subject: %w", err)
+	}
+
+	roles, err := subject.Roles.Expand()
+	if err != nil {
+		return 0, xerrors.Errorf("failed to expand user roles: %w", err)
+	}
+
+	maxLifetime := api.DeploymentValues.Sessions.MaximumTokenDuration.Value()
+	for _, role := range roles {
+		if role.Identifier.Name == codersdk.RoleOwner {
+			// Owners have a different max lifetime.
+			maxLifetime = api.DeploymentValues.Sessions.MaximumAdminTokenDuration.Value()
+			break
+		}
+	}
+
+	return maxLifetime, nil
 }
 
 func (api *API) createAPIKey(ctx context.Context, params apikey.CreateParams) (*http.Cookie, *database.APIKey, error) {

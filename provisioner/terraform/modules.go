@@ -13,7 +13,19 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/util/xio"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+)
+
+const (
+	// MaximumModuleArchiveSize limits the total size of a module archive.
+	// At some point, the user should take steps to reduce the size of their
+	// template modules, as this can lead to performance issues
+	// TODO: Determine what a reasonable limit is for modules
+	//  If we start hitting this limit, we might want to consider adding
+	//  configurable filters? Files like images could blow up the size of a
+	//  module.
+	MaximumModuleArchiveSize = 20 * 1024 * 1024 // 20MB
 )
 
 type module struct {
@@ -85,7 +97,9 @@ func GetModulesArchive(root fs.FS) ([]byte, error) {
 
 	empty := true
 	var b bytes.Buffer
-	w := tar.NewWriter(&b)
+
+	lw := xio.NewLimitWriter(&b, MaximumModuleArchiveSize)
+	w := tar.NewWriter(lw)
 
 	for _, it := range m.Modules {
 		// Check to make sure that the module is a remote module fetched by
@@ -103,6 +117,13 @@ func GetModulesArchive(root fs.FS) ([]byte, error) {
 			if !fileMode.IsRegular() && !fileMode.IsDir() {
 				return nil
 			}
+
+			// .git directories are not needed in the archive and only cause
+			// hash differences for identical modules.
+			if fileMode.IsDir() && d.Name() == ".git" {
+				return fs.SkipDir
+			}
+
 			fileInfo, err := d.Info()
 			if err != nil {
 				return xerrors.Errorf("failed to archive module file %q: %w", filePath, err)
