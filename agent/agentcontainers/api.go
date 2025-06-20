@@ -784,7 +784,9 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	dc.Container = nil
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	api.asyncWg.Add(1)
-	go api.recreateDevcontainer(dc, configPath)
+	go func() {
+		_ = api.recreateDevcontainer(dc, configPath)
+	}()
 
 	api.mu.Unlock()
 

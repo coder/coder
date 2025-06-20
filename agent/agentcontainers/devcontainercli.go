@@ -247,16 +247,16 @@ func (d *devcontainerCLI) Exec(ctx context.Context, workspaceFolder, configPath 
 	args = append(args, cmdArgs...)
 	c := d.execer.CommandContext(ctx, "devcontainer", args...)
 
-	c.Stdout = &devcontainerCLILogWriter{
+	c.Stdout = io.MultiWriter(conf.stdout, &devcontainerCLILogWriter{
 		ctx:    ctx,
 		logger: logger.With(slog.F("stdout", true)),
-		writer: conf.stdout,
-	}
-	c.Stderr = &devcontainerCLILogWriter{
+		writer: io.Discard,
+	})
+	c.Stderr = io.MultiWriter(conf.stderr, &devcontainerCLILogWriter{
 		ctx:    ctx,
 		logger: logger.With(slog.F("stderr", true)),
-		writer: conf.stderr,
-	}
+		writer: io.Discard,
+	})
 
 	if err := c.Run(); err != nil {
 		return xerrors.Errorf("devcontainer exec failed: %w", err)
@@ -408,7 +408,7 @@ func (l *devcontainerCLILogWriter) Write(p []byte) (n int, err error) {
 		}
 		if logLine.Level >= 3 {
 			l.logger.Info(l.ctx, "@devcontainer/cli", slog.F("line", string(line)))
-			l.writer.Write([]byte(logLine.Text))
+			_, _ = l.writer.Write([]byte(logLine.Text + "\n"))
 			continue
 		}
 		l.logger.Debug(l.ctx, "@devcontainer/cli", slog.F("line", string(line)))
