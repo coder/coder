@@ -254,7 +254,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 									<Link
 										className="text-xs"
 										href={docs(
-											"/admin/templates/extending-templates/parameters#dynamic-parameters-early-access",
+											"/admin/templates/extending-templates/parameters#dynamic-parameters-beta",
 										)}
 									>
 										Learn more
