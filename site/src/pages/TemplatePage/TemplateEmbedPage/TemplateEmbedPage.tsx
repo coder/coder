@@ -97,8 +97,8 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 			{!buttonValues || !templateParameters ? (
 				<Loader />
 			) : (
-				<div css={{ display: "flex", alignItems: "flex-start", gap: 48 }}>
-					<div css={{ flex: 1, maxWidth: 400 }}>
+				<div className="flex items-start gap-12">
+					<div className="max-w-3xl">
 						<VerticalForm>
 							<FormSection
 								title="Creation mode"

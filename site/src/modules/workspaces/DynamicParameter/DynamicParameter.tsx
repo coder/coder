@@ -51,7 +51,7 @@ interface DynamicParameterProps {
 	onChange: (value: string) => void;
 	disabled?: boolean;
 	isPreset?: boolean;
-	autofill: boolean;
+	autofill?: boolean;
 }
 
 export const DynamicParameter: FC<DynamicParameterProps> = ({
@@ -855,7 +855,6 @@ interface DiagnosticsProps {
 	diagnostics: PreviewParameter["diagnostics"];
 }
 
-// Displays a diagnostic with a border, icon and background color
 export const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 	return (
 		<div className="flex flex-col gap-4">
