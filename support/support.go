@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 
+	"github.com/coder/coder/v2/cli/cliutil"
+
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -30,12 +32,13 @@ import (
 // Even though we do attempt to sanitize data, it may still contain
 // sensitive information and should thus be treated as secret.
 type Bundle struct {
-	Deployment Deployment `json:"deployment"`
-	Network    Network    `json:"network"`
-	Workspace  Workspace  `json:"workspace"`
-	Agent      Agent      `json:"agent"`
-	Logs       []string   `json:"logs"`
-	CLILogs    []byte     `json:"cli_logs"`
+	Deployment    Deployment `json:"deployment"`
+	Network       Network    `json:"network"`
+	Workspace     Workspace  `json:"workspace"`
+	Agent         Agent      `json:"agent"`
+	LicenseStatus string
+	Logs          []string `json:"logs"`
+	CLILogs       []byte   `json:"cli_logs"`
 }
 
 type Deployment struct {
@@ -351,6 +354,27 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 	return a
 }
 
+func LicenseStatus(ctx context.Context, client *codersdk.Client, log slog.Logger) string {
+	licenses, err := client.Licenses(ctx)
+	if err != nil {
+		log.Warn(ctx, "fetch licenses", slog.Error(err))
+		return "No licenses found"
+	}
+	// Ensure that we print "[]" instead of "null" when there are no licenses.
+	if licenses == nil {
+		licenses = make([]codersdk.License, 0)
+	}
+
+	formatter := cliutil.NewLicenseFormatter(cliutil.LicenseFormatterOpts{
+		Sanitize: true,
+	})
+	out, err := formatter.Format(ctx, licenses)
+	if err != nil {
+		log.Error(ctx, "format licenses", slog.Error(err))
+	}
+	return out
+}
+
 func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID, eg *errgroup.Group, a *Agent) (closer func()) {
 	conn, err := workspacesdk.New(client).
 		DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
@@ -508,6 +532,11 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 	eg.Go(func() error {
 		ai := AgentInfo(ctx, d.Client, d.Log, d.AgentID)
 		b.Agent = ai
+		return nil
+	})
+	eg.Go(func() error {
+		ls := LicenseStatus(ctx, d.Client, d.Log)
+		b.LicenseStatus = ls
 		return nil
 	})
 

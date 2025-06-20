@@ -87,6 +87,7 @@ func TestRun(t *testing.T) {
 		assertNotNilNotEmpty(t, bun.Agent.Prometheus, "agent prometheus metrics should be present")
 		assertNotNilNotEmpty(t, bun.Agent.StartupLogs, "agent startup logs should be present")
 		assertNotNilNotEmpty(t, bun.Logs, "bundle logs should be present")
+		assertNotNilNotEmpty(t, bun.LicenseStatus, "license status should be present")
 	})
 
 	t.Run("OK_NoWorkspace", func(t *testing.T) {
