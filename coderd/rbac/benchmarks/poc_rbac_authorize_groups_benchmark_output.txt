@@ -1,0 +1,51 @@
+goos: linux
+goarch: amd64
+pkg: github.com/coder/coder/v2/coderd/rbac
+cpu: AMD EPYC 9454P 48-Core Processor               
+BenchmarkRBACAuthorizeGroups/NoRolesGroupACL-16         	 1278330	      4925 ns/op
+BenchmarkRBACAuthorizeGroups/NoRolesGroupACL-16         	  907471	      7054 ns/op
+BenchmarkRBACAuthorizeGroups/NoRolesGroupACL-16         	  697154	      8875 ns/op
+BenchmarkRBACAuthorizeGroups/NoRolesGroupACL-16         	  651409	     10440 ns/op
+BenchmarkRBACAuthorizeGroups/NoRolesGroupACL-16         	  445570	     11722 ns/op
+BenchmarkRBACAuthorizeGroups/AdminGroupACL-16           	  749808	      7258 ns/op
+BenchmarkRBACAuthorizeGroups/AdminGroupACL-16           	  669148	      9258 ns/op
+BenchmarkRBACAuthorizeGroups/AdminGroupACL-16           	  476209	     10609 ns/op
+BenchmarkRBACAuthorizeGroups/AdminGroupACL-16           	  538855	     12157 ns/op
+BenchmarkRBACAuthorizeGroups/AdminGroupACL-16           	  397616	     13466 ns/op
+BenchmarkRBACAuthorizeGroups/OrgAdminGroupACL-16        	  816760	      7925 ns/op
+BenchmarkRBACAuthorizeGroups/OrgAdminGroupACL-16        	  529554	      9599 ns/op
+BenchmarkRBACAuthorizeGroups/OrgAdminGroupACL-16        	  605112	     10993 ns/op
+BenchmarkRBACAuthorizeGroups/OrgAdminGroupACL-16        	  427651	     12562 ns/op
+BenchmarkRBACAuthorizeGroups/OrgAdminGroupACL-16        	  420876	     13629 ns/op
+BenchmarkRBACAuthorizeGroups/OrgMemberGroupACL-16       	  780686	      7874 ns/op
+BenchmarkRBACAuthorizeGroups/OrgMemberGroupACL-16       	  550896	      9565 ns/op
+BenchmarkRBACAuthorizeGroups/OrgMemberGroupACL-16       	  471561	     11196 ns/op
+BenchmarkRBACAuthorizeGroups/OrgMemberGroupACL-16       	  431835	     12407 ns/op
+BenchmarkRBACAuthorizeGroups/OrgMemberGroupACL-16       	  384766	     14198 ns/op
+BenchmarkRBACAuthorizeGroups/ManyRolesGroupACL-16       	  679629	     10035 ns/op
+BenchmarkRBACAuthorizeGroups/ManyRolesGroupACL-16       	  583371	     11657 ns/op
+BenchmarkRBACAuthorizeGroups/ManyRolesGroupACL-16       	  515952	     12925 ns/op
+BenchmarkRBACAuthorizeGroups/ManyRolesGroupACL-16       	  384936	     14627 ns/op
+BenchmarkRBACAuthorizeGroups/ManyRolesGroupACL-16       	  349056	     15645 ns/op
+BenchmarkRBACAuthorizeGroups/ManyRolesCachedSubjectGroupACL-16         	  526797	      9916 ns/op
+BenchmarkRBACAuthorizeGroups/ManyRolesCachedSubjectGroupACL-16         	  552393	     11532 ns/op
+BenchmarkRBACAuthorizeGroups/ManyRolesCachedSubjectGroupACL-16         	  404392	     12980 ns/op
+BenchmarkRBACAuthorizeGroups/ManyRolesCachedSubjectGroupACL-16         	  372973	     14366 ns/op
+BenchmarkRBACAuthorizeGroups/ManyRolesCachedSubjectGroupACL-16         	  347223	     15517 ns/op
+BenchmarkRBACAuthorizeGroups/AdminWithScopeGroupACL-16                 	  913995	      7286 ns/op
+BenchmarkRBACAuthorizeGroups/AdminWithScopeGroupACL-16                 	  682215	      9212 ns/op
+BenchmarkRBACAuthorizeGroups/AdminWithScopeGroupACL-16                 	  478081	     10747 ns/op
+BenchmarkRBACAuthorizeGroups/AdminWithScopeGroupACL-16                 	  541651	     12459 ns/op
+BenchmarkRBACAuthorizeGroups/AdminWithScopeGroupACL-16                 	  392820	     13636 ns/op
+BenchmarkRBACAuthorizeGroups/StaticRolesGroupACL-16                    	  842270	      7371 ns/op
+BenchmarkRBACAuthorizeGroups/StaticRolesGroupACL-16                    	  734965	      9047 ns/op
+BenchmarkRBACAuthorizeGroups/StaticRolesGroupACL-16                    	  481786	     10598 ns/op
+BenchmarkRBACAuthorizeGroups/StaticRolesGroupACL-16                    	  436299	     12105 ns/op
+BenchmarkRBACAuthorizeGroups/StaticRolesGroupACL-16                    	  399850	     13731 ns/op
+BenchmarkRBACAuthorizeGroups/StaticRolesWithCacheGroupACL-16           	  850777	      7440 ns/op
+BenchmarkRBACAuthorizeGroups/StaticRolesWithCacheGroupACL-16           	  671296	      9476 ns/op
+BenchmarkRBACAuthorizeGroups/StaticRolesWithCacheGroupACL-16           	  473623	     10777 ns/op
+BenchmarkRBACAuthorizeGroups/StaticRolesWithCacheGroupACL-16           	  522291	     12569 ns/op
+BenchmarkRBACAuthorizeGroups/StaticRolesWithCacheGroupACL-16           	  394126	     13898 ns/op
+PASS
+ok  	github.com/coder/coder/v2/coderd/rbac	590.158s

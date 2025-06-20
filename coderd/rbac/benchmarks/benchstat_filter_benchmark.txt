@@ -1,0 +1,26 @@
+goos: linux
+goarch: amd64
+pkg: github.com/coder/coder/v2/coderd/rbac
+cpu: AMD EPYC 9454P 48-Core Processor               
+                                                 │ main_rbac_filter_benchmark_output.txt │   poc_rbac_filter_benchmark_output.txt   │
+                                                 │                sec/op                 │     sec/op      vs base                  │
+RBACFilter/PrepareOnly-NoRoles-16                                           4.387m ± ∞ ¹    11.053m ± ∞ ¹    +151.97% (p=0.008 n=5)
+RBACFilter/PrepareOnly-Admin-16                                             7.924m ± ∞ ¹    48.817m ± ∞ ¹    +516.09% (p=0.008 n=5)
+RBACFilter/PrepareOnly-OrgAdmin-16                                          14.43m ± ∞ ¹     48.55m ± ∞ ¹    +236.56% (p=0.008 n=5)
+RBACFilter/PrepareOnly-OrgMember-16                                         13.08m ± ∞ ¹     44.89m ± ∞ ¹    +243.20% (p=0.008 n=5)
+RBACFilter/PrepareOnly-ManyRoles-16                                         19.19m ± ∞ ¹     68.43m ± ∞ ¹    +256.53% (p=0.008 n=5)
+RBACFilter/PrepareOnly-ManyRolesCachedSubject-16                            18.36m ± ∞ ¹     68.23m ± ∞ ¹    +271.67% (p=0.008 n=5)
+RBACFilter/PrepareOnly-AdminWithScope-16                                    7.068m ± ∞ ¹    28.419m ± ∞ ¹    +302.09% (p=0.008 n=5)
+RBACFilter/PrepareOnly-StaticRoles-16                                       8.135m ± ∞ ¹    46.908m ± ∞ ¹    +476.60% (p=0.008 n=5)
+RBACFilter/PrepareOnly-StaticRolesWithCache-16                              7.987m ± ∞ ¹    46.460m ± ∞ ¹    +481.70% (p=0.008 n=5)
+RBACFilter/NoRoles-16                                                       38.13µ ± ∞ ¹     73.93µ ± ∞ ¹     +93.92% (p=0.008 n=5)
+RBACFilter/Admin-16                                                         190.1n ± ∞ ¹   22135.0n ± ∞ ¹  +11543.87% (p=0.008 n=5)
+RBACFilter/OrgAdmin-16                                                      87.90µ ± ∞ ¹    213.49µ ± ∞ ¹    +142.88% (p=0.008 n=5)
+RBACFilter/OrgMember-16                                                     133.2µ ± ∞ ¹     286.8µ ± ∞ ¹    +115.28% (p=0.008 n=5)
+RBACFilter/ManyRoles-16                                                     20.36µ ± ∞ ¹     33.64µ ± ∞ ¹     +65.26% (p=0.008 n=5)
+RBACFilter/ManyRolesCachedSubject-16                                        20.17µ ± ∞ ¹     33.48µ ± ∞ ¹     +65.95% (p=0.008 n=5)
+RBACFilter/AdminWithScope-16                                                547.4n ± ∞ ¹     539.6n ± ∞ ¹      -1.42% (p=0.048 n=5)
+RBACFilter/StaticRoles-16                                                   193.4n ± ∞ ¹   22047.0n ± ∞ ¹  +11299.69% (p=0.008 n=5)
+RBACFilter/StaticRolesWithCache-16                                          203.2n ± ∞ ¹   21793.0n ± ∞ ¹  +10624.90% (p=0.008 n=5)
+geomean                                                                     212.7µ           1.136m          +434.09%
+¹ need >= 6 samples for confidence interval at level 0.95

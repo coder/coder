@@ -61,24 +61,48 @@ number(set) := c if {
 	c := 1
 }
 
+prebuild_workspace_type := "prebuilt_workspace"
+default_object_set := [input.object.type, "*"]
+
+is_prebuild_workspace := true if {
+	input.object.type = "workspace"
+	input.object.owner = "c42fdf75-3097-471c-8c33-fb52454d81c0"
+}
+
 # site, org, and user rules are all similar. Each rule should return a number
 # from [-1, 1]. The number corresponds to "negative", "abstain", and "positive"
 # for the given level. See the 'allow' rules for how these numbers are used.
 default site := 0
 
-site := site_allow(input.subject.roles)
+site := num if {
+	not is_prebuild_workspace
+	num := site_allow(input.subject.roles, default_object_set)
+}
+
+site := num if {
+	is_prebuild_workspace
+	num := site_allow(input.subject.roles, [input.object.type, "*", prebuild_workspace_type])
+}
 
 default scope_site := 0
 
-scope_site := site_allow([input.subject.scope])
+scope_site := num if {
+	is_prebuild_workspace
+	num := site_allow([input.subject.scope], default_object_set)
+}
 
-site_allow(roles) := num if {
+scope_site := num if {
+	not is_prebuild_workspace
+	num := site_allow([input.subject.scope], [input.object.type, "*", prebuild_workspace_type])
+}
+
+site_allow(roles, object_set) := num if {
 	# allow is a set of boolean values without duplicates.
 	allow := {x |
 		# Iterate over all site permissions in all roles
 		perm := roles[_].site[_]
 		perm.action in [input.action, "*"]
-		perm.resource_type in [input.object.type, "*"]
+		perm.resource_type in object_set
 
 		# x is either 'true' or 'false' if a matching permission exists.
 		x := bool_flip(perm.negate)
@@ -95,11 +119,27 @@ org_members := {orgID |
 # that the actor is a member of.
 default org := 0
 
-org := org_allow(input.subject.roles)
+org := num if {
+	not is_prebuild_workspace
+	num := org_allow(input.subject.roles, default_object_set)
+}
+
+org := num if {
+	is_prebuild_workspace
+	num := org_allow(input.subject.roles, [input.object.type, "*", prebuild_workspace_type])
+}
 
 default scope_org := 0
 
-scope_org := org_allow([input.scope])
+scope_org := num if {
+	not is_prebuild_workspace
+	num := org_allow([input.subject.scope], default_object_set)
+}
+
+scope_org := num if {
+	is_prebuild_workspace
+	num := org_allow([input.subject.scope], [input.object.type, "*", prebuild_workspace_type])
+}
 
 # org_allow_set is a helper function that iterates over all orgs that the actor
 # is a member of. For each organization it sets the numerical allow value
@@ -111,24 +151,24 @@ scope_org := org_allow([input.scope])
 # The reason we calculate this for all orgs, and not just the input.object.org_owner
 # is that sometimes the input.object.org_owner is unknown. In those cases
 # we have a list of org_ids that can we use in a SQL 'WHERE' clause.
-org_allow_set(roles) := allow_set if {
+org_allow_set(roles, object_set) := allow_set if {
 	allow_set := {id: num |
 		id := org_members[_]
 		set := {x |
 			perm := roles[_].org[id][_]
 			perm.action in [input.action, "*"]
-			perm.resource_type in [input.object.type, "*"]
+			perm.resource_type in object_set
 			x := bool_flip(perm.negate)
 		}
 		num := number(set)
 	}
 }
 
-org_allow(roles) := num if {
+org_allow(roles, object_set) := num if {
 	# If the object has "any_org" set to true, then use the other
 	# org_allow block.
 	not input.object.any_org
-	allow := org_allow_set(roles)
+	allow := org_allow_set(roles, object_set)
 
 	# Return only the org value of the input's org.
 	# The reason why we do not do this up front, is that we need to make sure
@@ -144,9 +184,9 @@ org_allow(roles) := num if {
 # This is useful for UI elements when we want to conclude, "Can the user create
 # a new template in any organization?"
 # It is easier than iterating over every organization the user is apart of.
-org_allow(roles) := num if {
+org_allow(roles, object_set) := num if {
 	input.object.any_org # if this is false, this code block is not used
-	allow := org_allow_set(roles)
+	allow := org_allow_set(roles, object_set)
 
 	# allow is a map of {"<org_id>": <number>}. We only care about values
 	# that are 1, and ignore the rest.
@@ -195,19 +235,35 @@ org_ok if {
 # the user is apart of the org (if the object has an org).
 default user := 0
 
-user := user_allow(input.subject.roles)
+user := num if {
+	not is_prebuild_workspace
+	num := user_allow(input.subject.roles, default_object_set)
+}
+
+user := num if {
+	is_prebuild_workspace
+	num := user_allow(input.subject.roles, [input.object.type, "*", prebuild_workspace_type])
+}
 
 default user_scope := 0
 
-scope_user := user_allow([input.scope])
+scope_user := num if {
+	not is_prebuild_workspace
+	num := user_allow([input.subject.scope], default_object_set)
+}
 
-user_allow(roles) := num if {
+scope_user := num if {
+	is_prebuild_workspace
+	num := user_allow([input.subject.scope], [input.object.type, "*", prebuild_workspace_type])
+}
+
+user_allow(roles, object_set) := num if {
 	input.object.owner != ""
 	input.subject.id = input.object.owner
 	allow := {x |
 		perm := roles[_].user[_]
 		perm.action in [input.action, "*"]
-		perm.resource_type in [input.object.type, "*"]
+		perm.resource_type in object_set
 		x := bool_flip(perm.negate)
 	}
 	num := number(allow)

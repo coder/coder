@@ -1,0 +1,17 @@
+goos: linux
+goarch: amd64
+pkg: github.com/coder/coder/v2/coderd/rbac
+cpu: AMD EPYC 9454P 48-Core Processor               
+                                        │ main_rbac_authorize_benchmark_output.txt │ poc_rbac_authorize_benchmark_output.txt │
+                                        │                  sec/op                  │      sec/op        vs base              │
+RBACAuthorize/NoRoles-16                                              2.120µ ± ∞ ¹        2.143µ ± ∞ ¹  +1.08% (p=0.032 n=5)
+RBACAuthorize/Admin-16                                                3.702µ ± ∞ ¹        3.775µ ± ∞ ¹  +1.97% (p=0.008 n=5)
+RBACAuthorize/OrgAdmin-16                                             3.840µ ± ∞ ¹        3.939µ ± ∞ ¹  +2.58% (p=0.016 n=5)
+RBACAuthorize/OrgMember-16                                            3.863µ ± ∞ ¹        3.919µ ± ∞ ¹       ~ (p=0.087 n=5)
+RBACAuthorize/ManyRoles-16                                            6.084µ ± ∞ ¹        6.264µ ± ∞ ¹  +2.96% (p=0.008 n=5)
+RBACAuthorize/ManyRolesCachedSubject-16                               6.086µ ± ∞ ¹        6.230µ ± ∞ ¹  +2.37% (p=0.008 n=5)
+RBACAuthorize/AdminWithScope-16                                       3.658µ ± ∞ ¹        3.794µ ± ∞ ¹  +3.72% (p=0.008 n=5)
+RBACAuthorize/StaticRoles-16                                          3.466µ ± ∞ ¹        3.596µ ± ∞ ¹  +3.75% (p=0.008 n=5)
+RBACAuthorize/StaticRolesWithCache-16                                 3.483µ ± ∞ ¹        3.589µ ± ∞ ¹  +3.04% (p=0.008 n=5)
+geomean                                                               3.860µ              3.958µ        +2.54%
+¹ need >= 6 samples for confidence interval at level 0.95

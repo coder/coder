@@ -1,0 +1,51 @@
+goos: linux
+goarch: amd64
+pkg: github.com/coder/coder/v2/coderd/rbac
+cpu: AMD EPYC 9454P 48-Core Processor               
+BenchmarkRBACAuthorize/NoRoles-16         	 2676856	      2174 ns/op
+BenchmarkRBACAuthorize/NoRoles-16         	 2843370	      2163 ns/op
+BenchmarkRBACAuthorize/NoRoles-16         	 2776879	      2143 ns/op
+BenchmarkRBACAuthorize/NoRoles-16         	 2812335	      2135 ns/op
+BenchmarkRBACAuthorize/NoRoles-16         	 2727691	      2127 ns/op
+BenchmarkRBACAuthorize/Admin-16           	 1587804	      3791 ns/op
+BenchmarkRBACAuthorize/Admin-16           	 1570087	      3778 ns/op
+BenchmarkRBACAuthorize/Admin-16           	 1576850	      3770 ns/op
+BenchmarkRBACAuthorize/Admin-16           	 1542572	      3775 ns/op
+BenchmarkRBACAuthorize/Admin-16           	 1573053	      3728 ns/op
+BenchmarkRBACAuthorize/OrgAdmin-16        	 1488019	      3939 ns/op
+BenchmarkRBACAuthorize/OrgAdmin-16        	 1486614	      3924 ns/op
+BenchmarkRBACAuthorize/OrgAdmin-16        	 1507106	      3856 ns/op
+BenchmarkRBACAuthorize/OrgAdmin-16        	 1505796	      3950 ns/op
+BenchmarkRBACAuthorize/OrgAdmin-16        	 1499888	      3981 ns/op
+BenchmarkRBACAuthorize/OrgMember-16       	 1498310	      3919 ns/op
+BenchmarkRBACAuthorize/OrgMember-16       	 1486664	      3935 ns/op
+BenchmarkRBACAuthorize/OrgMember-16       	 1478445	      3897 ns/op
+BenchmarkRBACAuthorize/OrgMember-16       	 1476415	      3919 ns/op
+BenchmarkRBACAuthorize/OrgMember-16       	 1468498	      4008 ns/op
+BenchmarkRBACAuthorize/ManyRoles-16       	  949152	      6218 ns/op
+BenchmarkRBACAuthorize/ManyRoles-16       	  933469	      6282 ns/op
+BenchmarkRBACAuthorize/ManyRoles-16       	  920200	      6333 ns/op
+BenchmarkRBACAuthorize/ManyRoles-16       	  879614	      6258 ns/op
+BenchmarkRBACAuthorize/ManyRoles-16       	  931360	      6264 ns/op
+BenchmarkRBACAuthorize/ManyRolesCachedSubject-16         	  799038	      6314 ns/op
+BenchmarkRBACAuthorize/ManyRolesCachedSubject-16         	  907542	      6219 ns/op
+BenchmarkRBACAuthorize/ManyRolesCachedSubject-16         	  954013	      6230 ns/op
+BenchmarkRBACAuthorize/ManyRolesCachedSubject-16         	  925490	      6323 ns/op
+BenchmarkRBACAuthorize/ManyRolesCachedSubject-16         	  897490	      6200 ns/op
+BenchmarkRBACAuthorize/AdminWithScope-16                 	 1592358	      3815 ns/op
+BenchmarkRBACAuthorize/AdminWithScope-16                 	 1581802	      3794 ns/op
+BenchmarkRBACAuthorize/AdminWithScope-16                 	 1564908	      3765 ns/op
+BenchmarkRBACAuthorize/AdminWithScope-16                 	 1587648	      3744 ns/op
+BenchmarkRBACAuthorize/AdminWithScope-16                 	 1574330	      3795 ns/op
+BenchmarkRBACAuthorize/StaticRoles-16                    	 1665968	      3599 ns/op
+BenchmarkRBACAuthorize/StaticRoles-16                    	 1651333	      3586 ns/op
+BenchmarkRBACAuthorize/StaticRoles-16                    	 1673294	      3638 ns/op
+BenchmarkRBACAuthorize/StaticRoles-16                    	 1696092	      3596 ns/op
+BenchmarkRBACAuthorize/StaticRoles-16                    	 1668802	      3587 ns/op
+BenchmarkRBACAuthorize/StaticRolesWithCache-16           	 1641456	      3572 ns/op
+BenchmarkRBACAuthorize/StaticRolesWithCache-16           	 1698519	      3560 ns/op
+BenchmarkRBACAuthorize/StaticRolesWithCache-16           	 1651453	      3608 ns/op
+BenchmarkRBACAuthorize/StaticRolesWithCache-16           	 1665568	      3589 ns/op
+BenchmarkRBACAuthorize/StaticRolesWithCache-16           	 1662337	      3635 ns/op
+PASS
+ok  	github.com/coder/coder/v2/coderd/rbac	506.579s

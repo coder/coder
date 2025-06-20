@@ -1,0 +1,17 @@
+goos: linux
+goarch: amd64
+pkg: github.com/coder/coder/v2/coderd/rbac
+cpu: AMD EPYC 9454P 48-Core Processor               
+                                                      │ main_rbac_authorize_groups_benchmark_output.txt │ poc_rbac_authorize_groups_benchmark_output.txt │
+                                                      │                     sec/op                      │          sec/op           vs base              │
+RBACAuthorizeGroups/NoRolesGroupACL-16                                                     8.677µ ± ∞ ¹               8.875µ ± ∞ ¹       ~ (p=0.841 n=5)
+RBACAuthorizeGroups/AdminGroupACL-16                                                       11.59µ ± ∞ ¹               10.61µ ± ∞ ¹       ~ (p=0.841 n=5)
+RBACAuthorizeGroups/OrgAdminGroupACL-16                                                    11.33µ ± ∞ ¹               10.99µ ± ∞ ¹       ~ (p=0.841 n=5)
+RBACAuthorizeGroups/OrgMemberGroupACL-16                                                   12.06µ ± ∞ ¹               11.20µ ± ∞ ¹       ~ (p=0.841 n=5)
+RBACAuthorizeGroups/ManyRolesGroupACL-16                                                   13.33µ ± ∞ ¹               12.93µ ± ∞ ¹       ~ (p=0.690 n=5)
+RBACAuthorizeGroups/ManyRolesCachedSubjectGroupACL-16                                      13.13µ ± ∞ ¹               12.98µ ± ∞ ¹       ~ (p=0.690 n=5)
+RBACAuthorizeGroups/AdminWithScopeGroupACL-16                                              10.71µ ± ∞ ¹               10.75µ ± ∞ ¹       ~ (p=1.000 n=5)
+RBACAuthorizeGroups/StaticRolesGroupACL-16                                                 11.24µ ± ∞ ¹               10.60µ ± ∞ ¹       ~ (p=0.841 n=5)
+RBACAuthorizeGroups/StaticRolesWithCacheGroupACL-16                                        10.90µ ± ∞ ¹               10.78µ ± ∞ ¹       ~ (p=0.841 n=5)
+geomean                                                                                    11.36µ                     11.01µ        -3.06%
+¹ need >= 6 samples for confidence interval at level 0.95
