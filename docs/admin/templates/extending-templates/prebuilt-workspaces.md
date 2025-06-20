@@ -112,7 +112,7 @@ prebuilt workspace can remain before it is considered expired and eligible for c
 Expired prebuilt workspaces are removed during the reconciliation loop to avoid stale environments and resource waste.
 New prebuilt workspaces are only created to maintain the desired count if needed.
 
-### Scheduling and time-based scaling
+### Scheduling
 
 Prebuilt workspaces support time-based scheduling to scale the number of instances based on usage patterns.
 This allows you to reduce resource costs during off-hours while maintaining availability during peak usage times.
