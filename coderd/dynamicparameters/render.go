@@ -2,9 +2,11 @@ package dynamicparameters
 
 import (
 	"context"
+	"database/sql"
 	"io/fs"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
@@ -105,9 +107,24 @@ func (r *loader) loadData(ctx context.Context, db database.Store) error {
 
 	if r.terraformValues == nil {
 		values, err := db.GetTemplateVersionTerraformValues(ctx, r.templateVersion.ID)
-		if err != nil {
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			return xerrors.Errorf("template version terraform values: %w", err)
 		}
+
+		if xerrors.Is(err, sql.ErrNoRows) {
+			// If the row does not exist, return zero values.
+			//
+			// Older template versions (prior to dynamic parameters) will be missing
+			// this row, and we can assume the 'ProvisionerdVersion' "" (unknown).
+			values = database.TemplateVersionTerraformValue{
+				TemplateVersionID:   r.templateVersionID,
+				UpdatedAt:           time.Time{},
+				CachedPlan:          nil,
+				CachedModuleFiles:   uuid.NullUUID{},
+				ProvisionerdVersion: "",
+			}
+		}
+
 		r.terraformValues = &values
 	}
 
