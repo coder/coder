@@ -1,15 +1,14 @@
 package agentcontainers
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -585,10 +584,10 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 		if dc.Container != nil {
 			if !api.devcontainerNames[dc.Name] {
 				// If the devcontainer name wasn't set via terraform, we
-				// use the containers friendly name as a fallback which
-				// will keep changing as the devcontainer is recreated.
-				// TODO(mafredri): Parse the container label (i.e. devcontainer.json) for customization.
-				dc.Name = safeFriendlyName(dc.Container.FriendlyName)
+				// will attempt to create an agent name based on the workspace
+				// folder's name. If that is not possible, we will fall back
+				// to using the container's friendly name.
+				dc.Name = safeAgentName(filepath.Base(dc.WorkspaceFolder), dc.Container.FriendlyName)
 			}
 		}
 
@@ -631,6 +630,34 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 
 	api.containers = updated
 	api.containersErr = nil
+}
+
+var consecutiveHyphenRegex = regexp.MustCompile("-+")
+
+// `safeAgentName` returns a safe agent name derived from a folder name,
+// falling back to the container’s friendly name if needed.
+func safeAgentName(name string, friendlyName string) string {
+	// Keep only ASCII letters and digits, replacing everything
+	// else with a hyphen.
+	var sb strings.Builder
+	for _, r := range strings.ToLower(name) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			_, _ = sb.WriteRune(r)
+		} else {
+			_, _ = sb.WriteRune('-')
+		}
+	}
+
+	// Remove any consecutive hyphens, and then trim any leading
+	// and trailing hyphens.
+	name = consecutiveHyphenRegex.ReplaceAllString(sb.String(), "-")
+	name = strings.Trim(name, "-")
+
+	if name == "" {
+		return safeFriendlyName(friendlyName)
+	}
+
+	return name
 }
 
 // safeFriendlyName returns a API safe version of the container's
@@ -1114,27 +1141,6 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 	if proc.agent.ID == uuid.Nil || maybeRecreateSubAgent {
 		subAgentConfig.Architecture = arch
 
-		// Detect workspace folder by executing `pwd` in the container.
-		// NOTE(mafredri): This is a quick and dirty way to detect the
-		// workspace folder inside the container. In the future we will
-		// rely more on `devcontainer read-configuration`.
-		var pwdBuf bytes.Buffer
-		err = api.dccli.Exec(ctx, dc.WorkspaceFolder, dc.ConfigPath, "pwd", []string{},
-			WithExecOutput(&pwdBuf, io.Discard),
-			WithExecContainerID(container.ID),
-		)
-		if err != nil {
-			return xerrors.Errorf("check workspace folder in container: %w", err)
-		}
-		directory := strings.TrimSpace(pwdBuf.String())
-		if directory == "" {
-			logger.Warn(ctx, "detected workspace folder is empty, using default workspace folder",
-				slog.F("default_workspace_folder", DevcontainerDefaultContainerWorkspaceFolder),
-			)
-			directory = DevcontainerDefaultContainerWorkspaceFolder
-		}
-		subAgentConfig.Directory = directory
-
 		displayAppsMap := map[codersdk.DisplayApp]bool{
 			// NOTE(DanielleMaywood):
 			// We use the same defaults here as set in terraform-provider-coder.
@@ -1166,6 +1172,8 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			if config, err = readConfig(); err != nil {
 				return err
 			}
+
+			subAgentConfig.Directory = config.Workspace.WorkspaceFolder
 
 			// NOTE(DanielleMaywood):
 			// We only want to take an agent name specified in the root customization layer.
