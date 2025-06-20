@@ -1297,6 +1297,7 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 		"CODER":                      "true",
 		"CODER_WORKSPACE_NAME":       manifest.WorkspaceName,
 		"CODER_WORKSPACE_AGENT_NAME": manifest.AgentName,
+		"CODER_WORKSPACE_OWNER_NAME": manifest.OwnerName,
 
 		// Specific Coder subcommands require the agent token exposed!
 		"CODER_AGENT_TOKEN": *a.sessionToken.Load(),

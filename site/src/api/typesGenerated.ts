@@ -736,6 +736,7 @@ export interface DeploymentValues {
 	readonly additional_csp_policy?: string;
 	readonly workspace_hostname_suffix?: string;
 	readonly workspace_prebuilds?: PrebuildsConfig;
+	readonly hide_ai_tasks?: boolean;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	readonly address?: string;
@@ -3654,6 +3655,8 @@ export interface WorkspaceBuild {
 	readonly daily_cost: number;
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
+	readonly has_ai_task?: boolean;
+	readonly ai_task_sidebar_app_id?: string;
 }
 
 // From codersdk/workspacebuilds.go

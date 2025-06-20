@@ -1715,6 +1715,13 @@ func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Tim
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysLastUsedAfter)(ctx, lastUsed)
 }
 
+func (q *querier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetActivePresetPrebuildSchedules(ctx)
+}
+
 func (q *querier) GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return 0, err
@@ -3480,6 +3487,11 @@ func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now ti
 	return q.db.GetWorkspacesEligibleForTransition(ctx, now)
 }
 
+func (q *querier) HasTemplateVersionsWithAITask(ctx context.Context) (bool, error) {
+	// Anyone can call HasTemplateVersionsWithAITask.
+	return q.db.HasTemplateVersionsWithAITask(ctx)
+}
+
 func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	return insert(q.log, q.auth,
 		rbac.ResourceApiKey.WithOwner(arg.UserID.String()),
@@ -3683,6 +3695,15 @@ func (q *querier) InsertPresetParameters(ctx context.Context, arg database.Inser
 	}
 
 	return q.db.InsertPresetParameters(ctx, arg)
+}
+
+func (q *querier) InsertPresetPrebuildSchedule(ctx context.Context, arg database.InsertPresetPrebuildScheduleParams) (database.TemplateVersionPresetPrebuildSchedule, error) {
+	err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTemplate)
+	if err != nil {
+		return database.TemplateVersionPresetPrebuildSchedule{}, err
+	}
+
+	return q.db.InsertPresetPrebuildSchedule(ctx, arg)
 }
 
 func (q *querier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {

@@ -790,7 +790,7 @@ func (q *FakeQuerier) getWorkspaceAgentByIDNoLock(_ context.Context, id uuid.UUI
 	// The schema sorts this by created at, so we iterate the array backwards.
 	for i := len(q.workspaceAgents) - 1; i >= 0; i-- {
 		agent := q.workspaceAgents[i]
-		if agent.ID == id {
+		if !agent.Deleted && agent.ID == id {
 			return agent, nil
 		}
 	}
@@ -800,6 +800,9 @@ func (q *FakeQuerier) getWorkspaceAgentByIDNoLock(_ context.Context, id uuid.UUI
 func (q *FakeQuerier) getWorkspaceAgentsByResourceIDsNoLock(_ context.Context, resourceIDs []uuid.UUID) ([]database.WorkspaceAgent, error) {
 	workspaceAgents := make([]database.WorkspaceAgent, 0)
 	for _, agent := range q.workspaceAgents {
+		if agent.Deleted {
+			continue
+		}
 		for _, resourceID := range resourceIDs {
 			if agent.ResourceID != resourceID {
 				continue
@@ -1385,6 +1388,17 @@ func (q *FakeQuerier) getProvisionerJobsByIDsWithQueuePositionLockedGlobalQueue(
 // A template is considered deprecated when it has a deprecation message.
 func isDeprecated(template database.Template) bool {
 	return template.Deprecated != ""
+}
+
+func (q *FakeQuerier) getWorkspaceBuildParametersNoLock(workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
+	params := make([]database.WorkspaceBuildParameter, 0)
+	for _, param := range q.workspaceBuildParameters {
+		if param.WorkspaceBuildID != workspaceBuildID {
+			continue
+		}
+		params = append(params, param)
+	}
+	return params, nil
 }
 
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
@@ -2541,13 +2555,13 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortSharesByTemplate(_ context.Context
 	return nil
 }
 
-func (q *FakeQuerier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID) error {
+func (q *FakeQuerier) DeleteWorkspaceSubAgentByID(_ context.Context, id uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	for i, agent := range q.workspaceAgents {
 		if agent.ID == id && agent.ParentID.Valid {
-			q.workspaceAgents = slices.Delete(q.workspaceAgents, i, i+1)
+			q.workspaceAgents[i].Deleted = true
 			return nil
 		}
 	}
@@ -2760,6 +2774,10 @@ func (q *FakeQuerier) GetAPIKeysLastUsedAfter(_ context.Context, after time.Time
 		}
 	}
 	return apiKeys, nil
+}
+
+func (q *FakeQuerier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
+	return nil, ErrUnimplemented
 }
 
 // nolint:revive // It's not a control flag, it's a filter.
@@ -7064,6 +7082,10 @@ func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Conte
 	latestBuildNumber := make(map[uuid.UUID]int32)
 
 	for _, agt := range q.workspaceAgents {
+		if agt.Deleted {
+			continue
+		}
+
 		// get the related workspace and user
 		for _, res := range q.workspaceResources {
 			if agt.ResourceID != res.ID {
@@ -7133,7 +7155,7 @@ func (q *FakeQuerier) GetWorkspaceAgentByInstanceID(_ context.Context, instanceI
 	// The schema sorts this by created at, so we iterate the array backwards.
 	for i := len(q.workspaceAgents) - 1; i >= 0; i-- {
 		agent := q.workspaceAgents[i]
-		if agent.AuthInstanceID.Valid && agent.AuthInstanceID.String == instanceID {
+		if !agent.Deleted && agent.AuthInstanceID.Valid && agent.AuthInstanceID.String == instanceID {
 			return agent, nil
 		}
 	}
@@ -7693,13 +7715,13 @@ func (q *FakeQuerier) GetWorkspaceAgentUsageStatsAndLabels(_ context.Context, cr
 	return stats, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceAgentsByParentID(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
+func (q *FakeQuerier) GetWorkspaceAgentsByParentID(_ context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	workspaceAgents := make([]database.WorkspaceAgent, 0)
 	for _, agent := range q.workspaceAgents {
-		if !agent.ParentID.Valid || agent.ParentID.UUID != parentID {
+		if !agent.ParentID.Valid || agent.ParentID.UUID != parentID || agent.Deleted {
 			continue
 		}
 
@@ -7746,6 +7768,9 @@ func (q *FakeQuerier) GetWorkspaceAgentsCreatedAfter(_ context.Context, after ti
 
 	workspaceAgents := make([]database.WorkspaceAgent, 0)
 	for _, agent := range q.workspaceAgents {
+		if agent.Deleted {
+			continue
+		}
 		if agent.CreatedAt.After(after) {
 			workspaceAgents = append(workspaceAgents, agent)
 		}
@@ -7896,14 +7921,7 @@ func (q *FakeQuerier) GetWorkspaceBuildParameters(_ context.Context, workspaceBu
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	params := make([]database.WorkspaceBuildParameter, 0)
-	for _, param := range q.workspaceBuildParameters {
-		if param.WorkspaceBuildID != workspaceBuildID {
-			continue
-		}
-		params = append(params, param)
-	}
-	return params, nil
+	return q.getWorkspaceBuildParametersNoLock(workspaceBuildID)
 }
 
 func (q *FakeQuerier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
@@ -8487,6 +8505,19 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 	}
 
 	return workspaces, nil
+}
+
+func (q *FakeQuerier) HasTemplateVersionsWithAITask(_ context.Context) (bool, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, templateVersion := range q.templateVersions {
+		if templateVersion.HasAITask.Valid && templateVersion.HasAITask.Bool {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func (q *FakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
@@ -9160,6 +9191,15 @@ func (q *FakeQuerier) InsertPresetParameters(_ context.Context, arg database.Ins
 	}
 
 	return presetParameters, nil
+}
+
+func (q *FakeQuerier) InsertPresetPrebuildSchedule(ctx context.Context, arg database.InsertPresetPrebuildScheduleParams) (database.TemplateVersionPresetPrebuildSchedule, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.TemplateVersionPresetPrebuildSchedule{}, err
+	}
+
+	return database.TemplateVersionPresetPrebuildSchedule{}, ErrUnimplemented
 }
 
 func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
@@ -13231,6 +13271,18 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 				continue
 			}
 		}
+
+		if arg.HasAITask.Valid {
+			tv, err := q.getTemplateVersionByIDNoLock(ctx, template.ActiveVersionID)
+			if err != nil {
+				return nil, xerrors.Errorf("get template version: %w", err)
+			}
+			tvHasAITask := tv.HasAITask.Valid && tv.HasAITask.Bool
+			if tvHasAITask != arg.HasAITask.Bool {
+				continue
+			}
+		}
+
 		templates = append(templates, template)
 	}
 	if len(templates) > 0 {
@@ -13556,6 +13608,43 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 				}
 			}
 			if !match {
+				continue
+			}
+		}
+
+		if arg.HasAITask.Valid {
+			hasAITask, err := func() (bool, error) {
+				build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
+				if err != nil {
+					return false, xerrors.Errorf("get latest build: %w", err)
+				}
+				if build.HasAITask.Valid {
+					return build.HasAITask.Bool, nil
+				}
+				// If the build has a nil AI task, check if the job is in progress
+				// and if it has a non-empty AI Prompt parameter
+				job, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID)
+				if err != nil {
+					return false, xerrors.Errorf("get provisioner job: %w", err)
+				}
+				if job.CompletedAt.Valid {
+					return false, nil
+				}
+				parameters, err := q.getWorkspaceBuildParametersNoLock(build.ID)
+				if err != nil {
+					return false, xerrors.Errorf("get workspace build parameters: %w", err)
+				}
+				for _, param := range parameters {
+					if param.Name == "AI Prompt" && param.Value != "" {
+						return true, nil
+					}
+				}
+				return false, nil
+			}()
+			if err != nil {
+				return nil, xerrors.Errorf("get hasAITask: %w", err)
+			}
+			if hasAITask != arg.HasAITask.Bool {
 				continue
 			}
 		}

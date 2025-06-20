@@ -907,12 +907,16 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		}
 		var prebuildInstances int32
 		var expirationPolicy *proto.ExpirationPolicy
+		var scheduling *proto.Scheduling
 		if len(preset.Prebuilds) > 0 {
 			prebuildInstances = int32(math.Min(math.MaxInt32, float64(preset.Prebuilds[0].Instances)))
 			if len(preset.Prebuilds[0].ExpirationPolicy) > 0 {
 				expirationPolicy = &proto.ExpirationPolicy{
 					Ttl: int32(math.Min(math.MaxInt32, float64(preset.Prebuilds[0].ExpirationPolicy[0].TTL))),
 				}
+			}
+			if len(preset.Prebuilds[0].Scheduling) > 0 {
+				scheduling = convertScheduling(preset.Prebuilds[0].Scheduling[0])
 			}
 		}
 		protoPreset := &proto.Preset{
@@ -921,6 +925,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			Prebuild: &proto.Prebuild{
 				Instances:        prebuildInstances,
 				ExpirationPolicy: expirationPolicy,
+				Scheduling:       scheduling,
 			},
 		}
 
@@ -976,6 +981,37 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		Presets:               presets,
 		ExternalAuthProviders: externalAuthProviders,
 	}, nil
+}
+
+func convertScheduling(scheduling provider.Scheduling) *proto.Scheduling {
+	return &proto.Scheduling{
+		Timezone: scheduling.Timezone,
+		Schedule: convertSchedules(scheduling.Schedule),
+	}
+}
+
+func convertSchedules(schedules []provider.Schedule) []*proto.Schedule {
+	protoSchedules := make([]*proto.Schedule, len(schedules))
+	for i, schedule := range schedules {
+		protoSchedules[i] = convertSchedule(schedule)
+	}
+
+	return protoSchedules
+}
+
+func convertSchedule(schedule provider.Schedule) *proto.Schedule {
+	return &proto.Schedule{
+		Cron:      schedule.Cron,
+		Instances: safeInt32Conversion(schedule.Instances),
+	}
+}
+
+func safeInt32Conversion(n int) int32 {
+	if n > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	// #nosec G115 - Safe conversion, as we have explicitly checked that the number does not exceed math.MaxInt32.
+	return int32(n)
 }
 
 func PtrInt32(number int) *int32 {

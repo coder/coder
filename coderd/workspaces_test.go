@@ -4494,3 +4494,129 @@ func TestOIDCRemoved(t *testing.T) {
 	require.NoError(t, err, "delete the workspace")
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, owner, deleteBuild.ID)
 }
+
+func TestWorkspaceFilterHasAITask(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:                 db,
+		Pubsub:                   pubsub,
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Helper function to create workspace with AI task configuration
+	createWorkspaceWithAIConfig := func(hasAITask sql.NullBool, jobCompleted bool, aiTaskPrompt *string) database.WorkspaceTable {
+		// When a provisioner job uses these tags, no provisioner will match it
+		unpickableTags := database.StringMap{"custom": "true"}
+
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.UserID,
+			OrganizationID: user.OrganizationID,
+			TemplateID:     template.ID,
+		})
+
+		jobConfig := database.ProvisionerJob{
+			OrganizationID: user.OrganizationID,
+			InitiatorID:    user.UserID,
+			Tags:           unpickableTags,
+		}
+		if jobCompleted {
+			jobConfig.CompletedAt = sql.NullTime{Time: time.Now(), Valid: true}
+		}
+		job := dbgen.ProvisionerJob(t, db, pubsub, jobConfig)
+
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: version.ID,
+			InitiatorID:       user.UserID,
+			JobID:             job.ID,
+			BuildNumber:       1,
+			HasAITask:         hasAITask,
+		})
+
+		if aiTaskPrompt != nil {
+			//nolint:gocritic // unit test
+			err := db.InsertWorkspaceBuildParameters(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceBuildParametersParams{
+				WorkspaceBuildID: build.ID,
+				Name:             []string{"AI Prompt"},
+				Value:            []string{*aiTaskPrompt},
+			})
+			require.NoError(t, err)
+		}
+
+		return ws
+	}
+
+	// Create test workspaces with different AI task configurations
+	wsWithAITask := createWorkspaceWithAIConfig(sql.NullBool{Bool: true, Valid: true}, false, nil)
+	wsWithoutAITask := createWorkspaceWithAIConfig(sql.NullBool{Bool: false, Valid: true}, false, nil)
+
+	aiTaskPrompt := "Build me a web app"
+	wsWithAITaskParam := createWorkspaceWithAIConfig(sql.NullBool{Valid: false}, false, &aiTaskPrompt)
+
+	anotherTaskPrompt := "Another task"
+	wsCompletedWithAITaskParam := createWorkspaceWithAIConfig(sql.NullBool{Valid: false}, true, &anotherTaskPrompt)
+
+	emptyPrompt := ""
+	wsWithEmptyAITaskParam := createWorkspaceWithAIConfig(sql.NullBool{Valid: false}, false, &emptyPrompt)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Debug: Check all workspaces without filter first
+	allRes, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	t.Logf("Total workspaces created: %d", len(allRes.Workspaces))
+	for i, ws := range allRes.Workspaces {
+		t.Logf("All Workspace %d: ID=%s, Name=%s, Build ID=%s, Job ID=%s", i, ws.ID, ws.Name, ws.LatestBuild.ID, ws.LatestBuild.Job.ID)
+	}
+
+	// Test filtering for workspaces with AI tasks
+	// Should include: wsWithAITask (has_ai_task=true) and wsWithAITaskParam (null + incomplete + param)
+	res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		FilterQuery: "has-ai-task:true",
+	})
+	require.NoError(t, err)
+	t.Logf("Expected 2 workspaces for has-ai-task:true, got %d", len(res.Workspaces))
+	t.Logf("Expected workspaces: %s, %s", wsWithAITask.ID, wsWithAITaskParam.ID)
+	for i, ws := range res.Workspaces {
+		t.Logf("AI Task True Workspace %d: ID=%s, Name=%s", i, ws.ID, ws.Name)
+	}
+	require.Len(t, res.Workspaces, 2)
+	workspaceIDs := []uuid.UUID{res.Workspaces[0].ID, res.Workspaces[1].ID}
+	require.Contains(t, workspaceIDs, wsWithAITask.ID)
+	require.Contains(t, workspaceIDs, wsWithAITaskParam.ID)
+
+	// Test filtering for workspaces without AI tasks
+	// Should include: wsWithoutAITask, wsCompletedWithAITaskParam, wsWithEmptyAITaskParam
+	res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		FilterQuery: "has-ai-task:false",
+	})
+	require.NoError(t, err)
+
+	// Debug: print what we got
+	t.Logf("Expected 3 workspaces for has-ai-task:false, got %d", len(res.Workspaces))
+	for i, ws := range res.Workspaces {
+		t.Logf("Workspace %d: ID=%s, Name=%s", i, ws.ID, ws.Name)
+	}
+	t.Logf("Expected IDs: %s, %s, %s", wsWithoutAITask.ID, wsCompletedWithAITaskParam.ID, wsWithEmptyAITaskParam.ID)
+
+	require.Len(t, res.Workspaces, 3)
+	workspaceIDs = []uuid.UUID{res.Workspaces[0].ID, res.Workspaces[1].ID, res.Workspaces[2].ID}
+	require.Contains(t, workspaceIDs, wsWithoutAITask.ID)
+	require.Contains(t, workspaceIDs, wsCompletedWithAITaskParam.ID)
+	require.Contains(t, workspaceIDs, wsWithEmptyAITaskParam.ID)
+
+	// Test no filter returns all
+	res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.Len(t, res.Workspaces, 5)
+}
