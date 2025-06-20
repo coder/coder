@@ -861,8 +861,10 @@ func TestWorkspaceBuildDeleteOrphan(t *testing.T) {
 			withRichParameters(nil),
 			withWorkspaceTags(inactiveVersionID, nil),
 			withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{{
-				JobID:             inactiveJobID,
-				ProvisionerDaemon: database.ProvisionerDaemon{},
+				JobID: inactiveJobID,
+				ProvisionerDaemon: database.ProvisionerDaemon{
+					LastSeenAt: sql.NullTime{Valid: true, Time: dbtime.Now()},
+				},
 			}}),
 
 			// Outputs
