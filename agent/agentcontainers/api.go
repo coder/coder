@@ -1218,8 +1218,6 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				appsWithPossibleDuplicates = append(appsWithPossibleDuplicates, customization.Apps...)
 			}
 
-			subAgentConfig.Directory = config.Workspace.WorkspaceFolder
-
 			return nil
 		}(); err != nil {
 			api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
