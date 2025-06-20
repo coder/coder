@@ -75,6 +75,7 @@ func New() database.Store {
 			parameterSchemas:               make([]database.ParameterSchema, 0),
 			presets:                        make([]database.TemplateVersionPreset, 0),
 			presetParameters:               make([]database.TemplateVersionPresetParameter, 0),
+			presetPrebuildSchedules:        make([]database.TemplateVersionPresetPrebuildSchedule, 0),
 			provisionerDaemons:             make([]database.ProvisionerDaemon, 0),
 			provisionerJobs:                make([]database.ProvisionerJob, 0),
 			provisionerJobLogs:             make([]database.ProvisionerJobLog, 0),
@@ -299,6 +300,7 @@ type data struct {
 	telemetryItems                   []database.TelemetryItem
 	presets                          []database.TemplateVersionPreset
 	presetParameters                 []database.TemplateVersionPresetParameter
+	presetPrebuildSchedules          []database.TemplateVersionPresetPrebuildSchedule
 }
 
 func tryPercentileCont(fs []float64, p float64) float64 {
@@ -2779,7 +2781,42 @@ func (q *FakeQuerier) GetAPIKeysLastUsedAfter(_ context.Context, after time.Time
 }
 
 func (q *FakeQuerier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
-	return nil, ErrUnimplemented
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var activeSchedules []database.TemplateVersionPresetPrebuildSchedule
+
+	// Create a map of active template version IDs for quick lookup
+	activeTemplateVersions := make(map[uuid.UUID]bool)
+	for _, template := range q.templates {
+		if !template.Deleted && template.Deprecated == "" {
+			activeTemplateVersions[template.ActiveVersionID] = true
+		}
+	}
+
+	// Create a map of presets for quick lookup
+	presetMap := make(map[uuid.UUID]database.TemplateVersionPreset)
+	for _, preset := range q.presets {
+		presetMap[preset.ID] = preset
+	}
+
+	// Filter preset prebuild schedules to only include those for active template versions
+	for _, schedule := range q.presetPrebuildSchedules {
+		// Look up the preset using the map
+		preset, exists := presetMap[schedule.PresetID]
+		if !exists {
+			continue
+		}
+
+		// Check if preset's template version is active
+		if !activeTemplateVersions[preset.TemplateVersionID] {
+			continue
+		}
+
+		activeSchedules = append(activeSchedules, schedule)
+	}
+
+	return activeSchedules, nil
 }
 
 // nolint:revive // It's not a control flag, it's a filter.
@@ -9201,7 +9238,17 @@ func (q *FakeQuerier) InsertPresetPrebuildSchedule(ctx context.Context, arg data
 		return database.TemplateVersionPresetPrebuildSchedule{}, err
 	}
 
-	return database.TemplateVersionPresetPrebuildSchedule{}, ErrUnimplemented
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	presetPrebuildSchedule := database.TemplateVersionPresetPrebuildSchedule{
+		ID:               uuid.New(),
+		PresetID:         arg.PresetID,
+		CronExpression:   arg.CronExpression,
+		DesiredInstances: arg.DesiredInstances,
+	}
+	q.presetPrebuildSchedules = append(q.presetPrebuildSchedules, presetPrebuildSchedule)
+	return presetPrebuildSchedule, nil
 }
 
 func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
