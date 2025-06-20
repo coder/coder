@@ -1,11 +1,9 @@
 package agentcontainers
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path"
@@ -1114,27 +1112,6 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 	if proc.agent.ID == uuid.Nil || maybeRecreateSubAgent {
 		subAgentConfig.Architecture = arch
 
-		// Detect workspace folder by executing `pwd` in the container.
-		// NOTE(mafredri): This is a quick and dirty way to detect the
-		// workspace folder inside the container. In the future we will
-		// rely more on `devcontainer read-configuration`.
-		var pwdBuf bytes.Buffer
-		err = api.dccli.Exec(ctx, dc.WorkspaceFolder, dc.ConfigPath, "pwd", []string{},
-			WithExecOutput(&pwdBuf, io.Discard),
-			WithExecContainerID(container.ID),
-		)
-		if err != nil {
-			return xerrors.Errorf("check workspace folder in container: %w", err)
-		}
-		directory := strings.TrimSpace(pwdBuf.String())
-		if directory == "" {
-			logger.Warn(ctx, "detected workspace folder is empty, using default workspace folder",
-				slog.F("default_workspace_folder", DevcontainerDefaultContainerWorkspaceFolder),
-			)
-			directory = DevcontainerDefaultContainerWorkspaceFolder
-		}
-		subAgentConfig.Directory = directory
-
 		displayAppsMap := map[codersdk.DisplayApp]bool{
 			// NOTE(DanielleMaywood):
 			// We use the same defaults here as set in terraform-provider-coder.
@@ -1146,7 +1123,10 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			codersdk.DisplayAppPortForward:    true,
 		}
 
-		var appsWithPossibleDuplicates []SubAgentApp
+		var (
+			appsWithPossibleDuplicates []SubAgentApp
+			workspaceFolder            = DevcontainerDefaultContainerWorkspaceFolder
+		)
 
 		if err := func() error {
 			var (
@@ -1166,6 +1146,8 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			if config, err = readConfig(); err != nil {
 				return err
 			}
+
+			workspaceFolder = config.Workspace.WorkspaceFolder
 
 			// NOTE(DanielleMaywood):
 			// We only want to take an agent name specified in the root customization layer.
@@ -1241,6 +1223,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 		subAgentConfig.DisplayApps = displayApps
 		subAgentConfig.Apps = apps
+		subAgentConfig.Directory = workspaceFolder
 	}
 
 	deleteSubAgent := proc.agent.ID != uuid.Nil && maybeRecreateSubAgent && !proc.agent.EqualConfig(subAgentConfig)
