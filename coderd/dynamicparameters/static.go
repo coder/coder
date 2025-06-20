@@ -48,7 +48,7 @@ func (r *Loader) staticRender(ctx context.Context, db database.Store) (*staticRe
 			},
 			// Always use the default, since we used to assume the empty string
 			Value:       previewtypes.StringLiteral(it.DefaultValue),
-			Diagnostics: nil,
+			Diagnostics: make(previewtypes.Diagnostics, 0),
 		}
 
 		if it.ValidationError != "" || it.ValidationRegex != "" || it.ValidationMonotonic != "" {
@@ -82,7 +82,15 @@ func (r *Loader) staticRender(ctx context.Context, db database.Store) (*staticRe
 		}
 
 		var protoOptions []*sdkproto.RichParameterOption
-		_ = json.Unmarshal(it.Options, &protoOptions) // Not going to make this fatal
+		err := json.Unmarshal(it.Options, &protoOptions)
+		if err != nil {
+			param.Diagnostics = append(param.Diagnostics, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Failed to parse json parameter options",
+				Detail:   err.Error(),
+			})
+		}
+
 		for _, opt := range protoOptions {
 			param.Options = append(param.Options, &previewtypes.ParameterOption{
 				Name:        opt.Name,
@@ -97,7 +105,7 @@ func (r *Loader) staticRender(ctx context.Context, db database.Store) (*staticRe
 		// for a given set of conditions.
 		_, param.FormType, _ = provider.ValidateFormType(provider.OptionType(param.Type), len(param.Options), param.FormType)
 
-		param.Diagnostics = previewtypes.Diagnostics(param.Valid(param.Value))
+		param.Diagnostics = append(param.Diagnostics, previewtypes.Diagnostics(param.Valid(param.Value))...)
 		params = append(params, param)
 	}
 
