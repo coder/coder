@@ -724,6 +724,7 @@ func createWorkspace(
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
 			ctx,
 			db,
+			api.FileCache,
 			func(action policy.Action, object rbac.Objecter) bool {
 				return api.Authorize(r, action, object)
 			},

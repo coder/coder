@@ -8,6 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/provisionersdk"
 
 	"github.com/google/uuid"
@@ -94,11 +98,12 @@ func TestBuilder_NoOptions(t *testing.T) {
 			asrt.Empty(params.Value)
 		}),
 	)
+	fc := files.NewFromStore(mDB, prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart)
 	// nolint: dogsled
-	_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+	_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 	req.NoError(err)
 }
 
@@ -133,11 +138,12 @@ func TestBuilder_Initiator(t *testing.T) {
 		}),
 		withBuild,
 	)
+	fc := files.NewFromStore(mDB, prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).Initiator(otherUserID)
 	// nolint: dogsled
-	_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+	_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 	req.NoError(err)
 }
 
@@ -178,11 +184,12 @@ func TestBuilder_Baggage(t *testing.T) {
 		}),
 		withBuild,
 	)
+	fc := files.NewFromStore(mDB, prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).Initiator(otherUserID)
 	// nolint: dogsled
-	_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
+	_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
 	req.NoError(err)
 }
 
@@ -216,11 +223,12 @@ func TestBuilder_Reason(t *testing.T) {
 		}),
 		withBuild,
 	)
+	fc := files.NewFromStore(mDB, prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).Reason(database.BuildReasonAutostart)
 	// nolint: dogsled
-	_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+	_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 	req.NoError(err)
 }
 
@@ -259,11 +267,12 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 		}),
 		withBuild,
 	)
+	fc := files.NewFromStore(mDB, prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).ActiveVersion()
 	// nolint: dogsled
-	_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+	_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 	req.NoError(err)
 }
 
@@ -373,11 +382,12 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 		}),
 		withBuild,
 	)
+	fc := files.NewFromStore(mDB, prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).RichParameterValues(buildParameters)
 	// nolint: dogsled
-	_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+	_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 	req.NoError(err)
 }
 
@@ -455,11 +465,12 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			}),
 			withBuild,
 		)
+		fc := files.NewFromStore(mDB, prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).RichParameterValues(nextBuildParameters)
 		// nolint: dogsled
-		_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 		req.NoError(err)
 	})
 	t.Run("UsePreviousParameterValues", func(t *testing.T) {
@@ -502,11 +513,12 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			}),
 			withBuild,
 		)
+		fc := files.NewFromStore(mDB, prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).RichParameterValues(nextBuildParameters)
 		// nolint: dogsled
-		_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 		req.NoError(err)
 	})
 
@@ -540,10 +552,11 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withParameterSchemas(inactiveJobID, schemas),
 			withWorkspaceTags(inactiveVersionID, nil),
 		)
+		fc := files.NewFromStore(mDB, prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart)
-		_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 		bldErr := wsbuilder.BuildError{}
 		req.ErrorAs(err, &bldErr)
 		asrt.Equal(http.StatusBadRequest, bldErr.Status)
@@ -575,11 +588,12 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			// Outputs
 			// no transaction, since we failed fast while validation build parameters
 		)
+		fc := files.NewFromStore(mDB, prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).RichParameterValues(nextBuildParameters)
 		// nolint: dogsled
-		_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 		bldErr := wsbuilder.BuildError{}
 		req.ErrorAs(err, &bldErr)
 		asrt.Equal(http.StatusBadRequest, bldErr.Status)
@@ -639,12 +653,13 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			}),
 			withBuild,
 		)
+		fc := files.NewFromStore(mDB, prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).
 			RichParameterValues(nextBuildParameters).
 			VersionID(activeVersionID)
-		_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 		req.NoError(err)
 	})
 
@@ -702,12 +717,13 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			}),
 			withBuild,
 		)
+		fc := files.NewFromStore(mDB, prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).
 			RichParameterValues(nextBuildParameters).
 			VersionID(activeVersionID)
-		_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 		req.NoError(err)
 	})
 
@@ -763,13 +779,14 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			}),
 			withBuild,
 		)
+		fc := files.NewFromStore(mDB, prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).
 			RichParameterValues(nextBuildParameters).
 			VersionID(activeVersionID)
 		// nolint: dogsled
-		_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 		req.NoError(err)
 	})
 }
@@ -829,40 +846,15 @@ func TestWorkspaceBuildWithPreset(t *testing.T) {
 			asrt.Empty(params.Value)
 		}),
 	)
+	fc := files.NewFromStore(mDB, prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).
 		ActiveVersion().
 		TemplateVersionPresetID(presetID)
 	// nolint: dogsled
-	_, _, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+	_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 	req.NoError(err)
-}
-
-func TestProvisionerVersionSupportsDynamicParameters(t *testing.T) {
-	t.Parallel()
-
-	for v, dyn := range map[string]bool{
-		"":     false,
-		"na":   false,
-		"0.0":  false,
-		"0.10": false,
-		"1.4":  false,
-		"1.5":  false,
-		"1.6":  true,
-		"1.7":  true,
-		"1.8":  true,
-		"2.0":  true,
-		"2.17": true,
-		"4.0":  true,
-	} {
-		t.Run(v, func(t *testing.T) {
-			t.Parallel()
-
-			does := wsbuilder.ProvisionerVersionSupportsDynamicParameters(v)
-			require.Equal(t, dyn, does)
-		})
-	}
 }
 
 type txExpect func(mTx *dbmock.MockStore)
