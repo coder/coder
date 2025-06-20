@@ -1022,6 +1022,21 @@ func (mr *MockStoreMockRecorder) GetAPIKeysLastUsedAfter(ctx, lastUsed any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAPIKeysLastUsedAfter", reflect.TypeOf((*MockStore)(nil).GetAPIKeysLastUsedAfter), ctx, lastUsed)
 }
 
+// GetActivePresetPrebuildSchedules mocks base method.
+func (m *MockStore) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActivePresetPrebuildSchedules", ctx)
+	ret0, _ := ret[0].([]database.TemplateVersionPresetPrebuildSchedule)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActivePresetPrebuildSchedules indicates an expected call of GetActivePresetPrebuildSchedules.
+func (mr *MockStoreMockRecorder) GetActivePresetPrebuildSchedules(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActivePresetPrebuildSchedules", reflect.TypeOf((*MockStore)(nil).GetActivePresetPrebuildSchedules), ctx)
+}
+
 // GetActiveUserCount mocks base method.
 func (m *MockStore) GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error) {
 	m.ctrl.T.Helper()
@@ -4720,6 +4735,21 @@ func (m *MockStore) InsertPresetParameters(ctx context.Context, arg database.Ins
 func (mr *MockStoreMockRecorder) InsertPresetParameters(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertPresetParameters", reflect.TypeOf((*MockStore)(nil).InsertPresetParameters), ctx, arg)
+}
+
+// InsertPresetPrebuildSchedule mocks base method.
+func (m *MockStore) InsertPresetPrebuildSchedule(ctx context.Context, arg database.InsertPresetPrebuildScheduleParams) (database.TemplateVersionPresetPrebuildSchedule, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertPresetPrebuildSchedule", ctx, arg)
+	ret0, _ := ret[0].(database.TemplateVersionPresetPrebuildSchedule)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertPresetPrebuildSchedule indicates an expected call of InsertPresetPrebuildSchedule.
+func (mr *MockStoreMockRecorder) InsertPresetPrebuildSchedule(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertPresetPrebuildSchedule", reflect.TypeOf((*MockStore)(nil).InsertPresetPrebuildSchedule), ctx, arg)
 }
 
 // InsertProvisionerJob mocks base method.

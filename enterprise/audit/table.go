@@ -351,6 +351,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"display_order":              ActionIgnore,
 		"parent_id":                  ActionIgnore,
 		"api_key_scope":              ActionIgnore,
+		"deleted":                    ActionIgnore,
 	},
 	&database.WorkspaceApp{}: {
 		"id":                    ActionIgnore,

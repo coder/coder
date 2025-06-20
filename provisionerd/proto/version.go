@@ -40,6 +40,9 @@ import "github.com/coder/coder/v2/apiversion"
 //       - `has_ai_tasks` and `ai_tasks` in `PlanComplete`
 //       - `id` in `App` (coder_app)
 //       - new message types `AITaskSidebarApp` and `AITask`
+//   - Add new field named `scheduling` to `Prebuild`, with fields for timezone
+//     and schedule rules to define cron-based scaling of prebuilt workspace
+//     instances based on time patterns.
 const (
 	CurrentMajor = 1
 	CurrentMinor = 7

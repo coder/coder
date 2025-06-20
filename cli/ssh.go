@@ -925,36 +925,33 @@ func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (workspaceAgent codersdk.WorkspaceAgent, err error) {
 	resources := workspace.LatestBuild.Resources
 
-	agents := make([]codersdk.WorkspaceAgent, 0)
+	var (
+		availableNames []string
+		agents         []codersdk.WorkspaceAgent
+	)
 	for _, resource := range resources {
-		agents = append(agents, resource.Agents...)
+		for _, agent := range resource.Agents {
+			availableNames = append(availableNames, agent.Name)
+			agents = append(agents, agent)
+		}
 	}
 	if len(agents) == 0 {
 		return codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q has no agents", workspace.Name)
 	}
+	slices.Sort(availableNames)
 	if agentName != "" {
 		for _, otherAgent := range agents {
 			if otherAgent.Name != agentName {
 				continue
 			}
-			workspaceAgent = otherAgent
-			break
+			return otherAgent, nil
 		}
-		if workspaceAgent.ID == uuid.Nil {
-			return codersdk.WorkspaceAgent{}, xerrors.Errorf("agent not found by name %q", agentName)
-		}
+		return codersdk.WorkspaceAgent{}, xerrors.Errorf("agent not found by name %q, available agents: %v", agentName, availableNames)
 	}
-	if workspaceAgent.ID == uuid.Nil {
-		if len(agents) > 1 {
-			workspaceAgent, err = cryptorand.Element(agents)
-			if err != nil {
-				return codersdk.WorkspaceAgent{}, err
-			}
-		} else {
-			workspaceAgent = agents[0]
-		}
+	if len(agents) == 1 {
+		return agents[0], nil
 	}
-	return workspaceAgent, nil
+	return codersdk.WorkspaceAgent{}, xerrors.Errorf("multiple agents found, please specify the agent name, available agents: %v", availableNames)
 }
 
 // Attempt to poll workspace autostop. We write a per-workspace lockfile to
