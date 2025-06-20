@@ -20,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/testutil"
@@ -55,8 +54,8 @@ func TestMetricsCollector(t *testing.T) {
 			name:         "prebuild provisioned but not completed",
 			transitions:  allTransitions,
 			jobStatuses:  allJobStatusesExcept(database.ProvisionerJobStatusPending, database.ProvisionerJobStatusRunning, database.ProvisionerJobStatusCanceling),
-			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
-			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID},
+			initiatorIDs: []uuid.UUID{database.PrebuildsSystemUserID},
+			ownerIDs:     []uuid.UUID{database.PrebuildsSystemUserID},
 			metrics: []metricCheck{
 				{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
 				{prebuilds.MetricClaimedCount, ptr.To(0.0), true},
@@ -72,8 +71,8 @@ func TestMetricsCollector(t *testing.T) {
 			name:         "prebuild running",
 			transitions:  []database.WorkspaceTransition{database.WorkspaceTransitionStart},
 			jobStatuses:  []database.ProvisionerJobStatus{database.ProvisionerJobStatusSucceeded},
-			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
-			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID},
+			initiatorIDs: []uuid.UUID{database.PrebuildsSystemUserID},
+			ownerIDs:     []uuid.UUID{database.PrebuildsSystemUserID},
 			metrics: []metricCheck{
 				{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
 				{prebuilds.MetricClaimedCount, ptr.To(0.0), true},
@@ -89,8 +88,8 @@ func TestMetricsCollector(t *testing.T) {
 			name:         "prebuild failed",
 			transitions:  allTransitions,
 			jobStatuses:  []database.ProvisionerJobStatus{database.ProvisionerJobStatusFailed},
-			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
-			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID, uuid.New()},
+			initiatorIDs: []uuid.UUID{database.PrebuildsSystemUserID},
+			ownerIDs:     []uuid.UUID{database.PrebuildsSystemUserID, uuid.New()},
 			metrics: []metricCheck{
 				{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
 				{prebuilds.MetricFailedCount, ptr.To(1.0), true},
@@ -105,8 +104,8 @@ func TestMetricsCollector(t *testing.T) {
 			name:         "prebuild eligible",
 			transitions:  []database.WorkspaceTransition{database.WorkspaceTransitionStart},
 			jobStatuses:  []database.ProvisionerJobStatus{database.ProvisionerJobStatusSucceeded},
-			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
-			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID},
+			initiatorIDs: []uuid.UUID{database.PrebuildsSystemUserID},
+			ownerIDs:     []uuid.UUID{database.PrebuildsSystemUserID},
 			metrics: []metricCheck{
 				{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
 				{prebuilds.MetricClaimedCount, ptr.To(0.0), true},
@@ -122,8 +121,8 @@ func TestMetricsCollector(t *testing.T) {
 			name:         "prebuild ineligible",
 			transitions:  allTransitions,
 			jobStatuses:  allJobStatusesExcept(database.ProvisionerJobStatusSucceeded),
-			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
-			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID},
+			initiatorIDs: []uuid.UUID{database.PrebuildsSystemUserID},
+			ownerIDs:     []uuid.UUID{database.PrebuildsSystemUserID},
 			metrics: []metricCheck{
 				{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
 				{prebuilds.MetricClaimedCount, ptr.To(0.0), true},
@@ -139,7 +138,7 @@ func TestMetricsCollector(t *testing.T) {
 			name:         "prebuild claimed",
 			transitions:  allTransitions,
 			jobStatuses:  allJobStatuses,
-			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
+			initiatorIDs: []uuid.UUID{database.PrebuildsSystemUserID},
 			ownerIDs:     []uuid.UUID{uuid.New()},
 			metrics: []metricCheck{
 				{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
@@ -169,8 +168,8 @@ func TestMetricsCollector(t *testing.T) {
 			name:            "deleted templates should not be included in exported metrics",
 			transitions:     allTransitions,
 			jobStatuses:     allJobStatuses,
-			initiatorIDs:    []uuid.UUID{agplprebuilds.SystemUserID},
-			ownerIDs:        []uuid.UUID{agplprebuilds.SystemUserID, uuid.New()},
+			initiatorIDs:    []uuid.UUID{database.PrebuildsSystemUserID},
+			ownerIDs:        []uuid.UUID{database.PrebuildsSystemUserID, uuid.New()},
 			metrics:         nil,
 			templateDeleted: []bool{true},
 			eligible:        []bool{false},
@@ -209,7 +208,7 @@ func TestMetricsCollector(t *testing.T) {
 									reconciler := prebuilds.NewStoreReconciler(db, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 									ctx := testutil.Context(t, testutil.WaitLong)
 
-									createdUsers := []uuid.UUID{agplprebuilds.SystemUserID}
+									createdUsers := []uuid.UUID{database.PrebuildsSystemUserID}
 									for _, user := range slices.Concat(test.ownerIDs, test.initiatorIDs) {
 										if !slices.Contains(createdUsers, user) {
 											dbgen.User(t, db, database.User{
@@ -327,8 +326,8 @@ func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 	test := testCase{
 		transition:  database.WorkspaceTransitionStart,
 		jobStatus:   database.ProvisionerJobStatusSucceeded,
-		initiatorID: agplprebuilds.SystemUserID,
-		ownerID:     agplprebuilds.SystemUserID,
+		initiatorID: database.PrebuildsSystemUserID,
+		ownerID:     database.PrebuildsSystemUserID,
 		metrics: []metricCheck{
 			{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
 			{prebuilds.MetricClaimedCount, ptr.To(0.0), true},

@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/prebuilds"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -833,7 +831,7 @@ func TestGroup(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// nolint:gocritic // "This client is operating as the owner user" is fine in this case.
-		prebuildsUser, err := client.User(ctx, prebuilds.SystemUserID.String())
+		prebuildsUser, err := client.User(ctx, database.PrebuildsSystemUserID.String())
 		require.NoError(t, err)
 		// The 'Everyone' group always has an ID that matches the organization ID.
 		group, err := userAdminClient.Group(ctx, user.OrganizationID)

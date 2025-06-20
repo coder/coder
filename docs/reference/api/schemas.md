@@ -6329,6 +6329,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `oauth2_app_secret`                |
 | `organization`                     |
 | `organization_member`              |
+| `prebuilt_workspace`               |
 | `provisioner_daemon`               |
 | `provisioner_jobs`                 |
 | `replicas`                         |

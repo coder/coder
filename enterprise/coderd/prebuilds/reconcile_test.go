@@ -33,7 +33,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/testutil"
@@ -2021,7 +2020,7 @@ func setupTestDBPrebuild(
 	opts ...prebuildOption,
 ) (database.WorkspaceTable, database.WorkspaceBuild) {
 	t.Helper()
-	return setupTestDBWorkspace(t, clock, db, ps, transition, prebuildStatus, orgID, preset, templateID, templateVersionID, agplprebuilds.SystemUserID, agplprebuilds.SystemUserID, opts...)
+	return setupTestDBWorkspace(t, clock, db, ps, transition, prebuildStatus, orgID, preset, templateID, templateVersionID, database.PrebuildsSystemUserID, database.PrebuildsSystemUserID, opts...)
 }
 
 func setupTestDBWorkspace(

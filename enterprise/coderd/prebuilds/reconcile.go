@@ -265,7 +265,7 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 		}
 
 		membershipReconciler := NewStoreMembershipReconciler(c.store, c.clock)
-		err = membershipReconciler.ReconcileAll(ctx, prebuilds.SystemUserID, snapshot.Presets)
+		err = membershipReconciler.ReconcileAll(ctx, database.PrebuildsSystemUserID, snapshot.Presets)
 		if err != nil {
 			return xerrors.Errorf("reconcile prebuild membership: %w", err)
 		}
@@ -676,7 +676,7 @@ func (c *StoreReconciler) createPrebuiltWorkspace(ctx context.Context, prebuiltW
 			ID:                prebuiltWorkspaceID,
 			CreatedAt:         now,
 			UpdatedAt:         now,
-			OwnerID:           prebuilds.SystemUserID,
+			OwnerID:           database.PrebuildsSystemUserID,
 			OrganizationID:    template.OrganizationID,
 			TemplateID:        template.ID,
 			Name:              name,
@@ -718,7 +718,7 @@ func (c *StoreReconciler) deletePrebuiltWorkspace(ctx context.Context, prebuiltW
 			return xerrors.Errorf("failed to get template: %w", err)
 		}
 
-		if workspace.OwnerID != prebuilds.SystemUserID {
+		if workspace.OwnerID != database.PrebuildsSystemUserID {
 			return xerrors.Errorf("prebuilt workspace is not owned by prebuild user anymore, probably it was claimed")
 		}
 
@@ -761,7 +761,7 @@ func (c *StoreReconciler) provision(
 
 	builder := wsbuilder.New(workspace, transition).
 		Reason(database.BuildReasonInitiator).
-		Initiator(prebuilds.SystemUserID).
+		Initiator(database.PrebuildsSystemUserID).
 		MarkPrebuild()
 
 	if transition != database.WorkspaceTransitionDelete {
