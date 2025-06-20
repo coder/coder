@@ -219,7 +219,7 @@ func TestDelete(t *testing.T) {
 		<-doneChan
 	})
 
-	t.Run("Workspace delete permissions", func(t *testing.T) {
+	t.Run("Prebuilt workspace delete permissions", func(t *testing.T) {
 		t.Parallel()
 		if !dbtestutil.WillUsePostgres() {
 			t.Skip("this test requires postgres")
