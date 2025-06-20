@@ -13,6 +13,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { Label } from "components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "components/RadioGroup/RadioGroup";
+import { Separator } from "components/Separator/Separator";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
@@ -243,6 +244,8 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 										</div>
 									</RadioGroup>
 								</section>
+
+								<Separator />
 
 								{parameters.length > 0 && (
 									<div className="flex flex-col gap-9">
