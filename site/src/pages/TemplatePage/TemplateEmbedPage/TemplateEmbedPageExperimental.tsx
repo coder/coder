@@ -23,12 +23,10 @@ import {
 	Diagnostics,
 	DynamicParameter,
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
-import { ExperimentalFormContext } from "pages/CreateWorkspacePage/ExperimentalFormContext";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
 	useCallback,
-	useContext,
 	useEffect,
 	useMemo,
 	useRef,
@@ -141,7 +139,6 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 	error,
 	sendMessage,
 }) => {
-	const experimentalFormContext = useContext(ExperimentalFormContext);
 	const [buttonValues, setButtonValues] = useState<ButtonValues | undefined>();
 	const [localParameters, setLocalParameters] = useState<
 		Record<string, string>
@@ -205,17 +202,6 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 		<>
 			<div className="flex items-start gap-12">
 				<div className="flex flex-col gap-5 max-w-screen-md">
-					{experimentalFormContext && (
-						<div>
-							<Button
-								size="sm"
-								variant="outline"
-								onClick={experimentalFormContext.toggleOptedOut}
-							>
-								Go back to the classic template embed flow
-							</Button>
-						</div>
-					)}
 					{Boolean(error) && <ErrorAlert error={error} />}
 					{diagnostics.length > 0 && <Diagnostics diagnostics={diagnostics} />}
 					<div className="flex flex-col">
