@@ -492,7 +492,13 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			}); err != nil {
 				return BuildError{http.StatusInternalServerError, "mark orphan-delete provisioner job as completed", err}
 			}
+
 			// TODO: audit baggage?
+
+			// Re-fetch the completed provisioner job.
+			if pj, err := store.GetProvisionerJobByID(b.ctx, provisionerJob.ID); err == nil {
+				provisionerJob = pj
+			}
 
 			if err := store.UpdateWorkspaceDeletedByID(b.ctx, database.UpdateWorkspaceDeletedByIDParams{
 				ID:      b.workspace.ID,

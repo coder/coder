@@ -500,7 +500,9 @@ func TestWorkspaceBuildsProvisionerState(t *testing.T) {
 				Orphan:            true,
 			})
 			require.NoError(t, err)
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, build.ID)
+			require.Equal(t, codersdk.WorkspaceTransitionDelete, build.Transition)
+			require.Equal(t, codersdk.ProvisionerJobFailed, build.Job.Status)
+			require.Contains(t, build.Job.Error, "No provisioners were available to handle the request")
 
 			ws, err := client.Workspace(ctx, r.Workspace.ID)
 			require.Empty(t, ws)

@@ -967,6 +967,9 @@ func TestWorkspaceBuildDeleteOrphan(t *testing.T) {
 				asrt.Equal(workspaceID, params.ID)
 				asrt.True(params.Deleted)
 			}),
+			expectGetProvisionerJobByID(func(job database.ProvisionerJob) {
+				asrt.Equal(jobID, job.ID)
+			}),
 		)
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
@@ -1271,6 +1274,22 @@ func expectUpdateWorkspaceDeletedByID(assertions func(params database.UpdateWork
 				func(ctx context.Context, params database.UpdateWorkspaceDeletedByIDParams) error {
 					assertions(params)
 					return nil
+				},
+			)
+	}
+}
+
+// expectGetProvisionerJobByID asserts a call to GetProvisionerJobByID
+// and runs the provided assertions against it.
+func expectGetProvisionerJobByID(assertions func(job database.ProvisionerJob)) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
+		mTx.EXPECT().GetProvisionerJobByID(gomock.Any(), gomock.Any()).
+			Times(1).
+			DoAndReturn(
+				func(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+					job := database.ProvisionerJob{ID: id}
+					assertions(job)
+					return job, nil
 				},
 			)
 	}
