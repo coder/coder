@@ -8,12 +8,14 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-chi/chi/v5"
@@ -583,10 +585,10 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 		if dc.Container != nil {
 			if !api.devcontainerNames[dc.Name] {
 				// If the devcontainer name wasn't set via terraform, we
-				// use the containers friendly name as a fallback which
-				// will keep changing as the devcontainer is recreated.
-				// TODO(mafredri): Parse the container label (i.e. devcontainer.json) for customization.
-				dc.Name = safeFriendlyName(dc.Container.FriendlyName)
+				// will attempt to create an agent name based on the workspace
+				// folder's name. If that is not possible, we will fall back
+				// to using the container's friendly name.
+				dc.Name = safeAgentName(filepath.Base(dc.WorkspaceFolder), dc.Container.FriendlyName)
 			}
 		}
 
@@ -629,6 +631,39 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 
 	api.containers = updated
 	api.containersErr = nil
+}
+
+var consecutiveHyphenRegex = regexp.MustCompile("-+")
+
+// safeAgentName returns an agent name safe version
+// of a folder name, falling back to a safe version
+// of the container name if unable to create a name.
+func safeAgentName(name string, friendlyName string) string {
+	// Keep only letters and digits, replacing everything
+	// else with a hyphen.
+	var sb strings.Builder
+	for _, r := range strings.ToLower(name) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			sb.WriteRune(r)
+		} else {
+			sb.WriteRune('-')
+		}
+	}
+
+	// Remove any consecutive hyphens, and then trim and leading
+	// and trailing hyphens.
+	name = consecutiveHyphenRegex.ReplaceAllString(sb.String(), "-")
+	name = strings.Trim(name, "-")
+
+	name = strings.ToLower(name)
+	name = strings.ReplaceAll(name, " ", "-")
+	name = strings.ReplaceAll(name, "_", "-")
+
+	if name == "" {
+		return safeFriendlyName(name)
+	}
+
+	return name
 }
 
 // safeFriendlyName returns a API safe version of the container's
@@ -1188,6 +1223,8 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 				appsWithPossibleDuplicates = append(appsWithPossibleDuplicates, customization.Apps...)
 			}
+
+			subAgentConfig.Directory = config.Workspace.WorkspaceFolder
 
 			return nil
 		}(); err != nil {
