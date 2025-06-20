@@ -49,7 +49,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 	//    usually means that builds are failing as well.
 	// b) No provisioner is available to delete the workspace, which will
 	//    cause the job to remain in the "pending" state indefinitely.
-	//    The assumption here is that and admin will cancel the job.
+	//    The assumption here is that an admin will cancel the job.
 	const canOrphan =
 		canDeleteFailedWorkspace &&
 		(workspace.latest_build.status === "failed" ||
