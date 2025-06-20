@@ -264,6 +264,24 @@ func (w WorkspaceTable) DormantRBAC() rbac.Object {
 		WithOwner(w.OwnerID.String())
 }
 
+// IsPrebuild returns true if the workspace is a prebuild workspace.
+// A workspace is considered a prebuild if its owner is the prebuild system user.
+func (w WorkspaceTable) IsPrebuild() bool {
+	return w.OwnerID == PrebuildsSystemUserID
+}
+
+// AsPrebuild returns the RBAC object corresponding to the workspace type.
+// If the workspace is a prebuild, it returns a prebuilt_workspace RBAC object.
+// Otherwise, it returns a normal workspace RBAC object.
+func (w WorkspaceTable) AsPrebuild() rbac.Object {
+	if w.IsPrebuild() {
+		return rbac.ResourcePrebuiltWorkspace.WithID(w.ID).
+			InOrg(w.OrganizationID).
+			WithOwner(w.OwnerID.String())
+	}
+	return w.RBACObject()
+}
+
 func (m OrganizationMember) RBACObject() rbac.Object {
 	return rbac.ResourceOrganizationMember.
 		WithID(m.UserID).
