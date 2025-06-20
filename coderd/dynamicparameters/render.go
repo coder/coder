@@ -107,6 +107,10 @@ func (r *loader) loadData(ctx context.Context, db database.Store) error {
 
 	if r.terraformValues == nil {
 		values, err := db.GetTemplateVersionTerraformValues(ctx, r.templateVersion.ID)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("template version terraform values: %w", err)
+		}
+
 		if xerrors.Is(err, sql.ErrNoRows) {
 			// If the row does not exist, return zero values.
 			//
@@ -119,9 +123,8 @@ func (r *loader) loadData(ctx context.Context, db database.Store) error {
 				CachedModuleFiles:   uuid.NullUUID{},
 				ProvisionerdVersion: "",
 			}
-		} else {
-			return xerrors.Errorf("template version terraform values: %w", err)
 		}
+
 		r.terraformValues = &values
 	}
 
