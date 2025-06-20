@@ -3622,11 +3622,16 @@ export interface WorkspaceAppStatus {
 }
 
 // From codersdk/workspaceapps.go
-export type WorkspaceAppStatusState = "complete" | "failure" | "working";
+export type WorkspaceAppStatusState =
+	| "complete"
+	| "failure"
+	| "idle"
+	| "working";
 
 export const WorkspaceAppStatusStates: WorkspaceAppStatusState[] = [
 	"complete",
 	"failure",
+	"idle",
 	"working",
 ];
 

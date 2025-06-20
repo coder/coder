@@ -48,6 +48,40 @@ export const WorkingState: Story = {
 	},
 };
 
+export const IdleState: Story = {
+	args: {
+		agent: mockAgent([
+			{
+				...MockWorkspaceAppStatus,
+				id: "status-8",
+				icon: "",
+				message: "Done for now",
+				created_at: createTimestamp(5, 20),
+				uri: "",
+				state: "idle" as const,
+			},
+			...MockWorkspaceAppStatuses,
+		]),
+	},
+};
+
+export const NoMessage: Story = {
+	args: {
+		agent: mockAgent([
+			{
+				...MockWorkspaceAppStatus,
+				id: "status-8",
+				icon: "",
+				message: "",
+				created_at: createTimestamp(5, 20),
+				uri: "",
+				state: "idle" as const,
+			},
+			...MockWorkspaceAppStatuses,
+		]),
+	},
+};
+
 export const LongStatusText: Story = {
 	args: {
 		agent: mockAgent([
