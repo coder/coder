@@ -12,23 +12,33 @@ import (
 
 func main() {
 	var customPath string
+	var cachePath string
 	flag.StringVar(&customPath, "path", "", "Optional custom path for postgres data directory")
+	flag.StringVar(&cachePath, "cache", "", "Optional custom path for embedded postgres binaries")
 	flag.Parse()
 
 	postgresPath := filepath.Join(os.TempDir(), "coder-test-postgres")
 	if customPath != "" {
 		postgresPath = customPath
 	}
+	if err := os.MkdirAll(postgresPath, os.ModePerm); err != nil {
+		panic(err)
+	}
+	if cachePath == "" {
+		cachePath = filepath.Join(postgresPath, "cache")
+	}
+	if err := os.MkdirAll(cachePath, os.ModePerm); err != nil {
+		panic(err)
+	}
 
 	ep := embeddedpostgres.NewDatabase(
 		embeddedpostgres.DefaultConfig().
 			Version(embeddedpostgres.V16).
 			BinariesPath(filepath.Join(postgresPath, "bin")).
-			// Default BinaryRepositoryURL repo1.maven.org is flaky.
 			BinaryRepositoryURL("https://repo.maven.apache.org/maven2").
 			DataPath(filepath.Join(postgresPath, "data")).
 			RuntimePath(filepath.Join(postgresPath, "runtime")).
-			CachePath(filepath.Join(postgresPath, "cache")).
+			CachePath(cachePath).
 			Username("postgres").
 			Password("postgres").
 			Database("postgres").
