@@ -267,14 +267,14 @@ func (p PresetSnapshot) CalculateState() *ReconciliationState {
 // - ActionTypeBackoff: Only BackoffUntil is set, indicating when to retry
 // - ActionTypeCreate: Only Create is set, indicating how many prebuilds to create
 // - ActionTypeDelete: Only DeleteIDs is set, containing IDs of prebuilds to delete
-func (p PresetSnapshot) CalculateActions(clock quartz.Clock, backoffInterval time.Duration) ([]*ReconciliationActions, error) {
+func (p PresetSnapshot) CalculateActions(backoffInterval time.Duration) ([]*ReconciliationActions, error) {
 	// TODO: align workspace states with how we represent them on the FE and the CLI
 	//	     right now there's some slight differences which can lead to additional prebuilds being created
 
 	// TODO: add mechanism to prevent prebuilds being reconciled from being claimable by users; i.e. if a prebuild is
 	// 		 about to be deleted, it should not be deleted if it has been claimed - beware of TOCTOU races!
 
-	actions, needsBackoff := p.needsBackoffPeriod(clock, backoffInterval)
+	actions, needsBackoff := p.needsBackoffPeriod(p.clock, backoffInterval)
 	if needsBackoff {
 		return actions, nil
 	}
