@@ -1,8 +1,5 @@
 import CheckOutlined from "@mui/icons-material/CheckOutlined";
 import FileCopyOutlined from "@mui/icons-material/FileCopyOutlined";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Radio from "@mui/material/Radio";
-import RadioGroup from "@mui/material/RadioGroup";
 import { API } from "api/api";
 import { DetailedError } from "api/errors";
 import type {
@@ -11,12 +8,13 @@ import type {
 	FriendlyDiagnostic,
 	PreviewParameter,
 	Template,
-	User,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
-import { FormSection } from "components/Form/Form";
-import { Loader } from "components/Loader/Loader";
+import { Label } from "components/Label/Label";
+import { RadioGroup, RadioGroupItem } from "components/RadioGroup/RadioGroup";
+import { Skeleton } from "components/Skeleton/Skeleton";
+import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useClipboard } from "hooks/useClipboard";
 import {
@@ -24,43 +22,34 @@ import {
 	DynamicParameter,
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { type FC, useEffect, useMemo, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
 
 type ButtonValues = Record<string, string>;
 
 const TemplateEmbedPageExperimental: FC = () => {
 	const { template } = useTemplateLayoutContext();
+	const { user: me } = useAuthenticated();
 	const [latestResponse, setLatestResponse] =
 		useState<DynamicParametersResponse | null>(null);
 	const wsResponseId = useRef<number>(-1);
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
 
-	const { data: authenticatedUser } = useQuery<User>({
-		queryKey: ["authenticatedUser"],
-		queryFn: () => API.getAuthenticatedUser(),
-	});
-
-	const sendMessage = useCallback((formValues: Record<string, string>) => {
-		const request: DynamicParametersRequest = {
-			id: wsResponseId.current + 1,
-			inputs: formValues,
-		};
-		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-			ws.current.send(JSON.stringify(request));
-			wsResponseId.current = wsResponseId.current + 1;
-		}
-	}, []);
+	const sendMessage = useEffectEvent(
+		(formValues: Record<string, string>, ownerId?: string) => {
+			const request: DynamicParametersRequest = {
+				id: wsResponseId.current + 1,
+				owner_id: me.id,
+				inputs: formValues,
+			};
+			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+				ws.current.send(JSON.stringify(request));
+				wsResponseId.current = wsResponseId.current + 1;
+			}
+		},
+	);
 
 	const onMessage = useEffectEvent((response: DynamicParametersResponse) => {
 		if (latestResponse && latestResponse?.id >= response.id) {
@@ -71,25 +60,29 @@ const TemplateEmbedPageExperimental: FC = () => {
 	});
 
 	useEffect(() => {
-		if (!template.active_version_id || !authenticatedUser) {
+		if (!template.active_version_id || !me) {
 			return;
 		}
 
 		const socket = API.templateVersionDynamicParameters(
-			authenticatedUser.id,
 			template.active_version_id,
+			me.id,
 			{
 				onMessage,
 				onError: (error) => {
-					setWsError(error);
+					if (ws.current === socket) {
+						setWsError(error);
+					}
 				},
 				onClose: () => {
-					setWsError(
-						new DetailedError(
-							"Websocket connection for dynamic parameters unexpectedly closed.",
-							"Refresh the page to reset the form.",
-						),
-					);
+					if (ws.current === socket) {
+						setWsError(
+							new DetailedError(
+								"Websocket connection for dynamic parameters unexpectedly closed.",
+								"Refresh the page to reset the form.",
+							),
+						);
+					}
 				},
 			},
 		);
@@ -99,7 +92,7 @@ const TemplateEmbedPageExperimental: FC = () => {
 		return () => {
 			socket.close();
 		};
-	}, [authenticatedUser, template.active_version_id, onMessage]);
+	}, [template.active_version_id, onMessage, me]);
 
 	const sortedParams = useMemo(() => {
 		if (!latestResponse?.parameters) {
@@ -107,6 +100,9 @@ const TemplateEmbedPageExperimental: FC = () => {
 		}
 		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
 	}, [latestResponse?.parameters]);
+
+	const isLoading =
+		ws.current?.readyState === WebSocket.CONNECTING || !latestResponse;
 
 	return (
 		<>
@@ -119,6 +115,7 @@ const TemplateEmbedPageExperimental: FC = () => {
 				diagnostics={latestResponse?.diagnostics ?? []}
 				error={wsError}
 				sendMessage={sendMessage}
+				isLoading={isLoading}
 			/>
 		</>
 	);
@@ -130,6 +127,7 @@ interface TemplateEmbedPageViewProps {
 	diagnostics: readonly FriendlyDiagnostic[];
 	error: unknown;
 	sendMessage: (message: Record<string, string>) => void;
+	isLoading: boolean;
 }
 
 const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
@@ -138,45 +136,46 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 	diagnostics,
 	error,
 	sendMessage,
+	isLoading,
 }) => {
-	const [buttonValues, setButtonValues] = useState<ButtonValues | undefined>();
-	const [localParameters, setLocalParameters] = useState<
-		Record<string, string>
-	>({});
+	const [formState, setFormState] = useState<{
+		mode: "manual" | "auto";
+		paramValues: Record<string, string>;
+	}>({
+		mode: "manual",
+		paramValues: {},
+	});
 
 	useEffect(() => {
 		if (parameters) {
-			const initialInputs: Record<string, string> = {};
-			const currentMode = buttonValues?.mode || "manual";
-			const initialButtonParamValues: ButtonValues = { mode: currentMode };
-
+			const serverParamValues: Record<string, string> = {};
 			for (const p of parameters) {
 				const initialVal = p.value?.valid ? p.value.value : "";
-				initialInputs[p.name] = initialVal;
-				initialButtonParamValues[`param.${p.name}`] = initialVal;
+				serverParamValues[p.name] = initialVal;
 			}
-			setLocalParameters(initialInputs);
-
-			setButtonValues(initialButtonParamValues);
+			setFormState((prev) => ({ ...prev, paramValues: serverParamValues }));
 		}
-	}, [parameters, buttonValues?.mode]);
+	}, [parameters]);
+
+	const buttonValues = useMemo(() => {
+		const values: ButtonValues = { mode: formState.mode };
+		for (const [key, value] of Object.entries(formState.paramValues)) {
+			values[`param.${key}`] = value;
+		}
+		return values;
+	}, [formState]);
 
 	const handleChange = (
 		changedParamInfo: PreviewParameter,
 		newValue: string,
 	) => {
-		const newFormInputs = {
-			...localParameters,
+		const newParamValues = {
+			...formState.paramValues,
 			[changedParamInfo.name]: newValue,
 		};
-		setLocalParameters(newFormInputs);
+		setFormState((prev) => ({ ...prev, paramValues: newParamValues }));
 
-		setButtonValues((prevButtonValues) => ({
-			...(prevButtonValues || {}),
-			[`param.${changedParamInfo.name}`]: newValue,
-		}));
-
-		const formInputsToSend: Record<string, string> = { ...newFormInputs };
+		const formInputsToSend: Record<string, string> = { ...newParamValues };
 		for (const p of parameters) {
 			if (!(p.name in formInputsToSend)) {
 				formInputsToSend[p.name] = p.value?.valid ? p.value.value : "";
@@ -186,68 +185,84 @@ const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 		sendMessage(formInputsToSend);
 	};
 
-	useEffect(() => {
-		if (!buttonValues && parameters.length === 0) {
-			setButtonValues({ mode: "manual" });
-		} else if (buttonValues && !buttonValues.mode && parameters.length > 0) {
-			setButtonValues((prev) => ({ ...prev, mode: "manual" }));
-		}
-	}, [buttonValues, parameters]);
-
-	if (!buttonValues || (!parameters && !error)) {
-		return <Loader />;
-	}
-
 	return (
 		<>
 			<div className="flex items-start gap-12">
-				<div className="flex flex-col gap-5 max-w-screen-md">
-					{Boolean(error) && <ErrorAlert error={error} />}
-					{diagnostics.length > 0 && <Diagnostics diagnostics={diagnostics} />}
-					<div className="flex flex-col">
-						<FormSection
-							title="Creation mode"
-							description="By changing the mode to automatic, when the user clicks the button, the workspace will be created automatically instead of showing a form to the user."
-						>
-							<RadioGroup
-								defaultValue={buttonValues?.mode || "manual"}
-								onChange={(_, v) => {
-									setButtonValues((prevButtonValues) => ({
-										...(prevButtonValues || {}),
-										mode: v,
-									}));
-								}}
-							>
-								<FormControlLabel
-									value="manual"
-									control={<Radio size="small" />}
-									label="Manual"
-								/>
-								<FormControlLabel
-									value="auto"
-									control={<Radio size="small" />}
-									label="Automatic"
-								/>
-							</RadioGroup>
-						</FormSection>
-
-						{parameters.length > 0 && (
-							<div className="flex flex-col gap-9">
-								{parameters.map((parameter) => {
-									const isDisabled = parameter.styling?.disabled;
-									return (
-										<DynamicParameter
-											key={parameter.name}
-											parameter={parameter}
-											onChange={(value) => handleChange(parameter, value)}
-											disabled={isDisabled}
-											value={localParameters[parameter.name] || ""}
-										/>
-									);
-								})}
+				<div className="w-full flex flex-col gap-5 max-w-screen-md">
+					{isLoading ? (
+						<div className="flex flex-col gap-9">
+							<div className="flex flex-col gap-2">
+								<Skeleton className="h-5 w-1/3" />
+								<Skeleton className="h-9 w-full" />
 							</div>
-						)}
-					</div>
+							<div className="flex flex-col gap-2">
+								<Skeleton className="h-5 w-1/3" />
+								<Skeleton className="h-9 w-full" />
+							</div>
+							<div className="flex flex-col gap-2">
+								<Skeleton className="h-5 w-1/3" />
+								<Skeleton className="h-9 w-full" />
+							</div>
+						</div>
+					) : (
+						<>
+							{Boolean(error) && <ErrorAlert error={error} />}
+							{diagnostics.length > 0 && (
+								<Diagnostics diagnostics={diagnostics} />
+							)}
+							<div className="flex flex-col gap-9">
+								<section className="flex flex-col gap-2">
+									<div>
+										<h2 className="text-lg font-bold m-0">Creation mode</h2>
+										<p className="text-sm text-content-secondary m-0">
+											When set to automatic mode, clicking the button will
+											create the workspace automatically without displaying a
+											form to the user.
+										</p>
+									</div>
+									<RadioGroup
+										value={formState.mode}
+										onValueChange={(v) => {
+											setFormState((prev) => ({
+												...prev,
+												mode: v as "manual" | "auto",
+											}));
+										}}
+									>
+										<div className="flex items-center gap-3">
+											<RadioGroupItem value="manual" id="manual" />
+											<Label htmlFor={"manual"} className="cursor-pointer">
+												Manual
+											</Label>
+										</div>
+										<div className="flex items-center gap-3">
+											<RadioGroupItem value="auto" id="automatic" />
+											<Label htmlFor={"automatic"} className="cursor-pointer">
+												Automatic
+											</Label>
+										</div>
+									</RadioGroup>
+								</section>
+
+								{parameters.length > 0 && (
+									<div className="flex flex-col gap-9">
+										{parameters.map((parameter) => {
+											const isDisabled = parameter.styling?.disabled;
+											return (
+												<DynamicParameter
+													key={parameter.name}
+													parameter={parameter}
+													onChange={(value) => handleChange(parameter, value)}
+													disabled={isDisabled}
+													value={formState.paramValues[parameter.name] || ""}
+												/>
+											);
+										})}
+									</div>
+								)}
+							</div>
+						</>
+					)}
 				</div>
 
 				<ButtonPreview template={template} buttonValues={buttonValues} />
@@ -285,7 +300,7 @@ const ButtonPreview: FC<ButtonPreviewProps> = ({ template, buttonValues }) => {
 
 	return (
 		<div
-			className="sticky top-10 flex gap-16 h-80 p-14 flex-1 flex-col items-center justify-center
+			className="sticky top-10 flex gap-16 h-96 flex-1 flex-col items-center justify-center
 			 rounded-lg border border-border border-solid bg-surface-secondary"
 		>
 			<img src="/open-in-coder.svg" alt="Open in Coder button" />
