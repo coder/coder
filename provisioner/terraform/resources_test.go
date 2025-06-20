@@ -11,11 +11,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coder/terraform-provider-coder/v2/provider"
 	"github.com/google/go-cmp/cmp"
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
 	protobuf "google.golang.org/protobuf/proto"
+
+	"github.com/coder/terraform-provider-coder/v2/provider"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"

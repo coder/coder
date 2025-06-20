@@ -12035,6 +12035,7 @@ func (q *FakeQuerier) UpdateWorkspaceBuildAITaskByID(_ context.Context, arg data
 			continue
 		}
 		workspaceBuild.HasAITask = arg.HasAITask
+		workspaceBuild.AITaskSidebarAppID = arg.SidebarAppID
 		workspaceBuild.UpdatedAt = dbtime.Now()
 		q.workspaceBuilds[index] = workspaceBuild
 		return nil
