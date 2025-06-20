@@ -234,7 +234,12 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 								id="use_classic_parameter_flow"
 								name="use_classic_parameter_flow"
 								checked={!form.values.use_classic_parameter_flow}
-								onChange={form.handleChange}
+								onChange={(event) =>
+									form.setFieldValue(
+										"use_classic_parameter_flow",
+										!event.currentTarget.checked,
+									)
+								}
 								disabled={false}
 							/>
 						}
