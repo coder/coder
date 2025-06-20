@@ -131,46 +131,48 @@ func (r *loader) Renderer(ctx context.Context, db database.Store, cache *files.C
 		return r.staticRender(ctx, db)
 	}
 
-	return r.dynamicRenderer(ctx, db, cache)
+	return r.dynamicRenderer(ctx, db, files.NewCacheCloser(cache))
 }
 
 // Renderer caches all the necessary files when rendering a template version's
 // parameters. It must be closed after use to release the cached files.
-func (r *loader) dynamicRenderer(ctx context.Context, db database.Store, cache *files.Cache) (*dynamicRenderer, error) {
+func (r *loader) dynamicRenderer(ctx context.Context, db database.Store, cache *files.CacheCloser) (*dynamicRenderer, error) {
+	closeFiles := true // If the function returns with no error, this will toggle to false.
+	defer func() {
+		if closeFiles {
+			cache.Close()
+		}
+	}()
+
 	// If they can read the template version, then they can read the file for
 	// parameter loading purposes.
 	//nolint:gocritic
 	fileCtx := dbauthz.AsFileReader(ctx)
-	templateFS, err := cache.Acquire(fileCtx, r.job.FileID)
+
+	var templateFS fs.FS
+	var err error
+
+	templateFS, err = cache.Acquire(fileCtx, r.job.FileID)
 	if err != nil {
 		return nil, xerrors.Errorf("acquire template file: %w", err)
 	}
 
-	var terraformFS fs.FS = templateFS
 	var moduleFilesFS *files.CloseFS
 	if r.terraformValues.CachedModuleFiles.Valid {
 		moduleFilesFS, err = cache.Acquire(fileCtx, r.terraformValues.CachedModuleFiles.UUID)
 		if err != nil {
-			templateFS.Close()
 			return nil, xerrors.Errorf("acquire module files: %w", err)
 		}
-		terraformFS = files.NewOverlayFS(templateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
+		templateFS = files.NewOverlayFS(templateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
 	}
 
+	closeFiles = false // Caller will have to call close
 	return &dynamicRenderer{
 		data:        r,
-		templateFS:  terraformFS,
+		templateFS:  templateFS,
 		db:          db,
 		ownerErrors: make(map[uuid.UUID]error),
-		close: func() {
-			// Up to 2 files are cached, and must be released when rendering is complete.
-			// TODO: Might be smart to always call release when the context is
-			//  canceled.
-			templateFS.Close()
-			if moduleFilesFS != nil {
-				moduleFilesFS.Close()
-			}
-		},
+		close:       cache.Close,
 	}, nil
 }
 
