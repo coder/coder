@@ -22,6 +22,11 @@ import (
 type DevcontainerConfig struct {
 	MergedConfiguration DevcontainerMergedConfiguration `json:"mergedConfiguration"`
 	Configuration       DevcontainerConfiguration       `json:"configuration"`
+	Workspace           DevcontainerWorkspace           `json:"workspace"`
+}
+
+type DevcontainerWorkspace struct {
+	WorkspaceFolder string `json:"workspaceFolder"`
 }
 
 type DevcontainerMergedConfiguration struct {
