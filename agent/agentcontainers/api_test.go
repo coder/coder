@@ -1884,6 +1884,111 @@ func TestAPI(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("CreateReadsConfigTwice", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("Dev Container tests are not supported on Windows (this test uses mocks but fails due to Windows paths)")
+		}
+
+		var (
+			ctx    = testutil.Context(t, testutil.WaitMedium)
+			logger = testutil.Logger(t)
+			mClock = quartz.NewMock(t)
+			mCCLI  = acmock.NewMockContainerCLI(gomock.NewController(t))
+			fSAC   = &fakeSubAgentClient{
+				logger:     logger.Named("fakeSubAgentClient"),
+				createErrC: make(chan error, 1),
+			}
+			fDCCLI = &fakeDevcontainerCLI{
+				readConfig: agentcontainers.DevcontainerConfig{
+					Configuration: agentcontainers.DevcontainerConfiguration{
+						Customizations: agentcontainers.DevcontainerCustomizations{
+							Coder: agentcontainers.CoderCustomization{
+								// We want to specify a custom name for this agent.
+								Name: "custom-name",
+							},
+						},
+					},
+				},
+				readConfigErrC: make(chan func(envs []string) error, 2),
+				execErrC:       make(chan func(cmd string, args ...string) error, 1),
+			}
+
+			testContainer = codersdk.WorkspaceAgentContainer{
+				ID:           "test-container-id",
+				FriendlyName: "test-container",
+				Image:        "test-image",
+				Running:      true,
+				CreatedAt:    time.Now(),
+				Labels: map[string]string{
+					agentcontainers.DevcontainerLocalFolderLabel: "/workspaces",
+					agentcontainers.DevcontainerConfigFileLabel:  "/workspace/.devcontainer/devcontainer.json",
+				},
+			}
+		)
+
+		coderBin, err := os.Executable()
+		require.NoError(t, err)
+
+		// Mock the `List` function to always return out test container.
+		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentContainer{testContainer},
+		}, nil).AnyTimes()
+
+		// Mock the steps used for injecting the coder agent.
+		gomock.InOrder(
+			mCCLI.EXPECT().DetectArchitecture(gomock.Any(), testContainer.ID).Return(runtime.GOARCH, nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
+			mCCLI.EXPECT().Copy(gomock.Any(), testContainer.ID, coderBin, "/.coder-agent/coder").Return(nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
+		)
+
+		mClock.Set(time.Now()).MustWait(ctx)
+		tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+
+		api := agentcontainers.NewAPI(logger,
+			agentcontainers.WithClock(mClock),
+			agentcontainers.WithContainerCLI(mCCLI),
+			agentcontainers.WithDevcontainerCLI(fDCCLI),
+			agentcontainers.WithSubAgentClient(fSAC),
+			agentcontainers.WithSubAgentURL("test-subagent-url"),
+			agentcontainers.WithWatcher(watcher.NewNoop()),
+		)
+		defer api.Close()
+
+		// Close before api.Close() defer to avoid deadlock after test.
+		defer close(fSAC.createErrC)
+		defer close(fDCCLI.execErrC)
+		defer close(fDCCLI.readConfigErrC)
+
+		// Given: We allow agent creation and injection to succeed.
+		testutil.RequireSend(ctx, t, fSAC.createErrC, nil)
+		testutil.RequireSend(ctx, t, fDCCLI.execErrC, func(cmd string, args ...string) error {
+			assert.Equal(t, "pwd", cmd)
+			assert.Empty(t, args)
+			return nil
+		})
+		testutil.RequireSend(ctx, t, fDCCLI.readConfigErrC, func(env []string) error {
+			// We expect the wrong workspace agent name passed in first.
+			assert.Contains(t, env, "CODER_WORKSPACE_AGENT_NAME=test-container")
+			return nil
+		})
+		testutil.RequireSend(ctx, t, fDCCLI.readConfigErrC, func(env []string) error {
+			// We then expect the agent name passed here to have been read from the config.
+			assert.Contains(t, env, "CODER_WORKSPACE_AGENT_NAME=custom-name")
+			assert.NotContains(t, env, "CODER_WORKSPACE_AGENT_NAME=test-container")
+			return nil
+		})
+
+		// Wait until the ticker has been registered.
+		tickerTrap.MustWait(ctx).MustRelease(ctx)
+		tickerTrap.Close()
+
+		// Then: We expected it to succeed
+		require.Len(t, fSAC.created, 1)
+	})
 }
 
 // mustFindDevcontainerByPath returns the devcontainer with the given workspace

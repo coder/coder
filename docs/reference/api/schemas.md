@@ -8588,10 +8588,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
   "latest_build": {
+    "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "has_ai_task": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -9690,10 +9692,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
   "build_number": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
+  "has_ai_task": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",
@@ -9896,10 +9900,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                         | Type                                                              | Required | Restrictions | Description                                                         |
 |------------------------------|-------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
+| `ai_task_sidebar_app_id`     | string                                                            | false    |              |                                                                     |
 | `build_number`               | integer                                                           | false    |              |                                                                     |
 | `created_at`                 | string                                                            | false    |              |                                                                     |
 | `daily_cost`                 | integer                                                           | false    |              |                                                                     |
 | `deadline`                   | string                                                            | false    |              |                                                                     |
+| `has_ai_task`                | boolean                                                           | false    |              |                                                                     |
 | `id`                         | string                                                            | false    |              |                                                                     |
 | `initiator_id`               | string                                                            | false    |              |                                                                     |
 | `initiator_name`             | string                                                            | false    |              |                                                                     |
@@ -10416,10 +10422,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
       },
       "latest_build": {
+        "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
         "build_number": 0,
         "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
         "deadline": "2019-08-24T14:15:22Z",
+        "has_ai_task": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
         "initiator_name": "string",
