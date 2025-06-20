@@ -1173,6 +1173,8 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				return err
 			}
 
+			subAgentConfig.Directory = config.Workspace.WorkspaceFolder
+
 			// NOTE(DanielleMaywood):
 			// We only want to take an agent name specified in the root customization layer.
 			// This restricts the ability for a feature to specify the agent name. We may revisit
@@ -1212,8 +1214,6 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 				appsWithPossibleDuplicates = append(appsWithPossibleDuplicates, customization.Apps...)
 			}
-
-			subAgentConfig.Directory = config.Workspace.WorkspaceFolder
 
 			return nil
 		}(); err != nil {
