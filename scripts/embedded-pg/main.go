@@ -22,13 +22,13 @@ func main() {
 		postgresPath = customPath
 	}
 	if err := os.MkdirAll(postgresPath, os.ModePerm); err != nil {
-		panic(err)
+		log.Fatalf("Failed to create directory %s: %v", postgresPath, err)
 	}
 	if cachePath == "" {
 		cachePath = filepath.Join(postgresPath, "cache")
 	}
 	if err := os.MkdirAll(cachePath, os.ModePerm); err != nil {
-		panic(err)
+		log.Fatalf("Failed to create directory %s: %v", cachePath, err)
 	}
 
 	ep := embeddedpostgres.NewDatabase(
