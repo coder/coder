@@ -2,8 +2,8 @@ package dynamicparameters
 
 import (
 	"context"
-	"encoding/json"
 	"io/fs"
+	"log/slog"
 	"sync"
 
 	"github.com/google/uuid"
@@ -152,16 +152,10 @@ func (r *Loader) dynamicRenderer(ctx context.Context, db database.Store, cache *
 		terraformFS = files.NewOverlayFS(templateFS, []files.Overlay{{Path: ".terraform/modules", FS: moduleFilesFS}})
 	}
 
-	plan := json.RawMessage("{}")
-	if len(r.terraformValues.CachedPlan) > 0 {
-		plan = r.terraformValues.CachedPlan
-	}
-
 	return &dynamicRenderer{
 		data:        r,
 		templateFS:  terraformFS,
 		db:          db,
-		plan:        plan,
 		ownerErrors: make(map[uuid.UUID]error),
 		close: func() {
 			// Up to 2 files are cached, and must be released when rendering is complete.
@@ -179,7 +173,6 @@ type dynamicRenderer struct {
 	db         database.Store
 	data       *Loader
 	templateFS fs.FS
-	plan       json.RawMessage
 
 	ownerErrors  map[uuid.UUID]error
 	currentOwner *previewtypes.WorkspaceOwner
@@ -213,6 +206,10 @@ func (r *dynamicRenderer) Render(ctx context.Context, ownerID uuid.UUID, values 
 		PlanJSON:        r.data.terraformValues.CachedPlan,
 		ParameterValues: values,
 		Owner:           *r.currentOwner,
+		// Do not emit parser logs to coderd output logs.
+		// TODO: Returning this logs in the output would benefit the caller.
+		//  Unsure how large the logs can be, so for now we just discard them.
+		Logger: slog.New(slog.DiscardHandler),
 	}
 
 	return preview.Preview(ctx, input, r.templateFS)

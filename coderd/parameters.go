@@ -68,6 +68,11 @@ func (api *API) templateVersionDynamicParametersWebsocket(rw http.ResponseWriter
 	})(rw, r)
 }
 
+// The `listen` control flag determines whether to open a websocket connection to
+// handle the request or not. This same function is used to 'evaluate' a template
+// as a single invocation, or to 'listen' for a back and forth interaction with
+// the user to update the form as they type.
+//
 //nolint:revive // listen is a control flag
 func (api *API) templateVersionDynamicParameters(listen bool, initial codersdk.DynamicParametersRequest) func(rw http.ResponseWriter, r *http.Request) {
 	return func(rw http.ResponseWriter, r *http.Request) {
