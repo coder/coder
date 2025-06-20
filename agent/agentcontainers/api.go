@@ -794,6 +794,17 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	})
 }
 
+func (api *API) CreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer) error {
+	api.mu.Lock()
+	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
+	dc.Container = nil
+	api.knownDevcontainers[dc.WorkspaceFolder] = dc
+	api.asyncWg.Add(1)
+	api.mu.Unlock()
+
+	return api.recreateDevcontainer(dc, dc.ConfigPath)
+}
+
 // recreateDevcontainer should run in its own goroutine and is responsible for
 // recreating a devcontainer based on the provided devcontainer configuration.
 // It updates the devcontainer status and logs the process. The configPath is
@@ -801,7 +812,7 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 // has a different config file than the one stored in the devcontainer state.
 // The devcontainer state must be set to starting and the asyncWg must be
 // incremented before calling this function.
-func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, configPath string) {
+func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, configPath string) error {
 	defer api.asyncWg.Done()
 
 	var (
@@ -857,7 +868,7 @@ func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, con
 		api.knownDevcontainers[dc.WorkspaceFolder] = dc
 		api.recreateErrorTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "errorTimes")
 		api.mu.Unlock()
-		return
+		return err
 	}
 
 	logger.Info(ctx, "devcontainer recreated successfully")
@@ -884,7 +895,10 @@ func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, con
 	// devcontainer state after recreation.
 	if err := api.RefreshContainers(ctx); err != nil {
 		logger.Error(ctx, "failed to trigger immediate refresh after devcontainer recreation", slog.Error(err))
+		return err
 	}
+
+	return nil
 }
 
 // markDevcontainerDirty finds the devcontainer with the given config file path
