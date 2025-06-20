@@ -999,8 +999,7 @@ func (s *MethodTestSuite) TestOrganization() {
 			PresetID: preset.ID,
 		}
 		check.Args(arg).
-			Asserts(rbac.ResourceTemplate, policy.ActionUpdate).
-			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
+			Asserts(rbac.ResourceTemplate, policy.ActionUpdate)
 	}))
 	s.Run("DeleteOrganizationMember", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
@@ -4942,8 +4941,7 @@ func (s *MethodTestSuite) TestPrebuilds() {
 	s.Run("GetActivePresetPrebuildSchedules", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().
 			Asserts(rbac.ResourceTemplate.All(), policy.ActionRead).
-			Returns([]database.TemplateVersionPresetPrebuildSchedule{}).
-			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
+			Returns([]database.TemplateVersionPresetPrebuildSchedule{})
 	}))
 	s.Run("GetPresetsByTemplateVersionID", s.Subtest(func(db database.Store, check *expects) {
 		ctx := context.Background()
