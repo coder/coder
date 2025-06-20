@@ -6181,6 +6181,15 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 	return rows, nil
 }
 
+func (q *FakeQuerier) GetTemplatePrebuildNotificationCooldown(ctx context.Context, arg database.GetTemplatePrebuildNotificationCooldownParams) (database.TemplatePrebuildNotificationCooldown, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.TemplatePrebuildNotificationCooldown{}, err
+	}
+
+	return database.TemplatePrebuildNotificationCooldown{}, ErrUnimplemented
+}
+
 func (*FakeQuerier) GetTemplatePresetsWithPrebuilds(_ context.Context, _ uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
 	return nil, ErrUnimplemented
 }
@@ -12553,6 +12562,15 @@ func (q *FakeQuerier) UpsertTelemetryItem(_ context.Context, arg database.Upsert
 	})
 
 	return nil
+}
+
+func (q *FakeQuerier) UpsertTemplatePrebuildNotificationCooldown(ctx context.Context, arg database.UpsertTemplatePrebuildNotificationCooldownParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	return ErrUnimplemented
 }
 
 func (q *FakeQuerier) UpsertTemplateUsageStats(ctx context.Context) error {

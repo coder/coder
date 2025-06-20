@@ -1393,6 +1393,16 @@ CREATE TABLE telemetry_items (
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
+CREATE TABLE template_prebuild_notification_cooldowns (
+    template_id uuid NOT NULL,
+    notification_type text NOT NULL,
+    last_notification_sent timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE template_prebuild_notification_cooldowns IS 'Tracks when prebuild failure notifications were last sent to prevent notification noise';
+
+COMMENT ON COLUMN template_prebuild_notification_cooldowns.notification_type IS 'Type of notification: admin or author';
+
 CREATE TABLE template_usage_stats (
     start_time timestamp with time zone NOT NULL,
     end_time timestamp with time zone NOT NULL,
@@ -2508,6 +2518,9 @@ ALTER TABLE ONLY tailnet_tunnels
 
 ALTER TABLE ONLY telemetry_items
     ADD CONSTRAINT telemetry_items_pkey PRIMARY KEY (key);
+
+ALTER TABLE ONLY template_prebuild_notification_cooldowns
+    ADD CONSTRAINT template_prebuild_notification_cooldowns_pkey PRIMARY KEY (template_id, notification_type);
 
 ALTER TABLE ONLY template_usage_stats
     ADD CONSTRAINT template_usage_stats_pkey PRIMARY KEY (start_time, template_id, user_id);

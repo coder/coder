@@ -6499,6 +6499,23 @@ func (q *sqlQuerier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRun
 	return items, nil
 }
 
+const getTemplatePrebuildNotificationCooldown = `-- name: GetTemplatePrebuildNotificationCooldown :one
+SELECT template_id, notification_type, last_notification_sent FROM template_prebuild_notification_cooldowns
+WHERE template_id = $1 AND notification_type = $2
+`
+
+type GetTemplatePrebuildNotificationCooldownParams struct {
+	TemplateID       uuid.UUID `db:"template_id" json:"template_id"`
+	NotificationType string    `db:"notification_type" json:"notification_type"`
+}
+
+func (q *sqlQuerier) GetTemplatePrebuildNotificationCooldown(ctx context.Context, arg GetTemplatePrebuildNotificationCooldownParams) (TemplatePrebuildNotificationCooldown, error) {
+	row := q.db.QueryRowContext(ctx, getTemplatePrebuildNotificationCooldown, arg.TemplateID, arg.NotificationType)
+	var i TemplatePrebuildNotificationCooldown
+	err := row.Scan(&i.TemplateID, &i.NotificationType, &i.LastNotificationSent)
+	return i, err
+}
+
 const getTemplatePresetsWithPrebuilds = `-- name: GetTemplatePresetsWithPrebuilds :many
 SELECT
 		t.id                        AS template_id,
@@ -6583,6 +6600,28 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 		return nil, err
 	}
 	return items, nil
+}
+
+const upsertTemplatePrebuildNotificationCooldown = `-- name: UpsertTemplatePrebuildNotificationCooldown :exec
+INSERT INTO template_prebuild_notification_cooldowns (
+	template_id,
+	notification_type,
+	last_notification_sent
+) VALUES (
+	$1, $2, $3
+) ON CONFLICT (template_id, notification_type) DO UPDATE SET
+	last_notification_sent = $3
+`
+
+type UpsertTemplatePrebuildNotificationCooldownParams struct {
+	TemplateID           uuid.UUID `db:"template_id" json:"template_id"`
+	NotificationType     string    `db:"notification_type" json:"notification_type"`
+	LastNotificationSent time.Time `db:"last_notification_sent" json:"last_notification_sent"`
+}
+
+func (q *sqlQuerier) UpsertTemplatePrebuildNotificationCooldown(ctx context.Context, arg UpsertTemplatePrebuildNotificationCooldownParams) error {
+	_, err := q.db.ExecContext(ctx, upsertTemplatePrebuildNotificationCooldown, arg.TemplateID, arg.NotificationType, arg.LastNotificationSent)
+	return err
 }
 
 const getActivePresetPrebuildSchedules = `-- name: GetActivePresetPrebuildSchedules :many

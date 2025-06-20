@@ -3002,6 +3002,21 @@ func (mr *MockStoreMockRecorder) GetTemplateParameterInsights(ctx, arg any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateParameterInsights", reflect.TypeOf((*MockStore)(nil).GetTemplateParameterInsights), ctx, arg)
 }
 
+// GetTemplatePrebuildNotificationCooldown mocks base method.
+func (m *MockStore) GetTemplatePrebuildNotificationCooldown(ctx context.Context, arg database.GetTemplatePrebuildNotificationCooldownParams) (database.TemplatePrebuildNotificationCooldown, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplatePrebuildNotificationCooldown", ctx, arg)
+	ret0, _ := ret[0].(database.TemplatePrebuildNotificationCooldown)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplatePrebuildNotificationCooldown indicates an expected call of GetTemplatePrebuildNotificationCooldown.
+func (mr *MockStoreMockRecorder) GetTemplatePrebuildNotificationCooldown(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplatePrebuildNotificationCooldown", reflect.TypeOf((*MockStore)(nil).GetTemplatePrebuildNotificationCooldown), ctx, arg)
+}
+
 // GetTemplatePresetsWithPrebuilds mocks base method.
 func (m *MockStore) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
 	m.ctrl.T.Helper()
@@ -6879,6 +6894,20 @@ func (m *MockStore) UpsertTelemetryItem(ctx context.Context, arg database.Upsert
 func (mr *MockStoreMockRecorder) UpsertTelemetryItem(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTelemetryItem", reflect.TypeOf((*MockStore)(nil).UpsertTelemetryItem), ctx, arg)
+}
+
+// UpsertTemplatePrebuildNotificationCooldown mocks base method.
+func (m *MockStore) UpsertTemplatePrebuildNotificationCooldown(ctx context.Context, arg database.UpsertTemplatePrebuildNotificationCooldownParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertTemplatePrebuildNotificationCooldown", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertTemplatePrebuildNotificationCooldown indicates an expected call of UpsertTemplatePrebuildNotificationCooldown.
+func (mr *MockStoreMockRecorder) UpsertTemplatePrebuildNotificationCooldown(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTemplatePrebuildNotificationCooldown", reflect.TypeOf((*MockStore)(nil).UpsertTemplatePrebuildNotificationCooldown), ctx, arg)
 }
 
 // UpsertTemplateUsageStats mocks base method.

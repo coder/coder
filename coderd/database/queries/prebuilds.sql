@@ -188,3 +188,17 @@ INNER JOIN organizations o ON o.id = w.organization_id
 WHERE NOT t.deleted AND wpb.build_number = 1
 GROUP BY t.name, tvp.name, o.name
 ORDER BY t.name, tvp.name, o.name;
+
+-- name: GetTemplatePrebuildNotificationCooldown :one
+SELECT * FROM template_prebuild_notification_cooldowns
+WHERE template_id = $1 AND notification_type = $2;
+
+-- name: UpsertTemplatePrebuildNotificationCooldown :exec
+INSERT INTO template_prebuild_notification_cooldowns (
+	template_id,
+	notification_type,
+	last_notification_sent
+) VALUES (
+	$1, $2, $3
+) ON CONFLICT (template_id, notification_type) DO UPDATE SET
+	last_notification_sent = $3;

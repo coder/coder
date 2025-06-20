@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -5086,6 +5087,39 @@ func (s *MethodTestSuite) TestPrebuilds() {
 		}
 		check.Args(req).
 			Asserts(rbac.ResourceTemplate.WithID(template.ID).InOrg(org.ID), policy.ActionUpdate)
+	}))
+	s.Run("GetTemplatePrebuildNotificationCooldown", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		user := dbgen.User(s.T(), db, database.User{})
+		template := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		arg := database.GetTemplatePrebuildNotificationCooldownParams{
+			TemplateID:       template.ID,
+			NotificationType: prebuilds.NotificationTypeAdmin,
+		}
+		check.Args(arg).
+			Asserts(template, policy.ActionRead).
+			Returns(database.TemplatePrebuildNotificationCooldown{}).
+			ErrorsWithPG(sql.ErrNoRows).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
+	}))
+	s.Run("UpsertTemplatePrebuildNotificationCooldown", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		user := dbgen.User(s.T(), db, database.User{})
+		template := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		arg := database.UpsertTemplatePrebuildNotificationCooldownParams{
+			TemplateID:       template.ID,
+			NotificationType: prebuilds.NotificationTypeAdmin,
+		}
+		check.Args(arg).
+			Asserts(template, policy.ActionCreate).
+			Returns().
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 }
 

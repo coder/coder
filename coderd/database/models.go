@@ -3273,6 +3273,14 @@ type Template struct {
 	OrganizationIcon              string          `db:"organization_icon" json:"organization_icon"`
 }
 
+// Tracks when prebuild failure notifications were last sent to prevent notification noise
+type TemplatePrebuildNotificationCooldown struct {
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	// Type of notification: admin or author
+	NotificationType     string    `db:"notification_type" json:"notification_type"`
+	LastNotificationSent time.Time `db:"last_notification_sent" json:"last_notification_sent"`
+}
+
 type TemplateTable struct {
 	ID              uuid.UUID       `db:"id" json:"id"`
 	CreatedAt       time.Time       `db:"created_at" json:"created_at"`

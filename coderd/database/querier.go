@@ -336,6 +336,7 @@ type sqlcQuerier interface {
 	// created in the timeframe and return the aggregate usage counts of parameter
 	// values.
 	GetTemplateParameterInsights(ctx context.Context, arg GetTemplateParameterInsightsParams) ([]GetTemplateParameterInsightsRow, error)
+	GetTemplatePrebuildNotificationCooldown(ctx context.Context, arg GetTemplatePrebuildNotificationCooldownParams) (TemplatePrebuildNotificationCooldown, error)
 	// GetTemplatePresetsWithPrebuilds retrieves template versions with configured presets and prebuilds.
 	// It also returns the number of desired instances for each preset.
 	// If template_id is specified, only template versions associated with that template will be returned.
@@ -664,6 +665,7 @@ type sqlcQuerier interface {
 	UpsertTailnetPeer(ctx context.Context, arg UpsertTailnetPeerParams) (TailnetPeer, error)
 	UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetTunnelParams) (TailnetTunnel, error)
 	UpsertTelemetryItem(ctx context.Context, arg UpsertTelemetryItemParams) error
+	UpsertTemplatePrebuildNotificationCooldown(ctx context.Context, arg UpsertTemplatePrebuildNotificationCooldownParams) error
 	// This query aggregates the workspace_agent_stats and workspace_app_stats data
 	// into a single table for efficient storage and querying. Half-hour buckets are
 	// used to store the data, and the minutes are summed for each user and template

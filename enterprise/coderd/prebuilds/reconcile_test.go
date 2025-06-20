@@ -936,13 +936,17 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 					return false
 				}
 
-				if !assert.Equal(t, templateAdmin.ID, notification.UserID, "unexpected receiver") {
+				// receiver should be either template admin or template version author
+				templateAmdinNotif := notification.UserID == templateAdmin.ID
+				templateVersionAuthorNotif := notification.UserID == ownerID
+				if !templateAmdinNotif && !templateVersionAuthorNotif {
 					return false
 				}
 
 				return true
 			})
-			require.Len(t, matching, 1)
+			// both template admin and template version author should receive notification
+			require.Len(t, matching, 2)
 
 			// When hard limit is reached, metric is set to 1.
 			mf, err = registry.Gather()
@@ -957,6 +961,104 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			require.EqualValues(t, 1, metric.GetGauge().GetValue())
 		})
 	}
+}
+
+func TestHardLimitedPresetNotifications(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	hardLimit := 1
+	templateDeleted := false
+
+	clock := quartz.NewMock(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	cfg := codersdk.PrebuildsConfig{
+		FailureHardLimit:              serpent.Int64(hardLimit),
+		ReconciliationBackoffInterval: 0,
+	}
+	logger := slogtest.Make(
+		t, &slogtest.Options{IgnoreErrors: true},
+	).Leveled(slog.LevelDebug)
+	db, pubSub := dbtestutil.NewDB(t)
+	fakeEnqueuer := newFakeEnqueuer()
+	registry := prometheus.NewRegistry()
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, registry, fakeEnqueuer)
+
+	// Template admin to receive a notification.
+	templateAdmin := dbgen.User(t, db, database.User{
+		RBACRoles: []string{codersdk.RoleTemplateAdmin},
+	})
+
+	// Set up test environment with a template, version, and preset.
+	ownerID := uuid.New()
+	dbgen.User(t, db, database.User{
+		ID: ownerID,
+	})
+	org, template := setupTestDBTemplate(t, db, ownerID, templateDeleted)
+	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, pubSub, org.ID, ownerID, template.ID)
+
+	// triggerNotif does the following:
+	// - creates new preset
+	// - creates failed prebuild for preset
+	// - triggers reconciliation iteration which in turn triggers sending PrebuildFailureLimitReached notification
+	triggerNotif := func() {
+		preset := setupTestDBPreset(t, db, templateVersionID, 1, uuid.New().String())
+
+		// Create a failed prebuild workspace that counts toward the hard failure limit.
+		setupTestDBPrebuild(
+			t,
+			clock,
+			db,
+			pubSub,
+			database.WorkspaceTransitionStart,
+			database.ProvisionerJobStatusFailed,
+			org.ID,
+			preset,
+			template.ID,
+			templateVersionID,
+		)
+
+		// We simulate a failed prebuild in the test; Consequently, the backoff mechanism is triggered when ReconcileAll is called.
+		// Even though ReconciliationBackoffInterval is set to zero, we still need to advance the clock by at least one nanosecond.
+		clock.Advance(time.Nanosecond).MustWait(ctx)
+
+		// Triggers reconciliation iteration which in turn triggers sending PrebuildFailureLimitReached notification.
+		require.NoError(t, controller.ReconcileAll(ctx))
+	}
+	matcher := func(notification *notificationstest.FakeNotification) bool {
+		if !assert.Equal(t, notifications.PrebuildFailureLimitReached, notification.TemplateID, "unexpected template") {
+			return false
+		}
+
+		// receiver should be either template admin or template version author
+		templateAmdinNotif := notification.UserID == templateAdmin.ID
+		templateVersionAuthorNotif := notification.UserID == ownerID
+		if !templateAmdinNotif && !templateVersionAuthorNotif {
+			return false
+		}
+
+		return true
+	}
+	// After 1st call of triggerNotif - 2 notifications should be sent.
+	triggerNotif()
+	matching := fakeEnqueuer.Sent(matcher)
+	// Both template admin and template version author should receive notification.
+	require.Len(t, matching, 2)
+
+	// After 2nd call of triggerNotif - no new notifications should be sent. Because we're in cooldown period.
+	triggerNotif()
+	matching = fakeEnqueuer.Sent(matcher)
+	require.Len(t, matching, 2)
+
+	// Advance clock to reset cooldown period.
+	clock.Advance(prebuilds.AdminNotificationCooldown + time.Second).MustWait(ctx)
+	// After 3rd call of triggerNotif - 2 new notifications should be sent (total is 4 notifications). Because cooldown period was reset.
+	triggerNotif()
+	matching = fakeEnqueuer.Sent(matcher)
+	require.Len(t, matching, 4)
 }
 
 func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
@@ -1122,13 +1224,17 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 					return false
 				}
 
-				if !assert.Equal(t, templateAdmin.ID, notification.UserID, "unexpected receiver") {
+				// receiver should be either template admin or template version author
+				templateAmdinNotif := notification.UserID == templateAdmin.ID
+				templateVersionAuthorNotif := notification.UserID == ownerID
+				if !templateAmdinNotif && !templateVersionAuthorNotif {
 					return false
 				}
 
 				return true
 			})
-			require.Len(t, matching, 1)
+			// both template admin and template version author should receive notification
+			require.Len(t, matching, 2)
 
 			// When hard limit is reached, metric is set to 1.
 			mf, err = registry.Gather()
