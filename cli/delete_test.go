@@ -293,10 +293,51 @@ func TestDelete(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				// Create one prebuilt workspace (owned by system user) and one normal workspace (owned by the owner user)
+				// Create one prebuilt workspace (owned by system user) and one normal workspace (owned by a user)
 				// Each workspace is persisted in the DB along with associated workspace jobs and builds.
 				dbPrebuiltWorkspace := setupTestDBWorkspace(t, clock, db, pb, orgID, database.PrebuildsSystemUserID, template.ID, version.ID, preset.ID)
-				dbUserWorkspace := setupTestDBWorkspace(t, clock, db, pb, orgID, owner.UserID, template.ID, version.ID, preset.ID)
+				userWorkspaceOwner, err := client.User(context.Background(), "testUser")
+				require.NoError(t, err)
+				dbUserWorkspace := setupTestDBWorkspace(t, clock, db, pb, orgID, userWorkspaceOwner.ID, template.ID, version.ID, preset.ID)
+
+				assertWorkspaceDelete := func(
+					runClient *codersdk.Client,
+					workspace database.Workspace,
+					workspaceOwner string,
+					expectedErr string,
+				) {
+					t.Helper()
+
+					// Attempt to delete the workspace as the test client
+					inv, root := clitest.New(t, "delete", workspaceOwner+"/"+workspace.Name, "-y")
+					clitest.SetupConfig(t, runClient, root)
+					doneChan := make(chan struct{})
+					pty := ptytest.New(t).Attach(inv)
+					var runErr error
+					go func() {
+						defer close(doneChan)
+						runErr = inv.Run()
+					}()
+
+					// Validate the result based on the expected error message
+					if expectedErr != "" {
+						<-doneChan
+						require.Error(t, runErr)
+						require.Contains(t, runErr.Error(), expectedErr)
+					} else {
+						pty.ExpectMatch("has been deleted")
+						<-doneChan
+
+						// When running with the race detector on, we sometimes get an EOF.
+						if runErr != nil {
+							assert.ErrorIs(t, runErr, io.EOF)
+						}
+
+						// Verify that the workspace is now marked as deleted
+						_, err := client.Workspace(context.Background(), workspace.ID)
+						require.ErrorContains(t, err, "was deleted")
+					}
+				}
 
 				// Ensure at least one prebuilt workspace is reported as running in the database
 				testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
@@ -312,48 +353,18 @@ func TestDelete(t *testing.T) {
 				require.GreaterOrEqual(t, len(runningWorkspaces), 1)
 
 				// Get the full prebuilt workspace object from the DB
-				prebuiltWorkspace, err := db.GetWorkspaceByID(ctx, runningWorkspaces[0].ID)
+				prebuiltWorkspace, err := db.GetWorkspaceByID(ctx, dbPrebuiltWorkspace.ID)
 				require.NoError(t, err)
 
-				// Attempt to delete the prebuilt workspace as the test client
-				build, err := tc.client.CreateWorkspaceBuild(ctx, dbPrebuiltWorkspace.ID, codersdk.CreateWorkspaceBuildRequest{
-					Transition: codersdk.WorkspaceTransitionDelete,
-				})
-				// Validate the result based on the expected error message
-				if tc.expectedPrebuiltDeleteErrMsg != "" {
-					require.Error(t, err)
-					require.Contains(t, err.Error(), tc.expectedPrebuiltDeleteErrMsg)
-				} else {
-					require.NoError(t, err, "delete the prebuilt workspace")
-					coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
-
-					// Verify that the prebuilt workspace is now marked as deleted
-					deletedWorkspace, err := client.DeletedWorkspace(ctx, prebuiltWorkspace.ID)
-					require.NoError(t, err)
-					require.Equal(t, prebuiltWorkspace.ID, deletedWorkspace.ID)
-				}
+				// Assert the prebuilt workspace deletion
+				assertWorkspaceDelete(tc.client, prebuiltWorkspace, "prebuilds", tc.expectedPrebuiltDeleteErrMsg)
 
 				// Get the full user workspace object from the DB
 				userWorkspace, err := db.GetWorkspaceByID(ctx, dbUserWorkspace.ID)
 				require.NoError(t, err)
 
-				// Attempt to delete the prebuilt workspace as the test client
-				build, err = tc.client.CreateWorkspaceBuild(ctx, dbUserWorkspace.ID, codersdk.CreateWorkspaceBuildRequest{
-					Transition: codersdk.WorkspaceTransitionDelete,
-				})
-				// Validate the result based on the expected error message
-				if tc.expectedWorkspaceDeleteErrMsg != "" {
-					require.Error(t, err)
-					require.Contains(t, err.Error(), tc.expectedWorkspaceDeleteErrMsg)
-				} else {
-					require.NoError(t, err, "delete the user Workspace")
-					coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
-
-					// Verify that the user workspace is now marked as deleted
-					deletedWorkspace, err := client.DeletedWorkspace(ctx, userWorkspace.ID)
-					require.NoError(t, err)
-					require.Equal(t, userWorkspace.ID, deletedWorkspace.ID)
-				}
+				// Assert the user workspace deletion
+				assertWorkspaceDelete(tc.client, userWorkspace, userWorkspaceOwner.Username, tc.expectedWorkspaceDeleteErrMsg)
 			})
 		}
 	})
