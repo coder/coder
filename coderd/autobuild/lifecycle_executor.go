@@ -33,10 +33,10 @@ import (
 
 // Executor automatically starts or stops workspaces.
 type Executor struct {
-	ctx context.Context
-	db  database.Store
-	ps  pubsub.Pubsub
-	//fileCache             *files.Cache
+	ctx                   context.Context
+	db                    database.Store
+	ps                    pubsub.Pubsub
+	fileCache             *files.Cache
 	templateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 	accessControlStore    *atomic.Pointer[dbauthz.AccessControlStore]
 	auditor               *atomic.Pointer[audit.Auditor]
