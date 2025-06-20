@@ -159,7 +159,7 @@ data "coder_workspace_preset" "goland" {
 
 **How scheduling works:**
 
-1. Coder evaluates all active schedules at regular intervals.
+1. The reconciliation loop evaluates all active schedules every reconciliation interval (`CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL`).
 2. The schedule that matches the current time becomes active. Overlapping schedules are disallowed by validation rules.
 3. If no schedules match the current time, the base `instances` count is used.
 4. The reconciliation loop automatically creates or destroys prebuilt workspaces to match the target count.
