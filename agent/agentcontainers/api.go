@@ -634,9 +634,8 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 
 var consecutiveHyphenRegex = regexp.MustCompile("-+")
 
-// safeAgentName returns an agent name safe version
-// of a folder name, falling back to a safe version
-// of the container name if unable to create a name.
+// `safeAgentName` returns a safe agent name derived from a folder name,
+// falling back to the container’s friendly name if needed.
 func safeAgentName(name string, friendlyName string) string {
 	// Keep only ASCII letters and digits, replacing everything
 	// else with a hyphen.
