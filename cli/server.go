@@ -1202,6 +1202,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			var wg sync.WaitGroup
 			for i, provisionerDaemon := range provisionerDaemons {
 				id := i + 1
+				provisionerDaemon := provisionerDaemon
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
@@ -1679,6 +1680,7 @@ func configureServerTLS(ctx context.Context, logger slog.Logger, tlsMinVersion, 
 
 		// Expensively check which certificate matches the client hello.
 		for _, cert := range certs {
+			cert := cert
 			if err := hi.SupportsCertificate(&cert); err == nil {
 				return &cert, nil
 			}
@@ -2310,19 +2312,20 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 
 	var err error
 	var sqlDB *sql.DB
+	dbNeedsClosing := true
 	// Try to connect for 30 seconds.
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	defer func() {
-		if err == nil {
+		if !dbNeedsClosing {
 			return
 		}
 		if sqlDB != nil {
 			_ = sqlDB.Close()
 			sqlDB = nil
+			logger.Debug(ctx, "closed db before returning from ConnectToPostgres")
 		}
-		logger.Error(ctx, "connect to postgres failed", slog.Error(err))
 	}()
 
 	var tries int
@@ -2358,11 +2361,8 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 		return nil, xerrors.Errorf("get postgres version: %w", err)
 	}
 	defer version.Close()
-	if version.Err() != nil {
-		return nil, xerrors.Errorf("version select: %w", version.Err())
-	}
 	if !version.Next() {
-		return nil, xerrors.Errorf("no rows returned for version select")
+		return nil, xerrors.Errorf("no rows returned for version select: %w", version.Err())
 	}
 	var versionNum int
 	err = version.Scan(&versionNum)
@@ -2404,6 +2404,7 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	// of connection churn.
 	sqlDB.SetMaxIdleConns(3)
 
+	dbNeedsClosing = false
 	return sqlDB, nil
 }
 

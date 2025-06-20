@@ -547,6 +547,7 @@ func (a *agent) reportMetadata(ctx context.Context, aAPI proto.DRPCAgentClient26
 			// channel to synchronize the results and avoid both messy
 			// mutex logic and overloading the API.
 			for _, md := range manifest.Metadata {
+				md := md
 				// We send the result to the channel in the goroutine to avoid
 				// sending the same result multiple times. So, we don't care about
 				// the return values.
@@ -1296,6 +1297,7 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 		"CODER":                      "true",
 		"CODER_WORKSPACE_NAME":       manifest.WorkspaceName,
 		"CODER_WORKSPACE_AGENT_NAME": manifest.AgentName,
+		"CODER_WORKSPACE_OWNER_NAME": manifest.OwnerName,
 
 		// Specific Coder subcommands require the agent token exposed!
 		"CODER_AGENT_TOKEN": *a.sessionToken.Load(),

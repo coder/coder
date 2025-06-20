@@ -240,6 +240,7 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 		}
 		// Each proxy needs to have a status set. Make a local copy for the
 		// call to be run async.
+		proxy := proxy
 		status := ProxyStatus{
 			Proxy:     proxy,
 			CheckedAt: now,
