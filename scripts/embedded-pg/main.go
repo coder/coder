@@ -4,6 +4,7 @@ package main
 import (
 	"database/sql"
 	"flag"
+	"log"
 	"os"
 	"path/filepath"
 
