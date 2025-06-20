@@ -75,6 +75,7 @@ func New() database.Store {
 			parameterSchemas:               make([]database.ParameterSchema, 0),
 			presets:                        make([]database.TemplateVersionPreset, 0),
 			presetParameters:               make([]database.TemplateVersionPresetParameter, 0),
+			presetPrebuildSchedules:        make([]database.TemplateVersionPresetPrebuildSchedule, 0),
 			provisionerDaemons:             make([]database.ProvisionerDaemon, 0),
 			provisionerJobs:                make([]database.ProvisionerJob, 0),
 			provisionerJobLogs:             make([]database.ProvisionerJobLog, 0),
@@ -299,6 +300,7 @@ type data struct {
 	telemetryItems                   []database.TelemetryItem
 	presets                          []database.TemplateVersionPreset
 	presetParameters                 []database.TemplateVersionPresetParameter
+	presetPrebuildSchedules          []database.TemplateVersionPresetPrebuildSchedule
 }
 
 func tryPercentileCont(fs []float64, p float64) float64 {
@@ -792,7 +794,7 @@ func (q *FakeQuerier) getWorkspaceAgentByIDNoLock(_ context.Context, id uuid.UUI
 	// The schema sorts this by created at, so we iterate the array backwards.
 	for i := len(q.workspaceAgents) - 1; i >= 0; i-- {
 		agent := q.workspaceAgents[i]
-		if agent.ID == id {
+		if !agent.Deleted && agent.ID == id {
 			return agent, nil
 		}
 	}
@@ -802,6 +804,9 @@ func (q *FakeQuerier) getWorkspaceAgentByIDNoLock(_ context.Context, id uuid.UUI
 func (q *FakeQuerier) getWorkspaceAgentsByResourceIDsNoLock(_ context.Context, resourceIDs []uuid.UUID) ([]database.WorkspaceAgent, error) {
 	workspaceAgents := make([]database.WorkspaceAgent, 0)
 	for _, agent := range q.workspaceAgents {
+		if agent.Deleted {
+			continue
+		}
 		for _, resourceID := range resourceIDs {
 			if agent.ResourceID != resourceID {
 				continue
@@ -2554,13 +2559,13 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortSharesByTemplate(_ context.Context
 	return nil
 }
 
-func (q *FakeQuerier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID) error {
+func (q *FakeQuerier) DeleteWorkspaceSubAgentByID(_ context.Context, id uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	for i, agent := range q.workspaceAgents {
 		if agent.ID == id && agent.ParentID.Valid {
-			q.workspaceAgents = slices.Delete(q.workspaceAgents, i, i+1)
+			q.workspaceAgents[i].Deleted = true
 			return nil
 		}
 	}
@@ -2773,6 +2778,45 @@ func (q *FakeQuerier) GetAPIKeysLastUsedAfter(_ context.Context, after time.Time
 		}
 	}
 	return apiKeys, nil
+}
+
+func (q *FakeQuerier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var activeSchedules []database.TemplateVersionPresetPrebuildSchedule
+
+	// Create a map of active template version IDs for quick lookup
+	activeTemplateVersions := make(map[uuid.UUID]bool)
+	for _, template := range q.templates {
+		if !template.Deleted && template.Deprecated == "" {
+			activeTemplateVersions[template.ActiveVersionID] = true
+		}
+	}
+
+	// Create a map of presets for quick lookup
+	presetMap := make(map[uuid.UUID]database.TemplateVersionPreset)
+	for _, preset := range q.presets {
+		presetMap[preset.ID] = preset
+	}
+
+	// Filter preset prebuild schedules to only include those for active template versions
+	for _, schedule := range q.presetPrebuildSchedules {
+		// Look up the preset using the map
+		preset, exists := presetMap[schedule.PresetID]
+		if !exists {
+			continue
+		}
+
+		// Check if preset's template version is active
+		if !activeTemplateVersions[preset.TemplateVersionID] {
+			continue
+		}
+
+		activeSchedules = append(activeSchedules, schedule)
+	}
+
+	return activeSchedules, nil
 }
 
 // nolint:revive // It's not a control flag, it's a filter.
@@ -7077,6 +7121,10 @@ func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Conte
 	latestBuildNumber := make(map[uuid.UUID]int32)
 
 	for _, agt := range q.workspaceAgents {
+		if agt.Deleted {
+			continue
+		}
+
 		// get the related workspace and user
 		for _, res := range q.workspaceResources {
 			if agt.ResourceID != res.ID {
@@ -7146,7 +7194,7 @@ func (q *FakeQuerier) GetWorkspaceAgentByInstanceID(_ context.Context, instanceI
 	// The schema sorts this by created at, so we iterate the array backwards.
 	for i := len(q.workspaceAgents) - 1; i >= 0; i-- {
 		agent := q.workspaceAgents[i]
-		if agent.AuthInstanceID.Valid && agent.AuthInstanceID.String == instanceID {
+		if !agent.Deleted && agent.AuthInstanceID.Valid && agent.AuthInstanceID.String == instanceID {
 			return agent, nil
 		}
 	}
@@ -7706,13 +7754,13 @@ func (q *FakeQuerier) GetWorkspaceAgentUsageStatsAndLabels(_ context.Context, cr
 	return stats, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceAgentsByParentID(ctx context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
+func (q *FakeQuerier) GetWorkspaceAgentsByParentID(_ context.Context, parentID uuid.UUID) ([]database.WorkspaceAgent, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	workspaceAgents := make([]database.WorkspaceAgent, 0)
 	for _, agent := range q.workspaceAgents {
-		if !agent.ParentID.Valid || agent.ParentID.UUID != parentID {
+		if !agent.ParentID.Valid || agent.ParentID.UUID != parentID || agent.Deleted {
 			continue
 		}
 
@@ -7759,6 +7807,9 @@ func (q *FakeQuerier) GetWorkspaceAgentsCreatedAfter(_ context.Context, after ti
 
 	workspaceAgents := make([]database.WorkspaceAgent, 0)
 	for _, agent := range q.workspaceAgents {
+		if agent.Deleted {
+			continue
+		}
 		if agent.CreatedAt.After(after) {
 			workspaceAgents = append(workspaceAgents, agent)
 		}
@@ -9179,6 +9230,25 @@ func (q *FakeQuerier) InsertPresetParameters(_ context.Context, arg database.Ins
 	}
 
 	return presetParameters, nil
+}
+
+func (q *FakeQuerier) InsertPresetPrebuildSchedule(ctx context.Context, arg database.InsertPresetPrebuildScheduleParams) (database.TemplateVersionPresetPrebuildSchedule, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.TemplateVersionPresetPrebuildSchedule{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	presetPrebuildSchedule := database.TemplateVersionPresetPrebuildSchedule{
+		ID:               uuid.New(),
+		PresetID:         arg.PresetID,
+		CronExpression:   arg.CronExpression,
+		DesiredInstances: arg.DesiredInstances,
+	}
+	q.presetPrebuildSchedules = append(q.presetPrebuildSchedules, presetPrebuildSchedule)
+	return presetPrebuildSchedule, nil
 }
 
 func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {

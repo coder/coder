@@ -1,11 +1,9 @@
 package agentcontainers
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path"
@@ -28,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/quartz"
 )
 
@@ -1113,27 +1112,6 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 	if proc.agent.ID == uuid.Nil || maybeRecreateSubAgent {
 		subAgentConfig.Architecture = arch
 
-		// Detect workspace folder by executing `pwd` in the container.
-		// NOTE(mafredri): This is a quick and dirty way to detect the
-		// workspace folder inside the container. In the future we will
-		// rely more on `devcontainer read-configuration`.
-		var pwdBuf bytes.Buffer
-		err = api.dccli.Exec(ctx, dc.WorkspaceFolder, dc.ConfigPath, "pwd", []string{},
-			WithExecOutput(&pwdBuf, io.Discard),
-			WithExecContainerID(container.ID),
-		)
-		if err != nil {
-			return xerrors.Errorf("check workspace folder in container: %w", err)
-		}
-		directory := strings.TrimSpace(pwdBuf.String())
-		if directory == "" {
-			logger.Warn(ctx, "detected workspace folder is empty, using default workspace folder",
-				slog.F("default_workspace_folder", DevcontainerDefaultContainerWorkspaceFolder),
-			)
-			directory = DevcontainerDefaultContainerWorkspaceFolder
-		}
-		subAgentConfig.Directory = directory
-
 		displayAppsMap := map[codersdk.DisplayApp]bool{
 			// NOTE(DanielleMaywood):
 			// We use the same defaults here as set in terraform-provider-coder.
@@ -1145,18 +1123,55 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			codersdk.DisplayAppPortForward:    true,
 		}
 
-		var appsWithPossibleDuplicates []SubAgentApp
+		var (
+			appsWithPossibleDuplicates []SubAgentApp
+			workspaceFolder            = DevcontainerDefaultContainerWorkspaceFolder
+		)
 
-		if config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath,
-			[]string{
-				fmt.Sprintf("CODER_WORKSPACE_AGENT_NAME=%s", dc.Name),
-				fmt.Sprintf("CODER_WORKSPACE_OWNER_NAME=%s", api.ownerName),
-				fmt.Sprintf("CODER_WORKSPACE_NAME=%s", api.workspaceName),
-				fmt.Sprintf("CODER_URL=%s", api.subAgentURL),
-			},
-		); err != nil {
-			api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
-		} else {
+		if err := func() error {
+			var (
+				config         DevcontainerConfig
+				configOutdated bool
+			)
+
+			readConfig := func() (DevcontainerConfig, error) {
+				return api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath, []string{
+					fmt.Sprintf("CODER_WORKSPACE_AGENT_NAME=%s", subAgentConfig.Name),
+					fmt.Sprintf("CODER_WORKSPACE_OWNER_NAME=%s", api.ownerName),
+					fmt.Sprintf("CODER_WORKSPACE_NAME=%s", api.workspaceName),
+					fmt.Sprintf("CODER_URL=%s", api.subAgentURL),
+				})
+			}
+
+			if config, err = readConfig(); err != nil {
+				return err
+			}
+
+			workspaceFolder = config.Workspace.WorkspaceFolder
+
+			// NOTE(DanielleMaywood):
+			// We only want to take an agent name specified in the root customization layer.
+			// This restricts the ability for a feature to specify the agent name. We may revisit
+			// this in the future, but for now we want to restrict this behavior.
+			if name := config.Configuration.Customizations.Coder.Name; name != "" {
+				// We only want to pick this name if it is a valid name.
+				if provisioner.AgentNameRegex.Match([]byte(name)) {
+					subAgentConfig.Name = name
+					configOutdated = true
+				} else {
+					logger.Warn(ctx, "invalid name in devcontainer customization, ignoring",
+						slog.F("name", name),
+						slog.F("regex", provisioner.AgentNameRegex.String()),
+					)
+				}
+			}
+
+			if configOutdated {
+				if config, err = readConfig(); err != nil {
+					return err
+				}
+			}
+
 			coderCustomization := config.MergedConfiguration.Customizations.Coder
 
 			for _, customization := range coderCustomization {
@@ -1173,6 +1188,10 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 				appsWithPossibleDuplicates = append(appsWithPossibleDuplicates, customization.Apps...)
 			}
+
+			return nil
+		}(); err != nil {
+			api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
 		}
 
 		displayApps := make([]codersdk.DisplayApp, 0, len(displayAppsMap))
@@ -1204,6 +1223,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 		subAgentConfig.DisplayApps = displayApps
 		subAgentConfig.Apps = apps
+		subAgentConfig.Directory = workspaceFolder
 	}
 
 	deleteSubAgent := proc.agent.ID != uuid.Nil && maybeRecreateSubAgent && !proc.agent.EqualConfig(subAgentConfig)
