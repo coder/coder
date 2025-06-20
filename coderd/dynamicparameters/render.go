@@ -33,10 +33,10 @@ type Renderer interface {
 
 var ErrTemplateVersionNotReady = xerrors.New("template version job not finished")
 
-// Loader is used to load the necessary coder objects for rendering a template
+// loader is used to load the necessary coder objects for rendering a template
 // version's parameters. The output is a Renderer, which is the object that uses
 // the cached objects to render the template version's parameters.
-type Loader struct {
+type loader struct {
 	templateVersionID uuid.UUID
 
 	// cache of objects
@@ -45,39 +45,44 @@ type Loader struct {
 	terraformValues *database.TemplateVersionTerraformValue
 }
 
-// Prepare is the entrypoint for this package. It is broken into 2 steps to allow
-// prepopulating some of the existing data and saving some database queries.
-//
-// Usage: dynamicparameters.Prepare(...).Renderer(...)
-func Prepare(versionID uuid.UUID) *Loader {
-	return &Loader{
+// Prepare is the entrypoint for this package. It loads the necessary objects &
+// files from the database and returns a Renderer that can be used to render the
+// template version's parameters.
+func Prepare(ctx context.Context, db database.Store, cache *files.Cache, versionID uuid.UUID, options ...func(r *loader)) (Renderer, error) {
+	l := &loader{
 		templateVersionID: versionID,
 	}
-}
 
-func (r *Loader) WithTemplateVersion(tv database.TemplateVersion) *Loader {
-	if tv.ID == r.templateVersionID {
-		r.templateVersion = &tv
+	for _, opt := range options {
+		opt(l)
 	}
 
-	return r
+	return l.Renderer(ctx, db, cache)
 }
 
-func (r *Loader) WithProvisionerJob(job database.ProvisionerJob) *Loader {
-	r.job = &job
-
-	return r
-}
-
-func (r *Loader) WithTerraformValues(values database.TemplateVersionTerraformValue) *Loader {
-	if values.TemplateVersionID == r.templateVersionID {
-		r.terraformValues = &values
+func WithTemplateVersion(tv database.TemplateVersion) func(r *loader) {
+	return func(r *loader) {
+		if tv.ID == r.templateVersionID {
+			r.templateVersion = &tv
+		}
 	}
-
-	return r
 }
 
-func (r *Loader) loadData(ctx context.Context, db database.Store) error {
+func WithProvisionerJob(job database.ProvisionerJob) func(r *loader) {
+	return func(r *loader) {
+		r.job = &job
+	}
+}
+
+func WithTerraformValues(values database.TemplateVersionTerraformValue) func(r *loader) {
+	return func(r *loader) {
+		if values.TemplateVersionID == r.templateVersionID {
+			r.terraformValues = &values
+		}
+	}
+}
+
+func (r *loader) loadData(ctx context.Context, db database.Store) error {
 	if r.templateVersion == nil {
 		tv, err := db.GetTemplateVersionByID(ctx, r.templateVersionID)
 		if err != nil {
@@ -116,7 +121,7 @@ func (r *Loader) loadData(ctx context.Context, db database.Store) error {
 // Static parameter rendering is required to support older template versions that
 // do not have the database state to support dynamic parameters. A constant
 // warning will be displayed for these template versions.
-func (r *Loader) Renderer(ctx context.Context, db database.Store, cache *files.Cache) (Renderer, error) {
+func (r *loader) Renderer(ctx context.Context, db database.Store, cache *files.Cache) (Renderer, error) {
 	err := r.loadData(ctx, db)
 	if err != nil {
 		return nil, xerrors.Errorf("load data: %w", err)
@@ -131,7 +136,7 @@ func (r *Loader) Renderer(ctx context.Context, db database.Store, cache *files.C
 
 // Renderer caches all the necessary files when rendering a template version's
 // parameters. It must be closed after use to release the cached files.
-func (r *Loader) dynamicRenderer(ctx context.Context, db database.Store, cache *files.Cache) (*dynamicRenderer, error) {
+func (r *loader) dynamicRenderer(ctx context.Context, db database.Store, cache *files.Cache) (*dynamicRenderer, error) {
 	// If they can read the template version, then they can read the file for
 	// parameter loading purposes.
 	//nolint:gocritic
@@ -171,7 +176,7 @@ func (r *Loader) dynamicRenderer(ctx context.Context, db database.Store, cache *
 
 type dynamicRenderer struct {
 	db         database.Store
-	data       *Loader
+	data       *loader
 	templateFS fs.FS
 
 	ownerErrors  map[uuid.UUID]error
