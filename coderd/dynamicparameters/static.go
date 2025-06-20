@@ -64,7 +64,7 @@ func (r *Loader) staticRender(ctx context.Context, db database.Store) (*staticRe
 
 			var vMax *int64
 			if it.ValidationMax.Valid {
-				vMin = ptr.Ref(int64(it.ValidationMax.Int32))
+				vMax = ptr.Ref(int64(it.ValidationMax.Int32))
 			}
 
 			var monotonic *string

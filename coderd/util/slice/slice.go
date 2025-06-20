@@ -221,7 +221,7 @@ func CountConsecutive[T comparable](needle T, haystack ...T) int {
 // Convert converts a slice of type F to a slice of type T using the provided function f.
 func Convert[F any, T any](a []F, f func(F) T) []T {
 	if a == nil {
-		return nil
+		return []T{}
 	}
 
 	tmp := make([]T, 0, len(a))
