@@ -15,7 +15,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"unicode"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-chi/chi/v5"
@@ -639,28 +638,24 @@ var consecutiveHyphenRegex = regexp.MustCompile("-+")
 // of a folder name, falling back to a safe version
 // of the container name if unable to create a name.
 func safeAgentName(name string, friendlyName string) string {
-	// Keep only letters and digits, replacing everything
+	// Keep only ASCII letters and digits, replacing everything
 	// else with a hyphen.
 	var sb strings.Builder
 	for _, r := range strings.ToLower(name) {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			sb.WriteRune(r)
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			_, _ = sb.WriteRune(r)
 		} else {
-			sb.WriteRune('-')
+			_, _ = sb.WriteRune('-')
 		}
 	}
 
-	// Remove any consecutive hyphens, and then trim and leading
+	// Remove any consecutive hyphens, and then trim any leading
 	// and trailing hyphens.
 	name = consecutiveHyphenRegex.ReplaceAllString(sb.String(), "-")
 	name = strings.Trim(name, "-")
 
-	name = strings.ToLower(name)
-	name = strings.ReplaceAll(name, " ", "-")
-	name = strings.ReplaceAll(name, "_", "-")
-
 	if name == "" {
-		return safeFriendlyName(name)
+		return safeFriendlyName(friendlyName)
 	}
 
 	return name
