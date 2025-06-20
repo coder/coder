@@ -197,13 +197,15 @@ func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath st
 	var stdoutBuf bytes.Buffer
 	cmd.Stdout = io.MultiWriter(
 		&stdoutBuf,
-		&devcontainerCLILogWriter{ctx: ctx,
+		&devcontainerCLILogWriter{
+			ctx:    ctx,
 			logger: logger.With(slog.F("stdout", true)),
 			writer: conf.stdout,
 		},
 	)
 	// Stream stderr logs and provided writer if any.
-	cmd.Stderr = &devcontainerCLILogWriter{ctx: ctx,
+	cmd.Stderr = &devcontainerCLILogWriter{
+		ctx:    ctx,
 		logger: logger.With(slog.F("stderr", true)),
 		writer: conf.stderr,
 	}
@@ -245,11 +247,13 @@ func (d *devcontainerCLI) Exec(ctx context.Context, workspaceFolder, configPath 
 	args = append(args, cmdArgs...)
 	c := d.execer.CommandContext(ctx, "devcontainer", args...)
 
-	c.Stdout = &devcontainerCLILogWriter{ctx: ctx,
+	c.Stdout = &devcontainerCLILogWriter{
+		ctx:    ctx,
 		logger: logger.With(slog.F("stdout", true)),
 		writer: conf.stdout,
 	}
-	c.Stderr = &devcontainerCLILogWriter{ctx: ctx,
+	c.Stderr = &devcontainerCLILogWriter{
+		ctx:    ctx,
 		logger: logger.With(slog.F("stderr", true)),
 		writer: conf.stderr,
 	}
@@ -280,12 +284,14 @@ func (d *devcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, confi
 	var stdoutBuf bytes.Buffer
 	c.Stdout = io.MultiWriter(
 		&stdoutBuf,
-		&devcontainerCLILogWriter{ctx: ctx,
+		&devcontainerCLILogWriter{
+			ctx:    ctx,
 			logger: logger.With(slog.F("stdout", true)),
 			writer: conf.stdout,
 		},
 	)
-	c.Stderr = &devcontainerCLILogWriter{ctx: ctx,
+	c.Stderr = &devcontainerCLILogWriter{
+		ctx:    ctx,
 		logger: logger.With(slog.F("stderr", true)),
 		writer: conf.stderr,
 	}
