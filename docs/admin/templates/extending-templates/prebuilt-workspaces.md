@@ -183,7 +183,7 @@ Cron expressions follow the format: `* HOUR DOM MONTH DAY-OF-WEEK`
 
 **Example schedules:**
 
-```hcl
+```tf
 # Business hours only (8AM-6:59PM, Mon-Fri)
 schedule {
   cron = "* 8-18 * * 1-5"
