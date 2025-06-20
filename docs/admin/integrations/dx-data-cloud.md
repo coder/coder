@@ -3,18 +3,22 @@
 [DX](https://getdx.com) is a developer intelligence platform used by engineering
 leaders and platform engineers.
 
-You can tag your Coder users in DX Data Cloud to filter and analyze user activity data to:
+DX uses metadata attributes to assign information to individual users.
+While it's common to segment users by `role`, `level`, or `geo`, it’s become increasingly
+common to use DX attributes to better understand usage and adoption of tools.
 
-- Measure adoption and impact
-- Identify feature usage patterns
+You can create a `Coder` attribute in DX to segment and analyze the impact of Coder usage on a developer’s work, including:
+
+- Understanding the needs of power users or low Coder usage across the org
+- Correlate Coder usage with qualitative and quantitative engineering metrics,
+  such as PR throughput, deployment frequency, deep work, dev environment toil, and more.
 - Personalize user experiences
-- Proactively address issues
 
 ## Requirements
 
-- A DX Data Cloud subscription
+- A DX subscription
 - Access to Coder user data through the Coder CLI, Coder API, an IdP, or an existing Coder-DX integration
-- Coordination with your Data Cloud Customer Success Manager
+- Coordination with your DX Customer Success Manager
 
 ## Extract Your Coder User List
 
@@ -63,25 +67,17 @@ This is particularly useful if you need additional user attributes managed withi
 
 </div>
 
-## Engage your DX Data Cloud Customer Success Manager
+## Contact your DX Customer Success Manager
 
-Provide the file to your dedicated DX Data Cloud Customer Success Manager (CSM).
+Provide the file to your dedicated DX Customer Success Manager (CSM).
 
-Your CSM will:
+Your CSM will import the CSV of individuals using Coder, as well as usage frequency (if applicable) into DX to create a `Coder` attribute.
 
-1. Import the CSV file into the Data Cloud platform
-1. Associate Coder user identifiers with corresponding records in your Data Cloud environment
-1. Create the necessary links between your Coder users and their activity data
+After the attribute is uploaded, you'll have a Coder filter option within your DX reports allowing you to:
 
-## Use Coder as a Data Cloud Filter
-
-After the tagging process is complete, you'll have a **Coder** filter option within your Data Cloud dashboards,
-reports, and analysis tools that you can use to:
-
-- Segment your data based on Coder usage
-- Filter by additional user attributes that are included in your CSV file
-- Perform granular analysis on specific segments of your Coder user base
+- Perform cohort analysis (Coder user vs non-user)
 - Understand unique behaviors and patterns across your Coder users
+- Run a [study](https://getdx.com/studies/) or setup a [PlatformX](https://getdx.com/platformx/) event for deeper analysis
 
 ## Related Resources
 
