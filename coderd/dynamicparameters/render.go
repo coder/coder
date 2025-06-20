@@ -166,7 +166,7 @@ func (r *Loader) dynamicRenderer(ctx context.Context, db database.Store, cache *
 		close: func() {
 			// Up to 2 files are cached, and must be released when rendering is complete.
 			// TODO: Might be smart to always call release when the context is
-			//  cancelled.
+			//  canceled.
 			templateFS.Close()
 			if moduleFilesFS != nil {
 				moduleFilesFS.Close()
