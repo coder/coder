@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -452,18 +453,38 @@ func TestWorkspaceBuildsProvisionerState(t *testing.T) {
 		t.Run("OK", func(t *testing.T) {
 			// Include a provisioner so that we can test that provisionerdserver
 			// performs deletion.
-			client, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			auditor := audit.NewMock()
+			client, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 			first := coderdtest.CreateFirstUser(t, client)
 			templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleTemplateAdmin())
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+			// This is a valid zip file. Without this the job will fail to complete.
+			// TODO: add this to dbfake by default.
+			zipBytes := make([]byte, 22)
+			zipBytes[0] = 80
+			zipBytes[1] = 75
+			zipBytes[2] = 0o5
+			zipBytes[3] = 0o6
+			uploadRes, err := client.Upload(ctx, codersdk.ContentTypeZip, bytes.NewReader(zipBytes))
+			require.NoError(t, err)
+
+			tv := dbfake.TemplateVersion(t, store).
+				FileID(uploadRes.ID).
+				Seed(database.TemplateVersion{
+					OrganizationID: first.OrganizationID,
+					CreatedBy:      templateAdminUser.ID,
+				}).
+				Do()
 
 			r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 				OwnerID:        templateAdminUser.ID,
 				OrganizationID: first.OrganizationID,
+				TemplateID:     tv.Template.ID,
 			}).Do()
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
-
+			auditor.ResetLogs()
 			// Regular orphan operation succeeds.
 			build, err := templateAdmin.CreateWorkspaceBuild(ctx, r.Workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				TemplateVersionID: r.TemplateVersion.ID,
@@ -471,13 +492,19 @@ func TestWorkspaceBuildsProvisionerState(t *testing.T) {
 				Orphan:            true,
 			})
 			require.NoError(t, err)
-			require.Equal(t, codersdk.WorkspaceTransitionDelete, build.Transition)
-			require.Equal(t, codersdk.ProvisionerJobPending, build.Job.Status)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+
+			// Validate that the deletion was audited.
+			require.True(t, auditor.Contains(t, database.AuditLog{
+				ResourceID: build.ID,
+				Action:     database.AuditActionDelete,
+			}))
 		})
 
 		t.Run("NoProvisioners", func(t *testing.T) {
 			t.Parallel()
-			client, store := coderdtest.NewWithDatabase(t, nil)
+			auditor := audit.NewMock()
+			client, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{Auditor: auditor})
 			first := coderdtest.CreateFirstUser(t, client)
 			templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleTemplateAdmin())
 
@@ -507,6 +534,12 @@ func TestWorkspaceBuildsProvisionerState(t *testing.T) {
 			ws, err := client.Workspace(ctx, r.Workspace.ID)
 			require.Empty(t, ws)
 			require.Equal(t, http.StatusGone, coderdtest.SDKError(t, err).StatusCode())
+
+			// Validate that the deletion was audited.
+			require.True(t, auditor.Contains(t, database.AuditLog{
+				ResourceID: build.ID,
+				Action:     database.AuditActionDelete,
+			}))
 		})
 	})
 }
