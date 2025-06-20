@@ -102,6 +102,20 @@ var RBACPermissions = map[string]PermissionDefinition{
 	"workspace_dormant": {
 		Actions: workspaceActions,
 	},
+	"prebuilt_workspace": {
+		// Prebuilt_workspace actions currently apply only to delete operations.
+		// To successfully delete a prebuilt workspace, a user must have the following permissions:
+		//   * workspace.read: to read the current workspace state
+		//   * update: to modify workspace metadata and related resources during deletion
+		//             (e.g., updating the deleted field in the database)
+		//   * delete: to perform the actual deletion of the workspace
+		// If the user lacks prebuilt_workspace update or delete permissions,
+		// the authorization will always fall back to the corresponding permissions on workspace.
+		Actions: map[Action]ActionDefinition{
+			ActionUpdate: actDef("update prebuilt workspace settings"),
+			ActionDelete: actDef("delete prebuilt workspace"),
+		},
+	},
 	"workspace_proxy": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef("create a workspace proxy"),

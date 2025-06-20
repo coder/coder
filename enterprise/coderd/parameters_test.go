@@ -31,7 +31,7 @@ func TestDynamicParametersOwnerGroups(t *testing.T) {
 			Options: &coderdtest.Options{IncludeProvisionerDaemon: true},
 		},
 	)
-	templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+	templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
 	_, noGroupUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
 	// Create the group to be asserted
@@ -79,10 +79,10 @@ func TestDynamicParametersOwnerGroups(t *testing.T) {
 	require.NoError(t, err)
 	defer stream.Close(websocket.StatusGoingAway)
 
-	previews := stream.Chan()
+	previews, pop := coderdtest.SynchronousStream(stream)
 
 	// Should automatically send a form state with all defaulted/empty values
-	preview := testutil.RequireReceive(ctx, t, previews)
+	preview := pop()
 	require.Equal(t, -1, preview.ID)
 	require.Empty(t, preview.Diagnostics)
 	require.Equal(t, "group", preview.Parameters[0].Name)
@@ -90,12 +90,11 @@ func TestDynamicParametersOwnerGroups(t *testing.T) {
 	require.Equal(t, database.EveryoneGroup, preview.Parameters[0].Value.Value)
 
 	// Send a new value, and see it reflected
-	err = stream.Send(codersdk.DynamicParametersRequest{
+	preview, err = previews(codersdk.DynamicParametersRequest{
 		ID:     1,
 		Inputs: map[string]string{"group": group.Name},
 	})
 	require.NoError(t, err)
-	preview = testutil.RequireReceive(ctx, t, previews)
 	require.Equal(t, 1, preview.ID)
 	require.Empty(t, preview.Diagnostics)
 	require.Equal(t, "group", preview.Parameters[0].Name)
@@ -103,12 +102,11 @@ func TestDynamicParametersOwnerGroups(t *testing.T) {
 	require.Equal(t, group.Name, preview.Parameters[0].Value.Value)
 
 	// Back to default
-	err = stream.Send(codersdk.DynamicParametersRequest{
+	preview, err = previews(codersdk.DynamicParametersRequest{
 		ID:     3,
 		Inputs: map[string]string{},
 	})
 	require.NoError(t, err)
-	preview = testutil.RequireReceive(ctx, t, previews)
 	require.Equal(t, 3, preview.ID)
 	require.Empty(t, preview.Diagnostics)
 	require.Equal(t, "group", preview.Parameters[0].Name)

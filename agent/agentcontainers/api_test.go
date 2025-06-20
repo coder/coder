@@ -1262,6 +1262,11 @@ func TestAPI(t *testing.T) {
 				deleteErrC: make(chan error, 1),
 			}
 			fakeDCCLI = &fakeDevcontainerCLI{
+				readConfig: agentcontainers.DevcontainerConfig{
+					Workspace: agentcontainers.DevcontainerWorkspace{
+						WorkspaceFolder: "/workspaces/coder",
+					},
+				},
 				execErrC:       make(chan func(cmd string, args ...string) error, 1),
 				readConfigErrC: make(chan func(envs []string) error, 1),
 			}
@@ -1273,8 +1278,8 @@ func TestAPI(t *testing.T) {
 				Running:      true,
 				CreatedAt:    time.Now(),
 				Labels: map[string]string{
-					agentcontainers.DevcontainerLocalFolderLabel: "/workspaces",
-					agentcontainers.DevcontainerConfigFileLabel:  "/workspace/.devcontainer/devcontainer.json",
+					agentcontainers.DevcontainerLocalFolderLabel: "/home/coder/coder",
+					agentcontainers.DevcontainerConfigFileLabel:  "/home/coder/coder/.devcontainer/devcontainer.json",
 				},
 			}
 		)
@@ -1320,11 +1325,6 @@ func TestAPI(t *testing.T) {
 
 		// Allow initial agent creation and injection to succeed.
 		testutil.RequireSend(ctx, t, fakeSAC.createErrC, nil)
-		testutil.RequireSend(ctx, t, fakeDCCLI.execErrC, func(cmd string, args ...string) error {
-			assert.Equal(t, "pwd", cmd)
-			assert.Empty(t, args)
-			return nil
-		}) // Exec pwd.
 		testutil.RequireSend(ctx, t, fakeDCCLI.readConfigErrC, func(envs []string) error {
 			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=test-container")
 			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
@@ -1350,7 +1350,7 @@ func TestAPI(t *testing.T) {
 		// Verify agent was created.
 		require.Len(t, fakeSAC.created, 1)
 		assert.Equal(t, "test-container", fakeSAC.created[0].Name)
-		assert.Equal(t, "/workspaces", fakeSAC.created[0].Directory)
+		assert.Equal(t, "/workspaces/coder", fakeSAC.created[0].Directory)
 		assert.Len(t, fakeSAC.deleted, 0)
 
 		t.Log("Agent injected successfully, now testing reinjection into the same container...")
@@ -1467,11 +1467,6 @@ func TestAPI(t *testing.T) {
 		testutil.RequireSend(ctx, t, fakeSAC.deleteErrC, nil)
 		// Expect the agent to be recreated.
 		testutil.RequireSend(ctx, t, fakeSAC.createErrC, nil)
-		testutil.RequireSend(ctx, t, fakeDCCLI.execErrC, func(cmd string, args ...string) error {
-			assert.Equal(t, "pwd", cmd)
-			assert.Empty(t, args)
-			return nil
-		}) // Exec pwd.
 		testutil.RequireSend(ctx, t, fakeDCCLI.readConfigErrC, func(envs []string) error {
 			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=test-container")
 			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
@@ -1556,17 +1551,18 @@ func TestAPI(t *testing.T) {
 		}
 
 		tests := []struct {
-			name          string
-			customization []agentcontainers.CoderCustomization
-			afterCreate   func(t *testing.T, subAgent agentcontainers.SubAgent)
+			name                 string
+			customization        agentcontainers.CoderCustomization
+			mergedCustomizations []agentcontainers.CoderCustomization
+			afterCreate          func(t *testing.T, subAgent agentcontainers.SubAgent)
 		}{
 			{
-				name:          "WithoutCustomization",
-				customization: nil,
+				name:                 "WithoutCustomization",
+				mergedCustomizations: nil,
 			},
 			{
-				name:          "WithDefaultDisplayApps",
-				customization: []agentcontainers.CoderCustomization{},
+				name:                 "WithDefaultDisplayApps",
+				mergedCustomizations: []agentcontainers.CoderCustomization{},
 				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
 					require.Len(t, subAgent.DisplayApps, 4)
 					assert.Contains(t, subAgent.DisplayApps, codersdk.DisplayAppVSCodeDesktop)
@@ -1577,7 +1573,7 @@ func TestAPI(t *testing.T) {
 			},
 			{
 				name: "WithAllDisplayApps",
-				customization: []agentcontainers.CoderCustomization{
+				mergedCustomizations: []agentcontainers.CoderCustomization{
 					{
 						DisplayApps: map[codersdk.DisplayApp]bool{
 							codersdk.DisplayAppSSH:            true,
@@ -1599,7 +1595,7 @@ func TestAPI(t *testing.T) {
 			},
 			{
 				name: "WithSomeDisplayAppsDisabled",
-				customization: []agentcontainers.CoderCustomization{
+				mergedCustomizations: []agentcontainers.CoderCustomization{
 					{
 						DisplayApps: map[codersdk.DisplayApp]bool{
 							codersdk.DisplayAppSSH:            false,
@@ -1631,7 +1627,7 @@ func TestAPI(t *testing.T) {
 			},
 			{
 				name: "WithApps",
-				customization: []agentcontainers.CoderCustomization{
+				mergedCustomizations: []agentcontainers.CoderCustomization{
 					{
 						Apps: []agentcontainers.SubAgentApp{
 							{
@@ -1699,7 +1695,7 @@ func TestAPI(t *testing.T) {
 			},
 			{
 				name: "AppDeduplication",
-				customization: []agentcontainers.CoderCustomization{
+				mergedCustomizations: []agentcontainers.CoderCustomization{
 					{
 						Apps: []agentcontainers.SubAgentApp{
 							{
@@ -1739,6 +1735,52 @@ func TestAPI(t *testing.T) {
 					assert.Equal(t, int32(2), subAgent.Apps[1].Order)
 				},
 			},
+			{
+				name: "Name",
+				customization: agentcontainers.CoderCustomization{
+					Name: "this-name",
+				},
+				mergedCustomizations: []agentcontainers.CoderCustomization{
+					{
+						Name: "not-this-name",
+					},
+					{
+						Name: "or-this-name",
+					},
+				},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.Equal(t, "this-name", subAgent.Name)
+				},
+			},
+			{
+				name: "NameIsOnlyUsedFromRoot",
+				mergedCustomizations: []agentcontainers.CoderCustomization{
+					{
+						Name: "custom-name",
+					},
+				},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.NotEqual(t, "custom-name", subAgent.Name)
+				},
+			},
+			{
+				name: "EmptyNameIsIgnored",
+				customization: agentcontainers.CoderCustomization{
+					Name: "",
+				},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.NotEmpty(t, subAgent.Name)
+				},
+			},
+			{
+				name: "InvalidNameIsIgnored",
+				customization: agentcontainers.CoderCustomization{
+					Name: "This--Is_An_Invalid--Name",
+				},
+				afterCreate: func(t *testing.T, subAgent agentcontainers.SubAgent) {
+					require.NotEqual(t, "This--Is_An_Invalid--Name", subAgent.Name)
+				},
+			},
 		}
 
 		for _, tt := range tests {
@@ -1756,13 +1798,17 @@ func TestAPI(t *testing.T) {
 					}
 					fDCCLI = &fakeDevcontainerCLI{
 						readConfig: agentcontainers.DevcontainerConfig{
-							MergedConfiguration: agentcontainers.DevcontainerConfiguration{
+							Configuration: agentcontainers.DevcontainerConfiguration{
 								Customizations: agentcontainers.DevcontainerCustomizations{
 									Coder: tt.customization,
 								},
 							},
+							MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
+								Customizations: agentcontainers.DevcontainerMergedCustomizations{
+									Coder: tt.mergedCustomizations,
+								},
+							},
 						},
-						execErrC: make(chan func(cmd string, args ...string) error, 1),
 					}
 
 					testContainer = codersdk.WorkspaceAgentContainer{
@@ -1809,15 +1855,9 @@ func TestAPI(t *testing.T) {
 
 				// Close before api.Close() defer to avoid deadlock after test.
 				defer close(fSAC.createErrC)
-				defer close(fDCCLI.execErrC)
 
 				// Given: We allow agent creation and injection to succeed.
 				testutil.RequireSend(ctx, t, fSAC.createErrC, nil)
-				testutil.RequireSend(ctx, t, fDCCLI.execErrC, func(cmd string, args ...string) error {
-					assert.Equal(t, "pwd", cmd)
-					assert.Empty(t, args)
-					return nil
-				})
 
 				// Wait until the ticker has been registered.
 				tickerTrap.MustWait(ctx).MustRelease(ctx)
@@ -1825,13 +1865,110 @@ func TestAPI(t *testing.T) {
 
 				// Then: We expected it to succeed
 				require.Len(t, fSAC.created, 1)
-				assert.Equal(t, testContainer.FriendlyName, fSAC.created[0].Name)
 
 				if tt.afterCreate != nil {
 					tt.afterCreate(t, fSAC.created[0])
 				}
 			})
 		}
+	})
+
+	t.Run("CreateReadsConfigTwice", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("Dev Container tests are not supported on Windows (this test uses mocks but fails due to Windows paths)")
+		}
+
+		var (
+			ctx    = testutil.Context(t, testutil.WaitMedium)
+			logger = testutil.Logger(t)
+			mClock = quartz.NewMock(t)
+			mCCLI  = acmock.NewMockContainerCLI(gomock.NewController(t))
+			fSAC   = &fakeSubAgentClient{
+				logger:     logger.Named("fakeSubAgentClient"),
+				createErrC: make(chan error, 1),
+			}
+			fDCCLI = &fakeDevcontainerCLI{
+				readConfig: agentcontainers.DevcontainerConfig{
+					Configuration: agentcontainers.DevcontainerConfiguration{
+						Customizations: agentcontainers.DevcontainerCustomizations{
+							Coder: agentcontainers.CoderCustomization{
+								// We want to specify a custom name for this agent.
+								Name: "custom-name",
+							},
+						},
+					},
+				},
+				readConfigErrC: make(chan func(envs []string) error, 2),
+			}
+
+			testContainer = codersdk.WorkspaceAgentContainer{
+				ID:           "test-container-id",
+				FriendlyName: "test-container",
+				Image:        "test-image",
+				Running:      true,
+				CreatedAt:    time.Now(),
+				Labels: map[string]string{
+					agentcontainers.DevcontainerLocalFolderLabel: "/workspaces",
+					agentcontainers.DevcontainerConfigFileLabel:  "/workspace/.devcontainer/devcontainer.json",
+				},
+			}
+		)
+
+		coderBin, err := os.Executable()
+		require.NoError(t, err)
+
+		// Mock the `List` function to always return out test container.
+		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentContainer{testContainer},
+		}, nil).AnyTimes()
+
+		// Mock the steps used for injecting the coder agent.
+		gomock.InOrder(
+			mCCLI.EXPECT().DetectArchitecture(gomock.Any(), testContainer.ID).Return(runtime.GOARCH, nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
+			mCCLI.EXPECT().Copy(gomock.Any(), testContainer.ID, coderBin, "/.coder-agent/coder").Return(nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
+		)
+
+		mClock.Set(time.Now()).MustWait(ctx)
+		tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+
+		api := agentcontainers.NewAPI(logger,
+			agentcontainers.WithClock(mClock),
+			agentcontainers.WithContainerCLI(mCCLI),
+			agentcontainers.WithDevcontainerCLI(fDCCLI),
+			agentcontainers.WithSubAgentClient(fSAC),
+			agentcontainers.WithSubAgentURL("test-subagent-url"),
+			agentcontainers.WithWatcher(watcher.NewNoop()),
+		)
+		defer api.Close()
+
+		// Close before api.Close() defer to avoid deadlock after test.
+		defer close(fSAC.createErrC)
+		defer close(fDCCLI.readConfigErrC)
+
+		// Given: We allow agent creation and injection to succeed.
+		testutil.RequireSend(ctx, t, fSAC.createErrC, nil)
+		testutil.RequireSend(ctx, t, fDCCLI.readConfigErrC, func(env []string) error {
+			// We expect the wrong workspace agent name passed in first.
+			assert.Contains(t, env, "CODER_WORKSPACE_AGENT_NAME=test-container")
+			return nil
+		})
+		testutil.RequireSend(ctx, t, fDCCLI.readConfigErrC, func(env []string) error {
+			// We then expect the agent name passed here to have been read from the config.
+			assert.Contains(t, env, "CODER_WORKSPACE_AGENT_NAME=custom-name")
+			assert.NotContains(t, env, "CODER_WORKSPACE_AGENT_NAME=test-container")
+			return nil
+		})
+
+		// Wait until the ticker has been registered.
+		tickerTrap.MustWait(ctx).MustRelease(ctx)
+		tickerTrap.Close()
+
+		// Then: We expected it to succeed
+		require.Len(t, fSAC.created, 1)
 	})
 }
 

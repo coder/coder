@@ -1202,7 +1202,7 @@ func TestAgent_EnvironmentVariableExpansion(t *testing.T) {
 func TestAgent_CoderEnvVars(t *testing.T) {
 	t.Parallel()
 
-	for _, key := range []string{"CODER", "CODER_WORKSPACE_NAME", "CODER_WORKSPACE_AGENT_NAME"} {
+	for _, key := range []string{"CODER", "CODER_WORKSPACE_NAME", "CODER_WORKSPACE_OWNER_NAME", "CODER_WORKSPACE_AGENT_NAME"} {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
 
@@ -3066,6 +3066,9 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	}
 	if metadata.WorkspaceName == "" {
 		metadata.WorkspaceName = "test-workspace"
+	}
+	if metadata.OwnerName == "" {
+		metadata.OwnerName = "test-user"
 	}
 	if metadata.WorkspaceID == uuid.Nil {
 		metadata.WorkspaceID = uuid.New()

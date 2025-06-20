@@ -918,7 +918,18 @@ func (b *Builder) authorize(authFunc func(action policy.Action, object rbac.Obje
 		msg := fmt.Sprintf("Transition %q not supported.", b.trans)
 		return BuildError{http.StatusBadRequest, msg, xerrors.New(msg)}
 	}
-	if !authFunc(action, b.workspace) {
+
+	// Special handling for prebuilt workspace deletion
+	authorized := false
+	if action == policy.ActionDelete && b.workspace.IsPrebuild() && authFunc(action, b.workspace.AsPrebuild()) {
+		authorized = true
+	}
+	// Fallback to default authorization
+	if !authorized && authFunc(action, b.workspace) {
+		authorized = true
+	}
+
+	if !authorized {
 		if authFunc(policy.ActionRead, b.workspace) {
 			// If the user can read the workspace, but not delete/create/update. Show
 			// a more helpful error. They are allowed to know the workspace exists.

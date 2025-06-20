@@ -392,6 +392,16 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			ctx,
 			tx,
 			func(action policy.Action, object rbac.Objecter) bool {
+				// Special handling for prebuilt workspace deletion
+				if object.RBACObject().Type == rbac.ResourceWorkspace.Type && action == policy.ActionDelete {
+					if workspaceObj, ok := object.(database.Workspace); ok {
+						// Try prebuilt-specific authorization first
+						if auth := api.Authorize(r, action, workspaceObj.AsPrebuild()); auth {
+							return auth
+						}
+					}
+				}
+				// Fallback to default authorization
 				return api.Authorize(r, action, object)
 			},
 			audit.WorkspaceBuildBaggageFromRequest(r),
@@ -1078,6 +1088,14 @@ func (api *API) convertWorkspaceBuild(
 	if build.TemplateVersionPresetID.Valid {
 		presetID = &build.TemplateVersionPresetID.UUID
 	}
+	var hasAITask *bool
+	if build.HasAITask.Valid {
+		hasAITask = &build.HasAITask.Bool
+	}
+	var aiTasksSidebarAppID *uuid.UUID
+	if build.AITasksSidebarAppID.Valid {
+		aiTasksSidebarAppID = &build.AITasksSidebarAppID.UUID
+	}
 
 	apiJob := convertProvisionerJob(job)
 	transition := codersdk.WorkspaceTransition(build.Transition)
@@ -1105,6 +1123,8 @@ func (api *API) convertWorkspaceBuild(
 		DailyCost:               build.DailyCost,
 		MatchedProvisioners:     &matchedProvisioners,
 		TemplateVersionPresetID: presetID,
+		HasAITask:               hasAITask,
+		AITaskSidebarAppID:      aiTasksSidebarAppID,
 	}, nil
 }
 

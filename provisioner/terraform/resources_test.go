@@ -882,6 +882,19 @@ func TestConvertResources(t *testing.T) {
 					ExpirationPolicy: &proto.ExpirationPolicy{
 						Ttl: 86400,
 					},
+					Scheduling: &proto.Scheduling{
+						Timezone: "America/Los_Angeles",
+						Schedule: []*proto.Schedule{
+							{
+								Cron:      "* 8-18 * * 1-5",
+								Instances: 3,
+							},
+							{
+								Cron:      "* 8-14 * * 6",
+								Instances: 1,
+							},
+						},
+					},
 				},
 			}},
 		},

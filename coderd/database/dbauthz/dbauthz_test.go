@@ -979,6 +979,28 @@ func (s *MethodTestSuite) TestOrganization() {
 		}
 		check.Args(insertPresetParametersParams).Asserts(rbac.ResourceTemplate, policy.ActionUpdate)
 	}))
+	s.Run("InsertPresetPrebuildSchedule", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		user := dbgen.User(s.T(), db, database.User{})
+		template := dbgen.Template(s.T(), db, database.Template{
+			CreatedBy:      user.ID,
+			OrganizationID: org.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		preset := dbgen.Preset(s.T(), db, database.InsertPresetParams{
+			TemplateVersionID: templateVersion.ID,
+			Name:              "test",
+		})
+		arg := database.InsertPresetPrebuildScheduleParams{
+			PresetID: preset.ID,
+		}
+		check.Args(arg).
+			Asserts(rbac.ResourceTemplate, policy.ActionUpdate)
+	}))
 	s.Run("DeleteOrganizationMember", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		u := dbgen.User(s.T(), db, database.User{})
@@ -4566,6 +4588,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetProvisionerJobByIDForUpdate", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(uuid.New()).Asserts(rbac.ResourceProvisionerJobs, policy.ActionRead).Errors(sql.ErrNoRows)
 	}))
+	s.Run("HasTemplateVersionsWithAITask", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().Asserts()
+	}))
 }
 
 func (s *MethodTestSuite) TestNotifications() {
@@ -4912,6 +4937,11 @@ func (s *MethodTestSuite) TestPrebuilds() {
 			Args(preset.ID).
 			Asserts(template.RBACObject(), policy.ActionRead).
 			Returns(insertedParameters)
+	}))
+	s.Run("GetActivePresetPrebuildSchedules", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceTemplate.All(), policy.ActionRead).
+			Returns([]database.TemplateVersionPresetPrebuildSchedule{})
 	}))
 	s.Run("GetPresetsByTemplateVersionID", s.Subtest(func(db database.Store, check *expects) {
 		ctx := context.Background()
@@ -5530,5 +5560,65 @@ func (s *MethodTestSuite) TestChat() {
 			Title:     "new title",
 			UpdatedAt: dbtime.Now(),
 		}).Asserts(c, policy.ActionUpdate)
+	}))
+}
+
+func (s *MethodTestSuite) TestAuthorizePrebuiltWorkspace() {
+	s.Run("PrebuildDelete/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		tpl := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			TemplateID:     tpl.ID,
+			OrganizationID: o.ID,
+			OwnerID:        database.PrebuildsSystemUserID,
+		})
+		pj := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			OrganizationID: o.ID,
+		})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		check.Args(database.InsertWorkspaceBuildParams{
+			WorkspaceID:       w.ID,
+			Transition:        database.WorkspaceTransitionDelete,
+			Reason:            database.BuildReasonInitiator,
+			TemplateVersionID: tv.ID,
+			JobID:             pj.ID,
+		}).Asserts(w.AsPrebuild(), policy.ActionDelete)
+	}))
+	s.Run("PrebuildUpdate/InsertWorkspaceBuildParameters", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		tpl := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			TemplateID:     tpl.ID,
+			OrganizationID: o.ID,
+			OwnerID:        database.PrebuildsSystemUserID,
+		})
+		pj := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			OrganizationID: o.ID,
+		})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		wb := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
+			JobID:             pj.ID,
+			WorkspaceID:       w.ID,
+			TemplateVersionID: tv.ID,
+		})
+		check.Args(database.InsertWorkspaceBuildParametersParams{
+			WorkspaceBuildID: wb.ID,
+		}).Asserts(w.AsPrebuild(), policy.ActionUpdate)
 	}))
 }

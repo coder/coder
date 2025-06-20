@@ -27,7 +27,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -1416,7 +1415,7 @@ func TestGetUsers_IncludeSystem(t *testing.T) {
 			for _, u := range users {
 				if u.IsSystem {
 					foundSystemUser = true
-					require.Equal(t, prebuilds.SystemUserID, u.ID)
+					require.Equal(t, database.PrebuildsSystemUserID, u.ID)
 				} else {
 					foundRegularUser = true
 					require.Equalf(t, other.ID.String(), u.ID.String(), "found unexpected regular user")
