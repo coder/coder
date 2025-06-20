@@ -20,7 +20,7 @@ type staticRender struct {
 	staticParams []previewtypes.Parameter
 }
 
-func (r *loader) staticRender(ctx context.Context, db database.Store) (*staticRender, error) {
+func (r *Loader) staticRender(ctx context.Context, db database.Store) (*staticRender, error) {
 	dbTemplateVersionParameters, err := db.GetTemplateVersionParameters(ctx, r.templateVersionID)
 	if err != nil {
 		return nil, xerrors.Errorf("template version parameters: %w", err)
