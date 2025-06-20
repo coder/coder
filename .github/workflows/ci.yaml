@@ -473,6 +473,17 @@ jobs:
         with:
           key-prefix: test-go-pg-${{ runner.os }}-${{ runner.arch }}
 
+      - name: Setup Embedded Postgres Cache Paths
+        id: embedded-pg-cache
+        uses: ./.github/actions/setup-embedded-pg-cache-paths
+
+      - name: Download Embedded Postgres Cache
+        id: download-embedded-pg-cache
+        uses: ./.github/actions/embedded-pg-cache/download
+        with:
+          key-prefix: embedded-pg-${{ runner.os }}-${{ runner.arch }}
+          cache-path: ${{ steps.embedded-pg-cache.outputs.cached-dirs }}
+
       - name: Normalize File and Directory Timestamps
         shell: bash
         # Normalize file modification timestamps so that go test can use the
@@ -497,7 +508,7 @@ jobs:
             # Create a temp dir on the R: ramdisk drive for Windows. The default
             # C: drive is extremely slow: https://github.com/actions/runner-images/issues/8755
             mkdir -p "R:/temp/embedded-pg"
-            mkdir -p "C:/temp/embedded-pg-cache"
+            mkdir -p "R:/temp/embedded-pg-cache"
             go run scripts/embedded-pg/main.go -path "R:/temp/embedded-pg" -cache "C:/temp/embedded-pg-cache"
           elif [ "${{ runner.os }}" == "macOS" ]; then
             # Postgres runs faster on a ramdisk on macOS too
@@ -574,10 +585,10 @@ jobs:
           cache-key: ${{ steps.download-cache.outputs.cache-key }}
 
       - name: Upload Embedded Postgres Cache
-        uses: ./.github/actions/embedded-pg-cache
+        uses: ./.github/actions/embedded-pg-cache/upload
         with:
           cache-key: ${{ steps.download-cache.outputs.cache-key }}
-          cache-path: ${{ runner.os == 'Windows' ? 'C:/temp/embedded-pg-cache' : '/tmp/embedded-pg-cache' }}
+          cache-path: ${{ steps.embedded-pg-cache.outputs.cached-dirs }}
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
