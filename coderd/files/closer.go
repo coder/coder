@@ -35,7 +35,7 @@ func (c *CacheCloser) Close() {
 	// Prevent further acquisitions
 	c.cache = nil
 	// Remove any references
-	c.closers = make([]func(), 0)
+	c.closers = nil
 }
 
 func (c *CacheCloser) Acquire(ctx context.Context, fileID uuid.UUID) (*CloseFS, error) {
