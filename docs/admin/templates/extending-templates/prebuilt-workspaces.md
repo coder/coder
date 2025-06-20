@@ -114,7 +114,7 @@ New prebuilt workspaces are only created to maintain the desired count if needed
 
 ### Scheduling
 
-Prebuilt workspaces support time-based scheduling to scale the number of instances based on usage patterns.
+Prebuilt workspaces support time-based scheduling to scale the number of instances up or down.
 This allows you to reduce resource costs during off-hours while maintaining availability during peak usage times.
 
 Configure scheduling by adding a `scheduling` block within your `prebuilds` configuration:
