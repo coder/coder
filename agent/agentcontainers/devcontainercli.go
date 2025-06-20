@@ -22,6 +22,7 @@ import (
 type DevcontainerConfig struct {
 	MergedConfiguration DevcontainerMergedConfiguration `json:"mergedConfiguration"`
 	Configuration       DevcontainerConfiguration       `json:"configuration"`
+	Workspace           DevcontainerWorkspace           `json:"workspace"`
 }
 
 type DevcontainerMergedConfiguration struct {
@@ -44,6 +45,10 @@ type CoderCustomization struct {
 	DisplayApps map[codersdk.DisplayApp]bool `json:"displayApps,omitempty"`
 	Apps        []SubAgentApp                `json:"apps,omitempty"`
 	Name        string                       `json:"name,omitempty"`
+}
+
+type DevcontainerWorkspace struct {
+	WorkspaceFolder string `json:"workspaceFolder"`
 }
 
 // DevcontainerCLI is an interface for the devcontainer CLI.

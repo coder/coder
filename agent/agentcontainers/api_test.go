@@ -1262,6 +1262,11 @@ func TestAPI(t *testing.T) {
 				deleteErrC: make(chan error, 1),
 			}
 			fakeDCCLI = &fakeDevcontainerCLI{
+				readConfig: agentcontainers.DevcontainerConfig{
+					Workspace: agentcontainers.DevcontainerWorkspace{
+						WorkspaceFolder: "/workspaces/coder",
+					},
+				},
 				execErrC:       make(chan func(cmd string, args ...string) error, 1),
 				readConfigErrC: make(chan func(envs []string) error, 1),
 			}
@@ -1273,8 +1278,8 @@ func TestAPI(t *testing.T) {
 				Running:      true,
 				CreatedAt:    time.Now(),
 				Labels: map[string]string{
-					agentcontainers.DevcontainerLocalFolderLabel: "/workspaces",
-					agentcontainers.DevcontainerConfigFileLabel:  "/workspace/.devcontainer/devcontainer.json",
+					agentcontainers.DevcontainerLocalFolderLabel: "/home/coder/coder",
+					agentcontainers.DevcontainerConfigFileLabel:  "/home/coder/coder/.devcontainer/devcontainer.json",
 				},
 			}
 		)
@@ -1320,11 +1325,6 @@ func TestAPI(t *testing.T) {
 
 		// Allow initial agent creation and injection to succeed.
 		testutil.RequireSend(ctx, t, fakeSAC.createErrC, nil)
-		testutil.RequireSend(ctx, t, fakeDCCLI.execErrC, func(cmd string, args ...string) error {
-			assert.Equal(t, "pwd", cmd)
-			assert.Empty(t, args)
-			return nil
-		}) // Exec pwd.
 		testutil.RequireSend(ctx, t, fakeDCCLI.readConfigErrC, func(envs []string) error {
 			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=test-container")
 			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
@@ -1350,7 +1350,7 @@ func TestAPI(t *testing.T) {
 		// Verify agent was created.
 		require.Len(t, fakeSAC.created, 1)
 		assert.Equal(t, "test-container", fakeSAC.created[0].Name)
-		assert.Equal(t, "/workspaces", fakeSAC.created[0].Directory)
+		assert.Equal(t, "/workspaces/coder", fakeSAC.created[0].Directory)
 		assert.Len(t, fakeSAC.deleted, 0)
 
 		t.Log("Agent injected successfully, now testing reinjection into the same container...")
@@ -1467,11 +1467,6 @@ func TestAPI(t *testing.T) {
 		testutil.RequireSend(ctx, t, fakeSAC.deleteErrC, nil)
 		// Expect the agent to be recreated.
 		testutil.RequireSend(ctx, t, fakeSAC.createErrC, nil)
-		testutil.RequireSend(ctx, t, fakeDCCLI.execErrC, func(cmd string, args ...string) error {
-			assert.Equal(t, "pwd", cmd)
-			assert.Empty(t, args)
-			return nil
-		}) // Exec pwd.
 		testutil.RequireSend(ctx, t, fakeDCCLI.readConfigErrC, func(envs []string) error {
 			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=test-container")
 			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
@@ -1814,7 +1809,6 @@ func TestAPI(t *testing.T) {
 								},
 							},
 						},
-						execErrC: make(chan func(cmd string, args ...string) error, 1),
 					}
 
 					testContainer = codersdk.WorkspaceAgentContainer{
@@ -1861,15 +1855,9 @@ func TestAPI(t *testing.T) {
 
 				// Close before api.Close() defer to avoid deadlock after test.
 				defer close(fSAC.createErrC)
-				defer close(fDCCLI.execErrC)
 
 				// Given: We allow agent creation and injection to succeed.
 				testutil.RequireSend(ctx, t, fSAC.createErrC, nil)
-				testutil.RequireSend(ctx, t, fDCCLI.execErrC, func(cmd string, args ...string) error {
-					assert.Equal(t, "pwd", cmd)
-					assert.Empty(t, args)
-					return nil
-				})
 
 				// Wait until the ticker has been registered.
 				tickerTrap.MustWait(ctx).MustRelease(ctx)
@@ -1913,7 +1901,6 @@ func TestAPI(t *testing.T) {
 					},
 				},
 				readConfigErrC: make(chan func(envs []string) error, 2),
-				execErrC:       make(chan func(cmd string, args ...string) error, 1),
 			}
 
 			testContainer = codersdk.WorkspaceAgentContainer{
@@ -1960,16 +1947,10 @@ func TestAPI(t *testing.T) {
 
 		// Close before api.Close() defer to avoid deadlock after test.
 		defer close(fSAC.createErrC)
-		defer close(fDCCLI.execErrC)
 		defer close(fDCCLI.readConfigErrC)
 
 		// Given: We allow agent creation and injection to succeed.
 		testutil.RequireSend(ctx, t, fSAC.createErrC, nil)
-		testutil.RequireSend(ctx, t, fDCCLI.execErrC, func(cmd string, args ...string) error {
-			assert.Equal(t, "pwd", cmd)
-			assert.Empty(t, args)
-			return nil
-		})
 		testutil.RequireSend(ctx, t, fDCCLI.readConfigErrC, func(env []string) error {
 			// We expect the wrong workspace agent name passed in first.
 			assert.Contains(t, env, "CODER_WORKSPACE_AGENT_NAME=test-container")
