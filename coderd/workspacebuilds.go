@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -430,6 +431,37 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		if err := provisionerjobs.PostJob(api.Pubsub, *provisionerJob); err != nil {
 			// Client probably doesn't care about this error, so just log it.
 			api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+		}
+
+		// We may need to complete the audit if wsbuilder determined that
+		// no provisioner could handle an orphan-delete job and completed it.
+		if createBuild.Orphan && createBuild.Transition == codersdk.WorkspaceTransitionDelete && provisionerJob.CompletedAt.Valid {
+			buildResourceInfo := audit.AdditionalFields{
+				WorkspaceName:  workspace.Name,
+				BuildNumber:    strconv.Itoa(int(workspaceBuild.BuildNumber)),
+				BuildReason:    workspaceBuild.Reason,
+				WorkspaceID:    workspace.ID,
+				WorkspaceOwner: workspace.OwnerName,
+			}
+			briBytes, err := json.Marshal(buildResourceInfo)
+			if err != nil {
+				api.Logger.Error(ctx, "failed to marshal build resource info for audit", slog.Error(err))
+			}
+			auditor := api.Auditor.Load()
+			bag := audit.BaggageFromContext(ctx)
+			audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceBuild]{
+				Audit:            *auditor,
+				Log:              api.Logger,
+				UserID:           provisionerJob.InitiatorID,
+				OrganizationID:   workspace.OrganizationID,
+				RequestID:        provisionerJob.ID,
+				IP:               bag.IP,
+				Action:           database.AuditActionDelete,
+				Old:              previousWorkspaceBuild,
+				New:              *workspaceBuild,
+				Status:           http.StatusOK,
+				AdditionalFields: briBytes,
+			})
 		}
 	}
 
