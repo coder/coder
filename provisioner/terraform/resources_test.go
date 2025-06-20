@@ -930,8 +930,6 @@ func TestConvertResources(t *testing.T) {
 			},
 		},
 	} {
-		folderName := folderName
-		expected := expected
 		t.Run(folderName, func(t *testing.T) {
 			t.Parallel()
 			dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", folderName)
@@ -1114,7 +1112,6 @@ func TestAppSlugValidation(t *testing.T) {
 
 	//nolint:paralleltest
 	for i, c := range cases {
-		c := c
 		t.Run(fmt.Sprintf("case-%d", i), func(t *testing.T) {
 			// Change the first app slug to match the current case.
 			for _, resource := range tfPlan.PlannedValues.RootModule.Resources {
@@ -1191,7 +1188,6 @@ func TestAgentNameInvalid(t *testing.T) {
 
 	//nolint:paralleltest
 	for i, c := range cases {
-		c := c
 		t.Run(fmt.Sprintf("case-%d", i), func(t *testing.T) {
 			// Change the first agent name to match the current case.
 			for _, resource := range tfPlan.PlannedValues.RootModule.Resources {
@@ -1343,7 +1339,6 @@ func TestInstanceTypeAssociation(t *testing.T) {
 		ResourceType:    "azurerm_windows_virtual_machine",
 		InstanceTypeKey: "size",
 	}} {
-		tc := tc
 		t.Run(tc.ResourceType, func(t *testing.T) {
 			t.Parallel()
 			ctx, logger := ctxAndLogger(t)
@@ -1402,7 +1397,6 @@ func TestInstanceIDAssociation(t *testing.T) {
 		ResourceType:  "azurerm_windows_virtual_machine",
 		InstanceIDKey: "virtual_machine_id",
 	}} {
-		tc := tc
 		t.Run(tc.ResourceType, func(t *testing.T) {
 			t.Parallel()
 			ctx, logger := ctxAndLogger(t)

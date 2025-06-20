@@ -1811,7 +1811,6 @@ func (q *FakeQuerier) CustomRoles(_ context.Context, arg database.CustomRolesPar
 
 	found := make([]database.CustomRole, 0)
 	for _, role := range q.data.customRoles {
-		role := role
 		if len(arg.LookupRoles) > 0 {
 			if !slices.ContainsFunc(arg.LookupRoles, func(pair database.NameOrganizationPair) bool {
 				if pair.Name != role.Name {
@@ -2920,7 +2919,6 @@ func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 	roles := make([]string, 0)
 	for _, u := range q.users {
 		if u.ID == userID {
-			u := u
 			roles = append(roles, u.RBACRoles...)
 			roles = append(roles, "member")
 			user = &u
@@ -8123,7 +8121,6 @@ func (q *FakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 
 	var found *database.WorkspaceTable
 	for _, workspace := range q.workspaces {
-		workspace := workspace
 		if workspace.OwnerID != arg.OwnerID {
 			continue
 		}
@@ -8181,7 +8178,6 @@ func (q *FakeQuerier) GetWorkspaceByWorkspaceAppID(_ context.Context, workspaceA
 	defer q.mutex.RUnlock()
 
 	for _, workspaceApp := range q.workspaceApps {
-		workspaceApp := workspaceApp
 		if workspaceApp.ID == workspaceAppID {
 			return q.getWorkspaceByAgentIDNoLock(context.Background(), workspaceApp.AgentID)
 		}
@@ -10424,7 +10420,6 @@ func (q *FakeQuerier) OrganizationMembers(_ context.Context, arg database.Organi
 			continue
 		}
 
-		organizationMember := organizationMember
 		user, _ := q.getUserByIDNoLock(organizationMember.UserID)
 		tmp = append(tmp, database.OrganizationMembersRow{
 			OrganizationMember: organizationMember,
