@@ -470,6 +470,11 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 	return multiErr.ErrorOrNil()
 }
 
+const (
+	NotificationTypeAdmin  = "admin"
+	NotificationTypeAuthor = "author"
+)
+
 func (c *StoreReconciler) notifyPrebuildFailureLimitReached(ctx context.Context, ps prebuilds.PresetSnapshot) error {
 	// nolint:gocritic // Necessary to query all the required data.
 	ctx = dbauthz.AsSystemRestricted(ctx)
@@ -480,6 +485,35 @@ func (c *StoreReconciler) notifyPrebuildFailureLimitReached(ctx context.Context,
 		return nil
 	}
 
+	// Send notification to template admins (7-day cooldown)
+	err := c.notifyTemplateAdmins(ctx, ps)
+	if err != nil {
+		return xerrors.Errorf("notify template admins: %w", err)
+	}
+
+	// Send notification to template version author (1-day cooldown)
+	//err = c.notifyTemplateAuthor(ctx, ps)
+	//if err != nil {
+	//	return xerrors.Errorf("notify template author: %w", err)
+	//}
+
+	return nil
+}
+
+func (c *StoreReconciler) notifyTemplateAdmins(ctx context.Context, ps prebuilds.PresetSnapshot) error {
+	// Check 7-day cooldown for admin notifications
+	cooldown, err := c.store.GetTemplatePrebuildNotificationCooldown(ctx, database.GetTemplatePrebuildNotificationCooldownParams{
+		TemplateID:       ps.Preset.TemplateID,
+		NotificationType: NotificationTypeAdmin,
+	})
+	if err == nil {
+		// Cooldown exists, check if 7 days have passed
+		if time.Since(cooldown.LastNotificationSent) < 7*24*time.Hour {
+			return nil // Still in cooldown
+		}
+	}
+
+	// Send notifications to template admins
 	templateAdmins, err := c.store.GetUsers(ctx, database.GetUsersParams{
 		RbacRole: []string{codersdk.RoleTemplateAdmin},
 	})
@@ -497,20 +531,60 @@ func (c *StoreReconciler) notifyPrebuildFailureLimitReached(ctx context.Context,
 			},
 			map[string]any{},
 			"prebuilds_reconciler",
-			// Associate this notification with all the related entities.
 			ps.Preset.TemplateID, ps.Preset.TemplateVersionID, ps.Preset.ID, ps.Preset.OrganizationID,
 		); err != nil {
-			c.logger.Error(ctx,
-				"failed to send notification",
-				slog.Error(err),
-				slog.F("template_admin_id", templateAdmin.ID.String()),
-			)
-
+			c.logger.Error(ctx, "failed to send notification", slog.Error(err), slog.F("template_admin_id", templateAdmin.ID.String()))
 			continue
 		}
 	}
 
-	return nil
+	// Update cooldown timestamp
+	return c.store.UpsertTemplatePrebuildNotificationCooldown(ctx, database.UpsertTemplatePrebuildNotificationCooldownParams{
+		TemplateID:       ps.Preset.TemplateID,
+		NotificationType: NotificationTypeAdmin,
+	})
+}
+
+func (c *StoreReconciler) notifyTemplateAuthor(ctx context.Context, ps prebuilds.PresetSnapshot) error {
+	// Get template version to find the author
+	templateVersion, err := c.store.GetTemplateVersionByID(ctx, ps.Preset.TemplateVersionID)
+	if err != nil {
+		return xerrors.Errorf("fetch template version: %w", err)
+	}
+
+	// Check 1-day cooldown for author notifications
+	cooldown, err := c.store.GetTemplatePrebuildNotificationCooldown(ctx, database.GetTemplatePrebuildNotificationCooldownParams{
+		TemplateID:       ps.Preset.TemplateID,
+		NotificationType: NotificationTypeAuthor,
+	})
+	if err == nil {
+		// Cooldown exists, check if 1 day has passed
+		if time.Since(cooldown.LastNotificationSent) < 24*time.Hour {
+			return nil // Still in cooldown
+		}
+	}
+
+	// Send notification to template version author
+	if _, err := c.notifEnq.EnqueueWithData(ctx, templateVersion.CreatedBy, notifications.PrebuildFailureLimitReached,
+		map[string]string{
+			"org":              ps.Preset.OrganizationName,
+			"template":         ps.Preset.TemplateName,
+			"template_version": ps.Preset.TemplateVersionName,
+			"preset":           ps.Preset.Name,
+		},
+		map[string]any{},
+		"prebuilds_reconciler",
+		ps.Preset.TemplateID, ps.Preset.TemplateVersionID, ps.Preset.ID, ps.Preset.OrganizationID,
+	); err != nil {
+		c.logger.Error(ctx, "failed to send notification to template author", slog.Error(err), slog.F("author_id", templateVersion.CreatedBy.String()))
+		return xerrors.Errorf("send notification to template author: %w", err)
+	}
+
+	// Update cooldown timestamp
+	return c.store.UpsertTemplatePrebuildNotificationCooldown(ctx, database.UpsertTemplatePrebuildNotificationCooldownParams{
+		TemplateID:       ps.Preset.TemplateID,
+		NotificationType: NotificationTypeAuthor,
+	})
 }
 
 func (c *StoreReconciler) CalculateActions(ctx context.Context, snapshot prebuilds.PresetSnapshot) ([]*prebuilds.ReconciliationActions, error) {

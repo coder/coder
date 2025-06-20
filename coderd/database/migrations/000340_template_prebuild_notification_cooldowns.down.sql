@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS template_prebuild_notification_cooldowns;
