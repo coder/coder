@@ -13,15 +13,15 @@ import (
 type CacheCloser struct {
 	cache FileAcquirer
 
-	close  []*CloseFS
-	mu     sync.Mutex
-	closed bool
+	closers []func()
+	mu      sync.Mutex
+	closed  bool
 }
 
 func NewCacheCloser(cache FileAcquirer) *CacheCloser {
 	return &CacheCloser{
-		cache: cache,
-		close: make([]*CloseFS, 0),
+		cache:   cache,
+		closers: make([]func(), 0),
 	}
 }
 
@@ -29,10 +29,13 @@ func (c *CacheCloser) Close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for _, fs := range c.close {
-		fs.Close()
+	for _, doClose := range c.closers {
+		doClose()
 	}
 	c.closed = true
+
+	// Remove any references
+	c.closers = make([]func(), 0)
 }
 
 func (c *CacheCloser) Acquire(ctx context.Context, fileID uuid.UUID) (*CloseFS, error) {
@@ -48,7 +51,7 @@ func (c *CacheCloser) Acquire(ctx context.Context, fileID uuid.UUID) (*CloseFS, 
 		return nil, err
 	}
 
-	c.close = append(c.close, f)
+	c.closers = append(c.closers, f.close)
 
 	return f, nil
 }
