@@ -101,7 +101,7 @@ require (
 	github.com/coder/quartz v0.2.1
 	github.com/coder/retry v1.5.1
 	github.com/coder/serpent v0.10.0
-	github.com/coder/terraform-provider-coder/v2 v2.6.0
+	github.com/coder/terraform-provider-coder/v2 v2.7.0
 	github.com/coder/websocket v1.8.13
 	github.com/coder/wgtunnel v0.1.13-0.20240522110300-ade90dfb2da0
 	github.com/coreos/go-oidc/v3 v3.14.1
@@ -535,6 +535,3 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.35.0 // indirect
 	k8s.io/utils v0.0.0-20241210054802-24370beab758 // indirect
 )
-
-// TODO: replace once new version is cut.
-replace github.com/coder/terraform-provider-coder/v2 => github.com/coder/terraform-provider-coder/v2 v2.5.4-0.20250619093524-d9b0f892f9c2
