@@ -36,6 +36,7 @@ import { useDebouncedValue } from "hooks/debounce";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import {
 	CircleAlert,
+	Hourglass,
 	Info,
 	LinkIcon,
 	Settings,
@@ -158,6 +159,23 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 								<TooltipContent className="max-w-xs">
 									This value cannot be modified after the workspace has been
 									created.
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					)}
+					{parameter.ephemeral && (
+						<TooltipProvider delayDuration={100}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="flex items-center">
+										<Badge size="sm" variant="green" border="none">
+											<Hourglass />
+											Ephemeral
+										</Badge>
+									</span>
+								</TooltipTrigger>
+								<TooltipContent className="max-w-xs">
+									This parameter only applies for a single workspace start
 								</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
