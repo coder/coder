@@ -119,7 +119,7 @@ This allows you to reduce resource costs during off-hours while maintaining avai
 
 Configure scheduling by adding a `scheduling` block within your `prebuilds` configuration:
 
-```hcl
+```tf
 data "coder_workspace_preset" "goland" {
    name = "GoLand: Large"
    parameters {
