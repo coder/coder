@@ -15,7 +15,6 @@ type CacheCloser struct {
 
 	closers []func()
 	mu      sync.Mutex
-	closed  bool
 }
 
 func NewCacheCloser(cache FileAcquirer) *CacheCloser {
@@ -32,8 +31,9 @@ func (c *CacheCloser) Close() {
 	for _, doClose := range c.closers {
 		doClose()
 	}
-	c.closed = true
 
+	// Prevent further acquisitions
+	c.cache = nil
 	// Remove any references
 	c.closers = make([]func(), 0)
 }
@@ -42,7 +42,7 @@ func (c *CacheCloser) Acquire(ctx context.Context, fileID uuid.UUID) (*CloseFS, 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.closed {
+	if c.cache == nil {
 		return nil, xerrors.New("cache is closed, and cannot acquire new files")
 	}
 
