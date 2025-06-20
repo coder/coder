@@ -49,7 +49,7 @@ type loader struct {
 // Prepare is the entrypoint for this package. It loads the necessary objects &
 // files from the database and returns a Renderer that can be used to render the
 // template version's parameters.
-func Prepare(ctx context.Context, db database.Store, cache *files.Cache, versionID uuid.UUID, options ...func(r *loader)) (Renderer, error) {
+func Prepare(ctx context.Context, db database.Store, cache files.FileAcquirer, versionID uuid.UUID, options ...func(r *loader)) (Renderer, error) {
 	l := &loader{
 		templateVersionID: versionID,
 	}
@@ -137,7 +137,7 @@ func (r *loader) loadData(ctx context.Context, db database.Store) error {
 // Static parameter rendering is required to support older template versions that
 // do not have the database state to support dynamic parameters. A constant
 // warning will be displayed for these template versions.
-func (r *loader) Renderer(ctx context.Context, db database.Store, cache *files.Cache) (Renderer, error) {
+func (r *loader) Renderer(ctx context.Context, db database.Store, cache files.FileAcquirer) (Renderer, error) {
 	err := r.loadData(ctx, db)
 	if err != nil {
 		return nil, xerrors.Errorf("load data: %w", err)
