@@ -698,6 +698,11 @@
 							"path": "./admin/integrations/platformx.md"
 						},
 						{
+							"title": "DX Data Cloud",
+							"description": "Tag Coder Users with DX Data Cloud",
+							"path": "./admin/integrations/dx-data-cloud.md"
+						},
+						{
 							"title": "Hashicorp Vault",
 							"description": "Integrate Coder with Hashicorp Vault",
 							"path": "./admin/integrations/vault.md"
