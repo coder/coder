@@ -15,7 +15,7 @@ const alertVariants = cva(
 		variants: {
 			variant: {
 				default: "border-border-default",
-				info: "border-surface-sky",
+				info: "border-highlight-sky",
 				success: "border-surface-green",
 				warning: "border-border-warning",
 				error: "border-border-destructive",
