@@ -1018,9 +1018,22 @@ export const updateWorkspace = async (
 	await fillParameters(page, richParameters, buildParameters);
 	await page.getByRole("button", { name: /update parameters/i }).click();
 
+	// Wait for the update button to detach.
+	await page.waitForSelector(
+		"button[data-testid='workspace-update-button']:enabled",
+		{ state: "detached" },
+	);
+	// Wait for the workspace to be running again.
 	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
 	});
+	// Wait for the stop button to be enabled again
+	await page.waitForSelector(
+		"button[data-testid='workspace-stop-button']:enabled",
+		{
+			state: "visible",
+		},
+	);
 };
 
 export const updateWorkspaceParameters = async (
