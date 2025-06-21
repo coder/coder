@@ -171,7 +171,11 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 								</DropdownMenuItem>
 								<DropdownMenuSeparator />
 								<DropdownMenuItem onClick={onUpdateAll}>
-									<CloudIcon className="size-icon-sm" /> Update&hellip;
+									<CloudIcon
+										className="size-icon-sm"
+										data-testid="bulk-action-update"
+									/>{" "}
+									Update&hellip;
 								</DropdownMenuItem>
 								<DropdownMenuItem
 									className="text-content-destructive focus:text-content-destructive"

@@ -57,7 +57,8 @@ SUBCOMMANDS:
     tokens            Manage personal access tokens
     unfavorite        Remove a workspace from your favorites
     update            Will update and start a given workspace if it is out of
-                      date
+                      date. If the workspace is already running, it will be
+                      stopped first.
     users             Manage users
     version           Show coder version
     whoami            Fetch authenticated user info for Coder deployment
