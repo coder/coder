@@ -64,6 +64,14 @@ var (
 		Type: "chat",
 	}
 
+	// ResourceConnectionLog
+	// Valid Actions
+	//  - "ActionCreate" :: create new connection log entries
+	//  - "ActionRead" :: read connection logs
+	ResourceConnectionLog = Object{
+		Type: "connection_log",
+	}
+
 	// ResourceCryptoKey
 	// Valid Actions
 	//  - "ActionCreate" :: create crypto keys
@@ -379,6 +387,7 @@ func AllResources() []Objecter {
 		ResourceAssignRole,
 		ResourceAuditLog,
 		ResourceChat,
+		ResourceConnectionLog,
 		ResourceCryptoKey,
 		ResourceDebugInfo,
 		ResourceDeploymentConfig,

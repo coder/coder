@@ -196,6 +196,7 @@ func AllAppSharingLevelValues() []AppSharingLevel {
 	}
 }
 
+// NOTE: `connect`, `disconnect`, `open`, and `close` are deprecated and no longer used - these events are now tracked in the connection_logs table.
 type AuditAction string
 
 const (
@@ -412,6 +413,131 @@ func AllBuildReasonValues() []BuildReason {
 		BuildReasonDormancy,
 		BuildReasonFailedstop,
 		BuildReasonAutodelete,
+	}
+}
+
+type ConnectionAction string
+
+const (
+	ConnectionActionConnect    ConnectionAction = "connect"
+	ConnectionActionDisconnect ConnectionAction = "disconnect"
+)
+
+func (e *ConnectionAction) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ConnectionAction(s)
+	case string:
+		*e = ConnectionAction(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ConnectionAction: %T", src)
+	}
+	return nil
+}
+
+type NullConnectionAction struct {
+	ConnectionAction ConnectionAction `json:"connection_action"`
+	Valid            bool             `json:"valid"` // Valid is true if ConnectionAction is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullConnectionAction) Scan(value interface{}) error {
+	if value == nil {
+		ns.ConnectionAction, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ConnectionAction.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullConnectionAction) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ConnectionAction), nil
+}
+
+func (e ConnectionAction) Valid() bool {
+	switch e {
+	case ConnectionActionConnect,
+		ConnectionActionDisconnect:
+		return true
+	}
+	return false
+}
+
+func AllConnectionActionValues() []ConnectionAction {
+	return []ConnectionAction{
+		ConnectionActionConnect,
+		ConnectionActionDisconnect,
+	}
+}
+
+type ConnectionType string
+
+const (
+	ConnectionTypeSsh             ConnectionType = "ssh"
+	ConnectionTypeVscode          ConnectionType = "vscode"
+	ConnectionTypeJetbrains       ConnectionType = "jetbrains"
+	ConnectionTypeReconnectingPty ConnectionType = "reconnecting_pty"
+	ConnectionTypeWeb             ConnectionType = "web"
+)
+
+func (e *ConnectionType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ConnectionType(s)
+	case string:
+		*e = ConnectionType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ConnectionType: %T", src)
+	}
+	return nil
+}
+
+type NullConnectionType struct {
+	ConnectionType ConnectionType `json:"connection_type"`
+	Valid          bool           `json:"valid"` // Valid is true if ConnectionType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullConnectionType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ConnectionType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ConnectionType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullConnectionType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ConnectionType), nil
+}
+
+func (e ConnectionType) Valid() bool {
+	switch e {
+	case ConnectionTypeSsh,
+		ConnectionTypeVscode,
+		ConnectionTypeJetbrains,
+		ConnectionTypeReconnectingPty,
+		ConnectionTypeWeb:
+		return true
+	}
+	return false
+}
+
+func AllConnectionTypeValues() []ConnectionType {
+	return []ConnectionType{
+		ConnectionTypeSsh,
+		ConnectionTypeVscode,
+		ConnectionTypeJetbrains,
+		ConnectionTypeReconnectingPty,
+		ConnectionTypeWeb,
 	}
 }
 
@@ -2796,6 +2922,32 @@ type ChatMessage struct {
 	Model     string          `db:"model" json:"model"`
 	Provider  string          `db:"provider" json:"provider"`
 	Content   json.RawMessage `db:"content" json:"content"`
+}
+
+type ConnectionLog struct {
+	ID               uuid.UUID      `db:"id" json:"id"`
+	Time             time.Time      `db:"time" json:"time"`
+	OrganizationID   uuid.UUID      `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID uuid.UUID      `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    string         `db:"workspace_name" json:"workspace_name"`
+	AgentName        string         `db:"agent_name" json:"agent_name"`
+	Type             ConnectionType `db:"type" json:"type"`
+	// Either the HTTP status code of the web request, or the exit code of an SSH connection.
+	Code int32       `db:"code" json:"code"`
+	Ip   pqtype.Inet `db:"ip" json:"ip"`
+	// Null for SSH actions. For web connections, this is the User-Agent header from the request.
+	UserAgent sql.NullString `db:"user_agent" json:"user_agent"`
+	// uuid.Nil for SSH actions. For web connections, this is the ID of the user that made the request.
+	UserID uuid.NullUUID `db:"user_id" json:"user_id"`
+	// Null for SSH actions. For web connections, this is the slug of the app or the port number being forwarded.
+	SlugOrPort sql.NullString `db:"slug_or_port" json:"slug_or_port"`
+	// The SSH connection ID. Used to correlate connections and disconnections. As it originates from the agent, it is not guaranteed to be unique.
+	ConnectionID uuid.NullUUID `db:"connection_id" json:"connection_id"`
+	// Null for web connections. For SSH actions, Null until we receive a second event for the same connection_id. This is the time when the connection was closed.
+	CloseTime sql.NullTime `db:"close_time" json:"close_time"`
+	// Null for web connections. For SSH actions, this is the reason for the connection or disconnection, to be displayed in the UI.
+	CloseReason sql.NullString `db:"close_reason" json:"close_reason"`
 }
 
 type CryptoKey struct {

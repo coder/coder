@@ -302,6 +302,24 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
+	subjectConnectionLogger = rbac.Subject{
+		Type:         rbac.SubjectTypeConnectionLogger,
+		FriendlyName: "Connection Logger",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "connectionlogger"},
+				DisplayName: "Connection Logger",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceConnectionLog.Type: {policy.ActionCreate, policy.ActionRead},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
 	subjectNotifier = rbac.Subject{
 		Type:         rbac.SubjectTypeNotifier,
 		FriendlyName: "Notifier",
@@ -508,6 +526,10 @@ func AsKeyRotator(ctx context.Context) context.Context {
 // AsKeyReader returns a context with an actor that has permissions required for reading crypto keys.
 func AsKeyReader(ctx context.Context) context.Context {
 	return As(ctx, subjectCryptoKeyReader)
+}
+
+func AsConnectionLogger(ctx context.Context) context.Context {
+	return As(ctx, subjectConnectionLogger)
 }
 
 // AsNotifier returns a context with an actor that has permissions required for
@@ -1819,6 +1841,21 @@ func (q *querier) GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID)
 
 func (q *querier) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.Chat, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByOwnerID)(ctx, ownerID)
+}
+
+func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
+	// Just like with the audit logs query, shortcut if the user is an owner.
+	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog)
+	if err == nil {
+		return q.db.GetConnectionLogsOffset(ctx, arg)
+	}
+
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceConnectionLog.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+
+	return q.db.GetAuthorizedConnectionLogsOffset(ctx, arg, prep)
 }
 
 func (q *querier) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
@@ -5023,6 +5060,10 @@ func (q *querier) UpsertApplicationName(ctx context.Context, value string) error
 	return q.db.UpsertApplicationName(ctx, value)
 }
 
+func (q *querier) UpsertConnectionLog(ctx context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
+	return insert(q.log, q.auth, rbac.ResourceConnectionLog, q.db.UpsertConnectionLog)(ctx, arg)
+}
+
 func (q *querier) UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
@@ -5235,4 +5276,8 @@ func (q *querier) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersP
 
 func (q *querier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams, _ rbac.PreparedAuthorized) ([]database.GetAuditLogsOffsetRow, error) {
 	return q.GetAuditLogsOffset(ctx, arg)
+}
+
+func (q *querier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams, _ rbac.PreparedAuthorized) ([]database.GetConnectionLogsOffsetRow, error) {
+	return q.GetConnectionLogsOffset(ctx, arg)
 }

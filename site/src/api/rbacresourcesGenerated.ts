@@ -37,6 +37,10 @@ export const RBACResourceActions: Partial<
 		read: "read a chat",
 		update: "update a chat",
 	},
+	connection_log: {
+		create: "create new connection log entries",
+		read: "read connection logs",
+	},
 	crypto_key: {
 		create: "create crypto keys",
 		delete: "delete crypto keys",
