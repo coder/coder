@@ -464,6 +464,48 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			return BuildError{http.StatusInternalServerError, "get workspace build", err}
 		}
 
+		// If the requestor is trying to orphan-delete a workspace and there are no
+		// provisioners available, we should complete the build and mark the
+		// workspace as deleted ourselves.
+		// Orphan-deleting a workspace sends an empty state to Terraform, which means
+		// it won't actually delete anything.
+		// There are cases where tagged provisioner daemons have been decommissioned
+		// without deleting the relevant workspaces, and without any provisioners
+		// available these workspaces cannot be deleted.
+		hasActiveEligibleProvisioner := false
+		for _, pd := range provisionerDaemons {
+			age := now.Sub(pd.ProvisionerDaemon.LastSeenAt.Time)
+			if age <= provisionerdserver.StaleInterval {
+				hasActiveEligibleProvisioner = true
+				break
+			}
+		}
+		if b.state.orphan && !hasActiveEligibleProvisioner {
+			// nolint: gocritic // At this moment, we are pretending to be provisionerd.
+			if err := store.UpdateProvisionerJobWithCompleteWithStartedAtByID(dbauthz.AsProvisionerd(b.ctx), database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams{
+				CompletedAt: sql.NullTime{Valid: true, Time: now},
+				Error:       sql.NullString{Valid: true, String: "No provisioners were available to handle the request. The workspace has been deleted. No resources were destroyed."},
+				ErrorCode:   sql.NullString{Valid: false},
+				ID:          provisionerJob.ID,
+				StartedAt:   sql.NullTime{Valid: true, Time: now},
+				UpdatedAt:   now,
+			}); err != nil {
+				return BuildError{http.StatusInternalServerError, "mark orphan-delete provisioner job as completed", err}
+			}
+
+			// Re-fetch the completed provisioner job.
+			if pj, err := store.GetProvisionerJobByID(b.ctx, provisionerJob.ID); err == nil {
+				provisionerJob = pj
+			}
+
+			if err := store.UpdateWorkspaceDeletedByID(b.ctx, database.UpdateWorkspaceDeletedByIDParams{
+				ID:      b.workspace.ID,
+				Deleted: true,
+			}); err != nil {
+				return BuildError{http.StatusInternalServerError, "mark workspace as deleted", err}
+			}
+		}
+
 		return nil
 	}, nil)
 	if err != nil {
