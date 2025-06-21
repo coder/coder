@@ -2832,6 +2832,13 @@ func (m queryMetricsStore) UpdateTemplateScheduleByID(ctx context.Context, arg d
 	return err
 }
 
+func (m queryMetricsStore) UpdateTemplateVersionAITaskByJobID(ctx context.Context, arg database.UpdateTemplateVersionAITaskByJobIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateTemplateVersionAITaskByJobID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateVersionAITaskByJobID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateTemplateVersionByID(ctx, arg)
@@ -3033,6 +3040,13 @@ func (m queryMetricsStore) UpdateWorkspaceAutostart(ctx context.Context, arg dat
 	err := m.s.UpdateWorkspaceAutostart(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceAutostart").Observe(time.Since(start).Seconds())
 	return err
+}
+
+func (m queryMetricsStore) UpdateWorkspaceBuildAITaskByID(ctx context.Context, arg database.UpdateWorkspaceBuildAITaskByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceBuildAITaskByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildAITaskByID").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) error {

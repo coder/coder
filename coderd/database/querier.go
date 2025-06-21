@@ -597,6 +597,7 @@ type sqlcQuerier interface {
 	UpdateTemplateDeletedByID(ctx context.Context, arg UpdateTemplateDeletedByIDParams) error
 	UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) error
 	UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) error
+	UpdateTemplateVersionAITaskByJobID(ctx context.Context, arg UpdateTemplateVersionAITaskByJobIDParams) error
 	UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) error
 	UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error
 	UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error
@@ -626,6 +627,7 @@ type sqlcQuerier interface {
 	UpdateWorkspaceAppHealthByID(ctx context.Context, arg UpdateWorkspaceAppHealthByIDParams) error
 	UpdateWorkspaceAutomaticUpdates(ctx context.Context, arg UpdateWorkspaceAutomaticUpdatesParams) error
 	UpdateWorkspaceAutostart(ctx context.Context, arg UpdateWorkspaceAutostartParams) error
+	UpdateWorkspaceBuildAITaskByID(ctx context.Context, arg UpdateWorkspaceBuildAITaskByIDParams) error
 	UpdateWorkspaceBuildCostByID(ctx context.Context, arg UpdateWorkspaceBuildCostByIDParams) error
 	UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg UpdateWorkspaceBuildDeadlineByIDParams) error
 	UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg UpdateWorkspaceBuildProvisionerStateByIDParams) error

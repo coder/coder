@@ -584,8 +584,6 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		externalAuthProviderNames = append(externalAuthProviderNames, it.Id)
 	}
 
-	// fmt.Println("completed job: template import: graph:", startProvision.Graph)
-
 	return &proto.CompletedJob{
 		JobId: r.job.JobId,
 		Type: &proto.CompletedJob_TemplateImport_{
@@ -603,6 +601,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				ModuleFiles: startProvision.ModuleFiles,
 				// ModuleFileHash will be populated if the file is uploaded async
 				ModuleFilesHash: []byte{},
+				HasAiTasks:      startProvision.HasAITasks,
 			},
 		},
 	}, nil
@@ -666,6 +665,7 @@ type templateImportProvision struct {
 	Presets               []*sdkproto.Preset
 	Plan                  json.RawMessage
 	ModuleFiles           []byte
+	HasAITasks            bool
 }
 
 // Performs a dry-run provision when importing a template.
@@ -798,7 +798,6 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 					return nil, xerrors.Errorf("module files hash mismatch, uploaded: %x, expected: %x", moduleFilesUpload.Hash, c.ModuleFilesHash)
 				}
 			}
-
 			return &templateImportProvision{
 				Resources:             c.Resources,
 				Parameters:            c.Parameters,
@@ -807,6 +806,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 				Presets:               c.Presets,
 				Plan:                  c.Plan,
 				ModuleFiles:           moduleFilesData,
+				HasAITasks:            c.HasAiTasks,
 			}, nil
 		default:
 			return nil, xerrors.Errorf("invalid message type %q received from provisioner",
@@ -1047,6 +1047,9 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			},
 		}
 	}
+	if len(planComplete.AiTasks) > 1 {
+		return nil, r.failedWorkspaceBuildf("only one 'coder_ai_task' resource can be provisioned per template")
+	}
 
 	r.logger.Info(context.Background(), "plan request successful",
 		slog.F("resource_count", len(planComplete.Resources)),
@@ -1124,6 +1127,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 				Modules: planComplete.Modules,
 				// Resource replacements are discovered at plan time, only.
 				ResourceReplacements: planComplete.ResourceReplacements,
+				AiTasks:              applyComplete.AiTasks,
 			},
 		},
 	}, nil

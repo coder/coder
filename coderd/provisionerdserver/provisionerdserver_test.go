@@ -1564,6 +1564,69 @@ func TestCompleteJob(t *testing.T) {
 		require.Contains(t, job.Error.String, `external auth provider "github" is not configured`)
 	})
 
+	t.Run("TemplateImport_WithAITasks", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("WithoutPromptParam", func(t *testing.T) {
+			t.Parallel()
+
+			srv, db, _, pd := setup(t, false, &overrides{})
+			jobID := uuid.New()
+			versionID := uuid.New()
+			err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+				ID:             versionID,
+				JobID:          jobID,
+				OrganizationID: pd.OrganizationID,
+			})
+			require.NoError(t, err)
+			job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+				ID:             jobID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				Input:          []byte(`{"template_version_id": "` + versionID.String() + `"}`),
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				OrganizationID: pd.OrganizationID,
+				Tags:           pd.Tags,
+			})
+			require.NoError(t, err)
+			_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+				OrganizationID: pd.OrganizationID,
+				WorkerID: uuid.NullUUID{
+					UUID:  pd.ID,
+					Valid: true,
+				},
+				Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+				StartedAt: sql.NullTime{
+					Time:  dbtime.Now(),
+					Valid: true,
+				},
+				ProvisionerTags: must(json.Marshal(job.Tags)),
+			})
+			require.NoError(t, err)
+			completeJob := func() {
+				_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+					JobId: job.ID.String(),
+					Type: &proto.CompletedJob_TemplateImport_{
+						TemplateImport: &proto.CompletedJob_TemplateImport{
+							StartResources: []*sdkproto.Resource{{
+								Name: "my_task",
+								Type: "coder_ai_task",
+							}},
+							StopResources: []*sdkproto.Resource{},
+							HasAiTasks:    true,
+							Plan:          []byte("{}"),
+						},
+					},
+				})
+				require.NoError(t, err)
+			}
+			completeJob()
+			job, err = db.GetProvisionerJobByID(ctx, job.ID)
+			require.NoError(t, err)
+			require.Contains(t, job.Error.String, `external auth provider "github" is not configured`)
+		})
+	})
+
 	t.Run("TemplateImport_WithGitAuth", func(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, &overrides{
@@ -2434,6 +2497,233 @@ func TestCompleteJob(t *testing.T) {
 		// Then: the replacements are as we expected.
 		testutil.RequireReceive(ctx, t, done)
 		require.Equal(t, replacements, orchestrator.replacements)
+	})
+
+	t.Run("AITasks", func(t *testing.T) {
+		t.Parallel()
+
+		// has_ai_task has a default value of nil, but once the template import completes it will have a value;
+		// it is set to "true" if the template has any coder_ai_task resources defined.
+		t.Run("TemplateImport", func(t *testing.T) {
+			type testcase struct {
+				name     string
+				input    *proto.CompletedJob_TemplateImport
+				expected bool
+			}
+
+			for _, tc := range []testcase{
+				{
+					name: "has_ai_task is false by default",
+					input: &proto.CompletedJob_TemplateImport{
+						// HasAiTasks is not set.
+						Plan: []byte("{}"),
+					},
+					expected: false,
+				},
+				{
+					name: "has_ai_task gets set to true",
+					input: &proto.CompletedJob_TemplateImport{
+						HasAiTasks: true,
+						Plan:       []byte("{}"),
+					},
+					expected: true,
+				},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+
+					srv, db, _, pd := setup(t, false, &overrides{})
+
+					importJobID := uuid.New()
+					tvID := uuid.New()
+					template := dbgen.Template(t, db, database.Template{
+						Name:           "template",
+						Provisioner:    database.ProvisionerTypeEcho,
+						OrganizationID: pd.OrganizationID,
+					})
+					version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+						ID:             tvID,
+						OrganizationID: pd.OrganizationID,
+						TemplateID: uuid.NullUUID{
+							UUID:  template.ID,
+							Valid: true,
+						},
+						JobID: importJobID,
+					})
+					_ = version
+
+					ctx := testutil.Context(t, testutil.WaitShort)
+					job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+						ID:             importJobID,
+						CreatedAt:      dbtime.Now(),
+						UpdatedAt:      dbtime.Now(),
+						OrganizationID: pd.OrganizationID,
+						InitiatorID:    uuid.New(),
+						Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
+							TemplateVersionID: tvID,
+						})),
+						Provisioner:   database.ProvisionerTypeEcho,
+						StorageMethod: database.ProvisionerStorageMethodFile,
+						Type:          database.ProvisionerJobTypeTemplateVersionImport,
+						Tags:          pd.Tags,
+					})
+					require.NoError(t, err)
+
+					_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+						OrganizationID: pd.OrganizationID,
+						WorkerID: uuid.NullUUID{
+							UUID:  pd.ID,
+							Valid: true,
+						},
+						Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+						ProvisionerTags: must(json.Marshal(job.Tags)),
+						StartedAt:       sql.NullTime{Time: job.CreatedAt, Valid: true},
+					})
+					require.NoError(t, err)
+
+					version, err = db.GetTemplateVersionByID(ctx, tvID)
+					require.NoError(t, err)
+					require.False(t, version.HasAITask.Valid) // Value should be nil (i.e. valid = false).
+
+					completedJob := proto.CompletedJob{
+						JobId: job.ID.String(),
+						Type: &proto.CompletedJob_TemplateImport_{
+							TemplateImport: tc.input,
+						},
+					}
+					_, err = srv.CompleteJob(ctx, &completedJob)
+					require.NoError(t, err)
+
+					version, err = db.GetTemplateVersionByID(ctx, tvID)
+					require.NoError(t, err)
+					require.True(t, version.HasAITask.Valid) // We ALWAYS expect a value to be set, therefore not nil, i.e. valid = true.
+					require.Equal(t, tc.expected, version.HasAITask.Bool)
+				})
+			}
+		})
+
+		// has_ai_task has a default value of nil, but once the workspace build completes it will have a value;
+		// it is set to "true" if the related template has any coder_ai_task resources defined, and its sidebar app ID
+		// will be set as well in that case.
+		t.Run("WorkspaceBuild", func(t *testing.T) {
+			type testcase struct {
+				name     string
+				input    *proto.CompletedJob_WorkspaceBuild
+				expected bool
+			}
+
+			sidebarAppID := uuid.NewString()
+			for _, tc := range []testcase{
+				{
+					name:  "has_ai_task is false by default",
+					input: &proto.CompletedJob_WorkspaceBuild{
+						// No AiTasks defined.
+					},
+					expected: false,
+				},
+				{
+					name: "has_ai_task is set to true",
+					input: &proto.CompletedJob_WorkspaceBuild{
+						AiTasks: []*sdkproto.AITask{
+							{
+								Id: uuid.NewString(),
+								SidebarApp: &sdkproto.AITaskSidebarApp{
+									Id: sidebarAppID,
+								},
+							},
+						},
+					},
+					expected: true,
+				},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+
+					srv, db, _, pd := setup(t, false, &overrides{})
+
+					importJobID := uuid.New()
+					tvID := uuid.New()
+					template := dbgen.Template(t, db, database.Template{
+						Name:           "template",
+						Provisioner:    database.ProvisionerTypeEcho,
+						OrganizationID: pd.OrganizationID,
+					})
+					version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+						ID:             tvID,
+						OrganizationID: pd.OrganizationID,
+						TemplateID: uuid.NullUUID{
+							UUID:  template.ID,
+							Valid: true,
+						},
+						JobID: importJobID,
+					})
+					user := dbgen.User(t, db, database.User{})
+					workspaceTable := dbgen.Workspace(t, db, database.WorkspaceTable{
+						TemplateID:     template.ID,
+						OwnerID:        user.ID,
+						OrganizationID: pd.OrganizationID,
+					})
+					build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+						WorkspaceID:       workspaceTable.ID,
+						TemplateVersionID: version.ID,
+						InitiatorID:       user.ID,
+						Transition:        database.WorkspaceTransitionStart,
+					})
+
+					ctx := testutil.Context(t, testutil.WaitShort)
+					job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+						ID:             importJobID,
+						CreatedAt:      dbtime.Now(),
+						UpdatedAt:      dbtime.Now(),
+						OrganizationID: pd.OrganizationID,
+						InitiatorID:    uuid.New(),
+						Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+							WorkspaceBuildID: build.ID,
+							LogLevel:         "DEBUG",
+						})),
+						Provisioner:   database.ProvisionerTypeEcho,
+						StorageMethod: database.ProvisionerStorageMethodFile,
+						Type:          database.ProvisionerJobTypeWorkspaceBuild,
+						Tags:          pd.Tags,
+					})
+					require.NoError(t, err)
+
+					_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+						OrganizationID: pd.OrganizationID,
+						WorkerID: uuid.NullUUID{
+							UUID:  pd.ID,
+							Valid: true,
+						},
+						Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+						ProvisionerTags: must(json.Marshal(job.Tags)),
+						StartedAt:       sql.NullTime{Time: job.CreatedAt, Valid: true},
+					})
+					require.NoError(t, err)
+
+					build, err = db.GetWorkspaceBuildByID(ctx, build.ID)
+					require.NoError(t, err)
+					require.False(t, build.HasAITask.Valid) // Value should be nil (i.e. valid = false).
+
+					completedJob := proto.CompletedJob{
+						JobId: job.ID.String(),
+						Type: &proto.CompletedJob_WorkspaceBuild_{
+							WorkspaceBuild: tc.input,
+						},
+					}
+					_, err = srv.CompleteJob(ctx, &completedJob)
+					require.NoError(t, err)
+
+					build, err = db.GetWorkspaceBuildByID(ctx, build.ID)
+					require.NoError(t, err)
+					require.True(t, build.HasAITask.Valid) // We ALWAYS expect a value to be set, therefore not nil, i.e. valid = true.
+					require.Equal(t, tc.expected, build.HasAITask.Bool)
+
+					if tc.expected {
+						require.Equal(t, sidebarAppID, build.AITaskSidebarAppID.UUID.String())
+					}
+				})
+			}
+		})
 	})
 }
 

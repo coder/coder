@@ -5992,6 +5992,20 @@ func (mr *MockStoreMockRecorder) UpdateTemplateScheduleByID(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateScheduleByID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateScheduleByID), ctx, arg)
 }
 
+// UpdateTemplateVersionAITaskByJobID mocks base method.
+func (m *MockStore) UpdateTemplateVersionAITaskByJobID(ctx context.Context, arg database.UpdateTemplateVersionAITaskByJobIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTemplateVersionAITaskByJobID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateTemplateVersionAITaskByJobID indicates an expected call of UpdateTemplateVersionAITaskByJobID.
+func (mr *MockStoreMockRecorder) UpdateTemplateVersionAITaskByJobID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionAITaskByJobID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionAITaskByJobID), ctx, arg)
+}
+
 // UpdateTemplateVersionByID mocks base method.
 func (m *MockStore) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) error {
 	m.ctrl.T.Helper()
@@ -6408,6 +6422,20 @@ func (m *MockStore) UpdateWorkspaceAutostart(ctx context.Context, arg database.U
 func (mr *MockStoreMockRecorder) UpdateWorkspaceAutostart(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAutostart", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAutostart), ctx, arg)
+}
+
+// UpdateWorkspaceBuildAITaskByID mocks base method.
+func (m *MockStore) UpdateWorkspaceBuildAITaskByID(ctx context.Context, arg database.UpdateWorkspaceBuildAITaskByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceBuildAITaskByID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspaceBuildAITaskByID indicates an expected call of UpdateWorkspaceBuildAITaskByID.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildAITaskByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildAITaskByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildAITaskByID), ctx, arg)
 }
 
 // UpdateWorkspaceBuildCostByID mocks base method.
