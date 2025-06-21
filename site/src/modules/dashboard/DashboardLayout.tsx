@@ -26,7 +26,7 @@ export const DashboardLayout: FC = () => {
 			<div className="flex flex-col min-h-full">
 				<Navbar />
 
-				<div className="flex flex-col flex-1">
+				<div className="flex flex-col flex-1 pb-12">
 					<Suspense fallback={<Loader />}>
 						<Outlet />
 					</Suspense>
