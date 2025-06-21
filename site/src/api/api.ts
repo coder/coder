@@ -2133,6 +2133,26 @@ class ApiMethods {
 
 		return response.data;
 	};
+	getAITasksPrompts = async (
+		buildIds: TypesGen.WorkspaceBuild["id"][],
+	): Promise<TypesGen.AITasksPromptsResponse> => {
+		if (buildIds.length === 0) {
+			return {
+				prompts: {},
+			};
+		}
+
+		const response = await this.axios.get<TypesGen.AITasksPromptsResponse>(
+			"/api/v2/aitasks/prompts",
+			{
+				params: {
+					build_ids: buildIds.join(","),
+				},
+			},
+		);
+
+		return response.data;
+	};
 
 	getLicenses = async (): Promise<GetLicensesResponse[]> => {
 		const response = await this.axios.get("/api/v2/licenses");
