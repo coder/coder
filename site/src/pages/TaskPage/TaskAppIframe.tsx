@@ -58,42 +58,44 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 
 	return (
 		<div className={cn([active ? "flex" : "hidden", "w-full h-full flex-col"])}>
-			<div className="bg-surface-tertiary flex items-center p-2 py-1 gap-1">
-				<Button
-					size="icon"
-					variant="subtle"
-					onClick={(e) => {
-						e.preventDefault();
-						if (frameRef.current?.contentWindow) {
-							frameRef.current.contentWindow.location.href = appHref();
-						}
-					}}
-				>
-					<HouseIcon />
-					<span className="sr-only">Home</span>
-				</Button>
+			{app.slug === "preview" && (
+				<div className="bg-surface-tertiary flex items-center p-2 py-1 gap-1">
+					<Button
+						size="icon"
+						variant="subtle"
+						onClick={(e) => {
+							e.preventDefault();
+							if (frameRef.current?.contentWindow) {
+								frameRef.current.contentWindow.location.href = appHref();
+							}
+						}}
+					>
+						<HouseIcon />
+						<span className="sr-only">Home</span>
+					</Button>
 
-				{/* Possibly we will put a URL bar here, but for now we cannot due to
-				 * cross-origin restrictions in iframes. */}
-				<div className="w-full"></div>
+					{/* Possibly we will put a URL bar here, but for now we cannot due to
+					 * cross-origin restrictions in iframes. */}
+					<div className="w-full"></div>
 
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button size="icon" variant="subtle" aria-label="More options">
-							<EllipsisVertical aria-hidden="true" />
-							<span className="sr-only">More options</span>
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
-						<DropdownMenuItem asChild>
-							<RouterLink to={frameSrc} target="_blank">
-								<ExternalLinkIcon />
-								Open app in new tab
-							</RouterLink>
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
-			</div>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button size="icon" variant="subtle" aria-label="More options">
+								<EllipsisVertical aria-hidden="true" />
+								<span className="sr-only">More options</span>
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem asChild>
+								<RouterLink to={frameSrc} target="_blank">
+									<ExternalLinkIcon />
+									Open app in new tab
+								</RouterLink>
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</div>
+			)}
 
 			<iframe
 				ref={frameRef}
