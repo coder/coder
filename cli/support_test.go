@@ -386,6 +386,9 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 		case "cli_logs.txt":
 			bs := readBytesFromZip(t, f)
 			require.NotEmpty(t, bs, "CLI logs should not be empty")
+		case "license-status.txt":
+			bs := readBytesFromZip(t, f)
+			require.NotEmpty(t, bs, "license status should not be empty")
 		default:
 			require.Failf(t, "unexpected file in bundle", f.Name)
 		}

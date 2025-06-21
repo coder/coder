@@ -48,6 +48,7 @@ var supportBundleBlurb = cliui.Bold("This will collect the following information
   - Agent details (with environment variable sanitized)
   - Agent network diagnostics
   - Agent logs
+  - License status (sanitized)
 ` + cliui.Bold("Note: ") +
 	cliui.Wrap("While we try to sanitize sensitive data from support bundles, we cannot guarantee that they do not contain information that you or your organization may consider sensitive.\n") +
 	cliui.Bold("Please confirm that you will:\n") +
@@ -315,6 +316,7 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		"network/tailnet_debug.html":     src.Network.TailnetDebug,
 		"workspace/build_logs.txt":       humanizeBuildLogs(src.Workspace.BuildLogs),
 		"workspace/template_file.zip":    string(templateVersionBytes),
+		"license-status.txt":             src.LicenseStatus,
 	} {
 		f, err := dest.Create(k)
 		if err != nil {
