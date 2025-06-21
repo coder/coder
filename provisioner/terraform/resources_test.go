@@ -1240,24 +1240,93 @@ func TestAgentNameDuplicate(t *testing.T) {
 	require.ErrorContains(t, err, "duplicate agent name")
 }
 
-func TestMetadataResourceDuplicate(t *testing.T) {
+func TestMetadata(t *testing.T) {
 	t.Parallel()
-	ctx, logger := ctxAndLogger(t)
 
-	// Load the multiple-apps state file and edit it.
-	dir := filepath.Join("testdata", "resources", "resource-metadata-duplicate")
-	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "resource-metadata-duplicate.tfplan.json"))
-	require.NoError(t, err)
-	var tfPlan tfjson.Plan
-	err = json.Unmarshal(tfPlanRaw, &tfPlan)
-	require.NoError(t, err)
-	tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "resource-metadata-duplicate.tfplan.dot"))
-	require.NoError(t, err)
+	t.Run("Duplicate", func(t *testing.T) {
+		t.Parallel()
+		ctx, logger := ctxAndLogger(t)
+		// Load the multiple-apps state file and edit it.
+		dir := filepath.Join("testdata", "resources", "resource-metadata-duplicate")
+		tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "resource-metadata-duplicate.tfplan.json"))
+		require.NoError(t, err)
+		var tfPlan tfjson.Plan
+		err = json.Unmarshal(tfPlanRaw, &tfPlan)
+		require.NoError(t, err)
+		tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "resource-metadata-duplicate.tfplan.dot"))
+		require.NoError(t, err)
 
-	state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), logger)
-	require.Nil(t, state)
-	require.Error(t, err)
-	require.ErrorContains(t, err, "duplicate metadata resource: null_resource.about")
+		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), logger)
+		require.Nil(t, state)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "duplicate metadata resource: null_resource.about")
+	})
+
+	t.Run("ResourceID", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
+			ctx, logger := ctxAndLogger(t)
+
+			dir := filepath.Join("testdata", "resources", "resource-id-provided")
+			tfStateRaw, err := os.ReadFile(filepath.Join(dir, "resource-id-provided.tfstate.json"))
+			require.NoError(t, err)
+			var tfState tfjson.State
+			err = json.Unmarshal(tfStateRaw, &tfState)
+			require.NoError(t, err)
+			tfStateGraph, err := os.ReadFile(filepath.Join(dir, "resource-id-provided.tfstate.dot"))
+			require.NoError(t, err)
+
+			state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph), logger)
+			require.NoError(t, err)
+			require.Len(t, state.Resources, 2)
+
+			// Find the resources
+			var firstResource, secondResource *proto.Resource
+			for _, res := range state.Resources {
+				if res.Name == "first" && res.Type == "null_resource" {
+					firstResource = res
+				} else if res.Name == "second" && res.Type == "null_resource" {
+					secondResource = res
+				}
+			}
+
+			require.NotNil(t, firstResource)
+			require.NotNil(t, secondResource)
+
+			// The metadata should be on the second resource (as specified by resource_id),
+			// not the first one (which is the closest in the graph)
+			require.Len(t, firstResource.Metadata, 0, "first resource should have no metadata")
+			require.Len(t, secondResource.Metadata, 1, "second resource should have metadata")
+			require.Equal(t, "test", secondResource.Metadata[0].Key)
+			require.Equal(t, "value", secondResource.Metadata[0].Value)
+		})
+
+		t.Run("NotFound", func(t *testing.T) {
+			t.Parallel()
+			ctx, logger := ctxAndLogger(t)
+
+			dir := filepath.Join("testdata", "resources", "resource-id-not-found")
+			tfStateRaw, err := os.ReadFile(filepath.Join(dir, "resource-id-not-found.tfstate.json"))
+			require.NoError(t, err)
+			var tfState tfjson.State
+			err = json.Unmarshal(tfStateRaw, &tfState)
+			require.NoError(t, err)
+			tfStateGraph, err := os.ReadFile(filepath.Join(dir, "resource-id-not-found.tfstate.dot"))
+			require.NoError(t, err)
+
+			state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph), logger)
+			require.NoError(t, err)
+			require.Len(t, state.Resources, 1)
+
+			// The metadata should still be applied via graph traversal
+			require.Equal(t, "example", state.Resources[0].Name)
+			require.Len(t, state.Resources[0].Metadata, 1)
+			require.Equal(t, "test", state.Resources[0].Metadata[0].Key)
+			require.Equal(t, "value", state.Resources[0].Metadata[0].Value)
+		})
+	})
 }
 
 func TestParameterValidation(t *testing.T) {
