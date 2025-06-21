@@ -2665,6 +2665,10 @@ func (q *querier) GetTemplateParameterInsights(ctx context.Context, arg database
 	return q.db.GetTemplateParameterInsights(ctx, arg)
 }
 
+func (q *querier) GetTemplatePrebuildNotificationCooldown(ctx context.Context, arg database.GetTemplatePrebuildNotificationCooldownParams) (database.TemplatePrebuildNotificationCooldown, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
 	// GetTemplatePresetsWithPrebuilds retrieves template versions with configured presets and prebuilds.
 	// Presets and prebuilds are part of the template, so if you can access templates - you can access them as well.
@@ -5151,6 +5155,10 @@ func (q *querier) UpsertTelemetryItem(ctx context.Context, arg database.UpsertTe
 		return err
 	}
 	return q.db.UpsertTelemetryItem(ctx, arg)
+}
+
+func (q *querier) UpsertTemplatePrebuildNotificationCooldown(ctx context.Context, arg database.UpsertTemplatePrebuildNotificationCooldownParams) error {
+	panic("not implemented")
 }
 
 func (q *querier) UpsertTemplateUsageStats(ctx context.Context) error {

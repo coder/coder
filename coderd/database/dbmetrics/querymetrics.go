@@ -1446,6 +1446,13 @@ func (m queryMetricsStore) GetTemplateParameterInsights(ctx context.Context, arg
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTemplatePrebuildNotificationCooldown(ctx context.Context, arg database.GetTemplatePrebuildNotificationCooldownParams) (database.TemplatePrebuildNotificationCooldown, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplatePrebuildNotificationCooldown(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplatePrebuildNotificationCooldown").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]database.GetTemplatePresetsWithPrebuildsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTemplatePresetsWithPrebuilds(ctx, templateID)
@@ -3263,6 +3270,13 @@ func (m queryMetricsStore) UpsertTelemetryItem(ctx context.Context, arg database
 	start := time.Now()
 	r0 := m.s.UpsertTelemetryItem(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertTelemetryItem").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) UpsertTemplatePrebuildNotificationCooldown(ctx context.Context, arg database.UpsertTemplatePrebuildNotificationCooldownParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertTemplatePrebuildNotificationCooldown(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertTemplatePrebuildNotificationCooldown").Observe(time.Since(start).Seconds())
 	return r0
 }
 
