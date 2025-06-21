@@ -1145,13 +1145,6 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				scripts          = manifest.Scripts
 				scriptRunnerOpts []agentscripts.InitOption
 			)
-			if a.experimentalDevcontainersEnabled {
-				var dcScripts []codersdk.WorkspaceAgentScript
-				scripts, dcScripts = agentcontainers.ExtractAndInitializeDevcontainerScripts(manifest.Devcontainers, scripts)
-				// See ExtractAndInitializeDevcontainerScripts for motivation
-				// behind running dcScripts as post start scripts.
-				scriptRunnerOpts = append(scriptRunnerOpts, agentscripts.WithPostStartScripts(dcScripts...))
-			}
 			err = a.scriptRunner.Init(scripts, aAPI.ScriptCompleted, scriptRunnerOpts...)
 			if err != nil {
 				return xerrors.Errorf("init script runner: %w", err)
@@ -1169,7 +1162,13 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// finished (both start and post start). For instance, an
 				// autostarted devcontainer will be included in this time.
 				err := a.scriptRunner.Execute(a.gracefulCtx, agentscripts.ExecuteStartScripts)
-				err = errors.Join(err, a.scriptRunner.Execute(a.gracefulCtx, agentscripts.ExecutePostStartScripts))
+
+				if cAPI := a.containerAPI.Load(); cAPI != nil {
+					for _, dc := range manifest.Devcontainers {
+						err = errors.Join(err, cAPI.CreateDevcontainer(dc))
+					}
+				}
+
 				dur := time.Since(start).Seconds()
 				if err != nil {
 					a.logger.Warn(ctx, "startup script(s) failed", slog.Error(err))
