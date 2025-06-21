@@ -74,20 +74,20 @@ func StartRotator(ctx context.Context, logger slog.Logger, db database.Store, op
 		kr.logger.Critical(ctx, "failed to rotate keys", slog.Error(err))
 	}
 
-	go kr.start(ctx)
+	kr.start(ctx)
 }
 
 // start begins the process of rotating keys.
 // Canceling the context will stop the rotation process.
 func (k *rotator) start(ctx context.Context) {
 	k.clock.TickerFunc(ctx, defaultRotationInterval, func() error {
+		k.logger.Debug(ctx, "checking for keys to rotate")
 		err := k.rotateKeys(ctx)
 		if err != nil {
 			k.logger.Error(ctx, "failed to rotate keys", slog.Error(err))
 		}
 		return nil
 	})
-	k.logger.Debug(ctx, "ctx canceled, stopping key rotation")
 }
 
 // rotateKeys checks for any keys needing rotation or deletion and
