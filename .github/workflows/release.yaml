@@ -693,6 +693,8 @@ jobs:
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/provisioner_helm_${version}.tgz gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/index.yaml gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp helm/artifacthub-repo.yml gs://helm.coder.com/v2
+          helm push build/coder_helm_${version}.tgz oci://ghcr.io/coder/chart
+          helm push build/provisioner_helm_${version}.tgz oci://ghcr.io/coder/chart
 
       - name: Upload artifacts to actions (if dry-run)
         if: ${{ inputs.dry_run }}
