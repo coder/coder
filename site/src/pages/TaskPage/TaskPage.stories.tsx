@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, spyOn, within } from "@storybook/test";
+import type { WorkspaceApp, WorkspaceResource } from "api/typesGenerated";
 import {
 	MockFailedWorkspace,
 	MockStartingWorkspace,
@@ -12,11 +13,12 @@ import {
 	mockApiError,
 } from "testHelpers/entities";
 import { withProxyProvider } from "testHelpers/storybook";
-import TaskPage, { data } from "./TaskPage";
+import TaskPage, { data, WorkspaceDoesNotHaveAITaskError } from "./TaskPage";
 
 const meta: Meta<typeof TaskPage> = {
 	title: "pages/TaskPage",
 	component: TaskPage,
+	decorators: [withProxyProvider()],
 	parameters: {
 		layout: "fullscreen",
 	},
@@ -95,6 +97,117 @@ export const TerminatedBuildWithStatus: Story = {
 	},
 };
 
+export const SidebarAppDisabled: Story = {
+	beforeEach: () => {
+		spyOn(data, "fetchTask").mockResolvedValue({
+			prompt: "Create competitors page",
+			workspace: {
+				...MockWorkspace,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					has_ai_task: true,
+					ai_task_sidebar_app_id: "claude-code",
+					resources: mockResources({
+						health: "disabled",
+					}),
+				},
+			},
+		});
+	},
+};
+
+export const SidebarAppLoading: Story = {
+	beforeEach: () => {
+		spyOn(data, "fetchTask").mockResolvedValue({
+			prompt: "Create competitors page",
+			workspace: {
+				...MockWorkspace,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					has_ai_task: true,
+					ai_task_sidebar_app_id: "claude-code",
+					resources: mockResources({
+						health: "initializing",
+					}),
+				},
+			},
+		});
+	},
+};
+
+export const SidebarAppHealthy: Story = {
+	beforeEach: () => {
+		spyOn(data, "fetchTask").mockResolvedValue({
+			prompt: "Create competitors page",
+			workspace: {
+				...MockWorkspace,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					has_ai_task: true,
+					ai_task_sidebar_app_id: "claude-code",
+					resources: mockResources({
+						health: "healthy",
+					}),
+				},
+			},
+		});
+	},
+};
+
+export const BuildNoAITask: Story = {
+	beforeEach: () => {
+		spyOn(data, "fetchTask").mockImplementation(() => {
+			throw new WorkspaceDoesNotHaveAITaskError(MockWorkspace);
+		});
+	},
+};
+
+const mockResources = (
+	claudeCodeAppOverrides?: Partial<WorkspaceApp>,
+): readonly WorkspaceResource[] => [
+	{
+		...MockWorkspaceResource,
+		agents: [
+			{
+				...MockWorkspaceAgent,
+				apps: [
+					{
+						...MockWorkspaceApp,
+						id: "claude-code",
+						display_name: "Claude Code",
+						slug: "claude-code",
+						icon: "/icon/claude.svg",
+						statuses: [
+							MockWorkspaceAppStatus,
+							{
+								...MockWorkspaceAppStatus,
+								id: "2",
+								message: "Planning changes",
+								state: "working",
+							},
+						],
+						...claudeCodeAppOverrides,
+					},
+					{
+						...MockWorkspaceApp,
+						id: "vscode",
+						slug: "vscode",
+						display_name: "VS Code Web",
+						icon: "/icon/code.svg",
+					},
+					{
+						...MockWorkspaceApp,
+						slug: "zed",
+						id: "zed",
+						display_name: "Zed",
+						icon: "/icon/zed.svg",
+					},
+				],
+			},
+		],
+	},
+];
+
 export const Active: Story = {
 	decorators: [withProxyProvider()],
 	beforeEach: () => {
@@ -104,48 +217,7 @@ export const Active: Story = {
 				...MockWorkspace,
 				latest_build: {
 					...MockWorkspace.latest_build,
-					resources: [
-						{
-							...MockWorkspaceResource,
-							agents: [
-								{
-									...MockWorkspaceAgent,
-									apps: [
-										{
-											...MockWorkspaceApp,
-											id: "claude-code",
-											display_name: "Claude Code",
-											slug: "claude-code",
-											icon: "/icon/claude.svg",
-											statuses: [
-												MockWorkspaceAppStatus,
-												{
-													...MockWorkspaceAppStatus,
-													id: "2",
-													message: "Planning changes",
-													state: "working",
-												},
-											],
-										},
-										{
-											...MockWorkspaceApp,
-											id: "vscode",
-											slug: "vscode",
-											display_name: "VS Code Web",
-											icon: "/icon/code.svg",
-										},
-										{
-											...MockWorkspaceApp,
-											slug: "zed",
-											id: "zed",
-											display_name: "Zed",
-											icon: "/icon/zed.svg",
-										},
-									],
-								},
-							],
-						},
-					],
+					resources: mockResources(),
 				},
 				latest_app_status: {
 					...MockWorkspaceAppStatus,
