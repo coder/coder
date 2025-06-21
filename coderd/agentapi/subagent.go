@@ -15,16 +15,18 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/quartz"
 )
 
 type SubAgentAPI struct {
-	OwnerID        uuid.UUID
-	OrganizationID uuid.UUID
-	AgentID        uuid.UUID
-	AgentFn        func(context.Context) (database.WorkspaceAgent, error)
+	OwnerID                  uuid.UUID
+	OrganizationID           uuid.UUID
+	AgentID                  uuid.UUID
+	AgentFn                  func(context.Context) (database.WorkspaceAgent, error)
+	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent, wspubsub.WorkspaceEventKind) error
 
 	Log      slog.Logger
 	Clock    quartz.Clock
@@ -216,6 +218,18 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		}
 	}
 
+	if a.PublishWorkspaceUpdateFn != nil {
+		err = a.PublishWorkspaceUpdateFn(ctx, &subAgent, wspubsub.WorkspaceEventKindStateChange)
+		if err != nil {
+			a.Log.Error(ctx, "failed to publish workspace update after creating sub agent",
+				slog.Error(err),
+				slog.F("sub_agent_id", subAgent.ID),
+				slog.F("sub_agent_name", subAgent.Name),
+			)
+			// We don't return an error here because we created the sub agent.
+		}
+	}
+
 	return &agentproto.CreateSubAgentResponse{
 		Agent: &agentproto.SubAgent{
 			Name:      subAgent.Name,
@@ -235,8 +249,31 @@ func (a *SubAgentAPI) DeleteSubAgent(ctx context.Context, req *agentproto.Delete
 		return nil, err
 	}
 
+	subAgent, err := a.Database.GetWorkspaceAgentByID(ctx, subAgentID)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return nil, codersdk.ValidationError{
+				Field:  "id",
+				Detail: fmt.Sprintf("sub agent with id %q does not exist", req.Id),
+			}
+		}
+		return nil, xerrors.Errorf("get workspace agent by id %q: %w", subAgentID, err)
+	}
+
 	if err := a.Database.DeleteWorkspaceSubAgentByID(ctx, subAgentID); err != nil {
 		return nil, err
+	}
+
+	if a.PublishWorkspaceUpdateFn != nil {
+		err = a.PublishWorkspaceUpdateFn(ctx, &subAgent, wspubsub.WorkspaceEventKindStateChange)
+		if err != nil {
+			a.Log.Error(ctx, "failed to publish workspace update after deleting sub agent",
+				slog.Error(err),
+				slog.F("sub_agent_id", subAgent.ID),
+				slog.F("sub_agent_name", subAgent.Name),
+			)
+			// We don't return an error here because we deleted the sub agent.
+		}
 	}
 
 	return &agentproto.DeleteSubAgentResponse{}, nil
