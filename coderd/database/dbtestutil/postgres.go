@@ -71,6 +71,7 @@ func initDefaultConnection(t TBSubset) error {
 		errSubstrings := []string{
 			"connection refused",          // this happens on Linux when there's nothing listening on the port
 			"No connection could be made", // like above but Windows
+			"connection reset by peer",    // this happens when PostgreSQL resets the connection
 		}
 		errString := dbErr.Error()
 		for _, errSubstring := range errSubstrings {
