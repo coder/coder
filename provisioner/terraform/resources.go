@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
+	"github.com/google/uuid"
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
@@ -93,6 +94,7 @@ type agentDisplayAppsAttributes struct {
 
 // A mapping of attributes on the "coder_app" resource.
 type agentAppAttributes struct {
+	ID      string `mapstructure:"id"`
 	AgentID string `mapstructure:"agent_id"`
 	// Slug is required in terraform, but to avoid breaking existing users we
 	// will default to the resource name if it is not specified.
@@ -522,7 +524,17 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 						continue
 					}
 
+					id := attrs.ID
+					if id == "" {
+						// This should never happen since the "id" attribute is set on creation:
+						// https://github.com/coder/terraform-provider-coder/blob/cfa101df4635e405e66094fa7779f9a89d92f400/provider/app.go#L37
+						logger.Warn(ctx, "coder_app's id was unexpectedly empty", slog.F("name", attrs.Name))
+
+						id = uuid.NewString()
+					}
+
 					agent.Apps = append(agent.Apps, &proto.App{
+						Id:           id,
 						Slug:         attrs.Slug,
 						DisplayName:  attrs.DisplayName,
 						Command:      attrs.Command,

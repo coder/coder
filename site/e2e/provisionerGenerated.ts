@@ -311,6 +311,7 @@ export interface App {
   hidden: boolean;
   openIn: AppOpenIn;
   group: string;
+  id: string;
 }
 
 /** Healthcheck represents configuration for checking for app readiness. */
@@ -1040,6 +1041,9 @@ export const App = {
     }
     if (message.group !== "") {
       writer.uint32(106).string(message.group);
+    }
+    if (message.id !== "") {
+      writer.uint32(114).string(message.id);
     }
     return writer;
   },

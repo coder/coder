@@ -266,6 +266,7 @@ message App {
   bool hidden = 11;
   AppOpenIn open_in = 12;
   string group = 13;
+  string id = 14;
 }
 
 // Healthcheck represents configuration for checking for app readiness.
