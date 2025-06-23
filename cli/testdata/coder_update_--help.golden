@@ -3,7 +3,8 @@ coder v0.0.0-devel
 USAGE:
   coder update [flags] <workspace>
 
-  Will update and start a given workspace if it is out of date
+  Will update and start a given workspace if it is out of date. If the workspace
+  is already running, it will be stopped first.
 
   Use --always-prompt to change the parameter values of the workspace.
 

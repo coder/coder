@@ -574,7 +574,7 @@ func New(options *Options) *API {
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
-		FileCache:                   files.NewFromStore(options.Database, options.PrometheusRegistry, options.Authorizer),
+		FileCache:                   files.New(options.PrometheusRegistry, options.Authorizer),
 		Experiments:                 experiments,
 		WebpushDispatcher:           options.WebPushDispatcher,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
@@ -628,6 +628,7 @@ func New(options *Options) *API {
 		Entitlements:      options.Entitlements,
 		Telemetry:         options.Telemetry,
 		Logger:            options.Logger.Named("site"),
+		HideAITasks:       options.DeploymentValues.HideAITasks.Value(),
 	})
 	api.SiteHandler.Experiments.Store(&experiments)
 

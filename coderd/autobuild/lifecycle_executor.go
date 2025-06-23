@@ -17,6 +17,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/files"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -35,6 +36,7 @@ type Executor struct {
 	ctx                   context.Context
 	db                    database.Store
 	ps                    pubsub.Pubsub
+	fileCache             *files.Cache
 	templateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 	accessControlStore    *atomic.Pointer[dbauthz.AccessControlStore]
 	auditor               *atomic.Pointer[audit.Auditor]
@@ -61,13 +63,14 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments) *Executor {
 	factory := promauto.With(reg)
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
 		ctx:                   dbauthz.AsAutostart(ctx),
 		db:                    db,
 		ps:                    ps,
+		fileCache:             fc,
 		templateScheduleStore: tss,
 		tick:                  tick,
 		log:                   log.Named("autobuild"),
@@ -276,7 +279,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							}
 						}
 
-						nextBuild, job, _, err = builder.Build(e.ctx, tx, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
+						nextBuild, job, _, err = builder.Build(e.ctx, tx, e.fileCache, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
 						if err != nil {
 							return xerrors.Errorf("build workspace with transition %q: %w", nextTransition, err)
 						}

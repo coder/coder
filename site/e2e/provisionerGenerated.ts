@@ -140,9 +140,20 @@ export interface ExpirationPolicy {
   ttl: number;
 }
 
+export interface Schedule {
+  cron: string;
+  instances: number;
+}
+
+export interface Scheduling {
+  timezone: string;
+  schedule: Schedule[];
+}
+
 export interface Prebuild {
   instances: number;
   expirationPolicy: ExpirationPolicy | undefined;
+  scheduling: Scheduling | undefined;
 }
 
 /** Preset represents a set of preset parameters for a template version. */
@@ -301,6 +312,8 @@ export interface App {
   hidden: boolean;
   openIn: AppOpenIn;
   group: string;
+  /** If nil, new UUID will be generated. */
+  id: string;
 }
 
 /** Healthcheck represents configuration for checking for app readiness. */
@@ -630,6 +643,30 @@ export const ExpirationPolicy = {
   },
 };
 
+export const Schedule = {
+  encode(message: Schedule, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.cron !== "") {
+      writer.uint32(10).string(message.cron);
+    }
+    if (message.instances !== 0) {
+      writer.uint32(16).int32(message.instances);
+    }
+    return writer;
+  },
+};
+
+export const Scheduling = {
+  encode(message: Scheduling, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.timezone !== "") {
+      writer.uint32(10).string(message.timezone);
+    }
+    for (const v of message.schedule) {
+      Schedule.encode(v!, writer.uint32(18).fork()).ldelim();
+    }
+    return writer;
+  },
+};
+
 export const Prebuild = {
   encode(message: Prebuild, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.instances !== 0) {
@@ -637,6 +674,9 @@ export const Prebuild = {
     }
     if (message.expirationPolicy !== undefined) {
       ExpirationPolicy.encode(message.expirationPolicy, writer.uint32(18).fork()).ldelim();
+    }
+    if (message.scheduling !== undefined) {
+      Scheduling.encode(message.scheduling, writer.uint32(26).fork()).ldelim();
     }
     return writer;
   },
@@ -1006,6 +1046,9 @@ export const App = {
     }
     if (message.group !== "") {
       writer.uint32(106).string(message.group);
+    }
+    if (message.id !== "") {
+      writer.uint32(114).string(message.id);
     }
     return writer;
   },

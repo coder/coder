@@ -56,7 +56,6 @@ func TestPtytest(t *testing.T) {
 			{name: "10241 large output", output: strings.Repeat(".", 10241)}, // 1024 * 10 + 1
 		}
 		for _, tt := range tests {
-			tt := tt
 			// nolint:paralleltest // Avoid parallel test to more easily identify the issue.
 			t.Run(tt.name, func(t *testing.T) {
 				cmd := &serpent.Command{

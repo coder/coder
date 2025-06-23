@@ -5,6 +5,7 @@ import {
 	CircleAlertIcon,
 	CircleCheckIcon,
 	HourglassIcon,
+	SquareIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
 import type { FC } from "react";
@@ -26,6 +27,10 @@ export const AppStatusStateIcon: FC<AppStatusStateIconProps> = ({
 	const className = cn(["size-4 shrink-0", customClassName]);
 
 	switch (state) {
+		case "idle":
+			return (
+				<SquareIcon className={cn(["text-content-secondary", className])} />
+			);
 		case "complete":
 			return (
 				<CircleCheckIcon className={cn(["text-content-success", className])} />

@@ -405,7 +405,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 						</TooltipProvider>
 					</span>
 					<FeatureStageBadge
-						contentType={"early_access"}
+						contentType={"beta"}
 						size="sm"
 						labelText="Dynamic parameters"
 					/>

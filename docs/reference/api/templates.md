@@ -2557,6 +2557,7 @@ Status Code **200**
 | `sharing_level`           | `organization`     |
 | `sharing_level`           | `public`           |
 | `state`                   | `working`          |
+| `state`                   | `idle`             |
 | `state`                   | `complete`         |
 | `state`                   | `failure`          |
 | `lifecycle_state`         | `created`          |
@@ -3235,6 +3236,7 @@ Status Code **200**
 | `sharing_level`           | `organization`     |
 | `sharing_level`           | `public`           |
 | `state`                   | `working`          |
+| `state`                   | `idle`             |
 | `state`                   | `complete`         |
 | `state`                   | `failure`          |
 | `lifecycle_state`         | `created`          |

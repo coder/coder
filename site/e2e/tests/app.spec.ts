@@ -42,6 +42,7 @@ test("app", async ({ context, page }) => {
 									token,
 									apps: [
 										{
+											id: randomUUID(),
 											url: `http://localhost:${addr.port}`,
 											displayName: appName,
 											order: 0,

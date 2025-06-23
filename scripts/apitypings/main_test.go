@@ -31,7 +31,6 @@ func TestGeneration(t *testing.T) {
 			// Only test directories
 			continue
 		}
-		f := f
 		t.Run(f.Name(), func(t *testing.T) {
 			t.Parallel()
 			dir := filepath.Join(".", "testdata", f.Name())

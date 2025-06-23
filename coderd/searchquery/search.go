@@ -146,6 +146,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 		// which will return all workspaces.
 		Valid: values.Has("outdated"),
 	}
+	filter.HasAITask = parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 
 	type paramMatch struct {
@@ -206,6 +207,7 @@ func Templates(ctx context.Context, db database.Store, query string) (database.G
 		IDs:            parser.UUIDs(values, []uuid.UUID{}, "ids"),
 		Deprecated:     parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
 		OrganizationID: parseOrganization(ctx, db, parser, values, "organization"),
+		HasAITask:      parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
 	}
 
 	parser.ErrorExcessParams(values)

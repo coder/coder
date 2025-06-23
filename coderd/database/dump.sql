@@ -324,7 +324,8 @@ CREATE TYPE workspace_app_open_in AS ENUM (
 CREATE TYPE workspace_app_status_state AS ENUM (
     'working',
     'complete',
-    'failure'
+    'failure',
+    'idle'
 );
 
 CREATE TYPE workspace_transition AS ENUM (
@@ -358,7 +359,8 @@ BEGIN
 	JOIN workspace_builds ON workspace_builds.job_id = workspace_resources.job_id
 	WHERE workspace_builds.id = workspace_build_id
 		AND workspace_agents.name = NEW.name
-		AND workspace_agents.id != NEW.id;
+		AND workspace_agents.id != NEW.id
+		AND workspace_agents.deleted = FALSE;  -- Ensure we only count non-deleted agents.
 
 	-- If there's already an agent with this name, raise an error
 	IF agents_with_name > 0 THEN
@@ -1496,6 +1498,13 @@ CREATE TABLE template_version_preset_parameters (
     value text NOT NULL
 );
 
+CREATE TABLE template_version_preset_prebuild_schedules (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    preset_id uuid NOT NULL,
+    cron_expression text NOT NULL,
+    desired_instances integer NOT NULL
+);
+
 CREATE TABLE template_version_presets (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     template_version_id uuid NOT NULL,
@@ -1504,6 +1513,7 @@ CREATE TABLE template_version_presets (
     desired_instances integer,
     invalidate_after_secs integer DEFAULT 0,
     prebuild_status prebuild_status DEFAULT 'healthy'::prebuild_status NOT NULL,
+    scheduling_timezone text DEFAULT ''::text NOT NULL,
     is_default boolean DEFAULT false NOT NULL
 );
 
@@ -1917,6 +1927,7 @@ CREATE TABLE workspace_agents (
     display_order integer DEFAULT 0 NOT NULL,
     parent_id uuid,
     api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
@@ -1944,6 +1955,8 @@ COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the r
 COMMENT ON COLUMN workspace_agents.display_order IS 'Specifies the order in which to display agents in user interfaces.';
 
 COMMENT ON COLUMN workspace_agents.api_key_scope IS 'Defines the scope of the API key associated with the agent. ''all'' allows access to everything, ''no_user_data'' restricts it to exclude user data.';
+
+COMMENT ON COLUMN workspace_agents.deleted IS 'Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.';
 
 CREATE UNLOGGED TABLE workspace_app_audit_sessions (
     agent_id uuid NOT NULL,
@@ -2217,7 +2230,7 @@ CREATE VIEW workspace_prebuilds AS
            FROM (((workspaces w
              JOIN workspace_latest_builds wlb ON ((wlb.workspace_id = w.id)))
              JOIN workspace_resources wr ON ((wr.job_id = wlb.job_id)))
-             JOIN workspace_agents wa ON ((wa.resource_id = wr.id)))
+             JOIN workspace_agents wa ON (((wa.resource_id = wr.id) AND (wa.deleted = false))))
           WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
           GROUP BY w.id
         ), current_presets AS (
@@ -2506,6 +2519,9 @@ ALTER TABLE ONLY template_version_parameters
 
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_parameters_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY template_version_preset_prebuild_schedules
+    ADD CONSTRAINT template_version_preset_prebuild_schedules_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_pkey PRIMARY KEY (id);
@@ -2963,6 +2979,9 @@ ALTER TABLE ONLY template_version_parameters
 
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_paramet_template_version_preset_id_fkey FOREIGN KEY (template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_version_preset_prebuild_schedules
+    ADD CONSTRAINT template_version_preset_prebuild_schedules_preset_id_fkey FOREIGN KEY (preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;

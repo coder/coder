@@ -55,7 +55,21 @@
                   }
                 ],
                 "instances": 4,
-                "scheduling": []
+                "scheduling": [
+                  {
+                    "schedule": [
+                      {
+                        "cron": "* 8-18 * * 1-5",
+                        "instances": 3
+                      },
+                      {
+                        "cron": "* 8-14 * * 6",
+                        "instances": 1
+                      }
+                    ],
+                    "timezone": "America/Los_Angeles"
+                  }
+                ]
               }
             ]
           },
@@ -66,7 +80,14 @@
                 "expiration_policy": [
                   {}
                 ],
-                "scheduling": []
+                "scheduling": [
+                  {
+                    "schedule": [
+                      {},
+                      {}
+                    ]
+                  }
+                ]
               }
             ]
           }

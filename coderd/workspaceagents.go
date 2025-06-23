@@ -359,7 +359,10 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 	}
 
 	switch req.State {
-	case codersdk.WorkspaceAppStatusStateComplete, codersdk.WorkspaceAppStatusStateFailure, codersdk.WorkspaceAppStatusStateWorking: // valid states
+	case codersdk.WorkspaceAppStatusStateComplete,
+		codersdk.WorkspaceAppStatusStateFailure,
+		codersdk.WorkspaceAppStatusStateWorking,
+		codersdk.WorkspaceAppStatusStateIdle: // valid states
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid state provided.",

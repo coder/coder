@@ -564,6 +564,13 @@ func (m queryMetricsStore) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed
 	return apiKeys, err
 }
 
+func (m queryMetricsStore) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetActivePresetPrebuildSchedules(ctx)
+	m.queryLatencies.WithLabelValues("GetActivePresetPrebuildSchedules").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error) {
 	start := time.Now()
 	count, err := m.s.GetActiveUserCount(ctx, includeSystem)
@@ -2041,6 +2048,13 @@ func (m queryMetricsStore) GetWorkspacesEligibleForTransition(ctx context.Contex
 	return workspaces, err
 }
 
+func (m queryMetricsStore) HasTemplateVersionsWithAITask(ctx context.Context) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.HasTemplateVersionsWithAITask(ctx)
+	m.queryLatencies.WithLabelValues("HasTemplateVersionsWithAITask").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	start := time.Now()
 	key, err := m.s.InsertAPIKey(ctx, arg)
@@ -2227,6 +2241,13 @@ func (m queryMetricsStore) InsertPresetParameters(ctx context.Context, arg datab
 	start := time.Now()
 	r0, r1 := m.s.InsertPresetParameters(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertPresetParameters").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertPresetPrebuildSchedule(ctx context.Context, arg database.InsertPresetPrebuildScheduleParams) (database.TemplateVersionPresetPrebuildSchedule, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertPresetPrebuildSchedule(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertPresetPrebuildSchedule").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -2417,13 +2438,6 @@ func (m queryMetricsStore) InsertWorkspaceAgentStats(ctx context.Context, arg da
 	r0 := m.s.InsertWorkspaceAgentStats(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentStats").Observe(time.Since(start).Seconds())
 	return r0
-}
-
-func (m queryMetricsStore) InsertWorkspaceApp(ctx context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
-	start := time.Now()
-	app, err := m.s.InsertWorkspaceApp(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertWorkspaceApp").Observe(time.Since(start).Seconds())
-	return app, err
 }
 
 func (m queryMetricsStore) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
@@ -3263,6 +3277,13 @@ func (m queryMetricsStore) UpsertWorkspaceAgentPortShare(ctx context.Context, ar
 	start := time.Now()
 	r0, r1 := m.s.UpsertWorkspaceAgentPortShare(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertWorkspaceAgentPortShare").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpsertWorkspaceApp(ctx context.Context, arg database.UpsertWorkspaceAppParams) (database.WorkspaceApp, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertWorkspaceApp(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertWorkspaceApp").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

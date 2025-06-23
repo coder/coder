@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -391,7 +392,18 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
 			ctx,
 			tx,
+			api.FileCache,
 			func(action policy.Action, object rbac.Objecter) bool {
+				// Special handling for prebuilt workspace deletion
+				if object.RBACObject().Type == rbac.ResourceWorkspace.Type && action == policy.ActionDelete {
+					if workspaceObj, ok := object.(database.Workspace); ok {
+						// Try prebuilt-specific authorization first
+						if auth := api.Authorize(r, action, workspaceObj.AsPrebuild()); auth {
+							return auth
+						}
+					}
+				}
+				// Fallback to default authorization
 				return api.Authorize(r, action, object)
 			},
 			audit.WorkspaceBuildBaggageFromRequest(r),
@@ -423,20 +435,56 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var queuePos database.GetProvisionerJobsByIDsWithQueuePositionRow
 	if provisionerJob != nil {
+		queuePos.ProvisionerJob = *provisionerJob
+		queuePos.QueuePosition = 0
 		if err := provisionerjobs.PostJob(api.Pubsub, *provisionerJob); err != nil {
 			// Client probably doesn't care about this error, so just log it.
 			api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+		}
+
+		// We may need to complete the audit if wsbuilder determined that
+		// no provisioner could handle an orphan-delete job and completed it.
+		if createBuild.Orphan && createBuild.Transition == codersdk.WorkspaceTransitionDelete && provisionerJob.CompletedAt.Valid {
+			api.Logger.Warn(ctx, "orphan delete handled by wsbuilder due to no eligible provisioners",
+				slog.F("workspace_id", workspace.ID),
+				slog.F("workspace_build_id", workspaceBuild.ID),
+				slog.F("provisioner_job_id", provisionerJob.ID),
+			)
+			buildResourceInfo := audit.AdditionalFields{
+				WorkspaceName:  workspace.Name,
+				BuildNumber:    strconv.Itoa(int(workspaceBuild.BuildNumber)),
+				BuildReason:    workspaceBuild.Reason,
+				WorkspaceID:    workspace.ID,
+				WorkspaceOwner: workspace.OwnerName,
+			}
+			briBytes, err := json.Marshal(buildResourceInfo)
+			if err != nil {
+				api.Logger.Error(ctx, "failed to marshal build resource info for audit", slog.Error(err))
+			}
+			auditor := api.Auditor.Load()
+			bag := audit.BaggageFromContext(ctx)
+			audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceBuild]{
+				Audit:            *auditor,
+				Log:              api.Logger,
+				UserID:           provisionerJob.InitiatorID,
+				OrganizationID:   workspace.OrganizationID,
+				RequestID:        provisionerJob.ID,
+				IP:               bag.IP,
+				Action:           database.AuditActionDelete,
+				Old:              previousWorkspaceBuild,
+				New:              *workspaceBuild,
+				Status:           http.StatusOK,
+				AdditionalFields: briBytes,
+			})
 		}
 	}
 
 	apiBuild, err := api.convertWorkspaceBuild(
 		*workspaceBuild,
 		workspace,
-		database.GetProvisionerJobsByIDsWithQueuePositionRow{
-			ProvisionerJob: *provisionerJob,
-			QueuePosition:  0,
-		},
+		queuePos,
 		[]database.WorkspaceResource{},
 		[]database.WorkspaceResourceMetadatum{},
 		[]database.WorkspaceAgent{},
@@ -1078,6 +1126,14 @@ func (api *API) convertWorkspaceBuild(
 	if build.TemplateVersionPresetID.Valid {
 		presetID = &build.TemplateVersionPresetID.UUID
 	}
+	var hasAITask *bool
+	if build.HasAITask.Valid {
+		hasAITask = &build.HasAITask.Bool
+	}
+	var aiTasksSidebarAppID *uuid.UUID
+	if build.AITasksSidebarAppID.Valid {
+		aiTasksSidebarAppID = &build.AITasksSidebarAppID.UUID
+	}
 
 	apiJob := convertProvisionerJob(job)
 	transition := codersdk.WorkspaceTransition(build.Transition)
@@ -1105,6 +1161,8 @@ func (api *API) convertWorkspaceBuild(
 		DailyCost:               build.DailyCost,
 		MatchedProvisioners:     &matchedProvisioners,
 		TemplateVersionPresetID: presetID,
+		HasAITask:               hasAITask,
+		AITaskSidebarAppID:      aiTasksSidebarAppID,
 	}, nil
 }
 
