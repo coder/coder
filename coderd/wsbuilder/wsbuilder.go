@@ -752,20 +752,12 @@ func (b *Builder) getDynamicParameters() (names, values []string, err error) {
 		return nil, nil, BuildError{http.StatusInternalServerError, "failed to check if first build", err}
 	}
 
-	buildValues, diagnostics := dynamicparameters.ResolveParameters(b.ctx, b.workspace.OwnerID, render, firstBuild,
+	buildValues, err := dynamicparameters.ResolveParameters(b.ctx, b.workspace.OwnerID, render, firstBuild,
 		lastBuildParameters,
 		b.richParameterValues,
 		presetParameterValues)
-
-	if diagnostics.HasErrors() {
-		// TODO: Improve the error response. The response should include the validations for each failed
-		//  parameter. The response should also indicate it's a validation error or a more general form failure.
-		//  For now, any error is sufficient.
-		return nil, nil, BuildError{
-			Status:  http.StatusBadRequest,
-			Message: fmt.Sprintf("%d errors occurred while resolving parameters", len(diagnostics)),
-			Wrapped: diagnostics,
-		}
+	if err != nil {
+		return nil, nil, xerrors.Errorf("resolve parameters: %w", err)
 	}
 
 	names = make([]string, 0, len(buildValues))
