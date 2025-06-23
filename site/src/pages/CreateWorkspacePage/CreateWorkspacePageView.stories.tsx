@@ -207,10 +207,10 @@ export const PresetNoneSelected: Story = {
 		onSubmit: (request, owner) => {
 			// Assert that template_version_preset_id is not present in the request
 			console.assert(
-				!('template_version_preset_id' in request),
-				'template_version_preset_id should not be present when "None" is selected'
+				!("template_version_preset_id" in request),
+				'template_version_preset_id should not be present when "None" is selected',
 			);
-			action('onSubmit')(request, owner);
+			action("onSubmit")(request, owner);
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -225,13 +225,17 @@ export const PresetNoneSelected: Story = {
 		await userEvent.click(canvas.getByText("None"));
 
 		// Fill in required fields and submit to test the API call
-		await userEvent.type(canvas.getByLabelText("Workspace Name"), "test-workspace");
+		await userEvent.type(
+			canvas.getByLabelText("Workspace Name"),
+			"test-workspace",
+		);
 		await userEvent.click(canvas.getByText("Create workspace"));
 	},
 	parameters: {
 		docs: {
 			description: {
-				story: "This story tests that when 'None' preset is selected, the template_version_preset_id field is not included in the form submission. The story first selects a preset to set the field value, then selects 'None' to unset it, and finally submits the form to verify the API call behavior.",
+				story:
+					"This story tests that when 'None' preset is selected, the template_version_preset_id field is not included in the form submission. The story first selects a preset to set the field value, then selects 'None' to unset it, and finally submits the form to verify the API call behavior.",
 			},
 		},
 	},
