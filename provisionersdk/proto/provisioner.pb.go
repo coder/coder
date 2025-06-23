@@ -2285,7 +2285,7 @@ type App struct {
 	Hidden       bool            `protobuf:"varint,11,opt,name=hidden,proto3" json:"hidden,omitempty"`
 	OpenIn       AppOpenIn       `protobuf:"varint,12,opt,name=open_in,json=openIn,proto3,enum=provisioner.AppOpenIn" json:"open_in,omitempty"`
 	Group        string          `protobuf:"bytes,13,opt,name=group,proto3" json:"group,omitempty"`
-	Id           string          `protobuf:"bytes,14,opt,name=id,proto3" json:"id,omitempty"`
+	Id           string          `protobuf:"bytes,14,opt,name=id,proto3" json:"id,omitempty"` // If nil, new UUID will be generated.
 }
 
 func (x *App) Reset() {

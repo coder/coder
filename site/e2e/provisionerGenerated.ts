@@ -311,6 +311,7 @@ export interface App {
   hidden: boolean;
   openIn: AppOpenIn;
   group: string;
+  /** If nil, new UUID will be generated. */
   id: string;
 }
 
