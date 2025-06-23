@@ -3,6 +3,7 @@ package cli
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
+
+	"github.com/coder/coder/v2/cli/cliutil"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -303,6 +306,11 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		return xerrors.Errorf("decode template zip from base64")
 	}
 
+	licenseStatus, err := humanizeLicenses(src.Deployment.Licenses)
+	if err != nil {
+		return xerrors.Errorf("format license status: %w", err)
+	}
+
 	// The below we just write as we have them:
 	for k, v := range map[string]string{
 		"agent/logs.txt":                 string(src.Agent.Logs),
@@ -316,7 +324,7 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		"network/tailnet_debug.html":     src.Network.TailnetDebug,
 		"workspace/build_logs.txt":       humanizeBuildLogs(src.Workspace.BuildLogs),
 		"workspace/template_file.zip":    string(templateVersionBytes),
-		"license-status.txt":             src.LicenseStatus,
+		"license-status.txt":             licenseStatus,
 	} {
 		f, err := dest.Create(k)
 		if err != nil {
@@ -360,4 +368,16 @@ func humanizeBuildLogs(ls []codersdk.ProvisionerJobLog) string {
 	}
 	_ = tw.Flush()
 	return buf.String()
+}
+
+func humanizeLicenses(licenses []codersdk.License) (string, error) {
+	formatter := cliutil.NewLicenseFormatter(cliutil.LicenseFormatterOpts{
+		Sanitize: true,
+	})
+
+	if len(licenses) == 0 {
+		return "No licenses found", nil
+	}
+
+	return formatter.Format(context.Background(), licenses)
 }

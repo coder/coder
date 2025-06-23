@@ -62,6 +62,7 @@ func TestRun(t *testing.T) {
 		assertSanitizedDeploymentConfig(t, bun.Deployment.Config)
 		assertNotNilNotEmpty(t, bun.Deployment.HealthReport, "deployment health report should be present")
 		assertNotNilNotEmpty(t, bun.Deployment.Experiments, "deployment experiments should be present")
+		require.NotNil(t, bun.Deployment.Licenses, "license status should be present")
 		assertNotNilNotEmpty(t, bun.Network.ConnectionInfo, "agent connection info should be present")
 		assertNotNilNotEmpty(t, bun.Network.CoordinatorDebug, "network coordinator debug should be present")
 		assertNotNilNotEmpty(t, bun.Network.Netcheck, "network netcheck should be present")
@@ -87,7 +88,6 @@ func TestRun(t *testing.T) {
 		assertNotNilNotEmpty(t, bun.Agent.Prometheus, "agent prometheus metrics should be present")
 		assertNotNilNotEmpty(t, bun.Agent.StartupLogs, "agent startup logs should be present")
 		assertNotNilNotEmpty(t, bun.Logs, "bundle logs should be present")
-		assertNotNilNotEmpty(t, bun.LicenseStatus, "license status should be present")
 	})
 
 	t.Run("OK_NoWorkspace", func(t *testing.T) {
