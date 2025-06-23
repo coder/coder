@@ -585,8 +585,9 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 			if !api.devcontainerNames[dc.Name] {
 				// If the devcontainer name wasn't set via terraform, we
 				// will attempt to create an agent name based on the workspace
-				// folder's name. If that is not possible, we will fall back
-				// to using the container's friendly name.
+				// folder's name. If it is not possible to generate a valid
+				// agent name based off of the folder name (i.e. no valid characters),
+				// we will instead fall back to using the container's friendly name.
 				dc.Name = safeAgentName(filepath.Base(dc.WorkspaceFolder), dc.Container.FriendlyName)
 			}
 		}
