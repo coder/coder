@@ -385,10 +385,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			builder = builder.State(createBuild.ProvisionerState)
 		}
 
-		if createBuild.EnableDynamicParameters != nil {
-			builder = builder.DynamicParameters(*createBuild.EnableDynamicParameters)
-		}
-
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
 			ctx,
 			tx,

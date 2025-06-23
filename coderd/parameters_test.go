@@ -15,7 +15,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -260,7 +259,6 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 					Value: "eu",
 				},
 			}
-			request.EnableDynamicParameters = true
 		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, wrk.LatestBuild.ID)
 
@@ -285,7 +283,6 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 				RichParameterValues: []codersdk.WorkspaceBuildParameter{
 					{Name: "region", Value: regionVal},
 				},
-				EnableDynamicParameters: ptr.Ref(true),
 			})
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, bld.ID)

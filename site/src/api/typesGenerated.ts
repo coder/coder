@@ -490,7 +490,6 @@ export interface CreateWorkspaceBuildRequest {
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly log_level?: ProvisionerLogLevel;
 	readonly template_version_preset_id?: string;
-	readonly enable_dynamic_parameters?: boolean;
 }
 
 // From codersdk/workspaceproxy.go
@@ -510,7 +509,6 @@ export interface CreateWorkspaceRequest {
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly automatic_updates?: AutomaticUpdates;
 	readonly template_version_preset_id?: string;
-	readonly enable_dynamic_parameters?: boolean;
 }
 
 // From codersdk/deployment.go
