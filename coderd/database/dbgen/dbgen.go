@@ -778,7 +778,7 @@ func ProvisionerKey(t testing.TB, db database.Store, orig database.ProvisionerKe
 }
 
 func WorkspaceApp(t testing.TB, db database.Store, orig database.WorkspaceApp) database.WorkspaceApp {
-	resource, err := db.InsertWorkspaceApp(genCtx, database.InsertWorkspaceAppParams{
+	resource, err := db.UpsertWorkspaceApp(genCtx, database.UpsertWorkspaceAppParams{
 		ID:          takeFirst(orig.ID, uuid.New()),
 		CreatedAt:   takeFirst(orig.CreatedAt, dbtime.Now()),
 		AgentID:     takeFirst(orig.AgentID, uuid.New()),
