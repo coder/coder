@@ -967,6 +967,9 @@ func TestConvertResources(t *testing.T) {
 						if agent.GetInstanceId() != "" {
 							agent.Auth = &proto.Agent_InstanceId{}
 						}
+						for _, app := range agent.Apps {
+							app.Id = ""
+						}
 					}
 				}
 
@@ -1036,6 +1039,9 @@ func TestConvertResources(t *testing.T) {
 						}
 						if agent.GetInstanceId() != "" {
 							agent.Auth = &proto.Agent_InstanceId{}
+						}
+						for _, app := range agent.Apps {
+							app.Id = ""
 						}
 					}
 				}
