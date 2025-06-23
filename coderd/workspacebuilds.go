@@ -1093,8 +1093,8 @@ func (api *API) convertWorkspaceBuild(
 		hasAITask = &build.HasAITask.Bool
 	}
 	var aiTasksSidebarAppID *uuid.UUID
-	if build.AITasksSidebarAppID.Valid {
-		aiTasksSidebarAppID = &build.AITasksSidebarAppID.UUID
+	if build.AITaskSidebarAppID.Valid {
+		aiTasksSidebarAppID = &build.AITaskSidebarAppID.UUID
 	}
 
 	apiJob := convertProvisionerJob(job)
