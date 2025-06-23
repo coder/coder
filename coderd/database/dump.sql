@@ -2098,7 +2098,8 @@ CREATE TABLE workspace_builds (
     max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     template_version_preset_id uuid,
     has_ai_task boolean,
-    ai_task_sidebar_app_id uuid
+    ai_task_sidebar_app_id uuid,
+    CONSTRAINT workspace_builds_ai_task_sidebar_app_id_required CHECK (((((has_ai_task IS NULL) OR (has_ai_task = false)) AND (ai_task_sidebar_app_id IS NULL)) OR ((has_ai_task = true) AND (ai_task_sidebar_app_id IS NOT NULL))))
 );
 
 CREATE VIEW workspace_build_with_user AS

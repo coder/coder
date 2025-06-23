@@ -4533,7 +4533,12 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 
 		res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
 		agnt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-		sidebarApp := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agnt.ID})
+
+		var sidebarAppID uuid.UUID
+		if hasAITask.Bool {
+			sidebarApp := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agnt.ID})
+			sidebarAppID = sidebarApp.ID
+		}
 
 		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 			WorkspaceID:        ws.ID,
@@ -4542,7 +4547,7 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 			JobID:              job.ID,
 			BuildNumber:        1,
 			HasAITask:          hasAITask,
-			AITaskSidebarAppID: uuid.NullUUID{UUID: sidebarApp.ID, Valid: true},
+			AITaskSidebarAppID: uuid.NullUUID{UUID: sidebarAppID, Valid: sidebarAppID != uuid.Nil},
 		})
 
 		if aiTaskPrompt != nil {
