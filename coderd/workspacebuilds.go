@@ -436,6 +436,11 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		// We may need to complete the audit if wsbuilder determined that
 		// no provisioner could handle an orphan-delete job and completed it.
 		if createBuild.Orphan && createBuild.Transition == codersdk.WorkspaceTransitionDelete && provisionerJob.CompletedAt.Valid {
+			api.Logger.Warn(ctx, "orphan delete handled by wsbuilder due to no eligible provisioners",
+				slog.F("workspace_id", workspace.ID),
+				slog.F("workspace_build_id", workspaceBuild.ID),
+				slog.F("provisioner_job_id", provisionerJob.ID),
+			)
 			buildResourceInfo := audit.AdditionalFields{
 				WorkspaceName:  workspace.Name,
 				BuildNumber:    strconv.Itoa(int(workspaceBuild.BuildNumber)),
