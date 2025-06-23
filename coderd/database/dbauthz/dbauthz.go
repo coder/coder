@@ -3938,23 +3938,6 @@ func (q *querier) InsertWorkspaceAgentStats(ctx context.Context, arg database.In
 	return q.db.InsertWorkspaceAgentStats(ctx, arg)
 }
 
-func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
-	// NOTE(DanielleMaywood):
-	// It is possible for there to exist an agent without a workspace.
-	// This means that we want to allow execution to continue if
-	// there isn't a workspace found to allow this behavior to continue.
-	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.AgentID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return database.WorkspaceApp{}, err
-	}
-
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
-		return database.WorkspaceApp{}, err
-	}
-
-	return q.db.InsertWorkspaceApp(ctx, arg)
-}
-
 func (q *querier) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return err
@@ -5179,6 +5162,23 @@ func (q *querier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg databas
 	}
 
 	return q.db.UpsertWorkspaceAgentPortShare(ctx, arg)
+}
+
+func (q *querier) UpsertWorkspaceApp(ctx context.Context, arg database.UpsertWorkspaceAppParams) (database.WorkspaceApp, error) {
+	// NOTE(DanielleMaywood):
+	// It is possible for there to exist an agent without a workspace.
+	// This means that we want to allow execution to continue if
+	// there isn't a workspace found to allow this behavior to continue.
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.AgentID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return database.WorkspaceApp{}, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
+		return database.WorkspaceApp{}, err
+	}
+
+	return q.db.UpsertWorkspaceApp(ctx, arg)
 }
 
 func (q *querier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (bool, error) {
