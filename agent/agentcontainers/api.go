@@ -1308,9 +1308,8 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		// include parent directories to avoid collisions.
 		client := *api.subAgentClient.Load()
 
-		var newSubAgent SubAgent
 		originalName := subAgentConfig.Name
-		maxAttempts := 5 // Maximum number of parent directories to include
+		maxAttempts := 5
 
 		for attempt := 1; attempt <= maxAttempts; attempt++ {
 			if proc.agent, err = client.Create(ctx, subAgentConfig); err == nil {
@@ -1346,7 +1345,6 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				slog.F("attempt", attempt+1),
 			)
 		}
-		proc.agent = newSubAgent
 
 		logger.Info(ctx, "created new subagent", slog.F("agent_id", proc.agent.ID))
 	} else {
