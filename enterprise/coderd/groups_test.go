@@ -484,7 +484,7 @@ func TestPatchGroup(t *testing.T) {
 
 		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			Name:     "prebuilds",
-			AddUsers: []string{prebuilds.SystemUserID.String()},
+			AddUsers: []string{database.PrebuildsSystemUserID.String()},
 		})
 		require.NoError(t, err)
 	})
