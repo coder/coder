@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -39,6 +40,8 @@ const (
 	// by tmpfs or other mounts. This assumes the container root filesystem is
 	// read-write, which seems sensible for devcontainers.
 	coderPathInsideContainer = "/.coder-agent/coder"
+
+	maxAgentNameLength = 64
 )
 
 // API is responsible for container-related operations in the agent.
@@ -583,10 +586,11 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 		if dc.Container != nil {
 			if !api.devcontainerNames[dc.Name] {
 				// If the devcontainer name wasn't set via terraform, we
-				// use the containers friendly name as a fallback which
-				// will keep changing as the devcontainer is recreated.
-				// TODO(mafredri): Parse the container label (i.e. devcontainer.json) for customization.
-				dc.Name = safeFriendlyName(dc.Container.FriendlyName)
+				// will attempt to create an agent name based on the workspace
+				// folder's name. If it is not possible to generate a valid
+				// agent name based off of the folder name (i.e. no valid characters),
+				// we will instead fall back to using the container's friendly name.
+				dc.Name = safeAgentName(path.Base(filepath.ToSlash(dc.WorkspaceFolder)), dc.Container.FriendlyName)
 			}
 		}
 
@@ -629,6 +633,38 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 
 	api.containers = updated
 	api.containersErr = nil
+}
+
+var consecutiveHyphenRegex = regexp.MustCompile("-+")
+
+// `safeAgentName` returns a safe agent name derived from a folder name,
+// falling back to the container’s friendly name if needed.
+func safeAgentName(name string, friendlyName string) string {
+	// Keep only ASCII letters and digits, replacing everything
+	// else with a hyphen.
+	var sb strings.Builder
+	for _, r := range strings.ToLower(name) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			_, _ = sb.WriteRune(r)
+		} else {
+			_, _ = sb.WriteRune('-')
+		}
+	}
+
+	// Remove any consecutive hyphens, and then trim any leading
+	// and trailing hyphens.
+	name = consecutiveHyphenRegex.ReplaceAllString(sb.String(), "-")
+	name = strings.Trim(name, "-")
+
+	// Ensure the name of the agent doesn't exceed the maximum agent
+	// name length.
+	name = name[:min(len(name), maxAgentNameLength)]
+
+	if provisioner.AgentNameRegex.Match([]byte(name)) {
+		return name
+	}
+
+	return safeFriendlyName(friendlyName)
 }
 
 // safeFriendlyName returns a API safe version of the container's
