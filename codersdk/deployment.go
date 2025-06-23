@@ -3396,6 +3396,9 @@ var ExperimentsSafe = Experiments{
 // Multiple experiments may be enabled at the same time.
 // Experiments are not safe for production use, and are not guaranteed to
 // be backwards compatible. They may be removed or renamed at any time.
+// The below typescript-ignore annotation allows our typescript generator
+// to generate an enum list, which is used in the frontend.
+// @typescript-ignore Experiments
 type Experiments []Experiment
 
 // Returns a list of experiments that are enabled for the deployment.
