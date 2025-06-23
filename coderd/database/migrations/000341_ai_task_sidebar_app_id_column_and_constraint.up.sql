@@ -16,10 +16,11 @@ ALTER TABLE workspace_builds ADD CONSTRAINT workspace_builds_ai_task_sidebar_app
 --   FALSE       | NOT NULL               | FALSE (fails)
 --   TRUE        | NULL                   | FALSE (fails)
 --   TRUE        | NOT NULL               | TRUE (passes)
-ALTER TABLE workspace_builds ADD CONSTRAINT workspace_builds_ai_task_sidebar_app_id_required CHECK (
-    (has_ai_task IS NULL OR has_ai_task = false) AND ai_task_sidebar_app_id IS NULL OR
-    (has_ai_task = true AND ai_task_sidebar_app_id IS NOT NULL)
-);
+ALTER TABLE workspace_builds
+	ADD CONSTRAINT workspace_builds_ai_task_sidebar_app_id_required CHECK (
+		((has_ai_task IS NULL OR has_ai_task = false) AND ai_task_sidebar_app_id IS NULL)
+			OR (has_ai_task = true AND ai_task_sidebar_app_id IS NOT NULL)
+		);
 
 -- Update the workspace_build_with_user view to use the new column name
 DROP VIEW workspace_build_with_user;
