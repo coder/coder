@@ -169,7 +169,7 @@ func (q *querier) authorizePrebuiltWorkspace(ctx context.Context, action policy.
 		if prebuiltErr = q.authorizeContext(ctx, action, workspace.AsPrebuild()); prebuiltErr == nil {
 			return nil
 		}
-		return xerrors.Errorf("authorize context: %w", errors.Join(workspaceErr, prebuiltErr))
+		return xerrors.Errorf("authorize context as prebuild: %w", errors.Join(workspaceErr, prebuiltErr))
 	}
 
 	return xerrors.Errorf("authorize context: %w", errors.Join(workspaceErr))
