@@ -59,7 +59,7 @@ const dialogVariants = cva(
 	},
 );
 
-export interface DialogContentProps
+interface DialogContentProps
 	extends ComponentPropsWithoutRef<typeof DialogPrimitive.Content>,
 		VariantProps<typeof dialogVariants> {}
 
