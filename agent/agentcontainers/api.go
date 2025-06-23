@@ -653,11 +653,11 @@ func safeAgentName(name string, friendlyName string) string {
 	name = consecutiveHyphenRegex.ReplaceAllString(sb.String(), "-")
 	name = strings.Trim(name, "-")
 
-	if name == "" {
-		return safeFriendlyName(friendlyName)
+	if name != "" {
+		return name
 	}
 
-	return name
+	return safeFriendlyName(friendlyName)
 }
 
 // safeFriendlyName returns a API safe version of the container's
