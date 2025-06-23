@@ -152,32 +152,31 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	const [presetOptions, setPresetOptions] = useState([
 		{ label: "None", value: "" },
 	]);
-	useEffect(() => {
-		setPresetOptions([
-			{ label: "None", value: "" },
-			...presets.map((preset) => ({
-				label: preset.Default ? `${preset.Name} (Default)` : preset.Name,
-				value: preset.ID,
-			})),
-		]);
-	}, [presets]);
-
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
-
-	// Set default preset when presets are loaded
+	// Build options and keep default label/value in sync
 	useEffect(() => {
-		const defaultPreset = presets.find((preset) => preset.Default);
+		const options = [
+			{ label: "None", value: "" },
+			...presets.map((p) => ({
+				label: p.Default ? `${p.Name} (Default)` : p.Name,
+				value: p.ID,
+			})),
+		];
+		setPresetOptions(options);
+		const defaultPreset = presets.find((p) => p.Default);
 		if (defaultPreset) {
-			// +1 because "None" is at index 0
-			const defaultIndex =
-				presets.findIndex((preset) => preset.ID === defaultPreset.ID) + 1;
-			setSelectedPresetIndex(defaultIndex);
+			const idx = presets.indexOf(defaultPreset) + 1; // +1 for "None"
+			setSelectedPresetIndex(idx);
+			form.setFieldValue("template_version_preset_id", defaultPreset.ID);
+		} else {
+			setSelectedPresetIndex(0); // Explicitly set to "None"
+			form.setFieldValue("template_version_preset_id", "");
 		}
-	}, [presets]);
+	}, [presets, form.setFieldValue]);
+
 	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
 		[],
 	);
-
 	useEffect(() => {
 		const selectedPresetOption = presetOptions[selectedPresetIndex];
 		let selectedPreset: TypesGen.Preset | undefined;
