@@ -991,9 +991,10 @@ func TestHardLimitedPresetNotifications(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 	fakeEnqueuer := newFakeEnqueuer()
 	registry := prometheus.NewRegistry()
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, registry, fakeEnqueuer)
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer)
 
 	// Template admin to receive a notification.
 	templateAdmin := dbgen.User(t, db, database.User{
