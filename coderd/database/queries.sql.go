@@ -16691,102 +16691,6 @@ func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt
 	return items, nil
 }
 
-const insertWorkspaceApp = `-- name: InsertWorkspaceApp :one
-INSERT INTO
-    workspace_apps (
-        id,
-        created_at,
-        agent_id,
-        slug,
-        display_name,
-        icon,
-        command,
-        url,
-        external,
-        subdomain,
-        sharing_level,
-        healthcheck_url,
-        healthcheck_interval,
-        healthcheck_threshold,
-        health,
-        display_order,
-        hidden,
-        open_in,
-        display_group
-    )
-VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group
-`
-
-type InsertWorkspaceAppParams struct {
-	ID                   uuid.UUID          `db:"id" json:"id"`
-	CreatedAt            time.Time          `db:"created_at" json:"created_at"`
-	AgentID              uuid.UUID          `db:"agent_id" json:"agent_id"`
-	Slug                 string             `db:"slug" json:"slug"`
-	DisplayName          string             `db:"display_name" json:"display_name"`
-	Icon                 string             `db:"icon" json:"icon"`
-	Command              sql.NullString     `db:"command" json:"command"`
-	Url                  sql.NullString     `db:"url" json:"url"`
-	External             bool               `db:"external" json:"external"`
-	Subdomain            bool               `db:"subdomain" json:"subdomain"`
-	SharingLevel         AppSharingLevel    `db:"sharing_level" json:"sharing_level"`
-	HealthcheckUrl       string             `db:"healthcheck_url" json:"healthcheck_url"`
-	HealthcheckInterval  int32              `db:"healthcheck_interval" json:"healthcheck_interval"`
-	HealthcheckThreshold int32              `db:"healthcheck_threshold" json:"healthcheck_threshold"`
-	Health               WorkspaceAppHealth `db:"health" json:"health"`
-	DisplayOrder         int32              `db:"display_order" json:"display_order"`
-	Hidden               bool               `db:"hidden" json:"hidden"`
-	OpenIn               WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
-	DisplayGroup         sql.NullString     `db:"display_group" json:"display_group"`
-}
-
-func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error) {
-	row := q.db.QueryRowContext(ctx, insertWorkspaceApp,
-		arg.ID,
-		arg.CreatedAt,
-		arg.AgentID,
-		arg.Slug,
-		arg.DisplayName,
-		arg.Icon,
-		arg.Command,
-		arg.Url,
-		arg.External,
-		arg.Subdomain,
-		arg.SharingLevel,
-		arg.HealthcheckUrl,
-		arg.HealthcheckInterval,
-		arg.HealthcheckThreshold,
-		arg.Health,
-		arg.DisplayOrder,
-		arg.Hidden,
-		arg.OpenIn,
-		arg.DisplayGroup,
-	)
-	var i WorkspaceApp
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.AgentID,
-		&i.DisplayName,
-		&i.Icon,
-		&i.Command,
-		&i.Url,
-		&i.HealthcheckUrl,
-		&i.HealthcheckInterval,
-		&i.HealthcheckThreshold,
-		&i.Health,
-		&i.Subdomain,
-		&i.SharingLevel,
-		&i.Slug,
-		&i.External,
-		&i.DisplayOrder,
-		&i.Hidden,
-		&i.OpenIn,
-		&i.DisplayGroup,
-	)
-	return i, err
-}
-
 const insertWorkspaceAppStatus = `-- name: InsertWorkspaceAppStatus :one
 INSERT INTO workspace_app_statuses (id, created_at, workspace_id, agent_id, app_id, state, message, uri)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -16846,6 +16750,121 @@ type UpdateWorkspaceAppHealthByIDParams struct {
 func (q *sqlQuerier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg UpdateWorkspaceAppHealthByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceAppHealthByID, arg.ID, arg.Health)
 	return err
+}
+
+const upsertWorkspaceApp = `-- name: UpsertWorkspaceApp :one
+INSERT INTO
+    workspace_apps (
+        id,
+        created_at,
+        agent_id,
+        slug,
+        display_name,
+        icon,
+        command,
+        url,
+        external,
+        subdomain,
+        sharing_level,
+        healthcheck_url,
+        healthcheck_interval,
+        healthcheck_threshold,
+        health,
+        display_order,
+        hidden,
+        open_in,
+        display_group
+    )
+VALUES
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+ON CONFLICT (id) DO UPDATE SET
+    display_name = EXCLUDED.display_name,
+    icon = EXCLUDED.icon,
+    command = EXCLUDED.command,
+    url = EXCLUDED.url,
+    external = EXCLUDED.external,
+    subdomain = EXCLUDED.subdomain,
+    sharing_level = EXCLUDED.sharing_level,
+    healthcheck_url = EXCLUDED.healthcheck_url,
+    healthcheck_interval = EXCLUDED.healthcheck_interval,
+    healthcheck_threshold = EXCLUDED.healthcheck_threshold,
+    health = EXCLUDED.health,
+    display_order = EXCLUDED.display_order,
+    hidden = EXCLUDED.hidden,
+    open_in = EXCLUDED.open_in,
+    display_group = EXCLUDED.display_group,
+    agent_id = EXCLUDED.agent_id,
+    slug = EXCLUDED.slug
+RETURNING id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group
+`
+
+type UpsertWorkspaceAppParams struct {
+	ID                   uuid.UUID          `db:"id" json:"id"`
+	CreatedAt            time.Time          `db:"created_at" json:"created_at"`
+	AgentID              uuid.UUID          `db:"agent_id" json:"agent_id"`
+	Slug                 string             `db:"slug" json:"slug"`
+	DisplayName          string             `db:"display_name" json:"display_name"`
+	Icon                 string             `db:"icon" json:"icon"`
+	Command              sql.NullString     `db:"command" json:"command"`
+	Url                  sql.NullString     `db:"url" json:"url"`
+	External             bool               `db:"external" json:"external"`
+	Subdomain            bool               `db:"subdomain" json:"subdomain"`
+	SharingLevel         AppSharingLevel    `db:"sharing_level" json:"sharing_level"`
+	HealthcheckUrl       string             `db:"healthcheck_url" json:"healthcheck_url"`
+	HealthcheckInterval  int32              `db:"healthcheck_interval" json:"healthcheck_interval"`
+	HealthcheckThreshold int32              `db:"healthcheck_threshold" json:"healthcheck_threshold"`
+	Health               WorkspaceAppHealth `db:"health" json:"health"`
+	DisplayOrder         int32              `db:"display_order" json:"display_order"`
+	Hidden               bool               `db:"hidden" json:"hidden"`
+	OpenIn               WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
+	DisplayGroup         sql.NullString     `db:"display_group" json:"display_group"`
+}
+
+func (q *sqlQuerier) UpsertWorkspaceApp(ctx context.Context, arg UpsertWorkspaceAppParams) (WorkspaceApp, error) {
+	row := q.db.QueryRowContext(ctx, upsertWorkspaceApp,
+		arg.ID,
+		arg.CreatedAt,
+		arg.AgentID,
+		arg.Slug,
+		arg.DisplayName,
+		arg.Icon,
+		arg.Command,
+		arg.Url,
+		arg.External,
+		arg.Subdomain,
+		arg.SharingLevel,
+		arg.HealthcheckUrl,
+		arg.HealthcheckInterval,
+		arg.HealthcheckThreshold,
+		arg.Health,
+		arg.DisplayOrder,
+		arg.Hidden,
+		arg.OpenIn,
+		arg.DisplayGroup,
+	)
+	var i WorkspaceApp
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.AgentID,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Command,
+		&i.Url,
+		&i.HealthcheckUrl,
+		&i.HealthcheckInterval,
+		&i.HealthcheckThreshold,
+		&i.Health,
+		&i.Subdomain,
+		&i.SharingLevel,
+		&i.Slug,
+		&i.External,
+		&i.DisplayOrder,
+		&i.Hidden,
+		&i.OpenIn,
+		&i.DisplayGroup,
+	)
+	return i, err
 }
 
 const insertWorkspaceAppStats = `-- name: InsertWorkspaceAppStats :exec

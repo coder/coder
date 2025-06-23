@@ -2440,13 +2440,6 @@ func (m queryMetricsStore) InsertWorkspaceAgentStats(ctx context.Context, arg da
 	return r0
 }
 
-func (m queryMetricsStore) InsertWorkspaceApp(ctx context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
-	start := time.Now()
-	app, err := m.s.InsertWorkspaceApp(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertWorkspaceApp").Observe(time.Since(start).Seconds())
-	return app, err
-}
-
 func (m queryMetricsStore) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
 	start := time.Now()
 	r0 := m.s.InsertWorkspaceAppStats(ctx, arg)
@@ -3298,6 +3291,13 @@ func (m queryMetricsStore) UpsertWorkspaceAgentPortShare(ctx context.Context, ar
 	start := time.Now()
 	r0, r1 := m.s.UpsertWorkspaceAgentPortShare(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertWorkspaceAgentPortShare").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpsertWorkspaceApp(ctx context.Context, arg database.UpsertWorkspaceAppParams) (database.WorkspaceApp, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertWorkspaceApp(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertWorkspaceApp").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
