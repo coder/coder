@@ -12062,6 +12062,13 @@ func (q *FakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.U
 }
 
 func (q *FakeQuerier) UpdateWorkspaceBuildAITaskByID(_ context.Context, arg database.UpdateWorkspaceBuildAITaskByIDParams) error {
+	if arg.HasAITask.Bool && !arg.SidebarAppID.Valid {
+		return xerrors.Errorf("ai_task_sidebar_app_id is required when has_ai_task is true")
+	}
+	if !arg.HasAITask.Valid && arg.SidebarAppID.Valid {
+		return xerrors.Errorf("ai_task_sidebar_app_id is can only be set when has_ai_task is true")
+	}
+
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err

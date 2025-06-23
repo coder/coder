@@ -2,7 +2,6 @@ package coderd_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -1507,52 +1506,39 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 	t.Parallel()
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
-
-	// When using WithAgent() here and setting some *proto.App instances on the agent, Do() ends up trying to insert duplicate records.
+	apps := []*proto.App{
+		{
+			Slug:    "code-server",
+			Command: "some-command",
+			Url:     "http://localhost:3000",
+			Icon:    "/code.svg",
+		},
+		{
+			Slug:        "code-server-2",
+			DisplayName: "code-server-2",
+			Command:     "some-command",
+			Url:         "http://localhost:3000",
+			Icon:        "/code.svg",
+			Healthcheck: &proto.Healthcheck{
+				Url:       "http://localhost:3000",
+				Interval:  5,
+				Threshold: 6,
+			},
+		},
+	}
 	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
+	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].Apps = apps
+		return agents
 	}).Do()
-
-	res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: r.Build.JobID})
-	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-
-	// It's simpler to call db.InsertWorkspaceApp directly than dbgen.WorkspaceApp because it's more terse and direct;
-	// the latter sets a bunch of defaults which make this test hard.
-	_, err := db.InsertWorkspaceApp(dbauthz.AsSystemRestricted(t.Context()), database.InsertWorkspaceAppParams{
-		ID: uuid.New(),
-		Slug:         "code-server",
-		AgentID:      agent.ID,
-		Icon:         "/code.svg",
-		Command:      sql.NullString{String: "some-command", Valid: true},
-		Url:          sql.NullString{String: "http://localhost:3000", Valid: true},
-		SharingLevel: database.AppSharingLevelOwner,
-		Health:       database.WorkspaceAppHealthDisabled,
-		OpenIn:       database.WorkspaceAppOpenInWindow,
-	})
-	require.NoError(t, err)
-	_, err = db.InsertWorkspaceApp(dbauthz.AsSystemRestricted(t.Context()), database.InsertWorkspaceAppParams{
-		ID: uuid.New(),
-		Slug:                 "code-server-2",
-		DisplayName:          "code-server-2",
-		AgentID:              agent.ID,
-		Icon:                 "/code.svg",
-		Command:              sql.NullString{String: "some-command", Valid: true},
-		Url:                  sql.NullString{String: "http://localhost:3000", Valid: true},
-		HealthcheckInterval:  5,
-		HealthcheckUrl:       "http://localhost:3000",
-		HealthcheckThreshold: 6,
-		Health:               database.WorkspaceAppHealthInitializing,
-		SharingLevel:         database.AppSharingLevelOwner,
-		OpenIn:               database.WorkspaceAppOpenInWindow,
-	})
-	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
 	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(agent.AuthToken.String())
+	agentClient.SetSessionToken(r.AgentToken)
 	conn, err := agentClient.ConnectRPC(ctx)
 	require.NoError(t, err)
 	defer func() {

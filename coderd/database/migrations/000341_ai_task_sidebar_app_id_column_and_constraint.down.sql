@@ -1,11 +1,14 @@
--- Rename ai_tasks_sidebar_app_id to ai_task_sidebar_app_id in workspace_builds table
-ALTER TABLE workspace_builds DROP CONSTRAINT workspace_builds_ai_tasks_sidebar_app_id_fkey;
+-- Drop the check constraint first
+ALTER TABLE workspace_builds DROP CONSTRAINT workspace_builds_ai_task_sidebar_app_id_required;
 
-ALTER TABLE workspace_builds RENAME COLUMN ai_tasks_sidebar_app_id TO ai_task_sidebar_app_id;
+-- Revert ai_task_sidebar_app_id back to ai_tasks_sidebar_app_id in workspace_builds table
+ALTER TABLE workspace_builds DROP CONSTRAINT workspace_builds_ai_task_sidebar_app_id_fkey;
 
-ALTER TABLE workspace_builds ADD CONSTRAINT workspace_builds_ai_task_sidebar_app_id_fkey FOREIGN KEY (ai_task_sidebar_app_id) REFERENCES workspace_apps(id);
+ALTER TABLE workspace_builds RENAME COLUMN ai_task_sidebar_app_id TO ai_tasks_sidebar_app_id;
 
--- Update the workspace_build_with_user view to use the new column name
+ALTER TABLE workspace_builds ADD CONSTRAINT workspace_builds_ai_tasks_sidebar_app_id_fkey FOREIGN KEY (ai_tasks_sidebar_app_id) REFERENCES workspace_apps(id);
+
+-- Revert the workspace_build_with_user view to use the original column name
 DROP VIEW workspace_build_with_user;
 
 CREATE VIEW workspace_build_with_user AS
@@ -26,7 +29,7 @@ SELECT
     workspace_builds.max_deadline,
     workspace_builds.template_version_preset_id,
     workspace_builds.has_ai_task,
-    workspace_builds.ai_task_sidebar_app_id,
+    workspace_builds.ai_tasks_sidebar_app_id,
     COALESCE(
         visible_users.avatar_url,
         '' :: text

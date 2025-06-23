@@ -1405,7 +1405,7 @@ func (s *MethodTestSuite) TestTemplate() {
 			TemplateID:     uuid.NullUUID{UUID: t.ID, Valid: true},
 		})
 		check.Args(database.UpdateTemplateVersionAITaskByJobIDParams{
-			JobID: job.ID,
+			JobID:     job.ID,
 			HasAITask: sql.NullBool{Bool: true, Valid: true},
 		}).Asserts(t, policy.ActionUpdate)
 	}))
