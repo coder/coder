@@ -2,10 +2,12 @@
 
 ## Bash commands
 
+- `pnpm dev` - Start Vite development server
 - `pnpm storybook --no-open` - Run storybook tests
 - `pnpm test` - Run jest unit tests
 - `pnpm test -- path/to/specific.test.ts` - Run a single test file
-- `pnpm lint` - Lint frontend code using biome
+- `pnpm lint` - Run complete linting suite (Biome + TypeScript + circular deps + knip)
+- `pnpm lint:fix` - Auto-fix linting issues where possible
 - `pnpm playwright:test` - Run playwright e2e tests. When running e2e tests, remind the user that a license is required to run all the tests
 - `pnpm format` - Format frontend code. Always run before creating a PR
 
@@ -28,14 +30,47 @@
 ## Tailwind Best Practices
 
 - Group related classes
-- Use semantic color names from the theme inside `tailwind.config.js`
+- Use semantic color names from the theme inside `tailwind.config.js` including `content`, `surface`, `border`, `highlight` semantic tokens
 - Prefer Tailwind utilities over custom CSS when possible
 
 ## General Code style
 
 - Use ES modules (import/export) syntax, not CommonJS (require)
 - Destructure imports when possible (eg. import { foo } from 'bar')
-- Do not use forEach to iterate, prefer using for..of
+- Prefer `for...of` over `forEach` for iteration
+- **Biome** handles both linting and formatting (not ESLint/Prettier)
+
+## Workflow
+
+- Be sure to typecheck when you’re done making a series of code changes
+- Prefer running single tests, and not the whole test suite, for performance
+- Some e2e tests require a license from the user to execute
+- Use pnpm format before creating a PR
+
+## Pre-PR Checklist
+
+1. `pnpm check` - Ensure no TypeScript errors
+2. `pnpm lint` - Fix linting issues
+3. `pnpm format` - Format code consistently
+4. `pnpm test` - Run affected unit tests
+5. Visual check in Storybook if component changes
+
+## Migration (MUI → shadcn) (Emotion → Tailwind)
+
+### Migration Strategy
+
+- Identify MUI components in current feature
+- Find shadcn equivalent in existing components
+- Create wrapper if needed for missing functionality
+- Update tests to reflect new component structure
+- Remove MUI imports once migration complete
+
+### Migration Guidelines
+
+- Use Tailwind classes for all new styling
+- Replace Emotion `css` prop with Tailwind classes
+- Leverage custom color tokens: `content-primary`, `surface-secondary`, etc.
+- Use `className` with `clsx` for conditional styling
 
 ## React Rules
 
@@ -78,26 +113,3 @@
 - useRef stores a mutable .current **without causing re-renders**.
 - **Don’t call Hooks (including useRef) inside loops, conditions, or map().** Extract a child component instead.
 - **Avoid reading or mutating refs during render;** access them in event handlers or Effects after commit.
-
-## Workflow
-
-- Be sure to typecheck when you’re done making a series of code changes
-- Prefer running single tests, and not the whole test suite, for performance
-- Some e2e tests require a license from the user to execute
-- Use pnpm format before creating a PR
-
-## Pre-commit Checklist
-
-1. pnpm check - Ensure no TypeScript errors
-2. pnpm lint - Fix linting issues
-3. pnpm format - Format code consistently
-4. pnpm test - Run affected unit tests
-5. Visual check in Storybook if component changes
-
-## Migration Strategy (MUI → shadcn)
-
-- Identify MUI components in current feature
-- Find shadcn equivalent in existing components
-- Create wrapper if needed for missing functionality
-- Update tests to reflect new component structure
-- Remove MUI imports once migration complete
