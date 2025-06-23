@@ -588,7 +588,7 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 				// folder's name. If it is not possible to generate a valid
 				// agent name based off of the folder name (i.e. no valid characters),
 				// we will instead fall back to using the container's friendly name.
-				dc.Name = safeAgentName(filepath.Base(dc.WorkspaceFolder), dc.Container.FriendlyName)
+				dc.Name = safeAgentName(path.Base(filepath.ToSlash(dc.WorkspaceFolder)), dc.Container.FriendlyName)
 			}
 		}
 
