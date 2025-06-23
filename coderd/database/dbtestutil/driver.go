@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 
-	"github.com/lib/pq"
+	"github.com/jackc/pgx/v5/stdlib"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -15,22 +15,11 @@ var _ database.DialerConnector = &Connector{}
 type Connector struct {
 	name   string
 	driver *Driver
-	dialer pq.Dialer
+	// Note: pgx handles dialing differently via config
 }
 
-func (c *Connector) Connect(_ context.Context) (driver.Conn, error) {
-	if c.dialer != nil {
-		conn, err := pq.DialOpen(c.dialer, c.name)
-		if err != nil {
-			return nil, xerrors.Errorf("failed to dial open connection: %w", err)
-		}
-
-		c.driver.Connections <- conn
-
-		return conn, nil
-	}
-
-	conn, err := pq.Driver{}.Open(c.name)
+func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
+	conn, err := stdlib.GetDefaultDriver().Open(c.name)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to open connection: %w", err)
 	}
@@ -44,8 +33,9 @@ func (c *Connector) Driver() driver.Driver {
 	return c.driver
 }
 
-func (c *Connector) Dialer(dialer pq.Dialer) {
-	c.dialer = dialer
+func (c *Connector) Dialer(dialer interface{}) {
+	// Note: pgx handles dialing differently via config
+	// This method is kept for interface compatibility but is a no-op
 }
 
 type Driver struct {

@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -78,7 +77,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 		arg.OrganizationID,
 		arg.ExactName,
 		arg.FuzzyName,
-		pq.Array(arg.IDs),
+		arg.IDs,
 		arg.Deprecated,
 		arg.HasAITask,
 	)
@@ -247,17 +246,17 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
-		pq.Array(arg.ParamNames),
-		pq.Array(arg.ParamValues),
+		arg.ParamNames,
+		arg.ParamValues,
 		arg.Deleted,
 		arg.Status,
 		arg.OwnerID,
 		arg.OrganizationID,
-		pq.Array(arg.HasParam),
+		arg.HasParam,
 		arg.OwnerUsername,
 		arg.TemplateName,
-		pq.Array(arg.TemplateIDs),
-		pq.Array(arg.WorkspaceIds),
+		arg.TemplateIDs,
+		arg.WorkspaceIds,
 		arg.Name,
 		arg.HasAgent,
 		arg.AgentInactiveDisconnectTimeoutSeconds,
@@ -357,7 +356,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Conte
 			&i.Name,
 			&i.JobStatus,
 			&i.Transition,
-			pq.Array(&i.Agents),
+			&i.Agents,
 		); err != nil {
 			return nil, err
 		}
@@ -393,15 +392,15 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.AfterID,
 		arg.Search,
-		pq.Array(arg.Status),
-		pq.Array(arg.RbacRole),
+		arg.Status,
+		arg.RbacRole,
 		arg.LastSeenBefore,
 		arg.LastSeenAfter,
 		arg.CreatedBefore,
 		arg.CreatedAfter,
 		arg.IncludeSystem,
 		arg.GithubComUserID,
-		pq.Array(arg.LoginType),
+		arg.LoginType,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
