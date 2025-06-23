@@ -392,7 +392,7 @@ parameters in one of two ways:
 
   Or set the [environment variable](../../setup/index.md), `CODER_EXPERIMENTS=auto-fill-parameters`
 
-## Dynamic Parameters (Early Access)
+## Dynamic Parameters (Beta)
 
 Dynamic Parameters enhances Coder's existing parameter system with real-time validation,
 conditional parameter behavior, and richer input types.
@@ -461,7 +461,6 @@ Dynamic Parameters introduces three primary enhancements to the standard paramet
   - Searchable dropdown lists for easier selection
   - Multi-select options for choosing multiple items
   - Secret text inputs for sensitive information
-  - Key-value pair inputs for complex data
   - Button parameters for toggling sections
 
 ## Available Form Input Types
@@ -534,20 +533,6 @@ data "coder_parameter" "custom_domain" {
   type         = "string"
   form_type    = "input" # This is the default for string parameters without options
   default      = ""
-}
-```
-
-</details>
-
-<details><summary>key-value: Input for entering key-value pairs</summary>
-
-```tf
-data "coder_parameter" "environment_vars" {
-  name         = "environment_vars"
-  display_name = "Environment Variables"
-  type         = "string"
-  form_type    = "key-value"
-  default      = jsonencode({"NODE_ENV": "development"})
 }
 ```
 
