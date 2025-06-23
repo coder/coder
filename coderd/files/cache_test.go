@@ -2,6 +2,7 @@ package files_test
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -9,7 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/sync/errgroup"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -18,12 +21,69 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// TestCancelledFetch runs 2 Acquire calls. The first fails with a ctx.Canceled
+// error. The second call should ignore the first error and try to fetch the file
+// again, which should succeed.
+func TestCancelledFetch(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+	rdy := make(chan struct{})
+	dbM := dbmock.NewMockStore(gomock.NewController(t))
+
+	// First call should fail
+	dbM.EXPECT().GetFileByID(gomock.Any(), gomock.Any()).DoAndReturn(func(mTx context.Context, fileID uuid.UUID) (database.File, error) {
+		// Wait long enough for the second call to be queued up.
+		<-rdy
+		return database.File{}, context.Canceled
+	})
+
+	// Second call should succeed
+	dbM.EXPECT().GetFileByID(gomock.Any(), gomock.Any()).DoAndReturn(func(mTx context.Context, fileID uuid.UUID) (database.File, error) {
+		return database.File{
+			ID:   fileID,
+			Data: make([]byte, 100),
+		}, nil
+	})
+
+	//nolint:gocritic // Unit testing
+	ctx := dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort))
+	cache := files.NewFromStore(dbM, prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// First call that will fail
+	go func() {
+		_, err := cache.Acquire(ctx, fileID)
+		assert.ErrorIs(t, err, context.Canceled)
+		wg.Done()
+	}()
+
+	// Second call, that should succeed
+	go func() {
+		fs, err := cache.Acquire(ctx, fileID)
+		assert.NoError(t, err)
+		if fs != nil {
+			fs.Close()
+		}
+		wg.Done()
+	}()
+
+	// We need that second Acquire call to be queued up
+	time.Sleep(testutil.IntervalFast)
+
+	close(rdy)
+	wg.Wait()
+}
 
 // nolint:paralleltest,tparallel // Serially testing is easier
 func TestCacheRBAC(t *testing.T) {
