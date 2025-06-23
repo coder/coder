@@ -23,6 +23,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -54,6 +55,7 @@ type API struct {
 	logger                      slog.Logger
 	watcher                     watcher.Watcher
 	execer                      agentexec.Execer
+	commandEnv                  CommandEnv
 	ccli                        ContainerCLI
 	containerLabelIncludeFilter map[string]string // Labels to filter containers by.
 	dccli                       DevcontainerCLI
@@ -106,6 +108,29 @@ func WithExecer(execer agentexec.Execer) Option {
 	}
 }
 
+// WithCommandEnv sets the CommandEnv implementation to use.
+func WithCommandEnv(ce CommandEnv) Option {
+	return func(api *API) {
+		api.commandEnv = func(ei usershell.EnvInfoer, preEnv []string) (string, string, []string, error) {
+			shell, dir, env, err := ce(ei, preEnv)
+			if err != nil {
+				return shell, dir, env, err
+			}
+			env = slices.DeleteFunc(env, func(s string) bool {
+				// Ensure we filter out environment variables that come
+				// from the parent agent and are incorrect or not
+				// relevant for the devcontainer.
+				return strings.HasPrefix(s, "CODER_WORKSPACE_AGENT_NAME=") ||
+					strings.HasPrefix(s, "CODER_WORKSPACE_AGENT_URL=") ||
+					strings.HasPrefix(s, "CODER_AGENT_TOKEN=") ||
+					strings.HasPrefix(s, "CODER_AGENT_AUTH=") ||
+					strings.HasPrefix(s, "CODER_AGENT_DEVCONTAINERS_ENABLE=")
+			})
+			return shell, dir, env, nil
+		}
+	}
+}
+
 // WithContainerCLI sets the agentcontainers.ContainerCLI implementation
 // to use. The default implementation uses the Docker CLI.
 func WithContainerCLI(ccli ContainerCLI) Option {
@@ -148,7 +173,7 @@ func WithSubAgentURL(url string) Option {
 	}
 }
 
-// WithSubAgent sets the environment variables for the sub-agent.
+// WithSubAgentEnv sets the environment variables for the sub-agent.
 func WithSubAgentEnv(env ...string) Option {
 	return func(api *API) {
 		api.subAgentEnv = env
@@ -255,6 +280,13 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 	// nil pointer dereference.
 	for _, opt := range options {
 		opt(api)
+	}
+	if api.commandEnv != nil {
+		api.execer = newCommandEnvExecer(
+			api.logger,
+			api.commandEnv,
+			api.execer,
+		)
 	}
 	if api.ccli == nil {
 		api.ccli = NewDockerCLI(api.execer)
