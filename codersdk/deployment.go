@@ -3372,6 +3372,18 @@ const (
 	ExperimentAITasks            Experiment = "ai-tasks"             // Enables the new AI tasks feature.
 )
 
+// ExperimentsKnown should include all experiments defined above.
+var ExperimentsKnown = Experiments{
+	ExperimentExample,
+	ExperimentAutoFillParameters,
+	ExperimentNotifications,
+	ExperimentWorkspaceUsage,
+	ExperimentWebPush,
+	ExperimentWorkspacePrebuilds,
+	ExperimentAgenticChat,
+	ExperimentAITasks,
+}
+
 // ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
