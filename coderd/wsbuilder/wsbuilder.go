@@ -14,11 +14,13 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
 	"github.com/coder/coder/v2/apiversion"
+	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+	previewtypes "github.com/coder/preview/types"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -71,7 +73,7 @@ type Builder struct {
 	templateVersion                      *database.TemplateVersion
 	templateVersionJob                   *database.ProvisionerJob
 	terraformValues                      *database.TemplateVersionTerraformValue
-	templateVersionParameters            *[]database.TemplateVersionParameter
+	templateVersionParameters            *[]previewtypes.Parameter
 	templateVersionVariables             *[]database.TemplateVersionVariable
 	templateVersionWorkspaceTags         *[]database.TemplateVersionWorkspaceTag
 	lastBuild                            *database.WorkspaceBuild
@@ -716,7 +718,7 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 	}
 
 	for _, templateVersionParameter := range templateVersionParameters {
-		tvp, err := db2sdk.TemplateVersionParameter(templateVersionParameter)
+		tvp, err := db2sdk.TemplateVersionParameterFromPreview(templateVersionParameter)
 		if err != nil {
 			return nil, nil, BuildError{http.StatusInternalServerError, "failed to convert template version parameter", err}
 		}
@@ -780,7 +782,7 @@ func (b *Builder) getLastBuildParameters() ([]database.WorkspaceBuildParameter, 
 	return values, nil
 }
 
-func (b *Builder) getTemplateVersionParameters() ([]database.TemplateVersionParameter, error) {
+func (b *Builder) getTemplateVersionParameters() ([]previewtypes.Parameter, error) {
 	if b.templateVersionParameters != nil {
 		return *b.templateVersionParameters, nil
 	}
@@ -792,8 +794,8 @@ func (b *Builder) getTemplateVersionParameters() ([]database.TemplateVersionPara
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get template version %s parameters: %w", tvID, err)
 	}
-	b.templateVersionParameters = &tvp
-	return tvp, nil
+	b.templateVersionParameters = ptr.Ref(db2sdk.List(tvp, dynamicparameters.TemplateVersionParameter))
+	return *b.templateVersionParameters, nil
 }
 
 func (b *Builder) getTemplateVersionVariables() ([]database.TemplateVersionVariable, error) {
