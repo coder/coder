@@ -32,7 +32,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
-	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -5097,7 +5096,7 @@ func (s *MethodTestSuite) TestPrebuilds() {
 		})
 		arg := database.GetTemplatePrebuildNotificationCooldownParams{
 			TemplateID:       template.ID,
-			NotificationType: prebuilds.NotificationTypeAdmin,
+			NotificationType: "admin",
 		}
 		check.Args(arg).
 			Asserts(template, policy.ActionRead).
@@ -5114,7 +5113,7 @@ func (s *MethodTestSuite) TestPrebuilds() {
 		})
 		arg := database.UpsertTemplatePrebuildNotificationCooldownParams{
 			TemplateID:       template.ID,
-			NotificationType: prebuilds.NotificationTypeAdmin,
+			NotificationType: "admin",
 		}
 		check.Args(arg).
 			Asserts(template, policy.ActionCreate).
