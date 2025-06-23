@@ -166,7 +166,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 			}
 
 			_, err := a.Database.UpsertWorkspaceApp(ctx, database.UpsertWorkspaceAppParams{
-				ID:          uuid.New(), // TODO: we may need to maintain the app's ID here for stability, but for now we'll leave this as-is.
+				ID:          uuid.New(), // NOTE: we may need to maintain the app's ID here for stability, but for now we'll leave this as-is.
 				CreatedAt:   createdAt,
 				AgentID:     subAgent.ID,
 				Slug:        app.Slug,
