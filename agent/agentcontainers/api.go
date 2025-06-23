@@ -40,6 +40,8 @@ const (
 	// by tmpfs or other mounts. This assumes the container root filesystem is
 	// read-write, which seems sensible for devcontainers.
 	coderPathInsideContainer = "/.coder-agent/coder"
+
+	maxAgentNameLength = 64
 )
 
 // API is responsible for container-related operations in the agent.
@@ -654,7 +656,10 @@ func safeAgentName(name string, friendlyName string) string {
 	name = consecutiveHyphenRegex.ReplaceAllString(sb.String(), "-")
 	name = strings.Trim(name, "-")
 
-	if name != "" {
+	// Ensure the name of the agent doesn't exceed the maximum agent
+	// name length.
+	name = name[:maxAgentNameLength]
+
 	if provisioner.AgentNameRegex.Match([]byte(name)) {
 		return name
 	}
