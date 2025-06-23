@@ -2069,7 +2069,10 @@ func TestSubAgentCreationWithNameRetry(t *testing.T) {
 				))
 			}
 
-			ccli := &fakeContainerCLI{containers: codersdk.WorkspaceAgentListContainersResponse{Containers: containers}}
+			ccli := &fakeContainerCLI{
+				containers: codersdk.WorkspaceAgentListContainersResponse{Containers: containers},
+				arch:       runtime.GOARCH,
+			}
 
 			logger := slogtest.Make(t, &slogtest.Options{})
 			subAgentClient := &fakeSubAgentClient{logger: logger}
