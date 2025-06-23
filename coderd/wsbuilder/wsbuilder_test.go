@@ -842,7 +842,7 @@ func TestWorkspaceBuildWithPreset(t *testing.T) {
 func TestWorkspaceBuildDeleteOrphan(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Provisioners", func(t *testing.T) {
+	t.Run("WithActiveProvisioners", func(t *testing.T) {
 		t.Parallel()
 		req := require.New(t)
 		asrt := assert.New(t)
@@ -904,7 +904,7 @@ func TestWorkspaceBuildDeleteOrphan(t *testing.T) {
 		req.NoError(err)
 	})
 
-	t.Run("NoProvisioners", func(t *testing.T) {
+	t.Run("NoActiveProvisioners", func(t *testing.T) {
 		t.Parallel()
 		req := require.New(t)
 		asrt := assert.New(t)
@@ -959,7 +959,7 @@ func TestWorkspaceBuildDeleteOrphan(t *testing.T) {
 			// Because no provisioners were available and the request was to delete --orphan
 			expectUpdateProvisionerJobWithCompleteWithStartedAtByID(func(params database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) {
 				asrt.Equal(jobID, params.ID)
-				asrt.Contains(params.Error.String, "No provisioners were available")
+				asrt.False(params.Error.Valid)
 				asrt.True(params.CompletedAt.Valid)
 				asrt.True(params.StartedAt.Valid)
 			}),
