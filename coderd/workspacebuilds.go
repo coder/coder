@@ -393,17 +393,16 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			ctx,
 			tx,
 			func(action policy.Action, object rbac.Objecter) bool {
+				if auth := api.Authorize(r, action, object); auth {
+					return true
+				}
 				// Special handling for prebuilt workspace deletion
 				if object.RBACObject().Type == rbac.ResourceWorkspace.Type && action == policy.ActionDelete {
-					if workspaceObj, ok := object.(database.Workspace); ok {
-						// Try prebuilt-specific authorization first
-						if auth := api.Authorize(r, action, workspaceObj.AsPrebuild()); auth {
-							return auth
-						}
+					if workspaceObj, ok := object.(database.Workspace); ok && workspaceObj.IsPrebuild() {
+						return api.Authorize(r, action, workspaceObj.AsPrebuild())
 					}
 				}
-				// Fallback to default authorization
-				return api.Authorize(r, action, object)
+				return false
 			},
 			audit.WorkspaceBuildBaggageFromRequest(r),
 		)

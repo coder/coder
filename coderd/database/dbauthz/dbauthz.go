@@ -151,26 +151,28 @@ func (q *querier) authorizeContext(ctx context.Context, action policy.Action, ob
 
 // authorizePrebuiltWorkspace handles authorization for workspace resource types.
 // prebuilt_workspaces are a subset of workspaces, currently limited to
-// supporting delete operations. Therefore, if the action is delete or
-// update and the workspace is a prebuild, a prebuilt-specific authorization
-// is attempted first. If that fails, it falls back to normal workspace
-// authorization.
+// supporting delete operations. This function first attempts normal workspace
+// authorization. If that fails, the action is delete or update and the workspace
+// is a prebuild, a prebuilt-specific authorization is attempted.
 // Note: Delete operations of workspaces requires both update and delete
 // permissions.
 func (q *querier) authorizePrebuiltWorkspace(ctx context.Context, action policy.Action, workspace database.Workspace) error {
-	var prebuiltErr error
-	// Special handling for prebuilt_workspace deletion authorization check
+	// Try default workspace authorization first
+	var workspaceErr error
+	if workspaceErr = q.authorizeContext(ctx, action, workspace); workspaceErr == nil {
+		return nil
+	}
+
+	// Special handling for prebuilt workspace deletion
 	if (action == policy.ActionUpdate || action == policy.ActionDelete) && workspace.IsPrebuild() {
-		// Try prebuilt-specific authorization first
+		var prebuiltErr error
 		if prebuiltErr = q.authorizeContext(ctx, action, workspace.AsPrebuild()); prebuiltErr == nil {
 			return nil
 		}
+		return xerrors.Errorf("authorize context: %w", errors.Join(workspaceErr, prebuiltErr))
 	}
-	// Fallback to normal workspace authorization check
-	if err := q.authorizeContext(ctx, action, workspace); err != nil {
-		return xerrors.Errorf("authorize context: %w", errors.Join(prebuiltErr, err))
-	}
-	return nil
+
+	return xerrors.Errorf("authorize context: %w", errors.Join(workspaceErr))
 }
 
 type authContextKey struct{}
