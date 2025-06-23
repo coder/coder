@@ -4,20 +4,32 @@
 
 - `pnpm storybook --no-open` - Run storybook tests
 - `pnpm test` - Run jest unit tests
+- `pnpm test -- path/to/specific.test.ts` - Run a single test file
 - `pnpm lint` - Lint frontend code using biome
 - `pnpm playwright:test` - Run playwright e2e tests. When running e2e tests, remind the user that a license is required to run all the tests
 - `pnpm format` - Format frontend code. Always run before creating a PR
 
 ## Components
 
-- MUI components are deprecated in this codebase
-- Prefer shadcn components, check for existing components in `site/src/components` before adding new components. Do not use shadcn cli.
+- MUI components are deprecated - migrate away from these when encountered
+- Use shadcn/ui components first - check `site/src/components` for existing implementations.
+- Do not use shadcn CLI - manually add components to maintain consistency
 - The modules folder should contain components with business logic specific to the codebase.
+- Create custom components only when shadcn alternatives don't exist
 
 ## Styling
 
-- Emotion CSS is deprecated in this codebase. Use Tailwind instead.
-- Use custom Tailwind classes in tailwind.config.js
+- Emotion CSS is deprecated. Use Tailwind CSS instead.
+- Use custom Tailwind classes in tailwind.config.js.
+- Tailwind CSS reset is currently not used to maintain compatibility with MUI
+- Responsive design - use Tailwind's responsive prefixes (sm:, md:, lg:, xl:)
+- Do not use `dark:` prefix for dark mode
+
+## Tailwind Best Practices
+
+- Group related classes
+- Use semantic color names from the theme inside `tailwind.config.js`
+- Prefer Tailwind utilities over custom CSS when possible
 
 ## General Code style
 
@@ -73,3 +85,19 @@
 - Prefer running single tests, and not the whole test suite, for performance
 - Some e2e tests require a license from the user to execute
 - Use pnpm format before creating a PR
+
+## Pre-commit Checklist
+
+1. pnpm check - Ensure no TypeScript errors
+2. pnpm lint - Fix linting issues
+3. pnpm format - Format code consistently
+4. pnpm test - Run affected unit tests
+5. Visual check in Storybook if component changes
+
+## Migration Strategy (MUI → shadcn)
+
+- Identify MUI components in current feature
+- Find shadcn equivalent in existing components
+- Create wrapper if needed for missing functionality
+- Update tests to reflect new component structure
+- Remove MUI imports once migration complete
