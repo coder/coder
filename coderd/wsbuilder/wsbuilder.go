@@ -57,12 +57,10 @@ type Builder struct {
 	deploymentValues *codersdk.DeploymentValues
 	experiments      codersdk.Experiments
 
-	richParameterValues []codersdk.WorkspaceBuildParameter
-	// dynamicParametersEnabled is non-nil if set externally
-	dynamicParametersEnabled *bool
-	initiator                uuid.UUID
-	reason                   database.BuildReason
-	templateVersionPresetID  uuid.UUID
+	richParameterValues     []codersdk.WorkspaceBuildParameter
+	initiator               uuid.UUID
+	reason                  database.BuildReason
+	templateVersionPresetID uuid.UUID
 
 	// used during build, makes function arguments less verbose
 	ctx       context.Context
@@ -201,12 +199,6 @@ func (b Builder) MarkPrebuild() Builder {
 func (b Builder) MarkPrebuiltWorkspaceClaim() Builder {
 	// nolint: revive
 	b.prebuiltWorkspaceBuildStage = sdkproto.PrebuiltWorkspaceBuildStage_CLAIM
-	return b
-}
-
-func (b Builder) DynamicParameters(using bool) Builder {
-	// nolint: revive
-	b.dynamicParametersEnabled = ptr.Ref(using)
 	return b
 }
 
@@ -1211,10 +1203,6 @@ func (b *Builder) checkRunningBuild() error {
 }
 
 func (b *Builder) usingDynamicParameters() bool {
-	if b.dynamicParametersEnabled != nil {
-		return *b.dynamicParametersEnabled
-	}
-
 	tpl, err := b.getTemplate()
 	if err != nil {
 		return false // Let another part of the code get this error

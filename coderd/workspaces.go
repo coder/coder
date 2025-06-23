@@ -717,10 +717,6 @@ func createWorkspace(
 			builder = builder.MarkPrebuiltWorkspaceClaim()
 		}
 
-		if req.EnableDynamicParameters {
-			builder = builder.DynamicParameters(req.EnableDynamicParameters)
-		}
-
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
 			ctx,
 			db,
