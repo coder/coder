@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -49,6 +50,7 @@ type StoreReconciler struct {
 	store      database.Store
 	cfg        codersdk.PrebuildsConfig
 	pubsub     pubsub.Pubsub
+	fileCache  *files.Cache
 	logger     slog.Logger
 	clock      quartz.Clock
 	registerer prometheus.Registerer
@@ -66,6 +68,7 @@ var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
 
 func NewStoreReconciler(store database.Store,
 	ps pubsub.Pubsub,
+	fileCache *files.Cache,
 	cfg codersdk.PrebuildsConfig,
 	logger slog.Logger,
 	clock quartz.Clock,
@@ -75,6 +78,7 @@ func NewStoreReconciler(store database.Store,
 	reconciler := &StoreReconciler{
 		store:             store,
 		pubsub:            ps,
+		fileCache:         fileCache,
 		logger:            logger,
 		cfg:               cfg,
 		clock:             clock,
@@ -274,7 +278,7 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 		}
 
 		membershipReconciler := NewStoreMembershipReconciler(c.store, c.clock)
-		err = membershipReconciler.ReconcileAll(ctx, prebuilds.SystemUserID, snapshot.Presets)
+		err = membershipReconciler.ReconcileAll(ctx, database.PrebuildsSystemUserID, snapshot.Presets)
 		if err != nil {
 			return xerrors.Errorf("reconcile prebuild membership: %w", err)
 		}
@@ -756,7 +760,7 @@ func (c *StoreReconciler) createPrebuiltWorkspace(ctx context.Context, prebuiltW
 			ID:                prebuiltWorkspaceID,
 			CreatedAt:         now,
 			UpdatedAt:         now,
-			OwnerID:           prebuilds.SystemUserID,
+			OwnerID:           database.PrebuildsSystemUserID,
 			OrganizationID:    template.OrganizationID,
 			TemplateID:        template.ID,
 			Name:              name,
@@ -798,7 +802,7 @@ func (c *StoreReconciler) deletePrebuiltWorkspace(ctx context.Context, prebuiltW
 			return xerrors.Errorf("failed to get template: %w", err)
 		}
 
-		if workspace.OwnerID != prebuilds.SystemUserID {
+		if workspace.OwnerID != database.PrebuildsSystemUserID {
 			return xerrors.Errorf("prebuilt workspace is not owned by prebuild user anymore, probably it was claimed")
 		}
 
@@ -841,7 +845,7 @@ func (c *StoreReconciler) provision(
 
 	builder := wsbuilder.New(workspace, transition).
 		Reason(database.BuildReasonInitiator).
-		Initiator(prebuilds.SystemUserID).
+		Initiator(database.PrebuildsSystemUserID).
 		MarkPrebuild()
 
 	if transition != database.WorkspaceTransitionDelete {
@@ -860,6 +864,7 @@ func (c *StoreReconciler) provision(
 	_, provisionerJob, _, err := builder.Build(
 		ctx,
 		db,
+		c.fileCache,
 		func(_ policy.Action, _ rbac.Objecter) bool {
 			return true // TODO: harden?
 		},

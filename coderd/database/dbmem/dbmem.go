@@ -23,11 +23,9 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/notifications/types"
-	"github.com/coder/coder/v2/coderd/prebuilds"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -160,7 +158,7 @@ func New() database.Store {
 	q.mutex.Lock()
 	// We can't insert this user using the interface, because it's a system user.
 	q.data.users = append(q.data.users, database.User{
-		ID:             prebuilds.SystemUserID,
+		ID:             database.PrebuildsSystemUserID,
 		Email:          "prebuilds@coder.com",
 		Username:       "prebuilds",
 		CreatedAt:      dbtime.Now(),
@@ -1813,7 +1811,6 @@ func (q *FakeQuerier) CustomRoles(_ context.Context, arg database.CustomRolesPar
 
 	found := make([]database.CustomRole, 0)
 	for _, role := range q.data.customRoles {
-		role := role
 		if len(arg.LookupRoles) > 0 {
 			if !slices.ContainsFunc(arg.LookupRoles, func(pair database.NameOrganizationPair) bool {
 				if pair.Name != role.Name {
@@ -2922,7 +2919,6 @@ func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 	roles := make([]string, 0)
 	for _, u := range q.users {
 		if u.ID == userID {
-			u := u
 			roles = append(roles, u.RBACRoles...)
 			roles = append(roles, "member")
 			user = &u
@@ -4501,7 +4497,8 @@ func (q *FakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.Provi
 	defer q.mutex.RUnlock()
 
 	if len(q.provisionerDaemons) == 0 {
-		return nil, sql.ErrNoRows
+		// Returning err=nil here for consistency with real querier
+		return []database.ProvisionerDaemon{}, nil
 	}
 	// copy the data so that the caller can't manipulate any data inside dbmem
 	// after returning
@@ -8134,7 +8131,6 @@ func (q *FakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 
 	var found *database.WorkspaceTable
 	for _, workspace := range q.workspaces {
-		workspace := workspace
 		if workspace.OwnerID != arg.OwnerID {
 			continue
 		}
@@ -8192,7 +8188,6 @@ func (q *FakeQuerier) GetWorkspaceByWorkspaceAppID(_ context.Context, workspaceA
 	defer q.mutex.RUnlock()
 
 	for _, workspaceApp := range q.workspaceApps {
-		workspaceApp := workspaceApp
 		if workspaceApp.ID == workspaceAppID {
 			return q.getWorkspaceByAgentIDNoLock(context.Background(), workspaceApp.AgentID)
 		}
@@ -10032,48 +10027,6 @@ func (q *FakeQuerier) InsertWorkspaceAgentStats(_ context.Context, arg database.
 	return nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.WorkspaceApp{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	if arg.SharingLevel == "" {
-		arg.SharingLevel = database.AppSharingLevelOwner
-	}
-
-	if arg.OpenIn == "" {
-		arg.OpenIn = database.WorkspaceAppOpenInSlimWindow
-	}
-
-	// nolint:gosimple
-	workspaceApp := database.WorkspaceApp{
-		ID:                   arg.ID,
-		AgentID:              arg.AgentID,
-		CreatedAt:            arg.CreatedAt,
-		Slug:                 arg.Slug,
-		DisplayName:          arg.DisplayName,
-		Icon:                 arg.Icon,
-		Command:              arg.Command,
-		Url:                  arg.Url,
-		External:             arg.External,
-		Subdomain:            arg.Subdomain,
-		SharingLevel:         arg.SharingLevel,
-		HealthcheckUrl:       arg.HealthcheckUrl,
-		HealthcheckInterval:  arg.HealthcheckInterval,
-		HealthcheckThreshold: arg.HealthcheckThreshold,
-		Health:               arg.Health,
-		Hidden:               arg.Hidden,
-		DisplayOrder:         arg.DisplayOrder,
-		OpenIn:               arg.OpenIn,
-		DisplayGroup:         arg.DisplayGroup,
-	}
-	q.workspaceApps = append(q.workspaceApps, workspaceApp)
-	return workspaceApp, nil
-}
-
 func (q *FakeQuerier) InsertWorkspaceAppStats(_ context.Context, arg database.InsertWorkspaceAppStatsParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -10435,7 +10388,6 @@ func (q *FakeQuerier) OrganizationMembers(_ context.Context, arg database.Organi
 			continue
 		}
 
-		organizationMember := organizationMember
 		user, _ := q.getUserByIDNoLock(organizationMember.UserID)
 		tmp = append(tmp, database.OrganizationMembersRow{
 			OrganizationMember: organizationMember,
@@ -13214,6 +13166,58 @@ func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(_ context.Context, arg datab
 	q.workspaceAgentPortShares = append(q.workspaceAgentPortShares, psl)
 
 	return psl, nil
+}
+
+func (q *FakeQuerier) UpsertWorkspaceApp(ctx context.Context, arg database.UpsertWorkspaceAppParams) (database.WorkspaceApp, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceApp{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	if arg.SharingLevel == "" {
+		arg.SharingLevel = database.AppSharingLevelOwner
+	}
+	if arg.OpenIn == "" {
+		arg.OpenIn = database.WorkspaceAppOpenInSlimWindow
+	}
+
+	buildApp := func(id uuid.UUID, createdAt time.Time) database.WorkspaceApp {
+		return database.WorkspaceApp{
+			ID:                   id,
+			CreatedAt:            createdAt,
+			AgentID:              arg.AgentID,
+			Slug:                 arg.Slug,
+			DisplayName:          arg.DisplayName,
+			Icon:                 arg.Icon,
+			Command:              arg.Command,
+			Url:                  arg.Url,
+			External:             arg.External,
+			Subdomain:            arg.Subdomain,
+			SharingLevel:         arg.SharingLevel,
+			HealthcheckUrl:       arg.HealthcheckUrl,
+			HealthcheckInterval:  arg.HealthcheckInterval,
+			HealthcheckThreshold: arg.HealthcheckThreshold,
+			Health:               arg.Health,
+			Hidden:               arg.Hidden,
+			DisplayOrder:         arg.DisplayOrder,
+			OpenIn:               arg.OpenIn,
+			DisplayGroup:         arg.DisplayGroup,
+		}
+	}
+
+	for i, app := range q.workspaceApps {
+		if app.ID == arg.ID {
+			q.workspaceApps[i] = buildApp(app.ID, app.CreatedAt)
+			return q.workspaceApps[i], nil
+		}
+	}
+
+	workspaceApp := buildApp(arg.ID, arg.CreatedAt)
+	q.workspaceApps = append(q.workspaceApps, workspaceApp)
+	return workspaceApp, nil
 }
 
 func (q *FakeQuerier) UpsertWorkspaceAppAuditSession(_ context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (bool, error) {

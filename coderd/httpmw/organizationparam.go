@@ -180,7 +180,7 @@ func ExtractOrganizationMember(ctx context.Context, auth func(r *http.Request, a
 	organizationMembers, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
 		OrganizationID: orgID,
 		UserID:         user.ID,
-		IncludeSystem:  false,
+		IncludeSystem:  true,
 	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)

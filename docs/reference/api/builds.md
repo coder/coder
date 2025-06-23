@@ -933,6 +933,7 @@ Status Code **200**
 | `sharing_level`           | `organization`     |
 | `sharing_level`           | `public`           |
 | `state`                   | `working`          |
+| `state`                   | `idle`             |
 | `state`                   | `complete`         |
 | `state`                   | `failure`          |
 | `lifecycle_state`         | `created`          |
@@ -1695,6 +1696,7 @@ Status Code **200**
 | `sharing_level`           | `organization`                |
 | `sharing_level`           | `public`                      |
 | `state`                   | `working`                     |
+| `state`                   | `idle`                        |
 | `state`                   | `complete`                    |
 | `state`                   | `failure`                     |
 | `lifecycle_state`         | `created`                     |
@@ -1750,7 +1752,6 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 ```json
 {
   "dry_run": true,
-  "enable_dynamic_parameters": true,
   "log_level": "debug",
   "orphan": true,
   "rich_parameter_values": [

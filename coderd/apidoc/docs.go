@@ -12043,10 +12043,6 @@ const docTemplate = `{
                 "dry_run": {
                     "type": "boolean"
                 },
-                "enable_dynamic_parameters": {
-                    "description": "EnableDynamicParameters skips some of the static parameter checking.\nIt will default to whatever the template has marked as the default experience.\nRequires the \"dynamic-experiment\" to be used.",
-                    "type": "boolean"
-                },
                 "log_level": {
                     "description": "Log level changes the default logging verbosity of a provider (\"info\" if empty).",
                     "enum": [
@@ -12127,9 +12123,6 @@ const docTemplate = `{
                 },
                 "autostart_schedule": {
                     "type": "string"
-                },
-                "enable_dynamic_parameters": {
-                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
@@ -15259,6 +15252,7 @@ const docTemplate = `{
                 "oauth2_app_secret",
                 "organization",
                 "organization_member",
+                "prebuilt_workspace",
                 "provisioner_daemon",
                 "provisioner_jobs",
                 "replicas",
@@ -15298,6 +15292,7 @@ const docTemplate = `{
                 "ResourceOauth2AppSecret",
                 "ResourceOrganization",
                 "ResourceOrganizationMember",
+                "ResourcePrebuiltWorkspace",
                 "ResourceProvisionerDaemon",
                 "ResourceProvisionerJobs",
                 "ResourceReplicas",
@@ -18079,11 +18074,13 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "working",
+                "idle",
                 "complete",
                 "failure"
             ],
             "x-enum-varnames": [
                 "WorkspaceAppStatusStateWorking",
+                "WorkspaceAppStatusStateIdle",
                 "WorkspaceAppStatusStateComplete",
                 "WorkspaceAppStatusStateFailure"
             ]

@@ -270,11 +270,15 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Site: append(
 			// Workspace dormancy and workspace are omitted.
 			// Workspace is specifically handled based on the opts.NoOwnerWorkspaceExec
-			allPermsExcept(ResourceWorkspaceDormant, ResourceWorkspace),
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace),
 			// This adds back in the Workspace permissions.
 			Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type:        ownerWorkspaceActions,
 				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
+				// PrebuiltWorkspaces are a subset of Workspaces.
+				// Explicitly setting PrebuiltWorkspace permissions for clarity.
+				// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
+				ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
 			})...),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -290,7 +294,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceWorkspaceProxy.Type: {policy.ActionRead},
 		}),
 		Org: map[string][]Permission{},
-		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourceUser, ResourceOrganizationMember),
+		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceUser, ResourceOrganizationMember),
 			Permissions(map[string][]policy.Action{
 				// Reduced permission set on dormant workspaces. No build, ssh, or exec
 				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
@@ -335,8 +339,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceAssignOrgRole.Type: {policy.ActionRead},
 			ResourceTemplate.Type:      ResourceTemplate.AvailableActions(),
 			// CRUD all files, even those they did not upload.
-			ResourceFile.Type:      {policy.ActionCreate, policy.ActionRead},
-			ResourceWorkspace.Type: {policy.ActionRead},
+			ResourceFile.Type:              {policy.ActionCreate, policy.ActionRead},
+			ResourceWorkspace.Type:         {policy.ActionRead},
+			ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
 			// CRUD to provisioner daemons for now.
 			ResourceProvisionerDaemon.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			// Needs to read all organizations since
@@ -413,9 +418,13 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				}),
 				Org: map[string][]Permission{
 					// Org admins should not have workspace exec perms.
-					organizationID.String(): append(allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourceAssignRole), Permissions(map[string][]policy.Action{
+					organizationID.String(): append(allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole), Permissions(map[string][]policy.Action{
 						ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
 						ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
+						// PrebuiltWorkspaces are a subset of Workspaces.
+						// Explicitly setting PrebuiltWorkspace permissions for clarity.
+						// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
+						ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
 					})...),
 				},
 				User: []Permission{},
@@ -493,9 +502,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Site:        []Permission{},
 				Org: map[string][]Permission{
 					organizationID.String(): Permissions(map[string][]policy.Action{
-						ResourceTemplate.Type:  ResourceTemplate.AvailableActions(),
-						ResourceFile.Type:      {policy.ActionCreate, policy.ActionRead},
-						ResourceWorkspace.Type: {policy.ActionRead},
+						ResourceTemplate.Type:          ResourceTemplate.AvailableActions(),
+						ResourceFile.Type:              {policy.ActionCreate, policy.ActionRead},
+						ResourceWorkspace.Type:         {policy.ActionRead},
+						ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
 						// Assigning template perms requires this permission.
 						ResourceOrganization.Type:       {policy.ActionRead},
 						ResourceOrganizationMember.Type: {policy.ActionRead},

@@ -490,7 +490,6 @@ export interface CreateWorkspaceBuildRequest {
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly log_level?: ProvisionerLogLevel;
 	readonly template_version_preset_id?: string;
-	readonly enable_dynamic_parameters?: boolean;
 }
 
 // From codersdk/workspaceproxy.go
@@ -510,7 +509,6 @@ export interface CreateWorkspaceRequest {
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly automatic_updates?: AutomaticUpdates;
 	readonly template_version_preset_id?: string;
-	readonly enable_dynamic_parameters?: boolean;
 }
 
 // From codersdk/deployment.go
@@ -2192,6 +2190,7 @@ export type RBACResource =
 	| "oauth2_app_secret"
 	| "organization"
 	| "organization_member"
+	| "prebuilt_workspace"
 	| "provisioner_daemon"
 	| "provisioner_jobs"
 	| "replicas"
@@ -2231,6 +2230,7 @@ export const RBACResources: RBACResource[] = [
 	"oauth2_app_secret",
 	"organization",
 	"organization_member",
+	"prebuilt_workspace",
 	"provisioner_daemon",
 	"provisioner_jobs",
 	"replicas",
@@ -3620,11 +3620,16 @@ export interface WorkspaceAppStatus {
 }
 
 // From codersdk/workspaceapps.go
-export type WorkspaceAppStatusState = "complete" | "failure" | "working";
+export type WorkspaceAppStatusState =
+	| "complete"
+	| "failure"
+	| "idle"
+	| "working";
 
 export const WorkspaceAppStatusStates: WorkspaceAppStatusState[] = [
 	"complete",
 	"failure",
+	"idle",
 	"working",
 ];
 
