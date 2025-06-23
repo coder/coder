@@ -130,7 +130,7 @@
             "type": "coder_parameter",
             "name": "sample",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 1,
+            "schema_version": 0,
             "values": {
               "default": "ok",
               "description": "blah blah",
@@ -159,7 +159,7 @@
             "type": "coder_workspace_preset",
             "name": "MyFirstProject",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 1,
+            "schema_version": 0,
             "values": {
               "id": "My First Project",
               "name": "My First Project",
@@ -174,7 +174,21 @@
                     }
                   ],
                   "instances": 4,
-                  "scheduling": []
+                  "scheduling": [
+                    {
+                      "schedule": [
+                        {
+                          "cron": "* 8-18 * * 1-5",
+                          "instances": 3
+                        },
+                        {
+                          "cron": "* 8-14 * * 6",
+                          "instances": 1
+                        }
+                      ],
+                      "timezone": "America/Los_Angeles"
+                    }
+                  ]
                 }
               ]
             },
@@ -185,7 +199,14 @@
                   "expiration_policy": [
                     {}
                   ],
-                  "scheduling": []
+                  "scheduling": [
+                    {
+                      "schedule": [
+                        {},
+                        {}
+                      ]
+                    }
+                  ]
                 }
               ]
             }
@@ -200,7 +221,7 @@
                 "type": "coder_parameter",
                 "name": "first_parameter_from_module",
                 "provider_name": "registry.terraform.io/coder/coder",
-                "schema_version": 1,
+                "schema_version": 0,
                 "values": {
                   "default": "abcdef",
                   "description": "First parameter from module",
@@ -229,7 +250,7 @@
                 "type": "coder_parameter",
                 "name": "second_parameter_from_module",
                 "provider_name": "registry.terraform.io/coder/coder",
-                "schema_version": 1,
+                "schema_version": 0,
                 "values": {
                   "default": "ghijkl",
                   "description": "Second parameter from module",
@@ -263,7 +284,7 @@
                     "type": "coder_parameter",
                     "name": "child_first_parameter_from_module",
                     "provider_name": "registry.terraform.io/coder/coder",
-                    "schema_version": 1,
+                    "schema_version": 0,
                     "values": {
                       "default": "abcdef",
                       "description": "First parameter from child module",
@@ -292,7 +313,7 @@
                     "type": "coder_parameter",
                     "name": "child_second_parameter_from_module",
                     "provider_name": "registry.terraform.io/coder/coder",
-                    "schema_version": 1,
+                    "schema_version": 0,
                     "values": {
                       "default": "ghijkl",
                       "description": "Second parameter from child module",
@@ -329,7 +350,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": ">= 2.0.0"
+        "version_constraint": "2.3.0-pre2"
       },
       "module.this_is_external_module:docker": {
         "name": "docker",
@@ -391,7 +412,7 @@
               "constant_value": "string"
             }
           },
-          "schema_version": 1
+          "schema_version": 0
         },
         {
           "address": "data.coder_workspace_preset.MyFirstProject",
@@ -420,11 +441,36 @@
                 ],
                 "instances": {
                   "constant_value": 4
-                }
+                },
+                "scheduling": [
+                  {
+                    "schedule": [
+                      {
+                        "cron": {
+                          "constant_value": "* 8-18 * * 1-5"
+                        },
+                        "instances": {
+                          "constant_value": 3
+                        }
+                      },
+                      {
+                        "cron": {
+                          "constant_value": "* 8-14 * * 6"
+                        },
+                        "instances": {
+                          "constant_value": 1
+                        }
+                      }
+                    ],
+                    "timezone": {
+                      "constant_value": "America/Los_Angeles"
+                    }
+                  }
+                ]
               }
             ]
           },
-          "schema_version": 1
+          "schema_version": 0
         }
       ],
       "module_calls": {
@@ -455,7 +501,7 @@
                     "constant_value": "string"
                   }
                 },
-                "schema_version": 1
+                "schema_version": 0
               },
               {
                 "address": "data.coder_parameter.second_parameter_from_module",
@@ -480,7 +526,7 @@
                     "constant_value": "string"
                   }
                 },
-                "schema_version": 1
+                "schema_version": 0
               }
             ],
             "module_calls": {
@@ -511,7 +557,7 @@
                           "constant_value": "string"
                         }
                       },
-                      "schema_version": 1
+                      "schema_version": 0
                     },
                     {
                       "address": "data.coder_parameter.child_second_parameter_from_module",
@@ -536,7 +582,7 @@
                           "constant_value": "string"
                         }
                       },
-                      "schema_version": 1
+                      "schema_version": 0
                     }
                   ]
                 }
