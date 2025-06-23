@@ -655,6 +655,7 @@ func safeAgentName(name string, friendlyName string) string {
 	name = strings.Trim(name, "-")
 
 	if name != "" {
+	if provisioner.AgentNameRegex.Match([]byte(name)) {
 		return name
 	}
 
