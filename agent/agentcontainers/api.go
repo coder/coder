@@ -658,7 +658,7 @@ func safeAgentName(name string, friendlyName string) string {
 
 	// Ensure the name of the agent doesn't exceed the maximum agent
 	// name length.
-	name = name[:maxAgentNameLength]
+	name = name[:min(len(name), maxAgentNameLength)]
 
 	if provisioner.AgentNameRegex.Match([]byte(name)) {
 		return name
