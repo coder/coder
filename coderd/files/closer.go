@@ -6,6 +6,8 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/database"
 )
 
 // CacheCloser is a cache wrapper used to close all acquired files.
@@ -38,7 +40,7 @@ func (c *CacheCloser) Close() {
 	c.closers = nil
 }
 
-func (c *CacheCloser) Acquire(ctx context.Context, fileID uuid.UUID) (*CloseFS, error) {
+func (c *CacheCloser) Acquire(ctx context.Context, db database.Store, fileID uuid.UUID) (*CloseFS, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -46,7 +48,7 @@ func (c *CacheCloser) Acquire(ctx context.Context, fileID uuid.UUID) (*CloseFS, 
 		return nil, xerrors.New("cache is closed, and cannot acquire new files")
 	}
 
-	f, err := c.cache.Acquire(ctx, fileID)
+	f, err := c.cache.Acquire(ctx, db, fileID)
 	if err != nil {
 		return nil, err
 	}
