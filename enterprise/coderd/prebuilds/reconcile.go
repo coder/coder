@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -40,6 +41,7 @@ type StoreReconciler struct {
 	store      database.Store
 	cfg        codersdk.PrebuildsConfig
 	pubsub     pubsub.Pubsub
+	fileCache  *files.Cache
 	logger     slog.Logger
 	clock      quartz.Clock
 	registerer prometheus.Registerer
@@ -57,6 +59,7 @@ var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
 
 func NewStoreReconciler(store database.Store,
 	ps pubsub.Pubsub,
+	fileCache *files.Cache,
 	cfg codersdk.PrebuildsConfig,
 	logger slog.Logger,
 	clock quartz.Clock,
@@ -66,6 +69,7 @@ func NewStoreReconciler(store database.Store,
 	reconciler := &StoreReconciler{
 		store:             store,
 		pubsub:            ps,
+		fileCache:         fileCache,
 		logger:            logger,
 		cfg:               cfg,
 		clock:             clock,
@@ -780,6 +784,7 @@ func (c *StoreReconciler) provision(
 	_, provisionerJob, _, err := builder.Build(
 		ctx,
 		db,
+		c.fileCache,
 		func(_ policy.Action, _ rbac.Objecter) bool {
 			return true // TODO: harden?
 		},

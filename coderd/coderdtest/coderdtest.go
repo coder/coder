@@ -52,6 +52,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd"
@@ -359,6 +360,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		ctx,
 		options.Database,
 		options.Pubsub,
+		files.New(prometheus.NewRegistry(), options.Authorizer),
 		prometheus.NewRegistry(),
 		&templateScheduleStore,
 		&auditor,

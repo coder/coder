@@ -392,6 +392,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
 			ctx,
 			tx,
+			api.FileCache,
 			func(action policy.Action, object rbac.Objecter) bool {
 				// Special handling for prebuilt workspace deletion
 				if object.RBACObject().Type == rbac.ResourceWorkspace.Type && action == policy.ActionDelete {
