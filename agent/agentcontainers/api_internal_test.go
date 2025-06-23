@@ -181,6 +181,12 @@ func TestSafeAgentName(t *testing.T) {
 			folderName: "version-1.2.3-alpha",
 			expected:   "version-1-2-3-alpha",
 		},
+
+		// Truncation test for names exceeding 64 characters
+		{
+			folderName: "this-is-a-very-long-folder-name-that-exceeds-sixty-four-characters-limit-and-should-be-truncated",
+			expected:   "this-is-a-very-long-folder-name-that-exceeds-sixty-four-characte",
+		},
 	}
 
 	for _, tt := range tests {
