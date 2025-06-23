@@ -3,6 +3,7 @@ package agentcontainers_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +17,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -26,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
 	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -220,6 +223,9 @@ type fakeSubAgentClient struct {
 	createErrC chan error // If set, send to return error, close to return nil.
 	deleted    []uuid.UUID
 	deleteErrC chan error // If set, send to return error, close to return nil.
+
+	// For testing unique constraint violations
+	nameConflictCount map[string]int // Track how many times each name has been attempted
 }
 
 func (m *fakeSubAgentClient) List(ctx context.Context) ([]agentcontainers.SubAgent, error) {
@@ -261,6 +267,22 @@ func (m *fakeSubAgentClient) Create(ctx context.Context, agent agentcontainers.S
 	if agent.OperatingSystem == "" {
 		return agentcontainers.SubAgent{}, xerrors.New("operating system must be set")
 	}
+
+	// Check for simulated unique constraint violations
+	if m.nameConflictCount == nil {
+		m.nameConflictCount = make(map[string]int)
+	}
+	for _, a := range m.agents {
+		if a.Name == agent.Name {
+			m.nameConflictCount[agent.Name]++
+			return agentcontainers.SubAgent{}, &pq.Error{
+				Code:    "23505",
+				Column:  "name",
+				Message: "duplicate key value violates unique constraint",
+			}
+		}
+	}
+
 	agent.ID = uuid.New()
 	agent.AuthToken = uuid.New()
 	if m.agents == nil {
@@ -1985,6 +2007,118 @@ func mustFindDevcontainerByPath(t *testing.T, devcontainers []codersdk.Workspace
 
 	require.Failf(t, "no devcontainer found with workspace folder %q", path)
 	return codersdk.WorkspaceAgentDevcontainer{} // Unreachable, but required for compilation
+}
+
+// TestSubAgentCreationWithNameRetry tests the retry logic when unique constraint violations occur
+func TestSubAgentCreationWithNameRetry(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		workspaceFolders   []string
+		expectedConflicts  map[string]int
+		expectedFinalNames []string
+	}{
+		{
+			name: "SingleCollision",
+			workspaceFolders: []string{
+				"/home/coder/foo/project",
+				"/home/coder/bar/project",
+			},
+			expectedConflicts: map[string]int{
+				"project": 1, // First "project" fails once, then succeeds
+			},
+			expectedFinalNames: []string{"project", "bar-project"},
+		},
+		{
+			name: "MultipleCollisions",
+			workspaceFolders: []string{
+				"/home/coder/foo/project",
+				"/home/coder/bar/foo/project",
+				"/home/coder/baz/foo/project",
+				"/home/coder/wibble/baz/foo/project",
+				"/home/coder/wobble/wibble/baz/foo/project",
+			},
+			expectedConflicts: map[string]int{
+				"project":                4,
+				"foo-project":            3,
+				"baz-foo-project":        2,
+				"wibble-baz-foo-project": 1,
+			},
+			expectedFinalNames: []string{
+				"project",
+				"foo-project",
+				"baz-foo-project",
+				"wibble-baz-foo-project",
+				"wobble-wibble-baz-foo-project",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create fake clients and API
+			var containers []codersdk.WorkspaceAgentContainer
+			for i, workspaceFolder := range tt.workspaceFolders {
+				containers = append(containers, newFakeContainer(
+					fmt.Sprintf("container%d", i+1),
+					fmt.Sprintf("/.devcontainer/devcontainer%d.json", i+1),
+					workspaceFolder,
+				))
+			}
+
+			ccli := &fakeContainerCLI{
+				containers: codersdk.WorkspaceAgentListContainersResponse{Containers: containers},
+				arch:       "amd64",
+			}
+
+			logger := slogtest.Make(t, &slogtest.Options{})
+			subAgentClient := &fakeSubAgentClient{logger: logger}
+
+			watcher := newFakeWatcher(t)
+
+			ctx := context.Background()
+			api := agentcontainers.NewAPI(logger,
+				agentcontainers.WithExecer(agentexec.DefaultExecer),
+				agentcontainers.WithContainerCLI(ccli),
+				agentcontainers.WithDevcontainerCLI(&fakeDevcontainerCLI{}),
+				agentcontainers.WithSubAgentClient(subAgentClient),
+				agentcontainers.WithWatcher(watcher),
+				agentcontainers.WithManifestInfo("owner", "workspace"),
+			)
+			defer api.Close()
+
+			// Trigger container updates to create sub agents
+			err := api.RefreshContainers(ctx)
+			require.NoError(t, err)
+
+			// Verify that both agents were created with expected names
+			require.Len(t, subAgentClient.created, len(tt.workspaceFolders))
+
+			actualNames := make([]string, len(subAgentClient.created))
+			for i, agent := range subAgentClient.created {
+				actualNames[i] = agent.Name
+			}
+
+			assert.Equal(t, tt.expectedConflicts, subAgentClient.nameConflictCount)
+			assert.Equal(t, tt.expectedFinalNames, actualNames)
+		})
+	}
+}
+
+func newFakeContainer(id, configPath, workspaceFolder string) codersdk.WorkspaceAgentContainer {
+	return codersdk.WorkspaceAgentContainer{
+		ID:           id,
+		FriendlyName: "test-friendly",
+		Image:        "test-image:latest",
+		Labels: map[string]string{
+			agentcontainers.DevcontainerLocalFolderLabel: workspaceFolder,
+			agentcontainers.DevcontainerConfigFileLabel:  configPath,
+		},
+		Running: true,
+	}
 }
 
 func fakeContainer(t *testing.T, mut ...func(*codersdk.WorkspaceAgentContainer)) codersdk.WorkspaceAgentContainer {

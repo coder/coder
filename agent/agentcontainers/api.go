@@ -19,6 +19,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -69,17 +70,18 @@ type API struct {
 	ownerName     string
 	workspaceName string
 
-	mu                      sync.RWMutex
-	closed                  bool
-	containers              codersdk.WorkspaceAgentListContainersResponse  // Output from the last list operation.
-	containersErr           error                                          // Error from the last list operation.
-	devcontainerNames       map[string]bool                                // By devcontainer name.
-	knownDevcontainers      map[string]codersdk.WorkspaceAgentDevcontainer // By workspace folder.
-	configFileModifiedTimes map[string]time.Time                           // By config file path.
-	recreateSuccessTimes    map[string]time.Time                           // By workspace folder.
-	recreateErrorTimes      map[string]time.Time                           // By workspace folder.
-	injectedSubAgentProcs   map[string]subAgentProcess                     // By workspace folder.
-	asyncWg                 sync.WaitGroup
+	mu                       sync.RWMutex
+	closed                   bool
+	containers               codersdk.WorkspaceAgentListContainersResponse  // Output from the last list operation.
+	containersErr            error                                          // Error from the last list operation.
+	devcontainerNames        map[string]bool                                // By devcontainer name.
+	knownDevcontainers       map[string]codersdk.WorkspaceAgentDevcontainer // By workspace folder.
+	configFileModifiedTimes  map[string]time.Time                           // By config file path.
+	recreateSuccessTimes     map[string]time.Time                           // By workspace folder.
+	recreateErrorTimes       map[string]time.Time                           // By workspace folder.
+	injectedSubAgentProcs    map[string]subAgentProcess                     // By workspace folder.
+	usingWorkspaceFolderName map[string]struct{}                            // By workspace folder.
+	asyncWg                  sync.WaitGroup
 
 	devcontainerLogSourceIDs map[string]uuid.UUID // By workspace folder.
 }
@@ -253,6 +255,7 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 		recreateErrorTimes:          make(map[string]time.Time),
 		scriptLogger:                func(uuid.UUID) ScriptLogger { return noopScriptLogger{} },
 		injectedSubAgentProcs:       make(map[string]subAgentProcess),
+		usingWorkspaceFolderName:    make(map[string]struct{}),
 	}
 	// The ctx and logger must be set before applying options to avoid
 	// nil pointer dereference.
@@ -591,6 +594,7 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 				// agent name based off of the folder name (i.e. no valid characters),
 				// we will instead fall back to using the container's friendly name.
 				dc.Name = safeAgentName(path.Base(filepath.ToSlash(dc.WorkspaceFolder)), dc.Container.FriendlyName)
+				api.usingWorkspaceFolderName[dc.WorkspaceFolder] = struct{}{}
 			}
 		}
 
@@ -677,6 +681,25 @@ func safeFriendlyName(name string) string {
 	name = strings.ReplaceAll(name, "_", "-")
 
 	return name
+}
+
+// expandedAgentName creates an agent name by including parent directories
+// from the workspace folder path to avoid name collisions.
+func expandedAgentName(workspaceFolder string, friendlyName string, depth int) string {
+	var parts []string
+	for part := range strings.SplitSeq(filepath.ToSlash(workspaceFolder), "/") {
+		if part = strings.TrimSpace(part); part != "" {
+			parts = append(parts, part)
+		}
+	}
+	if len(parts) == 0 {
+		return safeFriendlyName(friendlyName)
+	}
+
+	components := parts[max(0, len(parts)-depth-1):]
+	expanded := strings.Join(components, "-")
+
+	return safeAgentName(expanded, friendlyName)
 }
 
 // RefreshContainers triggers an immediate update of the container list
@@ -1194,6 +1217,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				if provisioner.AgentNameRegex.Match([]byte(name)) {
 					subAgentConfig.Name = name
 					configOutdated = true
+					delete(api.usingWorkspaceFolderName, dc.WorkspaceFolder)
 				} else {
 					logger.Warn(ctx, "invalid name in devcontainer customization, ignoring",
 						slog.F("name", name),
@@ -1280,10 +1304,47 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		)
 
 		// Create new subagent record in the database to receive the auth token.
+		// If we get a unique constraint violation, try with expanded names that
+		// include parent directories to avoid collisions.
 		client := *api.subAgentClient.Load()
-		newSubAgent, err := client.Create(ctx, subAgentConfig)
-		if err != nil {
-			return xerrors.Errorf("create subagent failed: %w", err)
+
+		var newSubAgent SubAgent
+		originalName := subAgentConfig.Name
+		maxAttempts := 5 // Maximum number of parent directories to include
+
+		for attempt := 1; attempt <= maxAttempts; attempt++ {
+			if proc.agent, err = client.Create(ctx, subAgentConfig); err == nil {
+				break
+			}
+
+			// We only care if sub agent creation has failed due to a unique constraint
+			// violation on the agent name, as we can _possibly_ rectify this.
+			var pgErr *pq.Error
+			if !errors.As(err, &pgErr) || (pgErr.Code != "23505" && pgErr.Column == "name") {
+				return xerrors.Errorf("create subagent failed: %w", err)
+			}
+
+			// If there has been a unique constraint violation but the user is *not*
+			// using an auto-generated name, then we should error. This is because
+			// we do not want to surprise the user with a name they did not ask for.
+			if _, usingFolderName := api.usingWorkspaceFolderName[dc.WorkspaceFolder]; !usingFolderName {
+				return xerrors.Errorf("create subagent failed: %w", err)
+			}
+
+			if attempt == maxAttempts {
+				return xerrors.Errorf("create subagent failed after %d attempts: %w", attempt, err)
+			}
+
+			// We increase how much of the workspace folder is used for generating
+			// the agent name. With each iteration there is greater chance of this
+			// being successful.
+			subAgentConfig.Name = expandedAgentName(dc.WorkspaceFolder, dc.Container.FriendlyName, attempt)
+
+			logger.Debug(ctx, "retrying subagent creation with expanded name",
+				slog.F("original_name", originalName),
+				slog.F("expanded_name", subAgentConfig.Name),
+				slog.F("attempt", attempt+1),
+			)
 		}
 		proc.agent = newSubAgent
 
