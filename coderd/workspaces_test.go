@@ -4623,3 +4623,51 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, res.Workspaces, 5)
 }
+
+func TestMultipleAITasksDisallowed(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:                 db,
+		Pubsub:                   pubsub,
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Response{{
+			Type: &proto.Response_Plan{
+				Plan: &proto.PlanComplete{
+					HasAiTasks: true,
+					AiTasks: []*proto.AITask{
+						{
+							Id: uuid.NewString(),
+							SidebarApp: &proto.AITaskSidebarApp{
+								Id: uuid.NewString(),
+							},
+						},
+						{
+							Id: uuid.NewString(),
+							SidebarApp: &proto.AITaskSidebarApp{
+								Id: uuid.NewString(),
+							},
+						},
+					},
+				},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	ws := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+	//nolint: gocritic // testing
+	ctx := dbauthz.AsSystemRestricted(t.Context())
+	pj, err := db.GetProvisionerJobByID(ctx, ws.LatestBuild.Job.ID)
+	require.NoError(t, err)
+	require.Contains(t, pj.Error.String, "only one 'coder_ai_task' resource can be provisioned per template")
+}
