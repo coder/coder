@@ -563,6 +563,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 														return;
 													}
 													setSelectedPresetIndex(index);
+													form.setFieldValue(
+														"template_version_preset_id",
+														index === 0 ? undefined : option,
+													);
 												}}
 											>
 												<SelectTrigger>
