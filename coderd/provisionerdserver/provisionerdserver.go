@@ -1879,7 +1879,8 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		}
 
 		var sidebarAppID uuid.NullUUID
-		if len(jobType.WorkspaceBuild.AiTasks) == 1 {
+		hasAITask := len(jobType.WorkspaceBuild.AiTasks) == 1
+		if hasAITask {
 			task := jobType.WorkspaceBuild.AiTasks[0]
 			if task.SidebarApp == nil {
 				return xerrors.Errorf("update ai task: sidebar app is nil")
@@ -1893,10 +1894,12 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			sidebarAppID = uuid.NullUUID{UUID: id, Valid: true}
 		}
 
+		// Regardless of whether there is an AI task or not, update the field to indicate one way or the other since it
+		// always defaults to nil. ONLY if has_ai_task=true MUST ai_task_sidebar_app_id be set.
 		err = db.UpdateWorkspaceBuildAITaskByID(ctx, database.UpdateWorkspaceBuildAITaskByIDParams{
 			ID: workspaceBuild.ID,
 			HasAITask: sql.NullBool{
-				Bool:  len(jobType.WorkspaceBuild.AiTasks) > 0,
+				Bool:  hasAITask,
 				Valid: true,
 			},
 			SidebarAppID: sidebarAppID,
