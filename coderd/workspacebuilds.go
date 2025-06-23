@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -410,28 +411,8 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		)
 		return err
 	}, nil)
-	var buildErr wsbuilder.BuildError
-	if xerrors.As(err, &buildErr) {
-		var authErr dbauthz.NotAuthorizedError
-		if xerrors.As(err, &authErr) {
-			buildErr.Status = http.StatusForbidden
-		}
-
-		if buildErr.Status == http.StatusInternalServerError {
-			api.Logger.Error(ctx, "workspace build error", slog.Error(buildErr.Wrapped))
-		}
-
-		httpapi.Write(ctx, rw, buildErr.Status, codersdk.Response{
-			Message: buildErr.Message,
-			Detail:  buildErr.Error(),
-		})
-		return
-	}
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error posting new build",
-			Detail:  err.Error(),
-		})
+		httperror.WriteWorkspaceBuildError(ctx, rw, err)
 		return
 	}
 
