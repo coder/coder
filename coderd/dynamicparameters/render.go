@@ -169,14 +169,14 @@ func (r *loader) dynamicRenderer(ctx context.Context, db database.Store, cache *
 	var templateFS fs.FS
 	var err error
 
-	templateFS, err = cache.Acquire(fileCtx, r.job.FileID)
+	templateFS, err = cache.Acquire(fileCtx, db, r.job.FileID)
 	if err != nil {
 		return nil, xerrors.Errorf("acquire template file: %w", err)
 	}
 
 	var moduleFilesFS *files.CloseFS
 	if r.terraformValues.CachedModuleFiles.Valid {
-		moduleFilesFS, err = cache.Acquire(fileCtx, r.terraformValues.CachedModuleFiles.UUID)
+		moduleFilesFS, err = cache.Acquire(fileCtx, db, r.terraformValues.CachedModuleFiles.UUID)
 		if err != nil {
 			return nil, xerrors.Errorf("acquire module files: %w", err)
 		}
