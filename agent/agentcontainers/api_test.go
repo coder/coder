@@ -2013,6 +2013,10 @@ func mustFindDevcontainerByPath(t *testing.T, devcontainers []codersdk.Workspace
 func TestSubAgentCreationWithNameRetry(t *testing.T) {
 	t.Parallel()
 
+	if runtime.GOOS == "windows" {
+		t.Skip("Dev Container tests are not supported on Windows")
+	}
+
 	tests := []struct {
 		name               string
 		workspaceFolders   []string
