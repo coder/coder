@@ -130,9 +130,10 @@ type Server struct {
 	// a lock on mu but protected by closing.
 	wg sync.WaitGroup
 
-	Execer agentexec.Execer
-	logger slog.Logger
-	srv    *ssh.Server
+	Execer       agentexec.Execer
+	logger       slog.Logger
+	srv          *ssh.Server
+	x11Forwarder *x11Forwarder
 
 	config *Config
 
@@ -188,6 +189,14 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		config: config,
 
 		metrics: metrics,
+		x11Forwarder: &x11Forwarder{
+			logger:           logger,
+			x11HandlerErrors: metrics.x11HandlerErrors,
+			fs:               fs,
+			displayOffset:    *config.X11DisplayOffset,
+			sessions:         make(map[*x11Session]struct{}),
+			connections:      make(map[net.Conn]struct{}),
+		},
 	}
 
 	srv := &ssh.Server{
@@ -455,7 +464,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 
 	x11, hasX11 := session.X11()
 	if hasX11 {
-		display, handled := s.x11Handler(ctx, x11)
+		display, handled := s.x11Forwarder.x11Handler(ctx, session)
 		if !handled {
 			logger.Error(ctx, "x11 handler failed")
 			closeCause("x11 handler failed")
@@ -1113,6 +1122,9 @@ func (s *Server) Close() error {
 	err := s.srv.Close()
 
 	s.mu.Unlock()
+
+	s.logger.Debug(ctx, "closing X11 forwarding")
+	_ = s.x11Forwarder.Close()
 
 	s.logger.Debug(ctx, "waiting for all goroutines to exit")
 	s.wg.Wait() // Wait for all goroutines to exit.
