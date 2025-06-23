@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 
 	"github.com/hashicorp/hcl/v2"
 
@@ -35,7 +36,15 @@ func WriteWorkspaceBuildError(ctx context.Context, rw http.ResponseWriter, err e
 			Validations: nil,
 		}
 
-		for name, diag := range parameterErr.Parameter {
+		// Sort the parameter names so that the order is consistent.
+		sortedNames := make([]string, 0, len(parameterErr.Parameter))
+		for name := range parameterErr.Parameter {
+			sortedNames = append(sortedNames, name)
+		}
+		sort.Strings(sortedNames)
+
+		for _, name := range sortedNames {
+			diag := parameterErr.Parameter[name]
 			resp.Validations = append(resp.Validations, codersdk.ValidationError{
 				Field:  name,
 				Detail: DiagnosticsErrorString(diag),
