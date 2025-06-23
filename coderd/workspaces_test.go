@@ -19,6 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
+	"github.com/coder/terraform-provider-coder/v2/provider"
+
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -42,7 +44,6 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
 func TestWorkspace(t *testing.T) {
@@ -4508,7 +4509,10 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 
 	// Helper function to create workspace with AI task configuration
 	createWorkspaceWithAIConfig := func(hasAITask sql.NullBool, jobCompleted bool, aiTaskPrompt *string) database.WorkspaceTable {
-		// When a provisioner job uses these tags, no provisioner will match it
+		// When a provisioner job uses these tags, no provisioner will match it.
+		// We do this so jobs will always be stuck in "pending", allowing us to exercise the intermediary state when
+		// has_ai_task is nil and we compensate by looking at pending provisioning jobs.
+		// See GetWorkspaces clauses.
 		unpickableTags := database.StringMap{"custom": "true"}
 
 		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
@@ -4540,7 +4544,7 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 			//nolint:gocritic // unit test
 			err := db.InsertWorkspaceBuildParameters(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceBuildParametersParams{
 				WorkspaceBuildID: build.ID,
-				Name:             []string{"AI Prompt"},
+				Name:             []string{provider.TaskPromptParameterName},
 				Value:            []string{*aiTaskPrompt},
 			})
 			require.NoError(t, err)
@@ -4550,7 +4554,7 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 	}
 
 	// Create test workspaces with different AI task configurations
-	wsWithAITask := createWorkspaceWithAIConfig(sql.NullBool{Bool: true, Valid: true}, false, nil)
+	wsWithAITask := createWorkspaceWithAIConfig(sql.NullBool{Bool: true, Valid: true}, true, nil)
 	wsWithoutAITask := createWorkspaceWithAIConfig(sql.NullBool{Bool: false, Valid: true}, false, nil)
 
 	aiTaskPrompt := "Build me a web app"
