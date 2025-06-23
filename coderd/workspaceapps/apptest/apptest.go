@@ -500,8 +500,6 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			}
 
 			for _, c := range cases {
-				c := c
-
 				if c.name == "Path" && appHostIsPrimary {
 					// Workspace application auth does not apply to path apps
 					// served from the primary access URL as no smuggling needs
@@ -1686,8 +1684,6 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		}
 
 		for _, c := range cases {
-			c := c
-
 			t.Run(c.name, func(t *testing.T) {
 				t.Parallel()
 

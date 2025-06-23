@@ -308,7 +308,6 @@ func TestPrebuildReconciliation(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		tc := tc // capture for parallel
 		for _, templateVersionActive := range tc.templateVersionActive {
 			for _, prebuildLatestTransition := range tc.prebuildLatestTransitions {
 				for _, prebuildJobStatus := range tc.prebuildJobStatuses {

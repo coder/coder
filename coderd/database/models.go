@@ -2628,6 +2628,7 @@ const (
 	WorkspaceAppStatusStateWorking  WorkspaceAppStatusState = "working"
 	WorkspaceAppStatusStateComplete WorkspaceAppStatusState = "complete"
 	WorkspaceAppStatusStateFailure  WorkspaceAppStatusState = "failure"
+	WorkspaceAppStatusStateIdle     WorkspaceAppStatusState = "idle"
 )
 
 func (e *WorkspaceAppStatusState) Scan(src interface{}) error {
@@ -2669,7 +2670,8 @@ func (e WorkspaceAppStatusState) Valid() bool {
 	switch e {
 	case WorkspaceAppStatusStateWorking,
 		WorkspaceAppStatusStateComplete,
-		WorkspaceAppStatusStateFailure:
+		WorkspaceAppStatusStateFailure,
+		WorkspaceAppStatusStateIdle:
 		return true
 	}
 	return false
@@ -2680,6 +2682,7 @@ func AllWorkspaceAppStatusStateValues() []WorkspaceAppStatusState {
 		WorkspaceAppStatusStateWorking,
 		WorkspaceAppStatusStateComplete,
 		WorkspaceAppStatusStateFailure,
+		WorkspaceAppStatusStateIdle,
 	}
 }
 

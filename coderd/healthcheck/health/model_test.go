@@ -21,7 +21,6 @@ func Test_MessageURL(t *testing.T) {
 		{"default", health.CodeAccessURLFetch, "", "https://coder.com/docs/admin/monitoring/health-check#eacs03"},
 		{"custom docs base", health.CodeAccessURLFetch, "https://example.com/docs", "https://example.com/docs/admin/monitoring/health-check#eacs03"},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			uut := health.Message{Code: tt.code}

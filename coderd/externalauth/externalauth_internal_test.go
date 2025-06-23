@@ -102,7 +102,6 @@ func TestGitlabDefaults(t *testing.T) {
 		},
 	}
 	for _, c := range tests {
-		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			applyDefaultsToConfig(&c.input)
@@ -177,7 +176,6 @@ func Test_bitbucketServerConfigDefaults(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			applyDefaultsToConfig(tt.config)

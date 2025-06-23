@@ -34,7 +34,6 @@ func TestTemplateInsightsWithTemplateAdminACL(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(fmt.Sprintf("with interval=%q", tt.interval), func(t *testing.T) {
 			t.Parallel()
 
@@ -94,7 +93,6 @@ func TestTemplateInsightsWithRole(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(fmt.Sprintf("with interval=%q role=%q", tt.interval, tt.role), func(t *testing.T) {
 			t.Parallel()
 

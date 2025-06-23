@@ -47,7 +47,6 @@ func Test_resolveAgentAbsPath(t *testing.T) {
 		{"fail with no working directory and rel path on windows", args{relOrAbsPath: "my\\path", agentOS: "windows"}, "", true},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -156,7 +155,6 @@ func Test_buildAppLinkURL(t *testing.T) {
 			expectedLink:      "https://coder.tld/path-base/@username/Test-Workspace.a-workspace-agent/apps/app-slug/",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			baseURL, err := url.Parse(tt.baseURL)

@@ -16522,9 +16522,10 @@
 		},
 		"codersdk.WorkspaceAppStatusState": {
 			"type": "string",
-			"enum": ["working", "complete", "failure"],
+			"enum": ["working", "idle", "complete", "failure"],
 			"x-enum-varnames": [
 				"WorkspaceAppStatusStateWorking",
+				"WorkspaceAppStatusStateIdle",
 				"WorkspaceAppStatusStateComplete",
 				"WorkspaceAppStatusStateFailure"
 			]

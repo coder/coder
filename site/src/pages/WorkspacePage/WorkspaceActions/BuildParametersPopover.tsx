@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import visuallyHidden from "@mui/utils/visuallyHidden";
 import { API } from "api/api";
 import type {
@@ -7,6 +6,7 @@ import type {
 	Workspace,
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { FormFields } from "components/Form/Form";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
 import {
@@ -27,6 +27,7 @@ import { useFormik } from "formik";
 import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
+import { useNavigate } from "react-router-dom";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
 import {
@@ -72,6 +73,7 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 				css={{ ".MuiPaper-root": { width: 304 } }}
 			>
 				<BuildParametersPopoverContent
+					workspace={workspace}
 					ephemeralParameters={ephemeralParameters}
 					buildParameters={parameters?.buildParameters}
 					onSubmit={onSubmit}
@@ -82,18 +84,67 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 };
 
 interface BuildParametersPopoverContentProps {
+	workspace: Workspace;
 	ephemeralParameters?: TemplateVersionParameter[];
 	buildParameters?: WorkspaceBuildParameter[];
 	onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
 }
 
 const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
+	workspace,
 	ephemeralParameters,
 	buildParameters,
 	onSubmit,
 }) => {
 	const theme = useTheme();
 	const popover = usePopover();
+	const navigate = useNavigate();
+
+	if (
+		!workspace.template_use_classic_parameter_flow &&
+		ephemeralParameters &&
+		ephemeralParameters.length > 0
+	) {
+		const handleGoToParameters = () => {
+			popover.setOpen(false);
+			navigate(
+				`/@${workspace.owner_name}/${workspace.name}/settings/parameters`,
+			);
+		};
+
+		return (
+			<div className="flex flex-col gap-4 p-5">
+				<h1 className="text-xl m-0 text-content-primary font-semibold leading-none ">
+					Ephemeral Parameters
+				</h1>
+				<p className="m-0 text-sm text-content-secondary">
+					This template has ephemeral parameters that must be configured on the
+					workspace parameters page
+				</p>
+
+				<div>
+					<ul className="list-none pl-3 space-y-2">
+						{ephemeralParameters.map((param) => (
+							<li key={param.name}>
+								<p className="text-content-primary m-0 font-bold">
+									{param.display_name || param.name}
+								</p>
+								{param.description && (
+									<p className="m-0 text-sm text-content-secondary">
+										{param.description}
+									</p>
+								)}
+							</li>
+						))}
+					</ul>
+				</div>
+
+				<Button className="w-full" onClick={handleGoToParameters}>
+					Go to workspace parameters
+				</Button>
+			</div>
+		);
+	}
 
 	return (
 		<>
@@ -206,8 +257,6 @@ const Form: FC<FormProps> = ({
 				<Button
 					data-testid="build-parameters-submit"
 					type="submit"
-					variant="contained"
-					color="primary"
 					css={{ width: "100%" }}
 				>
 					Build workspace

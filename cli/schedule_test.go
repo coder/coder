@@ -341,8 +341,6 @@ func TestScheduleOverride(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
-
 		t.Run(tt.command, func(t *testing.T) {
 			// Given
 			// Set timezone to Asia/Kolkata to surface any timezone-related bugs.

@@ -59,7 +59,6 @@ func TestWarnMatchedProvisioners(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var w strings.Builder

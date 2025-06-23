@@ -122,7 +122,6 @@ var _ ExecutionStrategy = TimeoutExecutionStrategyWrapper{}
 func (t TimeoutExecutionStrategyWrapper) Run(ctx context.Context, fns []TestFn) ([]error, error) {
 	newFns := make([]TestFn, len(fns))
 	for i, fn := range fns {
-		fn := fn
 		newFns[i] = func(ctx context.Context) error {
 			ctx, cancel := context.WithTimeout(ctx, t.Timeout)
 			defer cancel()

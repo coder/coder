@@ -470,8 +470,6 @@ func TestTemplates(t *testing.T) {
 			}
 
 			for _, c := range cases {
-				c := c
-
 				// nolint: paralleltest // context is from parent t.Run
 				t.Run(c.Name, func(t *testing.T) {
 					_, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{

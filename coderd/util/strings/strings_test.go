@@ -30,7 +30,6 @@ func TestTruncate(t *testing.T) {
 		{"foo", 0, ""},
 		{"foo", -1, ""},
 	} {
-		tt := tt
 		t.Run(tt.expected, func(t *testing.T) {
 			t.Parallel()
 			actual := strings.Truncate(tt.s, tt.n)

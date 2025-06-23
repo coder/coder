@@ -1777,7 +1777,6 @@ func TestUsersFilter(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -2461,7 +2460,6 @@ func TestPaginatedUsers(t *testing.T) {
 	eg, _ := errgroup.WithContext(ctx)
 	// Create users
 	for i := 0; i < total; i++ {
-		i := i
 		eg.Go(func() error {
 			email := fmt.Sprintf("%d@coder.com", i)
 			username := fmt.Sprintf("user%d", i)
@@ -2519,7 +2517,6 @@ func TestPaginatedUsers(t *testing.T) {
 		{name: "username search", limit: 3, allUsers: specialUsers, opt: usernameSearch},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(fmt.Sprintf("%s %d", tt.name, tt.limit), func(t *testing.T) {
 			t.Parallel()
 

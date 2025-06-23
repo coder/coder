@@ -150,7 +150,6 @@ func TestAcquireJob(t *testing.T) {
 		}},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name+"_InitiatorNotFound", func(t *testing.T) {
 			t.Parallel()
 			srv, db, _, pd := setup(t, false, nil)
@@ -176,7 +175,6 @@ func TestAcquireJob(t *testing.T) {
 			sdkproto.PrebuiltWorkspaceBuildStage_CREATE,
 			sdkproto.PrebuiltWorkspaceBuildStage_CLAIM,
 		} {
-			prebuiltWorkspaceBuildStage := prebuiltWorkspaceBuildStage
 			t.Run(tc.name+"_WorkspaceBuildJob_Stage"+prebuiltWorkspaceBuildStage.String(), func(t *testing.T) {
 				t.Parallel()
 				// Set the max session token lifetime so we can assert we
@@ -1709,8 +1707,6 @@ func TestCompleteJob(t *testing.T) {
 		}
 
 		for _, c := range cases {
-			c := c
-
 			t.Run(c.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -2134,8 +2130,6 @@ func TestCompleteJob(t *testing.T) {
 		}
 
 		for _, c := range cases {
-			c := c
-
 			t.Run(c.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -2579,7 +2573,6 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 

@@ -30,7 +30,6 @@ func TestDurationDisplay(t *testing.T) {
 		{"24h1m1s", "1d"},
 		{"25h", "1d1h"},
 	} {
-		testCase := testCase
 		t.Run(testCase.Duration, func(t *testing.T) {
 			t.Parallel()
 			d, err := time.ParseDuration(testCase.Duration)
@@ -71,7 +70,6 @@ func TestExtendedParseDuration(t *testing.T) {
 		{"200y200y200y200y200y", 0, false},
 		{"9223372036854775807s", 0, false},
 	} {
-		testCase := testCase
 		t.Run(testCase.Duration, func(t *testing.T) {
 			t.Parallel()
 			actual, err := extendedParseDuration(testCase.Duration)

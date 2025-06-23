@@ -585,10 +585,10 @@ func (s *mcpServer) startWatcher(ctx context.Context, inv *serpent.Invocation) {
 			case event := <-eventsCh:
 				switch ev := event.(type) {
 				case agentapi.EventStatusChange:
-					// If the screen is stable, assume complete.
+					// If the screen is stable, report idle.
 					state := codersdk.WorkspaceAppStatusStateWorking
 					if ev.Status == agentapi.StatusStable {
-						state = codersdk.WorkspaceAppStatusStateComplete
+						state = codersdk.WorkspaceAppStatusStateIdle
 					}
 					err := s.queue.Push(taskReport{
 						state: state,

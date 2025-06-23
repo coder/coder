@@ -19,6 +19,7 @@ type WorkspaceAppStatusState string
 
 const (
 	WorkspaceAppStatusStateWorking  WorkspaceAppStatusState = "working"
+	WorkspaceAppStatusStateIdle     WorkspaceAppStatusState = "idle"
 	WorkspaceAppStatusStateComplete WorkspaceAppStatusState = "complete"
 	WorkspaceAppStatusStateFailure  WorkspaceAppStatusState = "failure"
 )

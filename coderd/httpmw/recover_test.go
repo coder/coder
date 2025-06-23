@@ -52,8 +52,6 @@ func TestRecover(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
-
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 

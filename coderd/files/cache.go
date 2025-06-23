@@ -19,6 +19,10 @@ import (
 	"github.com/coder/coder/v2/coderd/util/lazy"
 )
 
+type FileAcquirer interface {
+	Acquire(ctx context.Context, fileID uuid.UUID) (*CloseFS, error)
+}
+
 // NewFromStore returns a file cache that will fetch files from the provided
 // database.
 func NewFromStore(store database.Store, registerer prometheus.Registerer, authz rbac.Authorizer) *Cache {

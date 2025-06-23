@@ -172,7 +172,6 @@ func TestWorkspaceProxies(t *testing.T) {
 			expectedSeverity:  health.SeverityError,
 		},
 	} {
-		tt := tt
 		if tt.name != "Enabled/ProxyWarnings" {
 			continue
 		}

@@ -463,7 +463,6 @@ func TestConvertYAML(t *testing.T) {
 		}},
 		Error: "device auth url must be provided",
 	}} {
-		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			output, err := externalauth.ConvertConfig(instrument, tc.Input, &url.URL{})

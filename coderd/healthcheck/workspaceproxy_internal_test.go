@@ -47,7 +47,6 @@ func Test_WorkspaceProxyReport_appendErrors(t *testing.T) {
 			errs:     []string{assert.AnError.Error(), "another error"},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -85,7 +84,6 @@ func Test_calculateSeverity(t *testing.T) {
 		{2, 0, 0, health.SeverityError},
 		{2, 0, 1, health.SeverityError},
 	} {
-		tt := tt
 		name := fmt.Sprintf("%d total, %d healthy, %d warning -> %s", tt.total, tt.healthy, tt.warning, tt.expected)
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

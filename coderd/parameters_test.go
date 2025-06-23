@@ -203,11 +203,16 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 			provisionerDaemonVersion: provProto.CurrentVersion.String(),
 			mainTF:                   dynamicParametersTerraformSource,
 			modulesArchive:           modulesArchive,
-			expectWebsocketError:     true,
 		})
-		// This is checked in setupDynamicParamsTest. Just doing this in the
-		// test to make it obvious what this test is doing.
-		require.Zero(t, setup.api.FileCache.Count())
+
+		stream := setup.stream
+		previews := stream.Chan()
+
+		// Assert the failed owner
+		ctx := testutil.Context(t, testutil.WaitShort)
+		preview := testutil.RequireReceive(ctx, t, previews)
+		require.Len(t, preview.Diagnostics, 1)
+		require.Equal(t, preview.Diagnostics[0].Summary, "Failed to fetch workspace owner")
 	})
 
 	t.Run("RebuildParameters", func(t *testing.T) {
@@ -363,28 +368,12 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
-	files := echo.WithExtraFiles(map[string][]byte{
-		"main.tf": args.mainTF,
+	tpl, version := coderdtest.DynamicParameterTemplate(t, templateAdmin, owner.OrganizationID, coderdtest.DynamicParameterTemplateParams{
+		MainTF:         string(args.mainTF),
+		Plan:           args.plan,
+		ModulesArchive: args.modulesArchive,
+		StaticParams:   args.static,
 	})
-	files.ProvisionPlan = []*proto.Response{{
-		Type: &proto.Response_Plan{
-			Plan: &proto.PlanComplete{
-				Plan:        args.plan,
-				ModuleFiles: args.modulesArchive,
-				Parameters:  args.static,
-			},
-		},
-	}}
-
-	version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, files)
-	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
-	tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
-
-	var err error
-	tpl, err = templateAdmin.UpdateTemplateMeta(t.Context(), tpl.ID, codersdk.UpdateTemplateMeta{
-		UseClassicParameterFlow: ptr.Ref(false),
-	})
-	require.NoError(t, err)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	stream, err := templateAdmin.TemplateVersionDynamicParameters(ctx, codersdk.Me, version.ID)

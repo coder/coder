@@ -151,7 +151,6 @@ func TestOAuth2ProviderApps(t *testing.T) {
 		require.NoError(t, err)
 
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				ctx := testutil.Context(t, testutil.WaitLong)
@@ -661,7 +660,6 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
@@ -804,7 +802,6 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
@@ -996,7 +993,6 @@ func TestOAuth2ProviderRevoke(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
