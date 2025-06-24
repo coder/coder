@@ -29,8 +29,8 @@ import { type FormikContextType, useFormik } from "formik";
 import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
 import { ArrowLeft, CircleHelp } from "lucide-react";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
-import { Diagnostics } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import {
+	Diagnostics,
 	DynamicParameter,
 	getInitialParameterValues,
 	useValidationSchemaForDynamicParameters,
@@ -563,6 +563,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 														return;
 													}
 													setSelectedPresetIndex(index);
+													form.setFieldValue(
+														"template_version_preset_id",
+														index === 0 ? undefined : option,
+													);
 												}}
 											>
 												<SelectTrigger>

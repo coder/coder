@@ -10018,48 +10018,6 @@ func (q *FakeQuerier) InsertWorkspaceAgentStats(_ context.Context, arg database.
 	return nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.WorkspaceApp{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	if arg.SharingLevel == "" {
-		arg.SharingLevel = database.AppSharingLevelOwner
-	}
-
-	if arg.OpenIn == "" {
-		arg.OpenIn = database.WorkspaceAppOpenInSlimWindow
-	}
-
-	// nolint:gosimple
-	workspaceApp := database.WorkspaceApp{
-		ID:                   arg.ID,
-		AgentID:              arg.AgentID,
-		CreatedAt:            arg.CreatedAt,
-		Slug:                 arg.Slug,
-		DisplayName:          arg.DisplayName,
-		Icon:                 arg.Icon,
-		Command:              arg.Command,
-		Url:                  arg.Url,
-		External:             arg.External,
-		Subdomain:            arg.Subdomain,
-		SharingLevel:         arg.SharingLevel,
-		HealthcheckUrl:       arg.HealthcheckUrl,
-		HealthcheckInterval:  arg.HealthcheckInterval,
-		HealthcheckThreshold: arg.HealthcheckThreshold,
-		Health:               arg.Health,
-		Hidden:               arg.Hidden,
-		DisplayOrder:         arg.DisplayOrder,
-		OpenIn:               arg.OpenIn,
-		DisplayGroup:         arg.DisplayGroup,
-	}
-	q.workspaceApps = append(q.workspaceApps, workspaceApp)
-	return workspaceApp, nil
-}
-
 func (q *FakeQuerier) InsertWorkspaceAppStats(_ context.Context, arg database.InsertWorkspaceAppStatsParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -13190,6 +13148,58 @@ func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(_ context.Context, arg datab
 	q.workspaceAgentPortShares = append(q.workspaceAgentPortShares, psl)
 
 	return psl, nil
+}
+
+func (q *FakeQuerier) UpsertWorkspaceApp(ctx context.Context, arg database.UpsertWorkspaceAppParams) (database.WorkspaceApp, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceApp{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	if arg.SharingLevel == "" {
+		arg.SharingLevel = database.AppSharingLevelOwner
+	}
+	if arg.OpenIn == "" {
+		arg.OpenIn = database.WorkspaceAppOpenInSlimWindow
+	}
+
+	buildApp := func(id uuid.UUID, createdAt time.Time) database.WorkspaceApp {
+		return database.WorkspaceApp{
+			ID:                   id,
+			CreatedAt:            createdAt,
+			AgentID:              arg.AgentID,
+			Slug:                 arg.Slug,
+			DisplayName:          arg.DisplayName,
+			Icon:                 arg.Icon,
+			Command:              arg.Command,
+			Url:                  arg.Url,
+			External:             arg.External,
+			Subdomain:            arg.Subdomain,
+			SharingLevel:         arg.SharingLevel,
+			HealthcheckUrl:       arg.HealthcheckUrl,
+			HealthcheckInterval:  arg.HealthcheckInterval,
+			HealthcheckThreshold: arg.HealthcheckThreshold,
+			Health:               arg.Health,
+			Hidden:               arg.Hidden,
+			DisplayOrder:         arg.DisplayOrder,
+			OpenIn:               arg.OpenIn,
+			DisplayGroup:         arg.DisplayGroup,
+		}
+	}
+
+	for i, app := range q.workspaceApps {
+		if app.ID == arg.ID {
+			q.workspaceApps[i] = buildApp(app.ID, app.CreatedAt)
+			return q.workspaceApps[i], nil
+		}
+	}
+
+	workspaceApp := buildApp(arg.ID, arg.CreatedAt)
+	q.workspaceApps = append(q.workspaceApps, workspaceApp)
+	return workspaceApp, nil
 }
 
 func (q *FakeQuerier) UpsertWorkspaceAppAuditSession(_ context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (bool, error) {

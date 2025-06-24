@@ -28,6 +28,12 @@ func (r *loader) staticRender(ctx context.Context, db database.Store) (*staticRe
 	}
 
 	params := db2sdk.List(dbTemplateVersionParameters, TemplateVersionParameter)
+
+	for i, param := range params {
+		// Update the diagnostics to validate the 'default' value.
+		// We do not have a user supplied value yet, so we use the default.
+		params[i].Diagnostics = append(params[i].Diagnostics, previewtypes.Diagnostics(param.Valid(param.Value))...)
+	}
 	return &staticRender{
 		staticParams: params,
 	}, nil
@@ -137,7 +143,5 @@ func TemplateVersionParameter(it database.TemplateVersionParameter) previewtypes
 	// unfortunate we have to do this, but it will return the default form_type
 	// for a given set of conditions.
 	_, param.FormType, _ = provider.ValidateFormType(provider.OptionType(param.Type), len(param.Options), param.FormType)
-
-	param.Diagnostics = append(param.Diagnostics, previewtypes.Diagnostics(param.Valid(param.Value))...)
 	return param
 }

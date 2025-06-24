@@ -19,6 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
+	"github.com/coder/terraform-provider-coder/v2/provider"
+
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -42,7 +44,6 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
 func TestWorkspace(t *testing.T) {
@@ -4613,4 +4614,88 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 	res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 	require.Len(t, res.Workspaces, 5)
+}
+
+func TestWorkspaceAppUpsertRestart(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	// Define an app to be created with the workspace
+	apps := []*proto.App{
+		{
+			Id:          uuid.NewString(),
+			Slug:        "test-app",
+			DisplayName: "Test App",
+			Command:     "test-command",
+			Url:         "http://localhost:8080",
+			Icon:        "/test.svg",
+		},
+	}
+
+	// Create template version with workspace app
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionApply: []*proto.Response{{
+			Type: &proto.Response_Apply{
+				Apply: &proto.ApplyComplete{
+					Resources: []*proto.Resource{{
+						Name: "test-resource",
+						Type: "example",
+						Agents: []*proto.Agent{{
+							Id:   uuid.NewString(),
+							Name: "dev",
+							Auth: &proto.Agent_Token{},
+							Apps: apps,
+						}},
+					}},
+				},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+	// Create template and workspace
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Verify initial workspace has the app
+	workspace, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.Len(t, workspace.LatestBuild.Resources[0].Agents, 1)
+	agent := workspace.LatestBuild.Resources[0].Agents[0]
+	require.Len(t, agent.Apps, 1)
+	require.Equal(t, "test-app", agent.Apps[0].Slug)
+	require.Equal(t, "Test App", agent.Apps[0].DisplayName)
+
+	// Stop the workspace
+	stopBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild.ID)
+
+	// Restart the workspace (this will trigger upsert for the app)
+	startBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, startBuild.ID)
+
+	// Verify the workspace restarted successfully
+	workspace, err = client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.WorkspaceStatusRunning, workspace.LatestBuild.Status)
+
+	// Verify the app is still present after restart (upsert worked)
+	require.Len(t, workspace.LatestBuild.Resources[0].Agents, 1)
+	agent = workspace.LatestBuild.Resources[0].Agents[0]
+	require.Len(t, agent.Apps, 1)
+	require.Equal(t, "test-app", agent.Apps[0].Slug)
+	require.Equal(t, "Test App", agent.Apps[0].DisplayName)
+
+	// Verify the provisioner job completed successfully (no error)
+	require.Equal(t, codersdk.ProvisionerJobSucceeded, workspace.LatestBuild.Job.Status)
+	require.Empty(t, workspace.LatestBuild.Job.Error)
 }
