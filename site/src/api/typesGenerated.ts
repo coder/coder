@@ -834,7 +834,6 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
-	| "ai-tasks"
 	| "agentic-chat"
 	| "auto-fill-parameters"
 	| "example"

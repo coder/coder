@@ -3369,7 +3369,6 @@ const (
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
 	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
 	ExperimentAgenticChat        Experiment = "agentic-chat"         // Enables the new agentic AI chat feature.
-	ExperimentAITasks            Experiment = "ai-tasks"             // Enables the new AI tasks feature.
 )
 
 // ExperimentsKnown should include all experiments defined above.

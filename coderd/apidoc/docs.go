@@ -12742,11 +12742,9 @@ const docTemplate = `{
                 "workspace-usage",
                 "web-push",
                 "workspace-prebuilds",
-                "agentic-chat",
-                "ai-tasks"
+                "agentic-chat"
             ],
             "x-enum-comments": {
-                "ExperimentAITasks": "Enables the new AI tasks feature.",
                 "ExperimentAgenticChat": "Enables the new agentic AI chat feature.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
@@ -12762,8 +12760,7 @@ const docTemplate = `{
                 "ExperimentWorkspaceUsage",
                 "ExperimentWebPush",
                 "ExperimentWorkspacePrebuilds",
-                "ExperimentAgenticChat",
-                "ExperimentAITasks"
+                "ExperimentAgenticChat"
             ]
         },
         "codersdk.ExternalAuth": {

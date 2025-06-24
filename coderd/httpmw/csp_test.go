@@ -10,7 +10,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/proxyhealth"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestCSP(t *testing.T) {
@@ -50,9 +49,7 @@ func TestCSP(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	rw := httptest.NewRecorder()
 
-	httpmw.CSPHeaders(codersdk.Experiments{
-		codersdk.ExperimentAITasks,
-	}, false, func() []*proxyhealth.ProxyHost {
+	httpmw.CSPHeaders(false, func() []*proxyhealth.ProxyHost {
 		return proxyHosts
 	}, map[httpmw.CSPFetchDirective][]string{
 		httpmw.CSPDirectiveMediaSrc: expectedMedia,

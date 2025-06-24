@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/coder/coder/v2/coderd/proxyhealth"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 // cspDirectives is a map of all csp fetch directives to their values.
@@ -59,7 +58,7 @@ const (
 //     Example: https://github.com/coder/coder/issues/15118
 //
 //nolint:revive
-func CSPHeaders(experiments codersdk.Experiments, telemetry bool, proxyHosts func() []*proxyhealth.ProxyHost, staticAdditions map[CSPFetchDirective][]string) func(next http.Handler) http.Handler {
+func CSPHeaders(telemetry bool, proxyHosts func() []*proxyhealth.ProxyHost, staticAdditions map[CSPFetchDirective][]string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Content-Security-Policy disables loading certain content types and can prevent XSS injections.
@@ -124,9 +123,7 @@ func CSPHeaders(experiments codersdk.Experiments, telemetry bool, proxyHosts fun
 			if len(extraConnect) > 0 {
 				for _, extraHost := range extraConnect {
 					// Allow embedding the app host.
-					if experiments.Enabled(codersdk.ExperimentAITasks) {
-						cspSrcs.Append(CSPDirectiveFrameSrc, extraHost.AppHost)
-					}
+					cspSrcs.Append(CSPDirectiveFrameSrc, extraHost.AppHost)
 					if extraHost.Host == "*" {
 						// '*' means all
 						cspSrcs.Append(CSPDirectiveConnectSrc, "*")
