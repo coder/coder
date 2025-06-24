@@ -838,27 +838,33 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create 1 real proxy replica.
-		replicaPingErr := make(chan string, 4)
+		replicaPingRes := make(chan replicaPingCallback, 4)
 		proxy := coderdenttest.NewWorkspaceProxyReplica(t, api, client, &coderdenttest.ProxyOptions{
 			Name:     "proxy-2",
 			ProxyURL: proxyURL,
-			ReplicaPingCallback: func(_ []codersdk.Replica, err string) {
-				replicaPingErr <- err
+			ReplicaPingCallback: func(replicas []codersdk.Replica, err string) {
+				t.Logf("got wsproxy ping callback: replica count: %v, ping error: %s", len(replicas), err)
+				replicaPingRes <- replicaPingCallback{
+					replicas: replicas,
+					err:      err,
+				}
 			},
 		})
 
+		// Create a second proxy replica that isn't working.
 		ctx := testutil.Context(t, testutil.WaitLong)
 		otherReplicaID := registerBrokenProxy(ctx, t, api.AccessURL, proxyURL.String(), proxy.Options.ProxySessionToken)
 
-		// Force the proxy to re-register immediately.
-		err = proxy.RegisterNow()
-		require.NoError(t, err, "failed to force proxy to re-register")
-
-		// Wait for the ping to fail.
+		// Force the proxy to re-register and wait for the ping to fail.
 		for {
-			replicaErr := testutil.TryReceive(ctx, t, replicaPingErr)
-			t.Log("replica ping error:", replicaErr)
-			if replicaErr != "" {
+			err = proxy.RegisterNow()
+			require.NoError(t, err, "failed to force proxy to re-register")
+
+			pingRes := testutil.TryReceive(ctx, t, replicaPingRes)
+			// We want to ensure that we know about the other replica, and the
+			// ping failed.
+			if len(pingRes.replicas) == 1 && pingRes.err != "" {
+				t.Log("got failed ping callback for other replica, continuing")
 				break
 			}
 		}
@@ -884,17 +890,17 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Force the proxy to re-register immediately.
-		err = proxy.RegisterNow()
-		require.NoError(t, err, "failed to force proxy to re-register")
-
-		// Wait for the ping to be skipped.
+		// Force the proxy to re-register and wait for the ping to be skipped
+		// because there are no more siblings.
 		for {
-			replicaErr := testutil.TryReceive(ctx, t, replicaPingErr)
-			t.Log("replica ping error:", replicaErr)
+			err = proxy.RegisterNow()
+			require.NoError(t, err, "failed to force proxy to re-register")
+
+			replicaErr := testutil.TryReceive(ctx, t, replicaPingRes)
 			// Should be empty because there are no more peers. This was where
 			// the regression was.
-			if replicaErr == "" {
+			if len(replicaErr.replicas) == 0 && replicaErr.err == "" {
+				t.Log("got empty ping callback with no sibling replicas, continuing")
 				break
 			}
 		}
@@ -991,6 +997,11 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 			FlushStats:     flushStats,
 		}
 	})
+}
+
+type replicaPingCallback struct {
+	replicas []codersdk.Replica
+	err      string
 }
 
 func TestWorkspaceProxyWorkspaceApps_BlockDirect(t *testing.T) {
