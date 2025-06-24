@@ -109,22 +109,23 @@ const TaskPage = () => {
 		// If no template yet, use an indeterminate progress bar.
 		const transition = (template &&
 			ActiveTransition(template, task.workspace)) || { P50: 0, P95: null };
-		const lastStage = buildLogs?.[buildLogs.length - 1]?.stage;
+		const lastStage =
+			buildLogs?.[buildLogs.length - 1]?.stage || "Waiting for build status";
 		content = (
-			<div className="w-full min-h-80 flex flex-col items-center justify-center gap-2">
-				<div className="flex flex-col items-center">
+			<div className="w-full min-h-80 flex flex-col">
+				<div className="flex flex-col items-center grow justify-center">
 					<h3 className="m-0 font-medium text-content-primary text-base">
 						Starting your workspace
 					</h3>
+					{lastStage && (
+						<div className="text-content-secondary text-sm">{lastStage}</div>
+					)}
 				</div>
-				{lastStage && (
-					<div className="text-content-secondary text-sm">{lastStage}</div>
-				)}
-				<div css={{ minWidth: 315 }}>
+				<div className="w-full">
 					<WorkspaceBuildProgress
 						workspace={task.workspace}
 						transitionStats={transition}
-						stack={true}
+						style="task"
 					/>
 				</div>
 			</div>

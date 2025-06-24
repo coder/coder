@@ -62,14 +62,13 @@ const estimateFinish = (
 interface WorkspaceBuildProgressProps {
 	workspace: Workspace;
 	transitionStats: TransitionStats;
-	// stack indicates to stack the text vertically, otherwise put it on one line.
-	stack?: boolean;
+	style?: "workspace" | "task";
 }
 
 export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 	workspace,
 	transitionStats,
-	stack,
+	style,
 }) => {
 	const job = workspace.latest_build.job;
 	const [progressValue, setProgressValue] = useState<number | undefined>(0);
@@ -117,6 +116,13 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 	}
 	return (
 		<div css={styles.stack}>
+			{style === "task" && (
+				<div className={"mb-1 text-center"}>
+					<div css={styles.label} data-chromatic="ignore">
+						{progressText}
+					</div>
+				</div>
+			)}
 			<LinearProgress
 				data-chromatic="ignore"
 				value={progressValue !== undefined ? progressValue : 0}
@@ -132,16 +138,21 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 				// If a transition is set, there is a moment on new load where the
 				// bar accelerates to progressValue and then rapidly decelerates, which
 				// is not indicative of true progress.
-				classes={{ bar: classNames.bar }}
+				classes={{
+					bar: classNames.bar,
+					root: style === "task" ? classNames.root : undefined,
+				}}
 			/>
-			<div className={stack ? "leading-tight mt-1" : "flex mt-1 justify-between"}>
-				<div css={styles.label}>
-					{capitalize(workspace.latest_build.status)} workspace...
+			{style !== "task" && (
+				<div className={"flex mt-1 justify-between"}>
+					<div css={styles.label}>
+						{capitalize(workspace.latest_build.status)} workspace...
+					</div>
+					<div css={styles.label} data-chromatic="ignore">
+						{progressText}
+					</div>
 				</div>
-				<div css={styles.label} data-chromatic="ignore">
-					{progressText}
-				</div>
-			</div>
+			)}
 		</div>
 	);
 };
@@ -149,6 +160,9 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 const classNames = {
 	bar: css`
     transition: none;
+  `,
+	root: css`
+    border-radius: 0;
   `,
 };
 
