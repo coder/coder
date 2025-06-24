@@ -1954,8 +1954,8 @@ func TestAgent_ReconnectingPTYContainer(t *testing.T) {
 
 	// nolint: dogsled
 	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
-		o.ExperimentalDevcontainersEnabled = true
-		o.ContainerAPIOptions = append(o.ContainerAPIOptions,
+		o.Devcontainers = true
+		o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
 			agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
 		)
 	})
@@ -2161,9 +2161,9 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 
 	//nolint:dogsled
 	_, agentClient, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
-		o.ExperimentalDevcontainersEnabled = true
-		o.ContainerAPIOptions = append(
-			o.ContainerAPIOptions,
+		o.Devcontainers = true
+		o.DevcontainerAPIOptions = append(
+			o.DevcontainerAPIOptions,
 			// Only match this specific dev container.
 			agentcontainers.WithClock(mClock),
 			agentcontainers.WithContainerLabelIncludeFilter("devcontainer.local_folder", tempWorkspaceFolder),
@@ -2312,8 +2312,8 @@ func TestAgent_DevcontainerRecreate(t *testing.T) {
 
 	//nolint:dogsled
 	conn, client, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
-		o.ExperimentalDevcontainersEnabled = true
-		o.ContainerAPIOptions = append(o.ContainerAPIOptions,
+		o.Devcontainers = true
+		o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
 			agentcontainers.WithContainerLabelIncludeFilter("devcontainer.local_folder", workspaceFolder),
 		)
 	})
@@ -2438,8 +2438,7 @@ func TestAgent_DevcontainersDisabledForSubAgent(t *testing.T) {
 
 	// Setup the agent with devcontainers enabled initially.
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
-		o.ExperimentalDevcontainersEnabled = true
+	conn, _, _, _, _ := setupAgent(t, manifest, 0, func(*agenttest.Client, *agent.Options) {
 	})
 
 	// Query the containers API endpoint. This should fail because

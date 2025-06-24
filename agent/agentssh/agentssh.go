@@ -113,9 +113,10 @@ type Config struct {
 	BlockFileTransfer bool
 	// ReportConnection.
 	ReportConnection reportConnectionFunc
-	// Experimental: allow connecting to running containers if
-	// CODER_AGENT_DEVCONTAINERS_ENABLE=true.
-	ExperimentalDevContainersEnabled bool
+	// Experimental: allow connecting to running containers via Docker exec.
+	// Note that this is different from the devcontainers feature, which uses
+	// subagents.
+	ExperimentalContainers bool
 }
 
 type Server struct {
@@ -435,7 +436,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	switch ss := session.Subsystem(); ss {
 	case "":
 	case "sftp":
-		if s.config.ExperimentalDevContainersEnabled && container != "" {
+		if s.config.ExperimentalContainers && container != "" {
 			closeCause("sftp not yet supported with containers")
 			_ = session.Exit(1)
 			return
@@ -549,7 +550,7 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []str
 
 	var ei usershell.EnvInfoer
 	var err error
-	if s.config.ExperimentalDevContainersEnabled && container != "" {
+	if s.config.ExperimentalContainers && container != "" {
 		ei, err = agentcontainers.EnvInfo(ctx, s.Execer, container, containerUser)
 		if err != nil {
 			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, ptyLabel, "container_env_info").Add(1)
