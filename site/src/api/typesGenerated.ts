@@ -490,7 +490,6 @@ export interface CreateWorkspaceBuildRequest {
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly log_level?: ProvisionerLogLevel;
 	readonly template_version_preset_id?: string;
-	readonly enable_dynamic_parameters?: boolean;
 }
 
 // From codersdk/workspaceproxy.go
@@ -510,7 +509,6 @@ export interface CreateWorkspaceRequest {
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly automatic_updates?: AutomaticUpdates;
 	readonly template_version_preset_id?: string;
-	readonly enable_dynamic_parameters?: boolean;
 }
 
 // From codersdk/deployment.go
@@ -837,8 +835,16 @@ export type Experiment =
 	| "workspace-prebuilds"
 	| "workspace-usage";
 
-// From codersdk/deployment.go
-export type Experiments = readonly Experiment[];
+export const Experiments: Experiment[] = [
+	"ai-tasks",
+	"agentic-chat",
+	"auto-fill-parameters",
+	"example",
+	"notifications",
+	"web-push",
+	"workspace-prebuilds",
+	"workspace-usage",
+];
 
 // From codersdk/externalauth.go
 export interface ExternalAuth {
@@ -1824,6 +1830,7 @@ export interface Preset {
 	readonly ID: string;
 	readonly Name: string;
 	readonly Parameters: readonly PresetParameter[];
+	readonly Default: boolean;
 }
 
 // From codersdk/presets.go

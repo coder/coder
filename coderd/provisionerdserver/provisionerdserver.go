@@ -2272,6 +2272,7 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 			DesiredInstances:    desiredInstances,
 			InvalidateAfterSecs: ttl,
 			SchedulingTimezone:  schedulingTimezone,
+			IsDefault:           protoPreset.GetDefault(),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert preset: %w", err)

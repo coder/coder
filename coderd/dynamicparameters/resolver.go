@@ -26,6 +26,45 @@ type parameterValue struct {
 	Source parameterValueSource
 }
 
+type ResolverError struct {
+	Diagnostics hcl.Diagnostics
+	Parameter   map[string]hcl.Diagnostics
+}
+
+// Error is a pretty bad format for these errors. Try to avoid using this.
+func (e *ResolverError) Error() string {
+	var diags hcl.Diagnostics
+	diags = diags.Extend(e.Diagnostics)
+	for _, d := range e.Parameter {
+		diags = diags.Extend(d)
+	}
+
+	return diags.Error()
+}
+
+func (e *ResolverError) HasError() bool {
+	if e.Diagnostics.HasErrors() {
+		return true
+	}
+
+	for _, diags := range e.Parameter {
+		if diags.HasErrors() {
+			return true
+		}
+	}
+	return false
+}
+
+func (e *ResolverError) Extend(parameterName string, diag hcl.Diagnostics) {
+	if e.Parameter == nil {
+		e.Parameter = make(map[string]hcl.Diagnostics)
+	}
+	if _, ok := e.Parameter[parameterName]; !ok {
+		e.Parameter[parameterName] = hcl.Diagnostics{}
+	}
+	e.Parameter[parameterName] = e.Parameter[parameterName].Extend(diag)
+}
+
 //nolint:revive // firstbuild is a control flag to turn on immutable validation
 func ResolveParameters(
 	ctx context.Context,
@@ -35,7 +74,7 @@ func ResolveParameters(
 	previousValues []database.WorkspaceBuildParameter,
 	buildValues []codersdk.WorkspaceBuildParameter,
 	presetValues []database.TemplateVersionPresetParameter,
-) (map[string]string, hcl.Diagnostics) {
+) (map[string]string, error) {
 	previousValuesMap := slice.ToMapFunc(previousValues, func(p database.WorkspaceBuildParameter) (string, string) {
 		return p.Name, p.Value
 	})
@@ -73,7 +112,10 @@ func ResolveParameters(
 		// always be valid. If there is a case where this is not true, then this has to
 		// be changed to allow the build to continue with a different set of values.
 
-		return nil, diags
+		return nil, &ResolverError{
+			Diagnostics: diags,
+			Parameter:   nil,
+		}
 	}
 
 	// The user's input now needs to be validated against the parameters.
@@ -113,12 +155,16 @@ func ResolveParameters(
 	// are fatal. Additional validation for immutability has to be done manually.
 	output, diags = renderer.Render(ctx, ownerID, values.ValuesMap())
 	if diags.HasErrors() {
-		return nil, diags
+		return nil, &ResolverError{
+			Diagnostics: diags,
+			Parameter:   nil,
+		}
 	}
 
 	// parameterNames is going to be used to remove any excess values that were left
 	// around without a parameter.
 	parameterNames := make(map[string]struct{}, len(output.Parameters))
+	parameterError := &ResolverError{}
 	for _, parameter := range output.Parameters {
 		parameterNames[parameter.Name] = struct{}{}
 
@@ -132,20 +178,22 @@ func ResolveParameters(
 				}
 
 				// An immutable parameter was changed, which is not allowed.
-				// Add the failed diagnostic to the output.
-				diags = diags.Append(&hcl.Diagnostic{
-					Severity: hcl.DiagError,
-					Summary:  "Immutable parameter changed",
-					Detail:   fmt.Sprintf("Parameter %q is not mutable, so it can't be updated after creating a workspace.", parameter.Name),
-					Subject:  src,
+				// Add a failed diagnostic to the output.
+				parameterError.Extend(parameter.Name, hcl.Diagnostics{
+					&hcl.Diagnostic{
+						Severity: hcl.DiagError,
+						Summary:  "Immutable parameter changed",
+						Detail:   fmt.Sprintf("Parameter %q is not mutable, so it can't be updated after creating a workspace.", parameter.Name),
+						Subject:  src,
+					},
 				})
 			}
 		}
 
 		// TODO: Fix the `hcl.Diagnostics(...)` type casting. It should not be needed.
 		if hcl.Diagnostics(parameter.Diagnostics).HasErrors() {
-			// All validation errors are raised here.
-			diags = diags.Extend(hcl.Diagnostics(parameter.Diagnostics))
+			// All validation errors are raised here for each parameter.
+			parameterError.Extend(parameter.Name, hcl.Diagnostics(parameter.Diagnostics))
 		}
 
 		// If the parameter has a value, but it was not set explicitly by the user at any
@@ -174,8 +222,13 @@ func ResolveParameters(
 		}
 	}
 
+	if parameterError.HasError() {
+		// If there are any errors, return them.
+		return nil, parameterError
+	}
+
 	// Return the values to be saved for the build.
-	return values.ValuesMap(), diags
+	return values.ValuesMap(), nil
 }
 
 type parameterValueMap map[string]parameterValue

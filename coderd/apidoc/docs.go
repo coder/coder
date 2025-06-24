@@ -12043,10 +12043,6 @@ const docTemplate = `{
                 "dry_run": {
                     "type": "boolean"
                 },
-                "enable_dynamic_parameters": {
-                    "description": "EnableDynamicParameters skips some of the static parameter checking.\nIt will default to whatever the template has marked as the default experience.\nRequires the \"dynamic-experiment\" to be used.",
-                    "type": "boolean"
-                },
                 "log_level": {
                     "description": "Log level changes the default logging verbosity of a provider (\"info\" if empty).",
                     "enum": [
@@ -12127,9 +12123,6 @@ const docTemplate = `{
                 },
                 "autostart_schedule": {
                     "type": "string"
-                },
-                "enable_dynamic_parameters": {
-                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
@@ -14526,6 +14519,9 @@ const docTemplate = `{
         "codersdk.Preset": {
             "type": "object",
             "properties": {
+                "default": {
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "string"
                 },

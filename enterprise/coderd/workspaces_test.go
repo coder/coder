@@ -1759,7 +1759,6 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 				Value: "7",
 			},
 		},
-		EnableDynamicParameters: true,
 	})
 
 	// Then: the build should succeed. The updated value of param_min should be
