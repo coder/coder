@@ -508,14 +508,12 @@ jobs:
             # Create a temp dir on the R: ramdisk drive for Windows. The default
             # C: drive is extremely slow: https://github.com/actions/runner-images/issues/8755
             mkdir -p "R:/temp/embedded-pg"
-            mkdir -p "R:/temp/embedded-pg-cache"
-            go run scripts/embedded-pg/main.go -path "R:/temp/embedded-pg" -cache "R:/temp/embedded-pg-cache"
+            go run scripts/embedded-pg/main.go -path "R:/temp/embedded-pg" -cache "${EMBEDDED_PG_CACHE_DIR}"
           elif [ "${{ runner.os }}" == "macOS" ]; then
             # Postgres runs faster on a ramdisk on macOS too
             mkdir -p /tmp/tmpfs
-            mkdir -p /tmp/embedded-pg-cache
             sudo mount_tmpfs -o noowners -s 8g /tmp/tmpfs
-            go run scripts/embedded-pg/main.go -path /tmp/tmpfs/embedded-pg -cache /tmp/embedded-pg-cache
+            go run scripts/embedded-pg/main.go -path /tmp/tmpfs/embedded-pg -cache "${EMBEDDED_PG_CACHE_DIR}"
           elif [ "${{ runner.os }}" == "Linux" ]; then
             make test-postgres-docker
           fi
