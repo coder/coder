@@ -62,7 +62,7 @@ message ServiceMessage {
 		StartResponse start = 2;
 		StopResponse stop = 3;
 		Status status = 4;                // either in reply to a StatusRequest or broadcasted
-		StartProgress start_progress = 5; // broadcasted during startup
+		StartProgress start_progress = 5; // broadcasted during startup (used exclusively by Windows)
 	}
 }
 
