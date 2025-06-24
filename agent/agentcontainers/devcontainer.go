@@ -7,6 +7,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/google/uuid"
 )
 
 const (
@@ -19,6 +20,28 @@ const (
 	// The default workspace folder inside the devcontainer.
 	DevcontainerDefaultContainerWorkspaceFolder = "/workspaces"
 )
+
+func ExtractDevcontainerScripts(
+	devcontainers []codersdk.WorkspaceAgentDevcontainer,
+	scripts []codersdk.WorkspaceAgentScript,
+) (filteredScripts []codersdk.WorkspaceAgentScript, devcontainerScripts map[uuid.UUID]codersdk.WorkspaceAgentScript) {
+	devcontainerScripts = make(map[uuid.UUID]codersdk.WorkspaceAgentScript)
+ScriptLoop:
+	for _, script := range scripts {
+		for _, dc := range devcontainers {
+			// The devcontainer scripts match the devcontainer ID for
+			// identification.
+			if script.ID == dc.ID {
+				devcontainerScripts[dc.ID] = script
+				continue ScriptLoop
+			}
+		}
+
+		filteredScripts = append(filteredScripts, script)
+	}
+
+	return filteredScripts, devcontainerScripts
+}
 
 // ExpandAllDevcontainerPaths expands all devcontainer paths in the given
 // devcontainers. This is required by the devcontainer CLI, which requires

@@ -89,6 +89,7 @@ type Options struct {
 	ServiceBannerRefreshInterval time.Duration
 	BlockFileTransfer            bool
 	Execer                       agentexec.Execer
+	Clock                        quartz.Clock
 
 	ExperimentalDevcontainersEnabled bool
 	ContainerAPIOptions              []agentcontainers.Option // Enable ExperimentalDevcontainersEnabled for these to be effective.
@@ -145,6 +146,9 @@ func New(options Options) Agent {
 	if options.PortCacheDuration == 0 {
 		options.PortCacheDuration = 1 * time.Second
 	}
+	if options.Clock == nil {
+		options.Clock = quartz.NewReal()
+	}
 
 	prometheusRegistry := options.PrometheusRegistry
 	if prometheusRegistry == nil {
@@ -158,6 +162,7 @@ func New(options Options) Agent {
 	hardCtx, hardCancel := context.WithCancel(context.Background())
 	gracefulCtx, gracefulCancel := context.WithCancel(hardCtx)
 	a := &agent{
+		clock:                              options.Clock,
 		tailnetListenPort:                  options.TailnetListenPort,
 		reconnectingPTYTimeout:             options.ReconnectingPTYTimeout,
 		logger:                             options.Logger,
@@ -205,6 +210,7 @@ func New(options Options) Agent {
 }
 
 type agent struct {
+	clock             quartz.Clock
 	logger            slog.Logger
 	client            Client
 	exchangeToken     func(ctx context.Context) (string, error)
@@ -1142,9 +1148,13 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 			}
 
 			var (
-				scripts          = manifest.Scripts
-				scriptRunnerOpts []agentscripts.InitOption
+				scripts             = manifest.Scripts
+				scriptRunnerOpts    []agentscripts.InitOption
+				devcontainerScripts map[uuid.UUID]codersdk.WorkspaceAgentScript
 			)
+			if a.experimentalDevcontainersEnabled {
+				scripts, devcontainerScripts = agentcontainers.ExtractDevcontainerScripts(manifest.Devcontainers, scripts)
+			}
 			err = a.scriptRunner.Init(scripts, aAPI.ScriptCompleted, scriptRunnerOpts...)
 			if err != nil {
 				return xerrors.Errorf("init script runner: %w", err)
@@ -1165,7 +1175,28 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 
 				if cAPI := a.containerAPI.Load(); cAPI != nil {
 					for _, dc := range manifest.Devcontainers {
-						err = errors.Join(err, cAPI.CreateDevcontainer(dc))
+						var (
+							script    = devcontainerScripts[dc.ID]
+							exitCode  = int32(0)
+							startTime = a.clock.Now()
+						)
+						if cErr := cAPI.CreateDevcontainer(dc); cErr != nil {
+							exitCode = 1
+							err = errors.Join(err, cErr)
+						}
+						endTime := a.clock.Now()
+
+						if _, scriptErr := aAPI.ScriptCompleted(ctx, &proto.WorkspaceAgentScriptCompletedRequest{
+							Timing: &proto.Timing{
+								ScriptId: script.ID[:],
+								Start:    timestamppb.New(startTime),
+								End:      timestamppb.New(endTime),
+								ExitCode: exitCode,
+								Stage:    proto.Timing_START,
+							},
+						}); scriptErr != nil {
+							a.logger.Warn(ctx, "reporting script completed failed", slog.Error(scriptErr))
+						}
 					}
 				}
 
