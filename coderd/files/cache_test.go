@@ -2,12 +2,14 @@ package files_test
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/sync/errgroup"
@@ -25,6 +27,63 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// TestCancelledFetch runs 2 Acquire calls. The first fails with a ctx.Canceled
+// error. The second call should ignore the first error and try to fetch the file
+// again, which should succeed.
+func TestCancelledFetch(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+	rdy := make(chan struct{})
+	dbM := dbmock.NewMockStore(gomock.NewController(t))
+
+	// First call should fail
+	dbM.EXPECT().GetFileByID(gomock.Any(), gomock.Any()).DoAndReturn(func(mTx context.Context, fileID uuid.UUID) (database.File, error) {
+		// Wait long enough for the second call to be queued up.
+		return database.File{}, context.Canceled
+	})
+
+	// Second call should succeed
+	dbM.EXPECT().GetFileByID(gomock.Any(), gomock.Any()).DoAndReturn(func(mTx context.Context, fileID uuid.UUID) (database.File, error) {
+		return database.File{
+			ID:   fileID,
+			Data: make([]byte, 100),
+		}, nil
+	})
+
+	//nolint:gocritic // Unit testing
+	ctx := dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort))
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+
+	var wg sync.WaitGroup
+
+	// First call that will fail
+	wg.Add(1)
+	go func() {
+		close(rdy)
+		_, err := cache.Acquire(ctx, dbM, fileID)
+		assert.ErrorIs(t, err, context.Canceled)
+		wg.Done()
+	}()
+
+	// Second call, that should succeed
+	wg.Add(1)
+	go func() {
+		// Wait until the first goroutine has started
+		<-rdy
+		fs, err := cache.Acquire(ctx, dbM, fileID)
+		assert.NoError(t, err)
+		if fs != nil {
+			fs.Close()
+		}
+		wg.Done()
+	}()
+
+	// We need that second Acquire call to be queued up
+	time.Sleep(testutil.IntervalFast)
+	wg.Wait()
+}
 
 // nolint:paralleltest,tparallel // Serially testing is easier
 func TestCacheRBAC(t *testing.T) {
