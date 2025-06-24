@@ -1188,28 +1188,8 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 
 				if cAPI := a.containerAPI.Load(); cAPI != nil {
 					for _, dc := range manifest.Devcontainers {
-						var (
-							script    = devcontainerScripts[dc.ID]
-							exitCode  = int32(0)
-							startTime = a.clock.Now()
-						)
-						if cErr := cAPI.CreateDevcontainer(dc); cErr != nil {
-							exitCode = 1
-							err = errors.Join(err, cErr)
-						}
-						endTime := a.clock.Now()
-
-						if _, scriptErr := aAPI.ScriptCompleted(ctx, &proto.WorkspaceAgentScriptCompletedRequest{
-							Timing: &proto.Timing{
-								ScriptId: script.ID[:],
-								Start:    timestamppb.New(startTime),
-								End:      timestamppb.New(endTime),
-								ExitCode: exitCode,
-								Stage:    proto.Timing_START,
-							},
-						}); scriptErr != nil {
-							a.logger.Warn(ctx, "reporting script completed failed", slog.Error(scriptErr))
-						}
+						cErr := a.createDevcontainer(ctx, cAPI, aAPI, dc, devcontainerScripts[dc.ID])
+						err = errors.Join(err, cErr)
 					}
 				}
 
@@ -1248,6 +1228,36 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 	}
 }
 
+func (a *agent) createDevcontainer(
+	ctx context.Context,
+	cAPI *agentcontainers.API,
+	aAPI proto.DRPCAgentClient26,
+	dc codersdk.WorkspaceAgentDevcontainer,
+	script codersdk.WorkspaceAgentScript,
+) (err error) {
+	var (
+		exitCode  = int32(0)
+		startTime = a.clock.Now()
+	)
+	if err = cAPI.CreateDevcontainer(dc); err != nil {
+		exitCode = 1
+	}
+	endTime := a.clock.Now()
+
+	if _, scriptErr := aAPI.ScriptCompleted(ctx, &proto.WorkspaceAgentScriptCompletedRequest{
+		Timing: &proto.Timing{
+			ScriptId: script.ID[:],
+			Start:    timestamppb.New(startTime),
+			End:      timestamppb.New(endTime),
+			ExitCode: exitCode,
+			Stage:    proto.Timing_START,
+		},
+	}); scriptErr != nil {
+		a.logger.Warn(ctx, "reporting script completed failed", slog.Error(scriptErr))
+	}
+	return err
+}
+
 // createOrUpdateNetwork waits for the manifest to be set using manifestOK, then creates or updates
 // the tailnet using the information in the manifest
 func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(context.Context, proto.DRPCAgentClient26) error {
@@ -1271,7 +1281,6 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 			// agent API.
 			network, err = a.createTailnet(
 				a.gracefulCtx,
-				aAPI,
 				manifest.AgentID,
 				manifest.DERPMap,
 				manifest.DERPForceWebSockets,
@@ -1426,7 +1435,6 @@ func (a *agent) trackGoroutine(fn func()) error {
 
 func (a *agent) createTailnet(
 	ctx context.Context,
-	aAPI proto.DRPCAgentClient26,
 	agentID uuid.UUID,
 	derpMap *tailcfg.DERPMap,
 	derpForceWebSockets, disableDirectConnections bool,
@@ -1559,7 +1567,7 @@ func (a *agent) createTailnet(
 	}()
 	if err = a.trackGoroutine(func() {
 		defer apiListener.Close()
-		apiHandler, closeAPIHAndler := a.apiHandler(aAPI)
+		apiHandler, closeAPIHAndler := a.apiHandler()
 		defer func() {
 			_ = closeAPIHAndler()
 		}()

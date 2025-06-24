@@ -7,12 +7,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (a *agent) apiHandler(aAPI proto.DRPCAgentClient26) (http.Handler, func() error) {
+func (a *agent) apiHandler() (http.Handler, func() error) {
 	r := chi.NewRouter()
 	r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
