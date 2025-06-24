@@ -786,7 +786,7 @@ type ServiceMessage_Status struct {
 }
 
 type ServiceMessage_StartProgress struct {
-	StartProgress *StartProgress `protobuf:"bytes,5,opt,name=start_progress,json=startProgress,proto3,oneof"` // broadcasted during startup
+	StartProgress *StartProgress `protobuf:"bytes,5,opt,name=start_progress,json=startProgress,proto3,oneof"` // broadcasted during startup (used exclusively by Windows)
 }
 
 func (*ServiceMessage_Start) isServiceMessage_Msg() {}
