@@ -265,8 +265,6 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 	api := &API{
 		ctx:                         ctx,
 		cancel:                      cancel,
-		watcherDone:                 make(chan struct{}),
-		updaterDone:                 make(chan struct{}),
 		initialUpdateDone:           make(chan struct{}),
 		updateTrigger:               make(chan chan error),
 		updateInterval:              defaultUpdateInterval,
@@ -325,6 +323,9 @@ func (api *API) Init(opts ...Option) {
 	for _, opt := range opts {
 		opt(api)
 	}
+
+	api.watcherDone = make(chan struct{})
+	api.updaterDone = make(chan struct{})
 
 	go api.watcherLoop()
 	go api.updaterLoop()
@@ -1640,8 +1641,12 @@ func (api *API) Close() error {
 	err := api.watcher.Close()
 
 	// Wait for loops to finish.
-	<-api.watcherDone
-	<-api.updaterDone
+	if api.watcherDone != nil {
+		<-api.watcherDone
+	}
+	if api.updaterDone != nil {
+		<-api.updaterDone
+	}
 
 	// Wait for all async tasks to complete.
 	api.asyncWg.Wait()
