@@ -1042,44 +1042,13 @@ func (api *API) markDevcontainerDirty(configPath string, modifiedAt time.Time) {
 			logger.Info(api.ctx, "marking devcontainer as dirty")
 			dc.Dirty = true
 		}
-		if api.ignoredDevcontainers[dc.WorkspaceFolder] {
+		if _, ok := api.ignoredDevcontainers[dc.WorkspaceFolder]; ok {
 			logger.Debug(api.ctx, "clearing devcontainer ignored state")
 			delete(api.ignoredDevcontainers, dc.WorkspaceFolder) // Allow re-reading config.
 		}
 
 		api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	}
-}
-
-// markDevcontainerIgnored marks a devcontainer as ignored. Must not be called
-// with the API lock held.
-func (api *API) markDevcontainerIgnored(ctx context.Context, dc codersdk.WorkspaceAgentDevcontainer, proc subAgentProcess) subAgentProcess {
-	logger := api.logger.With(
-		slog.F("devcontainer_id", dc.ID),
-		slog.F("devcontainer_name", dc.Name),
-		slog.F("workspace_folder", dc.WorkspaceFolder),
-		slog.F("config_path", dc.ConfigPath),
-	)
-
-	// We only allow ignore to be set in the root customization layer to
-	// prevent weird interactions with devcontainer features.
-	logger.Debug(ctx, "marking devcontainer as ignored")
-	proc.stop()
-	if proc.agent.ID != uuid.Nil {
-		// If we stop the subagent, we also need to delete it.
-		client := *api.subAgentClient.Load()
-		if err := client.Delete(ctx, proc.agent.ID); err != nil {
-			api.logger.Error(ctx, "delete subagent failed", slog.Error(err), slog.F("subagent_id", proc.agent.ID))
-		}
-	}
-	// Reset agent and containerID to force config re-reading if ignore is toggled.
-	proc.agent = SubAgent{}
-	proc.containerID = ""
-	api.mu.Lock()
-	api.ignoredDevcontainers[dc.WorkspaceFolder] = true
-	api.mu.Unlock()
-
-	return proc
 }
 
 // cleanupSubAgents removes subagents that are no longer managed by
@@ -1172,11 +1141,24 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				return xerrors.Errorf("read devcontainer config: %w", err)
 			}
 
-			if config.Configuration.Customizations.Coder.Ignore {
-				api.mu.Unlock()
-				proc = api.markDevcontainerIgnored(ctx, dc, proc)
-				api.mu.Lock()
+			ignore := config.Configuration.Customizations.Coder.Ignore
+			if ignore {
+				proc.stop()
+				if proc.agent.ID != uuid.Nil {
+					// Unlock while doing the delete operation.
+					api.mu.Unlock()
+					client := *api.subAgentClient.Load()
+					if err := client.Delete(ctx, proc.agent.ID); err != nil {
+						api.mu.Lock()
+						return xerrors.Errorf("delete subagent: %w", err)
+					}
+					api.mu.Lock()
+				}
+				// Reset agent and containerID to force config re-reading if ignore is toggled.
+				proc.agent = SubAgent{}
+				proc.containerID = ""
 				api.injectedSubAgentProcs[dc.WorkspaceFolder] = proc
+				api.ignoredDevcontainers[dc.WorkspaceFolder] = ignore
 				return nil
 			}
 		}
@@ -1219,7 +1201,11 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 	ranSubAgent := false
 
 	// Clean up if injection fails.
+	var ignored, setIgnored bool
 	defer func() {
+		if setIgnored {
+			api.ignoredDevcontainers[dc.WorkspaceFolder] = ignored
+		}
 		if !ranSubAgent {
 			proc.stop()
 			if !api.closed {
@@ -1273,7 +1259,6 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		}
 
 		var (
-			ignore                     bool
 			appsWithPossibleDuplicates []SubAgentApp
 			workspaceFolder            = DevcontainerDefaultContainerWorkspaceFolder
 		)
@@ -1297,12 +1282,14 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				return err
 			}
 
-			ignore = config.Configuration.Customizations.Coder.Ignore
-			workspaceFolder = config.Workspace.WorkspaceFolder
-
-			if ignore {
+			// We only allow ignore to be set in the root customization layer to
+			// prevent weird interactions with devcontainer features.
+			ignored, setIgnored = config.Configuration.Customizations.Coder.Ignore, true
+			if ignored {
 				return nil
 			}
+
+			workspaceFolder = config.Workspace.WorkspaceFolder
 
 			// NOTE(DanielleMaywood):
 			// We only want to take an agent name specified in the root customization layer.
@@ -1350,8 +1337,19 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
 		}
 
-		if ignore {
-			proc = api.markDevcontainerIgnored(ctx, dc, proc)
+		if ignored {
+			proc.stop()
+			if proc.agent.ID != uuid.Nil {
+				// If we stop the subagent, we also need to delete it.
+				client := *api.subAgentClient.Load()
+				if err := client.Delete(ctx, proc.agent.ID); err != nil {
+					return xerrors.Errorf("delete subagent: %w", err)
+				}
+			}
+			// Reset agent and containerID to force config re-reading if
+			// ignore is toggled.
+			proc.agent = SubAgent{}
+			proc.containerID = ""
 			return nil
 		}
 

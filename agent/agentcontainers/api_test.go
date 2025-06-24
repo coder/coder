@@ -2234,7 +2234,7 @@ func TestAPI(t *testing.T) {
 
 		assert.Empty(t, response.Devcontainers, "devcontainer should be filtered out when ignore=true again")
 		assert.Len(t, response.Containers, 1, "regular container should still be listed")
-		assert.Len(t, fakeSAC.deleted, 1, "sub agent should be deleted when ignore=true")
+		require.Len(t, fakeSAC.deleted, 1, "sub agent should be deleted when ignore=true")
 		assert.Equal(t, createdAgentID, fakeSAC.deleted[0], "the same sub agent that was created should be deleted")
 	})
 }
