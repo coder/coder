@@ -124,6 +124,7 @@ const TaskPage = () => {
 					<WorkspaceBuildProgress
 						workspace={task.workspace}
 						transitionStats={transition}
+						stack={true}
 					/>
 				</div>
 			</div>

@@ -62,11 +62,14 @@ const estimateFinish = (
 interface WorkspaceBuildProgressProps {
 	workspace: Workspace;
 	transitionStats: TransitionStats;
+	// stack indicates to stack the text vertically, otherwise put it on one line.
+	stack?: boolean;
 }
 
 export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 	workspace,
 	transitionStats,
+	stack,
 }) => {
 	const job = workspace.latest_build.job;
 	const [progressValue, setProgressValue] = useState<number | undefined>(0);
@@ -131,7 +134,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 				// is not indicative of true progress.
 				classes={{ bar: classNames.bar }}
 			/>
-			<div css={styles.barHelpers}>
+			<div className={stack ? "leading-tight mt-1" : "flex mt-1 justify-between"}>
 				<div css={styles.label}>
 					{capitalize(workspace.latest_build.status)} workspace...
 				</div>
@@ -153,11 +156,6 @@ const styles = {
 	stack: {
 		paddingLeft: 2,
 		paddingRight: 2,
-	},
-	barHelpers: {
-		display: "flex",
-		justifyContent: "space-between",
-		marginTop: 4,
 	},
 	label: (theme) => ({
 		fontSize: 12,
