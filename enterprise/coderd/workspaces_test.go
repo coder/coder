@@ -260,6 +260,59 @@ func TestCreateUserWorkspace(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
+					codersdk.FeatureCustomRoles:  1,
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // using owner to setup roles
+		r, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
+			Name:           "creator",
+			OrganizationID: first.OrganizationID.String(),
+			DisplayName:    "Creator",
+			OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace:          {codersdk.ActionCreate, codersdk.ActionWorkspaceStart, codersdk.ActionUpdate, codersdk.ActionRead},
+				codersdk.ResourceOrganizationMember: {codersdk.ActionRead},
+			}),
+		})
+		require.NoError(t, err)
+
+		// use admin for setting up test
+		admin, adminID := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleTemplateAdmin())
+
+		// try the test action with this user & custom role
+		creator, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleMember(), rbac.RoleIdentifier{
+			Name:           r.Name,
+			OrganizationID: first.OrganizationID,
+		})
+
+		template, _ := coderdtest.DynamicParameterTemplate(t, admin, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{})
+
+		ctx = testutil.Context(t, testutil.WaitLong*1000) // Reset the context to avoid timeouts.
+
+		wrk, err := creator.CreateUserWorkspace(ctx, adminID.ID.String(), codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "workspace",
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, admin, wrk.LatestBuild.ID)
+
+		_, err = creator.WorkspaceByOwnerAndName(ctx, adminID.Username, wrk.Name, codersdk.WorkspaceOptions{
+			IncludeDeleted: false,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("ForANonOrgMember", func(t *testing.T) {
+		t.Parallel()
+
+		owner, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
 					codersdk.FeatureCustomRoles:           1,
 					codersdk.FeatureTemplateRBAC:          1,
 					codersdk.FeatureMultipleOrganizations: 1,
@@ -279,23 +332,24 @@ func TestCreateUserWorkspace(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		secondOrg := coderdenttest.CreateOrganization(t, owner, coderdenttest.CreateOrganizationOptions{})
-
 		// user to make the workspace for, **note** the user is not a member of the first org.
 		// This is strange, but technically valid. The creator can create a workspace for
 		// this user in this org, even though the user cannot access the workspace.
+		secondOrg := coderdenttest.CreateOrganization(t, owner, coderdenttest.CreateOrganizationOptions{})
 		_, forUser := coderdtest.CreateAnotherUser(t, owner, secondOrg.ID)
 
-		// Need an admin to make the template
-		admin, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(first.OrganizationID))
-
 		// try the test action with this user & custom role
-		creator, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleMember(), rbac.RoleIdentifier{
-			Name:           r.Name,
-			OrganizationID: first.OrganizationID,
-		})
+		creator, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleMember(),
+			rbac.RoleTemplateAdmin(), // Need site wide access to make workspace for non-org
+			rbac.RoleIdentifier{
+				Name:           r.Name,
+				OrganizationID: first.OrganizationID,
+			},
+		)
 
-		template, _ := coderdtest.DynamicParameterTemplate(t, admin, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{})
+		version := coderdtest.CreateTemplateVersion(t, creator, first.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, creator, version.ID)
+		template := coderdtest.CreateTemplate(t, creator, first.OrganizationID, version.ID)
 
 		ctx = testutil.Context(t, testutil.WaitLong*1000) // Reset the context to avoid timeouts.
 
