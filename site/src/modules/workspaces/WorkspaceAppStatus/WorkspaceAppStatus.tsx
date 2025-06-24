@@ -7,7 +7,6 @@ import {
 } from "components/Tooltip/Tooltip";
 import capitalize from "lodash/capitalize";
 import { AppStatusStateIcon } from "modules/apps/AppStatusStateIcon";
-import { cn } from "utils/cn";
 
 type WorkspaceAppStatusProps = {
 	status: APIWorkspaceAppStatus | null;
@@ -37,9 +36,6 @@ export const WorkspaceAppStatus = ({
 								latest
 								disabled={disabled}
 								state={status.state}
-								className={cn({
-									"text-content-disabled": disabled,
-								})}
 							/>
 							<span className="whitespace-nowrap max-w-72 overflow-hidden text-ellipsis text-sm text-content-primary font-medium">
 								{message}
