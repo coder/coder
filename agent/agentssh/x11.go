@@ -37,11 +37,29 @@ const (
 	X11MaxPort = X11StartPort + X11MaxDisplays
 )
 
+// X11Network abstracts the creation of network listeners for X11 forwarding.
+// It is intended mainly for testing; production code uses the default
+// implementation backed by the operating system networking stack.
+type X11Network interface {
+	Listen(network, address string) (net.Listener, error)
+}
+
+// osNet is the default X11Network implementation that uses the standard
+// library network stack.
+type osNet struct{}
+
+func (osNet) Listen(network, address string) (net.Listener, error) {
+	return net.Listen(network, address)
+}
+
 type x11Forwarder struct {
 	logger           slog.Logger
 	x11HandlerErrors *prometheus.CounterVec
 	fs               afero.Fs
 	displayOffset    int
+
+	// network creates X11 listener sockets. Defaults to osNet{}.
+	network X11Network
 
 	mu          sync.Mutex
 	sessions    map[*x11Session]struct{}
@@ -147,26 +165,27 @@ func (x *x11Forwarder) listenForConnections(
 			x.closeAndRemoveSession(session)
 		}
 
-		tcpConn, ok := conn.(*net.TCPConn)
-		if !ok {
-			x.logger.Warn(ctx, fmt.Sprintf("failed to cast connection to TCPConn. got: %T", conn))
-			_ = conn.Close()
-			continue
+		var originAddr string
+		var originPort uint32
+
+		if tcpConn, ok := conn.(*net.TCPConn); ok {
+			if tcpAddr, ok := tcpConn.LocalAddr().(*net.TCPAddr); ok {
+				originAddr = tcpAddr.IP.String()
+				// #nosec G115 - Safe conversion as TCP port numbers are within uint32 range (0-65535)
+				originPort = uint32(tcpAddr.Port)
+			}
 		}
-		tcpAddr, ok := tcpConn.LocalAddr().(*net.TCPAddr)
-		if !ok {
-			x.logger.Warn(ctx, fmt.Sprintf("failed to cast local address to TCPAddr. got: %T", tcpConn.LocalAddr()))
-			_ = conn.Close()
-			continue
+		// Fallback values for in-memory or non-TCP connections.
+		if originAddr == "" {
+			originAddr = "127.0.0.1"
 		}
 
 		channel, reqs, err := serverConn.OpenChannel("x11", gossh.Marshal(struct {
 			OriginatorAddress string
 			OriginatorPort    uint32
 		}{
-			OriginatorAddress: tcpAddr.IP.String(),
-			// #nosec G115 - Safe conversion as TCP port numbers are within uint32 range (0-65535)
-			OriginatorPort: uint32(tcpAddr.Port),
+			OriginatorAddress: originAddr,
+			OriginatorPort:    originPort,
 		}))
 		if err != nil {
 			x.logger.Warn(ctx, "failed to open X11 channel", slog.Error(err))
@@ -287,13 +306,13 @@ func (x *x11Forwarder) evictLeastRecentlyUsedSession() {
 // createX11Listener creates a listener for X11 forwarding, it will use
 // the next available port starting from X11StartPort and displayOffset.
 func (x *x11Forwarder) createX11Listener(ctx context.Context) (ln net.Listener, display int, err error) {
-	var lc net.ListenConfig
 	// Look for an open port to listen on.
 	for port := X11StartPort + x.displayOffset; port <= X11MaxPort; port++ {
 		if ctx.Err() != nil {
 			return nil, -1, ctx.Err()
 		}
-		ln, err = lc.Listen(ctx, "tcp", fmt.Sprintf("localhost:%d", port))
+
+		ln, err = x.network.Listen("tcp", fmt.Sprintf("localhost:%d", port))
 		if err == nil {
 			display = port - X11StartPort
 			return ln, display, nil
