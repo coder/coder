@@ -41,7 +41,8 @@ const (
 	// read-write, which seems sensible for devcontainers.
 	coderPathInsideContainer = "/.coder-agent/coder"
 
-	maxAgentNameLength = 64
+	maxAgentNameLength     = 64
+	maxAttemptsToNameAgent = 5
 )
 
 // API is responsible for container-related operations in the agent.
@@ -592,16 +593,7 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 				// folder's name. If it is not possible to generate a valid
 				// agent name based off of the folder name (i.e. no valid characters),
 				// we will instead fall back to using the container's friendly name.
-				dc.Name, api.usingWorkspaceFolderName[dc.WorkspaceFolder] = safeAgentName(path.Base(filepath.ToSlash(dc.WorkspaceFolder)), dc.Container.FriendlyName)
-
-				// If we have accidentally picked a name that is already
-				// defined by terraform, we'll need to force a fallback
-				// to the friendly name. The odds of a collision here are
-				// incredibly slim so this should be fine.
-				if api.devcontainerNames[dc.Name] {
-					dc.Name = safeFriendlyName(dc.Container.FriendlyName)
-					delete(api.usingWorkspaceFolderName, dc.WorkspaceFolder)
-				}
+				dc.Name, api.usingWorkspaceFolderName[dc.WorkspaceFolder] = api.makeAgentName(dc.WorkspaceFolder, dc.Container.FriendlyName)
 			}
 		}
 
@@ -693,8 +685,10 @@ func safeFriendlyName(name string) string {
 }
 
 // expandedAgentName creates an agent name by including parent directories
-// from the workspace folder path to avoid name collisions.
-func expandedAgentName(workspaceFolder string, friendlyName string, depth int) string {
+// from the workspace folder path to avoid name collisions. Like `safeAgentName`,
+// the second returned value will be true if using the workspace folder name,
+// and false if it fell back to the friendly name.
+func expandedAgentName(workspaceFolder string, friendlyName string, depth int) (string, bool) {
 	var parts []string
 	for part := range strings.SplitSeq(filepath.ToSlash(workspaceFolder), "/") {
 		if part = strings.TrimSpace(part); part != "" {
@@ -702,14 +696,33 @@ func expandedAgentName(workspaceFolder string, friendlyName string, depth int) s
 		}
 	}
 	if len(parts) == 0 {
-		return safeFriendlyName(friendlyName)
+		return safeFriendlyName(friendlyName), false
 	}
 
 	components := parts[max(0, len(parts)-depth-1):]
 	expanded := strings.Join(components, "-")
-	agentName, _ := safeAgentName(expanded, friendlyName)
 
-	return agentName
+	return safeAgentName(expanded, friendlyName)
+}
+
+// makeAgentName attempts to create an agent name. It will first attempt to create an
+// agent name based off of the workspace folder, and will eventually fallback to a
+// friendly name. Like `safeAgentName`, the second returned value will be true if the
+// agent name utilises the workspace folder, and false if it falls back to the
+// friendly name.
+func (api *API) makeAgentName(workspaceFolder string, friendlyName string) (string, bool) {
+	for attempt := 0; attempt <= maxAttemptsToNameAgent; attempt++ {
+		agentName, usingWorkspaceFolder := expandedAgentName(workspaceFolder, friendlyName, attempt)
+		if !usingWorkspaceFolder {
+			return agentName, false
+		}
+
+		if !api.devcontainerNames[agentName] {
+			return agentName, true
+		}
+	}
+
+	return safeFriendlyName(friendlyName), false
 }
 
 // RefreshContainers triggers an immediate update of the container list
@@ -1319,11 +1332,14 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		client := *api.subAgentClient.Load()
 
 		originalName := subAgentConfig.Name
-		maxAttempts := 5
 
-		for attempt := 1; attempt <= maxAttempts; attempt++ {
+		for attempt := 1; attempt <= maxAttemptsToNameAgent; attempt++ {
 			if proc.agent, err = client.Create(ctx, subAgentConfig); err == nil {
-				delete(api.usingWorkspaceFolderName, dc.WorkspaceFolder)
+				if api.usingWorkspaceFolderName[dc.WorkspaceFolder] {
+					api.devcontainerNames[dc.Name] = true
+					delete(api.usingWorkspaceFolderName, dc.WorkspaceFolder)
+				}
+
 				break
 			}
 
@@ -1345,14 +1361,14 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				return xerrors.Errorf("create subagent failed: %w", err)
 			}
 
-			if attempt == maxAttempts {
+			if attempt == maxAttemptsToNameAgent {
 				return xerrors.Errorf("create subagent failed after %d attempts: %w", attempt, err)
 			}
 
 			// We increase how much of the workspace folder is used for generating
 			// the agent name. With each iteration there is greater chance of this
 			// being successful.
-			subAgentConfig.Name = expandedAgentName(dc.WorkspaceFolder, dc.Container.FriendlyName, attempt)
+			subAgentConfig.Name, api.usingWorkspaceFolderName[dc.WorkspaceFolder] = expandedAgentName(dc.WorkspaceFolder, dc.Container.FriendlyName, attempt)
 
 			logger.Debug(ctx, "retrying subagent creation with expanded name",
 				slog.F("original_name", originalName),
