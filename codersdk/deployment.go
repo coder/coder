@@ -1521,7 +1521,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value: &c.DERP.Config.BlockDirect,
 			Group: &deploymentGroupNetworkingDERP,
 			YAML:  "blockDirect", Annotations: serpent.Annotations{}.
-				Mark(annotationExternalProxies, "true"),
+			Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "DERP Force WebSockets",
@@ -3380,7 +3380,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentWebPush,
 	ExperimentWorkspacePrebuilds,
 	ExperimentAgenticChat,
-	ExperimentAITasks,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

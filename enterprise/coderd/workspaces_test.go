@@ -260,8 +260,9 @@ func TestCreateUserWorkspace(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureCustomRoles:  1,
-					codersdk.FeatureTemplateRBAC: 1,
+					codersdk.FeatureCustomRoles:           1,
+					codersdk.FeatureTemplateRBAC:          1,
+					codersdk.FeatureMultipleOrganizations: 1,
 				},
 			},
 		})
@@ -277,9 +278,13 @@ func TestCreateUserWorkspace(t *testing.T) {
 			}),
 		})
 		require.NoError(t, err)
+		secondOrg := coderdenttest.CreateOrganization(t, owner, coderdenttest.CreateOrganizationOptions{})
 
 		// use admin for setting up test
-		admin, adminID := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleTemplateAdmin())
+		admin, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleTemplateAdmin())
+
+		// user to make the workspace for, **note** the user is not a member of the first org.
+		_, forUser := coderdtest.CreateAnotherUser(t, owner, secondOrg.ID)
 
 		// try the test action with this user & custom role
 		creator, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleMember(), rbac.RoleIdentifier{
@@ -293,14 +298,14 @@ func TestCreateUserWorkspace(t *testing.T) {
 
 		ctx = testutil.Context(t, testutil.WaitLong*1000) // Reset the context to avoid timeouts.
 
-		wrk, err := creator.CreateUserWorkspace(ctx, adminID.ID.String(), codersdk.CreateWorkspaceRequest{
+		wrk, err := creator.CreateUserWorkspace(ctx, forUser.ID.String(), codersdk.CreateWorkspaceRequest{
 			TemplateID: template.ID,
 			Name:       "workspace",
 		})
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, admin, wrk.LatestBuild.ID)
 
-		_, err = creator.WorkspaceByOwnerAndName(ctx, adminID.Username, wrk.Name, codersdk.WorkspaceOptions{
+		_, err = creator.WorkspaceByOwnerAndName(ctx, forUser.Username, wrk.Name, codersdk.WorkspaceOptions{
 			IncludeDeleted: false,
 		})
 		require.NoError(t, err)
