@@ -587,8 +587,8 @@ jobs:
         # We only use the embedded Postgres cache on macOS and Windows runners.
         if: runner.OS == 'macOS' || runner.OS == 'Windows'
         with:
-          cache-key: ${{ steps.download-embedded-pg.outputs.cache-key }}
-          cache-path: ${{ steps.download-embedded-pg-cache.outputs.cached-dirs }}
+          cache-key: ${{ steps.download-embedded-pg-cache.outputs.cache-key }}
+          cache-path: "${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}"
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
