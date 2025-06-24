@@ -18,6 +18,14 @@ export interface AIProviderConfig {
 	readonly base_url: string;
 }
 
+// From codersdk/aitasks.go
+export const AITaskPromptParameterName = "AI Prompt";
+
+// From codersdk/aitasks.go
+export interface AITasksPromptsResponse {
+	readonly prompts: Record<string, string>;
+}
+
 // From codersdk/apikey.go
 export interface APIKey {
 	readonly id: string;
