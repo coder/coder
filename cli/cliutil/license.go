@@ -12,14 +12,9 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// LicenseFormatterOpts are options for the license formatter.
-type LicenseFormatterOpts struct {
-	Sanitize bool // If true, the UUID of the license will be redacted.
-}
-
 // NewLicenseFormatter returns a new license formatter.
 // The formatter will return a table and JSON output.
-func NewLicenseFormatter(opts LicenseFormatterOpts) *cliui.OutputFormatter {
+func NewLicenseFormatter() *cliui.OutputFormatter {
 	type tableLicense struct {
 		ID         int32     `table:"id,default_sort"`
 		UUID       uuid.UUID `table:"uuid" format:"uuid"`
@@ -62,11 +57,6 @@ func NewLicenseFormatter(opts LicenseFormatterOpts) *cliui.OutputFormatter {
 					}
 					// If this returns an error, a zero time is returned.
 					exp, _ := lic.ExpiresAt()
-
-					// If sanitize is true, we redact the UUID.
-					if opts.Sanitize {
-						lic.UUID = uuid.Nil
-					}
 
 					out = append(out, tableLicense{
 						ID:         lic.ID,

@@ -51,7 +51,7 @@ var supportBundleBlurb = cliui.Bold("This will collect the following information
   - Agent details (with environment variable sanitized)
   - Agent network diagnostics
   - Agent logs
-  - License status (sanitized)
+  - License status
 ` + cliui.Bold("Note: ") +
 	cliui.Wrap("While we try to sanitize sensitive data from support bundles, we cannot guarantee that they do not contain information that you or your organization may consider sensitive.\n") +
 	cliui.Bold("Please confirm that you will:\n") +
@@ -371,9 +371,7 @@ func humanizeBuildLogs(ls []codersdk.ProvisionerJobLog) string {
 }
 
 func humanizeLicenses(licenses []codersdk.License) (string, error) {
-	formatter := cliutil.NewLicenseFormatter(cliutil.LicenseFormatterOpts{
-		Sanitize: true,
-	})
+	formatter := cliutil.NewLicenseFormatter()
 
 	if len(licenses) == 0 {
 		return "No licenses found", nil

@@ -136,7 +136,7 @@ func validJWT(s string) error {
 }
 
 func (r *RootCmd) licensesList() *serpent.Command {
-	formatter := cliutil.NewLicenseFormatter(cliutil.LicenseFormatterOpts{})
+	formatter := cliutil.NewLicenseFormatter()
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:     "list",
