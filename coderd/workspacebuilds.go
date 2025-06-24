@@ -396,10 +396,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 				}
 				// Special handling for prebuilt workspace deletion
 				if action == policy.ActionDelete {
-					if workspaceObj, ok := object.(interface {
-						IsPrebuild() bool
-						AsPrebuild() rbac.Object
-					}); ok && workspaceObj.IsPrebuild() {
+					if workspaceObj, ok := object.(database.PrebuiltWorkspaceResource); ok && workspaceObj.IsPrebuild() {
 						return api.Authorize(r, action, workspaceObj.AsPrebuild())
 					}
 				}
