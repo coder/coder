@@ -51,6 +51,7 @@ const (
 type API struct {
 	ctx                         context.Context
 	cancel                      context.CancelFunc
+	initialized                 chan struct{}
 	watcherDone                 chan struct{}
 	updaterDone                 chan struct{}
 	initialUpdateDone           chan struct{}   // Closed after first update in updaterLoop.
@@ -265,6 +266,7 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 	api := &API{
 		ctx:                         ctx,
 		cancel:                      cancel,
+		initialized:                 make(chan struct{}),
 		watcherDone:                 make(chan struct{}),
 		updaterDone:                 make(chan struct{}),
 		initialUpdateDone:           make(chan struct{}),
@@ -315,10 +317,24 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 		api.subAgentClient.Store(&c)
 	}
 
-	go api.watcherLoop()
-	go api.updaterLoop()
+	go func() {
+		select {
+		case <-api.ctx.Done():
+			break
+		case <-api.initialized:
+			go api.watcherLoop()
+			go api.updaterLoop()
+		}
+	}()
 
 	return api
+}
+
+func (api *API) Init(opts ...Option) {
+	for _, opt := range opts {
+		opt(api)
+	}
+	close(api.initialized)
 }
 
 func (api *API) watcherLoop() {

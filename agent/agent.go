@@ -279,7 +279,7 @@ type agent struct {
 
 	devcontainers       bool
 	containerAPIOptions []agentcontainers.Option
-	containerAPI        atomic.Pointer[agentcontainers.API]
+	containerAPI        *agentcontainers.API
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -335,6 +335,17 @@ func (a *agent) init() {
 	// Register runner metrics. If the prom registry is nil, the metrics
 	// will not report anywhere.
 	a.scriptRunner.RegisterMetrics(a.prometheusRegistry)
+
+	containerAPIOpts := []agentcontainers.Option{
+		agentcontainers.WithExecer(a.execer),
+		agentcontainers.WithCommandEnv(a.sshServer.CommandEnv),
+		agentcontainers.WithScriptLogger(func(logSourceID uuid.UUID) agentcontainers.ScriptLogger {
+			return a.logSender.GetScriptLogger(logSourceID)
+		}),
+	}
+	containerAPIOpts = append(containerAPIOpts, a.containerAPIOptions...)
+
+	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
@@ -1152,19 +1163,11 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				devcontainerScripts map[uuid.UUID]codersdk.WorkspaceAgentScript
 			)
 			if a.devcontainers {
-				containerAPIOpts := []agentcontainers.Option{
-					agentcontainers.WithExecer(a.execer),
-					agentcontainers.WithCommandEnv(a.sshServer.CommandEnv),
-					agentcontainers.WithScriptLogger(func(logSourceID uuid.UUID) agentcontainers.ScriptLogger {
-						return a.logSender.GetScriptLogger(logSourceID)
-					}),
+				a.containerAPI.Init(
 					agentcontainers.WithManifestInfo(manifest.OwnerName, manifest.WorkspaceName),
 					agentcontainers.WithDevcontainers(manifest.Devcontainers, scripts),
 					agentcontainers.WithSubAgentClient(agentcontainers.NewSubAgentClientFromAPI(a.logger, aAPI)),
-				}
-				containerAPIOpts = append(containerAPIOpts, a.containerAPIOptions...)
-
-				a.containerAPI.Store(agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...))
+				)
 
 				scripts, devcontainerScripts = agentcontainers.ExtractDevcontainerScripts(manifest.Devcontainers, scripts)
 			}
@@ -1186,11 +1189,9 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// autostarted devcontainer will be included in this time.
 				err := a.scriptRunner.Execute(a.gracefulCtx, agentscripts.ExecuteStartScripts)
 
-				if cAPI := a.containerAPI.Load(); cAPI != nil {
-					for _, dc := range manifest.Devcontainers {
-						cErr := a.createDevcontainer(ctx, cAPI, aAPI, dc, devcontainerScripts[dc.ID])
-						err = errors.Join(err, cErr)
-					}
+				for _, dc := range manifest.Devcontainers {
+					cErr := a.createDevcontainer(ctx, aAPI, dc, devcontainerScripts[dc.ID])
+					err = errors.Join(err, cErr)
 				}
 
 				dur := time.Since(start).Seconds()
@@ -1211,14 +1212,6 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 				a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 				a.scriptRunner.StartCron()
-
-				// If the container API is enabled, trigger an immediate refresh
-				// for quick sub agent injection.
-				if cAPI := a.containerAPI.Load(); cAPI != nil {
-					if err := cAPI.RefreshContainers(ctx); err != nil {
-						a.logger.Error(ctx, "failed to refresh containers", slog.Error(err))
-					}
-				}
 			})
 			if err != nil {
 				return xerrors.Errorf("track conn goroutine: %w", err)
@@ -1230,7 +1223,6 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 
 func (a *agent) createDevcontainer(
 	ctx context.Context,
-	cAPI *agentcontainers.API,
 	aAPI proto.DRPCAgentClient26,
 	dc codersdk.WorkspaceAgentDevcontainer,
 	script codersdk.WorkspaceAgentScript,
@@ -1240,7 +1232,7 @@ func (a *agent) createDevcontainer(
 		startTime = a.clock.Now()
 		status    = proto.Timing_OK
 	)
-	if err = cAPI.CreateDevcontainer(dc); err != nil {
+	if err = a.containerAPI.CreateDevcontainer(dc); err != nil {
 		exitCode = 1
 		status = proto.Timing_EXIT_FAILURE
 	}
@@ -1318,10 +1310,8 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 			network.SetBlockEndpoints(manifest.DisableDirectConnections)
 
 			// Update the subagent client if the container API is available.
-			if cAPI := a.containerAPI.Load(); cAPI != nil {
-				client := agentcontainers.NewSubAgentClientFromAPI(a.logger, aAPI)
-				cAPI.UpdateSubAgentClient(client)
-			}
+			client := agentcontainers.NewSubAgentClientFromAPI(a.logger, aAPI)
+			a.containerAPI.UpdateSubAgentClient(client)
 		}
 		return nil
 	}
@@ -1570,10 +1560,7 @@ func (a *agent) createTailnet(
 	}()
 	if err = a.trackGoroutine(func() {
 		defer apiListener.Close()
-		apiHandler, closeAPIHAndler := a.apiHandler()
-		defer func() {
-			_ = closeAPIHAndler()
-		}()
+		apiHandler := a.apiHandler()
 		server := &http.Server{
 			BaseContext:       func(net.Listener) context.Context { return ctx },
 			Handler:           apiHandler,
@@ -1587,7 +1574,6 @@ func (a *agent) createTailnet(
 			case <-ctx.Done():
 			case <-a.hardCtx.Done():
 			}
-			_ = closeAPIHAndler()
 			_ = server.Close()
 		}()
 
@@ -1924,6 +1910,10 @@ func (a *agent) Close() error {
 	err = a.scriptRunner.Close()
 	if err != nil {
 		a.logger.Error(a.hardCtx, "script runner close", slog.Error(err))
+	}
+
+	if err := a.containerAPI.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
 	}
 
 	// Wait for the graceful shutdown to complete, but don't wait forever so

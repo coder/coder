@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (a *agent) apiHandler() (http.Handler, func() error) {
+func (a *agent) apiHandler() http.Handler {
 	r := chi.NewRouter()
 	r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
@@ -37,9 +37,7 @@ func (a *agent) apiHandler() (http.Handler, func() error) {
 	}
 
 	if a.devcontainers {
-		if cAPI := a.containerAPI.Load(); cAPI != nil {
-			r.Mount("/api/v0/containers", cAPI.Routes())
-		}
+		r.Mount("/api/v0/containers", a.containerAPI.Routes())
 	} else {
 		r.HandleFunc("/api/v0/containers", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(r.Context(), w, http.StatusForbidden, codersdk.Response{
@@ -60,12 +58,7 @@ func (a *agent) apiHandler() (http.Handler, func() error) {
 	r.Get("/debug/manifest", a.HandleHTTPDebugManifest)
 	r.Get("/debug/prometheus", promHandler.ServeHTTP)
 
-	return r, func() error {
-		if containerAPI := a.containerAPI.Load(); containerAPI != nil {
-			return containerAPI.Close()
-		}
-		return nil
-	}
+	return r
 }
 
 type listeningPortsHandler struct {
