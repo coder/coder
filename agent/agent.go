@@ -1238,9 +1238,11 @@ func (a *agent) createDevcontainer(
 	var (
 		exitCode  = int32(0)
 		startTime = a.clock.Now()
+		status    = proto.Timing_OK
 	)
 	if err = cAPI.CreateDevcontainer(dc); err != nil {
 		exitCode = 1
+		status = proto.Timing_EXIT_FAILURE
 	}
 	endTime := a.clock.Now()
 
@@ -1251,6 +1253,7 @@ func (a *agent) createDevcontainer(
 			End:      timestamppb.New(endTime),
 			ExitCode: exitCode,
 			Stage:    proto.Timing_START,
+			Status:   status,
 		},
 	}); scriptErr != nil {
 		a.logger.Warn(ctx, "reporting script completed failed", slog.Error(scriptErr))
