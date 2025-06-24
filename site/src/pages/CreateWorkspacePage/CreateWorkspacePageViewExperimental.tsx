@@ -190,13 +190,25 @@ export const CreateWorkspacePageViewExperimental: FC<
 		setPresetOptions([
 			{ label: "None", value: "None" },
 			...presets.map((preset) => ({
-				label: preset.Name,
+				label: preset.Default ? `${preset.Name} (Default)` : preset.Name,
 				value: preset.ID,
 			})),
 		]);
 	}, [presets]);
 
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
+
+	// Set default preset when presets are loaded
+	useEffect(() => {
+		const defaultPreset = presets.find((preset) => preset.Default);
+		if (defaultPreset) {
+			// +1 because "None" is at index 0
+			const defaultIndex =
+				presets.findIndex((preset) => preset.ID === defaultPreset.ID) + 1;
+			setSelectedPresetIndex(defaultIndex);
+		}
+	}, [presets]);
+
 	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
 		[],
 	);
@@ -555,6 +567,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 									<div className="flex flex-col gap-4">
 										<div className="max-w-lg">
 											<Select
+												value={presetOptions[selectedPresetIndex]?.value}
 												onValueChange={(option) => {
 													const index = presetOptions.findIndex(
 														(preset) => preset.value === option,

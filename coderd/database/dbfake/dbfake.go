@@ -416,6 +416,7 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 			DesiredInstances:    preset.DesiredInstances,
 			InvalidateAfterSecs: preset.InvalidateAfterSecs,
 			SchedulingTimezone:  preset.SchedulingTimezone,
+			IsDefault:           false,
 		})
 	}
 

@@ -161,6 +161,7 @@ export interface Preset {
   name: string;
   parameters: PresetParameter[];
   prebuild: Prebuild | undefined;
+  default: boolean;
 }
 
 export interface PresetParameter {
@@ -691,6 +692,9 @@ export const Preset = {
     }
     if (message.prebuild !== undefined) {
       Prebuild.encode(message.prebuild, writer.uint32(26).fork()).ldelim();
+    }
+    if (message.default === true) {
+      writer.uint32(32).bool(message.default);
     }
     return writer;
   },

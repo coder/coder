@@ -1513,7 +1513,8 @@ CREATE TABLE template_version_presets (
     desired_instances integer,
     invalidate_after_secs integer DEFAULT 0,
     prebuild_status prebuild_status DEFAULT 'healthy'::prebuild_status NOT NULL,
-    scheduling_timezone text DEFAULT ''::text NOT NULL
+    scheduling_timezone text DEFAULT ''::text NOT NULL,
+    is_default boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE template_version_terraform_values (
@@ -2689,6 +2690,8 @@ CREATE INDEX idx_tailnet_peers_coordinator ON tailnet_peers USING btree (coordin
 CREATE INDEX idx_tailnet_tunnels_dst_id ON tailnet_tunnels USING hash (dst_id);
 
 CREATE INDEX idx_tailnet_tunnels_src_id ON tailnet_tunnels USING hash (src_id);
+
+CREATE UNIQUE INDEX idx_template_version_presets_default ON template_version_presets USING btree (template_version_id) WHERE (is_default = true);
 
 CREATE INDEX idx_template_versions_has_ai_task ON template_versions USING btree (has_ai_task);
 

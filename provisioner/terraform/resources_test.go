@@ -18,6 +18,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/testutil"
 
 	"github.com/coder/coder/v2/cryptorand"
@@ -1321,6 +1322,80 @@ func TestParameterValidation(t *testing.T) {
 	require.Nil(t, state)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "coder_parameter names must be unique but \"identical-0\", \"identical-1\" and \"identical-2\" appear multiple times")
+}
+
+func TestDefaultPresets(t *testing.T) {
+	t.Parallel()
+
+	// nolint:dogsled
+	_, filename, _, _ := runtime.Caller(0)
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "resources")
+
+	cases := map[string]struct {
+		fixtureFile string
+		expectError bool
+		errorMsg    string
+		validate    func(t *testing.T, state *terraform.State)
+	}{
+		"multiple defaults should fail": {
+			fixtureFile: "presets-multiple-defaults",
+			expectError: true,
+			errorMsg:    "a maximum of 1 coder_workspace_preset can be marked as default, but 2 are set",
+		},
+		"single default should succeed": {
+			fixtureFile: "presets-single-default",
+			expectError: false,
+			validate: func(t *testing.T, state *terraform.State) {
+				require.Len(t, state.Presets, 2)
+				var defaultCount int
+				for _, preset := range state.Presets {
+					if preset.Default {
+						defaultCount++
+						require.Equal(t, "development", preset.Name)
+					}
+				}
+				require.Equal(t, 1, defaultCount)
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx, logger := ctxAndLogger(t)
+
+			tfPlanRaw, err := os.ReadFile(filepath.Join(dir, tc.fixtureFile, tc.fixtureFile+".tfplan.json"))
+			require.NoError(t, err)
+			var tfPlan tfjson.Plan
+			err = json.Unmarshal(tfPlanRaw, &tfPlan)
+			require.NoError(t, err)
+			tfPlanGraph, err := os.ReadFile(filepath.Join(dir, tc.fixtureFile, tc.fixtureFile+".tfplan.dot"))
+			require.NoError(t, err)
+
+			modules := []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}
+			if tfPlan.PriorState != nil {
+				modules = append(modules, tfPlan.PriorState.Values.RootModule)
+			} else {
+				modules = append(modules, tfPlan.PlannedValues.RootModule)
+			}
+			state, err := terraform.ConvertState(ctx, modules, string(tfPlanGraph), logger)
+
+			if tc.expectError {
+				require.Error(t, err)
+				require.Nil(t, state)
+				if tc.errorMsg != "" {
+					require.ErrorContains(t, err, tc.errorMsg)
+				}
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, state)
+				if tc.validate != nil {
+					tc.validate(t, state)
+				}
+			}
+		})
+	}
 }
 
 func TestInstanceTypeAssociation(t *testing.T) {

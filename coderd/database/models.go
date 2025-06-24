@@ -3414,6 +3414,7 @@ type TemplateVersionPreset struct {
 	InvalidateAfterSecs sql.NullInt32  `db:"invalidate_after_secs" json:"invalidate_after_secs"`
 	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
 	SchedulingTimezone  string         `db:"scheduling_timezone" json:"scheduling_timezone"`
+	IsDefault           bool           `db:"is_default" json:"is_default"`
 }
 
 type TemplateVersionPresetParameter struct {

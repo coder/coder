@@ -1830,6 +1830,7 @@ export interface Preset {
 	readonly ID: string;
 	readonly Name: string;
 	readonly Parameters: readonly PresetParameter[];
+	readonly Default: boolean;
 }
 
 // From codersdk/presets.go

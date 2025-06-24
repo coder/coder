@@ -125,6 +125,7 @@ export const PresetsButNoneSelected: Story = {
 			{
 				ID: "preset-1",
 				Name: "Preset 1",
+				Default: false,
 				Parameters: [
 					{
 						Name: MockTemplateVersionParameter1.name,
@@ -135,6 +136,7 @@ export const PresetsButNoneSelected: Story = {
 			{
 				ID: "preset-2",
 				Name: "Preset 2",
+				Default: false,
 				Parameters: [
 					{
 						Name: MockTemplateVersionParameter2.name,
@@ -238,6 +240,45 @@ export const PresetNoneSelected: Story = {
 					"This story tests that when 'None' preset is selected, the template_version_preset_id field is not included in the form submission. The story first selects a preset to set the field value, then selects 'None' to unset it, and finally submits the form to verify the API call behavior.",
 			},
 		},
+	},
+};
+
+export const PresetsWithDefault: Story = {
+	args: {
+		presets: [
+			{
+				ID: "preset-1",
+				Name: "Preset 1",
+				Default: false,
+				Parameters: [
+					{
+						Name: MockTemplateVersionParameter1.name,
+						Value: "preset 1 override",
+					},
+				],
+			},
+			{
+				ID: "preset-2",
+				Name: "Preset 2",
+				Default: true,
+				Parameters: [
+					{
+						Name: MockTemplateVersionParameter2.name,
+						Value: "150189",
+					},
+				],
+			},
+		],
+		parameters: [
+			MockTemplateVersionParameter1,
+			MockTemplateVersionParameter2,
+			MockTemplateVersionParameter3,
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Toggle off the show preset parameters switch
+		await userEvent.click(canvas.getByLabelText("Show preset parameters"));
 	},
 };
 

@@ -939,6 +939,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				ExpirationPolicy: expirationPolicy,
 				Scheduling:       scheduling,
 			},
+			Default: preset.Default,
 		}
 
 		if slice.Contains(duplicatedPresetNames, preset.Name) {
@@ -955,6 +956,17 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			"coder_workspace_preset names must be unique but %s appear%s multiple times",
 			stringutil.JoinWithConjunction(duplicatedPresetNames), s,
 		)
+	}
+
+	// Validate that only one preset is marked as default.
+	var defaultPresets int
+	for _, preset := range presets {
+		if preset.Default {
+			defaultPresets++
+		}
+	}
+	if defaultPresets > 1 {
+		return nil, xerrors.Errorf("a maximum of 1 coder_workspace_preset can be marked as default, but %d are set", defaultPresets)
 	}
 
 	// A map is used to ensure we don't have duplicates!
