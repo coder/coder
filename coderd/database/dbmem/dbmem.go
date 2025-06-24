@@ -8942,13 +8942,16 @@ func (q *FakeQuerier) InsertOAuth2ProviderAppCode(_ context.Context, arg databas
 	for _, app := range q.oauth2ProviderApps {
 		if app.ID == arg.AppID {
 			code := database.OAuth2ProviderAppCode{
-				ID:           arg.ID,
-				CreatedAt:    arg.CreatedAt,
-				ExpiresAt:    arg.ExpiresAt,
-				SecretPrefix: arg.SecretPrefix,
-				HashedSecret: arg.HashedSecret,
-				UserID:       arg.UserID,
-				AppID:        arg.AppID,
+				ID:                  arg.ID,
+				CreatedAt:           arg.CreatedAt,
+				ExpiresAt:           arg.ExpiresAt,
+				SecretPrefix:        arg.SecretPrefix,
+				HashedSecret:        arg.HashedSecret,
+				UserID:              arg.UserID,
+				AppID:               arg.AppID,
+				ResourceUri:         arg.ResourceUri,
+				CodeChallenge:       arg.CodeChallenge,
+				CodeChallengeMethod: arg.CodeChallengeMethod,
 			}
 			q.oauth2ProviderAppCodes = append(q.oauth2ProviderAppCodes, code)
 			return code, nil

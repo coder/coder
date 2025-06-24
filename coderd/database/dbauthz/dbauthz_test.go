@@ -5198,17 +5198,13 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 				HashPrefix:  []byte(fmt.Sprintf("%d", i)),
 			})
 		}
+		expectedApp := app
+		expectedApp.CreatedAt = createdAt
+		expectedApp.UpdatedAt = createdAt
 		check.Args(user.ID).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionRead).Returns([]database.GetOAuth2ProviderAppsByUserIDRow{
 			{
-				OAuth2ProviderApp: database.OAuth2ProviderApp{
-					ID:          app.ID,
-					CallbackURL: app.CallbackURL,
-					Icon:        app.Icon,
-					Name:        app.Name,
-					CreatedAt:   createdAt,
-					UpdatedAt:   createdAt,
-				},
-				TokenCount: 5,
+				OAuth2ProviderApp: expectedApp,
+				TokenCount:        5,
 			},
 		})
 	}))
@@ -5221,10 +5217,14 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		app.Name = "my-new-name"
 		app.UpdatedAt = dbtestutil.NowInDefaultTimezone()
 		check.Args(database.UpdateOAuth2ProviderAppByIDParams{
-			ID:          app.ID,
-			Name:        app.Name,
-			CallbackURL: app.CallbackURL,
-			UpdatedAt:   app.UpdatedAt,
+			ID:                    app.ID,
+			Name:                  app.Name,
+			Icon:                  app.Icon,
+			CallbackURL:           app.CallbackURL,
+			RedirectUris:          app.RedirectUris,
+			ClientType:            app.ClientType,
+			DynamicallyRegistered: app.DynamicallyRegistered,
+			UpdatedAt:             app.UpdatedAt,
 		}).Asserts(rbac.ResourceOauth2App, policy.ActionUpdate).Returns(app)
 	}))
 	s.Run("DeleteOAuth2ProviderAppByID", s.Subtest(func(db database.Store, check *expects) {
