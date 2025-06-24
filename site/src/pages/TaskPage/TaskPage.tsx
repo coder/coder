@@ -1,6 +1,6 @@
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
-import type { WorkspaceStatus } from "api/typesGenerated";
+import type { Workspace, WorkspaceStatus } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
@@ -164,7 +164,7 @@ const TaskPage = () => {
 	return (
 		<>
 			<Helmet>
-				<title>{pageTitle(ellipsizeText(task.prompt, 64)!)}</title>
+				<title>{pageTitle(ellipsizeText(task.prompt, 64) ?? "Task")}</title>
 			</Helmet>
 
 			<div className="h-full flex justify-stretch">
@@ -177,22 +177,34 @@ const TaskPage = () => {
 
 export default TaskPage;
 
+export class WorkspaceDoesNotHaveAITaskError extends Error {
+	constructor(workspace: Workspace) {
+		super(
+			`Workspace ${workspace.owner_name}/${workspace.name} is not running an AI task`,
+		);
+		this.name = "WorkspaceDoesNotHaveAITaskError";
+	}
+}
+
 export const data = {
 	fetchTask: async (workspaceOwnerUsername: string, workspaceName: string) => {
 		const workspace = await API.getWorkspaceByOwnerAndName(
 			workspaceOwnerUsername,
 			workspaceName,
 		);
+		if (
+			workspace.latest_build.job.completed_at &&
+			!workspace.latest_build.has_ai_task
+		) {
+			throw new WorkspaceDoesNotHaveAITaskError(workspace);
+		}
+
 		const parameters = await API.getWorkspaceBuildParameters(
 			workspace.latest_build.id,
 		);
-		const prompt = parameters.find(
-			(p) => p.name === AI_PROMPT_PARAMETER_NAME,
-		)?.value;
-
-		if (!prompt) {
-			return;
-		}
+		const prompt =
+			parameters.find((p) => p.name === AI_PROMPT_PARAMETER_NAME)?.value ??
+			"Unknown prompt";
 
 		return {
 			workspace,
