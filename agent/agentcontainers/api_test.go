@@ -30,7 +30,6 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
 	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
-	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty"
@@ -2141,27 +2140,32 @@ func TestSubAgentCreationWithNameRetry(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ccli := &fakeContainerCLI{arch: runtime.GOARCH}
-
-			logger := slogtest.Make(t, &slogtest.Options{})
-			subAgentClient := &fakeSubAgentClient{logger: logger, agents: make(map[uuid.UUID]agentcontainers.SubAgent)}
+			var (
+				ctx    = testutil.Context(t, testutil.WaitMedium)
+				logger = testutil.Logger(t)
+				mClock = quartz.NewMock(t)
+				fSAC   = &fakeSubAgentClient{logger: logger, agents: make(map[uuid.UUID]agentcontainers.SubAgent)}
+				ccli   = &fakeContainerCLI{arch: runtime.GOARCH}
+			)
 
 			for _, name := range tt.takenNames {
-				subAgentClient.agents[uuid.New()] = agentcontainers.SubAgent{Name: name}
+				fSAC.agents[uuid.New()] = agentcontainers.SubAgent{Name: name}
 			}
 
-			watcher := newFakeWatcher(t)
+			mClock.Set(time.Now()).MustWait(ctx)
+			tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
 
-			ctx := context.Background()
 			api := agentcontainers.NewAPI(logger,
-				agentcontainers.WithExecer(agentexec.DefaultExecer),
+				agentcontainers.WithClock(mClock),
 				agentcontainers.WithContainerCLI(ccli),
 				agentcontainers.WithDevcontainerCLI(&fakeDevcontainerCLI{}),
-				agentcontainers.WithSubAgentClient(subAgentClient),
-				agentcontainers.WithWatcher(watcher),
-				agentcontainers.WithManifestInfo("owner", "workspace"),
+				agentcontainers.WithSubAgentClient(fSAC),
+				agentcontainers.WithWatcher(watcher.NewNoop()),
 			)
 			defer api.Close()
+
+			tickerTrap.MustWait(ctx).MustRelease(ctx)
+			tickerTrap.Close()
 
 			for i, workspaceFolder := range tt.workspaceFolders {
 				ccli.containers.Containers = append(ccli.containers.Containers, newFakeContainer(
@@ -2175,10 +2179,10 @@ func TestSubAgentCreationWithNameRetry(t *testing.T) {
 			}
 
 			// Verify that both agents were created with expected names
-			require.Len(t, subAgentClient.created, len(tt.workspaceFolders))
+			require.Len(t, fSAC.created, len(tt.workspaceFolders))
 
-			actualNames := make([]string, len(subAgentClient.created))
-			for i, agent := range subAgentClient.created {
+			actualNames := make([]string, len(fSAC.created))
+			for i, agent := range fSAC.created {
 				actualNames[i] = agent.Name
 			}
 
