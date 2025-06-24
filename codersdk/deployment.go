@@ -3380,7 +3380,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentWebPush,
 	ExperimentWorkspacePrebuilds,
 	ExperimentAgenticChat,
-	ExperimentAITasks,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

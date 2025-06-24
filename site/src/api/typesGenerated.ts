@@ -843,7 +843,6 @@ export type Experiment =
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
-	"ai-tasks",
 	"agentic-chat",
 	"auto-fill-parameters",
 	"example",
