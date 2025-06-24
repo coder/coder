@@ -194,6 +194,11 @@ func (c *Cache) prepare(ctx context.Context, db database.Store, fileID uuid.UUID
 		hitLabel = "false"
 
 		var releaseOnce sync.Once
+		release := func() {
+			releaseOnce.Do(func() {
+				c.purge(fileID)
+			})
+		}
 		entry = &cacheEntry{
 			refCount: 0,
 			value: lazy.NewWithError(func() (CacheEntryValue, error) {
@@ -201,7 +206,8 @@ func (c *Cache) prepare(ctx context.Context, db database.Store, fileID uuid.UUID
 				if err != nil {
 					// Force future calls to Acquire to trigger a new fetch as soon as
 					// a fetch has failed, even if references are still held.
-					delete(c.data, fileID)
+					entry.close()
+					release()
 					return val, err
 				}
 
@@ -218,12 +224,11 @@ func (c *Cache) prepare(ctx context.Context, db database.Store, fileID uuid.UUID
 
 				entry.refCount--
 				c.currentOpenFileReferences.Dec()
-
-				if entry.refCount == 0 {
-					releaseOnce.Do(func() {
-						c.purge(fileID)
-					})
+				if entry.refCount > 0 {
+					return
 				}
+
+				release()
 			},
 		}
 		c.data[fileID] = entry
