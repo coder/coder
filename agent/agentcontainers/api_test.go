@@ -3,12 +3,14 @@ package agentcontainers_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -17,6 +19,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -264,6 +267,16 @@ func (m *fakeSubAgentClient) Create(ctx context.Context, agent agentcontainers.S
 	if agent.OperatingSystem == "" {
 		return agentcontainers.SubAgent{}, xerrors.New("operating system must be set")
 	}
+
+	for _, a := range m.agents {
+		if a.Name == agent.Name {
+			return agentcontainers.SubAgent{}, &pq.Error{
+				Code:    "23505",
+				Message: fmt.Sprintf("workspace agent name %q already exists in this workspace build", agent.Name),
+			}
+		}
+	}
+
 	agent.ID = uuid.New()
 	agent.AuthToken = uuid.New()
 	if m.agents == nil {
@@ -2072,6 +2085,127 @@ func mustFindDevcontainerByPath(t *testing.T, devcontainers []codersdk.Workspace
 
 	require.Failf(t, "no devcontainer found with workspace folder %q", path)
 	return codersdk.WorkspaceAgentDevcontainer{} // Unreachable, but required for compilation
+}
+
+// TestSubAgentCreationWithNameRetry tests the retry logic when unique constraint violations occur
+func TestSubAgentCreationWithNameRetry(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("Dev Container tests are not supported on Windows")
+	}
+
+	tests := []struct {
+		name             string
+		workspaceFolders []string
+		expectedNames    []string
+		takenNames       []string
+	}{
+		{
+			name: "SingleCollision",
+			workspaceFolders: []string{
+				"/home/coder/foo/project",
+				"/home/coder/bar/project",
+			},
+			expectedNames: []string{
+				"project",
+				"bar-project",
+			},
+		},
+		{
+			name: "MultipleCollisions",
+			workspaceFolders: []string{
+				"/home/coder/foo/x/project",
+				"/home/coder/bar/x/project",
+				"/home/coder/baz/x/project",
+			},
+			expectedNames: []string{
+				"project",
+				"x-project",
+				"baz-x-project",
+			},
+		},
+		{
+			name:       "NameAlreadyTaken",
+			takenNames: []string{"project", "x-project"},
+			workspaceFolders: []string{
+				"/home/coder/foo/x/project",
+			},
+			expectedNames: []string{
+				"foo-x-project",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				ctx    = testutil.Context(t, testutil.WaitMedium)
+				logger = testutil.Logger(t)
+				mClock = quartz.NewMock(t)
+				fSAC   = &fakeSubAgentClient{logger: logger, agents: make(map[uuid.UUID]agentcontainers.SubAgent)}
+				ccli   = &fakeContainerCLI{arch: runtime.GOARCH}
+			)
+
+			for _, name := range tt.takenNames {
+				fSAC.agents[uuid.New()] = agentcontainers.SubAgent{Name: name}
+			}
+
+			mClock.Set(time.Now()).MustWait(ctx)
+			tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+
+			api := agentcontainers.NewAPI(logger,
+				agentcontainers.WithClock(mClock),
+				agentcontainers.WithContainerCLI(ccli),
+				agentcontainers.WithDevcontainerCLI(&fakeDevcontainerCLI{}),
+				agentcontainers.WithSubAgentClient(fSAC),
+				agentcontainers.WithWatcher(watcher.NewNoop()),
+			)
+			defer api.Close()
+
+			tickerTrap.MustWait(ctx).MustRelease(ctx)
+			tickerTrap.Close()
+
+			for i, workspaceFolder := range tt.workspaceFolders {
+				ccli.containers.Containers = append(ccli.containers.Containers, newFakeContainer(
+					fmt.Sprintf("container%d", i+1),
+					fmt.Sprintf("/.devcontainer/devcontainer%d.json", i+1),
+					workspaceFolder,
+				))
+
+				err := api.RefreshContainers(ctx)
+				require.NoError(t, err)
+			}
+
+			// Verify that both agents were created with expected names
+			require.Len(t, fSAC.created, len(tt.workspaceFolders))
+
+			actualNames := make([]string, len(fSAC.created))
+			for i, agent := range fSAC.created {
+				actualNames[i] = agent.Name
+			}
+
+			slices.Sort(tt.expectedNames)
+			slices.Sort(actualNames)
+
+			assert.Equal(t, tt.expectedNames, actualNames)
+		})
+	}
+}
+
+func newFakeContainer(id, configPath, workspaceFolder string) codersdk.WorkspaceAgentContainer {
+	return codersdk.WorkspaceAgentContainer{
+		ID:           id,
+		FriendlyName: "test-friendly",
+		Image:        "test-image:latest",
+		Labels: map[string]string{
+			agentcontainers.DevcontainerLocalFolderLabel: workspaceFolder,
+			agentcontainers.DevcontainerConfigFileLabel:  configPath,
+		},
+		Running: true,
+	}
 }
 
 func fakeContainer(t *testing.T, mut ...func(*codersdk.WorkspaceAgentContainer)) codersdk.WorkspaceAgentContainer {

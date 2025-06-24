@@ -42,7 +42,8 @@ const (
 	// read-write, which seems sensible for devcontainers.
 	coderPathInsideContainer = "/.coder-agent/coder"
 
-	maxAgentNameLength = 64
+	maxAgentNameLength     = 64
+	maxAttemptsToNameAgent = 5
 )
 
 // API is responsible for container-related operations in the agent.
@@ -71,17 +72,18 @@ type API struct {
 	ownerName     string
 	workspaceName string
 
-	mu                      sync.RWMutex
-	closed                  bool
-	containers              codersdk.WorkspaceAgentListContainersResponse  // Output from the last list operation.
-	containersErr           error                                          // Error from the last list operation.
-	devcontainerNames       map[string]bool                                // By devcontainer name.
-	knownDevcontainers      map[string]codersdk.WorkspaceAgentDevcontainer // By workspace folder.
-	configFileModifiedTimes map[string]time.Time                           // By config file path.
-	recreateSuccessTimes    map[string]time.Time                           // By workspace folder.
-	recreateErrorTimes      map[string]time.Time                           // By workspace folder.
-	injectedSubAgentProcs   map[string]subAgentProcess                     // By workspace folder.
-	asyncWg                 sync.WaitGroup
+	mu                       sync.RWMutex
+	closed                   bool
+	containers               codersdk.WorkspaceAgentListContainersResponse  // Output from the last list operation.
+	containersErr            error                                          // Error from the last list operation.
+	devcontainerNames        map[string]bool                                // By devcontainer name.
+	knownDevcontainers       map[string]codersdk.WorkspaceAgentDevcontainer // By workspace folder.
+	configFileModifiedTimes  map[string]time.Time                           // By config file path.
+	recreateSuccessTimes     map[string]time.Time                           // By workspace folder.
+	recreateErrorTimes       map[string]time.Time                           // By workspace folder.
+	injectedSubAgentProcs    map[string]subAgentProcess                     // By workspace folder.
+	usingWorkspaceFolderName map[string]bool                                // By workspace folder.
+	asyncWg                  sync.WaitGroup
 
 	devcontainerLogSourceIDs map[string]uuid.UUID // By workspace folder.
 }
@@ -278,6 +280,7 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 		recreateErrorTimes:          make(map[string]time.Time),
 		scriptLogger:                func(uuid.UUID) ScriptLogger { return noopScriptLogger{} },
 		injectedSubAgentProcs:       make(map[string]subAgentProcess),
+		usingWorkspaceFolderName:    make(map[string]bool),
 	}
 	// The ctx and logger must be set before applying options to avoid
 	// nil pointer dereference.
@@ -630,7 +633,7 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 				// folder's name. If it is not possible to generate a valid
 				// agent name based off of the folder name (i.e. no valid characters),
 				// we will instead fall back to using the container's friendly name.
-				dc.Name = safeAgentName(path.Base(filepath.ToSlash(dc.WorkspaceFolder)), dc.Container.FriendlyName)
+				dc.Name, api.usingWorkspaceFolderName[dc.WorkspaceFolder] = api.makeAgentName(dc.WorkspaceFolder, dc.Container.FriendlyName)
 			}
 		}
 
@@ -678,8 +681,10 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 var consecutiveHyphenRegex = regexp.MustCompile("-+")
 
 // `safeAgentName` returns a safe agent name derived from a folder name,
-// falling back to the container’s friendly name if needed.
-func safeAgentName(name string, friendlyName string) string {
+// falling back to the container’s friendly name if needed. The second
+// return value will be `true` if it succeeded and `false` if it had
+// to fallback to the friendly name.
+func safeAgentName(name string, friendlyName string) (string, bool) {
 	// Keep only ASCII letters and digits, replacing everything
 	// else with a hyphen.
 	var sb strings.Builder
@@ -701,10 +706,10 @@ func safeAgentName(name string, friendlyName string) string {
 	name = name[:min(len(name), maxAgentNameLength)]
 
 	if provisioner.AgentNameRegex.Match([]byte(name)) {
-		return name
+		return name, true
 	}
 
-	return safeFriendlyName(friendlyName)
+	return safeFriendlyName(friendlyName), false
 }
 
 // safeFriendlyName returns a API safe version of the container's
@@ -717,6 +722,47 @@ func safeFriendlyName(name string) string {
 	name = strings.ReplaceAll(name, "_", "-")
 
 	return name
+}
+
+// expandedAgentName creates an agent name by including parent directories
+// from the workspace folder path to avoid name collisions. Like `safeAgentName`,
+// the second returned value will be true if using the workspace folder name,
+// and false if it fell back to the friendly name.
+func expandedAgentName(workspaceFolder string, friendlyName string, depth int) (string, bool) {
+	var parts []string
+	for part := range strings.SplitSeq(filepath.ToSlash(workspaceFolder), "/") {
+		if part = strings.TrimSpace(part); part != "" {
+			parts = append(parts, part)
+		}
+	}
+	if len(parts) == 0 {
+		return safeFriendlyName(friendlyName), false
+	}
+
+	components := parts[max(0, len(parts)-depth-1):]
+	expanded := strings.Join(components, "-")
+
+	return safeAgentName(expanded, friendlyName)
+}
+
+// makeAgentName attempts to create an agent name. It will first attempt to create an
+// agent name based off of the workspace folder, and will eventually fallback to a
+// friendly name. Like `safeAgentName`, the second returned value will be true if the
+// agent name utilizes the workspace folder, and false if it falls back to the
+// friendly name.
+func (api *API) makeAgentName(workspaceFolder string, friendlyName string) (string, bool) {
+	for attempt := 0; attempt <= maxAttemptsToNameAgent; attempt++ {
+		agentName, usingWorkspaceFolder := expandedAgentName(workspaceFolder, friendlyName, attempt)
+		if !usingWorkspaceFolder {
+			return agentName, false
+		}
+
+		if !api.devcontainerNames[agentName] {
+			return agentName, true
+		}
+	}
+
+	return safeFriendlyName(friendlyName), false
 }
 
 // RefreshContainers triggers an immediate update of the container list
@@ -1234,6 +1280,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				if provisioner.AgentNameRegex.Match([]byte(name)) {
 					subAgentConfig.Name = name
 					configOutdated = true
+					delete(api.usingWorkspaceFolderName, dc.WorkspaceFolder)
 				} else {
 					logger.Warn(ctx, "invalid name in devcontainer customization, ignoring",
 						slog.F("name", name),
@@ -1320,12 +1367,55 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		)
 
 		// Create new subagent record in the database to receive the auth token.
+		// If we get a unique constraint violation, try with expanded names that
+		// include parent directories to avoid collisions.
 		client := *api.subAgentClient.Load()
-		newSubAgent, err := client.Create(ctx, subAgentConfig)
-		if err != nil {
-			return xerrors.Errorf("create subagent failed: %w", err)
+
+		originalName := subAgentConfig.Name
+
+		for attempt := 1; attempt <= maxAttemptsToNameAgent; attempt++ {
+			if proc.agent, err = client.Create(ctx, subAgentConfig); err == nil {
+				if api.usingWorkspaceFolderName[dc.WorkspaceFolder] {
+					api.devcontainerNames[dc.Name] = true
+					delete(api.usingWorkspaceFolderName, dc.WorkspaceFolder)
+				}
+
+				break
+			}
+
+			// NOTE(DanielleMaywood):
+			// Ordinarily we'd use `errors.As` here, but it didn't appear to work. Not
+			// sure if this is because of the communication protocol? Instead I've opted
+			// for a slightly more janky string contains approach.
+			//
+			// We only care if sub agent creation has failed due to a unique constraint
+			// violation on the agent name, as we can _possibly_ rectify this.
+			if !strings.Contains(err.Error(), "workspace agent name") {
+				return xerrors.Errorf("create subagent failed: %w", err)
+			}
+
+			// If there has been a unique constraint violation but the user is *not*
+			// using an auto-generated name, then we should error. This is because
+			// we do not want to surprise the user with a name they did not ask for.
+			if usingFolderName := api.usingWorkspaceFolderName[dc.WorkspaceFolder]; !usingFolderName {
+				return xerrors.Errorf("create subagent failed: %w", err)
+			}
+
+			if attempt == maxAttemptsToNameAgent {
+				return xerrors.Errorf("create subagent failed after %d attempts: %w", attempt, err)
+			}
+
+			// We increase how much of the workspace folder is used for generating
+			// the agent name. With each iteration there is greater chance of this
+			// being successful.
+			subAgentConfig.Name, api.usingWorkspaceFolderName[dc.WorkspaceFolder] = expandedAgentName(dc.WorkspaceFolder, dc.Container.FriendlyName, attempt)
+
+			logger.Debug(ctx, "retrying subagent creation with expanded name",
+				slog.F("original_name", originalName),
+				slog.F("expanded_name", subAgentConfig.Name),
+				slog.F("attempt", attempt+1),
+			)
 		}
-		proc.agent = newSubAgent
 
 		logger.Info(ctx, "created new subagent", slog.F("agent_id", proc.agent.ID))
 	} else {
