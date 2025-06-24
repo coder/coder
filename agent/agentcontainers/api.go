@@ -83,6 +83,7 @@ type API struct {
 	recreateErrorTimes       map[string]time.Time                           // By workspace folder.
 	injectedSubAgentProcs    map[string]subAgentProcess                     // By workspace folder.
 	usingWorkspaceFolderName map[string]bool                                // By workspace folder.
+	ignoredDevcontainers     map[string]bool                                // By workspace folder. Tracks three states (true, false and not checked).
 	asyncWg                  sync.WaitGroup
 
 	devcontainerLogSourceIDs map[string]uuid.UUID // By workspace folder.
@@ -276,6 +277,7 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 		devcontainerNames:           make(map[string]bool),
 		knownDevcontainers:          make(map[string]codersdk.WorkspaceAgentDevcontainer),
 		configFileModifiedTimes:     make(map[string]time.Time),
+		ignoredDevcontainers:        make(map[string]bool),
 		recreateSuccessTimes:        make(map[string]time.Time),
 		recreateErrorTimes:          make(map[string]time.Time),
 		scriptLogger:                func(uuid.UUID) ScriptLogger { return noopScriptLogger{} },
@@ -804,6 +806,10 @@ func (api *API) getContainers() (codersdk.WorkspaceAgentListContainersResponse, 
 	if len(api.knownDevcontainers) > 0 {
 		devcontainers = make([]codersdk.WorkspaceAgentDevcontainer, 0, len(api.knownDevcontainers))
 		for _, dc := range api.knownDevcontainers {
+			if api.ignoredDevcontainers[dc.WorkspaceFolder] {
+				continue
+			}
+
 			// Include the agent if it's running (we're iterating over
 			// copies, so mutating is fine).
 			if proc := api.injectedSubAgentProcs[dc.WorkspaceFolder]; proc.agent.ID != uuid.Nil {
@@ -1036,9 +1042,44 @@ func (api *API) markDevcontainerDirty(configPath string, modifiedAt time.Time) {
 			logger.Info(api.ctx, "marking devcontainer as dirty")
 			dc.Dirty = true
 		}
+		if api.ignoredDevcontainers[dc.WorkspaceFolder] {
+			logger.Debug(api.ctx, "clearing devcontainer ignored state")
+			delete(api.ignoredDevcontainers, dc.WorkspaceFolder) // Allow re-reading config.
+		}
 
 		api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	}
+}
+
+// markDevcontainerIgnored marks a devcontainer as ignored. Must not be called
+// with the API lock held.
+func (api *API) markDevcontainerIgnored(ctx context.Context, dc codersdk.WorkspaceAgentDevcontainer, proc subAgentProcess) subAgentProcess {
+	logger := api.logger.With(
+		slog.F("devcontainer_id", dc.ID),
+		slog.F("devcontainer_name", dc.Name),
+		slog.F("workspace_folder", dc.WorkspaceFolder),
+		slog.F("config_path", dc.ConfigPath),
+	)
+
+	// We only allow ignore to be set in the root customization layer to
+	// prevent weird interactions with devcontainer features.
+	logger.Debug(ctx, "marking devcontainer as ignored")
+	proc.stop()
+	if proc.agent.ID != uuid.Nil {
+		// If we stop the subagent, we also need to delete it.
+		client := *api.subAgentClient.Load()
+		if err := client.Delete(ctx, proc.agent.ID); err != nil {
+			api.logger.Error(ctx, "delete subagent failed", slog.Error(err), slog.F("subagent_id", proc.agent.ID))
+		}
+	}
+	// Reset agent and containerID to force config re-reading if ignore is toggled.
+	proc.agent = SubAgent{}
+	proc.containerID = ""
+	api.mu.Lock()
+	api.ignoredDevcontainers[dc.WorkspaceFolder] = true
+	api.mu.Unlock()
+
+	return proc
 }
 
 // cleanupSubAgents removes subagents that are no longer managed by
@@ -1092,6 +1133,10 @@ func (api *API) cleanupSubAgents(ctx context.Context) error {
 // This method uses an internal timeout to prevent blocking indefinitely
 // if something goes wrong with the injection.
 func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc codersdk.WorkspaceAgentDevcontainer) (err error) {
+	if api.ignoredDevcontainers[dc.WorkspaceFolder] {
+		return nil
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, defaultOperationTimeout)
 	defer cancel()
 
@@ -1113,6 +1158,29 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 	maybeRecreateSubAgent := false
 	proc, injected := api.injectedSubAgentProcs[dc.WorkspaceFolder]
 	if injected {
+		if _, ignoreChecked := api.ignoredDevcontainers[dc.WorkspaceFolder]; !ignoreChecked {
+			// If ignore status has not yet been checked, or cleared by
+			// modifications to the devcontainer.json, we must read it
+			// to determine the current status. This can happen while
+			// the  devcontainer subagent is already running or before
+			// we've had a chance to inject it.
+			//
+			// Note, for simplicity, we do not try to optimize to reduce
+			// ReadConfig calls here.
+			config, err := api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath, nil)
+			if err != nil {
+				return xerrors.Errorf("read devcontainer config: %w", err)
+			}
+
+			if config.Configuration.Customizations.Coder.Ignore {
+				api.mu.Unlock()
+				proc = api.markDevcontainerIgnored(ctx, dc, proc)
+				api.mu.Lock()
+				api.injectedSubAgentProcs[dc.WorkspaceFolder] = proc
+				return nil
+			}
+		}
+
 		if proc.containerID == container.ID && proc.ctx.Err() == nil {
 			// Same container and running, no need to reinject.
 			return nil
@@ -1131,7 +1199,8 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		// Container ID changed or the subagent process is not running,
 		// stop the existing subagent context to replace it.
 		proc.stop()
-	} else {
+	}
+	if proc.agent.OperatingSystem == "" {
 		// Set SubAgent defaults.
 		proc.agent.OperatingSystem = "linux" // Assuming Linux for devcontainers.
 	}
@@ -1188,48 +1257,6 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		proc.agent.Architecture = arch
 	}
 
-	agentBinaryPath, err := os.Executable()
-	if err != nil {
-		return xerrors.Errorf("get agent binary path: %w", err)
-	}
-	agentBinaryPath, err = filepath.EvalSymlinks(agentBinaryPath)
-	if err != nil {
-		return xerrors.Errorf("resolve agent binary path: %w", err)
-	}
-
-	// If we scripted this as a `/bin/sh` script, we could reduce these
-	// steps to one instruction, speeding up the injection process.
-	//
-	// Note: We use `path` instead of `filepath` here because we are
-	// working with Unix-style paths inside the container.
-	if _, err := api.ccli.ExecAs(ctx, container.ID, "root", "mkdir", "-p", path.Dir(coderPathInsideContainer)); err != nil {
-		return xerrors.Errorf("create agent directory in container: %w", err)
-	}
-
-	if err := api.ccli.Copy(ctx, container.ID, agentBinaryPath, coderPathInsideContainer); err != nil {
-		return xerrors.Errorf("copy agent binary: %w", err)
-	}
-
-	logger.Info(ctx, "copied agent binary to container")
-
-	// Make sure the agent binary is executable so we can run it (the
-	// user doesn't matter since we're making it executable for all).
-	if _, err := api.ccli.ExecAs(ctx, container.ID, "root", "chmod", "0755", path.Dir(coderPathInsideContainer), coderPathInsideContainer); err != nil {
-		return xerrors.Errorf("set agent binary executable: %w", err)
-	}
-
-	// Attempt to add CAP_NET_ADMIN to the binary to improve network
-	// performance (optional, allow to fail). See `bootstrap_linux.sh`.
-	// TODO(mafredri): Disable for now until we can figure out why this
-	// causes the following error on some images:
-	//
-	//	Image: mcr.microsoft.com/devcontainers/base:ubuntu
-	// 	Error: /.coder-agent/coder: Operation not permitted
-	//
-	// if _, err := api.ccli.ExecAs(ctx, container.ID, "root", "setcap", "cap_net_admin+ep", coderPathInsideContainer); err != nil {
-	// 	logger.Warn(ctx, "set CAP_NET_ADMIN on agent binary failed", slog.Error(err))
-	// }
-
 	subAgentConfig := proc.agent.CloneConfig(dc)
 	if proc.agent.ID == uuid.Nil || maybeRecreateSubAgent {
 		subAgentConfig.Architecture = arch
@@ -1246,6 +1273,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		}
 
 		var (
+			ignore                     bool
 			appsWithPossibleDuplicates []SubAgentApp
 			workspaceFolder            = DevcontainerDefaultContainerWorkspaceFolder
 		)
@@ -1269,7 +1297,12 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				return err
 			}
 
+			ignore = config.Configuration.Customizations.Coder.Ignore
 			workspaceFolder = config.Workspace.WorkspaceFolder
+
+			if ignore {
+				return nil
+			}
 
 			// NOTE(DanielleMaywood):
 			// We only want to take an agent name specified in the root customization layer.
@@ -1317,6 +1350,11 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
 		}
 
+		if ignore {
+			proc = api.markDevcontainerIgnored(ctx, dc, proc)
+			return nil
+		}
+
 		displayApps := make([]codersdk.DisplayApp, 0, len(displayAppsMap))
 		for app, enabled := range displayAppsMap {
 			if enabled {
@@ -1348,6 +1386,48 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		subAgentConfig.Apps = apps
 		subAgentConfig.Directory = workspaceFolder
 	}
+
+	agentBinaryPath, err := os.Executable()
+	if err != nil {
+		return xerrors.Errorf("get agent binary path: %w", err)
+	}
+	agentBinaryPath, err = filepath.EvalSymlinks(agentBinaryPath)
+	if err != nil {
+		return xerrors.Errorf("resolve agent binary path: %w", err)
+	}
+
+	// If we scripted this as a `/bin/sh` script, we could reduce these
+	// steps to one instruction, speeding up the injection process.
+	//
+	// Note: We use `path` instead of `filepath` here because we are
+	// working with Unix-style paths inside the container.
+	if _, err := api.ccli.ExecAs(ctx, container.ID, "root", "mkdir", "-p", path.Dir(coderPathInsideContainer)); err != nil {
+		return xerrors.Errorf("create agent directory in container: %w", err)
+	}
+
+	if err := api.ccli.Copy(ctx, container.ID, agentBinaryPath, coderPathInsideContainer); err != nil {
+		return xerrors.Errorf("copy agent binary: %w", err)
+	}
+
+	logger.Info(ctx, "copied agent binary to container")
+
+	// Make sure the agent binary is executable so we can run it (the
+	// user doesn't matter since we're making it executable for all).
+	if _, err := api.ccli.ExecAs(ctx, container.ID, "root", "chmod", "0755", path.Dir(coderPathInsideContainer), coderPathInsideContainer); err != nil {
+		return xerrors.Errorf("set agent binary executable: %w", err)
+	}
+
+	// Attempt to add CAP_NET_ADMIN to the binary to improve network
+	// performance (optional, allow to fail). See `bootstrap_linux.sh`.
+	// TODO(mafredri): Disable for now until we can figure out why this
+	// causes the following error on some images:
+	//
+	//	Image: mcr.microsoft.com/devcontainers/base:ubuntu
+	// 	Error: /.coder-agent/coder: Operation not permitted
+	//
+	// if _, err := api.ccli.ExecAs(ctx, container.ID, "root", "setcap", "cap_net_admin+ep", coderPathInsideContainer); err != nil {
+	// 	logger.Warn(ctx, "set CAP_NET_ADMIN on agent binary failed", slog.Error(err))
+	// }
 
 	deleteSubAgent := proc.agent.ID != uuid.Nil && maybeRecreateSubAgent && !proc.agent.EqualConfig(subAgentConfig)
 	if deleteSubAgent {

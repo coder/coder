@@ -2070,6 +2070,173 @@ func TestAPI(t *testing.T) {
 		require.Equal(t, testDir, lastCmd.Dir, "custom directory should be used")
 		require.Equal(t, testEnv, lastCmd.Env, "custom environment should be used")
 	})
+
+	t.Run("IgnoreCustomization", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		startTime := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
+		configPath := "/workspace/project/.devcontainer/devcontainer.json"
+
+		container := codersdk.WorkspaceAgentContainer{
+			ID:           "container-id",
+			FriendlyName: "container-name",
+			Running:      true,
+			CreatedAt:    startTime.Add(-1 * time.Hour),
+			Labels: map[string]string{
+				agentcontainers.DevcontainerLocalFolderLabel: "/workspace/project",
+				agentcontainers.DevcontainerConfigFileLabel:  configPath,
+			},
+		}
+
+		fLister := &fakeContainerCLI{
+			containers: codersdk.WorkspaceAgentListContainersResponse{
+				Containers: []codersdk.WorkspaceAgentContainer{container},
+			},
+			arch: runtime.GOARCH,
+		}
+
+		// Start with ignore=true
+		fDCCLI := &fakeDevcontainerCLI{
+			execErrC: make(chan func(string, ...string) error, 1),
+			readConfig: agentcontainers.DevcontainerConfig{
+				Configuration: agentcontainers.DevcontainerConfiguration{
+					Customizations: agentcontainers.DevcontainerCustomizations{
+						Coder: agentcontainers.CoderCustomization{Ignore: true},
+					},
+				},
+				Workspace: agentcontainers.DevcontainerWorkspace{WorkspaceFolder: "/workspace/project"},
+			},
+		}
+
+		fakeSAC := &fakeSubAgentClient{
+			logger:     slogtest.Make(t, nil).Named("fakeSubAgentClient"),
+			agents:     make(map[uuid.UUID]agentcontainers.SubAgent),
+			createErrC: make(chan error, 1),
+			deleteErrC: make(chan error, 1),
+		}
+
+		mClock := quartz.NewMock(t)
+		mClock.Set(startTime)
+		fWatcher := newFakeWatcher(t)
+
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		api := agentcontainers.NewAPI(
+			logger,
+			agentcontainers.WithDevcontainerCLI(fDCCLI),
+			agentcontainers.WithContainerCLI(fLister),
+			agentcontainers.WithSubAgentClient(fakeSAC),
+			agentcontainers.WithWatcher(fWatcher),
+			agentcontainers.WithClock(mClock),
+		)
+		defer func() {
+			close(fakeSAC.createErrC)
+			close(fakeSAC.deleteErrC)
+			api.Close()
+		}()
+
+		r := chi.NewRouter()
+		r.Mount("/", api.Routes())
+
+		t.Log("Phase 1: Test ignore=true filters out devcontainer")
+		req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+
+		var response codersdk.WorkspaceAgentListContainersResponse
+		err := json.NewDecoder(rec.Body).Decode(&response)
+		require.NoError(t, err)
+
+		assert.Empty(t, response.Devcontainers, "ignored devcontainer should not be in response when ignore=true")
+		assert.Len(t, response.Containers, 1, "regular container should still be listed")
+
+		t.Log("Phase 2: Change to ignore=false")
+		fDCCLI.readConfig.Configuration.Customizations.Coder.Ignore = false
+		var (
+			exitSubAgent     = make(chan struct{})
+			subAgentExited   = make(chan struct{})
+			exitSubAgentOnce sync.Once
+		)
+		defer func() {
+			exitSubAgentOnce.Do(func() {
+				close(exitSubAgent)
+			})
+		}()
+		execSubAgent := func(cmd string, args ...string) error {
+			if len(args) != 1 || args[0] != "agent" {
+				t.Log("execSubAgent called with unexpected arguments", cmd, args)
+				return nil
+			}
+			defer close(subAgentExited)
+			select {
+			case <-exitSubAgent:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+			return nil
+		}
+		testutil.RequireSend(ctx, t, fDCCLI.execErrC, execSubAgent)
+		testutil.RequireSend(ctx, t, fakeSAC.createErrC, nil)
+
+		fWatcher.sendEventWaitNextCalled(ctx, fsnotify.Event{
+			Name: configPath,
+			Op:   fsnotify.Write,
+		})
+
+		err = api.RefreshContainers(ctx)
+		require.NoError(t, err)
+
+		req = httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+		rec = httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+
+		err = json.NewDecoder(rec.Body).Decode(&response)
+		require.NoError(t, err)
+
+		assert.Len(t, response.Devcontainers, 1, "devcontainer should be in response when ignore=false")
+		assert.Len(t, response.Containers, 1, "regular container should still be listed")
+		assert.Equal(t, "/workspace/project", response.Devcontainers[0].WorkspaceFolder)
+		assert.Len(t, fakeSAC.created, 1, "sub agent should be created when ignore=false")
+		createdAgentID := fakeSAC.created[0].ID
+
+		t.Log("Phase 2: Done, waiting for sub agent to exit")
+		exitSubAgentOnce.Do(func() {
+			close(exitSubAgent)
+		})
+		select {
+		case <-subAgentExited:
+		case <-ctx.Done():
+			t.Fatal("timeout waiting for sub agent to exit")
+		}
+
+		t.Log("Phase 3: Change back to ignore=true and test sub agent deletion")
+		fDCCLI.readConfig.Configuration.Customizations.Coder.Ignore = true
+		testutil.RequireSend(ctx, t, fakeSAC.deleteErrC, nil)
+
+		fWatcher.sendEventWaitNextCalled(ctx, fsnotify.Event{
+			Name: configPath,
+			Op:   fsnotify.Write,
+		})
+
+		err = api.RefreshContainers(ctx)
+		require.NoError(t, err)
+
+		req = httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+		rec = httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+
+		err = json.NewDecoder(rec.Body).Decode(&response)
+		require.NoError(t, err)
+
+		assert.Empty(t, response.Devcontainers, "devcontainer should be filtered out when ignore=true again")
+		assert.Len(t, response.Containers, 1, "regular container should still be listed")
+		assert.Len(t, fakeSAC.deleted, 1, "sub agent should be deleted when ignore=true")
+		assert.Equal(t, createdAgentID, fakeSAC.deleted[0], "the same sub agent that was created should be deleted")
+	})
 }
 
 // mustFindDevcontainerByPath returns the devcontainer with the given workspace
