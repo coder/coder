@@ -603,7 +603,14 @@
 								{
 									"title": "Configure a template for dev containers",
 									"description": "How to use configure your template for dev containers",
-									"path": "./admin/templates/extending-templates/devcontainers.md"
+									"path": "./admin/templates/extending-templates/devcontainers.md",
+									"children": [
+										{
+											"title": "Advanced dev container configurations",
+											"description": "Enhance your dev container configurations with multiple containers, repo selection, monitoring, and more.",
+											"path": "./admin/templates/extending-templates/advanced-dev-containers.md"
+										}
+									]
 								},
 								{
 									"title": "Process Logging",
