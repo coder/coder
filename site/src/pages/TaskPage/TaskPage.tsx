@@ -116,9 +116,6 @@ const TaskPage = () => {
 					<h3 className="m-0 font-medium text-content-primary text-base">
 						Starting your workspace
 					</h3>
-					<span className="text-content-secondary text-sm">
-						This should take a few minutes
-					</span>
 				</div>
 				{lastStage && (
 					<div className="text-content-secondary text-sm">{lastStage}</div>
