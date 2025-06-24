@@ -72,6 +72,9 @@ replace github.com/aquasecurity/trivy => github.com/coder/trivy v0.0.0-202505271
 // https://github.com/spf13/afero/pull/487
 replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713-f06e86036696
 
+// TODO: replace once we cut release.
+replace github.com/coder/terraform-provider-coder/v2 => github.com/coder/terraform-provider-coder/v2 v2.7.1-0.20250623193313-e890833351e2
+
 require (
 	cdr.dev/slog v1.6.2-0.20241112041820-0ec81e6e67bb
 	cloud.google.com/go/compute/metadata v0.7.0
@@ -101,7 +104,7 @@ require (
 	github.com/coder/quartz v0.2.1
 	github.com/coder/retry v1.5.1
 	github.com/coder/serpent v0.10.0
-	github.com/coder/terraform-provider-coder/v2 v2.7.0
+	github.com/coder/terraform-provider-coder/v2 v2.8.0
 	github.com/coder/websocket v1.8.13
 	github.com/coder/wgtunnel v0.1.13-0.20240522110300-ade90dfb2da0
 	github.com/coreos/go-oidc/v3 v3.14.1
@@ -480,7 +483,7 @@ require (
 require (
 	github.com/anthropics/anthropic-sdk-go v0.2.0-beta.3
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
-	github.com/coder/preview v0.0.2-0.20250611164554-2e5caa65a54a
+	github.com/coder/preview v1.0.1
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/kylecarbs/aisdk-go v0.0.8
 	github.com/mark3labs/mcp-go v0.32.0

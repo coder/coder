@@ -939,6 +939,14 @@ func New(options *Options) *API {
 		})
 	})
 
+	// Experimental routes are not guaranteed to be stable and may change at any time.
+	r.Route("/api/experimental", func(r chi.Router) {
+		r.Use(apiKeyMiddleware)
+		r.Route("/aitasks", func(r chi.Router) {
+			r.Get("/prompts", api.aiTasksPrompts)
+		})
+	})
+
 	r.Route("/api/v2", func(r chi.Router) {
 		api.APIHandler = r
 
@@ -972,7 +980,7 @@ func New(options *Options) *API {
 		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Get("/available", handleExperimentsSafe)
+			r.Get("/available", handleExperimentsAvailable)
 			r.Get("/", api.handleExperimentsGet)
 		})
 		r.Get("/updatecheck", api.updateCheck)
@@ -1536,7 +1544,6 @@ func New(options *Options) *API {
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
 	cspMW := httpmw.CSPHeaders(
-		api.Experiments,
 		options.Telemetry.Enabled(), func() []*proxyhealth.ProxyHost {
 			if api.DeploymentValues.Dangerous.AllowAllCors {
 				// In this mode, allow all external requests.
@@ -1895,7 +1902,9 @@ func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 			exps = append(exps, codersdk.ExperimentsSafe...)
 		default:
 			ex := codersdk.Experiment(strings.ToLower(v))
-			if !slice.Contains(codersdk.ExperimentsSafe, ex) {
+			if !slice.Contains(codersdk.ExperimentsKnown, ex) {
+				log.Warn(context.Background(), "ignoring unknown experiment", slog.F("experiment", ex))
+			} else if !slice.Contains(codersdk.ExperimentsSafe, ex) {
 				log.Warn(context.Background(), "🐉 HERE BE DRAGONS: opting into hidden experiment", slog.F("experiment", ex))
 			}
 			exps = append(exps, ex)

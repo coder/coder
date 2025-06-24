@@ -411,7 +411,11 @@ export type GetProvisionerDaemonsParams = {
  * lexical scope.
  */
 class ApiMethods {
-	constructor(protected readonly axios: AxiosInstance) {}
+	experimental: ExperimentalApiMethods;
+
+	constructor(protected readonly axios: AxiosInstance) {
+		this.experimental = new ExperimentalApiMethods(this.axios);
+	}
 
 	login = async (
 		email: string,
@@ -2596,6 +2600,36 @@ class ApiMethods {
 			`/api/v2/chats/${chatId}/messages`,
 		);
 		return res.data;
+	};
+}
+
+// Experimental API methods call endpoints under the /api/experimental/ prefix.
+// These endpoints are not stable and may change or be removed at any time.
+//
+// All methods must be defined with arrow function syntax. See the docstring
+// above the ApiMethods class for a full explanation.
+class ExperimentalApiMethods {
+	constructor(protected readonly axios: AxiosInstance) {}
+
+	getAITasksPrompts = async (
+		buildIds: TypesGen.WorkspaceBuild["id"][],
+	): Promise<TypesGen.AITasksPromptsResponse> => {
+		if (buildIds.length === 0) {
+			return {
+				prompts: {},
+			};
+		}
+
+		const response = await this.axios.get<TypesGen.AITasksPromptsResponse>(
+			"/api/experimental/aitasks/prompts",
+			{
+				params: {
+					build_ids: buildIds.join(","),
+				},
+			},
+		);
+
+		return response.data;
 	};
 }
 

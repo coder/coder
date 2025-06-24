@@ -52,7 +52,7 @@ interface DynamicParameterProps {
 	onChange: (value: string) => void;
 	disabled?: boolean;
 	isPreset?: boolean;
-	autofill: boolean;
+	autofill?: boolean;
 }
 
 export const DynamicParameter: FC<DynamicParameterProps> = ({
@@ -139,7 +139,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 					htmlFor={id}
 					className="flex gap-2 flex-wrap text-sm font-medium"
 				>
-					<span className="flex">
+					<span className="flex font-semibold">
 						{displayName}
 						{parameter.required && (
 							<span className="text-content-destructive">*</span>
@@ -175,7 +175,8 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 									</span>
 								</TooltipTrigger>
 								<TooltipContent className="max-w-xs">
-									This parameter only applies for a single workspace start
+									This parameter is ephemeral and will reset to the template
+									default on workspace restart.
 								</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
@@ -209,7 +210,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 									</span>
 								</TooltipTrigger>
 								<TooltipContent className="max-w-xs">
-									Autofilled from the URL
+									Autofilled from the URL.
 								</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
@@ -378,11 +379,17 @@ const ParameterField: FC<ParameterFieldProps> = ({
 	id,
 }) => {
 	switch (parameter.form_type) {
-		case "dropdown":
+		case "dropdown": {
+			const EMPTY_VALUE_PLACEHOLDER = "__EMPTY_STRING__";
+			const selectValue = value === "" ? EMPTY_VALUE_PLACEHOLDER : value;
+			const handleSelectChange = (newValue: string) => {
+				onChange(newValue === EMPTY_VALUE_PLACEHOLDER ? "" : newValue);
+			};
+
 			return (
 				<Select
-					onValueChange={onChange}
-					value={value}
+					onValueChange={handleSelectChange}
+					value={selectValue}
 					disabled={disabled}
 					required={parameter.required}
 				>
@@ -392,14 +399,26 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						/>
 					</SelectTrigger>
 					<SelectContent>
-						{parameter.options.map((option) => (
-							<SelectItem key={option.value.value} value={option.value.value}>
-								<OptionDisplay option={option} />
-							</SelectItem>
-						))}
+						{parameter.options.map((option, index) => {
+							const optionValue =
+								option.value.value === ""
+									? EMPTY_VALUE_PLACEHOLDER
+									: option.value.value;
+							return (
+								<SelectItem
+									key={
+										option.value.value || `${EMPTY_VALUE_PLACEHOLDER}:${index}`
+									}
+									value={optionValue}
+								>
+									<OptionDisplay option={option} />
+								</SelectItem>
+							);
+						})}
 					</SelectContent>
 				</Select>
 			);
+		}
 
 		case "multi-select": {
 			const parsedValues = parseStringArrayValue(value ?? "");
@@ -873,7 +892,6 @@ interface DiagnosticsProps {
 	diagnostics: PreviewParameter["diagnostics"];
 }
 
-// Displays a diagnostic with a border, icon and background color
 export const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 	return (
 		<div className="flex flex-col gap-4">

@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
@@ -717,13 +718,10 @@ func createWorkspace(
 			builder = builder.MarkPrebuiltWorkspaceClaim()
 		}
 
-		if req.EnableDynamicParameters {
-			builder = builder.DynamicParameters(req.EnableDynamicParameters)
-		}
-
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
 			ctx,
 			db,
+			api.FileCache,
 			func(action policy.Action, object rbac.Objecter) bool {
 				return api.Authorize(r, action, object)
 			},
@@ -731,21 +729,11 @@ func createWorkspace(
 		)
 		return err
 	}, nil)
-	var bldErr wsbuilder.BuildError
-	if xerrors.As(err, &bldErr) {
-		httpapi.Write(ctx, rw, bldErr.Status, codersdk.Response{
-			Message: bldErr.Message,
-			Detail:  bldErr.Error(),
-		})
-		return
-	}
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error creating workspace.",
-			Detail:  err.Error(),
-		})
+		httperror.WriteWorkspaceBuildError(ctx, rw, err)
 		return
 	}
+
 	err = provisionerjobs.PostJob(api.Pubsub, *provisionerJob)
 	if err != nil {
 		// Client probably doesn't care about this error, so just log it.

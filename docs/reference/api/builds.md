@@ -1752,7 +1752,6 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 ```json
 {
   "dry_run": true,
-  "enable_dynamic_parameters": true,
   "log_level": "debug",
   "orphan": true,
   "rich_parameter_values": [

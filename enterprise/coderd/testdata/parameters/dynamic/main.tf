@@ -1,8 +1,7 @@
 terraform {
   required_providers {
     coder = {
-      source  = "coder/coder"
-      version = "2.5.3"
+      source = "coder/coder"
     }
   }
 }
@@ -52,6 +51,7 @@ locals {
     "red" : ["apple", "ruby"]
     "yellow" : ["banana"]
     "blue" : ["ocean", "sky"]
+    "green" : ["grass", "leaf"]
   }
 }
 
@@ -100,4 +100,16 @@ data "coder_parameter" "cool" {
   form_type = "switch"
   order     = 102
   default   = "true"
+}
+
+data "coder_parameter" "number" {
+  count = contains(local.selected, "green") ? 1 : 0
+  name  = "number"
+  type  = "number"
+  order = 103
+  validation {
+    error = "Number must be between 0 and 10"
+    min   = 0
+    max   = 10
+  }
 }

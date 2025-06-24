@@ -114,12 +114,10 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 
 		return (
 			<div className="flex flex-col gap-4 p-5">
-				<h1 className="text-xl m-0 text-content-primary font-semibold leading-none ">
-					Ephemeral Parameters
-				</h1>
 				<p className="m-0 text-sm text-content-secondary">
-					This template has ephemeral parameters that must be configured on the
-					workspace parameters page
+					This workspace has ephemeral parameters which may use a temporary
+					value on workspace start. Configure the following parameters in
+					workspace settings.
 				</p>
 
 				<div>

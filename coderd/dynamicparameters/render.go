@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/apiversion"
@@ -50,7 +49,7 @@ type loader struct {
 // Prepare is the entrypoint for this package. It loads the necessary objects &
 // files from the database and returns a Renderer that can be used to render the
 // template version's parameters.
-func Prepare(ctx context.Context, db database.Store, cache *files.Cache, versionID uuid.UUID, options ...func(r *loader)) (Renderer, error) {
+func Prepare(ctx context.Context, db database.Store, cache files.FileAcquirer, versionID uuid.UUID, options ...func(r *loader)) (Renderer, error) {
 	l := &loader{
 		templateVersionID: versionID,
 	}
@@ -138,7 +137,7 @@ func (r *loader) loadData(ctx context.Context, db database.Store) error {
 // Static parameter rendering is required to support older template versions that
 // do not have the database state to support dynamic parameters. A constant
 // warning will be displayed for these template versions.
-func (r *loader) Renderer(ctx context.Context, db database.Store, cache *files.Cache) (Renderer, error) {
+func (r *loader) Renderer(ctx context.Context, db database.Store, cache files.FileAcquirer) (Renderer, error) {
 	err := r.loadData(ctx, db)
 	if err != nil {
 		return nil, xerrors.Errorf("load data: %w", err)
@@ -244,104 +243,90 @@ func (r *dynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uui
 		return nil // already fetched
 	}
 
-	var g errgroup.Group
-
-	// You only need to be able to read the organization member to get the owner
-	// data. Only the terraform files can therefore leak more information than the
-	// caller should have access to. All this info should be public assuming you can
-	// read the user though.
-	mem, err := database.ExpectOne(r.db.OrganizationMembers(ctx, database.OrganizationMembersParams{
-		OrganizationID: r.data.templateVersion.OrganizationID,
-		UserID:         ownerID,
-		IncludeSystem:  false,
-	}))
+	user, err := r.db.GetUserByID(ctx, ownerID)
 	if err != nil {
-		return err
-	}
-
-	// User data is required for the form. Org member is checked above
-	// nolint:gocritic
-	user, err := r.db.GetUserByID(dbauthz.AsProvisionerd(ctx), mem.OrganizationMember.UserID)
-	if err != nil {
-		return xerrors.Errorf("fetch user: %w", err)
-	}
-
-	var ownerRoles []previewtypes.WorkspaceOwnerRBACRole
-	g.Go(func() error {
-		// nolint:gocritic // This is kind of the wrong query to use here, but it
-		// matches how the provisioner currently works. We should figure out
-		// something that needs less escalation but has the correct behavior.
-		row, err := r.db.GetAuthorizationUserRoles(dbauthz.AsProvisionerd(ctx), ownerID)
-		if err != nil {
-			return err
-		}
-		roles, err := row.RoleNames()
-		if err != nil {
-			return err
-		}
-		ownerRoles = make([]previewtypes.WorkspaceOwnerRBACRole, 0, len(roles))
-		for _, it := range roles {
-			if it.OrganizationID != uuid.Nil && it.OrganizationID != r.data.templateVersion.OrganizationID {
-				continue
-			}
-			var orgID string
-			if it.OrganizationID != uuid.Nil {
-				orgID = it.OrganizationID.String()
-			}
-			ownerRoles = append(ownerRoles, previewtypes.WorkspaceOwnerRBACRole{
-				Name:  it.Name,
-				OrgID: orgID,
-			})
-		}
-		return nil
-	})
-
-	var publicKey string
-	g.Go(func() error {
-		// The correct public key has to be sent. This will not be leaked
-		// unless the template leaks it.
-		// nolint:gocritic
-		key, err := r.db.GetGitSSHKey(dbauthz.AsProvisionerd(ctx), ownerID)
-		if err != nil {
-			return err
-		}
-		publicKey = key.PublicKey
-		return nil
-	})
-
-	var groupNames []string
-	g.Go(func() error {
-		// The groups need to be sent to preview. These groups are not exposed to the
-		// user, unless the template does it through the parameters. Regardless, we need
-		// the correct groups, and a user might not have read access.
-		// nolint:gocritic
-		groups, err := r.db.GetGroups(dbauthz.AsProvisionerd(ctx), database.GetGroupsParams{
+		// If the user failed to read, we also try to read the user from their
+		// organization member. You only need to be able to read the organization member
+		// to get the owner data.
+		//
+		// Only the terraform files can therefore leak more information than the
+		// caller should have access to. All this info should be public assuming you can
+		// read the user though.
+		mem, err := database.ExpectOne(r.db.OrganizationMembers(ctx, database.OrganizationMembersParams{
 			OrganizationID: r.data.templateVersion.OrganizationID,
-			HasMemberID:    ownerID,
-		})
+			UserID:         ownerID,
+			IncludeSystem:  true,
+		}))
 		if err != nil {
-			return err
+			return xerrors.Errorf("fetch user: %w", err)
 		}
-		groupNames = make([]string, 0, len(groups))
-		for _, it := range groups {
-			groupNames = append(groupNames, it.Group.Name)
-		}
-		return nil
-	})
 
-	err = g.Wait()
+		// Org member fetched, so use the provisioner context to fetch the user.
+		//nolint:gocritic // Has the correct permissions, and matches the provisioning flow.
+		user, err = r.db.GetUserByID(dbauthz.AsProvisionerd(ctx), mem.OrganizationMember.UserID)
+		if err != nil {
+			return xerrors.Errorf("fetch user: %w", err)
+		}
+	}
+
+	// nolint:gocritic // This is kind of the wrong query to use here, but it
+	// matches how the provisioner currently works. We should figure out
+	// something that needs less escalation but has the correct behavior.
+	row, err := r.db.GetAuthorizationUserRoles(dbauthz.AsProvisionerd(ctx), ownerID)
 	if err != nil {
-		return err
+		return xerrors.Errorf("user roles: %w", err)
+	}
+	roles, err := row.RoleNames()
+	if err != nil {
+		return xerrors.Errorf("expand roles: %w", err)
+	}
+	ownerRoles := make([]previewtypes.WorkspaceOwnerRBACRole, 0, len(roles))
+	for _, it := range roles {
+		if it.OrganizationID != uuid.Nil && it.OrganizationID != r.data.templateVersion.OrganizationID {
+			continue
+		}
+		var orgID string
+		if it.OrganizationID != uuid.Nil {
+			orgID = it.OrganizationID.String()
+		}
+		ownerRoles = append(ownerRoles, previewtypes.WorkspaceOwnerRBACRole{
+			Name:  it.Name,
+			OrgID: orgID,
+		})
+	}
+
+	// The correct public key has to be sent. This will not be leaked
+	// unless the template leaks it.
+	// nolint:gocritic
+	key, err := r.db.GetGitSSHKey(dbauthz.AsProvisionerd(ctx), ownerID)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		return xerrors.Errorf("ssh key: %w", err)
+	}
+
+	// The groups need to be sent to preview. These groups are not exposed to the
+	// user, unless the template does it through the parameters. Regardless, we need
+	// the correct groups, and a user might not have read access.
+	// nolint:gocritic
+	groups, err := r.db.GetGroups(dbauthz.AsProvisionerd(ctx), database.GetGroupsParams{
+		OrganizationID: r.data.templateVersion.OrganizationID,
+		HasMemberID:    ownerID,
+	})
+	if err != nil {
+		return xerrors.Errorf("groups: %w", err)
+	}
+	groupNames := make([]string, 0, len(groups))
+	for _, it := range groups {
+		groupNames = append(groupNames, it.Group.Name)
 	}
 
 	r.currentOwner = &previewtypes.WorkspaceOwner{
-		ID:           mem.OrganizationMember.UserID.String(),
-		Name:         mem.Username,
-		FullName:     mem.Name,
-		Email:        mem.Email,
+		ID:           user.ID.String(),
+		Name:         user.Username,
+		FullName:     user.Name,
+		Email:        user.Email,
 		LoginType:    string(user.LoginType),
 		RBACRoles:    ownerRoles,
-		SSHPublicKey: publicKey,
+		SSHPublicKey: key.PublicKey,
 		Groups:       groupNames,
 	}
 	return nil

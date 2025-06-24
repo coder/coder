@@ -13,6 +13,8 @@ import (
 	prometheus_client "github.com/prometheus/client_model/go"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -198,7 +200,8 @@ func TestMetricsCollector(t *testing.T) {
 									})
 									clock := quartz.NewMock(t)
 									db, pubsub := dbtestutil.NewDB(t)
-									reconciler := prebuilds.NewStoreReconciler(db, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+									cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+									reconciler := prebuilds.NewStoreReconciler(db, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 									ctx := testutil.Context(t, testutil.WaitLong)
 
 									createdUsers := []uuid.UUID{database.PrebuildsSystemUserID}
@@ -334,7 +337,8 @@ func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	clock := quartz.NewMock(t)
 	db, pubsub := dbtestutil.NewDB(t)
-	reconciler := prebuilds.NewStoreReconciler(db, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	reconciler := prebuilds.NewStoreReconciler(db, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	collector := prebuilds.NewMetricsCollector(db, logger, reconciler)

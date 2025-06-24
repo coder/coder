@@ -13,7 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -53,7 +55,8 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 	}
 	logger := testutil.Logger(t)
-	controller := prebuilds.NewStoreReconciler(db, ps, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	controller := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 
 	// given a template version with no presets
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -98,7 +101,8 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 	}
 	logger := testutil.Logger(t)
-	controller := prebuilds.NewStoreReconciler(db, ps, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	controller := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 
 	// given there are presets, but no prebuilds
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -375,7 +379,8 @@ func TestPrebuildReconciliation(t *testing.T) {
 								if useBrokenPubsub {
 									pubSub = &brokenPublisher{Pubsub: pubSub}
 								}
-								controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+								cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+								controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 
 								// Run the reconciliation multiple times to ensure idempotency
 								// 8 was arbitrary, but large enough to reasonably trust the result
@@ -452,7 +457,8 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -577,7 +583,8 @@ func TestPrebuildScheduling(t *testing.T) {
 				t, &slogtest.Options{IgnoreErrors: true},
 			).Leveled(slog.LevelDebug)
 			db, pubSub := dbtestutil.NewDB(t)
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
+			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
 
 			ownerID := uuid.New()
 			dbgen.User(t, db, database.User{
@@ -681,7 +688,8 @@ func TestInvalidPreset(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -745,7 +753,8 @@ func TestDeletionOfPrebuiltWorkspaceWithInvalidPreset(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
-	controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -841,12 +850,8 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			db, pubSub := dbtestutil.NewDB(t)
 			fakeEnqueuer := newFakeEnqueuer()
 			registry := prometheus.NewRegistry()
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, registry, fakeEnqueuer)
-
-			// Template admin to receive a notification.
-			templateAdmin := dbgen.User(t, db, database.User{
-				RBACRoles: []string{codersdk.RoleTemplateAdmin},
-			})
+			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer)
 
 			// Set up test environment with a template, version, and preset.
 			ownerID := uuid.New()
@@ -928,20 +933,6 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			require.Equal(t, 1, len(workspaces))
 			require.Equal(t, database.PrebuildStatusHardLimited, updatedPreset.PrebuildStatus)
 
-			// When hard limit is reached, a notification should be sent.
-			matching := fakeEnqueuer.Sent(func(notification *notificationstest.FakeNotification) bool {
-				if !assert.Equal(t, notifications.PrebuildFailureLimitReached, notification.TemplateID, "unexpected template") {
-					return false
-				}
-
-				if !assert.Equal(t, templateAdmin.ID, notification.UserID, "unexpected receiver") {
-					return false
-				}
-
-				return true
-			})
-			require.Len(t, matching, 1)
-
 			// When hard limit is reached, metric is set to 1.
 			mf, err = registry.Gather()
 			require.NoError(t, err)
@@ -1003,12 +994,8 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			db, pubSub := dbtestutil.NewDB(t)
 			fakeEnqueuer := newFakeEnqueuer()
 			registry := prometheus.NewRegistry()
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, registry, fakeEnqueuer)
-
-			// Template admin to receive a notification.
-			templateAdmin := dbgen.User(t, db, database.User{
-				RBACRoles: []string{codersdk.RoleTemplateAdmin},
-			})
+			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer)
 
 			// Set up test environment with a template, version, and preset.
 			ownerID := uuid.New()
@@ -1114,20 +1101,6 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, database.PrebuildStatusHardLimited, updatedPreset.PrebuildStatus)
 
-			// When hard limit is reached, a notification should be sent.
-			matching := fakeEnqueuer.Sent(func(notification *notificationstest.FakeNotification) bool {
-				if !assert.Equal(t, notifications.PrebuildFailureLimitReached, notification.TemplateID, "unexpected template") {
-					return false
-				}
-
-				if !assert.Equal(t, templateAdmin.ID, notification.UserID, "unexpected receiver") {
-					return false
-				}
-
-				return true
-			})
-			require.Len(t, matching, 1)
-
 			// When hard limit is reached, metric is set to 1.
 			mf, err = registry.Gather()
 			require.NoError(t, err)
@@ -1215,7 +1188,8 @@ func TestRunLoop(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
-	reconciler := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	reconciler := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
 
 	ownerID := uuid.New()
 	dbgen.User(t, db, database.User{
@@ -1345,7 +1319,8 @@ func TestFailedBuildBackoff(t *testing.T) {
 		t, &slogtest.Options{IgnoreErrors: true},
 	).Leveled(slog.LevelDebug)
 	db, ps := dbtestutil.NewDB(t)
-	reconciler := prebuilds.NewStoreReconciler(db, ps, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
 
 	// Given: an active template version with presets and prebuilds configured.
 	const desiredInstances = 2
@@ -1461,9 +1436,11 @@ func TestReconciliationLock(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 			reconciler := prebuilds.NewStoreReconciler(
 				db,
 				ps,
+				cache,
 				codersdk.PrebuildsConfig{},
 				slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug),
 				quartz.NewMock(t),
@@ -1501,7 +1478,8 @@ func TestTrackResourceReplacement(t *testing.T) {
 
 	fakeEnqueuer := newFakeEnqueuer()
 	registry := prometheus.NewRegistry()
-	reconciler := prebuilds.NewStoreReconciler(db, ps, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer)
+	cache := files.New(registry, &coderdtest.FakeAuthorizer{})
+	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer)
 
 	// Given: a template admin to receive a notification.
 	templateAdmin := dbgen.User(t, db, database.User{
@@ -1656,7 +1634,8 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 			db, pubSub := dbtestutil.NewDB(t)
 			fakeEnqueuer := newFakeEnqueuer()
 			registry := prometheus.NewRegistry()
-			controller := prebuilds.NewStoreReconciler(db, pubSub, cfg, logger, clock, registry, fakeEnqueuer)
+			cache := files.New(registry, &coderdtest.FakeAuthorizer{})
+			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer)
 
 			// Set up test environment with a template, version, and preset
 			ownerID := uuid.New()

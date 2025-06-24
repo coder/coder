@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"os"
 
 	"golang.org/x/xerrors"
 
@@ -45,6 +44,7 @@ type CoderCustomization struct {
 	DisplayApps map[codersdk.DisplayApp]bool `json:"displayApps,omitempty"`
 	Apps        []SubAgentApp                `json:"apps,omitempty"`
 	Name        string                       `json:"name,omitempty"`
+	Ignore      bool                         `json:"ignore,omitempty"`
 }
 
 type DevcontainerWorkspace struct {
@@ -280,7 +280,6 @@ func (d *devcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, confi
 	}
 
 	c := d.execer.CommandContext(ctx, "devcontainer", args...)
-	c.Env = append(c.Env, "PATH="+os.Getenv("PATH"))
 	c.Env = append(c.Env, env...)
 
 	var stdoutBuf bytes.Buffer
