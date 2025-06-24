@@ -289,7 +289,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 
 		template, _ := coderdtest.DynamicParameterTemplate(t, admin, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{})
 
-		ctx = testutil.Context(t, testutil.WaitLong*1000) // Reset the context to avoid timeouts.
+		ctx = testutil.Context(t, testutil.WaitLong)
 
 		wrk, err := creator.CreateUserWorkspace(ctx, adminID.ID.String(), codersdk.CreateWorkspaceRequest{
 			TemplateID: template.ID,
@@ -347,11 +347,9 @@ func TestCreateUserWorkspace(t *testing.T) {
 			},
 		)
 
-		version := coderdtest.CreateTemplateVersion(t, creator, first.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, creator, version.ID)
-		template := coderdtest.CreateTemplate(t, creator, first.OrganizationID, version.ID)
+		template, _ := coderdtest.DynamicParameterTemplate(t, creator, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{})
 
-		ctx = testutil.Context(t, testutil.WaitLong*1000) // Reset the context to avoid timeouts.
+		ctx = testutil.Context(t, testutil.WaitLong)
 
 		wrk, err := creator.CreateUserWorkspace(ctx, forUser.ID.String(), codersdk.CreateWorkspaceRequest{
 			TemplateID: template.ID,
