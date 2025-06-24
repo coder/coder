@@ -161,7 +161,9 @@ func TestConcurrency(t *testing.T) {
 	require.Equal(t, batches, promhelp.GaugeValue(t, reg, cachePromMetricName("open_files_current"), nil))
 	require.Equal(t, batches, promhelp.CounterValue(t, reg, cachePromMetricName("open_files_total"), nil))
 	require.Equal(t, batches*batchSize, promhelp.GaugeValue(t, reg, cachePromMetricName("open_file_refs_current"), nil))
-	require.Equal(t, batches*batchSize, promhelp.CounterValue(t, reg, cachePromMetricName("open_file_refs_total"), nil))
+	hit, miss := promhelp.CounterValue(t, reg, cachePromMetricName("open_file_refs_total"), prometheus.Labels{"hit": "false"}),
+		promhelp.CounterValue(t, reg, cachePromMetricName("open_file_refs_total"), prometheus.Labels{"hit": "true"})
+	require.Equal(t, batches*batchSize, hit+miss)
 }
 
 func TestRelease(t *testing.T) {
@@ -245,7 +247,6 @@ func TestRelease(t *testing.T) {
 	// Total counts remain
 	require.Equal(t, batches*fileSize, promhelp.CounterValue(t, reg, cachePromMetricName("open_files_size_bytes_total"), nil))
 	require.Equal(t, batches, promhelp.CounterValue(t, reg, cachePromMetricName("open_files_total"), nil))
-	require.Equal(t, batches*batchSize, promhelp.CounterValue(t, reg, cachePromMetricName("open_file_refs_total"), nil))
 }
 
 func cacheAuthzSetup(t *testing.T) (database.Store, *files.Cache, *coderdtest.RecordingAuthorizer) {

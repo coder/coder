@@ -19443,7 +19443,8 @@ func (q *sqlQuerier) GetWorkspacesByTemplateID(ctx context.Context, templateID u
 const getWorkspacesEligibleForTransition = `-- name: GetWorkspacesEligibleForTransition :many
 SELECT
 	workspaces.id,
-	workspaces.name
+	workspaces.name,
+	workspace_builds.template_version_id as build_template_version_id
 FROM
 	workspaces
 LEFT JOIN
@@ -19562,8 +19563,9 @@ WHERE
 `
 
 type GetWorkspacesEligibleForTransitionRow struct {
-	ID   uuid.UUID `db:"id" json:"id"`
-	Name string    `db:"name" json:"name"`
+	ID                     uuid.UUID     `db:"id" json:"id"`
+	Name                   string        `db:"name" json:"name"`
+	BuildTemplateVersionID uuid.NullUUID `db:"build_template_version_id" json:"build_template_version_id"`
 }
 
 func (q *sqlQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]GetWorkspacesEligibleForTransitionRow, error) {
@@ -19575,7 +19577,7 @@ func (q *sqlQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now
 	var items []GetWorkspacesEligibleForTransitionRow
 	for rows.Next() {
 		var i GetWorkspacesEligibleForTransitionRow
-		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+		if err := rows.Scan(&i.ID, &i.Name, &i.BuildTemplateVersionID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
