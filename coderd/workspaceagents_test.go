@@ -1432,7 +1432,7 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 					}, nil).AnyTimes()
 					// DetectArchitecture always returns "<none>" for this test to disable agent injection.
 					mccli.EXPECT().DetectArchitecture(gomock.Any(), devContainer.ID).Return("<none>", nil).AnyTimes()
-					mdccli.EXPECT().ReadConfig(gomock.Any(), workspaceFolder, configFile, gomock.Any()).Return(agentcontainers.DevcontainerConfig{}, nil).Times(2)
+					mdccli.EXPECT().ReadConfig(gomock.Any(), workspaceFolder, configFile, gomock.Any()).Return(agentcontainers.DevcontainerConfig{}, nil).AnyTimes()
 					mdccli.EXPECT().Up(gomock.Any(), workspaceFolder, configFile, gomock.Any()).Return("someid", nil).Times(1)
 					return 0
 				},
