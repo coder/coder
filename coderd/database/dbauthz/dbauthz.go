@@ -228,6 +228,8 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "autostart"},
 				DisplayName: "Autostart Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceOrganizationMember.Type:  {policy.ActionRead},
+					rbac.ResourceFile.Type:                {policy.ActionRead}, // Required to read terraform files
 					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceSystem.Type:              {policy.WildcardSymbol},
 					rbac.ResourceTemplate.Type:            {policy.ActionRead, policy.ActionUpdate},
@@ -443,6 +445,7 @@ var (
 					},
 					// Should be able to add the prebuilds system user as a member to any organization that needs prebuilds.
 					rbac.ResourceOrganizationMember.Type: {
+						policy.ActionRead,
 						policy.ActionCreate,
 					},
 					// Needs to be able to assign roles to the system user in order to make it a member of an organization.
@@ -454,6 +457,10 @@ var (
 						policy.ActionRead,
 					},
 					rbac.ResourceOrganization.Type: {
+						policy.ActionRead,
+					},
+					// Required to read the terraform files of a template
+					rbac.ResourceFile.Type: {
 						policy.ActionRead,
 					},
 				}),
