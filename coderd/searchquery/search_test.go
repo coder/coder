@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -387,6 +388,71 @@ func TestSearchAudit(t *testing.T) {
 			// organization lookup.
 			db := dbmem.New()
 			values, errs := searchquery.AuditLogs(context.Background(), db, c.Query)
+			if c.ExpectedErrorContains != "" {
+				require.True(t, len(errs) > 0, "expect some errors")
+				var s strings.Builder
+				for _, err := range errs {
+					_, _ = s.WriteString(fmt.Sprintf("%s: %s\n", err.Field, err.Detail))
+				}
+				require.Contains(t, s.String(), c.ExpectedErrorContains)
+			} else {
+				require.Len(t, errs, 0, "expected no error")
+				require.Equal(t, c.Expected, values, "expected values")
+			}
+		})
+	}
+}
+
+func TestSearchConnectionLogs(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		Name                  string
+		Query                 string
+		Expected              database.GetConnectionLogsOffsetParams
+		ExpectedErrorContains string
+	}{
+		{
+			Name:     "Empty",
+			Query:    "",
+			Expected: database.GetConnectionLogsOffsetParams{},
+		},
+		{
+			Name:  "WorkspaceOwner",
+			Query: "workspace_owner:foo",
+			Expected: database.GetConnectionLogsOffsetParams{
+				WorkspaceOwner: "foo",
+			},
+		},
+		{
+			Name:  "Action",
+			Query: "status:connected",
+			Expected: database.GetConnectionLogsOffsetParams{
+				Status: string(database.ConnectionStatusConnected),
+			},
+		},
+		{
+			Name:  "Type",
+			Query: "type:port_forwarding",
+			Expected: database.GetConnectionLogsOffsetParams{
+				Type: string(database.ConnectionTypePortForwarding),
+			},
+		},
+		{
+			Name:  "ClosedBetween",
+			Query: `closed_after:"2023-01-01T00:00:00Z" closed_before:"2023-01-16T12:00:00+12:00"`,
+			Expected: database.GetConnectionLogsOffsetParams{
+				ClosedAfter:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+				ClosedBefore: time.Date(2023, 1, 16, 0, 0, 0, 0, time.UTC),
+			},
+		},
+	}
+
+	for _, c := range testCases {
+		c := c
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			db, _ := dbtestutil.NewDB(t)
+			values, errs := searchquery.ConnectionLogs(context.Background(), db, c.Query)
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder

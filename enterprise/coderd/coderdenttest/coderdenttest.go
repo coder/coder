@@ -60,6 +60,7 @@ func init() {
 
 type Options struct {
 	*coderdtest.Options
+	ConnectionLogging          bool
 	AuditLogging               bool
 	BrowserOnly                bool
 	EntitlementsUpdateInterval time.Duration
@@ -101,6 +102,7 @@ func NewWithAPI(t *testing.T, options *Options) (
 	setHandler, cancelFunc, serverURL, oop := coderdtest.NewOptions(t, options.Options)
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
 		RBAC:                       true,
+		ConnectionLogging:          options.ConnectionLogging,
 		AuditLogging:               options.AuditLogging,
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,

@@ -67,6 +67,36 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 	return filter, parser.Errors
 }
 
+func ConnectionLogs(ctx context.Context, db database.Store, query string) (database.GetConnectionLogsOffsetParams, []codersdk.ValidationError) {
+	// Always lowercase for all searches.
+	query = strings.ToLower(query)
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		values.Add("search", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return database.GetConnectionLogsOffsetParams{}, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter := database.GetConnectionLogsOffsetParams{
+		OrganizationID: parseOrganization(ctx, db, parser, values, "organization"),
+		WorkspaceOwner: parser.String(values, "", "workspace_owner"),
+		Type:           string(httpapi.ParseCustom(parser, values, "", "type", httpapi.ParseEnum[database.ConnectionType])),
+		Username:       parser.String(values, "", "username"),
+		Email:          parser.String(values, "", "email"),
+		StartedAfter:   parser.Time3339Nano(values, time.Time{}, "started_after"),
+		StartedBefore:  parser.Time3339Nano(values, time.Time{}, "started_before"),
+		ClosedAfter:    parser.Time3339Nano(values, time.Time{}, "closed_after"),
+		ClosedBefore:   parser.Time3339Nano(values, time.Time{}, "closed_before"),
+		WorkspaceID:    parser.UUID(values, uuid.Nil, "workspace_id"),
+		ConnectionID:   parser.UUID(values, uuid.Nil, "connection_id"),
+		Status:         string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[database.ConnectionStatus])),
+	}
+	parser.ErrorExcessParams(values)
+	return filter, parser.Errors
+}
+
 func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)

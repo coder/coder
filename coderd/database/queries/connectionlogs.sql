@@ -31,7 +31,92 @@ JOIN organizations ON
 	connection_logs.organization_id = organizations.id
 JOIN workspaces ON
 	connection_logs.workspace_id = workspaces.id
-WHERE TRUE
+WHERE
+	-- Filter organization_id
+	CASE
+		WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.organization_id = @organization_id
+		ELSE true
+	END
+	-- Filter by workspace owner username
+	AND CASE
+		WHEN @workspace_owner :: text != '' THEN
+			workspace_owner_id = (
+				SELECT id FROM users
+				WHERE lower(username) = lower(@workspace_owner) AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by type
+	AND CASE
+		WHEN @type :: text != '' THEN
+			type = @type :: connection_type
+		ELSE true
+	END
+	-- Filter by user_id
+	AND CASE
+		WHEN @user_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = @user_id
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN @username :: text != '' THEN
+			user_id = (
+				SELECT id FROM users
+				WHERE lower(username) = lower(@username) AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN @email :: text != '' THEN
+			users.email = @email
+		ELSE true
+	END
+	-- Filter by started_after
+	AND CASE
+		WHEN @started_after :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" >= @started_after
+		ELSE true
+	END
+	-- Filter by started_before
+	AND CASE
+		WHEN @started_before :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" <= @started_before
+		ELSE true
+	END
+	-- Filter by closed_after
+	AND CASE
+		WHEN @closed_after :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			close_time >= @closed_after
+  		ELSE true
+  	END
+	 -- Filter by closed_before
+	AND CASE
+		WHEN @closed_before :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+		   close_time <= @closed_before
+		ELSE true
+	END
+	-- Filter by workspace_id
+	AND CASE
+		WHEN @workspace_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.workspace_id = @workspace_id
+		ELSE true
+	END
+	-- Filter by connection_id
+	AND CASE
+		WHEN @connection_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.connection_id = @connection_id
+		ELSE true
+	END
+	-- Filter by whether the session has a close_time
+	AND CASE
+		WHEN @status :: text != '' THEN
+	        (@status :: connection_status = 'connected' AND close_time IS NULL) OR
+        	(@status :: connection_status = 'disconnected' AND close_time IS NOT NULL)
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in
 	-- GetAuthorizedConnectionLogsOffset
 	-- @authorize_filter
