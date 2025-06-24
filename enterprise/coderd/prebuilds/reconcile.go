@@ -427,7 +427,6 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 
 	// If the preset reached the hard failure limit for the first time during this iteration:
 	// - Mark it as hard-limited in the database
-	// - Send notifications to template admins
 	// - Continue execution, we disallow only creation operation for hard-limited presets. Deletion is allowed.
 	if ps.Preset.PrebuildStatus != database.PrebuildStatusHardLimited && ps.IsHardLimited {
 		logger.Warn(ctx, "preset is hard limited, notifying template admins")
@@ -438,11 +437,6 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		})
 		if err != nil {
 			return xerrors.Errorf("failed to update preset prebuild status: %w", err)
-		}
-
-		err = c.notifyPrebuildFailureLimitReached(ctx, ps)
-		if err != nil {
-			logger.Error(ctx, "failed to notify that number of prebuild failures reached the limit", slog.Error(err))
 		}
 	}
 
@@ -472,49 +466,6 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		}
 	}
 	return multiErr.ErrorOrNil()
-}
-
-func (c *StoreReconciler) notifyPrebuildFailureLimitReached(ctx context.Context, ps prebuilds.PresetSnapshot) error {
-	// nolint:gocritic // Necessary to query all the required data.
-	ctx = dbauthz.AsSystemRestricted(ctx)
-
-	// Send notification to template admins.
-	if c.notifEnq == nil {
-		c.logger.Warn(ctx, "notification enqueuer not set, cannot send prebuild is hard limited notification(s)")
-		return nil
-	}
-
-	templateAdmins, err := c.store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleTemplateAdmin},
-	})
-	if err != nil {
-		return xerrors.Errorf("fetch template admins: %w", err)
-	}
-
-	for _, templateAdmin := range templateAdmins {
-		if _, err := c.notifEnq.EnqueueWithData(ctx, templateAdmin.ID, notifications.PrebuildFailureLimitReached,
-			map[string]string{
-				"org":              ps.Preset.OrganizationName,
-				"template":         ps.Preset.TemplateName,
-				"template_version": ps.Preset.TemplateVersionName,
-				"preset":           ps.Preset.Name,
-			},
-			map[string]any{},
-			"prebuilds_reconciler",
-			// Associate this notification with all the related entities.
-			ps.Preset.TemplateID, ps.Preset.TemplateVersionID, ps.Preset.ID, ps.Preset.OrganizationID,
-		); err != nil {
-			c.logger.Error(ctx,
-				"failed to send notification",
-				slog.Error(err),
-				slog.F("template_admin_id", templateAdmin.ID.String()),
-			)
-
-			continue
-		}
-	}
-
-	return nil
 }
 
 func (c *StoreReconciler) CalculateActions(ctx context.Context, snapshot prebuilds.PresetSnapshot) ([]*prebuilds.ReconciliationActions, error) {
