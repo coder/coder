@@ -415,7 +415,7 @@ func (l *devcontainerCLILogWriter) Write(p []byte) (n int, err error) {
 			_, _ = l.writer.Write([]byte(logLine.Text + "\n"))
 			continue
 		}
-		// If we've successfully parsed the final log line, it will succesfully parse
+		// If we've successfully parsed the final log line, it will successfully parse
 		// but will not fill out any of the fields for `logLine`. In this scenario we
 		// assume it is the final log line, unmarshal it as that, and check if the
 		// outcome is a non-empty string.
