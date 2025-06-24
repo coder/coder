@@ -835,8 +835,16 @@ export type Experiment =
 	| "workspace-prebuilds"
 	| "workspace-usage";
 
-// From codersdk/deployment.go
-export type Experiments = readonly Experiment[];
+export const Experiments: Experiment[] = [
+	"ai-tasks",
+	"agentic-chat",
+	"auto-fill-parameters",
+	"example",
+	"notifications",
+	"web-push",
+	"workspace-prebuilds",
+	"workspace-usage",
+];
 
 // From codersdk/externalauth.go
 export interface ExternalAuth {
