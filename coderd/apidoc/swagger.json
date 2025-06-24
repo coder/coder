@@ -563,27 +563,6 @@
 				}
 			}
 		},
-		"/deployment/llms": {
-			"get": {
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
-				"produces": ["application/json"],
-				"tags": ["General"],
-				"summary": "Get language models",
-				"operationId": "get-language-models",
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"$ref": "#/definitions/codersdk.LanguageModelConfig"
-						}
-					}
-				}
-			}
-		},
 		"/deployment/ssh": {
 			"get": {
 				"security": [
@@ -9356,37 +9335,6 @@
 				}
 			}
 		},
-		"codersdk.AIConfig": {
-			"type": "object",
-			"properties": {
-				"providers": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/codersdk.AIProviderConfig"
-					}
-				}
-			}
-		},
-		"codersdk.AIProviderConfig": {
-			"type": "object",
-			"properties": {
-				"base_url": {
-					"description": "BaseURL is the base URL to use for the API provider.",
-					"type": "string"
-				},
-				"models": {
-					"description": "Models is the list of models to use for the API provider.",
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
-				},
-				"type": {
-					"description": "Type is the type of the API provider.",
-					"type": "string"
-				}
-			}
-		},
 		"codersdk.APIKey": {
 			"type": "object",
 			"required": [
@@ -10231,63 +10179,7 @@
 			}
 		},
 		"codersdk.CreateTestAuditLogRequest": {
-			"type": "object",
-			"properties": {
-				"action": {
-					"enum": ["create", "write", "delete", "start", "stop"],
-					"allOf": [
-						{
-							"$ref": "#/definitions/codersdk.AuditAction"
-						}
-					]
-				},
-				"additional_fields": {
-					"type": "array",
-					"items": {
-						"type": "integer"
-					}
-				},
-				"build_reason": {
-					"enum": ["autostart", "autostop", "initiator"],
-					"allOf": [
-						{
-							"$ref": "#/definitions/codersdk.BuildReason"
-						}
-					]
-				},
-				"organization_id": {
-					"type": "string",
-					"format": "uuid"
-				},
-				"request_id": {
-					"type": "string",
-					"format": "uuid"
-				},
-				"resource_id": {
-					"type": "string",
-					"format": "uuid"
-				},
-				"resource_type": {
-					"enum": [
-						"template",
-						"template_version",
-						"user",
-						"workspace",
-						"workspace_build",
-						"git_ssh_key",
-						"auditable_group"
-					],
-					"allOf": [
-						{
-							"$ref": "#/definitions/codersdk.ResourceType"
-						}
-					]
-				},
-				"time": {
-					"type": "string",
-					"format": "date-time"
-				}
-			}
+			"type": "object"
 		},
 		"codersdk.CreateTokenRequest": {
 			"type": "object",
@@ -10714,9 +10606,6 @@
 				},
 				"agent_stat_refresh_interval": {
 					"type": "integer"
-				},
-				"ai": {
-					"$ref": "#/definitions/serpent.Struct-codersdk_AIConfig"
 				},
 				"allow_workspace_renames": {
 					"type": "boolean"
@@ -11569,33 +11458,6 @@
 			"type": "string",
 			"enum": ["REQUIRED_TEMPLATE_VARIABLES"],
 			"x-enum-varnames": ["RequiredTemplateVariables"]
-		},
-		"codersdk.LanguageModel": {
-			"type": "object",
-			"properties": {
-				"display_name": {
-					"type": "string"
-				},
-				"id": {
-					"description": "ID is used by the provider to identify the LLM.",
-					"type": "string"
-				},
-				"provider": {
-					"description": "Provider is the provider of the LLM. e.g. openai, anthropic, etc.",
-					"type": "string"
-				}
-			}
-		},
-		"codersdk.LanguageModelConfig": {
-			"type": "object",
-			"properties": {
-				"models": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/codersdk.LanguageModel"
-					}
-				}
-			}
 		},
 		"codersdk.License": {
 			"type": "object",
@@ -17320,14 +17182,6 @@
 					"items": {
 						"$ref": "#/definitions/codersdk.LinkConfig"
 					}
-				}
-			}
-		},
-		"serpent.Struct-codersdk_AIConfig": {
-			"type": "object",
-			"properties": {
-				"value": {
-					"$ref": "#/definitions/codersdk.AIConfig"
 				}
 			}
 		},

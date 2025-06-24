@@ -335,48 +335,6 @@
 | `groups` | array of [codersdk.Group](#codersdkgroup)             | false    |              |             |
 | `users`  | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |             |
 
-## codersdk.AIConfig
-
-```json
-{
-  "providers": [
-    {
-      "base_url": "string",
-      "models": [
-        "string"
-      ],
-      "type": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name        | Type                                                            | Required | Restrictions | Description |
-|-------------|-----------------------------------------------------------------|----------|--------------|-------------|
-| `providers` | array of [codersdk.AIProviderConfig](#codersdkaiproviderconfig) | false    |              |             |
-
-## codersdk.AIProviderConfig
-
-```json
-{
-  "base_url": "string",
-  "models": [
-    "string"
-  ],
-  "type": "string"
-}
-```
-
-### Properties
-
-| Name       | Type            | Required | Restrictions | Description                                               |
-|------------|-----------------|----------|--------------|-----------------------------------------------------------|
-| `base_url` | string          | false    |              | Base URL is the base URL to use for the API provider.     |
-| `models`   | array of string | false    |              | Models is the list of models to use for the API provider. |
-| `type`     | string          | false    |              | Type is the type of the API provider.                     |
-
 ## codersdk.APIKey
 
 ```json
@@ -1406,52 +1364,12 @@ This is required on creation to enable a user-flow of validating a template work
 ## codersdk.CreateTestAuditLogRequest
 
 ```json
-{
-  "action": "create",
-  "additional_fields": [
-    0
-  ],
-  "build_reason": "autostart",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
-  "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-  "resource_type": "template",
-  "time": "2019-08-24T14:15:22Z"
-}
+{}
 ```
 
 ### Properties
 
-| Name                | Type                                           | Required | Restrictions | Description |
-|---------------------|------------------------------------------------|----------|--------------|-------------|
-| `action`            | [codersdk.AuditAction](#codersdkauditaction)   | false    |              |             |
-| `additional_fields` | array of integer                               | false    |              |             |
-| `build_reason`      | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
-| `organization_id`   | string                                         | false    |              |             |
-| `request_id`        | string                                         | false    |              |             |
-| `resource_id`       | string                                         | false    |              |             |
-| `resource_type`     | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
-| `time`              | string                                         | false    |              |             |
-
-#### Enumerated Values
-
-| Property        | Value              |
-|-----------------|--------------------|
-| `action`        | `create`           |
-| `action`        | `write`            |
-| `action`        | `delete`           |
-| `action`        | `start`            |
-| `action`        | `stop`             |
-| `build_reason`  | `autostart`        |
-| `build_reason`  | `autostop`         |
-| `build_reason`  | `initiator`        |
-| `resource_type` | `template`         |
-| `resource_type` | `template_version` |
-| `resource_type` | `user`             |
-| `resource_type` | `workspace`        |
-| `resource_type` | `workspace_build`  |
-| `resource_type` | `git_ssh_key`      |
-| `resource_type` | `auditable_group`  |
+None
 
 ## codersdk.CreateTokenRequest
 
@@ -1922,19 +1840,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
-    "ai": {
-      "value": {
-        "providers": [
-          {
-            "base_url": "string",
-            "models": [
-              "string"
-            ],
-            "type": "string"
-          }
-        ]
-      }
-    },
     "allow_workspace_renames": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
@@ -2423,19 +2328,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "user": {}
   },
   "agent_stat_refresh_interval": 0,
-  "ai": {
-    "value": {
-      "providers": [
-        {
-          "base_url": "string",
-          "models": [
-            "string"
-          ],
-          "type": "string"
-        }
-      ]
-    }
-  },
   "allow_workspace_renames": true,
   "autobuild_poll_interval": 0,
   "browser_only": true,
@@ -2815,7 +2707,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `address`                            | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Deprecated: Use HTTPAddress or TLS.Address instead.                |
 | `agent_fallback_troubleshooting_url` | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                              | false    |              |                                                                    |
-| `ai`                                 | [serpent.Struct-codersdk_AIConfig](#serpentstruct-codersdk_aiconfig)                                 | false    |              |                                                                    |
 | `allow_workspace_renames`            | boolean                                                                                              | false    |              |                                                                    |
 | `autobuild_poll_interval`            | integer                                                                                              | false    |              |                                                                    |
 | `browser_only`                       | boolean                                                                                              | false    |              |                                                                    |
@@ -3745,44 +3636,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Value                         |
 |-------------------------------|
 | `REQUIRED_TEMPLATE_VARIABLES` |
-
-## codersdk.LanguageModel
-
-```json
-{
-  "display_name": "string",
-  "id": "string",
-  "provider": "string"
-}
-```
-
-### Properties
-
-| Name           | Type   | Required | Restrictions | Description                                                       |
-|----------------|--------|----------|--------------|-------------------------------------------------------------------|
-| `display_name` | string | false    |              |                                                                   |
-| `id`           | string | false    |              | ID is used by the provider to identify the LLM.                   |
-| `provider`     | string | false    |              | Provider is the provider of the LLM. e.g. openai, anthropic, etc. |
-
-## codersdk.LanguageModelConfig
-
-```json
-{
-  "models": [
-    {
-      "display_name": "string",
-      "id": "string",
-      "provider": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name     | Type                                                      | Required | Restrictions | Description |
-|----------|-----------------------------------------------------------|----------|--------------|-------------|
-| `models` | array of [codersdk.LanguageModel](#codersdklanguagemodel) | false    |              |             |
 
 ## codersdk.License
 
@@ -11861,30 +11714,6 @@ None
 | Name    | Type                                                | Required | Restrictions | Description |
 |---------|-----------------------------------------------------|----------|--------------|-------------|
 | `value` | array of [codersdk.LinkConfig](#codersdklinkconfig) | false    |              |             |
-
-## serpent.Struct-codersdk_AIConfig
-
-```json
-{
-  "value": {
-    "providers": [
-      {
-        "base_url": "string",
-        "models": [
-          "string"
-        ],
-        "type": "string"
-      }
-    ]
-  }
-}
-```
-
-### Properties
-
-| Name    | Type                                   | Required | Restrictions | Description |
-|---------|----------------------------------------|----------|--------------|-------------|
-| `value` | [codersdk.AIConfig](#codersdkaiconfig) | false    |              |             |
 
 ## serpent.URL
 
