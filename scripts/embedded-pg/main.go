@@ -52,6 +52,24 @@ func main() {
 		log.Fatalf("Failed to start embedded postgres: %v", err)
 	}
 
+	// Troubleshooting: list files in cachePath
+	if err := filepath.Walk(cachePath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		switch {
+		case info.IsDir():
+			log.Printf("D: %s", path)
+		case info.Mode().IsRegular():
+			log.Printf("F: %s [%s] (%d bytes)", path, info.Mode().String(), info.Size())
+		default:
+			log.Printf("Other: %s [%s]", path, info.Mode())
+		}
+		return nil
+	}); err != nil {
+		log.Printf("Failed to list files in cachePath %s: %v", cachePath, err)
+	}
+
 	// We execute these queries instead of using the embeddedpostgres
 	// StartParams because it doesn't work on Windows. The library
 	// seems to have a bug where it sends malformed parameters to
