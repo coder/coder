@@ -421,7 +421,7 @@ func (l *devcontainerCLILogWriter) Write(p []byte) (n int, err error) {
 		// outcome is a non-empty string.
 		if logLine.Level == 0 {
 			var lastLine devcontainerCLIResult
-			if json.Unmarshal(line, &lastLine); err == nil && lastLine.Outcome != "" {
+			if err := json.Unmarshal(line, &lastLine); err == nil && lastLine.Outcome != "" {
 				_, _ = l.writer.Write(line)
 				_, _ = l.writer.Write([]byte{'\n'})
 			}
