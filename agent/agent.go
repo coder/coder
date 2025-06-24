@@ -336,16 +336,18 @@ func (a *agent) init() {
 	// will not report anywhere.
 	a.scriptRunner.RegisterMetrics(a.prometheusRegistry)
 
-	containerAPIOpts := []agentcontainers.Option{
-		agentcontainers.WithExecer(a.execer),
-		agentcontainers.WithCommandEnv(a.sshServer.CommandEnv),
-		agentcontainers.WithScriptLogger(func(logSourceID uuid.UUID) agentcontainers.ScriptLogger {
-			return a.logSender.GetScriptLogger(logSourceID)
-		}),
-	}
-	containerAPIOpts = append(containerAPIOpts, a.containerAPIOptions...)
+	if a.devcontainers {
+		containerAPIOpts := []agentcontainers.Option{
+			agentcontainers.WithExecer(a.execer),
+			agentcontainers.WithCommandEnv(a.sshServer.CommandEnv),
+			agentcontainers.WithScriptLogger(func(logSourceID uuid.UUID) agentcontainers.ScriptLogger {
+				return a.logSender.GetScriptLogger(logSourceID)
+			}),
+		}
+		containerAPIOpts = append(containerAPIOpts, a.containerAPIOptions...)
 
-	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
+		a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
+	}
 
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
@@ -1106,6 +1108,9 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 			if a.devcontainers {
 				a.logger.Info(ctx, "devcontainers are not supported on sub agents, disabling feature")
 				a.devcontainers = false
+				if err := a.containerAPI.Close(); err != nil {
+					a.logger.Error(ctx, "disable container API", slog.Error(err))
+				}
 			}
 		}
 		a.client.RewriteDERPMap(manifest.DERPMap)
@@ -1310,8 +1315,10 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 			network.SetBlockEndpoints(manifest.DisableDirectConnections)
 
 			// Update the subagent client if the container API is available.
-			client := agentcontainers.NewSubAgentClientFromAPI(a.logger, aAPI)
-			a.containerAPI.UpdateSubAgentClient(client)
+			if a.containerAPI != nil {
+				client := agentcontainers.NewSubAgentClientFromAPI(a.logger, aAPI)
+				a.containerAPI.UpdateSubAgentClient(client)
+			}
 		}
 		return nil
 	}
@@ -1912,8 +1919,10 @@ func (a *agent) Close() error {
 		a.logger.Error(a.hardCtx, "script runner close", slog.Error(err))
 	}
 
-	if err := a.containerAPI.Close(); err != nil {
-		a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
+	if a.containerAPI != nil {
+		if err := a.containerAPI.Close(); err != nil {
+			a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
+		}
 	}
 
 	// Wait for the graceful shutdown to complete, but don't wait forever so

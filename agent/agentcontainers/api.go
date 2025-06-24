@@ -1605,6 +1605,8 @@ func (api *API) Close() error {
 	api.logger.Debug(api.ctx, "closing API")
 	api.closed = true
 
+	close(api.initialized)
+
 	// Stop all running subagent processes and clean up.
 	subAgentIDs := make([]uuid.UUID, 0, len(api.injectedSubAgentProcs))
 	for workspaceFolder, proc := range api.injectedSubAgentProcs {
