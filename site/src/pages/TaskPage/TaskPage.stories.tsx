@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, spyOn, within } from "@storybook/test";
+import { API } from "api/api";
 import type {
 	Workspace,
 	WorkspaceApp,
@@ -9,6 +10,7 @@ import {
 	MockFailedWorkspace,
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
+	MockTemplate,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
@@ -52,6 +54,16 @@ export const LoadingError: Story = {
 
 export const WaitingOnBuild: Story = {
 	beforeEach: () => {
+		spyOn(data, "fetchTask").mockResolvedValue({
+			prompt: "Create competitors page",
+			workspace: MockStartingWorkspace,
+		});
+	},
+};
+
+export const WaitingOnBuildWithTemplate: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
 		spyOn(data, "fetchTask").mockResolvedValue({
 			prompt: "Create competitors page",
 			workspace: MockStartingWorkspace,
