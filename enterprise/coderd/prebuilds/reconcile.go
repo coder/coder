@@ -583,7 +583,14 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 		// If preset is hard-limited, and it's a create operation, log it and exit early.
 		// Creation operation is disallowed for hard-limited preset.
 		if ps.IsHardLimited && action.Create > 0 {
-			logger.Warn(ctx, "skipping hard limited preset for create operation")
+			logger.Warn(ctx, "skipping hard limited preset for create operation",
+				slog.F("preset_id", ps.Preset.ID.String()),
+				slog.F("preset_name", ps.Preset.Name),
+				slog.F("template_id", ps.Preset.TemplateID.String()),
+				slog.F("template_name", ps.Preset.TemplateName),
+				slog.F("template_version_id", ps.Preset.TemplateVersionID.String()),
+				slog.F("template_version_name", ps.Preset.TemplateVersionName),
+			)
 			return nil
 		}
 
@@ -593,6 +600,22 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 				logger.Error(ctx, "failed to create prebuild", slog.Error(err))
 				multiErr.Errors = append(multiErr.Errors, err)
 			}
+		}
+
+		if len(multiErr.Errors) == int(action.Create) {
+			// All attempts to create prebuilds for this preset failed. There is no
+			// point in continuing reconciliation for this preset as it will just spam
+			// the logs with errors. Hard-limit and move on with our lives.
+			ps.IsHardLimited = true
+			logger.Warn(ctx, "hard-limiting preset due to all prebuild creation attempts failing",
+				slog.F("attempts", action.Create),
+				slog.F("preset_id", ps.Preset.ID.String()),
+				slog.F("preset_name", ps.Preset.Name),
+				slog.F("template_id", ps.Preset.TemplateID.String()),
+				slog.F("template_name", ps.Preset.TemplateName),
+				slog.F("template_version_id", ps.Preset.TemplateVersionID.String()),
+				slog.F("template_version_name", ps.Preset.TemplateVersionName),
+			)
 		}
 
 		return multiErr.ErrorOrNil()
