@@ -117,7 +117,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 	return (
 		<div css={styles.stack}>
 			{style === "task" && (
-				<div className={"mb-1 text-center"}>
+				<div className="mb-1 text-center">
 					<div css={styles.label} data-chromatic="ignore">
 						{progressText}
 					</div>
@@ -144,7 +144,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 				}}
 			/>
 			{style !== "task" && (
-				<div className={"flex mt-1 justify-between"}>
+				<div className="flex mt-1 justify-between">
 					<div css={styles.label}>
 						{capitalize(workspace.latest_build.status)} workspace...
 					</div>
