@@ -117,9 +117,7 @@ const TaskPage = () => {
 					<h3 className="m-0 font-medium text-content-primary text-base">
 						Starting your workspace
 					</h3>
-					{lastStage && (
-						<div className="text-content-secondary text-sm">{lastStage}</div>
-					)}
+					<div className="text-content-secondary text-sm">{lastStage}</div>
 				</div>
 				<div className="w-full">
 					<WorkspaceBuildProgress
