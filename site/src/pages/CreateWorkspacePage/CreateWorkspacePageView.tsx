@@ -6,7 +6,6 @@ import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { SelectFilter } from "components/Filter/SelectFilter";
 import {
 	FormFields,
