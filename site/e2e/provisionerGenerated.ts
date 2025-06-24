@@ -360,6 +360,15 @@ export interface RunningAgentAuthToken {
   token: string;
 }
 
+export interface AITaskSidebarApp {
+  id: string;
+}
+
+export interface AITask {
+  id: string;
+  sidebarApp: AITaskSidebarApp | undefined;
+}
+
 /** Metadata is information about a workspace used in the execution of a build */
 export interface Metadata {
   coderUrl: string;
@@ -442,6 +451,15 @@ export interface PlanComplete {
   resourceReplacements: ResourceReplacement[];
   moduleFiles: Uint8Array;
   moduleFilesHash: Uint8Array;
+  /**
+   * Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
+   * During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
+   * still need to know that such resources are defined.
+   *
+   * See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
+   */
+  hasAiTasks: boolean;
+  aiTasks: AITask[];
 }
 
 /**
@@ -460,6 +478,7 @@ export interface ApplyComplete {
   parameters: RichParameter[];
   externalAuthProviders: ExternalAuthProviderResource[];
   timings: Timing[];
+  aiTasks: AITask[];
 }
 
 export interface Timing {
@@ -1162,6 +1181,27 @@ export const RunningAgentAuthToken = {
   },
 };
 
+export const AITaskSidebarApp = {
+  encode(message: AITaskSidebarApp, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    return writer;
+  },
+};
+
+export const AITask = {
+  encode(message: AITask, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.sidebarApp !== undefined) {
+      AITaskSidebarApp.encode(message.sidebarApp, writer.uint32(18).fork()).ldelim();
+    }
+    return writer;
+  },
+};
+
 export const Metadata = {
   encode(message: Metadata, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.coderUrl !== "") {
@@ -1341,6 +1381,12 @@ export const PlanComplete = {
     if (message.moduleFilesHash.length !== 0) {
       writer.uint32(98).bytes(message.moduleFilesHash);
     }
+    if (message.hasAiTasks === true) {
+      writer.uint32(104).bool(message.hasAiTasks);
+    }
+    for (const v of message.aiTasks) {
+      AITask.encode(v!, writer.uint32(114).fork()).ldelim();
+    }
     return writer;
   },
 };
@@ -1373,6 +1419,9 @@ export const ApplyComplete = {
     }
     for (const v of message.timings) {
       Timing.encode(v!, writer.uint32(50).fork()).ldelim();
+    }
+    for (const v of message.aiTasks) {
+      AITask.encode(v!, writer.uint32(58).fork()).ldelim();
     }
     return writer;
   },

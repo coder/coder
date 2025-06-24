@@ -4509,7 +4509,10 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 
 	// Helper function to create workspace with AI task configuration
 	createWorkspaceWithAIConfig := func(hasAITask sql.NullBool, jobCompleted bool, aiTaskPrompt *string) database.WorkspaceTable {
-		// When a provisioner job uses these tags, no provisioner will match it
+		// When a provisioner job uses these tags, no provisioner will match it.
+		// We do this so jobs will always be stuck in "pending", allowing us to exercise the intermediary state when
+		// has_ai_task is nil and we compensate by looking at pending provisioning jobs.
+		// See GetWorkspaces clauses.
 		unpickableTags := database.StringMap{"custom": "true"}
 
 		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
@@ -4528,20 +4531,30 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 		}
 		job := dbgen.ProvisionerJob(t, db, pubsub, jobConfig)
 
+		res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
+		agnt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
+
+		var sidebarAppID uuid.UUID
+		if hasAITask.Bool {
+			sidebarApp := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agnt.ID})
+			sidebarAppID = sidebarApp.ID
+		}
+
 		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       ws.ID,
-			TemplateVersionID: version.ID,
-			InitiatorID:       user.UserID,
-			JobID:             job.ID,
-			BuildNumber:       1,
-			HasAITask:         hasAITask,
+			WorkspaceID:        ws.ID,
+			TemplateVersionID:  version.ID,
+			InitiatorID:        user.UserID,
+			JobID:              job.ID,
+			BuildNumber:        1,
+			HasAITask:          hasAITask,
+			AITaskSidebarAppID: uuid.NullUUID{UUID: sidebarAppID, Valid: sidebarAppID != uuid.Nil},
 		})
 
 		if aiTaskPrompt != nil {
 			//nolint:gocritic // unit test
 			err := db.InsertWorkspaceBuildParameters(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceBuildParametersParams{
 				WorkspaceBuildID: build.ID,
-				Name:             []string{"AI Prompt"},
+				Name:             []string{provider.TaskPromptParameterName},
 				Value:            []string{*aiTaskPrompt},
 			})
 			require.NoError(t, err)
@@ -4551,7 +4564,7 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 	}
 
 	// Create test workspaces with different AI task configurations
-	wsWithAITask := createWorkspaceWithAIConfig(sql.NullBool{Bool: true, Valid: true}, false, nil)
+	wsWithAITask := createWorkspaceWithAIConfig(sql.NullBool{Bool: true, Valid: true}, true, nil)
 	wsWithoutAITask := createWorkspaceWithAIConfig(sql.NullBool{Bool: false, Valid: true}, false, nil)
 
 	aiTaskPrompt := "Build me a web app"
@@ -4698,4 +4711,52 @@ func TestWorkspaceAppUpsertRestart(t *testing.T) {
 	// Verify the provisioner job completed successfully (no error)
 	require.Equal(t, codersdk.ProvisionerJobSucceeded, workspace.LatestBuild.Job.Status)
 	require.Empty(t, workspace.LatestBuild.Job.Error)
+}
+
+func TestMultipleAITasksDisallowed(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:                 db,
+		Pubsub:                   pubsub,
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Response{{
+			Type: &proto.Response_Plan{
+				Plan: &proto.PlanComplete{
+					HasAiTasks: true,
+					AiTasks: []*proto.AITask{
+						{
+							Id: uuid.NewString(),
+							SidebarApp: &proto.AITaskSidebarApp{
+								Id: uuid.NewString(),
+							},
+						},
+						{
+							Id: uuid.NewString(),
+							SidebarApp: &proto.AITaskSidebarApp{
+								Id: uuid.NewString(),
+							},
+						},
+					},
+				},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	ws := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+	//nolint: gocritic // testing
+	ctx := dbauthz.AsSystemRestricted(t.Context())
+	pj, err := db.GetProvisionerJobByID(ctx, ws.LatestBuild.Job.ID)
+	require.NoError(t, err)
+	require.Contains(t, pj.Error.String, "only one 'coder_ai_task' resource can be provisioned per template")
 }

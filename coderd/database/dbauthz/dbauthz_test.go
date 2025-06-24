@@ -1391,6 +1391,24 @@ func (s *MethodTestSuite) TestTemplate() {
 			ID: t1.ID,
 		}).Asserts(t1, policy.ActionUpdate)
 	}))
+	s.Run("UpdateTemplateVersionAITaskByJobID", s.Subtest(func(db database.Store, check *expects) {
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u := dbgen.User(s.T(), db, database.User{})
+		_ = dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID})
+		t := dbgen.Template(s.T(), db, database.Template{OrganizationID: o.ID, CreatedBy: u.ID})
+		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{OrganizationID: o.ID})
+		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+			JobID:          job.ID,
+			TemplateID:     uuid.NullUUID{UUID: t.ID, Valid: true},
+		})
+		check.Args(database.UpdateTemplateVersionAITaskByJobIDParams{
+			JobID:     job.ID,
+			HasAITask: sql.NullBool{Bool: true, Valid: true},
+		}).Asserts(t, policy.ActionUpdate)
+	}))
 	s.Run("UpdateTemplateWorkspacesLastUsedAt", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
@@ -3048,6 +3066,40 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ID:        b.ID,
 			UpdatedAt: b.UpdatedAt,
 			Deadline:  b.Deadline,
+		}).Asserts(w, policy.ActionUpdate)
+	}))
+	s.Run("UpdateWorkspaceBuildAITaskByID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		tpl := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			TemplateID:     tpl.ID,
+			OrganizationID: o.ID,
+			OwnerID:        u.ID,
+		})
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
+			JobID:             j.ID,
+			WorkspaceID:       w.ID,
+			TemplateVersionID: tv.ID,
+		})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: b.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
+		app := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agt.ID})
+		check.Args(database.UpdateWorkspaceBuildAITaskByIDParams{
+			HasAITask:    sql.NullBool{Bool: true, Valid: true},
+			SidebarAppID: uuid.NullUUID{UUID: app.ID, Valid: true},
+			ID:           b.ID,
 		}).Asserts(w, policy.ActionUpdate)
 	}))
 	s.Run("SoftDeleteWorkspaceByID", s.Subtest(func(db database.Store, check *expects) {

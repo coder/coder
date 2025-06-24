@@ -390,6 +390,9 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 	t.Helper()
 
 	buildID := takeFirst(orig.ID, uuid.New())
+	jobID := takeFirst(orig.JobID, uuid.New())
+	hasAITask := takeFirst(orig.HasAITask, sql.NullBool{})
+	sidebarAppID := takeFirst(orig.AITaskSidebarAppID, uuid.NullUUID{})
 	var build database.WorkspaceBuild
 	err := db.InTx(func(db database.Store) error {
 		err := db.InsertWorkspaceBuild(genCtx, database.InsertWorkspaceBuildParams{
@@ -401,7 +404,7 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 			BuildNumber:       takeFirst(orig.BuildNumber, 1),
 			Transition:        takeFirst(orig.Transition, database.WorkspaceTransitionStart),
 			InitiatorID:       takeFirst(orig.InitiatorID, uuid.New()),
-			JobID:             takeFirst(orig.JobID, uuid.New()),
+			JobID:             jobID,
 			ProvisionerState:  takeFirstSlice(orig.ProvisionerState, []byte{}),
 			Deadline:          takeFirst(orig.Deadline, dbtime.Now().Add(time.Hour)),
 			MaxDeadline:       takeFirst(orig.MaxDeadline, time.Time{}),
@@ -410,7 +413,6 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 				UUID:  uuid.UUID{},
 				Valid: false,
 			}),
-			HasAITask: orig.HasAITask,
 		})
 		if err != nil {
 			return err
@@ -422,6 +424,15 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 				DailyCost: orig.DailyCost,
 			})
 			require.NoError(t, err)
+		}
+
+		if hasAITask.Valid {
+			require.NoError(t, db.UpdateWorkspaceBuildAITaskByID(genCtx, database.UpdateWorkspaceBuildAITaskByIDParams{
+				HasAITask:    hasAITask,
+				SidebarAppID: sidebarAppID,
+				UpdatedAt:    dbtime.Now(),
+				ID:           buildID,
+			}))
 		}
 
 		build, err = db.GetWorkspaceBuildByID(genCtx, buildID)
@@ -971,6 +982,8 @@ func ExternalAuthLink(t testing.TB, db database.Store, orig database.ExternalAut
 
 func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVersion) database.TemplateVersion {
 	var version database.TemplateVersion
+	hasAITask := takeFirst(orig.HasAITask, sql.NullBool{})
+	jobID := takeFirst(orig.JobID, uuid.New())
 	err := db.InTx(func(db database.Store) error {
 		versionID := takeFirst(orig.ID, uuid.New())
 		err := db.InsertTemplateVersion(genCtx, database.InsertTemplateVersionParams{
@@ -982,13 +995,20 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 			Name:            takeFirst(orig.Name, testutil.GetRandomName(t)),
 			Message:         orig.Message,
 			Readme:          takeFirst(orig.Readme, testutil.GetRandomName(t)),
-			JobID:           takeFirst(orig.JobID, uuid.New()),
+			JobID:           jobID,
 			CreatedBy:       takeFirst(orig.CreatedBy, uuid.New()),
 			SourceExampleID: takeFirst(orig.SourceExampleID, sql.NullString{}),
-			HasAITask:       orig.HasAITask,
 		})
 		if err != nil {
 			return err
+		}
+
+		if hasAITask.Valid {
+			require.NoError(t, db.UpdateTemplateVersionAITaskByJobID(genCtx, database.UpdateTemplateVersionAITaskByJobIDParams{
+				JobID:     jobID,
+				HasAITask: hasAITask,
+				UpdatedAt: dbtime.Now(),
+			}))
 		}
 
 		version, err = db.GetTemplateVersionByID(genCtx, versionID)

@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 	protobuf "google.golang.org/protobuf/proto"
 
+	"github.com/coder/terraform-provider-coder/v2/provider"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
@@ -1520,6 +1522,55 @@ func TestInstanceIDAssociation(t *testing.T) {
 			require.Equal(t, state.Resources[0].Agents[0].GetInstanceId(), instanceID)
 		})
 	}
+}
+
+func TestAITasks(t *testing.T) {
+	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
+
+	t.Run("Prompt parameter is required", func(t *testing.T) {
+		t.Parallel()
+
+		// nolint:dogsled
+		_, filename, _, _ := runtime.Caller(0)
+
+		dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "ai-tasks-missing-prompt")
+		tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "ai-tasks-missing-prompt.tfplan.json"))
+		require.NoError(t, err)
+		var tfPlan tfjson.Plan
+		err = json.Unmarshal(tfPlanRaw, &tfPlan)
+		require.NoError(t, err)
+		tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "ai-tasks-missing-prompt.tfplan.dot"))
+		require.NoError(t, err)
+
+		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule, tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
+		require.Nil(t, state)
+		require.ErrorContains(t, err, fmt.Sprintf("coder_parameter named '%s' is required when 'coder_ai_task' resource is defined", provider.TaskPromptParameterName))
+	})
+
+	t.Run("Multiple tasks can be defined", func(t *testing.T) {
+		t.Parallel()
+
+		// nolint:dogsled
+		_, filename, _, _ := runtime.Caller(0)
+
+		dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "ai-tasks-multiple")
+		tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "ai-tasks-multiple.tfplan.json"))
+		require.NoError(t, err)
+		var tfPlan tfjson.Plan
+		err = json.Unmarshal(tfPlanRaw, &tfPlan)
+		require.NoError(t, err)
+		tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "ai-tasks-multiple.tfplan.dot"))
+		require.NoError(t, err)
+
+		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule, tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
+		require.NotNil(t, state)
+		require.NoError(t, err)
+		require.True(t, state.HasAITasks)
+		// Multiple coder_ai_tasks resources can be defined, but only 1 is allowed.
+		// This is validated once all parameters are resolved etc as part of the workspace build, but for now we can allow it.
+		require.Len(t, state.AITasks, 2)
+	})
 }
 
 // sortResource ensures resources appear in a consistent ordering
