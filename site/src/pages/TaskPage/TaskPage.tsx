@@ -1,10 +1,12 @@
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
+import { template as templateQueryOptions } from "api/queries/templates";
 import type { Workspace, WorkspaceStatus } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Spinner } from "components/Spinner/Spinner";
+import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { ArrowLeftIcon, RotateCcwIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import type { ReactNode } from "react";
@@ -14,6 +16,10 @@ import { useParams } from "react-router-dom";
 import { Link as RouterLink } from "react-router-dom";
 import { ellipsizeText } from "utils/ellipsizeText";
 import { pageTitle } from "utils/page";
+import {
+	ActiveTransition,
+	WorkspaceBuildProgress,
+} from "../WorkspacePage/WorkspaceBuildProgress";
 import { TaskApps } from "./TaskApps";
 import { TaskSidebar } from "./TaskSidebar";
 
@@ -31,6 +37,19 @@ const TaskPage = () => {
 		queryFn: () => data.fetchTask(username, workspaceName),
 		refetchInterval: 5_000,
 	});
+
+	const { data: template } = useQuery({
+		...templateQueryOptions(task?.workspace.template_id ?? ""),
+		enabled: Boolean(task),
+	});
+
+	const waitingStatuses: WorkspaceStatus[] = ["starting", "pending"];
+	const shouldStreamBuildLogs =
+		task && waitingStatuses.includes(task.workspace.latest_build.status);
+	const buildLogs = useWorkspaceBuildLogs(
+		task?.workspace.latest_build.id ?? "",
+		shouldStreamBuildLogs,
+	);
 
 	if (error) {
 		return (
@@ -77,7 +96,6 @@ const TaskPage = () => {
 	}
 
 	let content: ReactNode = null;
-	const waitingStatuses: WorkspaceStatus[] = ["starting", "pending"];
 	const terminatedStatuses: WorkspaceStatus[] = [
 		"canceled",
 		"canceling",
@@ -88,16 +106,28 @@ const TaskPage = () => {
 	];
 
 	if (waitingStatuses.includes(task.workspace.latest_build.status)) {
+		// If no template yet, use an indeterminate progress bar.
+		const transition = (template &&
+			ActiveTransition(template, task.workspace)) || { P50: 0, P95: null };
+		const lastStage = buildLogs?.[buildLogs.length - 1]?.stage;
 		content = (
-			<div className="w-full min-h-80 flex items-center justify-center">
+			<div className="w-full min-h-80 flex flex-col items-center justify-center gap-2">
 				<div className="flex flex-col items-center">
-					<Spinner loading className="mb-4" />
 					<h3 className="m-0 font-medium text-content-primary text-base">
 						Starting your workspace
 					</h3>
 					<span className="text-content-secondary text-sm">
 						This should take a few minutes
 					</span>
+				</div>
+				{lastStage && (
+					<div className="text-content-secondary text-sm">{lastStage}</div>
+				)}
+				<div css={{ minWidth: 315 }}>
+					<WorkspaceBuildProgress
+						workspace={task.workspace}
+						transitionStats={transition}
+					/>
 				</div>
 			</div>
 		);
