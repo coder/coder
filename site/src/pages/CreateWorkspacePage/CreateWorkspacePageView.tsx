@@ -170,7 +170,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 			form.setFieldValue("template_version_preset_id", defaultPreset.ID);
 		} else {
 			setSelectedPresetIndex(0); // Explicitly set to "None"
-			form.setFieldValue("template_version_preset_id", "");
+			form.setFieldValue("template_version_preset_id", undefined);
 		}
 	}, [presets, form.setFieldValue]);
 
