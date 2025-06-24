@@ -114,6 +114,7 @@ type cacheEntry struct {
 	value    *lazy.ValueWithError[CacheEntryValue]
 
 	close func()
+	purge func()
 }
 
 type CacheEntryValue struct {
@@ -149,7 +150,8 @@ func (c *Cache) Acquire(ctx context.Context, db database.Store, fileID uuid.UUID
 	e := c.prepare(db, fileID)
 	ev, err := e.value.Load()
 	if err != nil {
-		c.purge(fileID)
+		e.close()
+		e.purge()
 		return nil, err
 	}
 
@@ -193,9 +195,9 @@ func (c *Cache) prepare(db database.Store, fileID uuid.UUID) *cacheEntry {
 	if !ok {
 		hitLabel = "false"
 
-		var releaseOnce sync.Once
-		release := func() {
-			releaseOnce.Do(func() {
+		var purgeOnce sync.Once
+		purge := func() {
+			purgeOnce.Do(func() {
 				c.purge(fileID)
 			})
 		}
@@ -204,10 +206,6 @@ func (c *Cache) prepare(db database.Store, fileID uuid.UUID) *cacheEntry {
 			value: lazy.NewWithError(func() (CacheEntryValue, error) {
 				val, err := fetch(db, fileID)
 				if err != nil {
-					// Force future calls to Acquire to trigger a new fetch as soon as
-					// a fetch has failed, even if references are still held.
-					entry.close()
-					release()
 					return val, err
 				}
 
@@ -228,8 +226,10 @@ func (c *Cache) prepare(db database.Store, fileID uuid.UUID) *cacheEntry {
 					return
 				}
 
-				release()
+				purge()
 			},
+
+			purge: purge,
 		}
 		c.data[fileID] = entry
 
@@ -245,7 +245,8 @@ func (c *Cache) prepare(db database.Store, fileID uuid.UUID) *cacheEntry {
 	return entry
 }
 
-// purge immediately removes an entry from the cache. It should be called
+// purge immediately removes an entry from the cache, even if it has open references.
+// It should only be called from the `close` function in a `cacheEntry`.
 func (c *Cache) purge(fileID uuid.UUID) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
