@@ -139,7 +139,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 					htmlFor={id}
 					className="flex gap-2 flex-wrap text-sm font-medium"
 				>
-					<span className="flex">
+					<span className="flex font-semibold">
 						{displayName}
 						{parameter.required && (
 							<span className="text-content-destructive">*</span>
@@ -175,7 +175,8 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 									</span>
 								</TooltipTrigger>
 								<TooltipContent className="max-w-xs">
-									This parameter only applies for a single workspace start
+									This parameter is ephemeral and will reset to the template
+									default on workspace restart.
 								</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
@@ -209,7 +210,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 									</span>
 								</TooltipTrigger>
 								<TooltipContent className="max-w-xs">
-									Autofilled from the URL
+									Autofilled from the URL.
 								</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
