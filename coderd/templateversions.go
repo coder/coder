@@ -801,7 +801,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
 
-	paginationParams, ok := parsePagination(rw, r)
+	paginationParams, ok := ParsePagination(rw, r)
 	if !ok {
 		return
 	}

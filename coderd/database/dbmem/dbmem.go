@@ -14049,6 +14049,72 @@ func (q *FakeQuerier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg
 			arg.OffsetOpt--
 			continue
 		}
+
+		if arg.OrganizationID != uuid.Nil && clog.OrganizationID != arg.OrganizationID {
+			continue
+		}
+		if arg.WorkspaceOwner != "" {
+			workspaceOwner, err := q.getUserByIDNoLock(clog.WorkspaceOwnerID)
+			if err == nil && !strings.EqualFold(arg.WorkspaceOwner, workspaceOwner.Username) {
+				continue
+			}
+		}
+		if arg.WorkspaceOwnerID != uuid.Nil && clog.WorkspaceOwnerID != arg.WorkspaceOwnerID {
+			continue
+		}
+		if arg.WorkspaceOwnerEmail != "" {
+			workspaceOwner, err := q.getUserByIDNoLock(clog.WorkspaceOwnerID)
+			if err != nil || workspaceOwner.Email != arg.WorkspaceOwnerEmail {
+				continue
+			}
+		}
+		if arg.Type != "" && string(clog.Type) != arg.Type {
+			continue
+		}
+		if arg.UserID != uuid.Nil && (!clog.UserID.Valid || clog.UserID.UUID != arg.UserID) {
+			continue
+		}
+		if arg.Username != "" {
+			if !clog.UserID.Valid {
+				continue
+			}
+			user, err := q.getUserByIDNoLock(clog.UserID.UUID)
+			if err != nil || user.Username != arg.Username {
+				continue
+			}
+		}
+		if arg.UserEmail != "" {
+			if !clog.UserID.Valid {
+				continue
+			}
+			user, err := q.getUserByIDNoLock(clog.UserID.UUID)
+			if err != nil || user.Email != arg.UserEmail {
+				continue
+			}
+		}
+		if !arg.StartedAfter.IsZero() && clog.Time.Before(arg.StartedAfter) {
+			continue
+		}
+		if !arg.StartedBefore.IsZero() && clog.Time.After(arg.StartedBefore) {
+			continue
+		}
+		if arg.WorkspaceID != uuid.Nil && clog.WorkspaceID != arg.WorkspaceID {
+			continue
+		}
+		if arg.ConnectionID != uuid.Nil && (!clog.ConnectionID.Valid || clog.ConnectionID.UUID != arg.ConnectionID) {
+			continue
+		}
+		if arg.Status != "" {
+			if clog.Type == database.ConnectionTypeWorkspaceApp ||
+				clog.Type == database.ConnectionTypePortForwarding {
+				continue
+			}
+			isConnected := !clog.CloseTime.Valid
+			if (arg.Status == "connected" && !isConnected) || (arg.Status == "disconnected" && isConnected) {
+				continue
+			}
+		}
+
 		if prepared != nil && prepared.Authorize(ctx, clog.RBACObject()) != nil {
 			continue
 		}

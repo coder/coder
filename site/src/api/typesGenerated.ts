@@ -308,6 +308,76 @@ export interface ConnectionLatency {
 	readonly p95: number;
 }
 
+// From codersdk/connectionlog.go
+export interface ConnectionLog {
+	readonly id: string;
+	readonly time: string;
+	readonly organization: MinimalOrganization;
+	readonly workspace_owner_id: string;
+	readonly workspace_owner_username: string;
+	readonly workspace_id: string;
+	readonly workspace_name: string;
+	readonly workspace_deleted: boolean;
+	readonly agent_name: string;
+	readonly ip: string;
+	readonly type: ConnectionType;
+	readonly web_info?: ConnectionLogWebInfo;
+	readonly ssh_info?: ConnectionLogSSHInfo;
+}
+
+// From codersdk/connectionlog.go
+export interface ConnectionLogResponse {
+	readonly connection_logs: readonly ConnectionLog[];
+	readonly count: number;
+}
+
+// From codersdk/connectionlog.go
+export interface ConnectionLogSSHInfo {
+	readonly connection_id: string;
+	readonly close_time?: string;
+	readonly close_reason?: string;
+	readonly exit_code?: number;
+}
+
+// From codersdk/connectionlog.go
+export type ConnectionLogStatus = "connected" | "disconnected";
+
+export const ConnectionLogStatuses: ConnectionLogStatus[] = [
+	"connected",
+	"disconnected",
+];
+
+// From codersdk/connectionlog.go
+export interface ConnectionLogWebInfo {
+	readonly user_agent: string;
+	readonly user: User | null;
+	readonly slug_or_port: string;
+	readonly status_code: number;
+}
+
+// From codersdk/connectionlog.go
+export interface ConnectionLogsRequest extends Pagination {
+	readonly q?: string;
+}
+
+// From codersdk/connectionlog.go
+export type ConnectionType =
+	| "jetbrains"
+	| "port_forwarding"
+	| "reconnecting_pty"
+	| "ssh"
+	| "vscode"
+	| "workspace_app";
+
+export const ConnectionTypes: ConnectionType[] = [
+	"jetbrains",
+	"port_forwarding",
+	"reconnecting_pty",
+	"ssh",
+	"vscode",
+	"workspace_app",
+];
+
 // From codersdk/files.go
 export const ContentTypeTar = "application/x-tar";
 

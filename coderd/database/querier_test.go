@@ -2202,6 +2202,249 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 	})
 }
 
+func TestConnectionLogsOffsetFilters(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	db, _ := dbtestutil.NewDB(t)
+
+	orgA := dbfake.Organization(t, db).Do()
+	orgB := dbfake.Organization(t, db).Do()
+
+	user1 := dbgen.User(t, db, database.User{
+		Username: "user1",
+		Email:    "user1@test.com",
+	})
+	user2 := dbgen.User(t, db, database.User{
+		Username: "user2",
+		Email:    "user2@test.com",
+	})
+	user3 := dbgen.User(t, db, database.User{
+		Username: "user3",
+		Email:    "user3@test.com",
+	})
+
+	ws1Tpl := dbgen.Template(t, db, database.Template{OrganizationID: orgA.Org.ID, CreatedBy: user1.ID})
+	ws1 := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        user1.ID,
+		OrganizationID: orgA.Org.ID,
+		TemplateID:     ws1Tpl.ID,
+	})
+	ws2Tpl := dbgen.Template(t, db, database.Template{OrganizationID: orgB.Org.ID, CreatedBy: user2.ID})
+	ws2 := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        user2.ID,
+		OrganizationID: orgB.Org.ID,
+		TemplateID:     ws2Tpl.ID,
+	})
+
+	now := dbtime.Now()
+	log1ConnID := uuid.New()
+	log1 := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+		Time:             now.Add(-4 * time.Hour),
+		OrganizationID:   ws1.OrganizationID,
+		WorkspaceOwnerID: ws1.OwnerID,
+		WorkspaceID:      ws1.ID,
+		WorkspaceName:    ws1.Name,
+		Type:             database.ConnectionTypeWorkspaceApp,
+		ConnectionStatus: database.ConnectionStatusConnected,
+		UserID:           uuid.NullUUID{UUID: user1.ID, Valid: true},
+		UserAgent:        sql.NullString{String: "Mozilla/5.0", Valid: true},
+		SlugOrPort:       sql.NullString{String: "code-server", Valid: true},
+		ConnectionID:     uuid.NullUUID{UUID: log1ConnID, Valid: true},
+	})
+
+	log2ConnID := uuid.New()
+	log2 := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+		Time:             now.Add(-3 * time.Hour),
+		OrganizationID:   ws1.OrganizationID,
+		WorkspaceOwnerID: ws1.OwnerID,
+		WorkspaceID:      ws1.ID,
+		WorkspaceName:    ws1.Name,
+		Type:             database.ConnectionTypeVscode,
+		ConnectionStatus: database.ConnectionStatusConnected,
+		ConnectionID:     uuid.NullUUID{UUID: log2ConnID, Valid: true},
+	})
+
+	// Mark log2 as disconnected
+	log2 = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+		Time:             now.Add(-2 * time.Hour),
+		ConnectionID:     log2.ConnectionID,
+		WorkspaceID:      ws1.ID,
+		WorkspaceOwnerID: ws1.OwnerID,
+		AgentName:        log2.AgentName,
+		ConnectionStatus: database.ConnectionStatusDisconnected,
+
+		OrganizationID: log2.OrganizationID,
+	})
+
+	log3ConnID := uuid.New()
+	log3 := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+		Time:             now.Add(-2 * time.Hour),
+		OrganizationID:   ws2.OrganizationID,
+		WorkspaceOwnerID: ws2.OwnerID,
+		WorkspaceID:      ws2.ID,
+		WorkspaceName:    ws2.Name,
+		Type:             database.ConnectionTypeSsh,
+		ConnectionStatus: database.ConnectionStatusConnected,
+		UserID:           uuid.NullUUID{UUID: user2.ID, Valid: true},
+		ConnectionID:     uuid.NullUUID{UUID: log3ConnID, Valid: true},
+	})
+
+	// Mark log3 as disconnected
+	log3 = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+		Time:             now.Add(-1 * time.Hour),
+		ConnectionID:     log3.ConnectionID,
+		WorkspaceOwnerID: log3.WorkspaceOwnerID,
+		WorkspaceID:      ws2.ID,
+		AgentName:        log3.AgentName,
+		ConnectionStatus: database.ConnectionStatusDisconnected,
+
+		OrganizationID: log3.OrganizationID,
+	})
+
+	log4 := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+		Time:             now.Add(-1 * time.Hour),
+		OrganizationID:   ws2.OrganizationID,
+		WorkspaceOwnerID: ws2.OwnerID,
+		WorkspaceID:      ws2.ID,
+		WorkspaceName:    ws2.Name,
+		Type:             database.ConnectionTypeVscode,
+		ConnectionStatus: database.ConnectionStatusConnected,
+		UserID:           uuid.NullUUID{UUID: user3.ID, Valid: true},
+	})
+
+	testCases := []struct {
+		name           string
+		params         database.GetConnectionLogsOffsetParams
+		expectedLogIDs []uuid.UUID
+	}{
+		{
+			name:   "NoFilter",
+			params: database.GetConnectionLogsOffsetParams{},
+			expectedLogIDs: []uuid.UUID{
+				log1.ID, log2.ID, log3.ID, log4.ID,
+			},
+		},
+		{
+			name: "OrganizationID",
+			params: database.GetConnectionLogsOffsetParams{
+				OrganizationID: orgB.Org.ID,
+			},
+			expectedLogIDs: []uuid.UUID{log3.ID, log4.ID},
+		},
+		{
+			name: "WorkspaceOwner",
+			params: database.GetConnectionLogsOffsetParams{
+				WorkspaceOwner: user1.Username,
+			},
+			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID},
+		},
+		{
+			name: "WorkspaceOwnerID",
+			params: database.GetConnectionLogsOffsetParams{
+				WorkspaceOwnerID: user1.ID,
+			},
+			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID},
+		},
+		{
+			name: "WorkspaceOwnerEmail",
+			params: database.GetConnectionLogsOffsetParams{
+				WorkspaceOwnerEmail: user2.Email,
+			},
+			expectedLogIDs: []uuid.UUID{log3.ID, log4.ID},
+		},
+		{
+			name: "Type",
+			params: database.GetConnectionLogsOffsetParams{
+				Type: string(database.ConnectionTypeVscode),
+			},
+			expectedLogIDs: []uuid.UUID{log2.ID, log4.ID},
+		},
+		{
+			name: "UserID",
+			params: database.GetConnectionLogsOffsetParams{
+				UserID: user1.ID,
+			},
+			expectedLogIDs: []uuid.UUID{log1.ID},
+		},
+		{
+			name: "Username",
+			params: database.GetConnectionLogsOffsetParams{
+				Username: user1.Username,
+			},
+			expectedLogIDs: []uuid.UUID{log1.ID},
+		},
+		{
+			name: "UserEmail",
+			params: database.GetConnectionLogsOffsetParams{
+				UserEmail: user3.Email,
+			},
+			expectedLogIDs: []uuid.UUID{log4.ID},
+		},
+		{
+			name: "StartedAfter",
+			params: database.GetConnectionLogsOffsetParams{
+				StartedAfter: now.Add(-90 * time.Minute), // 1.5 hours ago
+			},
+			expectedLogIDs: []uuid.UUID{log4.ID},
+		},
+		{
+			name: "StartedBefore",
+			params: database.GetConnectionLogsOffsetParams{
+				StartedBefore: now.Add(-150 * time.Minute),
+			},
+			expectedLogIDs: []uuid.UUID{log1.ID, log2.ID},
+		},
+		{
+			name: "WorkspaceID",
+			params: database.GetConnectionLogsOffsetParams{
+				WorkspaceID: ws2.ID,
+			},
+			expectedLogIDs: []uuid.UUID{log3.ID, log4.ID},
+		},
+		{
+			name: "ConnectionID",
+			params: database.GetConnectionLogsOffsetParams{
+				ConnectionID: log1.ConnectionID.UUID,
+			},
+			expectedLogIDs: []uuid.UUID{log1.ID},
+		},
+		{
+			name: "StatusConnected",
+			params: database.GetConnectionLogsOffsetParams{
+				Status: string(database.ConnectionStatusConnected),
+			},
+			expectedLogIDs: []uuid.UUID{log4.ID},
+		},
+		{
+			name: "StatusDisconnected",
+			params: database.GetConnectionLogsOffsetParams{
+				Status: string(database.ConnectionStatusDisconnected),
+			},
+			expectedLogIDs: []uuid.UUID{log2.ID, log3.ID},
+		},
+		{
+			name: "OrganizationAndTypeAndStatus",
+			params: database.GetConnectionLogsOffsetParams{
+				OrganizationID: orgA.Org.ID,
+				Type:           string(database.ConnectionTypeVscode),
+				Status:         string(database.ConnectionStatusDisconnected),
+			},
+			expectedLogIDs: []uuid.UUID{log2.ID},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			logs, err := db.GetConnectionLogsOffset(ctx, tc.params)
+			require.NoError(t, err)
+			require.ElementsMatch(t, tc.expectedLogIDs, connectionOnlyIDs(logs))
+		})
+	}
+}
+
 func connectionOnlyIDs[T database.ConnectionLog | database.GetConnectionLogsOffsetRow](logs []T) []uuid.UUID {
 	ids := make([]uuid.UUID, 0, len(logs))
 	for _, log := range logs {
