@@ -175,7 +175,7 @@ const NavItems: FC<NavItemsProps> = ({ className }) => {
 					Chat
 				</NavLink>
 			)}
-			{metadata.tasksTabVisible.value && (
+			{metadata["tasks-tab-visible"].value && (
 				<NavLink
 					className={({ isActive }) => {
 						return cn(linkStyles.default, isActive ? linkStyles.active : "");
