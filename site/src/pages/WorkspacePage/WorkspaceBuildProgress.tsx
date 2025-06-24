@@ -62,13 +62,18 @@ const estimateFinish = (
 interface WorkspaceBuildProgressProps {
 	workspace: Workspace;
 	transitionStats: TransitionStats;
-	style?: "workspace" | "task";
+	// variant changes how the progress bar is displayed: with the workspace
+	// variant the workspace transition and time remaining are displayed under the
+	// bar aligned to the left and right respectively.  With the task variant the
+	// workspace transition is not displayed and the time remaining is displayed
+	// centered above the bar, and the bar's border radius is removed.
+	variant?: "workspace" | "task";
 }
 
 export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 	workspace,
 	transitionStats,
-	style,
+	variant,
 }) => {
 	const job = workspace.latest_build.job;
 	const [progressValue, setProgressValue] = useState<number | undefined>(0);
@@ -116,7 +121,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 	}
 	return (
 		<div css={styles.stack}>
-			{style === "task" && (
+			{variant === "task" && (
 				<div className="mb-1 text-center">
 					<div css={styles.label} data-chromatic="ignore">
 						{progressText}
@@ -135,15 +140,17 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 						? "determinate"
 						: "indeterminate"
 				}
-				// If a transition is set, there is a moment on new load where the
-				// bar accelerates to progressValue and then rapidly decelerates, which
-				// is not indicative of true progress.
 				classes={{
+					// If a transition is set, there is a moment on new load where the bar
+					// accelerates to progressValue and then rapidly decelerates, which is
+					// not indicative of true progress.
 					bar: classNames.bar,
-					root: style === "task" ? classNames.root : undefined,
+					// With the "task" variant, the progress bar is fullscreen, so remove
+					// the border radius.
+					root: variant === "task" ? classNames.root : undefined,
 				}}
 			/>
-			{style !== "task" && (
+			{variant !== "task" && (
 				<div className="flex mt-1 justify-between">
 					<div css={styles.label}>
 						{capitalize(workspace.latest_build.status)} workspace...
