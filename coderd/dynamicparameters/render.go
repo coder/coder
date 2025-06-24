@@ -299,7 +299,7 @@ func (r *dynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uui
 	// unless the template leaks it.
 	// nolint:gocritic
 	key, err := r.db.GetGitSSHKey(dbauthz.AsProvisionerd(ctx), ownerID)
-	if err != nil {
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return xerrors.Errorf("ssh key: %w", err)
 	}
 
