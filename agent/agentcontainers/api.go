@@ -592,8 +592,7 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 				// folder's name. If it is not possible to generate a valid
 				// agent name based off of the folder name (i.e. no valid characters),
 				// we will instead fall back to using the container's friendly name.
-				dc.Name = safeAgentName(path.Base(filepath.ToSlash(dc.WorkspaceFolder)), dc.Container.FriendlyName)
-				api.usingWorkspaceFolderName[dc.WorkspaceFolder] = true
+				dc.Name, api.usingWorkspaceFolderName[dc.WorkspaceFolder] = safeAgentName(path.Base(filepath.ToSlash(dc.WorkspaceFolder)), dc.Container.FriendlyName)
 			}
 		}
 
@@ -641,8 +640,10 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 var consecutiveHyphenRegex = regexp.MustCompile("-+")
 
 // `safeAgentName` returns a safe agent name derived from a folder name,
-// falling back to the container’s friendly name if needed.
-func safeAgentName(name string, friendlyName string) string {
+// falling back to the container’s friendly name if needed. The second
+// return value will be `true` if it succeeded and `false` if it had
+// to fallback to the friendly name.
+func safeAgentName(name string, friendlyName string) (string, bool) {
 	// Keep only ASCII letters and digits, replacing everything
 	// else with a hyphen.
 	var sb strings.Builder
@@ -664,10 +665,10 @@ func safeAgentName(name string, friendlyName string) string {
 	name = name[:min(len(name), maxAgentNameLength)]
 
 	if provisioner.AgentNameRegex.Match([]byte(name)) {
-		return name
+		return name, true
 	}
 
-	return safeFriendlyName(friendlyName)
+	return safeFriendlyName(friendlyName), false
 }
 
 // safeFriendlyName returns a API safe version of the container's
@@ -697,8 +698,9 @@ func expandedAgentName(workspaceFolder string, friendlyName string, depth int) s
 
 	components := parts[max(0, len(parts)-depth-1):]
 	expanded := strings.Join(components, "-")
+	agentName, _ := safeAgentName(expanded, friendlyName)
 
-	return safeAgentName(expanded, friendlyName)
+	return agentName
 }
 
 // RefreshContainers triggers an immediate update of the container list

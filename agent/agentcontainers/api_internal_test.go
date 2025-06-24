@@ -15,6 +15,7 @@ func TestSafeAgentName(t *testing.T) {
 		name       string
 		folderName string
 		expected   string
+		fallback   bool
 	}{
 		// Basic valid names
 		{
@@ -110,18 +111,22 @@ func TestSafeAgentName(t *testing.T) {
 		{
 			folderName: "",
 			expected:   "friendly-fallback",
+			fallback:   true,
 		},
 		{
 			folderName: "---",
 			expected:   "friendly-fallback",
+			fallback:   true,
 		},
 		{
 			folderName: "___",
 			expected:   "friendly-fallback",
+			fallback:   true,
 		},
 		{
 			folderName: "@#$",
 			expected:   "friendly-fallback",
+			fallback:   true,
 		},
 
 		// Additional edge cases
@@ -192,10 +197,11 @@ func TestSafeAgentName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.folderName, func(t *testing.T) {
 			t.Parallel()
-			name := safeAgentName(tt.folderName, "friendly-fallback")
+			name, usingWorkspaceFolder := safeAgentName(tt.folderName, "friendly-fallback")
 
 			assert.Equal(t, tt.expected, name)
 			assert.True(t, provisioner.AgentNameRegex.Match([]byte(name)))
+			assert.Equal(t, tt.fallback, !usingWorkspaceFolder)
 		})
 	}
 }
