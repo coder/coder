@@ -243,24 +243,30 @@ func (r *dynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uui
 		return nil // already fetched
 	}
 
-	// You only need to be able to read the organization member to get the owner
-	// data. Only the terraform files can therefore leak more information than the
-	// caller should have access to. All this info should be public assuming you can
-	// read the user though.
-	mem, err := database.ExpectOne(r.db.OrganizationMembers(ctx, database.OrganizationMembersParams{
-		OrganizationID: r.data.templateVersion.OrganizationID,
-		UserID:         ownerID,
-		IncludeSystem:  true,
-	}))
+	user, err := r.db.GetUserByID(ctx, ownerID)
 	if err != nil {
-		return err
-	}
+		// If the user failed to read, we also try to read the user from their
+		// organization member. You only need to be able to read the organization member
+		// to get the owner data.
+		//
+		// Only the terraform files can therefore leak more information than the
+		// caller should have access to. All this info should be public assuming you can
+		// read the user though.
+		mem, err := database.ExpectOne(r.db.OrganizationMembers(ctx, database.OrganizationMembersParams{
+			OrganizationID: r.data.templateVersion.OrganizationID,
+			UserID:         ownerID,
+			IncludeSystem:  true,
+		}))
+		if err != nil {
+			return xerrors.Errorf("fetch user: %w", err)
+		}
 
-	// User data is required for the form. Org member is checked above
-	// nolint:gocritic
-	user, err := r.db.GetUserByID(dbauthz.AsProvisionerd(ctx), mem.OrganizationMember.UserID)
-	if err != nil {
-		return xerrors.Errorf("fetch user: %w", err)
+		// Org member fetched, so use the provisioner context to fetch the user.
+		//nolint:gocritic // Has the correct permissions, and matches the provisioning flow.
+		user, err = r.db.GetUserByID(dbauthz.AsProvisionerd(ctx), mem.OrganizationMember.UserID)
+		if err != nil {
+			return xerrors.Errorf("fetch user: %w", err)
+		}
 	}
 
 	// nolint:gocritic // This is kind of the wrong query to use here, but it
@@ -293,7 +299,7 @@ func (r *dynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uui
 	// unless the template leaks it.
 	// nolint:gocritic
 	key, err := r.db.GetGitSSHKey(dbauthz.AsProvisionerd(ctx), ownerID)
-	if err != nil {
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return xerrors.Errorf("ssh key: %w", err)
 	}
 
@@ -314,10 +320,10 @@ func (r *dynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uui
 	}
 
 	r.currentOwner = &previewtypes.WorkspaceOwner{
-		ID:           mem.OrganizationMember.UserID.String(),
-		Name:         mem.Username,
-		FullName:     mem.Name,
-		Email:        mem.Email,
+		ID:           user.ID.String(),
+		Name:         user.Username,
+		FullName:     user.Name,
+		Email:        user.Email,
 		LoginType:    string(user.LoginType),
 		RBACRoles:    ownerRoles,
 		SSHPublicKey: key.PublicKey,

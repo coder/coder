@@ -3,9 +3,9 @@ import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
 import {
 	BanIcon,
-	CirclePlayIcon,
 	CircleStopIcon,
 	CloudIcon,
+	PlayIcon,
 	PowerIcon,
 	RotateCcwIcon,
 	StarIcon,
@@ -44,7 +44,7 @@ export const UpdateButton: FC<ActionButtonProps> = ({
 				disabled={loading}
 				onClick={() => handleAction()}
 			>
-				{requireActiveVersion ? <CirclePlayIcon /> : <CloudIcon />}
+				{requireActiveVersion ? <PlayIcon /> : <CloudIcon />}
 				{loading ? (
 					<>Updating&hellip;</>
 				) : isRunning ? (
@@ -82,7 +82,7 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
 }) => {
 	let mainButton = (
 		<TopbarButton onClick={() => handleAction()} disabled={disabled || loading}>
-			<CirclePlayIcon />
+			<PlayIcon />
 			{loading ? <>Starting&hellip;</> : "Start"}
 		</TopbarButton>
 	);

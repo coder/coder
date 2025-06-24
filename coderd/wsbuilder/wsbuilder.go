@@ -1049,14 +1049,12 @@ func (b *Builder) authorize(authFunc func(action policy.Action, object rbac.Obje
 		return BuildError{http.StatusBadRequest, msg, xerrors.New(msg)}
 	}
 
+	// Try default workspace authorization first
+	authorized := authFunc(action, b.workspace)
+
 	// Special handling for prebuilt workspace deletion
-	authorized := false
-	if action == policy.ActionDelete && b.workspace.IsPrebuild() && authFunc(action, b.workspace.AsPrebuild()) {
-		authorized = true
-	}
-	// Fallback to default authorization
-	if !authorized && authFunc(action, b.workspace) {
-		authorized = true
+	if !authorized && action == policy.ActionDelete && b.workspace.IsPrebuild() {
+		authorized = authFunc(action, b.workspace.AsPrebuild())
 	}
 
 	if !authorized {

@@ -37,7 +37,7 @@ func (a *agent) apiHandler(aAPI proto.DRPCAgentClient26) (http.Handler, func() e
 		cacheDuration: cacheDuration,
 	}
 
-	if a.experimentalDevcontainersEnabled {
+	if a.devcontainers {
 		if cAPI := a.containerAPI.Load(); cAPI != nil {
 			r.Mount("/api/v0/containers", cAPI.Routes())
 		}

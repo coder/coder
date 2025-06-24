@@ -89,10 +89,9 @@ type Options struct {
 	ServiceBannerRefreshInterval time.Duration
 	BlockFileTransfer            bool
 	Execer                       agentexec.Execer
+	Devcontainers                bool
+	DevcontainerAPIOptions       []agentcontainers.Option // Enable Devcontainers for these to be effective.
 	Clock                        quartz.Clock
-
-	ExperimentalDevcontainersEnabled bool
-	ContainerAPIOptions              []agentcontainers.Option // Enable ExperimentalDevcontainersEnabled for these to be effective.
 }
 
 type Client interface {
@@ -195,8 +194,8 @@ func New(options Options) Agent {
 		metrics:            newAgentMetrics(prometheusRegistry),
 		execer:             options.Execer,
 
-		experimentalDevcontainersEnabled: options.ExperimentalDevcontainersEnabled,
-		containerAPIOptions:              options.ContainerAPIOptions,
+		devcontainers:       options.Devcontainers,
+		containerAPIOptions: options.DevcontainerAPIOptions,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -278,9 +277,9 @@ type agent struct {
 	metrics *agentMetrics
 	execer  agentexec.Execer
 
-	experimentalDevcontainersEnabled bool
-	containerAPIOptions              []agentcontainers.Option
-	containerAPI                     atomic.Pointer[agentcontainers.API]
+	devcontainers       bool
+	containerAPIOptions []agentcontainers.Option
+	containerAPI        atomic.Pointer[agentcontainers.API]
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -317,7 +316,7 @@ func (a *agent) init() {
 			return a.reportConnection(id, connectionType, ip)
 		},
 
-		ExperimentalDevContainersEnabled: a.experimentalDevcontainersEnabled,
+		ExperimentalContainers: a.devcontainers,
 	})
 	if err != nil {
 		panic(err)
@@ -346,7 +345,7 @@ func (a *agent) init() {
 		a.metrics.connectionsTotal, a.metrics.reconnectingPTYErrors,
 		a.reconnectingPTYTimeout,
 		func(s *reconnectingpty.Server) {
-			s.ExperimentalDevcontainersEnabled = a.experimentalDevcontainersEnabled
+			s.ExperimentalContainers = a.devcontainers
 		},
 	)
 	go a.runLoop()
@@ -1093,9 +1092,9 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				slog.F("parent_id", manifest.ParentID),
 				slog.F("agent_id", manifest.AgentID),
 			)
-			if a.experimentalDevcontainersEnabled {
+			if a.devcontainers {
 				a.logger.Info(ctx, "devcontainers are not supported on sub agents, disabling feature")
-				a.experimentalDevcontainersEnabled = false
+				a.devcontainers = false
 			}
 		}
 		a.client.RewriteDERPMap(manifest.DERPMap)
@@ -1152,7 +1151,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				scriptRunnerOpts    []agentscripts.InitOption
 				devcontainerScripts map[uuid.UUID]codersdk.WorkspaceAgentScript
 			)
-			if a.experimentalDevcontainersEnabled {
+			if a.devcontainers {
 				containerAPIOpts := []agentcontainers.Option{
 					agentcontainers.WithExecer(a.execer),
 					agentcontainers.WithCommandEnv(a.sshServer.CommandEnv),

@@ -334,8 +334,8 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 	})
 
 	_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
-		o.ExperimentalDevcontainersEnabled = true
-		o.ContainerAPIOptions = append(o.ContainerAPIOptions,
+		o.Devcontainers = true
+		o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
 			agentcontainers.WithContainerCLI(mccli),
 			agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
 		)
@@ -509,8 +509,8 @@ func TestOpenVSCodeDevContainer_NoAgentDirectory(t *testing.T) {
 	})
 
 	_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
-		o.ExperimentalDevcontainersEnabled = true
-		o.ContainerAPIOptions = append(o.ContainerAPIOptions,
+		o.Devcontainers = true
+		o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
 			agentcontainers.WithContainerCLI(mccli),
 			agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
 		)
