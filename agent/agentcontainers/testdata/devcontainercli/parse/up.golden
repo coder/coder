@@ -74,3 +74,4 @@ Not setting dockerd DNS manually.
 
 added 1 package in 784ms
 
+{"outcome":"success","containerId":"bc72db8d0c4c4e941bd9ffc341aee64a18d3397fd45b87cd93d4746150967ba8","remoteUser":"node","remoteWorkspaceFolder":"/workspaces/devcontainers-template-starter"}
