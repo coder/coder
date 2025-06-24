@@ -331,6 +331,14 @@ jobs:
         with:
           egress-policy: audit
 
+      # Disable windows pagefile. It is located by default on C: drive, which is
+      # extremely slow.
+      - name: Disable Windows Pagefile
+        if: runner.os == 'Windows'
+        run: |
+          # Disable pagefile on C: drive
+          wmic pagefileset where name="C:\\pagefile.sys" set InitialSize=0,MaximumSize=0
+
       # Set up RAM disks to speed up the rest of the job. This action is in
       # a separate repository to allow its use before actions/checkout.
       - name: Setup RAM Disks
@@ -421,6 +429,14 @@ jobs:
         uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
           egress-policy: audit
+
+      # Disable windows pagefile. It is located by default on C: drive, which is
+      # extremely slow.
+      - name: Disable Windows Pagefile
+        if: runner.os == 'Windows'
+        run: |
+          # Disable pagefile on C: drive
+          wmic pagefileset where name="C:\\pagefile.sys" set InitialSize=0,MaximumSize=0
 
       # macOS indexes all new files in the background. Our Postgres tests
       # create and destroy thousands of databases on disk, and Spotlight
