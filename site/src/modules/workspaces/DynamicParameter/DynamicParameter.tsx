@@ -406,7 +406,9 @@ const ParameterField: FC<ParameterFieldProps> = ({
 									: option.value.value;
 							return (
 								<SelectItem
-									key={option.value.value || `${EMPTY_VALUE_PLACEHOLDER}:${index}`}
+									key={
+										option.value.value || `${EMPTY_VALUE_PLACEHOLDER}:${index}`
+									}
 									value={optionValue}
 								>
 									<OptionDisplay option={option} />
