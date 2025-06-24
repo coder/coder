@@ -1216,7 +1216,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				if provisioner.AgentNameRegex.Match([]byte(name)) {
 					subAgentConfig.Name = name
 					configOutdated = true
-					api.usingWorkspaceFolderName[dc.WorkspaceFolder] = false
+					delete(api.usingWorkspaceFolderName, dc.WorkspaceFolder)
 				} else {
 					logger.Warn(ctx, "invalid name in devcontainer customization, ignoring",
 						slog.F("name", name),
@@ -1312,6 +1312,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 		for attempt := 1; attempt <= maxAttempts; attempt++ {
 			if proc.agent, err = client.Create(ctx, subAgentConfig); err == nil {
+				delete(api.usingWorkspaceFolderName, dc.WorkspaceFolder)
 				break
 			}
 
