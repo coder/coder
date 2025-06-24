@@ -1108,9 +1108,6 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 			if a.devcontainers {
 				a.logger.Info(ctx, "devcontainers are not supported on sub agents, disabling feature")
 				a.devcontainers = false
-				if err := a.containerAPI.Close(); err != nil {
-					a.logger.Error(ctx, "disable container API", slog.Error(err))
-				}
 			}
 		}
 		a.client.RewriteDERPMap(manifest.DERPMap)

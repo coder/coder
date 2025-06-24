@@ -51,7 +51,6 @@ const (
 type API struct {
 	ctx                         context.Context
 	cancel                      context.CancelFunc
-	initialized                 chan struct{}
 	watcherDone                 chan struct{}
 	updaterDone                 chan struct{}
 	initialUpdateDone           chan struct{}   // Closed after first update in updaterLoop.
@@ -266,7 +265,6 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 	api := &API{
 		ctx:                         ctx,
 		cancel:                      cancel,
-		initialized:                 make(chan struct{}),
 		watcherDone:                 make(chan struct{}),
 		updaterDone:                 make(chan struct{}),
 		initialUpdateDone:           make(chan struct{}),
@@ -317,24 +315,19 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 		api.subAgentClient.Store(&c)
 	}
 
-	go func() {
-		select {
-		case <-api.ctx.Done():
-			break
-		case <-api.initialized:
-			go api.watcherLoop()
-			go api.updaterLoop()
-		}
-	}()
-
 	return api
 }
 
+// Init applies a final set of options to the API and then
+// begins the watcherLoop and updaterLoop. This function
+// must only be called once.
 func (api *API) Init(opts ...Option) {
 	for _, opt := range opts {
 		opt(api)
 	}
-	close(api.initialized)
+
+	go api.watcherLoop()
+	go api.updaterLoop()
 }
 
 func (api *API) watcherLoop() {
@@ -1604,8 +1597,6 @@ func (api *API) Close() error {
 	}
 	api.logger.Debug(api.ctx, "closing API")
 	api.closed = true
-
-	close(api.initialized)
 
 	// Stop all running subagent processes and clean up.
 	subAgentIDs := make([]uuid.UUID, 0, len(api.injectedSubAgentProcs))
