@@ -378,7 +378,11 @@ func (api *API) updaterLoop() {
 	// and anyone looking to interact with the API.
 	api.logger.Debug(api.ctx, "performing initial containers update")
 	if err := api.updateContainers(api.ctx); err != nil {
-		api.logger.Error(api.ctx, "initial containers update failed", slog.Error(err))
+		if errors.Is(err, context.Canceled) {
+			api.logger.Warn(api.ctx, "initial containers update canceled", slog.Error(err))
+		} else {
+			api.logger.Error(api.ctx, "initial containers update failed", slog.Error(err))
+		}
 	} else {
 		api.logger.Debug(api.ctx, "initial containers update complete")
 	}
@@ -399,7 +403,11 @@ func (api *API) updaterLoop() {
 		case api.updateTrigger <- done:
 			err := <-done
 			if err != nil {
-				api.logger.Error(api.ctx, "updater loop ticker failed", slog.Error(err))
+				if errors.Is(err, context.Canceled) {
+					api.logger.Warn(api.ctx, "updater loop ticker canceled", slog.Error(err))
+				} else {
+					api.logger.Error(api.ctx, "updater loop ticker failed", slog.Error(err))
+				}
 			}
 		default:
 			api.logger.Debug(api.ctx, "updater loop ticker skipped, update in progress")
