@@ -146,7 +146,7 @@ func (c *Cache) Acquire(ctx context.Context, db database.Store, fileID uuid.UUID
 	// mutex has been released, or we would continue to hold the lock until the
 	// entire file has been fetched, which may be slow, and would prevent other
 	// files from being fetched in parallel.
-	e := c.prepare(ctx, db, fileID)
+	e := c.prepare(db, fileID)
 	ev, err := e.value.Load()
 	if err != nil {
 		c.purge(fileID)
@@ -184,7 +184,7 @@ func (c *Cache) Acquire(ctx context.Context, db database.Store, fileID uuid.UUID
 	}, nil
 }
 
-func (c *Cache) prepare(ctx context.Context, db database.Store, fileID uuid.UUID) *cacheEntry {
+func (c *Cache) prepare(db database.Store, fileID uuid.UUID) *cacheEntry {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
