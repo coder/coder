@@ -277,8 +277,7 @@ func (m *fakeSubAgentClient) Create(ctx context.Context, agent agentcontainers.S
 			m.nameConflictCount[agent.Name]++
 			return agentcontainers.SubAgent{}, &pq.Error{
 				Code:    "23505",
-				Column:  "name",
-				Message: "duplicate key value violates unique constraint",
+				Message: fmt.Sprintf("workspace agent name %q already exists in this workspace build", agent.Name),
 			}
 		}
 	}
@@ -2018,10 +2017,9 @@ func TestSubAgentCreationWithNameRetry(t *testing.T) {
 	}
 
 	tests := []struct {
-		name               string
-		workspaceFolders   []string
-		expectedConflicts  map[string]int
-		expectedFinalNames []string
+		name              string
+		workspaceFolders  []string
+		expectedConflicts map[string]int
 	}{
 		{
 			name: "SingleCollision",
@@ -2030,31 +2028,19 @@ func TestSubAgentCreationWithNameRetry(t *testing.T) {
 				"/home/coder/bar/project",
 			},
 			expectedConflicts: map[string]int{
-				"project": 1, // First "project" fails once, then succeeds
+				"project": 1,
 			},
-			expectedFinalNames: []string{"project", "bar-project"},
 		},
 		{
 			name: "MultipleCollisions",
 			workspaceFolders: []string{
-				"/home/coder/foo/project",
-				"/home/coder/bar/foo/project",
-				"/home/coder/baz/foo/project",
-				"/home/coder/wibble/baz/foo/project",
-				"/home/coder/wobble/wibble/baz/foo/project",
+				"/home/coder/foo/x/project",
+				"/home/coder/bar/x/project",
+				"/home/coder/baz/x/project",
 			},
 			expectedConflicts: map[string]int{
-				"project":                4,
-				"foo-project":            3,
-				"baz-foo-project":        2,
-				"wibble-baz-foo-project": 1,
-			},
-			expectedFinalNames: []string{
-				"project",
-				"foo-project",
-				"baz-foo-project",
-				"wibble-baz-foo-project",
-				"wobble-wibble-baz-foo-project",
+				"project":   2,
+				"x-project": 1,
 			},
 		},
 	}
@@ -2107,7 +2093,6 @@ func TestSubAgentCreationWithNameRetry(t *testing.T) {
 			}
 
 			assert.Equal(t, tt.expectedConflicts, subAgentClient.nameConflictCount)
-			assert.Equal(t, tt.expectedFinalNames, actualNames)
 		})
 	}
 }

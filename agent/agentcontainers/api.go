@@ -19,7 +19,6 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -1316,10 +1315,14 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				break
 			}
 
+			// NOTE(DanielleMaywood):
+			// Ordinarily we'd use `errors.As` here, but it didn't appear to work. Not
+			// sure if this is because of the communication protocol? Instead I've opted
+			// for a slightly more janky string contains approach.
+			//
 			// We only care if sub agent creation has failed due to a unique constraint
 			// violation on the agent name, as we can _possibly_ rectify this.
-			var pgErr *pq.Error
-			if !errors.As(err, &pgErr) || (pgErr.Code != "23505" && pgErr.Column == "name") {
+			if !strings.Contains(err.Error(), "workspace agent name") {
 				return xerrors.Errorf("create subagent failed: %w", err)
 			}
 
