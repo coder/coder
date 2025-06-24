@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"runtime"
 	"strings"
 	"sync"
@@ -26,7 +27,9 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
 	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -289,6 +292,38 @@ func (m *fakeSubAgentClient) Delete(ctx context.Context, id uuid.UUID) error {
 	delete(m.agents, id)
 	m.deleted = append(m.deleted, id)
 	return nil
+}
+
+// fakeExecer implements agentexec.Execer for testing and tracks execution details.
+type fakeExecer struct {
+	commands        [][]string
+	createdCommands []*exec.Cmd
+}
+
+func (f *fakeExecer) CommandContext(ctx context.Context, cmd string, args ...string) *exec.Cmd {
+	f.commands = append(f.commands, append([]string{cmd}, args...))
+	// Create a command that returns empty JSON for docker commands.
+	c := exec.CommandContext(ctx, "echo", "[]")
+	f.createdCommands = append(f.createdCommands, c)
+	return c
+}
+
+func (f *fakeExecer) PTYCommandContext(ctx context.Context, cmd string, args ...string) *pty.Cmd {
+	f.commands = append(f.commands, append([]string{cmd}, args...))
+	return &pty.Cmd{
+		Context: ctx,
+		Path:    cmd,
+		Args:    append([]string{cmd}, args...),
+		Env:     []string{},
+		Dir:     "",
+	}
+}
+
+func (f *fakeExecer) getLastCommand() *exec.Cmd {
+	if len(f.createdCommands) == 0 {
+		return nil
+	}
+	return f.createdCommands[len(f.createdCommands)-1]
 }
 
 func TestAPI(t *testing.T) {
@@ -1969,6 +2004,57 @@ func TestAPI(t *testing.T) {
 
 		// Then: We expected it to succeed
 		require.Len(t, fSAC.created, 1)
+	})
+
+	t.Run("CommandEnv", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+		// Create fake execer to track execution details.
+		fakeExec := &fakeExecer{}
+
+		// Custom CommandEnv that returns specific values.
+		testShell := "/bin/custom-shell"
+		testDir := t.TempDir()
+		testEnv := []string{"CUSTOM_VAR=test_value", "PATH=/custom/path"}
+
+		commandEnv := func(ei usershell.EnvInfoer, addEnv []string) (shell, dir string, env []string, err error) {
+			return testShell, testDir, testEnv, nil
+		}
+
+		mClock := quartz.NewMock(t) // Stop time.
+
+		// Create API with CommandEnv.
+		api := agentcontainers.NewAPI(logger,
+			agentcontainers.WithClock(mClock),
+			agentcontainers.WithExecer(fakeExec),
+			agentcontainers.WithCommandEnv(commandEnv),
+		)
+		defer api.Close()
+
+		// Call RefreshContainers directly to trigger CommandEnv usage.
+		_ = api.RefreshContainers(ctx) // Ignore error since docker commands will fail.
+
+		// Verify commands were executed through the custom shell and environment.
+		require.NotEmpty(t, fakeExec.commands, "commands should be executed")
+
+		// Want: /bin/custom-shell -c "docker ps --all --quiet --no-trunc"
+		require.Equal(t, testShell, fakeExec.commands[0][0], "custom shell should be used")
+		if runtime.GOOS == "windows" {
+			require.Equal(t, "/c", fakeExec.commands[0][1], "shell should be called with /c on Windows")
+		} else {
+			require.Equal(t, "-c", fakeExec.commands[0][1], "shell should be called with -c")
+		}
+		require.Len(t, fakeExec.commands[0], 3, "command should have 3 arguments")
+		require.GreaterOrEqual(t, strings.Count(fakeExec.commands[0][2], " "), 2, "command/script should have multiple arguments")
+
+		// Verify the environment was set on the command.
+		lastCmd := fakeExec.getLastCommand()
+		require.NotNil(t, lastCmd, "command should be created")
+		require.Equal(t, testDir, lastCmd.Dir, "custom directory should be used")
+		require.Equal(t, testEnv, lastCmd.Env, "custom environment should be used")
 	})
 }
 
