@@ -593,6 +593,15 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 				// agent name based off of the folder name (i.e. no valid characters),
 				// we will instead fall back to using the container's friendly name.
 				dc.Name, api.usingWorkspaceFolderName[dc.WorkspaceFolder] = safeAgentName(path.Base(filepath.ToSlash(dc.WorkspaceFolder)), dc.Container.FriendlyName)
+
+				// If we have accidentally picked a name that is already
+				// defined by terraform, we'll need to force a fallback
+				// to the friendly name. The odds of a collision here are
+				// incredibly slim so this should be fine.
+				if api.devcontainerNames[dc.Name] {
+					dc.Name = safeFriendlyName(dc.Container.FriendlyName)
+					delete(api.usingWorkspaceFolderName, dc.WorkspaceFolder)
+				}
 			}
 		}
 
