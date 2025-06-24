@@ -1917,7 +1917,6 @@ This is required on creation to enable a user-flow of validating a template work
 ```json
 {
   "dry_run": true,
-  "enable_dynamic_parameters": true,
   "log_level": "debug",
   "orphan": true,
   "rich_parameter_values": [
@@ -1940,7 +1939,6 @@ This is required on creation to enable a user-flow of validating a template work
 | Name                         | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                                   |
 |------------------------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `dry_run`                    | boolean                                                                       | false    |              |                                                                                                                                                                                                               |
-| `enable_dynamic_parameters`  | boolean                                                                       | false    |              | Enable dynamic parameters skips some of the static parameter checking. It will default to whatever the template has marked as the default experience. Requires the "dynamic-experiment" to be used.           |
 | `log_level`                  | [codersdk.ProvisionerLogLevel](#codersdkprovisionerloglevel)                  | false    |              | Log level changes the default logging verbosity of a provider ("info" if empty).                                                                                                                              |
 | `orphan`                     | boolean                                                                       | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                                 |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
@@ -1982,7 +1980,6 @@ This is required on creation to enable a user-flow of validating a template work
 {
   "automatic_updates": "always",
   "autostart_schedule": "string",
-  "enable_dynamic_parameters": true,
   "name": "string",
   "rich_parameter_values": [
     {
@@ -2005,7 +2002,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 |------------------------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------|
 | `automatic_updates`          | [codersdk.AutomaticUpdates](#codersdkautomaticupdates)                        | false    |              |                                                                                                         |
 | `autostart_schedule`         | string                                                                        | false    |              |                                                                                                         |
-| `enable_dynamic_parameters`  | boolean                                                                       | false    |              |                                                                                                         |
 | `name`                       | string                                                                        | true     |              |                                                                                                         |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values allows for additional parameters to be provided during the initial provision.     |
 | `template_id`                | string                                                                        | false    |              | Template ID specifies which template should be used for creating the workspace.                         |
@@ -3517,7 +3513,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `web-push`             |
 | `workspace-prebuilds`  |
 | `agentic-chat`         |
-| `ai-tasks`             |
 
 ## codersdk.ExternalAuth
 
@@ -5501,6 +5496,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
+  "default": true,
   "id": "string",
   "name": "string",
   "parameters": [
@@ -5516,6 +5512,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 | Name         | Type                                                          | Required | Restrictions | Description |
 |--------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `default`    | boolean                                                       | false    |              |             |
 | `id`         | string                                                        | false    |              |             |
 | `name`       | string                                                        | false    |              |             |
 | `parameters` | array of [codersdk.PresetParameter](#codersdkpresetparameter) | false    |              |             |
@@ -6329,6 +6326,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `oauth2_app_secret`                |
 | `organization`                     |
 | `organization_member`              |
+| `prebuilt_workspace`               |
 | `provisioner_daemon`               |
 | `provisioner_jobs`                 |
 | `replicas`                         |
@@ -8588,10 +8586,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
   "latest_build": {
+    "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "has_ai_task": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -9683,6 +9683,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Value      |
 |------------|
 | `working`  |
+| `idle`     |
 | `complete` |
 | `failure`  |
 
@@ -9690,10 +9691,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
   "build_number": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
+  "has_ai_task": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",
@@ -9896,10 +9899,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                         | Type                                                              | Required | Restrictions | Description                                                         |
 |------------------------------|-------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
+| `ai_task_sidebar_app_id`     | string                                                            | false    |              |                                                                     |
 | `build_number`               | integer                                                           | false    |              |                                                                     |
 | `created_at`                 | string                                                            | false    |              |                                                                     |
 | `daily_cost`                 | integer                                                           | false    |              |                                                                     |
 | `deadline`                   | string                                                            | false    |              |                                                                     |
+| `has_ai_task`                | boolean                                                           | false    |              |                                                                     |
 | `id`                         | string                                                            | false    |              |                                                                     |
 | `initiator_id`               | string                                                            | false    |              |                                                                     |
 | `initiator_name`             | string                                                            | false    |              |                                                                     |
@@ -10416,10 +10421,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
       },
       "latest_build": {
+        "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
         "build_number": 0,
         "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
         "deadline": "2019-08-24T14:15:22Z",
+        "has_ai_task": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
         "initiator_name": "string",

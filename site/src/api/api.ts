@@ -411,7 +411,11 @@ export type GetProvisionerDaemonsParams = {
  * lexical scope.
  */
 class ApiMethods {
-	constructor(protected readonly axios: AxiosInstance) {}
+	experimental: ExperimentalApiMethods;
+
+	constructor(protected readonly axios: AxiosInstance) {
+		this.experimental = new ExperimentalApiMethods(this.axios);
+	}
 
 	login = async (
 		email: string,
@@ -2237,6 +2241,7 @@ class ApiMethods {
 	 * - Update the build parameters and check if there are missed parameters for
 	 *   the newest version
 	 *   - If there are missing parameters raise an error
+	 * - Stop the workspace with the current template version if it is already running
 	 * - Create a build with the latest version and updated build parameters
 	 */
 	updateWorkspace = async (
@@ -2272,6 +2277,19 @@ class ApiMethods {
 
 		if (missingParameters.length > 0) {
 			throw new MissingBuildParameters(missingParameters, activeVersionId);
+		}
+
+		// Stop the workspace if it is already running.
+		if (workspace.latest_build.status === "running") {
+			const stopBuild = await this.stopWorkspace(workspace.id);
+			const awaitedStopBuild = await this.waitForBuild(stopBuild);
+			// If the stop is canceled halfway through, we bail.
+			// This is the same behaviour as restartWorkspace.
+			if (awaitedStopBuild?.status === "canceled") {
+				return Promise.reject(
+					new Error("Workspace stop was canceled, not proceeding with update."),
+				);
+			}
 		}
 
 		return this.postWorkspaceBuild(workspace.id, {
@@ -2582,6 +2600,36 @@ class ApiMethods {
 			`/api/v2/chats/${chatId}/messages`,
 		);
 		return res.data;
+	};
+}
+
+// Experimental API methods call endpoints under the /api/experimental/ prefix.
+// These endpoints are not stable and may change or be removed at any time.
+//
+// All methods must be defined with arrow function syntax. See the docstring
+// above the ApiMethods class for a full explanation.
+class ExperimentalApiMethods {
+	constructor(protected readonly axios: AxiosInstance) {}
+
+	getAITasksPrompts = async (
+		buildIds: TypesGen.WorkspaceBuild["id"][],
+	): Promise<TypesGen.AITasksPromptsResponse> => {
+		if (buildIds.length === 0) {
+			return {
+				prompts: {},
+			};
+		}
+
+		const response = await this.axios.get<TypesGen.AITasksPromptsResponse>(
+			"/api/experimental/aitasks/prompts",
+			{
+				params: {
+					build_ids: buildIds.join(","),
+				},
+			},
+		);
+
+		return response.data;
 	};
 }
 

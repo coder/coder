@@ -43,6 +43,7 @@ func (a *agent) apiHandler(aAPI proto.DRPCAgentClient26) (http.Handler, func() e
 	if a.experimentalDevcontainersEnabled {
 		containerAPIOpts := []agentcontainers.Option{
 			agentcontainers.WithExecer(a.execer),
+			agentcontainers.WithCommandEnv(a.sshServer.CommandEnv),
 			agentcontainers.WithScriptLogger(func(logSourceID uuid.UUID) agentcontainers.ScriptLogger {
 				return a.logSender.GetScriptLogger(logSourceID)
 			}),

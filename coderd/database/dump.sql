@@ -324,7 +324,8 @@ CREATE TYPE workspace_app_open_in AS ENUM (
 CREATE TYPE workspace_app_status_state AS ENUM (
     'working',
     'complete',
-    'failure'
+    'failure',
+    'idle'
 );
 
 CREATE TYPE workspace_transition AS ENUM (
@@ -1512,7 +1513,8 @@ CREATE TABLE template_version_presets (
     desired_instances integer,
     invalidate_after_secs integer DEFAULT 0,
     prebuild_status prebuild_status DEFAULT 'healthy'::prebuild_status NOT NULL,
-    scheduling_timezone text DEFAULT ''::text NOT NULL
+    scheduling_timezone text DEFAULT ''::text NOT NULL,
+    is_default boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE template_version_terraform_values (
@@ -2097,7 +2099,8 @@ CREATE TABLE workspace_builds (
     max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     template_version_preset_id uuid,
     has_ai_task boolean,
-    ai_tasks_sidebar_app_id uuid
+    ai_task_sidebar_app_id uuid,
+    CONSTRAINT workspace_builds_ai_task_sidebar_app_id_required CHECK (((((has_ai_task IS NULL) OR (has_ai_task = false)) AND (ai_task_sidebar_app_id IS NULL)) OR ((has_ai_task = true) AND (ai_task_sidebar_app_id IS NOT NULL))))
 );
 
 CREATE VIEW workspace_build_with_user AS
@@ -2117,7 +2120,7 @@ CREATE VIEW workspace_build_with_user AS
     workspace_builds.max_deadline,
     workspace_builds.template_version_preset_id,
     workspace_builds.has_ai_task,
-    workspace_builds.ai_tasks_sidebar_app_id,
+    workspace_builds.ai_task_sidebar_app_id,
     COALESCE(visible_users.avatar_url, ''::text) AS initiator_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS initiator_by_username,
     COALESCE(visible_users.name, ''::text) AS initiator_by_name
@@ -2689,6 +2692,8 @@ CREATE INDEX idx_tailnet_tunnels_dst_id ON tailnet_tunnels USING hash (dst_id);
 
 CREATE INDEX idx_tailnet_tunnels_src_id ON tailnet_tunnels USING hash (src_id);
 
+CREATE UNIQUE INDEX idx_template_version_presets_default ON template_version_presets USING btree (template_version_id) WHERE (is_default = true);
+
 CREATE INDEX idx_template_versions_has_ai_task ON template_versions USING btree (has_ai_task);
 
 CREATE UNIQUE INDEX idx_unique_preset_name ON template_version_presets USING btree (name, template_version_id);
@@ -3091,7 +3096,7 @@ ALTER TABLE ONLY workspace_build_parameters
     ADD CONSTRAINT workspace_build_parameters_workspace_build_id_fkey FOREIGN KEY (workspace_build_id) REFERENCES workspace_builds(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_builds
-    ADD CONSTRAINT workspace_builds_ai_tasks_sidebar_app_id_fkey FOREIGN KEY (ai_tasks_sidebar_app_id) REFERENCES workspace_apps(id);
+    ADD CONSTRAINT workspace_builds_ai_task_sidebar_app_id_fkey FOREIGN KEY (ai_task_sidebar_app_id) REFERENCES workspace_apps(id);
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;

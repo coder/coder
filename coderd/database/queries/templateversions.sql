@@ -88,11 +88,10 @@ INSERT INTO
 		readme,
 		job_id,
 		created_by,
-		source_example_id,
-		has_ai_task
+		source_example_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
 
 -- name: UpdateTemplateVersionByID :exec
 UPDATE
@@ -119,6 +118,15 @@ UPDATE
 	template_versions
 SET
 	external_auth_providers = $2,
+	updated_at = $3
+WHERE
+	job_id = $1;
+
+-- name: UpdateTemplateVersionAITaskByJobID :exec
+UPDATE
+	template_versions
+SET
+	has_ai_task = $2,
 	updated_at = $3
 WHERE
 	job_id = $1;

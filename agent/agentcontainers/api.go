@@ -1,15 +1,14 @@
 package agentcontainers
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -25,6 +24,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -41,6 +41,8 @@ const (
 	// by tmpfs or other mounts. This assumes the container root filesystem is
 	// read-write, which seems sensible for devcontainers.
 	coderPathInsideContainer = "/.coder-agent/coder"
+
+	maxAgentNameLength = 64
 )
 
 // API is responsible for container-related operations in the agent.
@@ -56,6 +58,7 @@ type API struct {
 	logger                      slog.Logger
 	watcher                     watcher.Watcher
 	execer                      agentexec.Execer
+	commandEnv                  CommandEnv
 	ccli                        ContainerCLI
 	containerLabelIncludeFilter map[string]string // Labels to filter containers by.
 	dccli                       DevcontainerCLI
@@ -108,6 +111,29 @@ func WithExecer(execer agentexec.Execer) Option {
 	}
 }
 
+// WithCommandEnv sets the CommandEnv implementation to use.
+func WithCommandEnv(ce CommandEnv) Option {
+	return func(api *API) {
+		api.commandEnv = func(ei usershell.EnvInfoer, preEnv []string) (string, string, []string, error) {
+			shell, dir, env, err := ce(ei, preEnv)
+			if err != nil {
+				return shell, dir, env, err
+			}
+			env = slices.DeleteFunc(env, func(s string) bool {
+				// Ensure we filter out environment variables that come
+				// from the parent agent and are incorrect or not
+				// relevant for the devcontainer.
+				return strings.HasPrefix(s, "CODER_WORKSPACE_AGENT_NAME=") ||
+					strings.HasPrefix(s, "CODER_WORKSPACE_AGENT_URL=") ||
+					strings.HasPrefix(s, "CODER_AGENT_TOKEN=") ||
+					strings.HasPrefix(s, "CODER_AGENT_AUTH=") ||
+					strings.HasPrefix(s, "CODER_AGENT_DEVCONTAINERS_ENABLE=")
+			})
+			return shell, dir, env, nil
+		}
+	}
+}
+
 // WithContainerCLI sets the agentcontainers.ContainerCLI implementation
 // to use. The default implementation uses the Docker CLI.
 func WithContainerCLI(ccli ContainerCLI) Option {
@@ -150,7 +176,7 @@ func WithSubAgentURL(url string) Option {
 	}
 }
 
-// WithSubAgent sets the environment variables for the sub-agent.
+// WithSubAgentEnv sets the environment variables for the sub-agent.
 func WithSubAgentEnv(env ...string) Option {
 	return func(api *API) {
 		api.subAgentEnv = env
@@ -258,6 +284,13 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 	for _, opt := range options {
 		opt(api)
 	}
+	if api.commandEnv != nil {
+		api.execer = newCommandEnvExecer(
+			api.logger,
+			api.commandEnv,
+			api.execer,
+		)
+	}
 	if api.ccli == nil {
 		api.ccli = NewDockerCLI(api.execer)
 	}
@@ -345,7 +378,11 @@ func (api *API) updaterLoop() {
 	// and anyone looking to interact with the API.
 	api.logger.Debug(api.ctx, "performing initial containers update")
 	if err := api.updateContainers(api.ctx); err != nil {
-		api.logger.Error(api.ctx, "initial containers update failed", slog.Error(err))
+		if errors.Is(err, context.Canceled) {
+			api.logger.Warn(api.ctx, "initial containers update canceled", slog.Error(err))
+		} else {
+			api.logger.Error(api.ctx, "initial containers update failed", slog.Error(err))
+		}
 	} else {
 		api.logger.Debug(api.ctx, "initial containers update complete")
 	}
@@ -366,7 +403,11 @@ func (api *API) updaterLoop() {
 		case api.updateTrigger <- done:
 			err := <-done
 			if err != nil {
-				api.logger.Error(api.ctx, "updater loop ticker failed", slog.Error(err))
+				if errors.Is(err, context.Canceled) {
+					api.logger.Warn(api.ctx, "updater loop ticker canceled", slog.Error(err))
+				} else {
+					api.logger.Error(api.ctx, "updater loop ticker failed", slog.Error(err))
+				}
 			}
 		default:
 			api.logger.Debug(api.ctx, "updater loop ticker skipped, update in progress")
@@ -585,10 +626,11 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 		if dc.Container != nil {
 			if !api.devcontainerNames[dc.Name] {
 				// If the devcontainer name wasn't set via terraform, we
-				// use the containers friendly name as a fallback which
-				// will keep changing as the devcontainer is recreated.
-				// TODO(mafredri): Parse the container label (i.e. devcontainer.json) for customization.
-				dc.Name = safeFriendlyName(dc.Container.FriendlyName)
+				// will attempt to create an agent name based on the workspace
+				// folder's name. If it is not possible to generate a valid
+				// agent name based off of the folder name (i.e. no valid characters),
+				// we will instead fall back to using the container's friendly name.
+				dc.Name = safeAgentName(path.Base(filepath.ToSlash(dc.WorkspaceFolder)), dc.Container.FriendlyName)
 			}
 		}
 
@@ -631,6 +673,38 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 
 	api.containers = updated
 	api.containersErr = nil
+}
+
+var consecutiveHyphenRegex = regexp.MustCompile("-+")
+
+// `safeAgentName` returns a safe agent name derived from a folder name,
+// falling back to the container’s friendly name if needed.
+func safeAgentName(name string, friendlyName string) string {
+	// Keep only ASCII letters and digits, replacing everything
+	// else with a hyphen.
+	var sb strings.Builder
+	for _, r := range strings.ToLower(name) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			_, _ = sb.WriteRune(r)
+		} else {
+			_, _ = sb.WriteRune('-')
+		}
+	}
+
+	// Remove any consecutive hyphens, and then trim any leading
+	// and trailing hyphens.
+	name = consecutiveHyphenRegex.ReplaceAllString(sb.String(), "-")
+	name = strings.Trim(name, "-")
+
+	// Ensure the name of the agent doesn't exceed the maximum agent
+	// name length.
+	name = name[:min(len(name), maxAgentNameLength)]
+
+	if provisioner.AgentNameRegex.Match([]byte(name)) {
+		return name
+	}
+
+	return safeFriendlyName(friendlyName)
 }
 
 // safeFriendlyName returns a API safe version of the container's
@@ -1131,27 +1205,6 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 	if proc.agent.ID == uuid.Nil || maybeRecreateSubAgent {
 		subAgentConfig.Architecture = arch
 
-		// Detect workspace folder by executing `pwd` in the container.
-		// NOTE(mafredri): This is a quick and dirty way to detect the
-		// workspace folder inside the container. In the future we will
-		// rely more on `devcontainer read-configuration`.
-		var pwdBuf bytes.Buffer
-		err = api.dccli.Exec(ctx, dc.WorkspaceFolder, dc.ConfigPath, "pwd", []string{},
-			WithExecOutput(&pwdBuf, io.Discard),
-			WithExecContainerID(container.ID),
-		)
-		if err != nil {
-			return xerrors.Errorf("check workspace folder in container: %w", err)
-		}
-		directory := strings.TrimSpace(pwdBuf.String())
-		if directory == "" {
-			logger.Warn(ctx, "detected workspace folder is empty, using default workspace folder",
-				slog.F("default_workspace_folder", DevcontainerDefaultContainerWorkspaceFolder),
-			)
-			directory = DevcontainerDefaultContainerWorkspaceFolder
-		}
-		subAgentConfig.Directory = directory
-
 		displayAppsMap := map[codersdk.DisplayApp]bool{
 			// NOTE(DanielleMaywood):
 			// We use the same defaults here as set in terraform-provider-coder.
@@ -1163,7 +1216,10 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			codersdk.DisplayAppPortForward:    true,
 		}
 
-		var appsWithPossibleDuplicates []SubAgentApp
+		var (
+			appsWithPossibleDuplicates []SubAgentApp
+			workspaceFolder            = DevcontainerDefaultContainerWorkspaceFolder
+		)
 
 		if err := func() error {
 			var (
@@ -1183,6 +1239,8 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			if config, err = readConfig(); err != nil {
 				return err
 			}
+
+			workspaceFolder = config.Workspace.WorkspaceFolder
 
 			// NOTE(DanielleMaywood):
 			// We only want to take an agent name specified in the root customization layer.
@@ -1258,6 +1316,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 		subAgentConfig.DisplayApps = displayApps
 		subAgentConfig.Apps = apps
+		subAgentConfig.Directory = workspaceFolder
 	}
 
 	deleteSubAgent := proc.agent.ID != uuid.Nil && maybeRecreateSubAgent && !proc.agent.EqualConfig(subAgentConfig)

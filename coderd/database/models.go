@@ -2628,6 +2628,7 @@ const (
 	WorkspaceAppStatusStateWorking  WorkspaceAppStatusState = "working"
 	WorkspaceAppStatusStateComplete WorkspaceAppStatusState = "complete"
 	WorkspaceAppStatusStateFailure  WorkspaceAppStatusState = "failure"
+	WorkspaceAppStatusStateIdle     WorkspaceAppStatusState = "idle"
 )
 
 func (e *WorkspaceAppStatusState) Scan(src interface{}) error {
@@ -2669,7 +2670,8 @@ func (e WorkspaceAppStatusState) Valid() bool {
 	switch e {
 	case WorkspaceAppStatusStateWorking,
 		WorkspaceAppStatusStateComplete,
-		WorkspaceAppStatusStateFailure:
+		WorkspaceAppStatusStateFailure,
+		WorkspaceAppStatusStateIdle:
 		return true
 	}
 	return false
@@ -2680,6 +2682,7 @@ func AllWorkspaceAppStatusStateValues() []WorkspaceAppStatusState {
 		WorkspaceAppStatusStateWorking,
 		WorkspaceAppStatusStateComplete,
 		WorkspaceAppStatusStateFailure,
+		WorkspaceAppStatusStateIdle,
 	}
 }
 
@@ -3411,6 +3414,7 @@ type TemplateVersionPreset struct {
 	InvalidateAfterSecs sql.NullInt32  `db:"invalidate_after_secs" json:"invalidate_after_secs"`
 	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
 	SchedulingTimezone  string         `db:"scheduling_timezone" json:"scheduling_timezone"`
+	IsDefault           bool           `db:"is_default" json:"is_default"`
 }
 
 type TemplateVersionPresetParameter struct {
@@ -3861,7 +3865,7 @@ type WorkspaceBuild struct {
 	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 	HasAITask               sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
-	AITasksSidebarAppID     uuid.NullUUID       `db:"ai_tasks_sidebar_app_id" json:"ai_tasks_sidebar_app_id"`
+	AITaskSidebarAppID      uuid.NullUUID       `db:"ai_task_sidebar_app_id" json:"ai_task_sidebar_app_id"`
 	InitiatorByAvatarUrl    string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
 	InitiatorByUsername     string              `db:"initiator_by_username" json:"initiator_by_username"`
 	InitiatorByName         string              `db:"initiator_by_name" json:"initiator_by_name"`
@@ -3892,7 +3896,7 @@ type WorkspaceBuildTable struct {
 	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 	HasAITask               sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
-	AITasksSidebarAppID     uuid.NullUUID       `db:"ai_tasks_sidebar_app_id" json:"ai_tasks_sidebar_app_id"`
+	AITaskSidebarAppID      uuid.NullUUID       `db:"ai_task_sidebar_app_id" json:"ai_task_sidebar_app_id"`
 }
 
 type WorkspaceLatestBuild struct {

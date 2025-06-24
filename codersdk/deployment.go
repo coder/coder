@@ -3369,8 +3369,19 @@ const (
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
 	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
 	ExperimentAgenticChat        Experiment = "agentic-chat"         // Enables the new agentic AI chat feature.
-	ExperimentAITasks            Experiment = "ai-tasks"             // Enables the new AI tasks feature.
 )
+
+// ExperimentsKnown should include all experiments defined above.
+var ExperimentsKnown = Experiments{
+	ExperimentExample,
+	ExperimentAutoFillParameters,
+	ExperimentNotifications,
+	ExperimentWorkspaceUsage,
+	ExperimentWebPush,
+	ExperimentWorkspacePrebuilds,
+	ExperimentAgenticChat,
+	ExperimentAITasks,
+}
 
 // ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
@@ -3384,6 +3395,9 @@ var ExperimentsSafe = Experiments{
 // Multiple experiments may be enabled at the same time.
 // Experiments are not safe for production use, and are not guaranteed to
 // be backwards compatible. They may be removed or renamed at any time.
+// The below typescript-ignore annotation allows our typescript generator
+// to generate an enum list, which is used in the frontend.
+// @typescript-ignore Experiments
 type Experiments []Experiment
 
 // Returns a list of experiments that are enabled for the deployment.

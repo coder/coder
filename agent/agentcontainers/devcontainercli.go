@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"os"
 
 	"golang.org/x/xerrors"
 
@@ -22,6 +21,7 @@ import (
 type DevcontainerConfig struct {
 	MergedConfiguration DevcontainerMergedConfiguration `json:"mergedConfiguration"`
 	Configuration       DevcontainerConfiguration       `json:"configuration"`
+	Workspace           DevcontainerWorkspace           `json:"workspace"`
 }
 
 type DevcontainerMergedConfiguration struct {
@@ -44,6 +44,10 @@ type CoderCustomization struct {
 	DisplayApps map[codersdk.DisplayApp]bool `json:"displayApps,omitempty"`
 	Apps        []SubAgentApp                `json:"apps,omitempty"`
 	Name        string                       `json:"name,omitempty"`
+}
+
+type DevcontainerWorkspace struct {
+	WorkspaceFolder string `json:"workspaceFolder"`
 }
 
 // DevcontainerCLI is an interface for the devcontainer CLI.
@@ -278,7 +282,6 @@ func (d *devcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, confi
 	}
 
 	c := d.execer.CommandContext(ctx, "devcontainer", args...)
-	c.Env = append(c.Env, "PATH="+os.Getenv("PATH"))
 	c.Env = append(c.Env, env...)
 
 	var stdoutBuf bytes.Buffer

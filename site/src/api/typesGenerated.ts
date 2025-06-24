@@ -18,6 +18,14 @@ export interface AIProviderConfig {
 	readonly base_url: string;
 }
 
+// From codersdk/aitasks.go
+export const AITaskPromptParameterName = "AI Prompt";
+
+// From codersdk/aitasks.go
+export interface AITasksPromptsResponse {
+	readonly prompts: Record<string, string>;
+}
+
 // From codersdk/apikey.go
 export interface APIKey {
 	readonly id: string;
@@ -490,7 +498,6 @@ export interface CreateWorkspaceBuildRequest {
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly log_level?: ProvisionerLogLevel;
 	readonly template_version_preset_id?: string;
-	readonly enable_dynamic_parameters?: boolean;
 }
 
 // From codersdk/workspaceproxy.go
@@ -510,7 +517,6 @@ export interface CreateWorkspaceRequest {
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly automatic_updates?: AutomaticUpdates;
 	readonly template_version_preset_id?: string;
-	readonly enable_dynamic_parameters?: boolean;
 }
 
 // From codersdk/deployment.go
@@ -828,7 +834,6 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
-	| "ai-tasks"
 	| "agentic-chat"
 	| "auto-fill-parameters"
 	| "example"
@@ -837,8 +842,16 @@ export type Experiment =
 	| "workspace-prebuilds"
 	| "workspace-usage";
 
-// From codersdk/deployment.go
-export type Experiments = readonly Experiment[];
+export const Experiments: Experiment[] = [
+	"ai-tasks",
+	"agentic-chat",
+	"auto-fill-parameters",
+	"example",
+	"notifications",
+	"web-push",
+	"workspace-prebuilds",
+	"workspace-usage",
+];
 
 // From codersdk/externalauth.go
 export interface ExternalAuth {
@@ -1824,6 +1837,7 @@ export interface Preset {
 	readonly ID: string;
 	readonly Name: string;
 	readonly Parameters: readonly PresetParameter[];
+	readonly Default: boolean;
 }
 
 // From codersdk/presets.go
@@ -2192,6 +2206,7 @@ export type RBACResource =
 	| "oauth2_app_secret"
 	| "organization"
 	| "organization_member"
+	| "prebuilt_workspace"
 	| "provisioner_daemon"
 	| "provisioner_jobs"
 	| "replicas"
@@ -2231,6 +2246,7 @@ export const RBACResources: RBACResource[] = [
 	"oauth2_app_secret",
 	"organization",
 	"organization_member",
+	"prebuilt_workspace",
 	"provisioner_daemon",
 	"provisioner_jobs",
 	"replicas",
@@ -3620,11 +3636,16 @@ export interface WorkspaceAppStatus {
 }
 
 // From codersdk/workspaceapps.go
-export type WorkspaceAppStatusState = "complete" | "failure" | "working";
+export type WorkspaceAppStatusState =
+	| "complete"
+	| "failure"
+	| "idle"
+	| "working";
 
 export const WorkspaceAppStatusStates: WorkspaceAppStatusState[] = [
 	"complete",
 	"failure",
+	"idle",
 	"working",
 ];
 
@@ -3653,6 +3674,8 @@ export interface WorkspaceBuild {
 	readonly daily_cost: number;
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
+	readonly has_ai_task?: boolean;
+	readonly ai_task_sidebar_app_id?: string;
 }
 
 // From codersdk/workspacebuilds.go

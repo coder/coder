@@ -10,7 +10,7 @@
           "type": "coder_parameter",
           "name": "example",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "default": null,
             "description": null,
@@ -56,7 +56,7 @@
           "type": "coder_parameter",
           "name": "number_example",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "default": "4",
             "description": null,
@@ -85,7 +85,7 @@
           "type": "coder_parameter",
           "name": "number_example_max_zero",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "default": "-2",
             "description": null,
@@ -126,7 +126,7 @@
           "type": "coder_parameter",
           "name": "number_example_min_max",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "default": "4",
             "description": null,
@@ -167,7 +167,7 @@
           "type": "coder_parameter",
           "name": "number_example_min_zero",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "default": "4",
             "description": null,
@@ -208,7 +208,7 @@
           "type": "coder_parameter",
           "name": "sample",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "default": "ok",
             "description": "blah blah",
@@ -302,7 +302,7 @@
               "type": "coder_parameter",
               "name": "first_parameter_from_module",
               "provider_name": "registry.terraform.io/coder/coder",
-              "schema_version": 0,
+              "schema_version": 1,
               "values": {
                 "default": "abcdef",
                 "description": "First parameter from module",
@@ -331,7 +331,7 @@
               "type": "coder_parameter",
               "name": "second_parameter_from_module",
               "provider_name": "registry.terraform.io/coder/coder",
-              "schema_version": 0,
+              "schema_version": 1,
               "values": {
                 "default": "ghijkl",
                 "description": "Second parameter from module",
@@ -365,7 +365,7 @@
                   "type": "coder_parameter",
                   "name": "child_first_parameter_from_module",
                   "provider_name": "registry.terraform.io/coder/coder",
-                  "schema_version": 0,
+                  "schema_version": 1,
                   "values": {
                     "default": "abcdef",
                     "description": "First parameter from child module",
@@ -394,7 +394,7 @@
                   "type": "coder_parameter",
                   "name": "child_second_parameter_from_module",
                   "provider_name": "registry.terraform.io/coder/coder",
-                  "schema_version": 0,
+                  "schema_version": 1,
                   "values": {
                     "default": "ghijkl",
                     "description": "Second parameter from child module",

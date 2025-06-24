@@ -86,12 +86,12 @@ func TestNoPrebuilds(t *testing.T) {
 		preset(true, 0, current),
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, clock, testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	state := ps.CalculateState()
-	actions, err := ps.CalculateActions(clock, backoffInterval)
+	actions, err := ps.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 
 	validateState(t, prebuilds.ReconciliationState{ /*all zero values*/ }, *state)
@@ -108,12 +108,12 @@ func TestNetNew(t *testing.T) {
 		preset(true, 1, current),
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, clock, testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	state := ps.CalculateState()
-	actions, err := ps.CalculateActions(clock, backoffInterval)
+	actions, err := ps.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 
 	validateState(t, prebuilds.ReconciliationState{
@@ -156,7 +156,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 
 	// THEN: we should identify that this prebuild is outdated and needs to be deleted.
 	state := ps.CalculateState()
-	actions, err := ps.CalculateActions(clock, backoffInterval)
+	actions, err := ps.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
 		Actual: 1,
@@ -174,7 +174,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 
 	// THEN: we should not be blocked from creating a new prebuild while the outdate one deletes.
 	state = ps.CalculateState()
-	actions, err = ps.CalculateActions(clock, backoffInterval)
+	actions, err = ps.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{Desired: 1}, *state)
 	validateActions(t, []*prebuilds.ReconciliationActions{
@@ -223,7 +223,7 @@ func TestDeleteOutdatedPrebuilds(t *testing.T) {
 	// THEN: we should identify that this prebuild is outdated and needs to be deleted.
 	// Despite the fact that deletion of another outdated prebuild is already in progress.
 	state := ps.CalculateState()
-	actions, err := ps.CalculateActions(clock, backoffInterval)
+	actions, err := ps.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
 		Actual:   1,
@@ -420,7 +420,6 @@ func TestInProgressActions(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -467,7 +466,7 @@ func TestInProgressActions(t *testing.T) {
 
 			// THEN: we should identify that this prebuild is in progress.
 			state := ps.CalculateState()
-			actions, err := ps.CalculateActions(clock, backoffInterval)
+			actions, err := ps.CalculateActions(backoffInterval)
 			require.NoError(t, err)
 			tc.checkFn(*state, actions)
 		})
@@ -510,7 +509,7 @@ func TestExtraneous(t *testing.T) {
 
 	// THEN: an extraneous prebuild is detected and marked for deletion.
 	state := ps.CalculateState()
-	actions, err := ps.CalculateActions(clock, backoffInterval)
+	actions, err := ps.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
 		Actual: 2, Desired: 1, Extraneous: 1, Eligible: 2,
@@ -650,7 +649,6 @@ func TestExpiredPrebuilds(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -685,13 +683,13 @@ func TestExpiredPrebuilds(t *testing.T) {
 			}
 
 			// WHEN: calculating the current preset's state.
-			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
+			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, nil, nil, nil, clock, testutil.Logger(t))
 			ps, err := snapshot.FilterByPreset(current.presetID)
 			require.NoError(t, err)
 
 			// THEN: we should identify that this prebuild is expired.
 			state := ps.CalculateState()
-			actions, err := ps.CalculateActions(clock, backoffInterval)
+			actions, err := ps.CalculateActions(backoffInterval)
 			require.NoError(t, err)
 			tc.checkFn(running, *state, actions)
 		})
@@ -727,7 +725,7 @@ func TestDeprecated(t *testing.T) {
 
 	// THEN: all running prebuilds should be deleted because the template is deprecated.
 	state := ps.CalculateState()
-	actions, err := ps.CalculateActions(clock, backoffInterval)
+	actions, err := ps.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
 		Actual: 1,
@@ -774,13 +772,13 @@ func TestLatestBuildFailed(t *testing.T) {
 	}
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, backoffs, nil, quartz.NewMock(t), testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, backoffs, nil, clock, testutil.Logger(t))
 	psCurrent, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	// THEN: reconciliation should backoff.
 	state := psCurrent.CalculateState()
-	actions, err := psCurrent.CalculateActions(clock, backoffInterval)
+	actions, err := psCurrent.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
 		Actual: 0, Desired: 1,
@@ -798,7 +796,7 @@ func TestLatestBuildFailed(t *testing.T) {
 
 	// THEN: it should NOT be in backoff because all is OK.
 	state = psOther.CalculateState()
-	actions, err = psOther.CalculateActions(clock, backoffInterval)
+	actions, err = psOther.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
 		Actual: 1, Desired: 1, Eligible: 1,
@@ -812,7 +810,7 @@ func TestLatestBuildFailed(t *testing.T) {
 	psCurrent, err = snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 	state = psCurrent.CalculateState()
-	actions, err = psCurrent.CalculateActions(clock, backoffInterval)
+	actions, err = psCurrent.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
 		Actual: 0, Desired: 1,
@@ -867,7 +865,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		},
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, inProgress, nil, nil, quartz.NewMock(t), testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, inProgress, nil, nil, clock, testutil.Logger(t))
 
 	// Nothing has to be created for preset 1.
 	{
@@ -875,7 +873,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		require.NoError(t, err)
 
 		state := ps.CalculateState()
-		actions, err := ps.CalculateActions(clock, backoffInterval)
+		actions, err := ps.CalculateActions(backoffInterval)
 		require.NoError(t, err)
 
 		validateState(t, prebuilds.ReconciliationState{
@@ -891,7 +889,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		require.NoError(t, err)
 
 		state := ps.CalculateState()
-		actions, err := ps.CalculateActions(clock, backoffInterval)
+		actions, err := ps.CalculateActions(backoffInterval)
 		require.NoError(t, err)
 
 		validateState(t, prebuilds.ReconciliationState{
@@ -995,7 +993,7 @@ func TestPrebuildScheduling(t *testing.T) {
 				require.NoError(t, err)
 
 				state := ps.CalculateState()
-				actions, err := ps.CalculateActions(clock, backoffInterval)
+				actions, err := ps.CalculateActions(backoffInterval)
 				require.NoError(t, err)
 
 				validateState(t, prebuilds.ReconciliationState{
@@ -1016,7 +1014,7 @@ func TestPrebuildScheduling(t *testing.T) {
 				require.NoError(t, err)
 
 				state := ps.CalculateState()
-				actions, err := ps.CalculateActions(clock, backoffInterval)
+				actions, err := ps.CalculateActions(backoffInterval)
 				require.NoError(t, err)
 
 				validateState(t, prebuilds.ReconciliationState{

@@ -1125,7 +1125,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			autobuildTicker := time.NewTicker(vals.AutobuildPollInterval.Value())
 			defer autobuildTicker.Stop()
 			autobuildExecutor := autobuild.NewExecutor(
-				ctx, options.Database, options.Pubsub, options.PrometheusRegistry, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, logger, autobuildTicker.C, options.NotificationsEnqueuer, coderAPI.Experiments)
+				ctx, options.Database, options.Pubsub, coderAPI.FileCache, options.PrometheusRegistry, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, logger, autobuildTicker.C, options.NotificationsEnqueuer, coderAPI.Experiments)
 			autobuildExecutor.Run()
 
 			jobReaperTicker := time.NewTicker(vals.JobReaperDetectorInterval.Value())
@@ -2312,19 +2312,20 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 
 	var err error
 	var sqlDB *sql.DB
+	dbNeedsClosing := true
 	// Try to connect for 30 seconds.
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	defer func() {
-		if err == nil {
+		if !dbNeedsClosing {
 			return
 		}
 		if sqlDB != nil {
 			_ = sqlDB.Close()
 			sqlDB = nil
+			logger.Debug(ctx, "closed db before returning from ConnectToPostgres")
 		}
-		logger.Error(ctx, "connect to postgres failed", slog.Error(err))
 	}()
 
 	var tries int
@@ -2361,12 +2362,7 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	}
 	defer version.Close()
 	if !version.Next() {
-		// it's critical we assign to the err variable, otherwise the defer statement
-		// that runs db.Close() will not execute it
-		if err = version.Err(); err != nil {
-			return nil, xerrors.Errorf("no rows returned for version select: %w", err)
-		}
-		return nil, xerrors.Errorf("no rows returned for version select")
+		return nil, xerrors.Errorf("no rows returned for version select: %w", version.Err())
 	}
 	var versionNum int
 	err = version.Scan(&versionNum)
@@ -2408,6 +2404,7 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	// of connection churn.
 	sqlDB.SetMaxIdleConns(3)
 
+	dbNeedsClosing = false
 	return sqlDB, nil
 }
 

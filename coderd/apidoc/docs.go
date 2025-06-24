@@ -12043,10 +12043,6 @@ const docTemplate = `{
                 "dry_run": {
                     "type": "boolean"
                 },
-                "enable_dynamic_parameters": {
-                    "description": "EnableDynamicParameters skips some of the static parameter checking.\nIt will default to whatever the template has marked as the default experience.\nRequires the \"dynamic-experiment\" to be used.",
-                    "type": "boolean"
-                },
                 "log_level": {
                     "description": "Log level changes the default logging verbosity of a provider (\"info\" if empty).",
                     "enum": [
@@ -12127,9 +12123,6 @@ const docTemplate = `{
                 },
                 "autostart_schedule": {
                     "type": "string"
-                },
-                "enable_dynamic_parameters": {
-                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
@@ -12749,11 +12742,9 @@ const docTemplate = `{
                 "workspace-usage",
                 "web-push",
                 "workspace-prebuilds",
-                "agentic-chat",
-                "ai-tasks"
+                "agentic-chat"
             ],
             "x-enum-comments": {
-                "ExperimentAITasks": "Enables the new AI tasks feature.",
                 "ExperimentAgenticChat": "Enables the new agentic AI chat feature.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
@@ -12769,8 +12760,7 @@ const docTemplate = `{
                 "ExperimentWorkspaceUsage",
                 "ExperimentWebPush",
                 "ExperimentWorkspacePrebuilds",
-                "ExperimentAgenticChat",
-                "ExperimentAITasks"
+                "ExperimentAgenticChat"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -14526,6 +14516,9 @@ const docTemplate = `{
         "codersdk.Preset": {
             "type": "object",
             "properties": {
+                "default": {
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -15259,6 +15252,7 @@ const docTemplate = `{
                 "oauth2_app_secret",
                 "organization",
                 "organization_member",
+                "prebuilt_workspace",
                 "provisioner_daemon",
                 "provisioner_jobs",
                 "replicas",
@@ -15298,6 +15292,7 @@ const docTemplate = `{
                 "ResourceOauth2AppSecret",
                 "ResourceOrganization",
                 "ResourceOrganizationMember",
+                "ResourcePrebuiltWorkspace",
                 "ResourceProvisionerDaemon",
                 "ResourceProvisionerJobs",
                 "ResourceReplicas",
@@ -18079,11 +18074,13 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "working",
+                "idle",
                 "complete",
                 "failure"
             ],
             "x-enum-varnames": [
                 "WorkspaceAppStatusStateWorking",
+                "WorkspaceAppStatusStateIdle",
                 "WorkspaceAppStatusStateComplete",
                 "WorkspaceAppStatusStateFailure"
             ]
@@ -18091,6 +18088,10 @@ const docTemplate = `{
         "codersdk.WorkspaceBuild": {
             "type": "object",
             "properties": {
+                "ai_task_sidebar_app_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "build_number": {
                     "type": "integer"
                 },
@@ -18104,6 +18105,9 @@ const docTemplate = `{
                 "deadline": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "has_ai_task": {
+                    "type": "boolean"
                 },
                 "id": {
                     "type": "string",

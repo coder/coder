@@ -28,6 +28,7 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/util/slice"
 
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -1654,6 +1655,17 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		if err != nil {
 			return xerrors.Errorf("update template version external auth providers: %w", err)
 		}
+		err = db.UpdateTemplateVersionAITaskByJobID(ctx, database.UpdateTemplateVersionAITaskByJobIDParams{
+			JobID: jobID,
+			HasAITask: sql.NullBool{
+				Bool:  jobType.TemplateImport.HasAiTasks,
+				Valid: true,
+			},
+			UpdatedAt: now,
+		})
+		if err != nil {
+			return xerrors.Errorf("update template version external auth providers: %w", err)
+		}
 
 		// Process terraform values
 		plan := jobType.TemplateImport.Plan
@@ -1864,6 +1876,37 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			if err := InsertWorkspaceModule(ctx, db, job.ID, workspaceBuild.Transition, module, telemetrySnapshot); err != nil {
 				return xerrors.Errorf("insert provisioner job module: %w", err)
 			}
+		}
+
+		var sidebarAppID uuid.NullUUID
+		hasAITask := len(jobType.WorkspaceBuild.AiTasks) == 1
+		if hasAITask {
+			task := jobType.WorkspaceBuild.AiTasks[0]
+			if task.SidebarApp == nil {
+				return xerrors.Errorf("update ai task: sidebar app is nil")
+			}
+
+			id, err := uuid.Parse(task.SidebarApp.Id)
+			if err != nil {
+				return xerrors.Errorf("parse sidebar app id: %w", err)
+			}
+
+			sidebarAppID = uuid.NullUUID{UUID: id, Valid: true}
+		}
+
+		// Regardless of whether there is an AI task or not, update the field to indicate one way or the other since it
+		// always defaults to nil. ONLY if has_ai_task=true MUST ai_task_sidebar_app_id be set.
+		err = db.UpdateWorkspaceBuildAITaskByID(ctx, database.UpdateWorkspaceBuildAITaskByIDParams{
+			ID: workspaceBuild.ID,
+			HasAITask: sql.NullBool{
+				Bool:  hasAITask,
+				Valid: true,
+			},
+			SidebarAppID: sidebarAppID,
+			UpdatedAt:    now,
+		})
+		if err != nil {
+			return xerrors.Errorf("update workspace build ai tasks flag: %w", err)
 		}
 
 		// Insert timings inside the transaction now
@@ -2229,6 +2272,7 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 			DesiredInstances:    desiredInstances,
 			InvalidateAfterSecs: ttl,
 			SchedulingTimezone:  schedulingTimezone,
+			IsDefault:           protoPreset.GetDefault(),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert preset: %w", err)
@@ -2595,8 +2639,20 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				openIn = database.WorkspaceAppOpenInSlimWindow
 			}
 
-			dbApp, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
-				ID:          uuid.New(),
+			var appID string
+			if app.Id == "" || app.Id == uuid.Nil.String() {
+				appID = uuid.NewString()
+			} else {
+				appID = app.Id
+			}
+			id, err := uuid.Parse(appID)
+			if err != nil {
+				return xerrors.Errorf("parse app uuid: %w", err)
+			}
+
+			// If workspace apps are "persistent", the ID will not be regenerated across workspace builds, so we have to upsert.
+			dbApp, err := db.UpsertWorkspaceApp(ctx, database.UpsertWorkspaceAppParams{
+				ID:          id,
 				CreatedAt:   dbtime.Now(),
 				AgentID:     dbAgent.ID,
 				Slug:        slug,
@@ -2624,7 +2680,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				OpenIn:       openIn,
 			})
 			if err != nil {
-				return xerrors.Errorf("insert app: %w", err)
+				return xerrors.Errorf("upsert app: %w", err)
 			}
 			snapshot.WorkspaceApps = append(snapshot.WorkspaceApps, telemetry.ConvertWorkspaceApp(dbApp))
 		}
