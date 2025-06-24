@@ -79,7 +79,7 @@ type API struct {
 	recreateSuccessTimes     map[string]time.Time                           // By workspace folder.
 	recreateErrorTimes       map[string]time.Time                           // By workspace folder.
 	injectedSubAgentProcs    map[string]subAgentProcess                     // By workspace folder.
-	usingWorkspaceFolderName map[string]struct{}                            // By workspace folder.
+	usingWorkspaceFolderName map[string]bool                                // By workspace folder.
 	asyncWg                  sync.WaitGroup
 
 	devcontainerLogSourceIDs map[string]uuid.UUID // By workspace folder.
@@ -254,7 +254,7 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 		recreateErrorTimes:          make(map[string]time.Time),
 		scriptLogger:                func(uuid.UUID) ScriptLogger { return noopScriptLogger{} },
 		injectedSubAgentProcs:       make(map[string]subAgentProcess),
-		usingWorkspaceFolderName:    make(map[string]struct{}),
+		usingWorkspaceFolderName:    make(map[string]bool),
 	}
 	// The ctx and logger must be set before applying options to avoid
 	// nil pointer dereference.
@@ -593,7 +593,7 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 				// agent name based off of the folder name (i.e. no valid characters),
 				// we will instead fall back to using the container's friendly name.
 				dc.Name = safeAgentName(path.Base(filepath.ToSlash(dc.WorkspaceFolder)), dc.Container.FriendlyName)
-				api.usingWorkspaceFolderName[dc.WorkspaceFolder] = struct{}{}
+				api.usingWorkspaceFolderName[dc.WorkspaceFolder] = true
 			}
 		}
 
@@ -1216,7 +1216,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				if provisioner.AgentNameRegex.Match([]byte(name)) {
 					subAgentConfig.Name = name
 					configOutdated = true
-					delete(api.usingWorkspaceFolderName, dc.WorkspaceFolder)
+					api.usingWorkspaceFolderName[dc.WorkspaceFolder] = false
 				} else {
 					logger.Warn(ctx, "invalid name in devcontainer customization, ignoring",
 						slog.F("name", name),
@@ -1329,7 +1329,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			// If there has been a unique constraint violation but the user is *not*
 			// using an auto-generated name, then we should error. This is because
 			// we do not want to surprise the user with a name they did not ask for.
-			if _, usingFolderName := api.usingWorkspaceFolderName[dc.WorkspaceFolder]; !usingFolderName {
+			if usingFolderName, _ := api.usingWorkspaceFolderName[dc.WorkspaceFolder]; !usingFolderName {
 				return xerrors.Errorf("create subagent failed: %w", err)
 			}
 
