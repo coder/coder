@@ -215,6 +215,7 @@ func TestExpandedAgentName(t *testing.T) {
 		friendlyName    string
 		depth           int
 		expected        string
+		fallback        bool
 	}{
 		{
 			name:            "simple path depth 1",
@@ -266,6 +267,7 @@ func TestExpandedAgentName(t *testing.T) {
 			friendlyName:    "friendly-fallback",
 			depth:           0,
 			expected:        "friendly-fallback",
+			fallback:        true,
 		},
 		{
 			name:            "root path",
@@ -273,6 +275,7 @@ func TestExpandedAgentName(t *testing.T) {
 			friendlyName:    "friendly-fallback",
 			depth:           0,
 			expected:        "friendly-fallback",
+			fallback:        true,
 		},
 		{
 			name:            "single component",
@@ -345,10 +348,11 @@ func TestExpandedAgentName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			name := expandedAgentName(tt.workspaceFolder, tt.friendlyName, tt.depth)
+			name, usingWorkspaceFolder := expandedAgentName(tt.workspaceFolder, tt.friendlyName, tt.depth)
 
 			assert.Equal(t, tt.expected, name)
 			assert.True(t, provisioner.AgentNameRegex.Match([]byte(name)))
+			assert.Equal(t, tt.fallback, !usingWorkspaceFolder)
 		})
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -223,9 +224,6 @@ type fakeSubAgentClient struct {
 	createErrC chan error // If set, send to return error, close to return nil.
 	deleted    []uuid.UUID
 	deleteErrC chan error // If set, send to return error, close to return nil.
-
-	// For testing unique constraint violations
-	nameConflictCount map[string]int // Track how many times each name has been attempted
 }
 
 func (m *fakeSubAgentClient) List(ctx context.Context) ([]agentcontainers.SubAgent, error) {
@@ -268,13 +266,8 @@ func (m *fakeSubAgentClient) Create(ctx context.Context, agent agentcontainers.S
 		return agentcontainers.SubAgent{}, xerrors.New("operating system must be set")
 	}
 
-	// Check for simulated unique constraint violations
-	if m.nameConflictCount == nil {
-		m.nameConflictCount = make(map[string]int)
-	}
 	for _, a := range m.agents {
 		if a.Name == agent.Name {
-			m.nameConflictCount[agent.Name]++
 			return agentcontainers.SubAgent{}, &pq.Error{
 				Code:    "23505",
 				Message: fmt.Sprintf("workspace agent name %q already exists in this workspace build", agent.Name),
@@ -2017,9 +2010,10 @@ func TestSubAgentCreationWithNameRetry(t *testing.T) {
 	}
 
 	tests := []struct {
-		name              string
-		workspaceFolders  []string
-		expectedConflicts map[string]int
+		name             string
+		workspaceFolders []string
+		expectedNames    []string
+		takenNames       []string
 	}{
 		{
 			name: "SingleCollision",
@@ -2027,8 +2021,9 @@ func TestSubAgentCreationWithNameRetry(t *testing.T) {
 				"/home/coder/foo/project",
 				"/home/coder/bar/project",
 			},
-			expectedConflicts: map[string]int{
-				"project": 1,
+			expectedNames: []string{
+				"project",
+				"bar-project",
 			},
 		},
 		{
@@ -2038,9 +2033,20 @@ func TestSubAgentCreationWithNameRetry(t *testing.T) {
 				"/home/coder/bar/x/project",
 				"/home/coder/baz/x/project",
 			},
-			expectedConflicts: map[string]int{
-				"project":   2,
-				"x-project": 1,
+			expectedNames: []string{
+				"project",
+				"x-project",
+				"baz-x-project",
+			},
+		},
+		{
+			name:       "NameAlreadyTaken",
+			takenNames: []string{"project", "x-project"},
+			workspaceFolders: []string{
+				"/home/coder/foo/x/project",
+			},
+			expectedNames: []string{
+				"foo-x-project",
 			},
 		},
 	}
@@ -2049,23 +2055,14 @@ func TestSubAgentCreationWithNameRetry(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Create fake clients and API
-			var containers []codersdk.WorkspaceAgentContainer
-			for i, workspaceFolder := range tt.workspaceFolders {
-				containers = append(containers, newFakeContainer(
-					fmt.Sprintf("container%d", i+1),
-					fmt.Sprintf("/.devcontainer/devcontainer%d.json", i+1),
-					workspaceFolder,
-				))
-			}
-
-			ccli := &fakeContainerCLI{
-				containers: codersdk.WorkspaceAgentListContainersResponse{Containers: containers},
-				arch:       runtime.GOARCH,
-			}
+			ccli := &fakeContainerCLI{arch: runtime.GOARCH}
 
 			logger := slogtest.Make(t, &slogtest.Options{})
-			subAgentClient := &fakeSubAgentClient{logger: logger}
+			subAgentClient := &fakeSubAgentClient{logger: logger, agents: make(map[uuid.UUID]agentcontainers.SubAgent)}
+
+			for _, name := range tt.takenNames {
+				subAgentClient.agents[uuid.New()] = agentcontainers.SubAgent{Name: name}
+			}
 
 			watcher := newFakeWatcher(t)
 
@@ -2080,9 +2077,16 @@ func TestSubAgentCreationWithNameRetry(t *testing.T) {
 			)
 			defer api.Close()
 
-			// Trigger container updates to create sub agents
-			err := api.RefreshContainers(ctx)
-			require.NoError(t, err)
+			for i, workspaceFolder := range tt.workspaceFolders {
+				ccli.containers.Containers = append(ccli.containers.Containers, newFakeContainer(
+					fmt.Sprintf("container%d", i+1),
+					fmt.Sprintf("/.devcontainer/devcontainer%d.json", i+1),
+					workspaceFolder,
+				))
+
+				err := api.RefreshContainers(ctx)
+				require.NoError(t, err)
+			}
 
 			// Verify that both agents were created with expected names
 			require.Len(t, subAgentClient.created, len(tt.workspaceFolders))
@@ -2092,7 +2096,10 @@ func TestSubAgentCreationWithNameRetry(t *testing.T) {
 				actualNames[i] = agent.Name
 			}
 
-			assert.Equal(t, tt.expectedConflicts, subAgentClient.nameConflictCount)
+			slices.Sort(tt.expectedNames)
+			slices.Sort(actualNames)
+
+			assert.Equal(t, tt.expectedNames, actualNames)
 		})
 	}
 }
