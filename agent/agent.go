@@ -1234,7 +1234,7 @@ func (a *agent) createDevcontainer(
 		startTime = a.clock.Now()
 		status    = proto.Timing_OK
 	)
-	if err = a.containerAPI.CreateDevcontainer(dc); err != nil {
+	if err = a.containerAPI.CreateDevcontainer(dc, dc.ConfigPath, agentcontainers.CreateBehaviorStart); err != nil {
 		exitCode = 1
 		status = proto.Timing_EXIT_FAILURE
 	}

@@ -921,7 +921,7 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	api.asyncWg.Add(1)
 	go func() {
-		_ = api.createDevcontainer(dc, configPath, true)
+		_ = api.CreateDevcontainer(dc, configPath, CreateBehaviorRestart)
 	}()
 
 	api.mu.Unlock()
@@ -932,16 +932,12 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-func (api *API) CreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer) error {
-	api.mu.Lock()
-	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
-	dc.Container = nil
-	api.knownDevcontainers[dc.WorkspaceFolder] = dc
-	api.asyncWg.Add(1)
-	api.mu.Unlock()
+type CreateBehavior bool
 
-	return api.createDevcontainer(dc, dc.ConfigPath, false)
-}
+const (
+	CreateBehaviorStart   CreateBehavior = false
+	CreateBehaviorRestart CreateBehavior = true
+)
 
 // createDevcontainer should run in its own goroutine and is responsible for
 // recreating a devcontainer based on the provided devcontainer configuration.
@@ -950,8 +946,17 @@ func (api *API) CreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer) error
 // has a different config file than the one stored in the devcontainer state.
 // The devcontainer state must be set to starting and the asyncWg must be
 // incremented before calling this function.
-func (api *API) createDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, configPath string, restart bool) error {
+func (api *API) CreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, configPath string, behavior CreateBehavior) error {
 	defer api.asyncWg.Done()
+
+	if behavior == CreateBehaviorStart {
+		api.mu.Lock()
+		dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
+		dc.Container = nil
+		api.knownDevcontainers[dc.WorkspaceFolder] = dc
+		api.asyncWg.Add(1)
+		api.mu.Unlock()
+	}
 
 	var (
 		err    error
@@ -993,7 +998,7 @@ func (api *API) createDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, confi
 	logger.Debug(ctx, "starting devcontainer recreation")
 
 	upOptions := []DevcontainerCLIUpOptions{WithUpOutput(infoW, errW)}
-	if restart {
+	if behavior == CreateBehaviorRestart {
 		upOptions = append(upOptions, WithRemoveExistingContainer())
 	}
 
