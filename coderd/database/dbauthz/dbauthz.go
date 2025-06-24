@@ -228,6 +228,8 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "autostart"},
 				DisplayName: "Autostart Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceOrganizationMember.Type:  {policy.ActionRead},
+					rbac.ResourceFile.Type:                {policy.ActionRead}, // Required to read terraform files
 					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceSystem.Type:              {policy.WildcardSymbol},
 					rbac.ResourceTemplate.Type:            {policy.ActionRead, policy.ActionUpdate},
