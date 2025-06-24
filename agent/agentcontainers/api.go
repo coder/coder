@@ -920,7 +920,7 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	api.asyncWg.Add(1)
 	go func() {
-		_ = api.recreateDevcontainer(dc, configPath)
+		_ = api.createDevcontainer(dc, configPath, true)
 	}()
 
 	api.mu.Unlock()
@@ -939,17 +939,17 @@ func (api *API) CreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer) error
 	api.asyncWg.Add(1)
 	api.mu.Unlock()
 
-	return api.recreateDevcontainer(dc, dc.ConfigPath)
+	return api.createDevcontainer(dc, dc.ConfigPath, false)
 }
 
-// recreateDevcontainer should run in its own goroutine and is responsible for
+// createDevcontainer should run in its own goroutine and is responsible for
 // recreating a devcontainer based on the provided devcontainer configuration.
 // It updates the devcontainer status and logs the process. The configPath is
 // passed as a parameter for the odd chance that the container being recreated
 // has a different config file than the one stored in the devcontainer state.
 // The devcontainer state must be set to starting and the asyncWg must be
 // incremented before calling this function.
-func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, configPath string) error {
+func (api *API) createDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, configPath string, restart bool) error {
 	defer api.asyncWg.Done()
 
 	var (
@@ -991,12 +991,17 @@ func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, con
 
 	logger.Debug(ctx, "starting devcontainer recreation")
 
-	_, err = api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, WithUpOutput(infoW, errW), WithRemoveExistingContainer())
+	upOptions := []DevcontainerCLIUpOptions{WithUpOutput(infoW, errW)}
+	if restart {
+		upOptions = append(upOptions, WithRemoveExistingContainer())
+	}
+
+	_, err = api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, upOptions...)
 	if err != nil {
 		// No need to log if the API is closing (context canceled), as this
 		// is expected behavior when the API is shutting down.
 		if !errors.Is(err, context.Canceled) {
-			logger.Error(ctx, "devcontainer recreation failed", slog.Error(err))
+			logger.Error(ctx, "devcontainer creation failed", slog.Error(err))
 		}
 
 		api.mu.Lock()
@@ -1009,7 +1014,7 @@ func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, con
 		return xerrors.Errorf("start devcontainer: %w", err)
 	}
 
-	logger.Info(ctx, "devcontainer recreated successfully")
+	logger.Info(ctx, "devcontainer created successfully")
 
 	api.mu.Lock()
 	dc = api.knownDevcontainers[dc.WorkspaceFolder]
@@ -1032,7 +1037,7 @@ func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, con
 	// Ensure an immediate refresh to accurately reflect the
 	// devcontainer state after recreation.
 	if err := api.RefreshContainers(ctx); err != nil {
-		logger.Error(ctx, "failed to trigger immediate refresh after devcontainer recreation", slog.Error(err))
+		logger.Error(ctx, "failed to trigger immediate refresh after devcontainer creation", slog.Error(err))
 		return xerrors.Errorf("refresh containers: %w", err)
 	}
 
