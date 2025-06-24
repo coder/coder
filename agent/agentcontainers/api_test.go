@@ -2074,6 +2074,10 @@ func TestAPI(t *testing.T) {
 	t.Run("IgnoreCustomization", func(t *testing.T) {
 		t.Parallel()
 
+		if runtime.GOOS == "windows" {
+			t.Skip("Dev Container tests are not supported on Windows (this test uses mocks but fails due to Windows paths)")
+		}
+
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		startTime := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
@@ -2188,6 +2192,16 @@ func TestAPI(t *testing.T) {
 		err = api.RefreshContainers(ctx)
 		require.NoError(t, err)
 
+		t.Log("Phase 2: Cont, waiting for sub agent to exit")
+		exitSubAgentOnce.Do(func() {
+			close(exitSubAgent)
+		})
+		select {
+		case <-subAgentExited:
+		case <-ctx.Done():
+			t.Fatal("timeout waiting for sub agent to exit")
+		}
+
 		req = httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 		rec = httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
@@ -2199,18 +2213,8 @@ func TestAPI(t *testing.T) {
 		assert.Len(t, response.Devcontainers, 1, "devcontainer should be in response when ignore=false")
 		assert.Len(t, response.Containers, 1, "regular container should still be listed")
 		assert.Equal(t, "/workspace/project", response.Devcontainers[0].WorkspaceFolder)
-		assert.Len(t, fakeSAC.created, 1, "sub agent should be created when ignore=false")
+		require.Len(t, fakeSAC.created, 1, "sub agent should be created when ignore=false")
 		createdAgentID := fakeSAC.created[0].ID
-
-		t.Log("Phase 2: Done, waiting for sub agent to exit")
-		exitSubAgentOnce.Do(func() {
-			close(exitSubAgent)
-		})
-		select {
-		case <-subAgentExited:
-		case <-ctx.Done():
-			t.Fatal("timeout waiting for sub agent to exit")
-		}
 
 		t.Log("Phase 3: Change back to ignore=true and test sub agent deletion")
 		fDCCLI.readConfig.Configuration.Customizations.Coder.Ignore = true
