@@ -362,7 +362,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 										<span css={styles.description}>
 											Select a preset to get started
 										</span>
-										<FeatureStageBadge contentType={"beta"} size="md" />
 									</Stack>
 									<Stack direction="column" spacing={2}>
 										<Stack direction="row" spacing={2}>
