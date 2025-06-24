@@ -1,6 +1,7 @@
 package wsproxy_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -1129,7 +1130,7 @@ func createDERPClient(t *testing.T, ctx context.Context, name string, derpURL st
 // received on dstCh.
 //
 // If the packet doesn't arrive within 500ms, it will try to send it again until
-// testutil.WaitLong is reached.
+// the context expires.
 //
 //nolint:revive
 func testDERPSend(t *testing.T, ctx context.Context, dstKey key.NodePublic, dstCh <-chan derp.ReceivedPacket, src *derphttp.Client) {
@@ -1150,11 +1151,17 @@ func testDERPSend(t *testing.T, ctx context.Context, dstKey key.NodePublic, dstC
 	for {
 		select {
 		case pkt := <-dstCh:
-			require.Equal(t, src.SelfPublicKey(), pkt.Source, "packet came from wrong source")
-			require.Equal(t, msg, pkt.Data, "packet data is wrong")
+			if pkt.Source != src.SelfPublicKey() {
+				t.Logf("packet came from wrong source: %s", pkt.Source)
+				continue
+			}
+			if !bytes.Equal(pkt.Data, msg) {
+				t.Logf("packet data is wrong: %s", pkt.Data)
+				continue
+			}
 			return
 		case <-ctx.Done():
-			t.Fatal("timed out waiting for packet")
+			t.Fatal("timed out waiting for valid packet")
 			return
 		case <-ticker.C:
 		}
