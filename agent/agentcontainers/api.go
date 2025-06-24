@@ -740,7 +740,7 @@ func expandedAgentName(workspaceFolder string, friendlyName string, depth int) (
 // makeAgentName attempts to create an agent name. It will first attempt to create an
 // agent name based off of the workspace folder, and will eventually fallback to a
 // friendly name. Like `safeAgentName`, the second returned value will be true if the
-// agent name utilises the workspace folder, and false if it falls back to the
+// agent name utilizes the workspace folder, and false if it falls back to the
 // friendly name.
 func (api *API) makeAgentName(workspaceFolder string, friendlyName string) (string, bool) {
 	for attempt := 0; attempt <= maxAttemptsToNameAgent; attempt++ {
@@ -1389,7 +1389,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			// If there has been a unique constraint violation but the user is *not*
 			// using an auto-generated name, then we should error. This is because
 			// we do not want to surprise the user with a name they did not ask for.
-			if usingFolderName, _ := api.usingWorkspaceFolderName[dc.WorkspaceFolder]; !usingFolderName {
+			if usingFolderName := api.usingWorkspaceFolderName[dc.WorkspaceFolder]; !usingFolderName {
 				return xerrors.Errorf("create subagent failed: %w", err)
 			}
 
