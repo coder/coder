@@ -253,7 +253,7 @@ func (r *dynamicRenderer) getWorkspaceOwnerData(ctx context.Context, ownerID uui
 	mem, err := database.ExpectOne(r.db.OrganizationMembers(ctx, database.OrganizationMembersParams{
 		OrganizationID: r.data.templateVersion.OrganizationID,
 		UserID:         ownerID,
-		IncludeSystem:  false,
+		IncludeSystem:  true,
 	}))
 	if err != nil {
 		return err
