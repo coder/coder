@@ -1141,8 +1141,8 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				return xerrors.Errorf("read devcontainer config: %w", err)
 			}
 
-			ignore := config.Configuration.Customizations.Coder.Ignore
-			if ignore {
+			dcIgnored := config.Configuration.Customizations.Coder.Ignore
+			if dcIgnored {
 				proc.stop()
 				if proc.agent.ID != uuid.Nil {
 					// Unlock while doing the delete operation.
@@ -1158,7 +1158,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 				proc.agent = SubAgent{}
 				proc.containerID = ""
 				api.injectedSubAgentProcs[dc.WorkspaceFolder] = proc
-				api.ignoredDevcontainers[dc.WorkspaceFolder] = ignore
+				api.ignoredDevcontainers[dc.WorkspaceFolder] = dcIgnored
 				return nil
 			}
 		}
@@ -1201,10 +1201,10 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 	ranSubAgent := false
 
 	// Clean up if injection fails.
-	var ignored, setIgnored bool
+	var dcIgnored, setDCIgnored bool
 	defer func() {
-		if setIgnored {
-			api.ignoredDevcontainers[dc.WorkspaceFolder] = ignored
+		if setDCIgnored {
+			api.ignoredDevcontainers[dc.WorkspaceFolder] = dcIgnored
 		}
 		if !ranSubAgent {
 			proc.stop()
@@ -1284,8 +1284,8 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 			// We only allow ignore to be set in the root customization layer to
 			// prevent weird interactions with devcontainer features.
-			ignored, setIgnored = config.Configuration.Customizations.Coder.Ignore, true
-			if ignored {
+			dcIgnored, setDCIgnored = config.Configuration.Customizations.Coder.Ignore, true
+			if dcIgnored {
 				return nil
 			}
 
@@ -1337,7 +1337,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			api.logger.Error(ctx, "unable to read devcontainer config", slog.Error(err))
 		}
 
-		if ignored {
+		if dcIgnored {
 			proc.stop()
 			if proc.agent.ID != uuid.Nil {
 				// If we stop the subagent, we also need to delete it.
