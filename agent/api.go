@@ -7,9 +7,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/google/uuid"
-
-	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
@@ -41,34 +38,9 @@ func (a *agent) apiHandler(aAPI proto.DRPCAgentClient26) (http.Handler, func() e
 	}
 
 	if a.experimentalDevcontainersEnabled {
-		containerAPIOpts := []agentcontainers.Option{
-			agentcontainers.WithExecer(a.execer),
-			agentcontainers.WithCommandEnv(a.sshServer.CommandEnv),
-			agentcontainers.WithScriptLogger(func(logSourceID uuid.UUID) agentcontainers.ScriptLogger {
-				return a.logSender.GetScriptLogger(logSourceID)
-			}),
-			agentcontainers.WithSubAgentClient(agentcontainers.NewSubAgentClientFromAPI(a.logger, aAPI)),
+		if cAPI := a.containerAPI.Load(); cAPI != nil {
+			r.Mount("/api/v0/containers", cAPI.Routes())
 		}
-		manifest := a.manifest.Load()
-		if manifest != nil {
-			containerAPIOpts = append(containerAPIOpts,
-				agentcontainers.WithManifestInfo(manifest.OwnerName, manifest.WorkspaceName),
-			)
-
-			if len(manifest.Devcontainers) > 0 {
-				containerAPIOpts = append(
-					containerAPIOpts,
-					agentcontainers.WithDevcontainers(manifest.Devcontainers, manifest.Scripts),
-				)
-			}
-		}
-
-		// Append after to allow the agent options to override the default options.
-		containerAPIOpts = append(containerAPIOpts, a.containerAPIOptions...)
-
-		containerAPI := agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
-		r.Mount("/api/v0/containers", containerAPI.Routes())
-		a.containerAPI.Store(containerAPI)
 	} else {
 		r.HandleFunc("/api/v0/containers", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(r.Context(), w, http.StatusForbidden, codersdk.Response{

@@ -280,7 +280,7 @@ type agent struct {
 
 	experimentalDevcontainersEnabled bool
 	containerAPIOptions              []agentcontainers.Option
-	containerAPI                     atomic.Pointer[agentcontainers.API] // Set by apiHandler.
+	containerAPI                     atomic.Pointer[agentcontainers.API]
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -1153,6 +1153,20 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				devcontainerScripts map[uuid.UUID]codersdk.WorkspaceAgentScript
 			)
 			if a.experimentalDevcontainersEnabled {
+				containerAPIOpts := []agentcontainers.Option{
+					agentcontainers.WithExecer(a.execer),
+					agentcontainers.WithCommandEnv(a.sshServer.CommandEnv),
+					agentcontainers.WithScriptLogger(func(logSourceID uuid.UUID) agentcontainers.ScriptLogger {
+						return a.logSender.GetScriptLogger(logSourceID)
+					}),
+					agentcontainers.WithManifestInfo(manifest.OwnerName, manifest.WorkspaceName),
+					agentcontainers.WithDevcontainers(manifest.Devcontainers, scripts),
+					agentcontainers.WithSubAgentClient(agentcontainers.NewSubAgentClientFromAPI(a.logger, aAPI)),
+				}
+				containerAPIOpts = append(containerAPIOpts, a.containerAPIOptions...)
+
+				a.containerAPI.Store(agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...))
+
 				scripts, devcontainerScripts = agentcontainers.ExtractDevcontainerScripts(manifest.Devcontainers, scripts)
 			}
 			err = a.scriptRunner.Init(scripts, aAPI.ScriptCompleted, scriptRunnerOpts...)
