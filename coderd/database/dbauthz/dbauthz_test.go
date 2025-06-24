@@ -5650,7 +5650,17 @@ func (s *MethodTestSuite) TestAuthorizePrebuiltWorkspace() {
 			Reason:            database.BuildReasonInitiator,
 			TemplateVersionID: tv.ID,
 			JobID:             pj.ID,
-		}).Asserts(w.AsPrebuild(), policy.ActionDelete)
+		}).
+			// Simulate a fallback authorization flow:
+			// - First, the default workspace authorization fails (simulated by returning an error).
+			// - Then, authorization is retried using the prebuilt workspace object, which succeeds.
+			// The test asserts that both authorization attempts occur in the correct order.
+			WithSuccessAuthorizer(func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error {
+				if obj.Type == rbac.ResourceWorkspace.Type {
+					return xerrors.Errorf("not authorized for workspace type")
+				}
+				return nil
+			}).Asserts(w, policy.ActionDelete, w.AsPrebuild(), policy.ActionDelete)
 	}))
 	s.Run("PrebuildUpdate/InsertWorkspaceBuildParameters", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -5679,6 +5689,16 @@ func (s *MethodTestSuite) TestAuthorizePrebuiltWorkspace() {
 		})
 		check.Args(database.InsertWorkspaceBuildParametersParams{
 			WorkspaceBuildID: wb.ID,
-		}).Asserts(w.AsPrebuild(), policy.ActionUpdate)
+		}).
+			// Simulate a fallback authorization flow:
+			// - First, the default workspace authorization fails (simulated by returning an error).
+			// - Then, authorization is retried using the prebuilt workspace object, which succeeds.
+			// The test asserts that both authorization attempts occur in the correct order.
+			WithSuccessAuthorizer(func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error {
+				if obj.Type == rbac.ResourceWorkspace.Type {
+					return xerrors.Errorf("not authorized for workspace type")
+				}
+				return nil
+			}).Asserts(w, policy.ActionUpdate, w.AsPrebuild(), policy.ActionUpdate)
 	}))
 }
