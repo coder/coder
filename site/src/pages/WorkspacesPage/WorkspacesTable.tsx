@@ -48,7 +48,6 @@ import { ExternalLinkIcon, FileIcon, StarIcon } from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import {
 	BanIcon,
-	CirclePlayIcon,
 	CloudIcon,
 	PlayIcon,
 	RefreshCcwIcon,
@@ -573,7 +572,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 							isLoading={workspaceUpdate.isUpdating}
 							label="This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version."
 						>
-							<CirclePlayIcon />
+							<PlayIcon />
 						</PrimaryAction>
 						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
 					</>
@@ -599,7 +598,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 							isLoading={workspaceUpdate.isUpdating}
 							label="This template requires automatic updates on workspace restart. Contact your administrator if you want to preserve the template version."
 						>
-							<CirclePlayIcon />
+							<PlayIcon />
 						</PrimaryAction>
 						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
 					</>
