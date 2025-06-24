@@ -2980,6 +2980,12 @@ type OAuth2ProviderApp struct {
 	Name        string    `db:"name" json:"name"`
 	Icon        string    `db:"icon" json:"icon"`
 	CallbackURL string    `db:"callback_url" json:"callback_url"`
+	// List of valid redirect URIs for the application
+	RedirectUris []string `db:"redirect_uris" json:"redirect_uris"`
+	// OAuth2 client type: confidential or public
+	ClientType sql.NullString `db:"client_type" json:"client_type"`
+	// Whether this app was created via dynamic client registration
+	DynamicallyRegistered sql.NullBool `db:"dynamically_registered" json:"dynamically_registered"`
 }
 
 // Codes are meant to be exchanged for access tokens.
@@ -2991,6 +2997,12 @@ type OAuth2ProviderAppCode struct {
 	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
 	UserID       uuid.UUID `db:"user_id" json:"user_id"`
 	AppID        uuid.UUID `db:"app_id" json:"app_id"`
+	// RFC 8707 resource parameter for audience restriction
+	ResourceUri sql.NullString `db:"resource_uri" json:"resource_uri"`
+	// PKCE code challenge for public clients
+	CodeChallenge sql.NullString `db:"code_challenge" json:"code_challenge"`
+	// PKCE challenge method (S256)
+	CodeChallengeMethod sql.NullString `db:"code_challenge_method" json:"code_challenge_method"`
 }
 
 type OAuth2ProviderAppSecret struct {
@@ -3013,6 +3025,8 @@ type OAuth2ProviderAppToken struct {
 	RefreshHash []byte    `db:"refresh_hash" json:"refresh_hash"`
 	AppSecretID uuid.UUID `db:"app_secret_id" json:"app_secret_id"`
 	APIKeyID    string    `db:"api_key_id" json:"api_key_id"`
+	// Token audience binding from resource parameter
+	Audience sql.NullString `db:"audience" json:"audience"`
 }
 
 type Organization struct {

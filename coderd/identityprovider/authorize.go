@@ -18,11 +18,14 @@ import (
 )
 
 type authorizeParams struct {
-	clientID     string
-	redirectURL  *url.URL
-	responseType codersdk.OAuth2ProviderResponseType
-	scope        []string
-	state        string
+	clientID            string
+	redirectURL         *url.URL
+	responseType        codersdk.OAuth2ProviderResponseType
+	scope               []string
+	state               string
+	resource            string // RFC 8707 resource indicator
+	codeChallenge       string // PKCE code challenge
+	codeChallengeMethod string // PKCE challenge method
 }
 
 func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizeParams, []codersdk.ValidationError, error) {
@@ -32,15 +35,15 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 	p.RequiredNotEmpty("state", "response_type", "client_id")
 
 	params := authorizeParams{
-		clientID:     p.String(vals, "", "client_id"),
-		redirectURL:  p.RedirectURL(vals, callbackURL, "redirect_uri"),
-		responseType: httpapi.ParseCustom(p, vals, "", "response_type", httpapi.ParseEnum[codersdk.OAuth2ProviderResponseType]),
-		scope:        p.Strings(vals, []string{}, "scope"),
-		state:        p.String(vals, "", "state"),
+		clientID:            p.String(vals, "", "client_id"),
+		redirectURL:         p.RedirectURL(vals, callbackURL, "redirect_uri"),
+		responseType:        httpapi.ParseCustom(p, vals, "", "response_type", httpapi.ParseEnum[codersdk.OAuth2ProviderResponseType]),
+		scope:               p.Strings(vals, []string{}, "scope"),
+		state:               p.String(vals, "", "state"),
+		resource:            p.String(vals, "", "resource"),
+		codeChallenge:       p.String(vals, "", "code_challenge"),
+		codeChallengeMethod: p.String(vals, "", "code_challenge_method"),
 	}
-
-	// We add "redirected" when coming from the authorize page.
-	_ = p.String(vals, "", "redirected")
 
 	p.ErrorExcessParams(vals)
 	if len(p.Errors) > 0 {
@@ -49,11 +52,16 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 	return params, nil, nil
 }
 
-// Authorize displays an HTML page for authorizing an application when the user
-// has first been redirected to this path and generates a code and redirects to
-// the app's callback URL after the user clicks "allow" on that page, which is
-// detected via the origin and referer headers.
-func Authorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
+// ShowAuthorizePage handles GET /oauth2/authorize requests to display the HTML authorization page.
+// It uses authorizeMW which intercepts GET requests to show the authorization form.
+func ShowAuthorizePage(db database.Store, accessURL *url.URL) http.HandlerFunc {
+	handler := authorizeMW(accessURL)(ProcessAuthorize(db, accessURL))
+	return handler.ServeHTTP
+}
+
+// ProcessAuthorize handles POST /oauth2/authorize requests to process the user's authorization decision
+// and generate an authorization code. GET requests are handled by authorizeMW.
+func ProcessAuthorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 	handler := func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		apiKey := httpmw.APIKey(r)
@@ -76,6 +84,21 @@ func Authorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 				Validations: validationErrs,
 			})
 			return
+		}
+
+		// Validate PKCE for public clients (MCP requirement)
+		if params.codeChallenge != "" {
+			if params.codeChallengeMethod != "S256" && params.codeChallengeMethod != "" {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid code_challenge_method",
+					Detail:  "Only S256 is supported",
+				})
+				return
+			}
+			// If code_challenge is provided but method is not, default to S256
+			if params.codeChallengeMethod == "" {
+				params.codeChallengeMethod = "S256"
+			}
 		}
 
 		// TODO: Ignoring scope for now, but should look into implementing.
@@ -107,11 +130,14 @@ func Authorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 				// is received.  If the application does wait before exchanging the
 				// token (for example suppose they ask the user to confirm and the user
 				// has left) then they can just retry immediately and get a new code.
-				ExpiresAt:    dbtime.Now().Add(time.Duration(10) * time.Minute),
-				SecretPrefix: []byte(code.Prefix),
-				HashedSecret: []byte(code.Hashed),
-				AppID:        app.ID,
-				UserID:       apiKey.UserID,
+				ExpiresAt:           dbtime.Now().Add(time.Duration(10) * time.Minute),
+				SecretPrefix:        []byte(code.Prefix),
+				HashedSecret:        []byte(code.Hashed),
+				AppID:               app.ID,
+				UserID:              apiKey.UserID,
+				ResourceUri:         sql.NullString{String: params.resource, Valid: params.resource != ""},
+				CodeChallenge:       sql.NullString{String: params.codeChallenge, Valid: params.codeChallenge != ""},
+				CodeChallengeMethod: sql.NullString{String: params.codeChallengeMethod, Valid: params.codeChallengeMethod != ""},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert oauth2 authorization code: %w", err)
