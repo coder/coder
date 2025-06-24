@@ -68,26 +68,26 @@ const workspaces = WorkspaceStatuses.map((status) =>
 // Additional Workspaces depending on time
 const additionalWorkspaces: Record<string, Workspace> = {
 	today: createWorkspace(
-		"running",
+		"running-outdated",
 		"running",
 		true,
 		dayjs().subtract(3, "hour").toString(),
 	),
 	old: createWorkspace(
-		"old",
+		"old-outdated",
 		"running",
 		true,
 		dayjs().subtract(1, "week").toString(),
 	),
 	oldStopped: createWorkspace(
-		"old-stopped",
+		"old-stopped-outdated",
 		"stopped",
 		true,
 		dayjs().subtract(1, "week").toString(),
 	),
 	oldRequireActiveVersion: {
 		...createWorkspace(
-			"old-require-active-version",
+			"old-require-active-version-outdated",
 			"running",
 			true,
 			dayjs().subtract(1, "week").toString(),
@@ -96,7 +96,7 @@ const additionalWorkspaces: Record<string, Workspace> = {
 	},
 	oldStoppedRequireActiveVersion: {
 		...createWorkspace(
-			"old-stopped-require-active-version",
+			"old-stopped-require-active-version-outdated",
 			"stopped",
 			true,
 			dayjs().subtract(1, "week").toString(),
@@ -104,7 +104,7 @@ const additionalWorkspaces: Record<string, Workspace> = {
 		template_require_active_version: true,
 	},
 	veryOld: createWorkspace(
-		"very-old-running",
+		"very-old-running-outdated",
 		"running",
 		true,
 		dayjs().subtract(1, "month").subtract(4, "day").toString(),
