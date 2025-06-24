@@ -33,6 +33,7 @@ import (
 	clitelemetry "github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
@@ -1090,7 +1091,7 @@ func ConvertTemplate(dbTemplate database.Template) Template {
 		AutostartAllowedDays:          codersdk.BitmapToWeekdays(dbTemplate.AutostartAllowedDays()),
 		RequireActiveVersion:          dbTemplate.RequireActiveVersion,
 		Deprecated:                    dbTemplate.Deprecated != "",
-		UseClassicParameterFlow:       dbTemplate.UseClassicParameterFlow,
+		UseClassicParameterFlow:       ptr.Ref(dbTemplate.UseClassicParameterFlow),
 	}
 }
 
@@ -1397,7 +1398,7 @@ type Template struct {
 	AutostartAllowedDays           []string `json:"autostart_allowed_days"`
 	RequireActiveVersion           bool     `json:"require_active_version"`
 	Deprecated                     bool     `json:"deprecated"`
-	UseClassicParameterFlow        bool     `json:"use_classic_parameter_flow"`
+	UseClassicParameterFlow        *bool    `json:"use_classic_parameter_flow"`
 }
 
 type TemplateVersion struct {
