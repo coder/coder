@@ -68,7 +68,8 @@
         "available": 0,
         "most_recently_seen": null
       },
-      "template_version_preset_id": null
+      "template_version_preset_id": null,
+      "has_ai_task": false
     },
     "latest_app_status": null,
     "outdated": false,

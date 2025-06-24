@@ -574,7 +574,7 @@ func New(options *Options) *API {
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
-		FileCache:                   files.NewFromStore(options.Database, options.PrometheusRegistry, options.Authorizer),
+		FileCache:                   files.New(options.PrometheusRegistry, options.Authorizer),
 		Experiments:                 experiments,
 		WebpushDispatcher:           options.WebPushDispatcher,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
@@ -939,6 +939,14 @@ func New(options *Options) *API {
 		})
 	})
 
+	// Experimental routes are not guaranteed to be stable and may change at any time.
+	r.Route("/api/experimental", func(r chi.Router) {
+		r.Use(apiKeyMiddleware)
+		r.Route("/aitasks", func(r chi.Router) {
+			r.Get("/prompts", api.aiTasksPrompts)
+		})
+	})
+
 	r.Route("/api/v2", func(r chi.Router) {
 		api.APIHandler = r
 
@@ -972,7 +980,7 @@ func New(options *Options) *API {
 		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Get("/available", handleExperimentsSafe)
+			r.Get("/available", handleExperimentsAvailable)
 			r.Get("/", api.handleExperimentsGet)
 		})
 		r.Get("/updatecheck", api.updateCheck)
@@ -1895,7 +1903,9 @@ func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 			exps = append(exps, codersdk.ExperimentsSafe...)
 		default:
 			ex := codersdk.Experiment(strings.ToLower(v))
-			if !slice.Contains(codersdk.ExperimentsSafe, ex) {
+			if !slice.Contains(codersdk.ExperimentsKnown, ex) {
+				log.Warn(context.Background(), "ignoring unknown experiment", slog.F("experiment", ex))
+			} else if !slice.Contains(codersdk.ExperimentsSafe, ex) {
 				log.Warn(context.Background(), "🐉 HERE BE DRAGONS: opting into hidden experiment", slog.F("experiment", ex))
 			}
 			exps = append(exps, ex)

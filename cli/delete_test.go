@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"net/http"
 	"testing"
 	"time"
 
@@ -60,28 +61,35 @@ func TestDelete(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-		inv, root := clitest.New(t, "delete", workspace.Name, "-y", "--orphan")
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
+		template := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, templateAdmin, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, workspace.LatestBuild.ID)
 
-		//nolint:gocritic // Deleting orphaned workspaces requires an admin.
-		clitest.SetupConfig(t, client, root)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		inv, root := clitest.New(t, "delete", workspace.Name, "-y", "--orphan")
+		clitest.SetupConfig(t, templateAdmin, root)
+
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
 		inv.Stderr = pty.Output()
 		go func() {
 			defer close(doneChan)
-			err := inv.Run()
+			err := inv.WithContext(ctx).Run()
 			// When running with the race detector on, we sometimes get an EOF.
 			if err != nil {
 				assert.ErrorIs(t, err, io.EOF)
 			}
 		}()
 		pty.ExpectMatch("has been deleted")
-		<-doneChan
+		testutil.TryReceive(ctx, t, doneChan)
+
+		_, err := client.Workspace(ctx, workspace.ID)
+		require.Error(t, err)
+		cerr := coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusGone, cerr.StatusCode())
 	})
 
 	// Super orphaned, as the workspace doesn't even have a user.

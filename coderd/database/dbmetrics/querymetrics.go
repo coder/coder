@@ -1873,6 +1873,13 @@ func (m queryMetricsStore) GetWorkspaceBuildParameters(ctx context.Context, work
 	return params, err
 }
 
+func (m queryMetricsStore) GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIds []uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceBuildParametersByBuildIDs(ctx, workspaceBuildIds)
+	m.queryLatencies.WithLabelValues("GetWorkspaceBuildParametersByBuildIDs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceBuildStatsByTemplates(ctx, since)
@@ -2440,13 +2447,6 @@ func (m queryMetricsStore) InsertWorkspaceAgentStats(ctx context.Context, arg da
 	return r0
 }
 
-func (m queryMetricsStore) InsertWorkspaceApp(ctx context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
-	start := time.Now()
-	app, err := m.s.InsertWorkspaceApp(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertWorkspaceApp").Observe(time.Since(start).Seconds())
-	return app, err
-}
-
 func (m queryMetricsStore) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
 	start := time.Now()
 	r0 := m.s.InsertWorkspaceAppStats(ctx, arg)
@@ -2832,6 +2832,13 @@ func (m queryMetricsStore) UpdateTemplateScheduleByID(ctx context.Context, arg d
 	return err
 }
 
+func (m queryMetricsStore) UpdateTemplateVersionAITaskByJobID(ctx context.Context, arg database.UpdateTemplateVersionAITaskByJobIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateTemplateVersionAITaskByJobID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateVersionAITaskByJobID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateTemplateVersionByID(ctx, arg)
@@ -3033,6 +3040,13 @@ func (m queryMetricsStore) UpdateWorkspaceAutostart(ctx context.Context, arg dat
 	err := m.s.UpdateWorkspaceAutostart(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceAutostart").Observe(time.Since(start).Seconds())
 	return err
+}
+
+func (m queryMetricsStore) UpdateWorkspaceBuildAITaskByID(ctx context.Context, arg database.UpdateWorkspaceBuildAITaskByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceBuildAITaskByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildAITaskByID").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) error {
@@ -3287,6 +3301,13 @@ func (m queryMetricsStore) UpsertWorkspaceAgentPortShare(ctx context.Context, ar
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpsertWorkspaceApp(ctx context.Context, arg database.UpsertWorkspaceAppParams) (database.WorkspaceApp, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertWorkspaceApp(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertWorkspaceApp").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpsertWorkspaceAppAuditSession(ctx, arg)
@@ -3326,6 +3347,13 @@ func (m queryMetricsStore) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context
 	start := time.Now()
 	r0, r1 := m.s.GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, prepared)
 	m.queryLatencies.WithLabelValues("GetAuthorizedWorkspacesAndAgentsByOwnerID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIDs []uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.WorkspaceBuildParameter, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx, workspaceBuildIDs, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedWorkspaceBuildParametersByBuildIDs").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
@@ -162,9 +163,28 @@ type State struct {
 	Parameters            []*proto.RichParameter
 	Presets               []*proto.Preset
 	ExternalAuthProviders []*proto.ExternalAuthProviderResource
+	AITasks               []*proto.AITask
+	HasAITasks            bool
 }
 
 var ErrInvalidTerraformAddr = xerrors.New("invalid terraform address")
+
+// hasAITaskResources is used to determine if a template has *any* `coder_ai_task` resources defined. During template
+// import, it's possible that none of these have `count=1` since count may be dependent on the value of a `coder_parameter`
+// or something else.
+// We need to know at template import if these resources exist to inform the frontend of their existence.
+func hasAITaskResources(graph *gographviz.Graph) bool {
+	for _, node := range graph.Nodes.Lookup {
+		// Check if this node is a coder_ai_task resource
+		if label, exists := node.Attrs["label"]; exists {
+			labelValue := strings.Trim(label, `"`)
+			if strings.HasPrefix(labelValue, "coder_ai_task.") {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // ConvertState consumes Terraform state and a GraphViz representation
 // produced by `terraform graph` to produce resources consumable by Coder.
@@ -189,6 +209,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	// Extra array to preserve the order of rich parameters.
 	tfResourcesRichParameters := make([]*tfjson.StateResource, 0)
 	tfResourcesPresets := make([]*tfjson.StateResource, 0)
+	tfResourcesAITasks := make([]*tfjson.StateResource, 0)
 	var findTerraformResources func(mod *tfjson.StateModule)
 	findTerraformResources = func(mod *tfjson.StateModule) {
 		for _, module := range mod.ChildModules {
@@ -200,6 +221,9 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			}
 			if resource.Type == "coder_workspace_preset" {
 				tfResourcesPresets = append(tfResourcesPresets, resource)
+			}
+			if resource.Type == "coder_ai_task" {
+				tfResourcesAITasks = append(tfResourcesAITasks, resource)
 			}
 
 			label := convertAddressToLabel(resource.Address)
@@ -939,6 +963,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				ExpirationPolicy: expirationPolicy,
 				Scheduling:       scheduling,
 			},
+			Default: preset.Default,
 		}
 
 		if slice.Contains(duplicatedPresetNames, preset.Name) {
@@ -955,6 +980,38 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			"coder_workspace_preset names must be unique but %s appear%s multiple times",
 			stringutil.JoinWithConjunction(duplicatedPresetNames), s,
 		)
+	}
+
+	// Validate that only one preset is marked as default.
+	var defaultPresets int
+	for _, preset := range presets {
+		if preset.Default {
+			defaultPresets++
+		}
+	}
+	if defaultPresets > 1 {
+		return nil, xerrors.Errorf("a maximum of 1 coder_workspace_preset can be marked as default, but %d are set", defaultPresets)
+	}
+
+	// This will only pick up resources which will actually be created.
+	aiTasks := make([]*proto.AITask, 0, len(tfResourcesAITasks))
+	for _, resource := range tfResourcesAITasks {
+		var task provider.AITask
+		err = mapstructure.Decode(resource.AttributeValues, &task)
+		if err != nil {
+			return nil, xerrors.Errorf("decode coder_ai_task attributes: %w", err)
+		}
+
+		if len(task.SidebarApp) < 1 {
+			return nil, xerrors.Errorf("coder_ai_task has no sidebar_app defined")
+		}
+
+		aiTasks = append(aiTasks, &proto.AITask{
+			Id: task.ID,
+			SidebarApp: &proto.AITaskSidebarApp{
+				Id: task.SidebarApp[0].ID,
+			},
+		})
 	}
 
 	// A map is used to ensure we don't have duplicates!
@@ -987,11 +1044,23 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		externalAuthProviders = append(externalAuthProviders, it)
 	}
 
+	hasAITasks := hasAITaskResources(graph)
+	if hasAITasks {
+		hasPromptParam := slices.ContainsFunc(parameters, func(param *proto.RichParameter) bool {
+			return param.Name == provider.TaskPromptParameterName
+		})
+		if !hasPromptParam {
+			return nil, xerrors.Errorf("coder_parameter named '%s' is required when 'coder_ai_task' resource is defined", provider.TaskPromptParameterName)
+		}
+	}
+
 	return &State{
 		Resources:             resources,
 		Parameters:            parameters,
 		Presets:               presets,
 		ExternalAuthProviders: externalAuthProviders,
+		HasAITasks:            hasAITasks,
+		AITasks:               aiTasks,
 	}, nil
 }
 

@@ -100,6 +100,7 @@ message Preset {
   string name = 1;
   repeated PresetParameter parameters = 2;
   Prebuild prebuild = 3;
+  bool default = 4;
 }
 
 message PresetParameter {
@@ -325,6 +326,15 @@ enum PrebuiltWorkspaceBuildStage {
   CLAIM = 2;  // A prebuilt workspace is being claimed.
 }
 
+message AITaskSidebarApp {
+  string id = 1;
+}
+
+message AITask {
+  string id = 1;
+  AITaskSidebarApp sidebar_app = 2;
+}
+
 // Metadata is information about a workspace used in the execution of a build
 message Metadata {
   string coder_url = 1;
@@ -400,6 +410,13 @@ message PlanComplete {
   repeated ResourceReplacement resource_replacements = 10;
   bytes module_files = 11;
   bytes module_files_hash = 12;
+  // Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
+  // During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
+  // still need to know that such resources are defined.
+  //
+  // See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
+  bool has_ai_tasks = 13;
+  repeated provisioner.AITask ai_tasks = 14;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
@@ -416,6 +433,7 @@ message ApplyComplete {
   repeated RichParameter parameters = 4;
   repeated ExternalAuthProviderResource external_auth_providers = 5;
   repeated Timing timings = 6;
+  repeated provisioner.AITask ai_tasks = 7;
 }
 
 message Timing {

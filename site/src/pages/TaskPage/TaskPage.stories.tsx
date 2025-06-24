@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, spyOn, within } from "@storybook/test";
+import type { Workspace, WorkspaceApp } from "api/typesGenerated";
 import {
 	MockFailedWorkspace,
 	MockStartingWorkspace,
@@ -95,63 +96,68 @@ export const TerminatedBuildWithStatus: Story = {
 	},
 };
 
-export const Active: Story = {
-	decorators: [withProxyProvider()],
-	beforeEach: () => {
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: {
-				...MockWorkspace,
-				latest_build: {
-					...MockWorkspace.latest_build,
-					resources: [
+function activeWorkspace(apps: WorkspaceApp[]): Workspace {
+	return {
+		...MockWorkspace,
+		latest_build: {
+			...MockWorkspace.latest_build,
+			resources: [
+				{
+					...MockWorkspaceResource,
+					agents: [
 						{
-							...MockWorkspaceResource,
-							agents: [
+							...MockWorkspaceAgent,
+							apps: [
+								...apps,
 								{
-									...MockWorkspaceAgent,
-									apps: [
+									...MockWorkspaceApp,
+									id: "claude-code",
+									display_name: "Claude Code",
+									slug: "claude-code",
+									icon: "/icon/claude.svg",
+									statuses: [
+										MockWorkspaceAppStatus,
 										{
-											...MockWorkspaceApp,
-											id: "claude-code",
-											display_name: "Claude Code",
-											slug: "claude-code",
-											icon: "/icon/claude.svg",
-											statuses: [
-												MockWorkspaceAppStatus,
-												{
-													...MockWorkspaceAppStatus,
-													id: "2",
-													message: "Planning changes",
-													state: "working",
-												},
-											],
-										},
-										{
-											...MockWorkspaceApp,
-											id: "vscode",
-											slug: "vscode",
-											display_name: "VS Code Web",
-											icon: "/icon/code.svg",
-										},
-										{
-											...MockWorkspaceApp,
-											slug: "zed",
-											id: "zed",
-											display_name: "Zed",
-											icon: "/icon/zed.svg",
+											...MockWorkspaceAppStatus,
+											id: "2",
+											message: "Planning changes",
+											state: "working",
 										},
 									],
+								},
+								{
+									...MockWorkspaceApp,
+									id: "vscode",
+									slug: "vscode",
+									display_name: "VS Code Web",
+									icon: "/icon/code.svg",
+								},
+								{
+									...MockWorkspaceApp,
+									slug: "zed",
+									id: "zed",
+									display_name: "Zed",
+									icon: "/icon/zed.svg",
 								},
 							],
 						},
 					],
 				},
-				latest_app_status: {
-					...MockWorkspaceAppStatus,
-					app_id: "claude-code",
-				},
-			},
+			],
+		},
+		latest_app_status: {
+			...MockWorkspaceAppStatus,
+			app_id: "claude-code",
+		},
+	};
+}
+
+export const Active: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		spyOn(data, "fetchTask").mockResolvedValue({
+			prompt: "Create competitors page",
+			workspace: activeWorkspace([]),
 		});
 	},
 	play: async ({ canvasElement }) => {
@@ -164,5 +170,22 @@ export const Active: Story = {
 		expect(vscodeIframe).not.toBeVisible();
 		expect(zedIframe).not.toBeVisible();
 		expect(claudeIframe).toBeVisible();
+	},
+};
+
+export const ActivePreview: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		spyOn(data, "fetchTask").mockResolvedValue({
+			prompt: "Create competitors page",
+			workspace: activeWorkspace([
+				{
+					...MockWorkspaceApp,
+					slug: "preview",
+					id: "preview",
+					display_name: "Preview",
+				},
+			]),
+		});
 	},
 };

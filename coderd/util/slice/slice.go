@@ -230,3 +230,13 @@ func Convert[F any, T any](a []F, f func(F) T) []T {
 	}
 	return tmp
 }
+
+func ToMapFunc[T any, K comparable, V any](a []T, cnv func(t T) (K, V)) map[K]V {
+	m := make(map[K]V, len(a))
+
+	for i := range a {
+		k, v := cnv(a[i])
+		m[k] = v
+	}
+	return m
+}
