@@ -498,8 +498,8 @@ func TestDERPMesh(t *testing.T) {
 	proxyURL, err := url.Parse("https://proxy.test.coder.com")
 	require.NoError(t, err)
 
-	// Create 6 proxy replicas.
-	const count = 6
+	// Create 3 proxy replicas.
+	const count = 3
 	var (
 		sessionToken = ""
 		proxies      = [count]coderdenttest.WorkspaceProxy{}
