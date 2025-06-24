@@ -660,8 +660,19 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 			}
 
 		case dc.Container == nil:
-			if !api.devcontainerNames[dc.Name] {
-				dc.Name = ""
+			if !api.devcontainerNames[dc.Name] { // TODO(mafredri): Change this, not stable after https://github.com/coder/coder/pull/18513
+				// If this is a runtime-detected container, check if we
+				// should remove it.
+				// TODO(mafredri): Consider using afero.
+				if _, err := os.Stat(dc.WorkspaceFolder); errors.Is(err, os.ErrNotExist) {
+					// If the workspace folder doesn't exist, we can assume
+					// that the devcontainer is no longer valid and should be
+					// removed.
+					logger.Debug(ctx, "devcontainer workspace folder does not exist, removing devcontainer")
+					delete(api.knownDevcontainers, dc.WorkspaceFolder)
+					// TODO(mafredri): Delete the agent if it exists.
+					continue
+				}
 			}
 			dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStopped
 			dc.Dirty = false
