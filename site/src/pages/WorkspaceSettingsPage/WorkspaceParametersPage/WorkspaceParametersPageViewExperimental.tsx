@@ -194,7 +194,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 			{(templateVersionId || workspace.latest_build.template_version_id) && (
 				<div className="flex flex-col gap-2">
 					<Label className="text-sm text-content-secondary">Version ID</Label>
-					<p className="m-0 text-sm font-medium">
+					<p className="m-0 text-xs font-medium font-mono">
 						{templateVersionId ?? workspace.latest_build.template_version_id}
 					</p>
 				</div>
