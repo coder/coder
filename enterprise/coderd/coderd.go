@@ -226,6 +226,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", api.replicas)
 		})
+		r.Route("/connectionlog", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureConnectionLog),
+			)
+			r.Get("/", api.connectionLogs)
+		})
 		r.Route("/licenses", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Post("/refresh-entitlements", api.postRefreshEntitlements)
