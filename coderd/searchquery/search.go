@@ -86,6 +86,46 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 	return filter, countFilter, parser.Errors
 }
 
+func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey database.APIKey) (database.GetConnectionLogsOffsetParams, []codersdk.ValidationError) {
+	// Always lowercase for all searches.
+	query = strings.ToLower(query)
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		values.Add("search", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return database.GetConnectionLogsOffsetParams{}, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter := database.GetConnectionLogsOffsetParams{
+		OrganizationID:      parseOrganization(ctx, db, parser, values, "organization"),
+		WorkspaceOwner:      parser.String(values, "", "workspace_owner"),
+		WorkspaceOwnerEmail: parser.String(values, "", "workspace_owner_email"),
+		Type:                string(httpapi.ParseCustom(parser, values, "", "type", httpapi.ParseEnum[database.ConnectionType])),
+		Username:            parser.String(values, "", "username"),
+		UserEmail:           parser.String(values, "", "user_email"),
+		ConnectedAfter:      parser.Time3339Nano(values, time.Time{}, "connected_after"),
+		ConnectedBefore:     parser.Time3339Nano(values, time.Time{}, "connected_before"),
+		WorkspaceID:         parser.UUID(values, uuid.Nil, "workspace_id"),
+		ConnectionID:        parser.UUID(values, uuid.Nil, "connection_id"),
+		Status:              string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[codersdk.ConnectionLogStatus])),
+	}
+
+	if filter.Username == "me" {
+		filter.UserID = apiKey.UserID
+		filter.Username = ""
+	}
+
+	if filter.WorkspaceOwner == "me" {
+		filter.WorkspaceOwnerID = apiKey.UserID
+		filter.WorkspaceOwner = ""
+	}
+
+	parser.ErrorExcessParams(values)
+	return filter, parser.Errors
+}
+
 func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
