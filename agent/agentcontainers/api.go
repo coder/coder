@@ -870,7 +870,8 @@ func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, con
 		api.knownDevcontainers[dc.WorkspaceFolder] = dc
 		api.recreateErrorTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "errorTimes")
 		api.mu.Unlock()
-		return err
+
+		return fmt.Errorf("start devcontainer: %w", err)
 	}
 
 	logger.Info(ctx, "devcontainer recreated successfully")
@@ -897,7 +898,7 @@ func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, con
 	// devcontainer state after recreation.
 	if err := api.RefreshContainers(ctx); err != nil {
 		logger.Error(ctx, "failed to trigger immediate refresh after devcontainer recreation", slog.Error(err))
-		return err
+		return fmt.Errorf("refresh containers: %w", err)
 	}
 
 	return nil
