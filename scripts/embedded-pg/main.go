@@ -49,8 +49,9 @@ func main() {
 	)
 	err := ep.Start()
 	if err != nil {
-		panic(err)
+		log.Fatalf("Failed to start embedded postgres: %v", err)
 	}
+
 	// We execute these queries instead of using the embeddedpostgres
 	// StartParams because it doesn't work on Windows. The library
 	// seems to have a bug where it sends malformed parameters to
@@ -69,21 +70,21 @@ func main() {
 	}
 	db, err := sql.Open("postgres", "postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable")
 	if err != nil {
-		panic(err)
+		log.Fatalf("Failed to connect to embedded postgres: %v", err)
 	}
 	for _, query := range paramQueries {
 		if _, err := db.Exec(query); err != nil {
-			panic(err)
+			log.Fatalf("Failed to execute setup query %q: %v", query, err)
 		}
 	}
 	if err := db.Close(); err != nil {
-		panic(err)
+		log.Fatalf("Failed to close database connection: %v", err)
 	}
 	// We restart the database to apply all the parameters.
 	if err := ep.Stop(); err != nil {
-		panic(err)
+		log.Fatalf("Failed to stop embedded postgres after applying parameters: %v", err)
 	}
 	if err := ep.Start(); err != nil {
-		panic(err)
+		log.Fatalf("Failed to start embedded postgres after applying parameters: %v", err)
 	}
 }
