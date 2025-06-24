@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 )
@@ -61,9 +62,9 @@ func main() {
 		case info.IsDir():
 			log.Printf("D: %s", path)
 		case info.Mode().IsRegular():
-			log.Printf("F: %s [%s] (%d bytes)", path, info.Mode().String(), info.Size())
+			log.Printf("F: %s [%s] (%d bytes) %s", path, info.Mode().String(), info.Size(), info.ModTime().Format(time.RFC3339))
 		default:
-			log.Printf("Other: %s [%s]", path, info.Mode())
+			log.Printf("Other: %s [%s] %s", path, info.Mode(), info.ModTime().Format(time.RFC3339))
 		}
 		return nil
 	}); err != nil {
