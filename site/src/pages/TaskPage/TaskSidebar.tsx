@@ -24,7 +24,6 @@ import {
 import type { Task } from "modules/tasks/tasks";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
-import { cn } from "utils/cn";
 import { truncateURI } from "utils/uri";
 import { TaskAppIFrame } from "./TaskAppIframe";
 
@@ -89,15 +88,7 @@ export const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
 	const [sidebarApp, sidebarAppStatus] = getSidebarApp(task);
 
 	return (
-		<aside
-			className={cn([
-				[
-					"flex flex-col h-full shrink-0",
-					"border-0 border-r border-solid border-border",
-				],
-				"w-[520px]",
-			])}
-		>
+		<aside className="flex flex-col h-full shrink-0 w-full">
 			<header className="border-0 border-b border-solid border-border p-4 pt-0">
 				<div className="flex items-center justify-between py-1">
 					<TooltipProvider>
