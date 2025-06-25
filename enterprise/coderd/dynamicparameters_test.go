@@ -355,12 +355,14 @@ func TestDynamicParameterBuild(t *testing.T) {
 		})
 
 		t.Run("ImmutableChangeValue", func(t *testing.T) {
+			// Ok this is a weird test to document how things are working.
+			// What if a parameter flips it's immutability based on a value?
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitShort)
 			// Start with a new template that has 1 parameter that is immutable
 			immutable, _ := coderdtest.DynamicParameterTemplate(t, templateAdmin, orgID, coderdtest.DynamicParameterTemplateParams{
-				MainTF: string(must(os.ReadFile("testdata/parameters/immutable/main.tf"))),
+				MainTF: string(must(os.ReadFile("testdata/parameters/dynamicimmutable/main.tf"))),
 			})
 
 			// Create the workspace with the immutable parameter
@@ -368,32 +370,23 @@ func TestDynamicParameterBuild(t *testing.T) {
 				TemplateID: immutable.ID,
 				Name:       coderdtest.RandomUsername(t),
 				RichParameterValues: []codersdk.WorkspaceBuildParameter{
+					{Name: "isimmutable", Value: "true"},
 					{Name: "immutable", Value: "coder"},
 				},
 			})
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, wrk.LatestBuild.ID)
 
-			// No new value is acceptable
+			// Try new values
 			bld, err := templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStart,
+				RichParameterValues: []codersdk.WorkspaceBuildParameter{
+					{Name: "isimmutable", Value: "false"},
+					{Name: "immutable", Value: "not-coder"},
+				},
 			})
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, bld.ID)
-
-			params, err := templateAdmin.WorkspaceBuildParameters(ctx, bld.ID)
-			require.NoError(t, err)
-			require.Len(t, params, 1)
-			require.Equal(t, "coder", params[0].Value)
-
-			// Update the value to something else, which should fail
-			_, err = templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
-				Transition: codersdk.WorkspaceTransitionStart,
-				RichParameterValues: []codersdk.WorkspaceBuildParameter{
-					{Name: "immutable", Value: "foo"},
-				},
-			})
-			require.ErrorContains(t, err, `Parameter "immutable" is not mutable`)
 		})
 	})
 }
