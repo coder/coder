@@ -6243,18 +6243,82 @@ func (q *sqlQuerier) GetPresetsBackoff(ctx context.Context, lookback time.Time) 
 }
 
 const getRunningPrebuiltWorkspaces = `-- name: GetRunningPrebuiltWorkspaces :many
+WITH
+    latest_prebuilds
+        AS (
+            SELECT
+	            workspaces.name,
+                workspaces.template_id,
+                latest_build.id,
+                latest_build.workspace_id,
+                latest_build.template_version_id,
+                latest_build.job_id,
+                latest_build.template_version_preset_id,
+                latest_build.created_at
+            FROM
+                workspaces
+                LEFT JOIN LATERAL (
+                        SELECT
+                            workspace_builds.id,
+                            workspace_builds.workspace_id,
+                            workspace_builds.template_version_id,
+                            workspace_builds.job_id,
+                            workspace_builds.template_version_preset_id,
+                            workspace_builds.transition,
+                            workspace_builds.created_at,
+                            provisioner_jobs.job_status
+                        FROM
+                            workspace_builds
+                            JOIN provisioner_jobs ON
+                                    provisioner_jobs.id
+                                    = workspace_builds.job_id
+                        WHERE
+                            workspace_builds.workspace_id
+                            = workspaces.id
+                        ORDER BY
+                            workspace_builds.build_number
+                                DESC
+                        LIMIT
+                            1
+                    )
+                        AS latest_build ON true
+            WHERE
+                workspaces.deleted = false
+                AND workspaces.owner_id
+                    = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
+                AND latest_build.transition
+                    = 'start'::workspace_transition
+                AND latest_build.job_status
+                    = 'succeeded'::provisioner_job_status
+        ),
+    agent_readiness
+        AS (
+            SELECT
+                latest_prebuilds.workspace_id AS workspace_id,
+                BOOL_AND(workspace_agents.lifecycle_state = 'ready'::workspace_agent_lifecycle_state)::boolean AS ready
+            FROM
+                latest_prebuilds
+                LEFT JOIN workspace_resources ON
+                        workspace_resources.job_id = latest_prebuilds.job_id
+                LEFT JOIN workspace_agents ON
+                        workspace_agents.resource_id = workspace_resources.id
+            GROUP BY
+            	latest_prebuilds.workspace_id
+        )
 SELECT
-		p.id,
-		p.name,
-		p.template_id,
-		b.template_version_id,
-		p.current_preset_id AS current_preset_id,
-		p.ready,
-		p.created_at
-FROM workspace_prebuilds p
-		INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
-WHERE (b.transition = 'start'::workspace_transition
-	AND b.job_status = 'succeeded'::provisioner_job_status)
+    latest_prebuilds.id,
+    latest_prebuilds.name,
+    latest_prebuilds.template_id,
+    latest_prebuilds.template_version_id,
+    latest_prebuilds.template_version_preset_id AS current_preset_id,
+    agent_readiness.ready,
+    latest_prebuilds.created_at
+FROM
+    latest_prebuilds
+    JOIN agent_readiness ON
+            agent_readiness.workspace_id = latest_prebuilds.workspace_id
+WHERE
+    agent_readiness.ready
 `
 
 type GetRunningPrebuiltWorkspacesRow struct {
