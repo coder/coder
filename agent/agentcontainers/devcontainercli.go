@@ -40,7 +40,7 @@ type DevcontainerFeatures map[string]any
 
 // OptionsAsEnvs converts the DevcontainerFeatures into a list of
 // environment variables that can be used to set feature options.
-// The format is FEATURE_<FEATURE_NAME>_<OPTION_NAME>=<value>.
+// The format is FEATURE_<FEATURE_NAME>_OPTION_<OPTION_NAME>=<value>.
 // For example, if the feature is:
 //
 //		"ghcr.io/coder/devcontainer-features/code-server:1": {
@@ -49,7 +49,7 @@ type DevcontainerFeatures map[string]any
 //
 // It will produce:
 //
-//	FEATURE_CODE_SERVER_PORT=9090
+//	FEATURE_CODE_SERVER_OPTION_PORT=9090
 //
 // Note that the feature name is derived from the last part of the key,
 // so "ghcr.io/coder/devcontainer-features/code-server:1" becomes
@@ -71,7 +71,7 @@ func (f DevcontainerFeatures) OptionsAsEnvs() []string {
 		k = strings.ReplaceAll(k, "-", "_")
 		for k2, v2 := range vv {
 			k2 = strings.ReplaceAll(k2, "-", "_")
-			env = append(env, fmt.Sprintf("FEATURE_%s_%s=%s", strings.ToUpper(k), strings.ToUpper(k2), fmt.Sprintf("%v", v2)))
+			env = append(env, fmt.Sprintf("FEATURE_%s_OPTION_%s=%s", strings.ToUpper(k), strings.ToUpper(k2), fmt.Sprintf("%v", v2)))
 		}
 	}
 	slices.Sort(env)

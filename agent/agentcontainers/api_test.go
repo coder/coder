@@ -2152,8 +2152,8 @@ func TestAPI(t *testing.T) {
 			assert.Contains(t, envs, "CODER_WORKSPACE_OWNER_NAME=test-user")
 			assert.Contains(t, envs, "CODER_URL=test-subagent-url")
 			// First call should not have feature envs.
-			assert.NotContains(t, envs, "FEATURE_CODE_SERVER_PORT=9090")
-			assert.NotContains(t, envs, "FEATURE_DOCKER_IN_DOCKER_MOBY=false")
+			assert.NotContains(t, envs, "FEATURE_CODE_SERVER_OPTION_PORT=9090")
+			assert.NotContains(t, envs, "FEATURE_DOCKER_IN_DOCKER_OPTION_MOBY=false")
 			return nil
 		})
 
@@ -2163,8 +2163,8 @@ func TestAPI(t *testing.T) {
 			assert.Contains(t, envs, "CODER_WORKSPACE_OWNER_NAME=test-user")
 			assert.Contains(t, envs, "CODER_URL=test-subagent-url")
 			// Second call should have feature envs from the first config read.
-			assert.Contains(t, envs, "FEATURE_CODE_SERVER_PORT=9090")
-			assert.Contains(t, envs, "FEATURE_DOCKER_IN_DOCKER_MOBY=false")
+			assert.Contains(t, envs, "FEATURE_CODE_SERVER_OPTION_PORT=9090")
+			assert.Contains(t, envs, "FEATURE_DOCKER_IN_DOCKER_OPTION_MOBY=false")
 			return nil
 		})
 

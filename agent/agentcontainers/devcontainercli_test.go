@@ -672,7 +672,7 @@ func TestDevcontainerFeatures_OptionsAsEnvs(t *testing.T) {
 				},
 			},
 			want: []string{
-				"FEATURE_CODE_SERVER_PORT=9090",
+				"FEATURE_CODE_SERVER_OPTION_PORT=9090",
 			},
 		},
 		{
@@ -683,7 +683,7 @@ func TestDevcontainerFeatures_OptionsAsEnvs(t *testing.T) {
 				},
 			},
 			want: []string{
-				"FEATURE_DOCKER_IN_DOCKER_MOBY=false",
+				"FEATURE_DOCKER_IN_DOCKER_OPTION_MOBY=false",
 			},
 		},
 		{
@@ -699,10 +699,10 @@ func TestDevcontainerFeatures_OptionsAsEnvs(t *testing.T) {
 				},
 			},
 			want: []string{
-				"FEATURE_CODE_SERVER_PASSWORD=secret",
-				"FEATURE_CODE_SERVER_PORT=9090",
-				"FEATURE_DOCKER_IN_DOCKER_DOCKER_DASH_COMPOSE_VERSION=v2",
-				"FEATURE_DOCKER_IN_DOCKER_MOBY=false",
+				"FEATURE_CODE_SERVER_OPTION_PASSWORD=secret",
+				"FEATURE_CODE_SERVER_OPTION_PORT=9090",
+				"FEATURE_DOCKER_IN_DOCKER_OPTION_DOCKER_DASH_COMPOSE_VERSION=v2",
+				"FEATURE_DOCKER_IN_DOCKER_OPTION_MOBY=false",
 			},
 		},
 		{
@@ -714,15 +714,15 @@ func TestDevcontainerFeatures_OptionsAsEnvs(t *testing.T) {
 				"./invalid-feature": "not-a-map",
 			},
 			want: []string{
-				"FEATURE_CODE_SERVER_PORT=9090",
+				"FEATURE_CODE_SERVER_OPTION_PORT=9090",
 			},
 		},
 		{
 			name:     "real config example",
 			features: realConfig.MergedConfiguration.Features,
 			want: []string{
-				"FEATURE_CODE_SERVER_PORT=9090",
-				"FEATURE_DOCKER_IN_DOCKER_MOBY=false",
+				"FEATURE_CODE_SERVER_OPTION_PORT=9090",
+				"FEATURE_DOCKER_IN_DOCKER_OPTION_MOBY=false",
 			},
 		},
 		{
