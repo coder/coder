@@ -25,7 +25,7 @@ func userACLMatcher(m sqltypes.VariableMatcher) sqltypes.VariableMatcher {
 func TemplateConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),
-		organizationOwnerMatcher(),
+		sqltypes.StringVarMatcher("t.organization_id :: text", []string{"input", "object", "org_owner"}),
 		// Templates have no user owner, only owner by an organization.
 		sqltypes.AlwaysFalse(userOwnerMatcher()),
 	)

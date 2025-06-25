@@ -5880,6 +5880,82 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{templateversion}/dynamic-parameters": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Open dynamic parameters WebSocket by template version",
+                "operationId": "open-dynamic-parameters-websocket-by-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
+        "/templateversions/{templateversion}/dynamic-parameters/evaluate": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Evaluate dynamic parameters for template version",
+                "operationId": "evaluate-dynamic-parameters-for-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Initial parameter values",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DynamicParametersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DynamicParametersResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/templateversions/{templateversion}/external-auth": {
             "get": {
                 "security": [
@@ -7735,43 +7811,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/users/{user}/templateversions/{templateversion}/parameters": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "tags": [
-                    "Templates"
-                ],
-                "summary": "Open dynamic parameters WebSocket by template version",
-                "operationId": "open-dynamic-parameters-websocket-by-template-version",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template version ID",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template version ID",
-                        "name": "templateversion",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "101": {
-                        "description": "Switching Protocols"
-                    }
-                }
-            }
-        },
         "/users/{user}/webpush/subscription": {
             "post": {
                 "security": [
@@ -9614,7 +9653,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task.",
                         "name": "q",
                         "in": "query"
                     },
@@ -10153,8 +10192,8 @@ const docTemplate = `{
                 "tags": [
                     "PortSharing"
                 ],
-                "summary": "Get workspace agent port shares",
-                "operationId": "get-workspace-agent-port-shares",
+                "summary": "Delete workspace agent port share",
+                "operationId": "delete-workspace-agent-port-share",
                 "parameters": [
                     {
                         "type": "string",
@@ -12004,10 +12043,6 @@ const docTemplate = `{
                 "dry_run": {
                     "type": "boolean"
                 },
-                "enable_dynamic_parameters": {
-                    "description": "EnableDynamicParameters skips some of the static parameter checking.\nIt will default to whatever the template has marked as the default experience.\nRequires the \"dynamic-experiment\" to be used.",
-                    "type": "boolean"
-                },
                 "log_level": {
                     "description": "Log level changes the default logging verbosity of a provider (\"info\" if empty).",
                     "enum": [
@@ -12088,9 +12123,6 @@ const docTemplate = `{
                 },
                 "autostart_schedule": {
                     "type": "string"
-                },
-                "enable_dynamic_parameters": {
-                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
@@ -12444,6 +12476,9 @@ const docTemplate = `{
                 "healthcheck": {
                     "$ref": "#/definitions/codersdk.HealthcheckConfig"
                 },
+                "hide_ai_tasks": {
+                    "type": "boolean"
+                },
                 "http_address": {
                     "description": "HTTPAddress is a string because it may be set to zero to disable.",
                     "type": "string"
@@ -12573,6 +12608,25 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DiagnosticExtra": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.DiagnosticSeverityString": {
+            "type": "string",
+            "enum": [
+                "error",
+                "warning"
+            ],
+            "x-enum-varnames": [
+                "DiagnosticSeverityError",
+                "DiagnosticSeverityWarning"
+            ]
+        },
         "codersdk.DisplayApp": {
             "type": "string",
             "enum": [
@@ -12589,6 +12643,46 @@ const docTemplate = `{
                 "DisplayAppPortForward",
                 "DisplayAppSSH"
             ]
+        },
+        "codersdk.DynamicParametersRequest": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "description": "ID identifies the request. The response contains the same\nID so that the client can match it to the request.",
+                    "type": "integer"
+                },
+                "inputs": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "owner_id": {
+                    "description": "OwnerID if uuid.Nil, it defaults to ` + "`" + `codersdk.Me` + "`" + `",
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.DynamicParametersResponse": {
+            "type": "object",
+            "properties": {
+                "diagnostics": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.FriendlyDiagnostic"
+                    }
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "parameters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.PreviewParameter"
+                    }
+                }
+            }
         },
         "codersdk.Entitlement": {
             "type": "string",
@@ -12647,14 +12741,12 @@ const docTemplate = `{
                 "notifications",
                 "workspace-usage",
                 "web-push",
-                "dynamic-parameters",
                 "workspace-prebuilds",
                 "agentic-chat"
             ],
             "x-enum-comments": {
                 "ExperimentAgenticChat": "Enables the new agentic AI chat feature.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
-                "ExperimentDynamicParameters": "Enables dynamic parameters when creating a workspace.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
@@ -12667,7 +12759,6 @@ const docTemplate = `{
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
                 "ExperimentWebPush",
-                "ExperimentDynamicParameters",
                 "ExperimentWorkspacePrebuilds",
                 "ExperimentAgenticChat"
             ]
@@ -12864,6 +12955,23 @@ const docTemplate = `{
                 },
                 "limit": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.FriendlyDiagnostic": {
+            "type": "object",
+            "properties": {
+                "detail": {
+                    "type": "string"
+                },
+                "extra": {
+                    "$ref": "#/definitions/codersdk.DiagnosticExtra"
+                },
+                "severity": {
+                    "$ref": "#/definitions/codersdk.DiagnosticSeverityString"
+                },
+                "summary": {
+                    "type": "string"
                 }
             }
         },
@@ -13658,6 +13766,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.NullHCLString": {
+            "type": "object",
+            "properties": {
+                "valid": {
+                    "type": "boolean"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.OAuth2AppEndpoints": {
             "type": "object",
             "properties": {
@@ -13915,6 +14034,21 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OptionType": {
+            "type": "string",
+            "enum": [
+                "string",
+                "number",
+                "bool",
+                "list(string)"
+            ],
+            "x-enum-varnames": [
+                "OptionTypeString",
+                "OptionTypeNumber",
+                "OptionTypeBoolean",
+                "OptionTypeListString"
+            ]
+        },
         "codersdk.Organization": {
             "type": "object",
             "required": [
@@ -14061,6 +14195,35 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "codersdk.ParameterFormType": {
+            "type": "string",
+            "enum": [
+                "",
+                "radio",
+                "slider",
+                "input",
+                "dropdown",
+                "checkbox",
+                "switch",
+                "multi-select",
+                "tag-select",
+                "textarea",
+                "error"
+            ],
+            "x-enum-varnames": [
+                "ParameterFormTypeDefault",
+                "ParameterFormTypeRadio",
+                "ParameterFormTypeSlider",
+                "ParameterFormTypeInput",
+                "ParameterFormTypeDropdown",
+                "ParameterFormTypeCheckbox",
+                "ParameterFormTypeSwitch",
+                "ParameterFormTypeMultiSelect",
+                "ParameterFormTypeTagSelect",
+                "ParameterFormTypeTextArea",
+                "ParameterFormTypeError"
+            ]
         },
         "codersdk.PatchGroupIDPSyncConfigRequest": {
             "type": "object",
@@ -14353,6 +14516,9 @@ const docTemplate = `{
         "codersdk.Preset": {
             "type": "object",
             "properties": {
+                "default": {
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -14374,6 +14540,121 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.PreviewParameter": {
+            "type": "object",
+            "properties": {
+                "default_value": {
+                    "$ref": "#/definitions/codersdk.NullHCLString"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "diagnostics": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.FriendlyDiagnostic"
+                    }
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "ephemeral": {
+                    "type": "boolean"
+                },
+                "form_type": {
+                    "$ref": "#/definitions/codersdk.ParameterFormType"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "mutable": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.PreviewParameterOption"
+                    }
+                },
+                "order": {
+                    "description": "legacy_variable_name was removed (= 14)",
+                    "type": "integer"
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "styling": {
+                    "$ref": "#/definitions/codersdk.PreviewParameterStyling"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.OptionType"
+                },
+                "validations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.PreviewParameterValidation"
+                    }
+                },
+                "value": {
+                    "$ref": "#/definitions/codersdk.NullHCLString"
+                }
+            }
+        },
+        "codersdk.PreviewParameterOption": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "$ref": "#/definitions/codersdk.NullHCLString"
+                }
+            }
+        },
+        "codersdk.PreviewParameterStyling": {
+            "type": "object",
+            "properties": {
+                "disabled": {
+                    "type": "boolean"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "placeholder": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.PreviewParameterValidation": {
+            "type": "object",
+            "properties": {
+                "validation_error": {
+                    "type": "string"
+                },
+                "validation_max": {
+                    "type": "integer"
+                },
+                "validation_min": {
+                    "type": "integer"
+                },
+                "validation_monotonic": {
+                    "type": "string"
+                },
+                "validation_regex": {
+                    "description": "All validation attributes are optional.",
                     "type": "string"
                 }
             }
@@ -14971,6 +15252,7 @@ const docTemplate = `{
                 "oauth2_app_secret",
                 "organization",
                 "organization_member",
+                "prebuilt_workspace",
                 "provisioner_daemon",
                 "provisioner_jobs",
                 "replicas",
@@ -15010,6 +15292,7 @@ const docTemplate = `{
                 "ResourceOauth2AppSecret",
                 "ResourceOrganization",
                 "ResourceOrganizationMember",
+                "ResourcePrebuiltWorkspace",
                 "ResourceProvisionerDaemon",
                 "ResourceProvisionerJobs",
                 "ResourceReplicas",
@@ -15416,6 +15699,9 @@ const docTemplate = `{
                 "disable_expiry_refresh": {
                     "description": "DisableExpiryRefresh will disable automatically refreshing api\nkeys when they are used from the api. This means the api key lifetime at\ncreation is the lifetime of the api key.",
                     "type": "boolean"
+                },
+                "max_admin_token_lifetime": {
+                    "type": "integer"
                 },
                 "max_token_lifetime": {
                     "type": "integer"
@@ -16092,6 +16378,23 @@ const docTemplate = `{
                 "ephemeral": {
                     "type": "boolean"
                 },
+                "form_type": {
+                    "description": "FormType has an enum value of empty string, ` + "`" + `\"\"` + "`" + `.\nKeep the leading comma in the enums struct tag.",
+                    "type": "string",
+                    "enum": [
+                        "",
+                        "radio",
+                        "dropdown",
+                        "input",
+                        "textarea",
+                        "slider",
+                        "checkbox",
+                        "switch",
+                        "tag-select",
+                        "multi-select",
+                        "error"
+                    ]
+                },
                 "icon": {
                     "type": "string"
                 },
@@ -16528,6 +16831,7 @@ const docTemplate = `{
                     "enum": [
                         "owner",
                         "authenticated",
+                        "organization",
                         "public"
                     ],
                     "allOf": [
@@ -16999,6 +17303,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "owner_name": {
+                    "description": "OwnerName is the username of the owner of the workspace.",
                     "type": "string"
                 },
                 "template_active_version_id": {
@@ -17194,10 +17499,6 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
-                "devcontainer_dirty": {
-                    "description": "DevcontainerDirty is true if the devcontainer configuration has changed\nsince the container was created. This is used to determine if the\ncontainer needs to be rebuilt.",
-                    "type": "boolean"
-                },
                 "id": {
                     "description": "ID is the unique identifier of the container.",
                     "type": "string"
@@ -17262,6 +17563,71 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceAgentDevcontainer": {
+            "type": "object",
+            "properties": {
+                "agent": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainerAgent"
+                },
+                "config_path": {
+                    "type": "string"
+                },
+                "container": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentContainer"
+                },
+                "dirty": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Additional runtime fields.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainerStatus"
+                        }
+                    ]
+                },
+                "workspace_folder": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentDevcontainerAgent": {
+            "type": "object",
+            "properties": {
+                "directory": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentDevcontainerStatus": {
+            "type": "string",
+            "enum": [
+                "running",
+                "stopped",
+                "starting",
+                "error"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentDevcontainerStatusRunning",
+                "WorkspaceAgentDevcontainerStatusStopped",
+                "WorkspaceAgentDevcontainerStatusStarting",
+                "WorkspaceAgentDevcontainerStatusError"
+            ]
+        },
         "codersdk.WorkspaceAgentHealth": {
             "type": "object",
             "properties": {
@@ -17310,6 +17676,13 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceAgentContainer"
+                    }
+                },
+                "devcontainers": {
+                    "description": "Devcontainers is a list of devcontainers visible to the workspace agent.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainer"
                     }
                 },
                 "warnings": {
@@ -17418,6 +17791,7 @@ const docTemplate = `{
                     "enum": [
                         "owner",
                         "authenticated",
+                        "organization",
                         "public"
                     ],
                     "allOf": [
@@ -17437,11 +17811,13 @@ const docTemplate = `{
             "enum": [
                 "owner",
                 "authenticated",
+                "organization",
                 "public"
             ],
             "x-enum-varnames": [
                 "WorkspaceAgentPortShareLevelOwner",
                 "WorkspaceAgentPortShareLevelAuthenticated",
+                "WorkspaceAgentPortShareLevelOrganization",
                 "WorkspaceAgentPortShareLevelPublic"
             ]
         },
@@ -17544,6 +17920,9 @@ const docTemplate = `{
                     "description": "External specifies whether the URL should be opened externally on\nthe client or not.",
                     "type": "boolean"
                 },
+                "group": {
+                    "type": "string"
+                },
                 "health": {
                     "$ref": "#/definitions/codersdk.WorkspaceAppHealth"
                 },
@@ -17573,6 +17952,7 @@ const docTemplate = `{
                     "enum": [
                         "owner",
                         "authenticated",
+                        "organization",
                         "public"
                     ],
                     "allOf": [
@@ -17637,11 +18017,13 @@ const docTemplate = `{
             "enum": [
                 "owner",
                 "authenticated",
+                "organization",
                 "public"
             ],
             "x-enum-varnames": [
                 "WorkspaceAppSharingLevelOwner",
                 "WorkspaceAppSharingLevelAuthenticated",
+                "WorkspaceAppSharingLevelOrganization",
                 "WorkspaceAppSharingLevelPublic"
             ]
         },
@@ -17692,11 +18074,13 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "working",
+                "idle",
                 "complete",
                 "failure"
             ],
             "x-enum-varnames": [
                 "WorkspaceAppStatusStateWorking",
+                "WorkspaceAppStatusStateIdle",
                 "WorkspaceAppStatusStateComplete",
                 "WorkspaceAppStatusStateFailure"
             ]
@@ -17704,6 +18088,10 @@ const docTemplate = `{
         "codersdk.WorkspaceBuild": {
             "type": "object",
             "properties": {
+                "ai_task_sidebar_app_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "build_number": {
                     "type": "integer"
                 },
@@ -17717,6 +18105,9 @@ const docTemplate = `{
                 "deadline": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "has_ai_task": {
+                    "type": "boolean"
                 },
                 "id": {
                     "type": "string",
@@ -17818,6 +18209,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "workspace_owner_name": {
+                    "description": "WorkspaceOwnerName is the username of the owner of the workspace.",
                     "type": "string"
                 }
             }

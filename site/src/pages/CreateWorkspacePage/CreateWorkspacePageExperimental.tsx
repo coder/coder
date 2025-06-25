@@ -88,16 +88,19 @@ const CreateWorkspacePageExperimental: FC = () => {
 
 	const autofillParameters = getAutofillParameters(searchParams);
 
-	const sendMessage = useCallback((formValues: Record<string, string>) => {
-		const request: DynamicParametersRequest = {
-			id: wsResponseId.current + 1,
-			inputs: formValues,
-		};
-		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-			ws.current.send(JSON.stringify(request));
-			wsResponseId.current = wsResponseId.current + 1;
-		}
-	}, []);
+	const sendMessage = useEffectEvent(
+		(formValues: Record<string, string>, ownerId?: string) => {
+			const request: DynamicParametersRequest = {
+				id: wsResponseId.current + 1,
+				owner_id: ownerId ?? owner.id,
+				inputs: formValues,
+			};
+			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+				ws.current.send(JSON.stringify(request));
+				wsResponseId.current = wsResponseId.current + 1;
+			}
+		},
+	);
 
 	// On page load, sends all initial parameter values to the websocket
 	// (including defaults and autofilled from the url)
@@ -146,8 +149,8 @@ const CreateWorkspacePageExperimental: FC = () => {
 		if (!realizedVersionId) return;
 
 		const socket = API.templateVersionDynamicParameters(
-			owner.id,
 			realizedVersionId,
+			defaultOwner.id,
 			{
 				onMessage,
 				onError: (error) => {
@@ -173,7 +176,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 		return () => {
 			socket.close();
 		};
-	}, [owner.id, realizedVersionId, onMessage]);
+	}, [realizedVersionId, onMessage, defaultOwner.id]);
 
 	const organizationId = templateQuery.data?.organization_id;
 
@@ -323,7 +326,6 @@ const CreateWorkspacePageExperimental: FC = () => {
 
 						const workspace = await createWorkspaceMutation.mutateAsync({
 							...workspaceRequest,
-							enable_dynamic_parameters: true,
 							userId: owner.id,
 						});
 						onCreateWorkspace(workspace);

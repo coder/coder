@@ -51,6 +51,7 @@ type API struct {
 	*LogsAPI
 	*ScriptsAPI
 	*AuditAPI
+	*SubAgentAPI
 	*tailnet.DRPCService
 
 	mu sync.Mutex
@@ -59,9 +60,10 @@ type API struct {
 var _ agentproto.DRPCAgentServer = &API{}
 
 type Options struct {
-	AgentID     uuid.UUID
-	OwnerID     uuid.UUID
-	WorkspaceID uuid.UUID
+	AgentID        uuid.UUID
+	OwnerID        uuid.UUID
+	WorkspaceID    uuid.UUID
+	OrganizationID uuid.UUID
 
 	Ctx                               context.Context
 	Log                               slog.Logger
@@ -191,6 +193,16 @@ func New(opts Options) *API {
 		DerpMapUpdateFrequency:  opts.DerpMapUpdateFrequency,
 		DerpMapFn:               opts.DerpMapFn,
 		NetworkTelemetryHandler: opts.NetworkTelemetryHandler,
+	}
+
+	api.SubAgentAPI = &SubAgentAPI{
+		OwnerID:        opts.OwnerID,
+		OrganizationID: opts.OrganizationID,
+		AgentID:        opts.AgentID,
+		AgentFn:        api.agent,
+		Log:            opts.Log,
+		Clock:          opts.Clock,
+		Database:       opts.Database,
 	}
 
 	return api

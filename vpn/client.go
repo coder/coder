@@ -5,11 +5,14 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"time"
 
 	"golang.org/x/xerrors"
 
+	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/dns"
 	"tailscale.com/net/netmon"
+	"tailscale.com/tailcfg"
 	"tailscale.com/wgengine/router"
 
 	"github.com/google/uuid"
@@ -27,6 +30,9 @@ import (
 type Conn interface {
 	CurrentWorkspaceState() (tailnet.WorkspaceUpdate, error)
 	GetPeerDiagnostics(peerID uuid.UUID) tailnet.PeerDiagnostics
+	Ping(ctx context.Context, agentID uuid.UUID) (time.Duration, bool, *ipnstate.PingResult, error)
+	Node() *tailnet.Node
+	DERPMap() *tailcfg.DERPMap
 	Close() error
 }
 
@@ -36,6 +42,10 @@ type vpnConn struct {
 	cancelFn    func()
 	controller  *tailnet.Controller
 	updatesCtrl *tailnet.TunnelAllWorkspaceUpdatesController
+}
+
+func (c *vpnConn) Ping(ctx context.Context, agentID uuid.UUID) (time.Duration, bool, *ipnstate.PingResult, error) {
+	return c.Conn.Ping(ctx, tailnet.TailscaleServicePrefix.AddrFromUUID(agentID))
 }
 
 func (c *vpnConn) CurrentWorkspaceState() (tailnet.WorkspaceUpdate, error) {
@@ -82,7 +92,7 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 	sdk.SetSessionToken(token)
 	sdk.HTTPClient.Transport = &codersdk.HeaderTransport{
 		Transport: http.DefaultTransport,
-		Header:    headers,
+		Header:    headers.Clone(),
 	}
 
 	// New context, separate from initCtx. We don't want to cancel the
@@ -119,17 +129,18 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 	headers.Set(codersdk.SessionTokenHeader, token)
 	dialer := workspacesdk.NewWebsocketDialer(options.Logger, rpcURL, &websocket.DialOptions{
 		HTTPClient:      sdk.HTTPClient,
-		HTTPHeader:      headers,
+		HTTPHeader:      headers.Clone(),
 		CompressionMode: websocket.CompressionDisabled,
 	}, workspacesdk.WithWorkspaceUpdates(&proto.WorkspaceUpdatesRequest{
 		WorkspaceOwnerId: tailnet.UUIDToByteSlice(me.ID),
 	}))
 
+	clonedHeaders := headers.Clone()
 	ip := tailnet.CoderServicePrefix.RandomAddr()
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:             connInfo.DERPMap,
-		DERPHeader:          &headers,
+		DERPHeader:          &clonedHeaders,
 		DERPForceWebSockets: connInfo.DERPForceWebSockets,
 		Logger:              options.Logger,
 		BlockEndpoints:      connInfo.DisableDirectConnections,

@@ -5,7 +5,9 @@ INSERT INTO template_version_presets (
 	name,
 	created_at,
 	desired_instances,
-	invalidate_after_secs
+	invalidate_after_secs,
+	scheduling_timezone,
+	is_default
 )
 VALUES (
 	@id,
@@ -13,7 +15,9 @@ VALUES (
 	@name,
 	@created_at,
 	@desired_instances,
-	@invalidate_after_secs
+	@invalidate_after_secs,
+	@scheduling_timezone,
+	@is_default
 ) RETURNING *;
 
 -- name: InsertPresetParameters :many
@@ -24,6 +28,18 @@ SELECT
 	unnest(@names :: TEXT[]),
 	unnest(@values :: TEXT[])
 RETURNING *;
+
+-- name: InsertPresetPrebuildSchedule :one
+INSERT INTO template_version_preset_prebuild_schedules (
+	preset_id,
+	cron_expression,
+	desired_instances
+)
+VALUES (
+	@preset_id,
+	@cron_expression,
+	@desired_instances
+) RETURNING *;
 
 -- name: UpdatePresetPrebuildStatus :exec
 UPDATE template_version_presets
@@ -69,3 +85,17 @@ SELECT tvp.*, tv.template_id, tv.organization_id FROM
 	template_version_presets tvp
 	INNER JOIN template_versions tv ON tvp.template_version_id = tv.id
 WHERE tvp.id = @preset_id;
+
+-- name: GetActivePresetPrebuildSchedules :many
+SELECT
+	tvpps.*
+FROM
+	template_version_preset_prebuild_schedules tvpps
+		INNER JOIN template_version_presets tvp ON tvp.id = tvpps.preset_id
+		INNER JOIN template_versions tv ON tv.id = tvp.template_version_id
+		INNER JOIN templates t ON t.id = tv.template_id
+WHERE
+	-- Template version is active, and template is not deleted or deprecated
+	tv.id = t.active_version_id
+	AND NOT t.deleted
+	AND t.deprecated = '';

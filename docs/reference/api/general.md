@@ -272,6 +272,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "refresh": 0,
       "threshold_database": 0
     },
+    "hide_ai_tasks": true,
     "http_address": "string",
     "http_cookies": {
       "same_site": "string",
@@ -454,6 +455,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "default_duration": 0,
       "default_token_lifetime": 0,
       "disable_expiry_refresh": true,
+      "max_admin_token_lifetime": 0,
       "max_token_lifetime": 0
     },
     "ssh_keygen_algorithm": "string",

@@ -2,12 +2,56 @@ package idpsync_test
 
 import (
 	"encoding/json"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/idpsync"
 )
+
+// TestMarshalJSONEmpty ensures no empty maps are marshaled as `null` in JSON.
+func TestMarshalJSONEmpty(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Group", func(t *testing.T) {
+		t.Parallel()
+
+		output, err := json.Marshal(&idpsync.GroupSyncSettings{
+			RegexFilter: regexp.MustCompile(".*"),
+		})
+		require.NoError(t, err, "marshal empty group settings")
+		require.NotContains(t, string(output), "null")
+
+		require.JSONEq(t,
+			`{"field":"","mapping":{},"regex_filter":".*","auto_create_missing_groups":false}`,
+			string(output))
+	})
+
+	t.Run("Role", func(t *testing.T) {
+		t.Parallel()
+
+		output, err := json.Marshal(&idpsync.RoleSyncSettings{})
+		require.NoError(t, err, "marshal empty group settings")
+		require.NotContains(t, string(output), "null")
+
+		require.JSONEq(t,
+			`{"field":"","mapping":{}}`,
+			string(output))
+	})
+
+	t.Run("Organization", func(t *testing.T) {
+		t.Parallel()
+
+		output, err := json.Marshal(&idpsync.OrganizationSyncSettings{})
+		require.NoError(t, err, "marshal empty group settings")
+		require.NotContains(t, string(output), "null")
+
+		require.JSONEq(t,
+			`{"field":"","mapping":{},"assign_default":false}`,
+			string(output))
+	})
+}
 
 func TestParseStringSliceClaim(t *testing.T) {
 	t.Parallel()
@@ -115,7 +159,6 @@ func TestParseStringSliceClaim(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 

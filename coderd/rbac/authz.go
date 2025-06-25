@@ -73,6 +73,12 @@ const (
 	SubjectTypeSystemReadProvisionerDaemons SubjectType = "system_read_provisioner_daemons"
 	SubjectTypeSystemRestricted             SubjectType = "system_restricted"
 	SubjectTypeNotifier                     SubjectType = "notifier"
+	SubjectTypeSubAgentAPI                  SubjectType = "sub_agent_api"
+	SubjectTypeFileReader                   SubjectType = "file_reader"
+)
+
+const (
+	SubjectTypeFileReaderID = "acbf0be6-6fed-47b6-8c43-962cb5cab994"
 )
 
 // Subject is a struct that contains all the elements of a subject in an rbac

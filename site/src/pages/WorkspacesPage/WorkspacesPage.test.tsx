@@ -107,7 +107,7 @@ describe("WorkspacesPage", () => {
 			}
 
 			await user.click(screen.getByRole("button", { name: /bulk actions/i }));
-			const updateButton = await screen.findByText(/update/i);
+			const updateButton = await screen.findByTestId("bulk-action-update");
 			await user.click(updateButton);
 
 			// One click: no running workspaces warning, no dormant workspaces warning.
@@ -123,8 +123,8 @@ describe("WorkspacesPage", () => {
 			await waitFor(() => {
 				expect(updateWorkspace).toHaveBeenCalledTimes(2);
 			});
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2]);
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[3]);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2], [], false);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[3], [], false);
 		});
 
 		it("warns about and updates running workspaces", async () => {
@@ -146,7 +146,7 @@ describe("WorkspacesPage", () => {
 			}
 
 			await user.click(screen.getByRole("button", { name: /bulk actions/i }));
-			const updateButton = await screen.findByText(/update/i);
+			const updateButton = await screen.findByTestId("bulk-action-update");
 			await user.click(updateButton);
 
 			// Two clicks: 1 running workspace, no dormant workspaces warning.
@@ -160,9 +160,9 @@ describe("WorkspacesPage", () => {
 			await waitFor(() => {
 				expect(updateWorkspace).toHaveBeenCalledTimes(3);
 			});
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[0]);
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[1]);
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2]);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[0], [], false);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[1], [], false);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2], [], false);
 		});
 
 		it("warns about and ignores dormant workspaces", async () => {
@@ -184,7 +184,7 @@ describe("WorkspacesPage", () => {
 			}
 
 			await user.click(screen.getByRole("button", { name: /bulk actions/i }));
-			const updateButton = await screen.findByText(/update/i);
+			const updateButton = await screen.findByTestId("bulk-action-update");
 			await user.click(updateButton);
 
 			// Two clicks: no running workspaces warning, 1 dormant workspace.
@@ -199,8 +199,8 @@ describe("WorkspacesPage", () => {
 			await waitFor(() => {
 				expect(updateWorkspace).toHaveBeenCalledTimes(2);
 			});
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[1]);
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2]);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[1], [], false);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2], [], false);
 		});
 
 		it("warns about running workspaces and then dormant workspaces", async () => {
@@ -224,7 +224,7 @@ describe("WorkspacesPage", () => {
 			}
 
 			await user.click(screen.getByRole("button", { name: /bulk actions/i }));
-			const updateButton = await screen.findByText(/update/i);
+			const updateButton = await screen.findByTestId("bulk-action-update");
 			await user.click(updateButton);
 
 			// Three clicks: 1 running workspace, 1 dormant workspace.
@@ -241,9 +241,9 @@ describe("WorkspacesPage", () => {
 			await waitFor(() => {
 				expect(updateWorkspace).toHaveBeenCalledTimes(3);
 			});
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[0]);
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2]);
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[3]);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[0], [], false);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2], [], false);
+			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[3], [], false);
 		});
 	});
 

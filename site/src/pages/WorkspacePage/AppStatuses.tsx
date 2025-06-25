@@ -6,100 +6,26 @@ import type {
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import capitalize from "lodash/capitalize";
 import { timeFrom } from "utils/time";
 
 import {
 	ChevronDownIcon,
 	ChevronUpIcon,
-	CircleAlertIcon,
-	CircleCheckIcon,
 	ExternalLinkIcon,
 	FileIcon,
-	HourglassIcon,
 	LayoutGridIcon,
-	TriangleAlertIcon,
 } from "lucide-react";
+import { AppStatusStateIcon } from "modules/apps/AppStatusStateIcon";
 import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, useState } from "react";
-import { cn } from "utils/cn";
-
-const getStatusColor = (state: APIWorkspaceAppStatus["state"]) => {
-	switch (state) {
-		case "complete":
-			return "text-content-success";
-		case "failure":
-			return "text-content-warning";
-		case "working":
-			return "text-highlight-sky";
-		default:
-			return "text-content-secondary";
-	}
-};
-
-const getStatusIcon = (
-	state: APIWorkspaceAppStatus["state"],
-	isLatest: boolean,
-	className?: string,
-) => {
-	const iconClassName = cn(["size-[18px]", getStatusColor(state), className]);
-
-	switch (state) {
-		case "complete":
-			return <CircleCheckIcon className={iconClassName} />;
-		case "failure":
-			return <CircleAlertIcon className={iconClassName} />;
-		case "working":
-			return isLatest ? (
-				<Spinner size="sm" loading />
-			) : (
-				<HourglassIcon className={iconClassName} />
-			);
-		default:
-			return <TriangleAlertIcon className={iconClassName} />;
-	}
-};
-
-const formatURI = (uri: string) => {
-	if (uri.startsWith("file://")) {
-		const path = uri.slice(7);
-		// Slightly shorter truncation for this context if needed
-		if (path.length > 35) {
-			const start = path.slice(0, 15);
-			const end = path.slice(-15);
-			return `${start}...${end}`;
-		}
-		return path;
-	}
-
-	try {
-		const url = new URL(uri);
-		const fullUrl = url.toString();
-		// Slightly shorter truncation
-		if (fullUrl.length > 40) {
-			const start = fullUrl.slice(0, 20);
-			const end = fullUrl.slice(-20);
-			return `${start}...${end}`;
-		}
-		return fullUrl;
-	} catch {
-		// Slightly shorter truncation
-		if (uri.length > 35) {
-			const start = uri.slice(0, 15);
-			const end = uri.slice(-15);
-			return `${start}...${end}`;
-		}
-		return uri;
-	}
-};
-
-// --- Component Implementation ---
+import { truncateURI } from "utils/uri";
 
 interface AppStatusesProps {
 	workspace: Workspace;
@@ -144,15 +70,17 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 		<div className="flex flex-col border border-solid border-border rounded-lg">
 			<div
 				className={`
-					flex items-center justify-between px-4 py-3
+					flex items-center justify-between px-4 py-3 gap-6
 					border-0 [&:not(:last-child)]:border-b border-solid border-border
 				`}
 			>
-				<div className="flex flex-col">
-					<span className="text-sm font-medium text-content-primary flex items-center gap-2">
-						{getStatusIcon(latestStatus.state, true)}
-						{latestStatus.message}
-					</span>
+				<div className="flex flex-col overflow-hidden">
+					<div className="text-sm font-medium text-content-primary flex items-center gap-2 ">
+						<AppStatusStateIcon state={latestStatus.state} latest />
+						<span className="block flex-1 whitespace-nowrap overflow-hidden text-ellipsis">
+							{latestStatus.message || capitalize(latestStatus.state)}
+						</span>
+					</div>
 					<span className="text-xs text-content-secondary first-letter:uppercase block pl-[26px]">
 						{timeFrom(new Date(latestStatus.created_at), comparisonDate)}
 					</span>
@@ -174,7 +102,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 									<TooltipTrigger>
 										<span className="flex items-center gap-1">
 											<FileIcon className="size-icon-xs" />
-											{formatURI(latestStatus.uri)}
+											{truncateURI(latestStatus.uri)}
 										</span>
 									</TooltipTrigger>
 									<TooltipContent>
@@ -186,7 +114,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 							<Button asChild variant="outline" size="sm">
 								<a href={latestStatus.uri} target="_blank" rel="noreferrer">
 									<ExternalLinkIcon />
-									{formatURI(latestStatus.uri)}
+									{truncateURI(latestStatus.uri)}
 								</a>
 							</Button>
 						))}
@@ -195,6 +123,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Button
+									disabled={otherStatuses.length === 0}
 									size="icon"
 									variant="subtle"
 									onClick={() => {
@@ -227,8 +156,12 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 						>
 							<div className="flex items-center justify-between w-full text-content-secondary">
 								<span className="text-xs flex items-center gap-2">
-									{getStatusIcon(status.state, false, "size-icon-xs w-[18px]")}
-									{status.message}
+									<AppStatusStateIcon
+										state={status.state}
+										latest={false}
+										className="size-icon-xs w-[18px]"
+									/>
+									{status.message || capitalize(status.state)}
 								</span>
 								<span className="text-2xs text-content-secondary first-letter:uppercase block pl-[26px]">
 									{formattedTimestamp}

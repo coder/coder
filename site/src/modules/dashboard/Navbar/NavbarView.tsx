@@ -6,6 +6,7 @@ import { CoderIcon } from "components/Icons/CoderIcon";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { useAgenticChat } from "contexts/useAgenticChat";
 import { useWebpushNotifications } from "contexts/useWebpushNotifications";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
 import type { FC } from "react";
 import { NavLink, useLocation } from "react-router-dom";
@@ -141,6 +142,7 @@ interface NavItemsProps {
 const NavItems: FC<NavItemsProps> = ({ className }) => {
 	const location = useLocation();
 	const agenticChat = useAgenticChat();
+	const { metadata } = useEmbeddedMetadata();
 
 	return (
 		<nav className={cn("flex items-center gap-4 h-full", className)}>
@@ -163,7 +165,7 @@ const NavItems: FC<NavItemsProps> = ({ className }) => {
 			>
 				Templates
 			</NavLink>
-			{agenticChat.enabled ? (
+			{agenticChat.enabled && (
 				<NavLink
 					className={({ isActive }) => {
 						return cn(linkStyles.default, isActive ? linkStyles.active : "");
@@ -172,7 +174,17 @@ const NavItems: FC<NavItemsProps> = ({ className }) => {
 				>
 					Chat
 				</NavLink>
-			) : null}
+			)}
+			{metadata["tasks-tab-visible"].value && (
+				<NavLink
+					className={({ isActive }) => {
+						return cn(linkStyles.default, isActive ? linkStyles.active : "");
+					}}
+					to="/tasks"
+				>
+					Tasks
+				</NavLink>
+			)}
 		</nav>
 	);
 };

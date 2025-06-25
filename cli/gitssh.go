@@ -38,7 +38,7 @@ func (r *RootCmd) gitssh() *serpent.Command {
 				return err
 			}
 
-			client, err := r.createAgentClient()
+			client, err := r.tryCreateAgentClient()
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}

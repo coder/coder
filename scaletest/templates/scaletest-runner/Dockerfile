@@ -1,6 +1,6 @@
 # This image is used to run scaletest jobs and, although it is inside
 # the template directory, it is built separately and pushed to
-# gcr.io/coder-dev-1/scaletest-runner:latest.
+# us-docker.pkg.dev/coder-v2-images-public/public/scaletest-runner:latest.
 #
 # Future improvements will include versioning and including the version
 # in the template push.

@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -45,14 +46,6 @@ func ListLazy[F any, T any](convert func(F) T) func(list []F) []T {
 		}
 		return into
 	}
-}
-
-func Map[K comparable, F any, T any](params map[K]F, convert func(F) T) map[K]T {
-	into := make(map[K]T)
-	for k, item := range params {
-		into[k] = convert(item)
-	}
-	return into
 }
 
 type ExternalAuthMeta struct {
@@ -92,16 +85,59 @@ func WorkspaceBuildParameters(params []database.WorkspaceBuildParameter) []coder
 }
 
 func TemplateVersionParameters(params []database.TemplateVersionParameter) ([]codersdk.TemplateVersionParameter, error) {
-	out := make([]codersdk.TemplateVersionParameter, len(params))
-	var err error
-	for i, p := range params {
-		out[i], err = TemplateVersionParameter(p)
+	out := make([]codersdk.TemplateVersionParameter, 0, len(params))
+	for _, p := range params {
+		np, err := TemplateVersionParameter(p)
 		if err != nil {
 			return nil, xerrors.Errorf("convert template version parameter %q: %w", p.Name, err)
 		}
+		out = append(out, np)
 	}
 
 	return out, nil
+}
+
+func TemplateVersionParameterFromPreview(param previewtypes.Parameter) (codersdk.TemplateVersionParameter, error) {
+	descriptionPlaintext, err := render.PlaintextFromMarkdown(param.Description)
+	if err != nil {
+		return codersdk.TemplateVersionParameter{}, err
+	}
+
+	sdkParam := codersdk.TemplateVersionParameter{
+		Name:                 param.Name,
+		DisplayName:          param.DisplayName,
+		Description:          param.Description,
+		DescriptionPlaintext: descriptionPlaintext,
+		Type:                 string(param.Type),
+		FormType:             string(param.FormType),
+		Mutable:              param.Mutable,
+		DefaultValue:         param.DefaultValue.AsString(),
+		Icon:                 param.Icon,
+		Required:             param.Required,
+		Ephemeral:            param.Ephemeral,
+		Options:              List(param.Options, TemplateVersionParameterOptionFromPreview),
+		// Validation set after
+	}
+	if len(param.Validations) > 0 {
+		validation := param.Validations[0]
+		sdkParam.ValidationError = validation.Error
+		if validation.Monotonic != nil {
+			sdkParam.ValidationMonotonic = codersdk.ValidationMonotonicOrder(*validation.Monotonic)
+		}
+		if validation.Regex != nil {
+			sdkParam.ValidationRegex = *validation.Regex
+		}
+		if validation.Min != nil {
+			//nolint:gosec // No other choice
+			sdkParam.ValidationMin = ptr.Ref(int32(*validation.Min))
+		}
+		if validation.Max != nil {
+			//nolint:gosec // No other choice
+			sdkParam.ValidationMax = ptr.Ref(int32(*validation.Max))
+		}
+	}
+
+	return sdkParam, nil
 }
 
 func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk.TemplateVersionParameter, error) {
@@ -131,6 +167,7 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 		Description:          param.Description,
 		DescriptionPlaintext: descriptionPlaintext,
 		Type:                 param.Type,
+		FormType:             string(param.FormType),
 		Mutable:              param.Mutable,
 		DefaultValue:         param.DefaultValue,
 		Icon:                 param.Icon,
@@ -293,7 +330,8 @@ func templateVersionParameterOptions(rawOptions json.RawMessage) ([]codersdk.Tem
 	if err != nil {
 		return nil, err
 	}
-	var options []codersdk.TemplateVersionParameterOption
+
+	options := make([]codersdk.TemplateVersionParameterOption, 0)
 	for _, option := range protoOptions {
 		options = append(options, codersdk.TemplateVersionParameterOption{
 			Name:        option.Name,
@@ -303,6 +341,15 @@ func templateVersionParameterOptions(rawOptions json.RawMessage) ([]codersdk.Tem
 		})
 	}
 	return options, nil
+}
+
+func TemplateVersionParameterOptionFromPreview(option *previewtypes.ParameterOption) codersdk.TemplateVersionParameterOption {
+	return codersdk.TemplateVersionParameterOption{
+		Name:        option.Name,
+		Description: option.Description,
+		Value:       option.Value.AsString(),
+		Icon:        option.Icon,
+	}
 }
 
 func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
@@ -384,6 +431,7 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 
 	workspaceAgent := codersdk.WorkspaceAgent{
 		ID:                       dbAgent.ID,
+		ParentID:                 dbAgent.ParentID,
 		CreatedAt:                dbAgent.CreatedAt,
 		UpdatedAt:                dbAgent.UpdatedAt,
 		ResourceID:               dbAgent.ResourceID,
@@ -525,6 +573,7 @@ func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus
 				Threshold: dbApp.HealthcheckThreshold,
 			},
 			Health:   codersdk.WorkspaceAppHealth(dbApp.Health),
+			Group:    dbApp.DisplayGroup.String,
 			Hidden:   dbApp.Hidden,
 			OpenIn:   codersdk.WorkspaceAppOpenIn(dbApp.OpenIn),
 			Statuses: WorkspaceAppStatuses(statuses),

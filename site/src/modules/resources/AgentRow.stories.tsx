@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { spyOn, userEvent, within } from "@storybook/test";
+import { API } from "api/api";
 import { getPreferredProxy } from "contexts/ProxyContext";
 import { chromatic } from "testHelpers/chromatic";
 import * as M from "testHelpers/entities";
@@ -95,8 +97,7 @@ const meta: Meta<typeof AgentRow> = {
 			logs_length: logs.length,
 		},
 		workspace: M.MockWorkspace,
-		showApps: true,
-		storybookAgentMetadata: defaultAgentMetadata,
+		initialMetadata: defaultAgentMetadata,
 	},
 	decorators: [withProxyProvider(), withDashboardProvider, withWebSocket],
 	parameters: {
@@ -121,24 +122,6 @@ type Story = StoryObj<typeof AgentRow>;
 
 export const Example: Story = {};
 
-export const HideSSHButton: Story = {
-	args: {
-		hideSSHButton: true,
-	},
-};
-
-export const HideVSCodeDesktopButton: Story = {
-	args: {
-		hideVSCodeDesktopButton: true,
-	},
-};
-
-export const NotShowingApps: Story = {
-	args: {
-		showApps: false,
-	},
-};
-
 export const BunchOfApps: Story = {
 	args: {
 		agent: {
@@ -155,14 +138,13 @@ export const BunchOfApps: Story = {
 			],
 		},
 		workspace: M.MockWorkspace,
-		showApps: true,
 	},
 };
 
 export const Connecting: Story = {
 	args: {
 		agent: M.MockWorkspaceAgentConnecting,
-		storybookAgentMetadata: [],
+		initialMetadata: [],
 	},
 };
 
@@ -190,7 +172,7 @@ export const Started: Story = {
 export const StartedNoMetadata: Story = {
 	args: {
 		...Started.args,
-		storybookAgentMetadata: [],
+		initialMetadata: [],
 	},
 };
 
@@ -243,20 +225,30 @@ export const ShowingPortForward: Story = {
 };
 
 export const Outdated: Story = {
+	beforeEach: () => {
+		spyOn(API, "getBuildInfo").mockResolvedValue({
+			...M.MockBuildInfo,
+			version: "v99.999.9999+c1cdf14",
+			agent_api_version: "1.0",
+		});
+	},
 	args: {
 		agent: M.MockWorkspaceAgentOutdated,
 		workspace: M.MockWorkspace,
-		serverVersion: "v99.999.9999+c1cdf14",
-		serverAPIVersion: "1.0",
 	},
 };
 
 export const Deprecated: Story = {
+	beforeEach: () => {
+		spyOn(API, "getBuildInfo").mockResolvedValue({
+			...M.MockBuildInfo,
+			version: "v99.999.9999+c1cdf14",
+			agent_api_version: "2.0",
+		});
+	},
 	args: {
 		agent: M.MockWorkspaceAgentDeprecated,
 		workspace: M.MockWorkspace,
-		serverVersion: "v99.999.9999+c1cdf14",
-		serverAPIVersion: "2.0",
 	},
 };
 
@@ -271,5 +263,33 @@ export const HideApp: Story = {
 				},
 			],
 		},
+	},
+};
+
+export const GroupApp: Story = {
+	args: {
+		agent: {
+			...M.MockWorkspaceAgent,
+			apps: [
+				{
+					...M.MockWorkspaceApp,
+					group: "group",
+				},
+			],
+		},
+	},
+
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByText("group"));
+	},
+};
+
+export const Devcontainer: Story = {
+	beforeEach: () => {
+		spyOn(API, "getAgentContainers").mockResolvedValue({
+			devcontainers: [M.MockWorkspaceAgentDevcontainer],
+			containers: [M.MockWorkspaceAgentContainer],
+		});
 	},
 };

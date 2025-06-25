@@ -2,14 +2,16 @@
 FROM rust:slim@sha256:3f391b0678a6e0c88fd26f13e399c9c515ac47354e3cadfee7daee3b21651a4f AS rust-utils
 # Install rust helper programs
 ENV CARGO_INSTALL_ROOT=/tmp/
-RUN apt-get update
-RUN apt-get install -y libssl-dev openssl pkg-config build-essential
+# Use more reliable mirrors for Debian packages
+RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.edge.kernel.org/debian|g' /etc/apt/sources.list && \
+    apt-get update || true
+RUN apt-get update && apt-get install -y libssl-dev openssl pkg-config build-essential
 RUN cargo install jj-cli typos-cli watchexec-cli
 
 FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97 AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.24.2
+ARG GO_VERSION=1.24.4
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -85,7 +87,7 @@ RUN apt-get update && \
 	rm -rf /tmp/go/src
 
 # alpine:3.18
-FROM gcr.io/coder-dev-1/alpine@sha256:25fad2a32ad1f6f510e528448ae1ec69a28ef81916a004d3629874104f8a7f70 AS proto
+FROM us-docker.pkg.dev/coder-v2-images-public/public/alpine@sha256:fd032399cd767f310a1d1274e81cab9f0fd8a49b3589eba2c3420228cd45b6a7 AS proto
 WORKDIR /tmp
 RUN apk add curl unzip
 RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip && \
@@ -119,7 +121,10 @@ RUN mkdir -p /etc/sudoers.d && \
 	chmod 750 /etc/sudoers.d/ && \
 	chmod 640 /etc/sudoers.d/nopasswd
 
-RUN apt-get update --quiet && apt-get install --yes \
+# Use more reliable mirrors for Ubuntu packages
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list && \
+    sed -i 's|http://security.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list && \
+    apt-get update --quiet && apt-get install --yes \
 	ansible \
 	apt-transport-https \
 	apt-utils \
@@ -199,9 +204,9 @@ RUN apt-get update --quiet && apt-get install --yes \
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
 
-# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.11.4.
+# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.12.2.
 # Installing the same version here to match.
-RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.11.4/terraform_1.11.4_linux_amd64.zip" && \
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.12.2/terraform_1.12.2_linux_amd64.zip" && \
 	unzip /tmp/terraform.zip -d /usr/local/bin && \
 	rm -f /tmp/terraform.zip && \
 	chmod +x /usr/local/bin/terraform && \
@@ -287,7 +292,8 @@ ARG CLOUD_SQL_PROXY_VERSION=2.2.0 \
 	TERRAGRUNT_VERSION=0.45.11 \
 	TRIVY_VERSION=0.41.0 \
 	SYFT_VERSION=1.20.0 \
-	COSIGN_VERSION=2.4.3
+	COSIGN_VERSION=2.4.3 \
+	BUN_VERSION=1.2.15
 
 # cloud_sql_proxy, for connecting to cloudsql instances
 # the upstream go.mod prevents this from being installed with go install
@@ -331,7 +337,17 @@ RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_prox
 	tar --extract --gzip --directory=/usr/local/bin --file=- syft && \
 	# Sigstore Cosign for artifact signing and attestation
 	curl --silent --show-error --location --output /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" && \
-	chmod a=rx /usr/local/bin/cosign
+	chmod a=rx /usr/local/bin/cosign && \
+	# Install Bun JavaScript runtime to /usr/local/bin
+	# Ensure unzip is installed right before using it and use multiple mirrors for reliability
+	(apt-get update || (sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list && apt-get update)) && \
+	apt-get install -y unzip && \
+	curl --silent --show-error --location --fail "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip" --output /tmp/bun.zip && \
+	unzip -q /tmp/bun.zip -d /tmp && \
+	mv /tmp/bun-linux-x64/bun /usr/local/bin/ && \
+	chmod a=rx /usr/local/bin/bun && \
+	rm -rf /tmp/bun.zip /tmp/bun-linux-x64 && \
+	apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # We use yq during "make deploy" to manually substitute out fields in
 # our helm values.yaml file. See https://github.com/helm/helm/issues/3141

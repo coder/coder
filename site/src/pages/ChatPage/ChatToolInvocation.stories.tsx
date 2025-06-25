@@ -94,6 +94,7 @@ export const TemplateVersionParameters: Story = {
 					description: "Select the deployment region.",
 					description_plaintext: "Select the deployment region.",
 					type: "string",
+					form_type: "radio",
 					mutable: false,
 					default_value: "us-west-1",
 					icon: "",
@@ -110,6 +111,7 @@ export const TemplateVersionParameters: Story = {
 					description: "Number of CPU cores.",
 					description_plaintext: "Number of CPU cores.",
 					type: "number",
+					form_type: "input",
 					mutable: true,
 					default_value: "4",
 					icon: "",
@@ -406,7 +408,7 @@ RUN apt-get update && \
 	rm -rf /tmp/go/src
 
 # alpine:3.18
-FROM gcr.io/coder-dev-1/alpine@sha256:25fad2a32ad1f6f510e528448ae1ec69a28ef81916a004d3629874104f8a7f70 AS proto
+FROM us-docker.pkg.dev/coder-v2-images-public/public/alpine@sha256:fd032399cd767f310a1d1274e81cab9f0fd8a49b3589eba2c3420228cd45b6a7 AS proto
 WORKDIR /tmp
 RUN apk add curl unzip
 RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip && \

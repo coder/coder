@@ -101,9 +101,9 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 		</>
 	) : includesVSCodeDesktop ? (
 		<VSCodeButton {...props} />
-	) : (
+	) : includesVSCodeInsiders ? (
 		<VSCodeInsidersButton {...props} />
-	);
+	) : null;
 };
 
 const VSCodeButton: FC<VSCodeDevContainerButtonProps> = ({

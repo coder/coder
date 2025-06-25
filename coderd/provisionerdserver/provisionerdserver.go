@@ -29,6 +29,8 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/coderd/util/slice"
+
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 
 	"github.com/coder/quartz"
@@ -320,7 +322,7 @@ func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Acquire
 	acqCtx, acqCancel := context.WithTimeout(ctx, s.acquireJobLongPollDur)
 	defer acqCancel()
 	job, err := s.Acquirer.AcquireJob(acqCtx, s.OrganizationID, s.ID, s.Provisioners, s.Tags)
-	if xerrors.Is(err, context.DeadlineExceeded) {
+	if database.IsQueryCanceledError(err) {
 		s.Logger.Debug(ctx, "successful cancel")
 		return &proto.AcquiredJob{}, nil
 	}
@@ -367,7 +369,7 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 		je = <-jec
 	case je = <-jec:
 	}
-	if xerrors.Is(je.err, context.Canceled) {
+	if database.IsQueryCanceledError(je.err) {
 		s.Logger.Debug(streamCtx, "successful cancel")
 		err := stream.Send(&proto.AcquiredJob{})
 		if err != nil {
@@ -738,6 +740,9 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				Metadata: &sdkproto.Metadata{
 					CoderUrl:      s.AccessURL.String(),
 					WorkspaceName: input.WorkspaceName,
+					// There is no owner for a template import, but we can assume
+					// the "Everyone" group as a placeholder.
+					WorkspaceOwnerGroups: []string{database.EveryoneGroup},
 				},
 			},
 		}
@@ -758,6 +763,9 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				UserVariableValues: convertVariableValues(userVariableValues),
 				Metadata: &sdkproto.Metadata{
 					CoderUrl: s.AccessURL.String(),
+					// There is no owner for a template import, but we can assume
+					// the "Everyone" group as a placeholder.
+					WorkspaceOwnerGroups: []string{database.EveryoneGroup},
 				},
 			},
 		}
@@ -766,7 +774,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 	case database.ProvisionerStorageMethodFile:
 		file, err := s.Database.GetFileByID(ctx, job.FileID)
 		if err != nil {
-			return nil, failJob(fmt.Sprintf("get file by hash: %s", err))
+			return nil, failJob(fmt.Sprintf("get file by id: %s", err))
 		}
 		protoJob.TemplateSourceArchive = file.Data
 	default:
@@ -1314,6 +1322,104 @@ func (s *server) prepareForNotifyWorkspaceManualBuildFailed(ctx context.Context,
 	return templateAdmins, template, templateVersion, workspaceOwner, nil
 }
 
+func (s *server) UploadFile(stream proto.DRPCProvisionerDaemon_UploadFileStream) error {
+	var file *sdkproto.DataBuilder
+	// Always terminate the stream with an empty response.
+	defer stream.SendAndClose(&proto.Empty{})
+
+UploadFileStream:
+	for {
+		msg, err := stream.Recv()
+		if err != nil {
+			return xerrors.Errorf("receive complete job with files: %w", err)
+		}
+
+		switch typed := msg.Type.(type) {
+		case *proto.UploadFileRequest_DataUpload:
+			if file != nil {
+				return xerrors.New("unexpected file upload while waiting for file completion")
+			}
+
+			file, err = sdkproto.NewDataBuilder(&sdkproto.DataUpload{
+				UploadType: typed.DataUpload.UploadType,
+				DataHash:   typed.DataUpload.DataHash,
+				FileSize:   typed.DataUpload.FileSize,
+				Chunks:     typed.DataUpload.Chunks,
+			})
+			if err != nil {
+				return xerrors.Errorf("unable to create file upload: %w", err)
+			}
+
+			if file.IsDone() {
+				// If a file is 0 bytes, we can consider it done immediately.
+				// This should never really happen in practice, but we handle it gracefully.
+				break UploadFileStream
+			}
+		case *proto.UploadFileRequest_ChunkPiece:
+			if file == nil {
+				return xerrors.New("unexpected chunk piece while waiting for file upload")
+			}
+
+			done, err := file.Add(&sdkproto.ChunkPiece{
+				Data:         typed.ChunkPiece.Data,
+				FullDataHash: typed.ChunkPiece.FullDataHash,
+				PieceIndex:   typed.ChunkPiece.PieceIndex,
+			})
+			if err != nil {
+				return xerrors.Errorf("unable to add chunk piece: %w", err)
+			}
+
+			if done {
+				break UploadFileStream
+			}
+		}
+	}
+
+	fileData, err := file.Complete()
+	if err != nil {
+		return xerrors.Errorf("complete file upload: %w", err)
+	}
+
+	// Just rehash the data to be sure it is correct.
+	hashBytes := sha256.Sum256(fileData)
+	hash := hex.EncodeToString(hashBytes[:])
+
+	var insert database.InsertFileParams
+
+	switch file.Type {
+	case sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES:
+		insert = database.InsertFileParams{
+			ID:        uuid.New(),
+			Hash:      hash,
+			CreatedAt: dbtime.Now(),
+			CreatedBy: uuid.Nil,
+			Mimetype:  tarMimeType,
+			Data:      fileData,
+		}
+	default:
+		return xerrors.Errorf("unsupported file upload type: %s", file.Type)
+	}
+
+	//nolint:gocritic // Provisionerd actor
+	_, err = s.Database.InsertFile(dbauthz.AsProvisionerd(s.lifecycleCtx), insert)
+	if err != nil {
+		// Duplicated files already exist in the database, so we can ignore this error.
+		if !database.IsUniqueViolation(err, database.UniqueFilesHashCreatedByKey) {
+			return xerrors.Errorf("insert file: %w", err)
+		}
+	}
+
+	s.Logger.Info(s.lifecycleCtx, "file uploaded to database",
+		slog.F("type", file.Type.String()),
+		slog.F("hash", hash),
+		slog.F("size", len(fileData)),
+		// new_insert indicates whether the file was newly inserted or already existed.
+		slog.F("new_insert", err == nil),
+	)
+
+	return nil
+}
+
 // CompleteJob is triggered by a provision daemon to mark a provisioner job as completed.
 func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob) (*proto.Empty, error) {
 	ctx, span := s.startTrace(ctx, tracing.FuncName())
@@ -1453,12 +1559,24 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 				}
 			}
 
+			pft, err := sdkproto.ProviderFormType(richParameter.FormType)
+			if err != nil {
+				return xerrors.Errorf("parameter %q: %w", richParameter.Name, err)
+			}
+
+			dft := database.ParameterFormType(pft)
+			if !dft.Valid() {
+				list := strings.Join(slice.ToStrings(database.AllParameterFormTypeValues()), ", ")
+				return xerrors.Errorf("parameter %q field 'form_type' not valid, currently supported: %s", richParameter.Name, list)
+			}
+
 			_, err = db.InsertTemplateVersionParameter(ctx, database.InsertTemplateVersionParameterParams{
 				TemplateVersionID:   input.TemplateVersionID,
 				Name:                richParameter.Name,
 				DisplayName:         richParameter.DisplayName,
 				Description:         richParameter.Description,
 				Type:                richParameter.Type,
+				FormType:            dft,
 				Mutable:             richParameter.Mutable,
 				DefaultValue:        richParameter.DefaultValue,
 				Icon:                richParameter.Icon,
@@ -1537,6 +1655,17 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		if err != nil {
 			return xerrors.Errorf("update template version external auth providers: %w", err)
 		}
+		err = db.UpdateTemplateVersionAITaskByJobID(ctx, database.UpdateTemplateVersionAITaskByJobIDParams{
+			JobID: jobID,
+			HasAITask: sql.NullBool{
+				Bool:  jobType.TemplateImport.HasAiTasks,
+				Valid: true,
+			},
+			UpdatedAt: now,
+		})
+		if err != nil {
+			return xerrors.Errorf("update template version external auth providers: %w", err)
+		}
 
 		// Process terraform values
 		plan := jobType.TemplateImport.Plan
@@ -1584,6 +1713,20 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 						Valid: true,
 						UUID:  file.ID,
 					}
+				}
+			}
+
+			if len(jobType.TemplateImport.ModuleFilesHash) > 0 {
+				hashString := hex.EncodeToString(jobType.TemplateImport.ModuleFilesHash)
+				//nolint:gocritic // Acting as provisioner
+				file, err := db.GetFileByHashAndCreator(dbauthz.AsProvisionerd(ctx), database.GetFileByHashAndCreatorParams{Hash: hashString, CreatedBy: uuid.Nil})
+				if err != nil {
+					return xerrors.Errorf("get file by hash, it should have been uploaded: %w", err)
+				}
+
+				fileID = uuid.NullUUID{
+					Valid: true,
+					UUID:  file.ID,
 				}
 			}
 
@@ -1735,14 +1878,52 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}
 		}
 
+		var sidebarAppID uuid.NullUUID
+		hasAITask := len(jobType.WorkspaceBuild.AiTasks) == 1
+		if hasAITask {
+			task := jobType.WorkspaceBuild.AiTasks[0]
+			if task.SidebarApp == nil {
+				return xerrors.Errorf("update ai task: sidebar app is nil")
+			}
+
+			id, err := uuid.Parse(task.SidebarApp.Id)
+			if err != nil {
+				return xerrors.Errorf("parse sidebar app id: %w", err)
+			}
+
+			sidebarAppID = uuid.NullUUID{UUID: id, Valid: true}
+		}
+
+		// Regardless of whether there is an AI task or not, update the field to indicate one way or the other since it
+		// always defaults to nil. ONLY if has_ai_task=true MUST ai_task_sidebar_app_id be set.
+		err = db.UpdateWorkspaceBuildAITaskByID(ctx, database.UpdateWorkspaceBuildAITaskByIDParams{
+			ID: workspaceBuild.ID,
+			HasAITask: sql.NullBool{
+				Bool:  hasAITask,
+				Valid: true,
+			},
+			SidebarAppID: sidebarAppID,
+			UpdatedAt:    now,
+		})
+		if err != nil {
+			return xerrors.Errorf("update workspace build ai tasks flag: %w", err)
+		}
+
 		// Insert timings inside the transaction now
 		// nolint:exhaustruct // The other fields are set further down.
 		params := database.InsertProvisionerJobTimingsParams{
 			JobID: jobID,
 		}
 		for _, t := range jobType.WorkspaceBuild.Timings {
-			if t.Start == nil || t.End == nil {
-				s.Logger.Warn(ctx, "timings entry has nil start or end time", slog.F("entry", t.String()))
+			start := t.GetStart()
+			if !start.IsValid() || start.AsTime().IsZero() {
+				s.Logger.Warn(ctx, "timings entry has nil or zero start time", slog.F("job_id", job.ID.String()), slog.F("workspace_id", workspace.ID), slog.F("workspace_build_id", workspaceBuild.ID), slog.F("user_id", workspace.OwnerID))
+				continue
+			}
+
+			end := t.GetEnd()
+			if !end.IsValid() || end.AsTime().IsZero() {
+				s.Logger.Warn(ctx, "timings entry has nil or zero end time, skipping", slog.F("job_id", job.ID.String()), slog.F("workspace_id", workspace.ID), slog.F("workspace_build_id", workspaceBuild.ID), slog.F("user_id", workspace.OwnerID))
 				continue
 			}
 
@@ -1771,7 +1952,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		// after being started.
 		//
 		// Agent timeouts could be minutes apart, resulting in an unresponsive
-		// experience, so we'll notify after every unique timeout seconds.
+		// experience, so we'll notify after every unique timeout seconds
 		if !input.DryRun && workspaceBuild.Transition == database.WorkspaceTransitionStart && len(agentTimeouts) > 0 {
 			timeouts := maps.Keys(agentTimeouts)
 			slices.Sort(timeouts)
@@ -2059,7 +2240,13 @@ func InsertWorkspacePresetsAndParameters(ctx context.Context, logger slog.Logger
 
 func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, templateVersionID uuid.UUID, protoPreset *sdkproto.Preset, t time.Time) error {
 	err := db.InTx(func(tx database.Store) error {
-		var desiredInstances, ttl sql.NullInt32
+		var (
+			desiredInstances   sql.NullInt32
+			ttl                sql.NullInt32
+			schedulingEnabled  bool
+			schedulingTimezone string
+			prebuildSchedules  []*sdkproto.Schedule
+		)
 		if protoPreset != nil && protoPreset.Prebuild != nil {
 			desiredInstances = sql.NullInt32{
 				Int32: protoPreset.Prebuild.Instances,
@@ -2071,6 +2258,11 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 					Valid: true,
 				}
 			}
+			if protoPreset.Prebuild.Scheduling != nil {
+				schedulingEnabled = true
+				schedulingTimezone = protoPreset.Prebuild.Scheduling.Timezone
+				prebuildSchedules = protoPreset.Prebuild.Scheduling.Schedule
+			}
 		}
 		dbPreset, err := tx.InsertPreset(ctx, database.InsertPresetParams{
 			ID:                  uuid.New(),
@@ -2079,9 +2271,24 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 			CreatedAt:           t,
 			DesiredInstances:    desiredInstances,
 			InvalidateAfterSecs: ttl,
+			SchedulingTimezone:  schedulingTimezone,
+			IsDefault:           protoPreset.GetDefault(),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert preset: %w", err)
+		}
+
+		if schedulingEnabled {
+			for _, schedule := range prebuildSchedules {
+				_, err := tx.InsertPresetPrebuildSchedule(ctx, database.InsertPresetPrebuildScheduleParams{
+					PresetID:         dbPreset.ID,
+					CronExpression:   schedule.Cron,
+					DesiredInstances: schedule.Instances,
+				})
+				if err != nil {
+					return xerrors.Errorf("failed to insert preset prebuild schedule: %w", err)
+				}
+			}
 		}
 
 		var presetParameterNames []string
@@ -2419,6 +2626,11 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				sharingLevel = database.AppSharingLevelPublic
 			}
 
+			displayGroup := sql.NullString{
+				Valid:  app.Group != "",
+				String: app.Group,
+			}
+
 			openIn := database.WorkspaceAppOpenInSlimWindow
 			switch app.OpenIn {
 			case sdkproto.AppOpenIn_TAB:
@@ -2427,8 +2639,20 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				openIn = database.WorkspaceAppOpenInSlimWindow
 			}
 
-			dbApp, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
-				ID:          uuid.New(),
+			var appID string
+			if app.Id == "" || app.Id == uuid.Nil.String() {
+				appID = uuid.NewString()
+			} else {
+				appID = app.Id
+			}
+			id, err := uuid.Parse(appID)
+			if err != nil {
+				return xerrors.Errorf("parse app uuid: %w", err)
+			}
+
+			// If workspace apps are "persistent", the ID will not be regenerated across workspace builds, so we have to upsert.
+			dbApp, err := db.UpsertWorkspaceApp(ctx, database.UpsertWorkspaceAppParams{
+				ID:          id,
 				CreatedAt:   dbtime.Now(),
 				AgentID:     dbAgent.ID,
 				Slug:        slug,
@@ -2451,11 +2675,12 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				Health:               health,
 				// #nosec G115 - Order represents a display order value that's always small and fits in int32
 				DisplayOrder: int32(app.Order),
+				DisplayGroup: displayGroup,
 				Hidden:       app.Hidden,
 				OpenIn:       openIn,
 			})
 			if err != nil {
-				return xerrors.Errorf("insert app: %w", err)
+				return xerrors.Errorf("upsert app: %w", err)
 			}
 			snapshot.WorkspaceApps = append(snapshot.WorkspaceApps, telemetry.ConvertWorkspaceApp(dbApp))
 		}

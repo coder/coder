@@ -28,10 +28,12 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/buildinfo"
 	clitelemetry "github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
@@ -47,7 +49,8 @@ type Options struct {
 	Database database.Store
 	Logger   slog.Logger
 	// URL is an endpoint to direct telemetry towards!
-	URL *url.URL
+	URL         *url.URL
+	Experiments codersdk.Experiments
 
 	DeploymentID     string
 	DeploymentConfig *codersdk.DeploymentValues
@@ -683,6 +686,52 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		return nil
 	})
+	eg.Go(func() error {
+		if !r.options.Experiments.Enabled(codersdk.ExperimentWorkspacePrebuilds) {
+			return nil
+		}
+
+		metrics, err := r.options.Database.GetPrebuildMetrics(ctx)
+		if err != nil {
+			return xerrors.Errorf("get prebuild metrics: %w", err)
+		}
+
+		var totalCreated, totalFailed, totalClaimed int64
+		for _, metric := range metrics {
+			totalCreated += metric.CreatedCount
+			totalFailed += metric.FailedCount
+			totalClaimed += metric.ClaimedCount
+		}
+
+		snapshot.PrebuiltWorkspaces = make([]PrebuiltWorkspace, 0, 3)
+		now := dbtime.Now()
+
+		if totalCreated > 0 {
+			snapshot.PrebuiltWorkspaces = append(snapshot.PrebuiltWorkspaces, PrebuiltWorkspace{
+				ID:        uuid.New(),
+				CreatedAt: now,
+				EventType: PrebuiltWorkspaceEventTypeCreated,
+				Count:     int(totalCreated),
+			})
+		}
+		if totalFailed > 0 {
+			snapshot.PrebuiltWorkspaces = append(snapshot.PrebuiltWorkspaces, PrebuiltWorkspace{
+				ID:        uuid.New(),
+				CreatedAt: now,
+				EventType: PrebuiltWorkspaceEventTypeFailed,
+				Count:     int(totalFailed),
+			})
+		}
+		if totalClaimed > 0 {
+			snapshot.PrebuiltWorkspaces = append(snapshot.PrebuiltWorkspaces, PrebuiltWorkspace{
+				ID:        uuid.New(),
+				CreatedAt: now,
+				EventType: PrebuiltWorkspaceEventTypeClaimed,
+				Count:     int(totalClaimed),
+			})
+		}
+		return nil
+	})
 
 	err := eg.Wait()
 	if err != nil {
@@ -1042,6 +1091,7 @@ func ConvertTemplate(dbTemplate database.Template) Template {
 		AutostartAllowedDays:          codersdk.BitmapToWeekdays(dbTemplate.AutostartAllowedDays()),
 		RequireActiveVersion:          dbTemplate.RequireActiveVersion,
 		Deprecated:                    dbTemplate.Deprecated != "",
+		UseClassicParameterFlow:       ptr.Ref(dbTemplate.UseClassicParameterFlow),
 	}
 }
 
@@ -1152,6 +1202,7 @@ type Snapshot struct {
 	Organizations                        []Organization                        `json:"organizations"`
 	TelemetryItems                       []TelemetryItem                       `json:"telemetry_items"`
 	UserTailnetConnections               []UserTailnetConnection               `json:"user_tailnet_connections"`
+	PrebuiltWorkspaces                   []PrebuiltWorkspace                   `json:"prebuilt_workspaces"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -1347,6 +1398,7 @@ type Template struct {
 	AutostartAllowedDays           []string `json:"autostart_allowed_days"`
 	RequireActiveVersion           bool     `json:"require_active_version"`
 	Deprecated                     bool     `json:"deprecated"`
+	UseClassicParameterFlow        *bool    `json:"use_classic_parameter_flow"`
 }
 
 type TemplateVersion struct {
@@ -1722,6 +1774,21 @@ type UserTailnetConnection struct {
 	DeviceID            *string    `json:"device_id"`
 	DeviceOS            *string    `json:"device_os"`
 	CoderDesktopVersion *string    `json:"coder_desktop_version"`
+}
+
+type PrebuiltWorkspaceEventType string
+
+const (
+	PrebuiltWorkspaceEventTypeCreated PrebuiltWorkspaceEventType = "created"
+	PrebuiltWorkspaceEventTypeFailed  PrebuiltWorkspaceEventType = "failed"
+	PrebuiltWorkspaceEventTypeClaimed PrebuiltWorkspaceEventType = "claimed"
+)
+
+type PrebuiltWorkspace struct {
+	ID        uuid.UUID                  `json:"id"`
+	CreatedAt time.Time                  `json:"created_at"`
+	EventType PrebuiltWorkspaceEventType `json:"event_type"`
+	Count     int                        `json:"count"`
 }
 
 type noopReporter struct{}

@@ -77,7 +77,6 @@ export const Running: Story = {
 		},
 		handleStart: action("start"),
 		handleStop: action("stop"),
-		buildInfo: Mocks.MockBuildInfo,
 		template: Mocks.MockTemplate,
 	},
 };
@@ -98,7 +97,7 @@ export const RunningWithChildAgent: Story = {
 								lifecycle_state: "ready",
 							},
 							{
-								...Mocks.MockWorkspaceChildAgent,
+								...Mocks.MockWorkspaceSubAgent,
 								lifecycle_state: "ready",
 							},
 						],
@@ -219,7 +218,6 @@ export const RunningWithAppStatuses: Story = {
 		},
 		handleStart: action("start"),
 		handleStop: action("stop"),
-		buildInfo: Mocks.MockBuildInfo,
 		template: Mocks.MockTemplate,
 	},
 };

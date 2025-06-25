@@ -7,7 +7,7 @@ enforces MFA correctly.
 
 ## Configuring SSO
 
-- [OpenID Connect](./oidc-auth.md) (e.g. Okta, KeyCloak, PingFederate, Azure AD)
+- [OpenID Connect](./oidc-auth/index.md) (e.g. Okta, KeyCloak, PingFederate, Azure AD)
 - [GitHub](./github-auth.md) (or GitHub Enterprise)
 
 ## Groups

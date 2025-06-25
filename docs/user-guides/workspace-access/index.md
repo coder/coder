@@ -68,7 +68,7 @@ successful, you'll see the following message:
    ```console
    You should now be able to ssh into your workspace.
    For example, try running:
-   
+
    $ ssh coder.<workspaceName>
    ```
 
@@ -110,9 +110,9 @@ IDEs are supported for remote development:
 - Rider
 - RubyMine
 - WebStorm
-- [JetBrains Fleet](./jetbrains/index.md#jetbrains-fleet)
+- [JetBrains Fleet](./jetbrains/fleet.md)
 
-Read our [docs on JetBrains Gateway](./jetbrains/index.md) for more information
+Read our [docs on JetBrains](./jetbrains/index.md) for more information
 on connecting your JetBrains IDEs.
 
 ## code-server
@@ -140,7 +140,7 @@ Supported IDEs:
 Our [Module Registry](https://registry.coder.com/modules) also hosts a variety
 of tools for extending the capability of your workspace. If you have a request
 for a new IDE or tool, please file an issue in our
-[Modules repo](https://github.com/coder/modules/issues).
+[Modules repo](https://github.com/coder/registry/issues).
 
 ## Ports and Port forwarding
 

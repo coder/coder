@@ -359,7 +359,10 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 	}
 
 	switch req.State {
-	case codersdk.WorkspaceAppStatusStateComplete, codersdk.WorkspaceAppStatusStateFailure, codersdk.WorkspaceAppStatusStateWorking: // valid states
+	case codersdk.WorkspaceAppStatusStateComplete,
+		codersdk.WorkspaceAppStatusStateFailure,
+		codersdk.WorkspaceAppStatusStateWorking,
+		codersdk.WorkspaceAppStatusStateIdle: // valid states
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid state provided.",
@@ -578,7 +581,9 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	defer t.Stop()
 
 	// Log the request immediately instead of after it completes.
-	loggermw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
+	if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
+		rl.WriteLog(ctx, http.StatusAccepted)
+	}
 
 	go func() {
 		defer func() {
@@ -956,7 +961,7 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 	}
 	defer release()
 
-	err = agentConn.RecreateDevcontainer(ctx, container)
+	m, err := agentConn.RecreateDevcontainer(ctx, container)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			httpapi.Write(ctx, rw, http.StatusRequestTimeout, codersdk.Response{
@@ -977,7 +982,7 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+	httpapi.Write(ctx, rw, http.StatusAccepted, m)
 }
 
 // @Summary Get connection info for workspace agent
@@ -1047,7 +1052,9 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 	defer encoder.Close(websocket.StatusGoingAway)
 
 	// Log the request immediately instead of after it completes.
-	loggermw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
+	if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
+		rl.WriteLog(ctx, http.StatusAccepted)
+	}
 
 	go func(ctx context.Context) {
 		// TODO(mafredri): Is this too frequent? Use separate ping disconnect timeout?
@@ -1501,7 +1508,9 @@ func (api *API) watchWorkspaceAgentMetadata(
 	defer sendTicker.Stop()
 
 	// Log the request immediately instead of after it completes.
-	loggermw.RequestLoggerFromContext(ctx).WriteLog(ctx, http.StatusAccepted)
+	if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
+		rl.WriteLog(ctx, http.StatusAccepted)
+	}
 
 	// Send initial metadata.
 	sendMetadata()

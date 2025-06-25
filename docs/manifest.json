@@ -8,14 +8,64 @@
 			"icon_path": "./images/icons/home.svg",
 			"children": [
 				{
+					"title": "Screenshots",
+					"description": "View screenshots of the Coder platform",
+					"path": "./about/screenshots.md"
+				},
+				{
 					"title": "Quickstart",
 					"description": "Learn how to install and run Coder quickly",
 					"path": "./tutorials/quickstart.md"
 				},
 				{
-					"title": "Screenshots",
-					"description": "View screenshots of the Coder platform",
-					"path": "./start/screenshots.md"
+					"title": "Support",
+					"description": "How Coder supports your deployment and you",
+					"path": "./support/index.md",
+					"children": [
+						{
+							"title": "Generate a Support Bundle",
+							"description": "Generate and upload a Support Bundle to Coder Support",
+							"path": "./support/support-bundle.md"
+						}
+					]
+				},
+				{
+					"title": "Contributing",
+					"description": "Learn how to contribute to Coder",
+					"path": "./about/contributing/CONTRIBUTING.md",
+					"icon_path": "./images/icons/contributing.svg",
+					"children": [
+						{
+							"title": "Code of Conduct",
+							"description": "See the code of conduct for contributing to Coder",
+							"path": "./about/contributing/CODE_OF_CONDUCT.md",
+							"icon_path": "./images/icons/circle-dot.svg"
+						},
+						{
+							"title": "Documentation",
+							"description": "Our style guide for use when authoring documentation",
+							"path": "./about/contributing/documentation.md",
+							"icon_path": "./images/icons/document.svg"
+						},
+						{
+							"title": "Backend",
+							"description": "Our guide for backend development",
+							"path": "./about/contributing/backend.md",
+							"icon_path": "./images/icons/gear.svg"
+						},
+						{
+							"title": "Frontend",
+							"description": "Our guide for frontend development",
+							"path": "./about/contributing/frontend.md",
+							"icon_path": "./images/icons/frontend.svg"
+						},
+						{
+							"title": "Security",
+							"description": "Security vulnerability disclosure policy",
+							"path": "./about/contributing/SECURITY.md",
+							"icon_path": "./images/icons/lock.svg"
+						}
+					]
 				}
 			]
 		},
@@ -41,7 +91,14 @@
 					"title": "Kubernetes",
 					"description": "Install Coder on Kubernetes",
 					"path": "./install/kubernetes.md",
-					"icon_path": "./images/icons/kubernetes.svg"
+					"icon_path": "./images/icons/kubernetes.svg",
+					"children": [
+						{
+							"title": "Deploy Coder on Azure with an Application Gateway",
+							"description": "Deploy Coder on Azure with an Application Gateway",
+							"path": "./install/kubernetes/kubernetes-azure-app-gateway.md"
+						}
+					]
 				},
 				{
 					"title": "Rancher",
@@ -136,18 +193,24 @@
 						},
 						{
 							"title": "JetBrains IDEs",
-							"description": "Use JetBrains IDEs with Gateway",
+							"description": "Use JetBrains IDEs with Coder",
 							"path": "./user-guides/workspace-access/jetbrains/index.md",
 							"children": [
 								{
-									"title": "JetBrains Gateway in an air-gapped environment",
-									"description": "Use JetBrains Gateway in an air-gapped offline environment",
-									"path": "./user-guides/workspace-access/jetbrains/jetbrains-airgapped.md"
+									"title": "JetBrains Fleet",
+									"description": "Connect JetBrains Fleet to a Coder workspace",
+									"path": "./user-guides/workspace-access/jetbrains/fleet.md"
+								},
+								{
+									"title": "JetBrains Gateway",
+									"description": "Use JetBrains Gateway to connect to Coder workspaces",
+									"path": "./user-guides/workspace-access/jetbrains/gateway.md"
 								},
 								{
 									"title": "JetBrains Toolbox",
-									"description": "Access Coder workspaces through JetBrains Toolbox",
-									"path": "./user-guides/workspace-access/jetbrains/jetbrains-toolbox.md"
+									"description": "Access Coder workspaces from JetBrains Toolbox",
+									"path": "./user-guides/workspace-access/jetbrains/toolbox.md",
+									"state": ["beta"]
 								}
 							]
 						},
@@ -198,7 +261,15 @@
 					"description": "Use Coder Desktop to access your workspace like it's a local machine",
 					"path": "./user-guides/desktop/index.md",
 					"icon_path": "./images/icons/computer-code.svg",
-					"state": ["beta"]
+					"state": ["beta"],
+					"children": [
+						{
+							"title": "Coder Desktop connect and sync",
+							"description": "Use Coder Desktop to manage your workspace code and files locally",
+							"path": "./user-guides/desktop/desktop-connect-sync.md",
+							"state": ["beta"]
+						}
+					]
 				},
 				{
 					"title": "Workspace Management",
@@ -290,14 +361,17 @@
 							"children": [
 								{
 									"title": "Up to 1,000 Users",
+									"description": "Hardware specifications and architecture guidance for Coder deployments that support up to 1,000 users",
 									"path": "./admin/infrastructure/validated-architectures/1k-users.md"
 								},
 								{
 									"title": "Up to 2,000 Users",
+									"description": "Hardware specifications and architecture guidance for Coder deployments that support up to 2,000 users",
 									"path": "./admin/infrastructure/validated-architectures/2k-users.md"
 								},
 								{
 									"title": "Up to 3,000 Users",
+									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 3,000 users",
 									"path": "./admin/infrastructure/validated-architectures/3k-users.md"
 								}
 							]
@@ -327,42 +401,58 @@
 					"children": [
 						{
 							"title": "OIDC Authentication",
-							"path": "./admin/users/oidc-auth.md"
+							"description": "Configure OpenID Connect authentication with identity providers like Okta or Active Directory",
+							"path": "./admin/users/oidc-auth/index.md",
+							"children": [
+								{
+									"title": "Configure OIDC refresh tokens",
+									"description": "How to configure OIDC refresh tokens",
+									"path": "./admin/users/oidc-auth/refresh-tokens.md"
+								}
+							]
 						},
 						{
 							"title": "GitHub Authentication",
+							"description": "Set up authentication through GitHub OAuth to enable secure user login and sign-up",
 							"path": "./admin/users/github-auth.md"
 						},
 						{
 							"title": "Password Authentication",
+							"description": "Manage username/password authentication settings and user password reset workflows",
 							"path": "./admin/users/password-auth.md"
 						},
 						{
 							"title": "Headless Authentication",
+							"description": "Create and manage headless service accounts for automated systems and API integrations",
 							"path": "./admin/users/headless-auth.md"
 						},
 						{
 							"title": "Groups \u0026 Roles",
+							"description": "Manage access control with user groups and role-based permissions for Coder resources",
 							"path": "./admin/users/groups-roles.md",
 							"state": ["premium"]
 						},
 						{
 							"title": "IdP Sync",
+							"description": "Synchronize user groups, roles, and organizations from your identity provider to Coder",
 							"path": "./admin/users/idp-sync.md",
 							"state": ["premium"]
 						},
 						{
 							"title": "Organizations",
+							"description": "Segment and isolate resources by creating separate organizations for different teams or projects",
 							"path": "./admin/users/organizations.md",
 							"state": ["premium"]
 						},
 						{
 							"title": "Quotas",
+							"description": "Control resource usage by implementing workspace budgets and credit-based cost management",
 							"path": "./admin/users/quotas.md",
 							"state": ["premium"]
 						},
 						{
 							"title": "Sessions \u0026 API Tokens",
+							"description": "Manage authentication tokens for API access and configure session duration policies",
 							"path": "./admin/users/sessions-tokens.md"
 						}
 					]
@@ -489,9 +579,14 @@
 									"path": "./admin/templates/extending-templates/web-ides.md"
 								},
 								{
-									"title": "Pre-install JetBrains Gateway",
-									"description": "Pre-install JetBrains Gateway in a template for faster IDE startup",
-									"path": "./admin/templates/extending-templates/jetbrains-gateway.md"
+									"title": "Pre-install JetBrains IDEs",
+									"description": "Pre-install JetBrains IDEs in a template for faster IDE startup",
+									"path": "./admin/templates/extending-templates/jetbrains-preinstall.md"
+								},
+								{
+									"title": "JetBrains IDEs in Air-Gapped Deployments",
+									"description": "Configure JetBrains IDEs for air-gapped deployments",
+									"path": "./admin/templates/extending-templates/jetbrains-airgapped.md"
 								},
 								{
 									"title": "Docker in Workspaces",
@@ -558,7 +653,7 @@
 				{
 					"title": "External Authentication",
 					"description": "Learn how to configure external authentication",
-					"path": "./admin/external-auth.md",
+					"path": "./admin/external-auth/index.md",
 					"icon_path": "./images/icons/plug.svg"
 				},
 				{
@@ -601,6 +696,11 @@
 							"title": "DX PlatformX",
 							"description": "Integrate Coder with DX PlatformX",
 							"path": "./admin/integrations/platformx.md"
+						},
+						{
+							"title": "DX Data Cloud",
+							"description": "Tag Coder Users with DX Data Cloud",
+							"path": "./admin/integrations/dx-data-cloud.md"
 						},
 						{
 							"title": "Hashicorp Vault",
@@ -780,38 +880,6 @@
 			]
 		},
 		{
-			"title": "Contributing",
-			"description": "Learn how to contribute to Coder",
-			"path": "./CONTRIBUTING.md",
-			"icon_path": "./images/icons/contributing.svg",
-			"children": [
-				{
-					"title": "Code of Conduct",
-					"description": "See the code of conduct for contributing to Coder",
-					"path": "./contributing/CODE_OF_CONDUCT.md",
-					"icon_path": "./images/icons/circle-dot.svg"
-				},
-				{
-					"title": "Documentation",
-					"description": "Our style guide for use when authoring documentation",
-					"path": "./contributing/documentation.md",
-					"icon_path": "./images/icons/document.svg"
-				},
-				{
-					"title": "Frontend",
-					"description": "Our guide for frontend development",
-					"path": "./contributing/frontend.md",
-					"icon_path": "./images/icons/frontend.svg"
-				},
-				{
-					"title": "Security",
-					"description": "Our guide for security",
-					"path": "./contributing/SECURITY.md",
-					"icon_path": "./images/icons/lock.svg"
-				}
-			]
-		},
-		{
 			"title": "Tutorials",
 			"description": "Coder knowledgebase for administrating your deployment",
 			"path": "./tutorials/index.md",
@@ -836,11 +904,6 @@
 					"title": "Image Management",
 					"description": "Learn about image management with Coder",
 					"path": "./admin/templates/managing-templates/image-management.md"
-				},
-				{
-					"title": "Generate a Support Bundle",
-					"description": "Generate and upload a Support Bundle to Coder Support",
-					"path": "./tutorials/support-bundle.md"
 				},
 				{
 					"title": "Configuring Okta",
@@ -883,6 +946,11 @@
 					"path": "./tutorials/azure-federation.md"
 				},
 				{
+					"title": "Deploy Coder on Azure with an Application Gateway",
+					"description": "Deploy Coder on Azure with an Application Gateway",
+					"path": "./install/kubernetes/kubernetes-azure-app-gateway.md"
+				},
+				{
 					"title": "Scanning Workspaces with JFrog Xray",
 					"description": "Integrate Coder with JFrog Xray",
 					"path": "./admin/integrations/jfrog-xray.md"
@@ -911,6 +979,16 @@
 					"title": "Use NGINX as a Reverse Proxy",
 					"description": "Learn how to use NGINX as a reverse proxy",
 					"path": "./tutorials/reverse-proxy-nginx.md"
+				},
+				{
+					"title": "Pre-install JetBrains IDEs in Workspaces",
+					"description": "Pre-install JetBrains IDEs in workspaces",
+					"path": "./admin/templates/extending-templates/jetbrains-preinstall.md"
+				},
+				{
+					"title": "Use JetBrains IDEs in Air-Gapped Deployments",
+					"description": "Configure JetBrains IDEs for air-gapped deployments",
+					"path": "./admin/templates/extending-templates/jetbrains-airgapped.md"
 				},
 				{
 					"title": "FAQs",
@@ -1062,7 +1140,7 @@
 						},
 						{
 							"title": "config-ssh",
-							"description": "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
+							"description": "Add an SSH Host entry for your workspaces \"ssh workspace.coder\"",
 							"path": "reference/cli/config-ssh.md"
 						},
 						{
@@ -1621,7 +1699,7 @@
 						},
 						{
 							"title": "update",
-							"description": "Will update and start a given workspace if it is out of date",
+							"description": "Will update and start a given workspace if it is out of date. If the workspace is already running, it will be stopped first.",
 							"path": "reference/cli/update.md"
 						},
 						{

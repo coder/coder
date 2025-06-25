@@ -102,6 +102,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"autostop_requirement_weeks":        ActionTrack,
 		"created_by":                        ActionTrack,
 		"created_by_username":               ActionIgnore,
+		"created_by_name":                   ActionIgnore,
 		"created_by_avatar_url":             ActionIgnore,
 		"group_acl":                         ActionTrack,
 		"user_acl":                          ActionTrack,
@@ -131,8 +132,10 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"external_auth_providers": ActionIgnore, // Not helpful because this can only change when new versions are added.
 		"created_by_avatar_url":   ActionIgnore,
 		"created_by_username":     ActionIgnore,
+		"created_by_name":         ActionIgnore,
 		"archived":                ActionTrack,
 		"source_example_id":       ActionIgnore, // Never changes.
+		"has_ai_task":             ActionIgnore, // Never changes.
 	},
 	&database.User{}: {
 		"id":                           ActionTrack,
@@ -189,7 +192,10 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"max_deadline":               ActionIgnore,
 		"initiator_by_avatar_url":    ActionIgnore,
 		"initiator_by_username":      ActionIgnore,
+		"initiator_by_name":          ActionIgnore,
 		"template_version_preset_id": ActionIgnore, // Never changes.
+		"has_ai_task":                ActionIgnore, // Never changes.
+		"ai_task_sidebar_app_id":     ActionIgnore, // Never changes.
 	},
 	&database.AuditableGroup{}: {
 		"id":              ActionTrack,
@@ -345,6 +351,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"display_order":              ActionIgnore,
 		"parent_id":                  ActionIgnore,
 		"api_key_scope":              ActionIgnore,
+		"deleted":                    ActionIgnore,
 	},
 	&database.WorkspaceApp{}: {
 		"id":                    ActionIgnore,
@@ -362,6 +369,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"sharing_level":         ActionIgnore,
 		"slug":                  ActionIgnore,
 		"external":              ActionIgnore,
+		"display_group":         ActionIgnore,
 		"display_order":         ActionIgnore,
 		"hidden":                ActionIgnore,
 		"open_in":               ActionIgnore,

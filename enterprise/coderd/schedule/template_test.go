@@ -191,8 +191,6 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
-
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -778,8 +776,6 @@ func TestTemplateTTL(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

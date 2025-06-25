@@ -3,12 +3,12 @@ import type { FriendlyDiagnostic, PreviewParameter } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
+import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import { Link } from "components/Link/Link";
-import { Pill } from "components/Pill/Pill";
 import {
 	Select,
 	SelectContent,
@@ -26,15 +26,11 @@ import {
 } from "components/Tooltip/Tooltip";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
-import {
-	ArrowLeft,
-	CircleAlert,
-	CircleHelp,
-	TriangleAlert,
-	Undo2,
-} from "lucide-react";
+import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
+import { ArrowLeft, CircleHelp } from "lucide-react";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
 import {
+	Diagnostics,
 	DynamicParameter,
 	getInitialParameterValues,
 	useValidationSchemaForDynamicParameters,
@@ -43,7 +39,6 @@ import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName"
 import {
 	type FC,
 	useCallback,
-	useContext,
 	useEffect,
 	useId,
 	useRef,
@@ -53,11 +48,7 @@ import { docs } from "utils/docs";
 import { nameValidator } from "utils/formUtils";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
-import type {
-	CreateWorkspaceMode,
-	ExternalAuthPollingState,
-} from "./CreateWorkspacePage";
-import { ExperimentalFormContext } from "./ExperimentalFormContext";
+import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
@@ -84,7 +75,7 @@ interface CreateWorkspacePageViewExperimentalProps {
 		owner: TypesGen.User,
 	) => void;
 	resetMutation: () => void;
-	sendMessage: (message: Record<string, string>) => void;
+	sendMessage: (message: Record<string, string>, ownerId?: string) => void;
 	startPollingExternalAuth: () => void;
 	owner: TypesGen.User;
 	setOwner: (user: TypesGen.User) => void;
@@ -117,7 +108,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 	owner,
 	setOwner,
 }) => {
-	const experimentalFormContext = useContext(ExperimentalFormContext);
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
 	);
@@ -184,7 +174,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 	}, [error]);
 
 	useEffect(() => {
-		if (form.submitCount > 0 && form.errors) {
+		if (form.submitCount > 0 && Object.keys(form.errors).length > 0) {
 			workspaceNameInputRef.current?.scrollIntoView({
 				behavior: "smooth",
 				block: "center",
@@ -200,13 +190,25 @@ export const CreateWorkspacePageViewExperimental: FC<
 		setPresetOptions([
 			{ label: "None", value: "None" },
 			...presets.map((preset) => ({
-				label: preset.Name,
+				label: preset.Default ? `${preset.Name} (Default)` : preset.Name,
 				value: preset.ID,
 			})),
 		]);
 	}, [presets]);
 
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
+
+	// Set default preset when presets are loaded
+	useEffect(() => {
+		const defaultPreset = presets.find((preset) => preset.Default);
+		if (defaultPreset) {
+			// +1 because "None" is at index 0
+			const defaultIndex =
+				presets.findIndex((preset) => preset.ID === defaultPreset.ID) + 1;
+			setSelectedPresetIndex(defaultIndex);
+		}
+	}, [presets]);
+
 	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
 		[],
 	);
@@ -285,9 +287,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 		form.values.rich_parameter_values,
 	]);
 
-	// send the last user modified parameter and all touched parameters to the websocket
+	// include any modified parameters and all touched parameters to the websocket request
 	const sendDynamicParamsRequest = (
 		parameters: Array<{ parameter: PreviewParameter; value: string }>,
+		ownerId?: string,
 	) => {
 		const formInputs: Record<string, string> = {};
 		const formParameters = form.values.rich_parameter_values ?? [];
@@ -308,7 +311,12 @@ export const CreateWorkspacePageViewExperimental: FC<
 			}
 		}
 
-		sendMessage(formInputs);
+		sendMessage(formInputs, ownerId);
+	};
+
+	const handleOwnerChange = (user: TypesGen.User) => {
+		setOwner(user);
+		sendDynamicParamsRequest([], user.id);
 	};
 
 	const handleChange = async (
@@ -352,26 +360,29 @@ export const CreateWorkspacePageViewExperimental: FC<
 			</div>
 			<div className="flex flex-col gap-6 max-w-screen-md mx-auto">
 				<header className="flex flex-col items-start gap-3 mt-10">
-					<div className="flex items-center gap-2">
-						<Avatar
-							variant="icon"
-							size="md"
-							src={template.icon}
-							fallback={template.name}
-						/>
-						<p className="text-base font-medium m-0">
-							{template.display_name.length > 0
-								? template.display_name
-								: template.name}
-						</p>
+					<div className="flex items-center gap-2 justify-between w-full">
+						<span className="flex items-center gap-2">
+							<Avatar
+								variant="icon"
+								size="md"
+								src={template.icon}
+								fallback={template.name}
+							/>
+							<p className="text-base font-medium m-0">
+								{template.display_name.length > 0
+									? template.display_name
+									: template.name}
+							</p>
+							{template.deprecated && (
+								<Badge variant="warning" size="sm">
+									Deprecated
+								</Badge>
+							)}
+						</span>
 					</div>
 					<span className="flex flex-row items-center gap-2">
 						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
-						<FeatureStageBadge
-							className="mt-1"
-							contentType={"beta"}
-							labelText="Dynamic parameters"
-						/>
+
 						<TooltipProvider delayDuration={100}>
 							<Tooltip>
 								<TooltipTrigger asChild>
@@ -393,19 +404,11 @@ export const CreateWorkspacePageViewExperimental: FC<
 							</Tooltip>
 						</TooltipProvider>
 					</span>
-
-					{template.deprecated && <Pill type="warning">Deprecated</Pill>}
-
-					{experimentalFormContext && (
-						<Button
-							size="sm"
-							variant="outline"
-							onClick={experimentalFormContext.toggleOptedOut}
-						>
-							<Undo2 />
-							Use the classic workspace creation flow
-						</Button>
-					)}
+					<FeatureStageBadge
+						contentType={"beta"}
+						size="sm"
+						labelText="Dynamic parameters"
+					/>
 				</header>
 
 				<form
@@ -491,7 +494,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 										<UserAutocomplete
 											value={owner}
 											onChange={(user) => {
-												setOwner(user ?? defaultOwner);
+												handleOwnerChange(user ?? defaultOwner);
 											}}
 											size="medium"
 										/>
@@ -559,11 +562,12 @@ export const CreateWorkspacePageViewExperimental: FC<
 								<div className="flex flex-col gap-2">
 									<div className="flex gap-2 items-center">
 										<Label className="text-sm">Preset</Label>
-										<FeatureStageBadge contentType={"beta"} size="md" />
+										<FeatureStageBadge contentType={"beta"} size="sm" />
 									</div>
 									<div className="flex flex-col gap-4">
 										<div className="max-w-lg">
 											<Select
+												value={presetOptions[selectedPresetIndex]?.value}
 												onValueChange={(option) => {
 													const index = presetOptions.findIndex(
 														(preset) => preset.value === option,
@@ -572,6 +576,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 														return;
 													}
 													setSelectedPresetIndex(index);
+													form.setFieldValue(
+														"template_version_preset_id",
+														index === 0 ? undefined : option,
+													);
 												}}
 											>
 												<SelectTrigger>
@@ -602,7 +610,22 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 							<div className="flex flex-col gap-9">
 								{parameters.map((parameter, index) => {
-									const parameterField = `rich_parameter_values.${index}`;
+									const currentParameterValueIndex =
+										form.values.rich_parameter_values?.findIndex(
+											(p) => p.name === parameter.name,
+										);
+									const parameterFieldIndex =
+										currentParameterValueIndex !== undefined
+											? currentParameterValueIndex
+											: index;
+									// Get the form value by parameter name to ensure correct value mapping
+									const formValue =
+										currentParameterValueIndex !== undefined
+											? form.values?.rich_parameter_values?.[
+													currentParameterValueIndex
+												]?.value || ""
+											: "";
+									const parameterField = `rich_parameter_values.${parameterFieldIndex}`;
 									const isPresetParameter = presetParameterNames.includes(
 										parameter.name,
 									);
@@ -614,13 +637,14 @@ export const CreateWorkspacePageViewExperimental: FC<
 										creatingWorkspace ||
 										isPresetParameter;
 
-									// Hide preset parameters if showPresetParameters is false
-									if (!showPresetParameters && isPresetParameter) {
+									// Always show preset parameters if they have any diagnostics
+									if (
+										!showPresetParameters &&
+										isPresetParameter &&
+										parameter.diagnostics.length === 0
+									) {
 										return null;
 									}
-
-									const formValue =
-										form.values?.rich_parameter_values?.[index]?.value || "";
 
 									return (
 										<DynamicParameter
@@ -663,46 +687,5 @@ export const CreateWorkspacePageViewExperimental: FC<
 				</form>
 			</div>
 		</>
-	);
-};
-
-interface DiagnosticsProps {
-	diagnostics: PreviewParameter["diagnostics"];
-}
-
-const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
-	return (
-		<div className="flex flex-col gap-4">
-			{diagnostics.map((diagnostic, index) => (
-				<div
-					key={`diagnostic-${diagnostic.summary}-${index}`}
-					className={`text-xs font-semibold flex flex-col rounded-md border px-3.5 py-3.5 border-solid
-                        ${
-													diagnostic.severity === "error"
-														? "text-content-primary border-border-destructive bg-content-destructive/15"
-														: "text-content-primary border-border-warning bg-content-warning/15"
-												}`}
-				>
-					<div className="flex flex-row items-start">
-						{diagnostic.severity === "error" && (
-							<CircleAlert
-								className="me-2 inline-flex shrink-0 text-content-destructive size-icon-sm"
-								aria-hidden="true"
-							/>
-						)}
-						{diagnostic.severity === "warning" && (
-							<TriangleAlert
-								className="me-2 inline-flex shrink-0 text-content-warning size-icon-sm"
-								aria-hidden="true"
-							/>
-						)}
-						<div className="flex flex-col gap-3">
-							<p className="m-0">{diagnostic.summary}</p>
-							{diagnostic.detail && <p className="m-0">{diagnostic.detail}</p>}
-						</div>
-					</div>
-				</div>
-			))}
-		</div>
 	);
 };

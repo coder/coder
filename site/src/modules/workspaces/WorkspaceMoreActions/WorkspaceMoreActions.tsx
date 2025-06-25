@@ -27,6 +27,7 @@ import { Link as RouterLink } from "react-router-dom";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
+import { UpdateBuildParametersDialogExperimental } from "./UpdateBuildParametersDialogExperimental";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 
@@ -50,7 +51,11 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	// Change version
 	const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
 	const changeVersionMutation = useMutation(
-		changeVersion(workspace, queryClient),
+		changeVersion(
+			workspace,
+			queryClient,
+			!workspace.template_use_classic_parameter_flow,
+		),
 	);
 
 	// Delete
@@ -142,25 +147,46 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				onClose={() => setIsDownloadDialogOpen(false)}
 			/>
 
-			<UpdateBuildParametersDialog
-				missedParameters={
-					changeVersionMutation.error instanceof MissingBuildParameters
-						? changeVersionMutation.error.parameters
-						: []
-				}
-				open={changeVersionMutation.error instanceof MissingBuildParameters}
-				onClose={() => {
-					changeVersionMutation.reset();
-				}}
-				onUpdate={(buildParameters) => {
-					if (changeVersionMutation.error instanceof MissingBuildParameters) {
-						changeVersionMutation.mutate({
-							versionId: changeVersionMutation.error.versionId,
-							buildParameters,
-						});
+			{workspace.template_use_classic_parameter_flow ? (
+				<UpdateBuildParametersDialog
+					missedParameters={
+						changeVersionMutation.error instanceof MissingBuildParameters
+							? changeVersionMutation.error.parameters
+							: []
 					}
-				}}
-			/>
+					open={changeVersionMutation.error instanceof MissingBuildParameters}
+					onClose={() => {
+						changeVersionMutation.reset();
+					}}
+					onUpdate={(buildParameters) => {
+						if (changeVersionMutation.error instanceof MissingBuildParameters) {
+							changeVersionMutation.mutate({
+								versionId: changeVersionMutation.error.versionId,
+								buildParameters,
+							});
+						}
+					}}
+				/>
+			) : (
+				<UpdateBuildParametersDialogExperimental
+					missedParameters={
+						changeVersionMutation.error instanceof MissingBuildParameters
+							? changeVersionMutation.error.parameters
+							: []
+					}
+					open={changeVersionMutation.error instanceof MissingBuildParameters}
+					onClose={() => {
+						changeVersionMutation.reset();
+					}}
+					workspaceOwnerName={workspace.owner_name}
+					workspaceName={workspace.name}
+					templateVersionId={
+						changeVersionMutation.error instanceof MissingBuildParameters
+							? changeVersionMutation.error?.versionId
+							: undefined
+					}
+				/>
+			)}
 
 			<ChangeWorkspaceVersionDialog
 				workspace={workspace}

@@ -83,7 +83,6 @@ func TestNotifier(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
@@ -104,7 +103,7 @@ func TestNotifier(t *testing.T) {
 			n := notify.New(cond, testCase.PollInterval, testCase.Countdown, notify.WithTestClock(mClock))
 			defer n.Close()
 
-			trap.MustWait(ctx).Release() // ensure ticker started
+			trap.MustWait(ctx).MustRelease(ctx) // ensure ticker started
 			for i := 0; i < testCase.NTicks; i++ {
 				interval, w := mClock.AdvanceNext()
 				w.MustWait(ctx)

@@ -27,10 +27,6 @@ import (
 func TestRoleSyncTable(t *testing.T) {
 	t.Parallel()
 
-	if dbtestutil.WillUsePostgres() {
-		t.Skip("Skipping test because it populates a lot of db entries, which is slow on postgres.")
-	}
-
 	userClaims := jwt.MapClaims{
 		"roles": []string{
 			"foo", "bar", "baz",
@@ -190,7 +186,6 @@ func TestRoleSyncTable(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		// The final test, "AllTogether", cannot run in parallel.
 		// These tests are nearly instant using the memory db, so
 		// this is still fast without being in parallel.
@@ -252,8 +247,6 @@ func TestRoleSyncTable(t *testing.T) {
 		var asserts []func(t *testing.T)
 
 		for _, tc := range testCases {
-			tc := tc
-
 			orgID := uuid.New()
 			SetupOrganization(t, s, db, user, orgID, tc)
 			asserts = append(asserts, func(t *testing.T) {

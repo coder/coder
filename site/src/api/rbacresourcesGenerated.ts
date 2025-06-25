@@ -123,6 +123,10 @@ export const RBACResourceActions: Partial<
 		read: "read member",
 		update: "update an organization member",
 	},
+	prebuilt_workspace: {
+		delete: "delete prebuilt workspace",
+		update: "update prebuilt workspace settings",
+	},
 	provisioner_daemon: {
 		create: "create a provisioner daemon/key",
 		delete: "delete a provisioner daemon/key",

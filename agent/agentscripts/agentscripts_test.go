@@ -144,6 +144,12 @@ func TestScriptReportsTiming(t *testing.T) {
 
 	timing := timings[0]
 	require.Equal(t, int32(0), timing.ExitCode)
+	if assert.True(t, timing.Start.IsValid(), "start time should be valid") {
+		require.NotZero(t, timing.Start.AsTime(), "start time should not be zero")
+	}
+	if assert.True(t, timing.End.IsValid(), "end time should be valid") {
+		require.NotZero(t, timing.End.AsTime(), "end time should not be zero")
+	}
 	require.GreaterOrEqual(t, timing.End.AsTime(), timing.Start.AsTime())
 }
 
