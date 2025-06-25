@@ -49,18 +49,59 @@ WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a pre
 	AND (t.id = sqlc.narg('template_id')::uuid OR sqlc.narg('template_id') IS NULL);
 
 -- name: GetRunningPrebuiltWorkspaces :many
+WITH latest_prebuilds AS (
+	SELECT
+		latest_build.workspace_id,
+		workspaces.name,
+		workspaces.template_id,
+		latest_build.template_version_id,
+		latest_build.template_version_preset_id,
+		latest_build.job_id,
+		workspaces.created_at
+	FROM workspaces
+	JOIN LATERAL (
+		SELECT
+			workspace_builds.id,
+			workspace_builds.workspace_id,
+			workspace_builds.template_version_id,
+			workspace_builds.job_id,
+			workspace_builds.template_version_preset_id,
+			workspace_builds.transition,
+			workspace_builds.created_at,
+			provisioner_jobs.job_status
+		FROM workspace_builds
+		JOIN provisioner_jobs ON provisioner_jobs.id = workspace_builds.job_id
+		WHERE workspace_builds.workspace_id = workspaces.id
+		AND workspace_builds.transition = 'start'::workspace_transition
+		AND provisioner_jobs.job_status = 'succeeded'::provisioner_job_status
+		ORDER BY workspace_builds.build_number DESC
+		LIMIT 1
+	) AS latest_build ON true
+	WHERE workspaces.deleted = false
+	AND workspaces.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
+),
+ready_agents AS (
+	SELECT
+		latest_prebuilds.job_id,
+		BOOL_AND(workspace_agents.lifecycle_state = 'ready'::workspace_agent_lifecycle_state)::boolean AS ready
+	FROM latest_prebuilds
+	JOIN workspace_resources ON workspace_resources.job_id = latest_prebuilds.job_id
+	JOIN workspace_agents ON workspace_agents.resource_id = workspace_resources.id
+	WHERE workspace_agents.deleted = false
+	AND workspace_agents.parent_id IS NULL
+	GROUP BY latest_prebuilds.job_id
+	)
 SELECT
-		p.id,
-		p.name,
-		p.template_id,
-		b.template_version_id,
-		p.current_preset_id AS current_preset_id,
-		p.ready,
-		p.created_at
-FROM workspace_prebuilds p
-		INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
-WHERE (b.transition = 'start'::workspace_transition
-	AND b.job_status = 'succeeded'::provisioner_job_status);
+	latest_prebuilds.workspace_id AS id,
+	latest_prebuilds.name,
+	latest_prebuilds.template_id,
+	latest_prebuilds.template_version_id,
+	latest_prebuilds.template_version_preset_id AS current_preset_id,
+	COALESCE(ready_agents.ready, false)::boolean AS ready,
+	latest_prebuilds.created_at
+FROM latest_prebuilds
+LEFT JOIN ready_agents ON ready_agents.job_id = latest_prebuilds.job_id
+ORDER BY latest_prebuilds.workspace_id ASC;
 
 -- name: CountInProgressPrebuilds :many
 -- CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.
