@@ -31,10 +31,6 @@ on your local machine, and enable RDP on your workspace.
 
 <div class="tabs">
 
-### Coder Desktop
-
-[Install Coder Desktop](https://coder.com/docs/user-guides/desktop#install-coder-desktop) and connect to `<workspace-name>.coder` from your favourite RDP client.
-
 ### CLI
 
 Use the following command to forward the RDP port to your local machine:
@@ -45,11 +41,6 @@ coder port-forward <workspace-name> --tcp 3399:3389
 
 Then, connect to your workspace via RDP at `localhost:3399`.
 ![windows-rdp](../../images/ides/windows_rdp_client.png)
-
-</div>
-
-> [!NOTE]
-> The default username is `Administrator` and the password is `coderRDP!`.
 
 ### RDP with Coder Desktop (Beta)
 
@@ -103,6 +94,11 @@ resource "coder_app" "rdp-coder-desktop" {
   external     = true
 }
 ```
+
+</div>
+
+> [!NOTE]
+> The default username is `Administrator` and the password is `coderRDP!`.
 
 ## RDP Web
 
