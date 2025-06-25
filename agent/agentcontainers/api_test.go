@@ -794,6 +794,16 @@ func TestAPI(t *testing.T) {
 								},
 							},
 							{
+								ID:           "test-container-1",
+								FriendlyName: "test-container-1",
+								Running:      true,
+								Labels: map[string]string{
+									agentcontainers.DevcontainerLocalFolderLabel: "/workspace/test1",
+									agentcontainers.DevcontainerConfigFileLabel:  "/workspace/test1/.devcontainer/devcontainer.json",
+									agentcontainers.DevcontainerIsTestRunLabel: "true",
+								},
+							},
+							{
 								ID:           "not-a-devcontainer",
 								FriendlyName: "not-a-devcontainer",
 								Running:      true,
@@ -833,6 +843,16 @@ func TestAPI(t *testing.T) {
 								Labels: map[string]string{
 									agentcontainers.DevcontainerLocalFolderLabel: "/workspace/runtime1",
 									agentcontainers.DevcontainerConfigFileLabel:  "/workspace/runtime1/.devcontainer/devcontainer.json",
+								},
+							},
+														{
+								ID:           "test-container-1",
+								FriendlyName: "test-container-1",
+								Running:      true,
+								Labels: map[string]string{
+									agentcontainers.DevcontainerLocalFolderLabel: "/workspace/test1",
+									agentcontainers.DevcontainerConfigFileLabel:  "/workspace/test1/.devcontainer/devcontainer.json",
+									agentcontainers.DevcontainerIsTestRunLabel: "true",
 								},
 							},
 						},
@@ -881,6 +901,16 @@ func TestAPI(t *testing.T) {
 									agentcontainers.DevcontainerConfigFileLabel:  "/workspace/non-running/.devcontainer/devcontainer.json",
 								},
 							},
+														{
+								ID:           "test-container-1",
+								FriendlyName: "test-container-1",
+								Running:      true,
+								Labels: map[string]string{
+									agentcontainers.DevcontainerLocalFolderLabel: "/workspace/test1",
+									agentcontainers.DevcontainerConfigFileLabel:  "/workspace/test1/.devcontainer/devcontainer.json",
+									agentcontainers.DevcontainerIsTestRunLabel: "true",
+								},
+							},
 						},
 					},
 				},
@@ -912,6 +942,16 @@ func TestAPI(t *testing.T) {
 								Labels: map[string]string{
 									agentcontainers.DevcontainerLocalFolderLabel: "/workspace/known2",
 									agentcontainers.DevcontainerConfigFileLabel:  "/workspace/known2/.devcontainer/devcontainer.json",
+								},
+							},
+														{
+								ID:           "test-container-1",
+								FriendlyName: "test-container-1",
+								Running:      true,
+								Labels: map[string]string{
+									agentcontainers.DevcontainerLocalFolderLabel: "/workspace/test1",
+									agentcontainers.DevcontainerConfigFileLabel:  "/workspace/test1/.devcontainer/devcontainer.json",
+									agentcontainers.DevcontainerIsTestRunLabel: "true",
 								},
 							},
 						},
@@ -965,6 +1005,16 @@ func TestAPI(t *testing.T) {
 								Labels: map[string]string{
 									agentcontainers.DevcontainerLocalFolderLabel: "/var/lib/project3",
 									agentcontainers.DevcontainerConfigFileLabel:  "/var/lib/project3/.devcontainer/devcontainer.json",
+								},
+							},
+														{
+								ID:           "test-container-1",
+								FriendlyName: "test-container-1",
+								Running:      true,
+								Labels: map[string]string{
+									agentcontainers.DevcontainerLocalFolderLabel: "/workspace/test1",
+									agentcontainers.DevcontainerConfigFileLabel:  "/workspace/test1/.devcontainer/devcontainer.json",
+									agentcontainers.DevcontainerIsTestRunLabel: "true",
 								},
 							},
 						},

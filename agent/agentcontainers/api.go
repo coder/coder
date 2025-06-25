@@ -571,7 +571,8 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 			slog.F("config_file", configFile),
 		)
 
-		if len(api.containerLabelIncludeFilter) > 0 {
+		// Filter out devcontainer tests, unless explicitly set in include filters.
+		if len(api.containerLabelIncludeFilter) > 0 || container.Labels[DevcontainerIsTestRunLabel] == "true" {
 			var ok bool
 			for label, value := range api.containerLabelIncludeFilter {
 				if v, found := container.Labels[label]; found && v == value {
