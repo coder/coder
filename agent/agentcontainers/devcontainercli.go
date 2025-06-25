@@ -38,6 +38,23 @@ type DevcontainerMergedCustomizations struct {
 
 type DevcontainerFeatures map[string]any
 
+// OptionsAsEnvs converts the DevcontainerFeatures into a list of
+// environment variables that can be used to set feature options.
+// The format is FEATURE_<FEATURE_NAME>_<OPTION_NAME>=<value>.
+// For example, if the feature is:
+//
+//		"ghcr.io/coder/devcontainer-features/code-server:1": {
+//	   "port": 9090,
+//	 }
+//
+// It will produce:
+//
+//	FEATURE_CODE_SERVER_PORT=9090
+//
+// Note that the feature name is derived from the last part of the key,
+// so "ghcr.io/coder/devcontainer-features/code-server:1" becomes
+// "CODE_SERVER". The version part (e.g. ":1") is removed, and dashes in
+// the feature and option names are replaced with underscores.
 func (f DevcontainerFeatures) OptionsAsEnvs() []string {
 	var env []string
 	for k, v := range f {
@@ -45,9 +62,9 @@ func (f DevcontainerFeatures) OptionsAsEnvs() []string {
 		if !ok {
 			continue
 		}
-		// Take the last part of the key as the feature name.
+		// Take the last part of the key as the feature name/path.
 		k = k[strings.LastIndex(k, "/")+1:]
-		// Removing trailing : and anything following it
+		// Remove ":" and anything following it.
 		if idx := strings.Index(k, ":"); idx != -1 {
 			k = k[:idx]
 		}
