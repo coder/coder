@@ -107,10 +107,9 @@ Below is an example that uses the `groups` claim and maps all groups prefixed by
 }
 ```
 
-> [!IMPORTANT]
-> You must specify Coder group IDs instead of group names. The fastest way to find
-> the ID for a corresponding group is by visiting
-> `https://coder.example.com/api/v2/groups`.
+You must specify Coder group IDs instead of group names.
+You can find the ID for a corresponding group by visiting
+`https://coder.example.com/api/v2/groups`.
 
 Here is another example which maps `coder-admins` from the identity provider to
 two groups in Coder and `coder-users` from the identity provider to another

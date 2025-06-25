@@ -487,7 +487,7 @@ require (
 	github.com/coder/preview v1.0.1
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/mark3labs/mcp-go v0.32.0
-	github.com/openai/openai-go v1.3.0
+	github.com/openai/openai-go v1.7.0
 )
 
 require (
@@ -535,6 +535,6 @@ require (
 	go.opentelemetry.io/contrib/detectors/gcp v1.35.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.35.0 // indirect
-	google.golang.org/genai v1.10.0 // indirect
+	google.golang.org/genai v1.12.0 // indirect
 	k8s.io/utils v0.0.0-20241210054802-24370beab758 // indirect
 )
