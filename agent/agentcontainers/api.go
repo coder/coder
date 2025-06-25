@@ -207,6 +207,10 @@ func WithDevcontainers(devcontainers []codersdk.WorkspaceAgentDevcontainer, scri
 		api.devcontainerNames = make(map[string]bool, len(devcontainers))
 		api.devcontainerLogSourceIDs = make(map[string]uuid.UUID)
 		for _, dc := range devcontainers {
+			if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStopped {
+				dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
+			}
+
 			api.knownDevcontainers[dc.WorkspaceFolder] = dc
 			api.devcontainerNames[dc.Name] = true
 			for _, script := range scripts {
@@ -320,6 +324,12 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 // begins the watcherLoop and updaterLoop. This function
 // must only be called once.
 func (api *API) Init(opts ...Option) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+	if api.closed {
+		return
+	}
+
 	for _, opt := range opts {
 		opt(api)
 	}
@@ -919,9 +929,8 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
 	dc.Container = nil
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
-	api.asyncWg.Add(1)
 	go func() {
-		_ = api.CreateDevcontainer(dc, configPath, CreateBehaviorRestart)
+		_ = api.CreateDevcontainer(dc.WorkspaceFolder, configPath, WithRemoveExistingContainer())
 	}()
 
 	api.mu.Unlock()
@@ -932,13 +941,6 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-type CreateBehavior bool
-
-const (
-	CreateBehaviorStart   CreateBehavior = false
-	CreateBehaviorRestart CreateBehavior = true
-)
-
 // createDevcontainer should run in its own goroutine and is responsible for
 // recreating a devcontainer based on the provided devcontainer configuration.
 // It updates the devcontainer status and logs the process. The configPath is
@@ -946,16 +948,13 @@ const (
 // has a different config file than the one stored in the devcontainer state.
 // The devcontainer state must be set to starting and the asyncWg must be
 // incremented before calling this function.
-func (api *API) CreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, configPath string, behavior CreateBehavior) error {
+func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...DevcontainerCLIUpOptions) error {
+	api.asyncWg.Add(1)
 	defer api.asyncWg.Done()
 
-	if behavior == CreateBehaviorStart {
-		api.mu.Lock()
-		dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
-		dc.Container = nil
-		api.knownDevcontainers[dc.WorkspaceFolder] = dc
-		api.asyncWg.Add(1)
-		api.mu.Unlock()
+	dc, found := api.knownDevcontainers[workspaceFolder]
+	if !found {
+		return xerrors.Errorf("no devcontainer found")
 	}
 
 	var (
@@ -998,9 +997,7 @@ func (api *API) CreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, confi
 	logger.Debug(ctx, "starting devcontainer recreation")
 
 	upOptions := []DevcontainerCLIUpOptions{WithUpOutput(infoW, errW)}
-	if behavior == CreateBehaviorRestart {
-		upOptions = append(upOptions, WithRemoveExistingContainer())
-	}
+	upOptions = append(upOptions, opts...)
 
 	_, err = api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, upOptions...)
 	if err != nil {
