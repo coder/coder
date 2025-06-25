@@ -1775,7 +1775,7 @@
 		{
 			"title": "Coder Registry",
 			"description": "A collection of Templates and Modules used to create and extend Coder workspaces.",
-			"path": "https://registry.coder.com"
+			"path": "./registry/index.md"
 		}
 	]
 }
