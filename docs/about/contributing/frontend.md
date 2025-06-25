@@ -36,7 +36,7 @@ the most important.
 - [Vite](https://vitejs.dev/) to build the project
 - [Material V5](https://mui.com/material-ui/getting-started/) for UI components
 - [react-router](https://reactrouter.com/en/main) for routing
-- [TanStack Query v4](https://tanstack.com/query/v4/docs/react/overview) for
+- [TanStack Query v5](https://tanstack.com/query/v5/docs/react/overview) for
   fetching data
 - [axios](https://github.com/axios/axios) as fetching lib
 - [Playwright](https://playwright.dev/) for end-to-end (E2E) testing
@@ -96,7 +96,7 @@ tests for these states with `*.stories.ts` files.
 
 ## Data Fetching
 
-We use [TanStack Query v4](https://tanstack.com/query/v4/docs/react/quick-start)
+We use [TanStack Query v5](https://tanstack.com/query/v5/docs/react/quick-start)
 to fetch data from the API. Queries and mutation should be placed in the
 api/queries folder.
 
