@@ -12195,11 +12195,9 @@ const docTemplate = `{
                 "notifications",
                 "workspace-usage",
                 "web-push",
-                "workspace-prebuilds",
-                "ai-tasks"
+                "workspace-prebuilds"
             ],
             "x-enum-comments": {
-                "ExperimentAITasks": "Enables the new AI tasks feature.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
@@ -12213,8 +12211,7 @@ const docTemplate = `{
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
                 "ExperimentWebPush",
-                "ExperimentWorkspacePrebuilds",
-                "ExperimentAITasks"
+                "ExperimentWorkspacePrebuilds"
             ]
         },
         "codersdk.ExternalAuth": {

@@ -2997,7 +2997,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `workspace-usage`      |
 | `web-push`             |
 | `workspace-prebuilds`  |
-| `ai-tasks`             |
 
 ## codersdk.ExternalAuth
 

@@ -3358,7 +3358,6 @@ const (
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
 	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
-	ExperimentAITasks            Experiment = "ai-tasks"             // Enables the new AI tasks feature.
 )
 
 // ExperimentsKnown should include all experiments defined above.
@@ -3369,7 +3368,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceUsage,
 	ExperimentWebPush,
 	ExperimentWorkspacePrebuilds,
-	ExperimentAITasks,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
