@@ -9,7 +9,7 @@ terraform {
 data "coder_workspace_owner" "me" {}
 
 data "coder_parameter" "isimmutable" {
-  name   = "isimmutable"
+  name    = "isimmutable"
   type    = "bool"
   mutable = true
   default = "true"

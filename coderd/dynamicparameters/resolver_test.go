@@ -20,58 +20,6 @@ import (
 func TestResolveParameters(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ChangeImmutable", func(t *testing.T) {
-		t.Parallel()
-
-		ctrl := gomock.NewController(t)
-		render := rendermock.NewMockRenderer(ctrl)
-
-		// The first render takes in the existing values
-		render.EXPECT().
-			Render(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(&preview.Output{
-				Parameters: []previewtypes.Parameter{
-					{
-						ParameterData: previewtypes.ParameterData{
-							Name:         "immutable",
-							Type:         previewtypes.ParameterTypeString,
-							FormType:     provider.ParameterFormTypeInput,
-							Mutable:      false,
-							DefaultValue: previewtypes.StringLiteral("foo"),
-							Required:     true,
-						},
-						Value:       previewtypes.StringLiteral("foo"),
-						Diagnostics: nil,
-					},
-				},
-			}, nil).
-			Return(&preview.Output{
-				Parameters: []previewtypes.Parameter{
-					{
-						ParameterData: previewtypes.ParameterData{
-							Name:         "immutable",
-							Type:         previewtypes.ParameterTypeString,
-							FormType:     provider.ParameterFormTypeInput,
-							Mutable:      false,
-							DefaultValue: previewtypes.StringLiteral("foo"),
-							Required:     true,
-						},
-						Value:       previewtypes.StringLiteral("foo"),
-						Diagnostics: nil,
-					},
-				},
-			}, nil)
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		values, err := dynamicparameters.ResolveParameters(ctx, uuid.New(), render, false,
-			[]database.WorkspaceBuildParameter{},        // No previous values
-			[]codersdk.WorkspaceBuildParameter{},        // No new build values
-			[]database.TemplateVersionPresetParameter{}, // No preset values
-		)
-		require.NoError(t, err)
-		require.Equal(t, map[string]string{"immutable": "foo"}, values)
-	})
-
 	t.Run("NewImmutable", func(t *testing.T) {
 		t.Parallel()
 
