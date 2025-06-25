@@ -586,7 +586,7 @@ func setupDevcontainerWorkspace(t *testing.T, workspaceFolder string) string {
 	"containerEnv": {
 		"TEST_CONTAINER": "true"
 	},
-	"runArgs": ["--label", "com.coder.test=devcontainercli"]
+	"runArgs": ["--label=com.coder.test=devcontainercli", "--label=` + agentcontainers.DevcontainerIsTestRunLabel + `=true"]
 }`
 	err = os.WriteFile(configPath, []byte(content), 0o600)
 	require.NoError(t, err, "create devcontainer.json file")
