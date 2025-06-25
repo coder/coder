@@ -121,6 +121,7 @@ INSERT INTO oauth2_provider_app_tokens (
     refresh_hash,
     app_secret_id,
     api_key_id,
+    user_id,
     audience
 ) VALUES(
     $1,
@@ -130,11 +131,15 @@ INSERT INTO oauth2_provider_app_tokens (
     $5,
     $6,
     $7,
-    $8
+    $8,
+    $9
 ) RETURNING *;
 
 -- name: GetOAuth2ProviderAppTokenByPrefix :one
 SELECT * FROM oauth2_provider_app_tokens WHERE hash_prefix = $1;
+
+-- name: GetOAuth2ProviderAppTokenByAPIKeyID :one
+SELECT * FROM oauth2_provider_app_tokens WHERE api_key_id = $1;
 
 -- name: GetOAuth2ProviderAppsByUserID :many
 SELECT
@@ -145,10 +150,8 @@ FROM oauth2_provider_app_tokens
     ON oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
   INNER JOIN oauth2_provider_apps
     ON oauth2_provider_apps.id = oauth2_provider_app_secrets.app_id
-  INNER JOIN api_keys
-    ON api_keys.id = oauth2_provider_app_tokens.api_key_id
 WHERE
-  api_keys.user_id = $1
+  oauth2_provider_app_tokens.user_id = $1
 GROUP BY
   oauth2_provider_apps.id;
 
@@ -156,9 +159,8 @@ GROUP BY
 DELETE FROM
   oauth2_provider_app_tokens
 USING
-  oauth2_provider_app_secrets, api_keys
+  oauth2_provider_app_secrets
 WHERE
   oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
-  AND api_keys.id = oauth2_provider_app_tokens.api_key_id
   AND oauth2_provider_app_secrets.app_id = $1
-	AND api_keys.user_id = $2;
+  AND oauth2_provider_app_tokens.user_id = $2;

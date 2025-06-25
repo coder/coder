@@ -45,6 +45,13 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 		codeChallenge:       p.String(vals, "", "code_challenge"),
 		codeChallengeMethod: p.String(vals, "", "code_challenge_method"),
 	}
+	// Validate resource indicator syntax (RFC 8707): must be absolute URI without fragment
+	if err := validateResourceParameter(params.resource); err != nil {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  "resource",
+			Detail: "must be an absolute URI without fragment",
+		})
+	}
 
 	p.ErrorExcessParams(vals)
 	if len(p.Errors) > 0 {

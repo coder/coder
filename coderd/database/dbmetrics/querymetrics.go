@@ -1019,6 +1019,13 @@ func (m queryMetricsStore) GetOAuth2ProviderAppSecretsByAppID(ctx context.Contex
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, apiKeyID string) (database.OAuth2ProviderAppToken, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuth2ProviderAppTokenByAPIKeyID(ctx, apiKeyID)
+	m.queryLatencies.WithLabelValues("GetOAuth2ProviderAppTokenByAPIKeyID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (database.OAuth2ProviderAppToken, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOAuth2ProviderAppTokenByPrefix(ctx, hashPrefix)
