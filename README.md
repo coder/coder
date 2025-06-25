@@ -125,7 +125,7 @@ We are always working on new integrations. Please feel free to open an issue and
 ## Contributing
 
 We are always happy to see new contributors to Coder. If you are new to the Coder codebase, we have
-[a guide on how to get started](https://coder.com/docs/CONTRIBUTING). We'd love to see your
+[a guide on how to get started](https://coder.com/docs/about/contributing/CONTRIBUTING). We'd love to see your
 contributions!
 
 ## Hiring
