@@ -594,16 +594,19 @@ export const CreateWorkspacePageViewExperimental: FC<
 												</SelectContent>
 											</Select>
 										</div>
-										<span className="flex items-center gap-3">
-											<Switch
-												id="show-preset-parameters"
-												checked={showPresetParameters}
-												onCheckedChange={setShowPresetParameters}
-											/>
-											<Label htmlFor="show-preset-parameters">
-												Show preset parameters
-											</Label>
-										</span>
+										{/* Only show the preset parameter visibility toggle if preset parameters are actually being modified, otherwise it is ineffectual */}
+										{presetParameterNames.length > 0 && (
+											<span className="flex items-center gap-3">
+												<Switch
+													id="show-preset-parameters"
+													checked={showPresetParameters}
+													onCheckedChange={setShowPresetParameters}
+												/>
+												<Label htmlFor="show-preset-parameters">
+													Show preset parameters
+												</Label>
+											</span>
+										)}
 									</div>
 								</div>
 							)}
