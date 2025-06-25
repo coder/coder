@@ -6,18 +6,6 @@ export interface ACLAvailable {
 	readonly groups: readonly Group[];
 }
 
-// From codersdk/deployment.go
-export interface AIConfig {
-	readonly providers?: readonly AIProviderConfig[];
-}
-
-// From codersdk/deployment.go
-export interface AIProviderConfig {
-	readonly type: string;
-	readonly models: readonly string[];
-	readonly base_url: string;
-}
-
 // From codersdk/aitasks.go
 export const AITaskPromptParameterName = "AI Prompt";
 
