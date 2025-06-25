@@ -338,7 +338,6 @@ func TestDynamicParameterBuild(t *testing.T) {
 			bld, err := templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
 				TemplateVersionID: immutable.ID, // Use the new template version with the immutable parameter
 				Transition:        codersdk.WorkspaceTransitionDelete,
-				DryRun:            false,
 			})
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, bld.ID)
@@ -353,6 +352,48 @@ func TestDynamicParameterBuild(t *testing.T) {
 			deleted, err := templateAdmin.DeletedWorkspace(ctx, wrk.ID)
 			require.NoError(t, err)
 			require.Equal(t, wrk.ID, deleted.ID, "workspace should be deleted")
+		})
+
+		t.Run("ImmutableChangeValue", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			// Start with a new template that has 1 parameter that is immutable
+			immutable, _ := coderdtest.DynamicParameterTemplate(t, templateAdmin, orgID, coderdtest.DynamicParameterTemplateParams{
+				MainTF: string(must(os.ReadFile("testdata/parameters/immutable/main.tf"))),
+			})
+
+			// Create the workspace with the immutable parameter
+			wrk, err := templateAdmin.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+				TemplateID: immutable.ID,
+				Name:       coderdtest.RandomUsername(t),
+				RichParameterValues: []codersdk.WorkspaceBuildParameter{
+					{Name: "immutable", Value: "coder"},
+				},
+			})
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, wrk.LatestBuild.ID)
+
+			// No new value is acceptable
+			bld, err := templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+				Transition: codersdk.WorkspaceTransitionStart,
+			})
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, bld.ID)
+
+			params, err := templateAdmin.WorkspaceBuildParameters(ctx, bld.ID)
+			require.NoError(t, err)
+			require.Len(t, params, 1)
+			require.Equal(t, "coder", params[0].Value)
+
+			// Update the value to something else, which should fail
+			_, err = templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+				Transition: codersdk.WorkspaceTransitionStart,
+				RichParameterValues: []codersdk.WorkspaceBuildParameter{
+					{Name: "immutable", Value: "foo"},
+				},
+			})
+			require.ErrorContains(t, err, `Parameter "immutable" is not mutable`)
 		})
 	})
 }
