@@ -2,6 +2,7 @@
  * This component is based on multiple-selector
  * @see {@link https://shadcnui-expansions.typeart.cc/docs/multiple-selector}
  */
+import { useTheme } from "@emotion/react";
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
 import { Badge } from "components/Badge/Badge";
 import {
@@ -25,11 +26,13 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { getExternalImageStylesFromUrl } from "theme/externalImages";
 import { cn } from "utils/cn";
 
 export interface Option {
 	value: string;
 	label: string;
+	icon?: string;
 	disable?: boolean;
 	/** fixed option that can't be removed. */
 	fixed?: boolean;
@@ -204,6 +207,7 @@ export const MultiSelectCombobox = forwardRef<
 		const [onScrollbar, setOnScrollbar] = useState(false);
 		const [isLoading, setIsLoading] = useState(false);
 		const dropdownRef = useRef<HTMLDivElement>(null);
+		const theme = useTheme();
 
 		const [selected, setSelected] = useState<Option[]>(
 			arrayDefaultOptions ?? [],
@@ -487,7 +491,20 @@ export const MultiSelectCombobox = forwardRef<
 										data-fixed={option.fixed}
 										data-disabled={disabled || undefined}
 									>
-										{option.label}
+										<div className="flex items-center gap-1">
+											{option.icon && (
+												<img
+													src={option.icon}
+													alt=""
+													className="size-icon-xs"
+													css={getExternalImageStylesFromUrl(
+														theme.externalImages,
+														option.icon,
+													)}
+												/>
+											)}
+											{option.label}
+										</div>
 										<button
 											type="button"
 											data-testid="clear-option-button"
@@ -639,7 +656,20 @@ export const MultiSelectCombobox = forwardRef<
 																	"cursor-default text-content-disabled",
 															)}
 														>
-															{option.label}
+															<div className="flex items-center gap-2">
+																{option.icon && (
+																	<img
+																		src={option.icon}
+																		alt=""
+																		className="size-icon-sm"
+																		css={getExternalImageStylesFromUrl(
+																			theme.externalImages,
+																			option.icon,
+																		)}
+																	/>
+																)}
+																{option.label}
+															</div>
 														</CommandItem>
 													);
 												})}
