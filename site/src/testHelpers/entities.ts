@@ -534,6 +534,8 @@ export const MockUserAppearanceSettings: TypesGen.UserAppearanceSettings = {
 	terminal_font: "",
 };
 
+export const MockTasksTabVisible: boolean = false;
+
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	organization_id: MockOrganization.id,
 	user_id: MockUserOwner.id,
@@ -970,38 +972,15 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 	],
 };
 
-export const MockWorkspaceChildAgent: TypesGen.WorkspaceAgent = {
+export const MockWorkspaceSubAgent: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
 	apps: [],
-	architecture: "amd64",
-	created_at: "",
-	environment_variables: {},
-	id: "test-workspace-child-agent",
+	id: "test-workspace-sub-agent",
 	parent_id: "test-workspace-agent",
-	name: "a-workspace-child-agent",
-	operating_system: "linux",
-	resource_id: "",
-	status: "connected",
-	updated_at: "",
-	version: MockBuildInfo.version,
-	api_version: MockBuildInfo.agent_api_version,
-	latency: {
-		"Coder Embedded DERP": {
-			latency_ms: 32.55,
-			preferred: true,
-		},
-	},
-	connection_timeout_seconds: 120,
-	troubleshooting_url: "https://coder.com/troubleshoot",
-	lifecycle_state: "starting",
-	logs_length: 0,
-	logs_overflowed: false,
-	log_sources: [MockWorkspaceAgentLogSource],
+	name: "a-workspace-sub-agent",
+	log_sources: [],
 	scripts: [],
-	startup_script_behavior: "non-blocking",
-	subsystems: ["envbox", "exectrace"],
-	health: {
-		healthy: true,
-	},
+	directory: "/workspace/test",
 	display_apps: [
 		"ssh_helper",
 		"port_forwarding_helper",
@@ -3038,7 +3017,7 @@ export const MockPreviewParameter: TypesGen.PreviewParameter = {
 	value: { valid: true, value: "" },
 	diagnostics: [],
 	options: [],
-	ephemeral: true,
+	ephemeral: false,
 	required: true,
 	icon: "",
 	styling: {},
@@ -4005,6 +3984,13 @@ export const MockSharedPortsResponse: TypesGen.WorkspaceAgentPortShares = {
 		{
 			workspace_id: MockWorkspace.id,
 			agent_name: "a-workspace-agent",
+			port: 4443,
+			share_level: "organization",
+			protocol: "http",
+		},
+		{
+			workspace_id: MockWorkspace.id,
+			agent_name: "a-workspace-agent",
 			port: 65535,
 			share_level: "authenticated",
 			protocol: "https",
@@ -4390,8 +4376,23 @@ export const MockWorkspaceAgentContainer: TypesGen.WorkspaceAgentContainer = {
 	volumes: {
 		"/mnt/volume1": "/volume1",
 	},
-	devcontainer_dirty: false,
 };
+
+export const MockWorkspaceAgentDevcontainer: TypesGen.WorkspaceAgentDevcontainer =
+	{
+		id: "test-devcontainer-id",
+		name: "test-devcontainer",
+		workspace_folder: "/workspace/test",
+		config_path: "/workspace/test/.devcontainer/devcontainer.json",
+		status: "running",
+		dirty: false,
+		container: MockWorkspaceAgentContainer,
+		agent: {
+			id: MockWorkspaceSubAgent.id,
+			name: MockWorkspaceSubAgent.name,
+			directory: MockWorkspaceSubAgent?.directory ?? "/workspace/test",
+		},
+	};
 
 export const MockWorkspaceAppStatuses: TypesGen.WorkspaceAppStatus[] = [
 	{

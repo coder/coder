@@ -19,6 +19,7 @@ type WorkspaceAppStatusState string
 
 const (
 	WorkspaceAppStatusStateWorking  WorkspaceAppStatusState = "working"
+	WorkspaceAppStatusStateIdle     WorkspaceAppStatusState = "idle"
 	WorkspaceAppStatusStateComplete WorkspaceAppStatusState = "complete"
 	WorkspaceAppStatusStateFailure  WorkspaceAppStatusState = "failure"
 )
@@ -35,12 +36,14 @@ type WorkspaceAppSharingLevel string
 const (
 	WorkspaceAppSharingLevelOwner         WorkspaceAppSharingLevel = "owner"
 	WorkspaceAppSharingLevelAuthenticated WorkspaceAppSharingLevel = "authenticated"
+	WorkspaceAppSharingLevelOrganization  WorkspaceAppSharingLevel = "organization"
 	WorkspaceAppSharingLevelPublic        WorkspaceAppSharingLevel = "public"
 )
 
 var MapWorkspaceAppSharingLevels = map[WorkspaceAppSharingLevel]struct{}{
 	WorkspaceAppSharingLevelOwner:         {},
 	WorkspaceAppSharingLevelAuthenticated: {},
+	WorkspaceAppSharingLevelOrganization:  {},
 	WorkspaceAppSharingLevelPublic:        {},
 }
 
@@ -79,7 +82,7 @@ type WorkspaceApp struct {
 	Subdomain bool `json:"subdomain"`
 	// SubdomainName is the application domain exposed on the `coder server`.
 	SubdomainName string                   `json:"subdomain_name,omitempty"`
-	SharingLevel  WorkspaceAppSharingLevel `json:"sharing_level" enums:"owner,authenticated,public"`
+	SharingLevel  WorkspaceAppSharingLevel `json:"sharing_level" enums:"owner,authenticated,organization,public"`
 	// Healthcheck specifies the configuration for checking app health.
 	Healthcheck Healthcheck        `json:"healthcheck,omitempty"`
 	Health      WorkspaceAppHealth `json:"health"`

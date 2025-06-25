@@ -399,6 +399,7 @@ type DeploymentValues struct {
 	AdditionalCSPPolicy             serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
 	WorkspaceHostnameSuffix         serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
 	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
+	HideAITasks                     serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -3116,6 +3117,16 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "failure_hard_limit",
 			Hidden:      true,
 		},
+		{
+			Name:        "Hide AI Tasks",
+			Description: "Hide AI tasks from the dashboard.",
+			Flag:        "hide-ai-tasks",
+			Env:         "CODER_HIDE_AI_TASKS",
+			Default:     "false",
+			Value:       &c.HideAITasks,
+			Group:       &deploymentGroupClient,
+			YAML:        "hideAITasks",
+		},
 	}
 
 	return opts
@@ -3358,8 +3369,18 @@ const (
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
 	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
 	ExperimentAgenticChat        Experiment = "agentic-chat"         // Enables the new agentic AI chat feature.
-	ExperimentAITasks            Experiment = "ai-tasks"             // Enables the new AI tasks feature.
 )
+
+// ExperimentsKnown should include all experiments defined above.
+var ExperimentsKnown = Experiments{
+	ExperimentExample,
+	ExperimentAutoFillParameters,
+	ExperimentNotifications,
+	ExperimentWorkspaceUsage,
+	ExperimentWebPush,
+	ExperimentWorkspacePrebuilds,
+	ExperimentAgenticChat,
+}
 
 // ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
@@ -3373,6 +3394,9 @@ var ExperimentsSafe = Experiments{
 // Multiple experiments may be enabled at the same time.
 // Experiments are not safe for production use, and are not guaranteed to
 // be backwards compatible. They may be removed or renamed at any time.
+// The below typescript-ignore annotation allows our typescript generator
+// to generate an enum list, which is used in the frontend.
+// @typescript-ignore Experiments
 type Experiments []Experiment
 
 // Returns a list of experiments that are enabled for the deployment.

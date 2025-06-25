@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -243,6 +244,25 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 		require.NoError(b.t, err)
 	}
 
+	agents, err := b.db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ownerCtx, database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
+		WorkspaceID: resp.Workspace.ID,
+		BuildNumber: resp.Build.BuildNumber,
+	})
+	if !errors.Is(err, sql.ErrNoRows) {
+		require.NoError(b.t, err, "get workspace agents")
+		// Insert deleted subagent test antagonists for the workspace build.
+		// See also `dbgen.WorkspaceAgent()`.
+		for _, agent := range agents {
+			subAgent := dbgen.WorkspaceSubAgent(b.t, b.db, agent, database.WorkspaceAgent{
+				TroubleshootingURL: "I AM A TEST ANTAGONIST AND I AM HERE TO MESS UP YOUR TESTS. IF YOU SEE ME, SOMETHING IS WRONG AND SUB AGENT DELETION MAY NOT BE HANDLED CORRECTLY IN A QUERY.",
+			})
+			err = b.db.DeleteWorkspaceSubAgentByID(ownerCtx, subAgent.ID)
+			require.NoError(b.t, err, "delete workspace agent subagent antagonist")
+
+			b.t.Logf("inserted deleted subagent antagonist %s (%v) for workspace agent %s (%v)", subAgent.Name, subAgent.ID, agent.Name, agent.ID)
+		}
+	}
+
 	return resp
 }
 
@@ -395,6 +415,8 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 			CreatedAt:           version.CreatedAt,
 			DesiredInstances:    preset.DesiredInstances,
 			InvalidateAfterSecs: preset.InvalidateAfterSecs,
+			SchedulingTimezone:  preset.SchedulingTimezone,
+			IsDefault:           false,
 		})
 	}
 

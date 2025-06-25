@@ -111,6 +111,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 
 		const socket = API.templateVersionDynamicParameters(
 			templateVersionId ?? workspace.latest_build.template_version_id,
+			workspace.owner_id,
 			{
 				onMessage,
 				onError: (error) => {
@@ -140,6 +141,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		templateVersionId,
 		workspace.latest_build.template_version_id,
 		onMessage,
+		workspace.owner_id,
 	]);
 
 	const updateParameters = useMutation({
@@ -235,7 +237,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 					</span>
 				</span>
 				<FeatureStageBadge
-					contentType={"early_access"}
+					contentType={"beta"}
 					size="sm"
 					labelText="Dynamic parameters"
 				/>

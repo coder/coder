@@ -76,6 +76,7 @@ import (
 	"github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/proxyhealth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
@@ -85,6 +86,7 @@ import (
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
@@ -572,7 +574,7 @@ func New(options *Options) *API {
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
-		FileCache:                   files.NewFromStore(options.Database, options.PrometheusRegistry),
+		FileCache:                   files.New(options.PrometheusRegistry, options.Authorizer),
 		Experiments:                 experiments,
 		WebpushDispatcher:           options.WebPushDispatcher,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
@@ -626,6 +628,7 @@ func New(options *Options) *API {
 		Entitlements:      options.Entitlements,
 		Telemetry:         options.Telemetry,
 		Logger:            options.Logger.Named("site"),
+		HideAITasks:       options.DeploymentValues.HideAITasks.Value(),
 	})
 	api.SiteHandler.Experiments.Store(&experiments)
 
@@ -936,6 +939,14 @@ func New(options *Options) *API {
 		})
 	})
 
+	// Experimental routes are not guaranteed to be stable and may change at any time.
+	r.Route("/api/experimental", func(r chi.Router) {
+		r.Use(apiKeyMiddleware)
+		r.Route("/aitasks", func(r chi.Router) {
+			r.Get("/prompts", api.aiTasksPrompts)
+		})
+	})
+
 	r.Route("/api/v2", func(r chi.Router) {
 		api.APIHandler = r
 
@@ -969,7 +980,7 @@ func New(options *Options) *API {
 		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Get("/available", handleExperimentsSafe)
+			r.Get("/available", handleExperimentsAvailable)
 			r.Get("/", api.handleExperimentsGet)
 		})
 		r.Get("/updatecheck", api.updateCheck)
@@ -1533,17 +1544,27 @@ func New(options *Options) *API {
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
 	cspMW := httpmw.CSPHeaders(
-		api.Experiments,
-		options.Telemetry.Enabled(), func() []string {
+		options.Telemetry.Enabled(), func() []*proxyhealth.ProxyHost {
 			if api.DeploymentValues.Dangerous.AllowAllCors {
-				// In this mode, allow all external requests
-				return []string{"*"}
+				// In this mode, allow all external requests.
+				return []*proxyhealth.ProxyHost{
+					{
+						Host:    "*",
+						AppHost: "*",
+					},
+				}
+			}
+			// Always add the primary, since the app host may be on a sub-domain.
+			proxies := []*proxyhealth.ProxyHost{
+				{
+					Host:    api.AccessURL.Host,
+					AppHost: appurl.ConvertAppHostForCSP(api.AccessURL.Host, api.AppHostname),
+				},
 			}
 			if f := api.WorkspaceProxyHostsFn.Load(); f != nil {
-				return (*f)()
+				proxies = append(proxies, (*f)()...)
 			}
-			// By default we do not add extra websocket connections to the CSP
-			return []string{}
+			return proxies
 		}, additionalCSPHeaders)
 
 	// Static file handler must be wrapped with HSTS handler if the
@@ -1582,7 +1603,7 @@ type API struct {
 	AppearanceFetcher atomic.Pointer[appearance.Fetcher]
 	// WorkspaceProxyHostsFn returns the hosts of healthy workspace proxies
 	// for header reasons.
-	WorkspaceProxyHostsFn atomic.Pointer[func() []string]
+	WorkspaceProxyHostsFn atomic.Pointer[func() []*proxyhealth.ProxyHost]
 	// TemplateScheduleStore is a pointer to an atomic pointer because this is
 	// passed to another struct, and we want them all to be the same reference.
 	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
@@ -1881,7 +1902,9 @@ func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 			exps = append(exps, codersdk.ExperimentsSafe...)
 		default:
 			ex := codersdk.Experiment(strings.ToLower(v))
-			if !slice.Contains(codersdk.ExperimentsSafe, ex) {
+			if !slice.Contains(codersdk.ExperimentsKnown, ex) {
+				log.Warn(context.Background(), "ignoring unknown experiment", slog.F("experiment", ex))
+			} else if !slice.Contains(codersdk.ExperimentsSafe, ex) {
 				log.Warn(context.Background(), "🐉 HERE BE DRAGONS: opting into hidden experiment", slog.F("experiment", ex))
 			}
 			exps = append(exps, ex)

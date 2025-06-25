@@ -1,11 +1,11 @@
 import { API } from "api/api";
-import type { Experiments } from "api/typesGenerated";
+import { type Experiment, Experiments } from "api/typesGenerated";
 import type { MetadataState } from "hooks/useEmbeddedMetadata";
 import { cachedQuery } from "./util";
 
 const experimentsKey = ["experiments"] as const;
 
-export const experiments = (metadata: MetadataState<Experiments>) => {
+export const experiments = (metadata: MetadataState<Experiment[]>) => {
 	return cachedQuery({
 		metadata,
 		queryKey: experimentsKey,
@@ -18,4 +18,8 @@ export const availableExperiments = () => {
 		queryKey: ["availableExperiments"],
 		queryFn: async () => API.getAvailableExperiments(),
 	};
+};
+
+export const isKnownExperiment = (experiment: string): boolean => {
+	return Experiments.includes(experiment as Experiment);
 };

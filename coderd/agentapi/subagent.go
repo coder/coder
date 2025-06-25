@@ -5,18 +5,20 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/quartz"
+
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner"
-	"github.com/coder/quartz"
 )
 
 type SubAgentAPI struct {
@@ -140,20 +142,15 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 				health = database.WorkspaceAppHealthInitializing
 			}
 
-			var sharingLevel database.AppSharingLevel
-			switch app.GetShare() {
-			case agentproto.CreateSubAgentRequest_App_OWNER:
-				sharingLevel = database.AppSharingLevelOwner
-			case agentproto.CreateSubAgentRequest_App_AUTHENTICATED:
-				sharingLevel = database.AppSharingLevelAuthenticated
-			case agentproto.CreateSubAgentRequest_App_PUBLIC:
-				sharingLevel = database.AppSharingLevelPublic
-			default:
+			share := app.GetShare()
+			protoSharingLevel, ok := agentproto.CreateSubAgentRequest_App_SharingLevel_name[int32(share)]
+			if !ok {
 				return codersdk.ValidationError{
 					Field:  "share",
-					Detail: fmt.Sprintf("%q is not a valid app sharing level", app.GetShare()),
+					Detail: fmt.Sprintf("%q is not a valid app sharing level", share.String()),
 				}
 			}
+			sharingLevel := database.AppSharingLevel(strings.ToLower(protoSharingLevel))
 
 			var openIn database.WorkspaceAppOpenIn
 			switch app.GetOpenIn() {
@@ -168,8 +165,8 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 				}
 			}
 
-			_, err := a.Database.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
-				ID:          uuid.New(),
+			_, err := a.Database.UpsertWorkspaceApp(ctx, database.UpsertWorkspaceAppParams{
+				ID:          uuid.New(), // NOTE: we may need to maintain the app's ID here for stability, but for now we'll leave this as-is.
 				CreatedAt:   createdAt,
 				AgentID:     subAgent.ID,
 				Slug:        app.Slug,

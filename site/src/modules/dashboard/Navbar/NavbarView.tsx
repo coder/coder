@@ -1,5 +1,4 @@
 import { API } from "api/api";
-import { experiments } from "api/queries/experiments";
 import type * as TypesGen from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
@@ -10,7 +9,6 @@ import { useWebpushNotifications } from "contexts/useWebpushNotifications";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
 import type { FC } from "react";
-import { useQuery } from "react-query";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "utils/cn";
 import { DeploymentDropdown } from "./DeploymentDropdown";
@@ -145,7 +143,6 @@ const NavItems: FC<NavItemsProps> = ({ className }) => {
 	const location = useLocation();
 	const agenticChat = useAgenticChat();
 	const { metadata } = useEmbeddedMetadata();
-	const experimentsQuery = useQuery(experiments(metadata.experiments));
 
 	return (
 		<nav className={cn("flex items-center gap-4 h-full", className)}>
@@ -178,7 +175,7 @@ const NavItems: FC<NavItemsProps> = ({ className }) => {
 					Chat
 				</NavLink>
 			)}
-			{experimentsQuery.data?.includes("ai-tasks") && (
+			{metadata["tasks-tab-visible"].value && (
 				<NavLink
 					className={({ isActive }) => {
 						return cn(linkStyles.default, isActive ? linkStyles.active : "");

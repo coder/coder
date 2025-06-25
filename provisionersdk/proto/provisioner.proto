@@ -79,9 +79,20 @@ message ExpirationPolicy {
   int32 ttl = 1;
 }
 
+message Schedule {
+	string cron = 1;
+	int32 instances = 2;
+}
+
+message Scheduling {
+    string timezone = 1;
+    repeated Schedule schedule = 2;
+}
+
 message Prebuild {
-  int32 instances = 1;
-  ExpirationPolicy expiration_policy = 2;
+    int32 instances = 1;
+    ExpirationPolicy expiration_policy = 2;
+    Scheduling scheduling = 3;
 }
 
 // Preset represents a set of preset parameters for a template version.
@@ -89,6 +100,7 @@ message Preset {
   string name = 1;
   repeated PresetParameter parameters = 2;
   Prebuild prebuild = 3;
+  bool default = 4;
 }
 
 message PresetParameter {
@@ -255,6 +267,7 @@ message App {
   bool hidden = 11;
   AppOpenIn open_in = 12;
   string group = 13;
+  string id = 14; // If nil, new UUID will be generated.
 }
 
 // Healthcheck represents configuration for checking for app readiness.
@@ -313,6 +326,15 @@ enum PrebuiltWorkspaceBuildStage {
   CLAIM = 2;  // A prebuilt workspace is being claimed.
 }
 
+message AITaskSidebarApp {
+  string id = 1;
+}
+
+message AITask {
+  string id = 1;
+  AITaskSidebarApp sidebar_app = 2;
+}
+
 // Metadata is information about a workspace used in the execution of a build
 message Metadata {
   string coder_url = 1;
@@ -366,6 +388,13 @@ message PlanRequest {
   repeated VariableValue variable_values = 3;
   repeated ExternalAuthProvider external_auth_providers = 4;
   repeated RichParameterValue previous_parameter_values = 5;
+
+  // If true, the provisioner can safely assume the caller does not need the
+  // module files downloaded by the `terraform init` command.
+  // Ideally this boolean would be flipped in its truthy value, however for
+  // backwards compatibility reasons, the zero value should be the previous
+  // behavior of downloading the module files.
+  bool omit_module_files = 6;
 }
 
 // PlanComplete indicates a request to plan completed.
@@ -380,6 +409,14 @@ message PlanComplete {
   bytes plan = 9;
   repeated ResourceReplacement resource_replacements = 10;
   bytes module_files = 11;
+  bytes module_files_hash = 12;
+  // Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
+  // During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
+  // still need to know that such resources are defined.
+  //
+  // See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
+  bool has_ai_tasks = 13;
+  repeated provisioner.AITask ai_tasks = 14;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
@@ -396,6 +433,7 @@ message ApplyComplete {
   repeated RichParameter parameters = 4;
   repeated ExternalAuthProviderResource external_auth_providers = 5;
   repeated Timing timings = 6;
+  repeated provisioner.AITask ai_tasks = 7;
 }
 
 message Timing {
@@ -433,7 +471,37 @@ message Response {
     ParseComplete parse = 2;
     PlanComplete plan = 3;
     ApplyComplete apply = 4;
+    DataUpload data_upload = 5;
+    ChunkPiece chunk_piece = 6;
   }
+}
+
+enum DataUploadType {
+  UPLOAD_TYPE_UNKNOWN = 0;
+  // UPLOAD_TYPE_MODULE_FILES is used to stream over terraform module files.
+  // These files are located in `.terraform/modules` and are used for dynamic
+  // parameters.
+  UPLOAD_TYPE_MODULE_FILES = 1;
+}
+
+message DataUpload {
+  DataUploadType upload_type = 1;
+  // data_hash is the sha256 of the payload to be uploaded.
+  // This is also used to uniquely identify the upload.
+  bytes data_hash = 2;
+  // file_size is the total size of the data being uploaded.
+  int64 file_size = 3;
+  // Number of chunks to be uploaded.
+  int32 chunks = 4;
+}
+
+// ChunkPiece is used to stream over large files (over the 4mb limit).
+message ChunkPiece {
+  bytes data = 1;
+  // full_data_hash should match the hash from the original
+  // DataUpload message
+  bytes full_data_hash = 2;
+  int32 piece_index = 3;
 }
 
 service Provisioner {

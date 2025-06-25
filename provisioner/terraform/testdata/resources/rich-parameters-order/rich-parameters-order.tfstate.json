@@ -10,7 +10,7 @@
           "type": "coder_parameter",
           "name": "example",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "default": null,
             "description": null,
@@ -39,7 +39,7 @@
           "type": "coder_parameter",
           "name": "sample",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "default": "ok",
             "description": "blah blah",

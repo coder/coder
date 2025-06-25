@@ -68,8 +68,6 @@ func TestGoTemplate(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc // unnecessary as of go1.22 but the linter is outdated
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

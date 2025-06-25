@@ -12,6 +12,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import capitalize from "lodash/capitalize";
 import { timeFrom } from "utils/time";
 
 import {
@@ -77,7 +78,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 					<div className="text-sm font-medium text-content-primary flex items-center gap-2 ">
 						<AppStatusStateIcon state={latestStatus.state} latest />
 						<span className="block flex-1 whitespace-nowrap overflow-hidden text-ellipsis">
-							{latestStatus.message}
+							{latestStatus.message || capitalize(latestStatus.state)}
 						</span>
 					</div>
 					<span className="text-xs text-content-secondary first-letter:uppercase block pl-[26px]">
@@ -156,11 +157,11 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 							<div className="flex items-center justify-between w-full text-content-secondary">
 								<span className="text-xs flex items-center gap-2">
 									<AppStatusStateIcon
-										state={latestStatus.state}
+										state={status.state}
 										latest={false}
 										className="size-icon-xs w-[18px]"
 									/>
-									{status.message}
+									{status.message || capitalize(status.state)}
 								</span>
 								<span className="text-2xs text-content-secondary first-letter:uppercase block pl-[26px]">
 									{formattedTimestamp}

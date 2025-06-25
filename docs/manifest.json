@@ -91,7 +91,14 @@
 					"title": "Kubernetes",
 					"description": "Install Coder on Kubernetes",
 					"path": "./install/kubernetes.md",
-					"icon_path": "./images/icons/kubernetes.svg"
+					"icon_path": "./images/icons/kubernetes.svg",
+					"children": [
+						{
+							"title": "Deploy Coder on Azure with an Application Gateway",
+							"description": "Deploy Coder on Azure with an Application Gateway",
+							"path": "./install/kubernetes/kubernetes-azure-app-gateway.md"
+						}
+					]
 				},
 				{
 					"title": "Rancher",
@@ -395,7 +402,14 @@
 						{
 							"title": "OIDC Authentication",
 							"description": "Configure OpenID Connect authentication with identity providers like Okta or Active Directory",
-							"path": "./admin/users/oidc-auth.md"
+							"path": "./admin/users/oidc-auth/index.md",
+							"children": [
+								{
+									"title": "Configure OIDC refresh tokens",
+									"description": "How to configure OIDC refresh tokens",
+									"path": "./admin/users/oidc-auth/refresh-tokens.md"
+								}
+							]
 						},
 						{
 							"title": "GitHub Authentication",
@@ -639,7 +653,7 @@
 				{
 					"title": "External Authentication",
 					"description": "Learn how to configure external authentication",
-					"path": "./admin/external-auth.md",
+					"path": "./admin/external-auth/index.md",
 					"icon_path": "./images/icons/plug.svg"
 				},
 				{
@@ -682,6 +696,11 @@
 							"title": "DX PlatformX",
 							"description": "Integrate Coder with DX PlatformX",
 							"path": "./admin/integrations/platformx.md"
+						},
+						{
+							"title": "DX Data Cloud",
+							"description": "Tag Coder Users with DX Data Cloud",
+							"path": "./admin/integrations/dx-data-cloud.md"
 						},
 						{
 							"title": "Hashicorp Vault",
@@ -925,6 +944,11 @@
 					"title": "Azure Federation",
 					"description": "Federating Coder to Azure",
 					"path": "./tutorials/azure-federation.md"
+				},
+				{
+					"title": "Deploy Coder on Azure with an Application Gateway",
+					"description": "Deploy Coder on Azure with an Application Gateway",
+					"path": "./install/kubernetes/kubernetes-azure-app-gateway.md"
 				},
 				{
 					"title": "Scanning Workspaces with JFrog Xray",
@@ -1675,7 +1699,7 @@
 						},
 						{
 							"title": "update",
-							"description": "Will update and start a given workspace if it is out of date",
+							"description": "Will update and start a given workspace if it is out of date. If the workspace is already running, it will be stopped first.",
 							"path": "reference/cli/update.md"
 						},
 						{

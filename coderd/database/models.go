@@ -137,6 +137,7 @@ type AppSharingLevel string
 const (
 	AppSharingLevelOwner         AppSharingLevel = "owner"
 	AppSharingLevelAuthenticated AppSharingLevel = "authenticated"
+	AppSharingLevelOrganization  AppSharingLevel = "organization"
 	AppSharingLevelPublic        AppSharingLevel = "public"
 )
 
@@ -179,6 +180,7 @@ func (e AppSharingLevel) Valid() bool {
 	switch e {
 	case AppSharingLevelOwner,
 		AppSharingLevelAuthenticated,
+		AppSharingLevelOrganization,
 		AppSharingLevelPublic:
 		return true
 	}
@@ -189,6 +191,7 @@ func AllAppSharingLevelValues() []AppSharingLevel {
 	return []AppSharingLevel{
 		AppSharingLevelOwner,
 		AppSharingLevelAuthenticated,
+		AppSharingLevelOrganization,
 		AppSharingLevelPublic,
 	}
 }
@@ -2625,6 +2628,7 @@ const (
 	WorkspaceAppStatusStateWorking  WorkspaceAppStatusState = "working"
 	WorkspaceAppStatusStateComplete WorkspaceAppStatusState = "complete"
 	WorkspaceAppStatusStateFailure  WorkspaceAppStatusState = "failure"
+	WorkspaceAppStatusStateIdle     WorkspaceAppStatusState = "idle"
 )
 
 func (e *WorkspaceAppStatusState) Scan(src interface{}) error {
@@ -2666,7 +2670,8 @@ func (e WorkspaceAppStatusState) Valid() bool {
 	switch e {
 	case WorkspaceAppStatusStateWorking,
 		WorkspaceAppStatusStateComplete,
-		WorkspaceAppStatusStateFailure:
+		WorkspaceAppStatusStateFailure,
+		WorkspaceAppStatusStateIdle:
 		return true
 	}
 	return false
@@ -2677,6 +2682,7 @@ func AllWorkspaceAppStatusStateValues() []WorkspaceAppStatusState {
 		WorkspaceAppStatusStateWorking,
 		WorkspaceAppStatusStateComplete,
 		WorkspaceAppStatusStateFailure,
+		WorkspaceAppStatusStateIdle,
 	}
 }
 
@@ -3355,6 +3361,7 @@ type TemplateVersion struct {
 	Message               string          `db:"message" json:"message"`
 	Archived              bool            `db:"archived" json:"archived"`
 	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
+	HasAITask             sql.NullBool    `db:"has_ai_task" json:"has_ai_task"`
 	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName         string          `db:"created_by_name" json:"created_by_name"`
@@ -3406,6 +3413,8 @@ type TemplateVersionPreset struct {
 	DesiredInstances    sql.NullInt32  `db:"desired_instances" json:"desired_instances"`
 	InvalidateAfterSecs sql.NullInt32  `db:"invalidate_after_secs" json:"invalidate_after_secs"`
 	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
+	SchedulingTimezone  string         `db:"scheduling_timezone" json:"scheduling_timezone"`
+	IsDefault           bool           `db:"is_default" json:"is_default"`
 }
 
 type TemplateVersionPresetParameter struct {
@@ -3413,6 +3422,13 @@ type TemplateVersionPresetParameter struct {
 	TemplateVersionPresetID uuid.UUID `db:"template_version_preset_id" json:"template_version_preset_id"`
 	Name                    string    `db:"name" json:"name"`
 	Value                   string    `db:"value" json:"value"`
+}
+
+type TemplateVersionPresetPrebuildSchedule struct {
+	ID               uuid.UUID `db:"id" json:"id"`
+	PresetID         uuid.UUID `db:"preset_id" json:"preset_id"`
+	CronExpression   string    `db:"cron_expression" json:"cron_expression"`
+	DesiredInstances int32     `db:"desired_instances" json:"desired_instances"`
 }
 
 type TemplateVersionTable struct {
@@ -3431,6 +3447,7 @@ type TemplateVersionTable struct {
 	Message         string         `db:"message" json:"message"`
 	Archived        bool           `db:"archived" json:"archived"`
 	SourceExampleID sql.NullString `db:"source_example_id" json:"source_example_id"`
+	HasAITask       sql.NullBool   `db:"has_ai_task" json:"has_ai_task"`
 }
 
 type TemplateVersionTerraformValue struct {
@@ -3623,6 +3640,8 @@ type WorkspaceAgent struct {
 	ParentID     uuid.NullUUID `db:"parent_id" json:"parent_id"`
 	// Defines the scope of the API key associated with the agent. 'all' allows access to everything, 'no_user_data' restricts it to exclude user data.
 	APIKeyScope AgentKeyScopeEnum `db:"api_key_scope" json:"api_key_scope"`
+	// Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.
+	Deleted bool `db:"deleted" json:"deleted"`
 }
 
 // Workspace agent devcontainer configuration
@@ -3845,6 +3864,8 @@ type WorkspaceBuild struct {
 	DailyCost               int32               `db:"daily_cost" json:"daily_cost"`
 	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
+	HasAITask               sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
+	AITaskSidebarAppID      uuid.NullUUID       `db:"ai_task_sidebar_app_id" json:"ai_task_sidebar_app_id"`
 	InitiatorByAvatarUrl    string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
 	InitiatorByUsername     string              `db:"initiator_by_username" json:"initiator_by_username"`
 	InitiatorByName         string              `db:"initiator_by_name" json:"initiator_by_name"`
@@ -3874,6 +3895,8 @@ type WorkspaceBuildTable struct {
 	DailyCost               int32               `db:"daily_cost" json:"daily_cost"`
 	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
+	HasAITask               sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
+	AITaskSidebarAppID      uuid.NullUUID       `db:"ai_task_sidebar_app_id" json:"ai_task_sidebar_app_id"`
 }
 
 type WorkspaceLatestBuild struct {

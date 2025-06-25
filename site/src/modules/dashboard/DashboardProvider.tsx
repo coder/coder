@@ -5,7 +5,7 @@ import { organizations } from "api/queries/organizations";
 import type {
 	AppearanceConfig,
 	Entitlements,
-	Experiments,
+	Experiment,
 	Organization,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -19,7 +19,7 @@ import { selectFeatureVisibility } from "./entitlements";
 
 export interface DashboardValue {
 	entitlements: Entitlements;
-	experiments: Experiments;
+	experiments: Experiment[];
 	appearance: AppearanceConfig;
 	organizations: readonly Organization[];
 	showOrganizations: boolean;

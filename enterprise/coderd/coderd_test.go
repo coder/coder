@@ -292,8 +292,6 @@ func TestEntitlements_Prebuilds(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -618,7 +616,6 @@ func TestSCIMDisabled(t *testing.T) {
 	}
 
 	for _, p := range checkPaths {
-		p := p
 		t.Run(p, func(t *testing.T) {
 			t.Parallel()
 

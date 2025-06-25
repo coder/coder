@@ -211,6 +211,15 @@ export const Immutable: Story = {
 	},
 };
 
+export const Ephemeral: Story = {
+	args: {
+		parameter: {
+			...MockPreviewParameter,
+			ephemeral: true,
+		},
+	},
+};
+
 export const AllBadges: Story = {
 	args: {
 		parameter: {

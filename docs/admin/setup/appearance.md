@@ -41,7 +41,7 @@ users of which network their Coder deployment is on.
 
 ## OIDC Login Button Customization
 
-[Use environment variables to customize](../users/oidc-auth.md#oidc-login-customization)
+[Use environment variables to customize](../users/oidc-auth/index.md#oidc-login-customization)
 the text and icon on the OIDC button on the Sign In page.
 
 ## Support Links

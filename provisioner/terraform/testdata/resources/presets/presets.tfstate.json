@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.11.4",
+  "terraform_version": "1.12.2",
   "values": {
     "root_module": {
       "resources": [
@@ -10,7 +10,7 @@
           "type": "coder_parameter",
           "name": "sample",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "default": "ok",
             "description": "blah blah",
@@ -39,8 +39,9 @@
           "type": "coder_workspace_preset",
           "name": "MyFirstProject",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
+            "default": false,
             "id": "My First Project",
             "name": "My First Project",
             "parameters": {
@@ -53,7 +54,22 @@
                     "ttl": 86400
                   }
                 ],
-                "instances": 4
+                "instances": 4,
+                "scheduling": [
+                  {
+                    "schedule": [
+                      {
+                        "cron": "* 8-18 * * 1-5",
+                        "instances": 3
+                      },
+                      {
+                        "cron": "* 8-14 * * 6",
+                        "instances": 1
+                      }
+                    ],
+                    "timezone": "America/Los_Angeles"
+                  }
+                ]
               }
             ]
           },
@@ -63,6 +79,14 @@
               {
                 "expiration_policy": [
                   {}
+                ],
+                "scheduling": [
+                  {
+                    "schedule": [
+                      {},
+                      {}
+                    ]
+                  }
                 ]
               }
             ]
@@ -139,7 +163,7 @@
               "type": "coder_parameter",
               "name": "first_parameter_from_module",
               "provider_name": "registry.terraform.io/coder/coder",
-              "schema_version": 0,
+              "schema_version": 1,
               "values": {
                 "default": "abcdef",
                 "description": "First parameter from module",
@@ -168,7 +192,7 @@
               "type": "coder_parameter",
               "name": "second_parameter_from_module",
               "provider_name": "registry.terraform.io/coder/coder",
-              "schema_version": 0,
+              "schema_version": 1,
               "values": {
                 "default": "ghijkl",
                 "description": "Second parameter from module",
@@ -202,7 +226,7 @@
                   "type": "coder_parameter",
                   "name": "child_first_parameter_from_module",
                   "provider_name": "registry.terraform.io/coder/coder",
-                  "schema_version": 0,
+                  "schema_version": 1,
                   "values": {
                     "default": "abcdef",
                     "description": "First parameter from child module",
@@ -231,7 +255,7 @@
                   "type": "coder_parameter",
                   "name": "child_second_parameter_from_module",
                   "provider_name": "registry.terraform.io/coder/coder",
-                  "schema_version": 0,
+                  "schema_version": 1,
                   "values": {
                     "default": "ghijkl",
                     "description": "Second parameter from child module",

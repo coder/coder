@@ -23,6 +23,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/terraform-provider-coder/v2/provider"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
@@ -312,7 +314,6 @@ func TestProvision_Cancel(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		// below we exec fake_cancel.sh, which causes the kernel to execute it, and if more than
 		// one process tries to do this, it can cause "text file busy"
 		// nolint: paralleltest
@@ -1047,6 +1048,93 @@ func TestProvision(t *testing.T) {
 				}},
 			},
 		},
+		{
+			Name: "ai-task-required-prompt-param",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+						version = ">= 2.7.0"
+					  }
+					}
+				}
+				resource "coder_ai_task" "a" {
+				  sidebar_app {
+					id = "7128be08-8722-44cb-bbe1-b5a391c4d94b" # fake ID, irrelevant here anyway but needed for validation
+				  }
+				}
+				`,
+			},
+			Request: &proto.PlanRequest{},
+			Response: &proto.PlanComplete{
+				Error: fmt.Sprintf("plan resources: coder_parameter named '%s' is required when 'coder_ai_task' resource is defined", provider.TaskPromptParameterName),
+			},
+		},
+		{
+			Name: "ai-task-multiple-allowed-in-plan",
+			Files: map[string]string{
+				"main.tf": fmt.Sprintf(`terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+						version = ">= 2.7.0"
+					  }
+					}
+				}
+				data "coder_parameter" "prompt" {
+					name = "%s"
+					type = "string"
+				}
+				resource "coder_ai_task" "a" {
+				  sidebar_app {
+					id = "7128be08-8722-44cb-bbe1-b5a391c4d94b" # fake ID, irrelevant here anyway but needed for validation
+				  }
+				}
+				resource "coder_ai_task" "b" {
+				  sidebar_app {
+					id = "7128be08-8722-44cb-bbe1-b5a391c4d94b" # fake ID, irrelevant here anyway but needed for validation
+				  }
+				}
+				`, provider.TaskPromptParameterName),
+			},
+			Request: &proto.PlanRequest{},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{
+					{
+						Name: "a",
+						Type: "coder_ai_task",
+					},
+					{
+						Name: "b",
+						Type: "coder_ai_task",
+					},
+				},
+				Parameters: []*proto.RichParameter{
+					{
+						Name:     provider.TaskPromptParameterName,
+						Type:     "string",
+						Required: true,
+						FormType: proto.ParameterFormType_INPUT,
+					},
+				},
+				AiTasks: []*proto.AITask{
+					{
+						Id: "a",
+						SidebarApp: &proto.AITaskSidebarApp{
+							Id: "7128be08-8722-44cb-bbe1-b5a391c4d94b",
+						},
+					},
+					{
+						Id: "b",
+						SidebarApp: &proto.AITaskSidebarApp{
+							Id: "7128be08-8722-44cb-bbe1-b5a391c4d94b",
+						},
+					},
+				},
+				HasAiTasks: true,
+			},
+		},
 	}
 
 	// Remove unused cache dirs before running tests.
@@ -1067,7 +1155,6 @@ func TestProvision(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1148,6 +1235,8 @@ func TestProvision(t *testing.T) {
 				modulesWant, err := json.Marshal(testCase.Response.Modules)
 				require.NoError(t, err)
 				require.Equal(t, string(modulesWant), string(modulesGot))
+
+				require.Equal(t, planComplete.HasAiTasks, testCase.Response.HasAiTasks)
 			}
 
 			if testCase.Apply {

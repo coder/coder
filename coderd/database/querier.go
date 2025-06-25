@@ -137,6 +137,7 @@ type sqlcQuerier interface {
 	GetAPIKeysByLoginType(ctx context.Context, loginType LoginType) ([]APIKey, error)
 	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
+	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
 	GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
 	GetAllTailnetAgents(ctx context.Context) ([]TailnetAgent, error)
@@ -427,6 +428,7 @@ type sqlcQuerier interface {
 	GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (WorkspaceBuild, error)
 	GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (WorkspaceBuild, error)
 	GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]WorkspaceBuildParameter, error)
+	GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIds []uuid.UUID) ([]WorkspaceBuildParameter, error)
 	GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]GetWorkspaceBuildStatsByTemplatesRow, error)
 	GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildsByWorkspaceIDParams) ([]WorkspaceBuild, error)
 	GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceBuild, error)
@@ -462,6 +464,8 @@ type sqlcQuerier interface {
 	GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]GetWorkspacesAndAgentsByOwnerIDRow, error)
 	GetWorkspacesByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceTable, error)
 	GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]GetWorkspacesEligibleForTransitionRow, error)
+	// Determines if the template versions table has any rows with has_ai_task = TRUE.
+	HasTemplateVersionsWithAITask(ctx context.Context) (bool, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
 	// We use the organization_id as the id
 	// for simplicity since all users is
@@ -496,6 +500,7 @@ type sqlcQuerier interface {
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)
 	InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error)
 	InsertPresetParameters(ctx context.Context, arg InsertPresetParametersParams) ([]TemplateVersionPresetParameter, error)
+	InsertPresetPrebuildSchedule(ctx context.Context, arg InsertPresetPrebuildScheduleParams) (TemplateVersionPresetPrebuildSchedule, error)
 	InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error)
 	InsertProvisionerJobLogs(ctx context.Context, arg InsertProvisionerJobLogsParams) ([]ProvisionerJobLog, error)
 	InsertProvisionerJobTimings(ctx context.Context, arg InsertProvisionerJobTimingsParams) ([]ProvisionerJobTiming, error)
@@ -526,7 +531,6 @@ type sqlcQuerier interface {
 	InsertWorkspaceAgentScriptTimings(ctx context.Context, arg InsertWorkspaceAgentScriptTimingsParams) (WorkspaceAgentScriptTiming, error)
 	InsertWorkspaceAgentScripts(ctx context.Context, arg InsertWorkspaceAgentScriptsParams) ([]WorkspaceAgentScript, error)
 	InsertWorkspaceAgentStats(ctx context.Context, arg InsertWorkspaceAgentStatsParams) error
-	InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error)
 	InsertWorkspaceAppStats(ctx context.Context, arg InsertWorkspaceAppStatsParams) error
 	InsertWorkspaceAppStatus(ctx context.Context, arg InsertWorkspaceAppStatusParams) (WorkspaceAppStatus, error)
 	InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) error
@@ -593,6 +597,7 @@ type sqlcQuerier interface {
 	UpdateTemplateDeletedByID(ctx context.Context, arg UpdateTemplateDeletedByIDParams) error
 	UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) error
 	UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) error
+	UpdateTemplateVersionAITaskByJobID(ctx context.Context, arg UpdateTemplateVersionAITaskByJobIDParams) error
 	UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) error
 	UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error
 	UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error
@@ -622,6 +627,7 @@ type sqlcQuerier interface {
 	UpdateWorkspaceAppHealthByID(ctx context.Context, arg UpdateWorkspaceAppHealthByIDParams) error
 	UpdateWorkspaceAutomaticUpdates(ctx context.Context, arg UpdateWorkspaceAutomaticUpdatesParams) error
 	UpdateWorkspaceAutostart(ctx context.Context, arg UpdateWorkspaceAutostartParams) error
+	UpdateWorkspaceBuildAITaskByID(ctx context.Context, arg UpdateWorkspaceBuildAITaskByIDParams) error
 	UpdateWorkspaceBuildCostByID(ctx context.Context, arg UpdateWorkspaceBuildCostByIDParams) error
 	UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg UpdateWorkspaceBuildDeadlineByIDParams) error
 	UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg UpdateWorkspaceBuildProvisionerStateByIDParams) error
@@ -667,6 +673,7 @@ type sqlcQuerier interface {
 	UpsertTemplateUsageStats(ctx context.Context) error
 	UpsertWebpushVAPIDKeys(ctx context.Context, arg UpsertWebpushVAPIDKeysParams) error
 	UpsertWorkspaceAgentPortShare(ctx context.Context, arg UpsertWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error)
+	UpsertWorkspaceApp(ctx context.Context, arg UpsertWorkspaceAppParams) (WorkspaceApp, error)
 	//
 	// The returned boolean, new_or_stale, can be used to deduce if a new session
 	// was started. This means that a new row was inserted (no previous session) or

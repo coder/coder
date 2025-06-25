@@ -272,6 +272,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "refresh": 0,
       "threshold_database": 0
     },
+    "hide_ai_tasks": true,
     "http_address": "string",
     "http_cookies": {
       "same_site": "string",

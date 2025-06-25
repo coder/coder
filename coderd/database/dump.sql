@@ -18,6 +18,7 @@ CREATE TYPE api_key_scope AS ENUM (
 CREATE TYPE app_sharing_level AS ENUM (
     'owner',
     'authenticated',
+    'organization',
     'public'
 );
 
@@ -323,7 +324,8 @@ CREATE TYPE workspace_app_open_in AS ENUM (
 CREATE TYPE workspace_app_status_state AS ENUM (
     'working',
     'complete',
-    'failure'
+    'failure',
+    'idle'
 );
 
 CREATE TYPE workspace_transition AS ENUM (
@@ -357,7 +359,8 @@ BEGIN
 	JOIN workspace_builds ON workspace_builds.job_id = workspace_resources.job_id
 	WHERE workspace_builds.id = workspace_build_id
 		AND workspace_agents.name = NEW.name
-		AND workspace_agents.id != NEW.id;
+		AND workspace_agents.id != NEW.id
+		AND workspace_agents.deleted = FALSE;  -- Ensure we only count non-deleted agents.
 
 	-- If there's already an agent with this name, raise an error
 	IF agents_with_name > 0 THEN
@@ -1495,6 +1498,13 @@ CREATE TABLE template_version_preset_parameters (
     value text NOT NULL
 );
 
+CREATE TABLE template_version_preset_prebuild_schedules (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    preset_id uuid NOT NULL,
+    cron_expression text NOT NULL,
+    desired_instances integer NOT NULL
+);
+
 CREATE TABLE template_version_presets (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     template_version_id uuid NOT NULL,
@@ -1502,7 +1512,9 @@ CREATE TABLE template_version_presets (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     desired_instances integer,
     invalidate_after_secs integer DEFAULT 0,
-    prebuild_status prebuild_status DEFAULT 'healthy'::prebuild_status NOT NULL
+    prebuild_status prebuild_status DEFAULT 'healthy'::prebuild_status NOT NULL,
+    scheduling_timezone text DEFAULT ''::text NOT NULL,
+    is_default boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE template_version_terraform_values (
@@ -1553,7 +1565,8 @@ CREATE TABLE template_versions (
     external_auth_providers jsonb DEFAULT '[]'::jsonb NOT NULL,
     message character varying(1048576) DEFAULT ''::character varying NOT NULL,
     archived boolean DEFAULT false NOT NULL,
-    source_example_id text
+    source_example_id text,
+    has_ai_task boolean
 );
 
 COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';
@@ -1583,6 +1596,7 @@ CREATE VIEW template_version_with_user AS
     template_versions.message,
     template_versions.archived,
     template_versions.source_example_id,
+    template_versions.has_ai_task,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name
@@ -1913,6 +1927,7 @@ CREATE TABLE workspace_agents (
     display_order integer DEFAULT 0 NOT NULL,
     parent_id uuid,
     api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
@@ -1940,6 +1955,8 @@ COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the r
 COMMENT ON COLUMN workspace_agents.display_order IS 'Specifies the order in which to display agents in user interfaces.';
 
 COMMENT ON COLUMN workspace_agents.api_key_scope IS 'Defines the scope of the API key associated with the agent. ''all'' allows access to everything, ''no_user_data'' restricts it to exclude user data.';
+
+COMMENT ON COLUMN workspace_agents.deleted IS 'Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.';
 
 CREATE UNLOGGED TABLE workspace_app_audit_sessions (
     agent_id uuid NOT NULL,
@@ -2080,7 +2097,10 @@ CREATE TABLE workspace_builds (
     reason build_reason DEFAULT 'initiator'::build_reason NOT NULL,
     daily_cost integer DEFAULT 0 NOT NULL,
     max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    template_version_preset_id uuid
+    template_version_preset_id uuid,
+    has_ai_task boolean,
+    ai_task_sidebar_app_id uuid,
+    CONSTRAINT workspace_builds_ai_task_sidebar_app_id_required CHECK (((((has_ai_task IS NULL) OR (has_ai_task = false)) AND (ai_task_sidebar_app_id IS NULL)) OR ((has_ai_task = true) AND (ai_task_sidebar_app_id IS NOT NULL))))
 );
 
 CREATE VIEW workspace_build_with_user AS
@@ -2099,6 +2119,8 @@ CREATE VIEW workspace_build_with_user AS
     workspace_builds.daily_cost,
     workspace_builds.max_deadline,
     workspace_builds.template_version_preset_id,
+    workspace_builds.has_ai_task,
+    workspace_builds.ai_task_sidebar_app_id,
     COALESCE(visible_users.avatar_url, ''::text) AS initiator_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS initiator_by_username,
     COALESCE(visible_users.name, ''::text) AS initiator_by_name
@@ -2209,7 +2231,7 @@ CREATE VIEW workspace_prebuilds AS
            FROM (((workspaces w
              JOIN workspace_latest_builds wlb ON ((wlb.workspace_id = w.id)))
              JOIN workspace_resources wr ON ((wr.job_id = wlb.job_id)))
-             JOIN workspace_agents wa ON ((wa.resource_id = wr.id)))
+             JOIN workspace_agents wa ON (((wa.resource_id = wr.id) AND (wa.deleted = false))))
           WHERE (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid)
           GROUP BY w.id
         ), current_presets AS (
@@ -2499,6 +2521,9 @@ ALTER TABLE ONLY template_version_parameters
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_parameters_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY template_version_preset_prebuild_schedules
+    ADD CONSTRAINT template_version_preset_prebuild_schedules_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_pkey PRIMARY KEY (id);
 
@@ -2666,6 +2691,10 @@ CREATE INDEX idx_tailnet_peers_coordinator ON tailnet_peers USING btree (coordin
 CREATE INDEX idx_tailnet_tunnels_dst_id ON tailnet_tunnels USING hash (dst_id);
 
 CREATE INDEX idx_tailnet_tunnels_src_id ON tailnet_tunnels USING hash (src_id);
+
+CREATE UNIQUE INDEX idx_template_version_presets_default ON template_version_presets USING btree (template_version_id) WHERE (is_default = true);
+
+CREATE INDEX idx_template_versions_has_ai_task ON template_versions USING btree (has_ai_task);
 
 CREATE UNIQUE INDEX idx_unique_preset_name ON template_version_presets USING btree (name, template_version_id);
 
@@ -2952,6 +2981,9 @@ ALTER TABLE ONLY template_version_parameters
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_paramet_template_version_preset_id_fkey FOREIGN KEY (template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY template_version_preset_prebuild_schedules
+    ADD CONSTRAINT template_version_preset_prebuild_schedules_preset_id_fkey FOREIGN KEY (preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
@@ -3062,6 +3094,9 @@ ALTER TABLE ONLY workspace_apps
 
 ALTER TABLE ONLY workspace_build_parameters
     ADD CONSTRAINT workspace_build_parameters_workspace_build_id_fkey FOREIGN KEY (workspace_build_id) REFERENCES workspace_builds(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_builds
+    ADD CONSTRAINT workspace_builds_ai_task_sidebar_app_id_fkey FOREIGN KEY (ai_task_sidebar_app_id) REFERENCES workspace_apps(id);
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;

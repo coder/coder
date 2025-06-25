@@ -21,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
-	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
@@ -150,6 +149,32 @@ func (q *querier) authorizeContext(ctx context.Context, action policy.Action, ob
 	return nil
 }
 
+// authorizePrebuiltWorkspace handles authorization for workspace resource types.
+// prebuilt_workspaces are a subset of workspaces, currently limited to
+// supporting delete operations. This function first attempts normal workspace
+// authorization. If that fails, the action is delete or update and the workspace
+// is a prebuild, a prebuilt-specific authorization is attempted.
+// Note: Delete operations of workspaces requires both update and delete
+// permissions.
+func (q *querier) authorizePrebuiltWorkspace(ctx context.Context, action policy.Action, workspace database.Workspace) error {
+	// Try default workspace authorization first
+	var workspaceErr error
+	if workspaceErr = q.authorizeContext(ctx, action, workspace); workspaceErr == nil {
+		return nil
+	}
+
+	// Special handling for prebuilt workspace deletion
+	if (action == policy.ActionUpdate || action == policy.ActionDelete) && workspace.IsPrebuild() {
+		var prebuiltErr error
+		if prebuiltErr = q.authorizeContext(ctx, action, workspace.AsPrebuild()); prebuiltErr == nil {
+			return nil
+		}
+		return xerrors.Errorf("authorize context failed for workspace (%v) and prebuilt (%w)", workspaceErr, prebuiltErr)
+	}
+
+	return xerrors.Errorf("authorize context: %w", workspaceErr)
+}
+
 type authContextKey struct{}
 
 // ActorFromContext returns the authorization subject from the context.
@@ -171,7 +196,7 @@ var (
 				DisplayName: "Provisioner Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceProvisionerJobs.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
-					rbac.ResourceFile.Type:            {policy.ActionRead},
+					rbac.ResourceFile.Type:            {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceSystem.Type:          {policy.WildcardSymbol},
 					rbac.ResourceTemplate.Type:        {policy.ActionRead, policy.ActionUpdate},
 					// Unsure why provisionerd needs update and read personal
@@ -205,6 +230,8 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "autostart"},
 				DisplayName: "Autostart Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceOrganizationMember.Type:  {policy.ActionRead},
+					rbac.ResourceFile.Type:                {policy.ActionRead}, // Required to read terraform files
 					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceSystem.Type:              {policy.WildcardSymbol},
 					rbac.ResourceTemplate.Type:            {policy.ActionRead, policy.ActionUpdate},
@@ -399,7 +426,7 @@ var (
 	subjectPrebuildsOrchestrator = rbac.Subject{
 		Type:         rbac.SubjectTypePrebuildsOrchestrator,
 		FriendlyName: "Prebuilds Orchestrator",
-		ID:           prebuilds.SystemUserID.String(),
+		ID:           database.PrebuildsSystemUserID.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
 				Identifier:  rbac.RoleIdentifier{Name: "prebuilds-orchestrator"},
@@ -412,8 +439,15 @@ var (
 						policy.ActionCreate, policy.ActionDelete, policy.ActionRead, policy.ActionUpdate,
 						policy.ActionWorkspaceStart, policy.ActionWorkspaceStop,
 					},
+					// PrebuiltWorkspaces are a subset of Workspaces.
+					// Explicitly setting PrebuiltWorkspace permissions for clarity.
+					// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
+					rbac.ResourcePrebuiltWorkspace.Type: {
+						policy.ActionUpdate, policy.ActionDelete,
+					},
 					// Should be able to add the prebuilds system user as a member to any organization that needs prebuilds.
 					rbac.ResourceOrganizationMember.Type: {
+						policy.ActionRead,
 						policy.ActionCreate,
 					},
 					// Needs to be able to assign roles to the system user in order to make it a member of an organization.
@@ -427,7 +461,30 @@ var (
 					rbac.ResourceOrganization.Type: {
 						policy.ActionRead,
 					},
+					// Required to read the terraform files of a template
+					rbac.ResourceFile.Type: {
+						policy.ActionRead,
+					},
 				}),
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
+	subjectFileReader = rbac.Subject{
+		Type:         rbac.SubjectTypeFileReader,
+		FriendlyName: "Can Read All Files",
+		// Arbitrary uuid to have a unique ID for this subject.
+		ID: rbac.SubjectTypeFileReaderID,
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "file-reader"},
+				DisplayName: "FileReader",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceFile.Type: {policy.ActionRead},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -496,6 +553,10 @@ func AsSystemReadProvisionerDaemons(ctx context.Context) context.Context {
 // to read orchestrator workspace prebuilds.
 func AsPrebuildsOrchestrator(ctx context.Context) context.Context {
 	return As(ctx, subjectPrebuildsOrchestrator)
+}
+
+func AsFileReader(ctx context.Context) context.Context {
+	return As(ctx, subjectFileReader)
 }
 
 var AsRemoveActor = rbac.Subject{
@@ -1661,6 +1722,13 @@ func (q *querier) GetAPIKeysByUserID(ctx context.Context, params database.GetAPI
 
 func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]database.APIKey, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysLastUsedAfter)(ctx, lastUsed)
+}
+
+func (q *querier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetActivePresetPrebuildSchedules(ctx)
 }
 
 func (q *querier) GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error) {
@@ -3222,6 +3290,15 @@ func (q *querier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuil
 	return q.db.GetWorkspaceBuildParameters(ctx, workspaceBuildID)
 }
 
+func (q *querier) GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIDs []uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceWorkspace.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+
+	return q.db.GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx, workspaceBuildIDs, prep)
+}
+
 func (q *querier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -3428,6 +3505,11 @@ func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now ti
 	return q.db.GetWorkspacesEligibleForTransition(ctx, now)
 }
 
+func (q *querier) HasTemplateVersionsWithAITask(ctx context.Context) (bool, error) {
+	// Anyone can call HasTemplateVersionsWithAITask.
+	return q.db.HasTemplateVersionsWithAITask(ctx)
+}
+
 func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	return insert(q.log, q.auth,
 		rbac.ResourceApiKey.WithOwner(arg.UserID.String()),
@@ -3631,6 +3713,15 @@ func (q *querier) InsertPresetParameters(ctx context.Context, arg database.Inser
 	}
 
 	return q.db.InsertPresetParameters(ctx, arg)
+}
+
+func (q *querier) InsertPresetPrebuildSchedule(ctx context.Context, arg database.InsertPresetPrebuildScheduleParams) (database.TemplateVersionPresetPrebuildSchedule, error) {
+	err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTemplate)
+	if err != nil {
+		return database.TemplateVersionPresetPrebuildSchedule{}, err
+	}
+
+	return q.db.InsertPresetPrebuildSchedule(ctx, arg)
 }
 
 func (q *querier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
@@ -3865,23 +3956,6 @@ func (q *querier) InsertWorkspaceAgentStats(ctx context.Context, arg database.In
 	return q.db.InsertWorkspaceAgentStats(ctx, arg)
 }
 
-func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
-	// NOTE(DanielleMaywood):
-	// It is possible for there to exist an agent without a workspace.
-	// This means that we want to allow execution to continue if
-	// there isn't a workspace found to allow this behavior to continue.
-	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.AgentID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return database.WorkspaceApp{}, err
-	}
-
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
-		return database.WorkspaceApp{}, err
-	}
-
-	return q.db.InsertWorkspaceApp(ctx, arg)
-}
-
 func (q *querier) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return err
@@ -3909,8 +3983,9 @@ func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertW
 		action = policy.ActionWorkspaceStop
 	}
 
-	if err = q.authorizeContext(ctx, action, w); err != nil {
-		return xerrors.Errorf("authorize context: %w", err)
+	// Special handling for prebuilt workspace deletion
+	if err := q.authorizePrebuiltWorkspace(ctx, action, w); err != nil {
+		return err
 	}
 
 	// If we're starting a workspace we need to check the template.
@@ -3949,8 +4024,8 @@ func (q *querier) InsertWorkspaceBuildParameters(ctx context.Context, arg databa
 		return err
 	}
 
-	err = q.authorizeContext(ctx, policy.ActionUpdate, workspace)
-	if err != nil {
+	// Special handling for prebuilt workspace deletion
+	if err := q.authorizePrebuiltWorkspace(ctx, policy.ActionUpdate, workspace); err != nil {
 		return err
 	}
 
@@ -4461,6 +4536,28 @@ func (q *querier) UpdateTemplateScheduleByID(ctx context.Context, arg database.U
 	return update(q.log, q.auth, fetch, q.db.UpdateTemplateScheduleByID)(ctx, arg)
 }
 
+func (q *querier) UpdateTemplateVersionAITaskByJobID(ctx context.Context, arg database.UpdateTemplateVersionAITaskByJobIDParams) error {
+	// An actor is allowed to update the template version AI task flag if they are authorized to update the template.
+	tv, err := q.db.GetTemplateVersionByJobID(ctx, arg.JobID)
+	if err != nil {
+		return err
+	}
+	var obj rbac.Objecter
+	if !tv.TemplateID.Valid {
+		obj = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
+	} else {
+		tpl, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+		if err != nil {
+			return err
+		}
+		obj = tpl
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
+		return err
+	}
+	return q.db.UpdateTemplateVersionAITaskByJobID(ctx, arg)
+}
+
 func (q *querier) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) error {
 	// An actor is allowed to update the template version if they are authorized to update the template.
 	tv, err := q.db.GetTemplateVersionByID(ctx, arg.ID)
@@ -4817,6 +4914,24 @@ func (q *querier) UpdateWorkspaceAutostart(ctx context.Context, arg database.Upd
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceAutostart)(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceBuildAITaskByID(ctx context.Context, arg database.UpdateWorkspaceBuildAITaskByIDParams) error {
+	build, err := q.db.GetWorkspaceBuildByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	workspace, err := q.db.GetWorkspaceByID(ctx, build.WorkspaceID)
+	if err != nil {
+		return err
+	}
+
+	err = q.authorizeContext(ctx, policy.ActionUpdate, workspace.RBACObject())
+	if err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceBuildAITaskByID(ctx, arg)
+}
+
 // UpdateWorkspaceBuildCostByID is used by the provisioning system to update the cost of a workspace build.
 func (q *querier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
@@ -5107,6 +5222,23 @@ func (q *querier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg databas
 	return q.db.UpsertWorkspaceAgentPortShare(ctx, arg)
 }
 
+func (q *querier) UpsertWorkspaceApp(ctx context.Context, arg database.UpsertWorkspaceAppParams) (database.WorkspaceApp, error) {
+	// NOTE(DanielleMaywood):
+	// It is possible for there to exist an agent without a workspace.
+	// This means that we want to allow execution to continue if
+	// there isn't a workspace found to allow this behavior to continue.
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.AgentID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return database.WorkspaceApp{}, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
+		return database.WorkspaceApp{}, err
+	}
+
+	return q.db.UpsertWorkspaceApp(ctx, arg)
+}
+
 func (q *querier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (bool, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return false, err
@@ -5150,6 +5282,10 @@ func (q *querier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetW
 
 func (q *querier) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID, _ rbac.PreparedAuthorized) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
 	return q.GetWorkspacesAndAgentsByOwnerID(ctx, ownerID)
+}
+
+func (q *querier) GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIDs []uuid.UUID, _ rbac.PreparedAuthorized) ([]database.WorkspaceBuildParameter, error) {
+	return q.GetWorkspaceBuildParametersByBuildIDs(ctx, workspaceBuildIDs)
 }
 
 // GetAuthorizedUsers is not required for dbauthz since GetUsers is already

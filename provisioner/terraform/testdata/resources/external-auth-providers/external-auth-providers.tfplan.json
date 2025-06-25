@@ -130,7 +130,7 @@
             "type": "coder_external_auth",
             "name": "github",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 0,
+            "schema_version": 1,
             "values": {
               "access_token": "",
               "id": "github",
@@ -144,7 +144,7 @@
             "type": "coder_external_auth",
             "name": "gitlab",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 0,
+            "schema_version": 1,
             "values": {
               "access_token": "",
               "id": "gitlab",
@@ -208,7 +208,7 @@
               "constant_value": "github"
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "data.coder_external_auth.gitlab",
@@ -224,7 +224,7 @@
               "constant_value": true
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         }
       ]
     }

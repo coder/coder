@@ -12,7 +12,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
@@ -27,23 +26,16 @@ func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
 	return d, nil
 }
 
-func WithAgentClient(client *agentsdk.Client) func(*Deps) {
-	return func(d *Deps) {
-		d.agentClient = client
-	}
-}
-
-func WithAppStatusSlug(slug string) func(*Deps) {
-	return func(d *Deps) {
-		d.appStatusSlug = slug
-	}
-}
-
 // Deps provides access to tool dependencies.
 type Deps struct {
-	coderClient   *codersdk.Client
-	agentClient   *agentsdk.Client
-	appStatusSlug string
+	coderClient *codersdk.Client
+	report      func(ReportTaskArgs) error
+}
+
+func WithTaskReporter(fn func(ReportTaskArgs) error) func(*Deps) {
+	return func(d *Deps) {
+		d.report = fn
+	}
 }
 
 // HandlerFunc is a typed function that handles a tool call.
@@ -199,7 +191,7 @@ Bad Tasks
 Use the "state" field to indicate your progress. Periodically report
 progress with state "working" to keep the user updated. It is not possible to send too many updates!
 
-ONLY report a "complete" or "failure" state if you have FULLY completed the task.
+ONLY report an "idle" or "failure" state if you have FULLY completed the task.
 `,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -213,10 +205,10 @@ ONLY report a "complete" or "failure" state if you have FULLY completed the task
 				},
 				"state": map[string]any{
 					"type":        "string",
-					"description": "The state of your task. This can be one of the following: working, complete, or failure. Select the state that best represents your current progress.",
+					"description": "The state of your task. This can be one of the following: working, idle, or failure. Select the state that best represents your current progress.",
 					"enum": []string{
 						string(codersdk.WorkspaceAppStatusStateWorking),
-						string(codersdk.WorkspaceAppStatusStateComplete),
+						string(codersdk.WorkspaceAppStatusStateIdle),
 						string(codersdk.WorkspaceAppStatusStateFailure),
 					},
 				},
@@ -225,22 +217,12 @@ ONLY report a "complete" or "failure" state if you have FULLY completed the task
 		},
 	},
 	UserClientOptional: true,
-	Handler: func(ctx context.Context, deps Deps, args ReportTaskArgs) (codersdk.Response, error) {
-		if deps.agentClient == nil {
-			return codersdk.Response{}, xerrors.New("tool unavailable as CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE not set")
-		}
-		if deps.appStatusSlug == "" {
-			return codersdk.Response{}, xerrors.New("tool unavailable as CODER_MCP_APP_STATUS_SLUG is not set")
-		}
+	Handler: func(_ context.Context, deps Deps, args ReportTaskArgs) (codersdk.Response, error) {
 		if len(args.Summary) > 160 {
 			return codersdk.Response{}, xerrors.New("summary must be less than 160 characters")
 		}
-		if err := deps.agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
-			AppSlug: deps.appStatusSlug,
-			Message: args.Summary,
-			URI:     args.Link,
-			State:   codersdk.WorkspaceAppStatusState(args.State),
-		}); err != nil {
+		err := deps.report(args)
+		if err != nil {
 			return codersdk.Response{}, err
 		}
 		return codersdk.Response{

@@ -1116,7 +1116,6 @@ func TestConfigMaps_updatePeers_nonexist(t *testing.T) {
 		proto.CoordinateResponse_PeerUpdate_DISCONNECTED,
 		proto.CoordinateResponse_PeerUpdate_LOST,
 	} {
-		k := k
 		t.Run(k.String(), func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)

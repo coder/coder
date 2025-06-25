@@ -256,12 +256,20 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				wantArgs:        "read-configuration --include-merged-configuration --workspace-folder /test/workspace",
 				wantError:       false,
 				wantConfig: agentcontainers.DevcontainerConfig{
-					MergedConfiguration: agentcontainers.DevcontainerConfiguration{
-						Customizations: agentcontainers.DevcontainerCustomizations{
-							Coder: &agentcontainers.CoderCustomization{
-								DisplayApps: []codersdk.DisplayApp{
-									codersdk.DisplayAppVSCodeDesktop,
-									codersdk.DisplayAppWebTerminal,
+					MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
+						Customizations: agentcontainers.DevcontainerMergedCustomizations{
+							Coder: []agentcontainers.CoderCustomization{
+								{
+									DisplayApps: map[codersdk.DisplayApp]bool{
+										codersdk.DisplayAppVSCodeDesktop: true,
+										codersdk.DisplayAppWebTerminal:   true,
+									},
+								},
+								{
+									DisplayApps: map[codersdk.DisplayApp]bool{
+										codersdk.DisplayAppVSCodeInsiders: true,
+										codersdk.DisplayAppWebTerminal:    false,
+									},
 								},
 							},
 						},
@@ -276,8 +284,8 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				wantArgs:        "read-configuration --include-merged-configuration --workspace-folder /test/workspace --config /test/config.json",
 				wantError:       false,
 				wantConfig: agentcontainers.DevcontainerConfig{
-					MergedConfiguration: agentcontainers.DevcontainerConfiguration{
-						Customizations: agentcontainers.DevcontainerCustomizations{
+					MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
+						Customizations: agentcontainers.DevcontainerMergedCustomizations{
 							Coder: nil,
 						},
 					},
@@ -308,7 +316,7 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				}
 
 				dccli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
-				config, err := dccli.ReadConfig(ctx, tt.workspaceFolder, tt.configPath, tt.opts...)
+				config, err := dccli.ReadConfig(ctx, tt.workspaceFolder, tt.configPath, []string{}, tt.opts...)
 				if tt.wantError {
 					assert.Error(t, err, "want error")
 					assert.Equal(t, agentcontainers.DevcontainerConfig{}, config, "expected empty config on error")

@@ -209,7 +209,7 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		},
 		ConnectionTimeoutSeconds: takeFirst(orig.ConnectionTimeoutSeconds, 3600),
 		TroubleshootingURL:       takeFirst(orig.TroubleshootingURL, "https://example.com"),
-		MOTDFile:                 takeFirst(orig.TroubleshootingURL, ""),
+		MOTDFile:                 takeFirst(orig.MOTDFile, ""),
 		DisplayApps:              append([]database.DisplayApp{}, orig.DisplayApps...),
 		DisplayOrder:             takeFirst(orig.DisplayOrder, 1),
 		APIKeyScope:              takeFirst(orig.APIKeyScope, database.AgentKeyScopeEnumAll),
@@ -226,7 +226,48 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		})
 		require.NoError(t, err, "update workspace agent first connected at")
 	}
+
+	if orig.ParentID.UUID == uuid.Nil {
+		// Add a test antagonist. For every agent we add a deleted sub agent
+		// to discover cases where deletion should be handled.
+		// See also `(dbfake.WorkspaceBuildBuilder).Do()`.
+		subAgt, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
+			ID:                       uuid.New(),
+			ParentID:                 uuid.NullUUID{UUID: agt.ID, Valid: true},
+			CreatedAt:                dbtime.Now(),
+			UpdatedAt:                dbtime.Now(),
+			Name:                     testutil.GetRandomName(t),
+			ResourceID:               agt.ResourceID,
+			AuthToken:                uuid.New(),
+			AuthInstanceID:           sql.NullString{},
+			Architecture:             agt.Architecture,
+			EnvironmentVariables:     pqtype.NullRawMessage{},
+			OperatingSystem:          agt.OperatingSystem,
+			Directory:                agt.Directory,
+			InstanceMetadata:         pqtype.NullRawMessage{},
+			ResourceMetadata:         pqtype.NullRawMessage{},
+			ConnectionTimeoutSeconds: agt.ConnectionTimeoutSeconds,
+			TroubleshootingURL:       "I AM A TEST ANTAGONIST AND I AM HERE TO MESS UP YOUR TESTS. IF YOU SEE ME, SOMETHING IS WRONG AND SUB AGENT DELETION MAY NOT BE HANDLED CORRECTLY IN A QUERY.",
+			MOTDFile:                 "",
+			DisplayApps:              nil,
+			DisplayOrder:             agt.DisplayOrder,
+			APIKeyScope:              agt.APIKeyScope,
+		})
+		require.NoError(t, err, "insert workspace agent subagent antagonist")
+		err = db.DeleteWorkspaceSubAgentByID(genCtx, subAgt.ID)
+		require.NoError(t, err, "delete workspace agent subagent antagonist")
+
+		t.Logf("inserted deleted subagent antagonist %s (%v) for workspace agent %s (%v)", subAgt.Name, subAgt.ID, agt.Name, agt.ID)
+	}
+
 	return agt
+}
+
+func WorkspaceSubAgent(t testing.TB, db database.Store, parentAgent database.WorkspaceAgent, orig database.WorkspaceAgent) database.WorkspaceAgent {
+	orig.ParentID = uuid.NullUUID{UUID: parentAgent.ID, Valid: true}
+	orig.ResourceID = parentAgent.ResourceID
+	subAgt := WorkspaceAgent(t, db, orig)
+	return subAgt
 }
 
 func WorkspaceAgentScript(t testing.TB, db database.Store, orig database.WorkspaceAgentScript) database.WorkspaceAgentScript {
@@ -349,6 +390,9 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 	t.Helper()
 
 	buildID := takeFirst(orig.ID, uuid.New())
+	jobID := takeFirst(orig.JobID, uuid.New())
+	hasAITask := takeFirst(orig.HasAITask, sql.NullBool{})
+	sidebarAppID := takeFirst(orig.AITaskSidebarAppID, uuid.NullUUID{})
 	var build database.WorkspaceBuild
 	err := db.InTx(func(db database.Store) error {
 		err := db.InsertWorkspaceBuild(genCtx, database.InsertWorkspaceBuildParams{
@@ -360,7 +404,7 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 			BuildNumber:       takeFirst(orig.BuildNumber, 1),
 			Transition:        takeFirst(orig.Transition, database.WorkspaceTransitionStart),
 			InitiatorID:       takeFirst(orig.InitiatorID, uuid.New()),
-			JobID:             takeFirst(orig.JobID, uuid.New()),
+			JobID:             jobID,
 			ProvisionerState:  takeFirstSlice(orig.ProvisionerState, []byte{}),
 			Deadline:          takeFirst(orig.Deadline, dbtime.Now().Add(time.Hour)),
 			MaxDeadline:       takeFirst(orig.MaxDeadline, time.Time{}),
@@ -380,6 +424,15 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 				DailyCost: orig.DailyCost,
 			})
 			require.NoError(t, err)
+		}
+
+		if hasAITask.Valid {
+			require.NoError(t, db.UpdateWorkspaceBuildAITaskByID(genCtx, database.UpdateWorkspaceBuildAITaskByIDParams{
+				HasAITask:    hasAITask,
+				SidebarAppID: sidebarAppID,
+				UpdatedAt:    dbtime.Now(),
+				ID:           buildID,
+			}))
 		}
 
 		build, err = db.GetWorkspaceBuildByID(genCtx, buildID)
@@ -736,7 +789,7 @@ func ProvisionerKey(t testing.TB, db database.Store, orig database.ProvisionerKe
 }
 
 func WorkspaceApp(t testing.TB, db database.Store, orig database.WorkspaceApp) database.WorkspaceApp {
-	resource, err := db.InsertWorkspaceApp(genCtx, database.InsertWorkspaceAppParams{
+	resource, err := db.UpsertWorkspaceApp(genCtx, database.UpsertWorkspaceAppParams{
 		ID:          takeFirst(orig.ID, uuid.New()),
 		CreatedAt:   takeFirst(orig.CreatedAt, dbtime.Now()),
 		AgentID:     takeFirst(orig.AgentID, uuid.New()),
@@ -929,6 +982,8 @@ func ExternalAuthLink(t testing.TB, db database.Store, orig database.ExternalAut
 
 func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVersion) database.TemplateVersion {
 	var version database.TemplateVersion
+	hasAITask := takeFirst(orig.HasAITask, sql.NullBool{})
+	jobID := takeFirst(orig.JobID, uuid.New())
 	err := db.InTx(func(db database.Store) error {
 		versionID := takeFirst(orig.ID, uuid.New())
 		err := db.InsertTemplateVersion(genCtx, database.InsertTemplateVersionParams{
@@ -940,12 +995,20 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 			Name:            takeFirst(orig.Name, testutil.GetRandomName(t)),
 			Message:         orig.Message,
 			Readme:          takeFirst(orig.Readme, testutil.GetRandomName(t)),
-			JobID:           takeFirst(orig.JobID, uuid.New()),
+			JobID:           jobID,
 			CreatedBy:       takeFirst(orig.CreatedBy, uuid.New()),
 			SourceExampleID: takeFirst(orig.SourceExampleID, sql.NullString{}),
 		})
 		if err != nil {
 			return err
+		}
+
+		if hasAITask.Valid {
+			require.NoError(t, db.UpdateTemplateVersionAITaskByJobID(genCtx, database.UpdateTemplateVersionAITaskByJobIDParams{
+				JobID:     jobID,
+				HasAITask: hasAITask,
+				UpdatedAt: dbtime.Now(),
+			}))
 		}
 
 		version, err = db.GetTemplateVersionByID(genCtx, versionID)
@@ -1259,9 +1322,21 @@ func Preset(t testing.TB, db database.Store, seed database.InsertPresetParams) d
 		CreatedAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
 		DesiredInstances:    seed.DesiredInstances,
 		InvalidateAfterSecs: seed.InvalidateAfterSecs,
+		SchedulingTimezone:  seed.SchedulingTimezone,
+		IsDefault:           seed.IsDefault,
 	})
 	require.NoError(t, err, "insert preset")
 	return preset
+}
+
+func PresetPrebuildSchedule(t testing.TB, db database.Store, seed database.InsertPresetPrebuildScheduleParams) database.TemplateVersionPresetPrebuildSchedule {
+	schedule, err := db.InsertPresetPrebuildSchedule(genCtx, database.InsertPresetPrebuildScheduleParams{
+		PresetID:         takeFirst(seed.PresetID, uuid.New()),
+		CronExpression:   takeFirst(seed.CronExpression, "* 9-18 * * 1-5"),
+		DesiredInstances: takeFirst(seed.DesiredInstances, 1),
+	})
+	require.NoError(t, err, "insert preset prebuild schedule")
+	return schedule
 }
 
 func PresetParameter(t testing.TB, db database.Store, seed database.InsertPresetParametersParams) []database.TemplateVersionPresetParameter {
