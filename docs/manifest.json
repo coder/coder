@@ -1774,8 +1774,7 @@
 		},
 		{
 			"title": "Coder Registry",
-			"description": "The Coder Registry is a collection of Templates and Modules used
-to create and extend Coder workspaces.",
+			"description": "A collection of Templates and Modules used to create and extend Coder workspaces.",
 			"path": "https://registry.coder.com"
 		}
 	]
