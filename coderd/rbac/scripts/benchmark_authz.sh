@@ -18,8 +18,8 @@ set -euo pipefail
 # Go benchmark parameters
 GOMAXPROCS=16
 TIMEOUT=30m
-BENCHTIME=1s # TODO: add 5s
-COUNT=1      # TODO: add 5
+BENCHTIME=5s
+COUNT=5
 
 # Script configuration
 OUTPUT_DIR="benchmark_outputs"
@@ -46,7 +46,7 @@ function run_benchmarks() {
 	for bench in "${BENCHMARKS[@]}"; do
 		local output_file="${output_file_prefix}_${bench}.txt"
 		echo "Running benchmark $bench on $branch..."
-		GOMAXPROCS=$GOMAXPROCS go test -timeout $TIMEOUT -bench="^${bench}$" -run=^$ -benchtime=$BENCHTIME -count=$COUNT ./.. | tee "$output_file"
+		GOMAXPROCS=$GOMAXPROCS go test -timeout $TIMEOUT -bench="^${bench}$" -run=^$ -benchtime=$BENCHTIME -count=$COUNT | tee "$output_file"
 	done
 }
 
