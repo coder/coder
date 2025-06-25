@@ -230,3 +230,42 @@ export const AllBadges: Story = {
 		isPreset: true,
 	},
 };
+
+export const MaskedInput: Story = {
+	args: {
+		parameter: {
+			...MockPreviewParameter,
+			form_type: "input",
+			styling: {
+				...MockPreviewParameter.styling,
+				mask_input: true,
+			},
+		},
+	},
+};
+
+export const MaskedTextArea: Story = {
+	args: {
+		parameter: {
+			...MockPreviewParameter,
+			form_type: "textarea",
+			styling: {
+				...MockPreviewParameter.styling,
+				mask_input: true,
+			},
+		},
+	},
+};
+
+export const MaskedInputWithPlaceholder: Story = {
+	args: {
+		parameter: {
+			...MockPreviewParameter,
+			form_type: "input",
+			styling: {
+				placeholder: "Enter your secret value",
+				mask_input: true,
+			},
+		},
+	},
+};

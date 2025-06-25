@@ -5,6 +5,7 @@ import type {
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
 import { Badge } from "components/Badge/Badge";
+import { Button } from "components/Button/Button";
 import { Checkbox } from "components/Checkbox/Checkbox";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Input } from "components/Input/Input";
@@ -36,6 +37,8 @@ import { useDebouncedValue } from "hooks/debounce";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import {
 	CircleAlert,
+	Eye,
+	EyeOff,
 	Hourglass,
 	Info,
 	LinkIcon,
@@ -265,6 +268,12 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 	const [localValue, setLocalValue] = useState(
 		value !== undefined ? value : validValue(parameter.value),
 	);
+	const [showMaskedInput, setShowMaskedInput] = useState(false);
+
+	// Helper function to mask all characters with *
+	const maskValue = (val: string): string => {
+		return "*".repeat(val.length);
+	};
 	const debouncedLocalValue = useDebouncedValue(localValue, 500);
 	const onChangeEvent = useEffectEvent(onChange);
 	// prevDebouncedValueRef is to prevent calling the onChangeEvent on the initial render
@@ -308,23 +317,44 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 
 	switch (parameter.form_type) {
 		case "textarea": {
-			return (
-				<Textarea
-					ref={textareaRef}
-					id={id}
-					className="overflow-y-auto max-h-[500px]"
-					value={localValue}
-					onChange={(e) => {
-						const target = e.currentTarget;
-						target.style.height = "auto";
-						target.style.height = `${target.scrollHeight}px`;
+			const shouldMask = parameter.styling?.mask_input && !showMaskedInput;
+			const displayValue = shouldMask ? maskValue(localValue) : localValue;
 
-						setLocalValue(e.target.value);
-					}}
-					disabled={disabled}
-					placeholder={parameter.styling?.placeholder}
-					required={parameter.required}
-				/>
+			return (
+				<div className="relative">
+					<Textarea
+						ref={textareaRef}
+						id={id}
+						className="overflow-y-auto max-h-[500px]"
+						value={displayValue}
+						onChange={(e) => {
+							const target = e.currentTarget;
+							target.style.height = "auto";
+							target.style.height = `${target.scrollHeight}px`;
+
+							setLocalValue(e.target.value);
+						}}
+						disabled={disabled}
+						placeholder={parameter.styling?.placeholder}
+						required={parameter.required}
+					/>
+					{parameter.styling?.mask_input && (
+						<Button
+							type="button"
+							variant="subtle"
+							size="sm"
+							className="absolute top-2 right-2 h-6 w-6 p-0"
+							onClick={() => setShowMaskedInput(!showMaskedInput)}
+							disabled={disabled}
+						>
+							{showMaskedInput ? (
+								<EyeOff className="h-4 w-4" />
+							) : (
+								<Eye className="h-4 w-4" />
+							)}
+						</Button>
+					)}
+				</div>
 			);
 		}
 
@@ -345,19 +375,43 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 				}
 			}
 
+			const shouldMask =
+				parameter.styling?.mask_input &&
+				!showMaskedInput &&
+				parameter.type !== "number";
+			const displayValue = shouldMask ? maskValue(localValue) : localValue;
+
 			return (
-				<Input
-					id={id}
-					type={inputType}
-					value={localValue}
-					onChange={(e) => {
-						setLocalValue(e.target.value);
-					}}
-					disabled={disabled}
-					required={parameter.required}
-					placeholder={parameter.styling?.placeholder}
-					{...inputProps}
-				/>
+				<div className="relative">
+					<Input
+						id={id}
+						type={inputType}
+						value={displayValue}
+						onChange={(e) => {
+							setLocalValue(e.target.value);
+						}}
+						disabled={disabled}
+						required={parameter.required}
+						placeholder={parameter.styling?.placeholder}
+						{...inputProps}
+					/>
+					{parameter.styling?.mask_input && parameter.type !== "number" && (
+						<Button
+							type="button"
+							variant="subtle"
+							size="sm"
+							className="absolute top-1/2 right-2 h-6 w-6 p-0 -translate-y-1/2"
+							onClick={() => setShowMaskedInput(!showMaskedInput)}
+							disabled={disabled}
+						>
+							{showMaskedInput ? (
+								<EyeOff className="h-4 w-4" />
+							) : (
+								<Eye className="h-4 w-4" />
+							)}
+						</Button>
+					)}
+				</div>
 			);
 		}
 	}
@@ -450,9 +504,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 
 			return (
 				<MultiSelectCombobox
-					inputProps={{
-						id: id,
-					}}
+					inputProps={{ id }}
 					options={options}
 					defaultOptions={selectedOptions}
 					onChange={(newValues) => {

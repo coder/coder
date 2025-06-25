@@ -75,6 +75,8 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // TODO: replace once we cut release.
 replace github.com/coder/terraform-provider-coder/v2 => github.com/coder/terraform-provider-coder/v2 v2.7.1-0.20250623193313-e890833351e2
 
+replace github.com/coder/preview => github.com/coder/preview v1.0.2-0.20250625231609-10623f47565b
+
 require (
 	cdr.dev/slog v1.6.2-0.20241112041820-0ec81e6e67bb
 	cloud.google.com/go/compute/metadata v0.7.0
