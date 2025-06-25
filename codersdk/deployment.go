@@ -383,7 +383,6 @@ type DeploymentValues struct {
 	DisablePasswordAuth             serpent.Bool                         `json:"disable_password_auth,omitempty" typescript:",notnull"`
 	Support                         SupportConfig                        `json:"support,omitempty" typescript:",notnull"`
 	ExternalAuthConfigs             serpent.Struct[[]ExternalAuthConfig] `json:"external_auth,omitempty" typescript:",notnull"`
-	AI                              serpent.Struct[AIConfig]             `json:"ai,omitempty" typescript:",notnull"`
 	SSHConfig                       SSHConfig                            `json:"config_ssh,omitempty" typescript:",notnull"`
 	WgtunnelHost                    serpent.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
 	DisableOwnerWorkspaceExec       serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
@@ -2682,15 +2681,6 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:      false,
 		},
 		{
-			// Env handling is done in cli.ReadAIProvidersFromEnv
-			Name:        "AI",
-			Description: "Configure AI providers.",
-			YAML:        "ai",
-			Value:       &c.AI,
-			// Hidden because this is experimental.
-			Hidden: true,
-		},
-		{
 			// Env handling is done in cli.ReadGitAuthFromEnvironment
 			Name:        "External Auth Providers",
 			Description: "External Authentication providers.",
@@ -3132,21 +3122,6 @@ Write out the current server config as YAML to stdout.`,
 	return opts
 }
 
-type AIProviderConfig struct {
-	// Type is the type of the API provider.
-	Type string `json:"type" yaml:"type"`
-	// APIKey is the API key to use for the API provider.
-	APIKey string `json:"-" yaml:"api_key"`
-	// Models is the list of models to use for the API provider.
-	Models []string `json:"models" yaml:"models"`
-	// BaseURL is the base URL to use for the API provider.
-	BaseURL string `json:"base_url" yaml:"base_url"`
-}
-
-type AIConfig struct {
-	Providers []AIProviderConfig `json:"providers,omitempty" yaml:"providers,omitempty"`
-}
-
 type SupportConfig struct {
 	Links serpent.Struct[[]LinkConfig] `json:"links" typescript:",notnull"`
 }
@@ -3368,7 +3343,6 @@ const (
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
 	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
-	ExperimentAgenticChat        Experiment = "agentic-chat"         // Enables the new agentic AI chat feature.
 )
 
 // ExperimentsKnown should include all experiments defined above.
@@ -3379,7 +3353,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceUsage,
 	ExperimentWebPush,
 	ExperimentWorkspacePrebuilds,
-	ExperimentAgenticChat,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
@@ -3595,32 +3568,6 @@ func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error
 
 	var sshConfig SSHConfigResponse
 	return sshConfig, json.NewDecoder(res.Body).Decode(&sshConfig)
-}
-
-type LanguageModelConfig struct {
-	Models []LanguageModel `json:"models"`
-}
-
-// LanguageModel is a language model that can be used for chat.
-type LanguageModel struct {
-	// ID is used by the provider to identify the LLM.
-	ID          string `json:"id"`
-	DisplayName string `json:"display_name"`
-	// Provider is the provider of the LLM. e.g. openai, anthropic, etc.
-	Provider string `json:"provider"`
-}
-
-func (c *Client) LanguageModelConfig(ctx context.Context) (LanguageModelConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/llms", nil)
-	if err != nil {
-		return LanguageModelConfig{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return LanguageModelConfig{}, ReadBodyAsError(res)
-	}
-	var llms LanguageModelConfig
-	return llms, json.NewDecoder(res.Body).Decode(&llms)
 }
 
 type CryptoKeyFeature string

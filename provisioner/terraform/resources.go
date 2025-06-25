@@ -178,7 +178,9 @@ func hasAITaskResources(graph *gographviz.Graph) bool {
 		// Check if this node is a coder_ai_task resource
 		if label, exists := node.Attrs["label"]; exists {
 			labelValue := strings.Trim(label, `"`)
-			if strings.HasPrefix(labelValue, "coder_ai_task.") {
+			// The first condition is for the case where the resource is in the root module.
+			// The second condition is for the case where the resource is in a child module.
+			if strings.HasPrefix(labelValue, "coder_ai_task.") || strings.Contains(labelValue, ".coder_ai_task.") {
 				return true
 			}
 		}

@@ -2,10 +2,10 @@ package agentcontainers
 
 import (
 	"context"
+	"fmt"
 	"os/exec"
 	"runtime"
-
-	"github.com/kballard/go-shellquote"
+	"strings"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/agentexec"
@@ -56,7 +56,10 @@ func (e *commandEnvExecer) prepare(ctx context.Context, inName string, inArgs ..
 		caller = "/c"
 	}
 	name = shell
-	args = []string{caller, shellquote.Join(append([]string{inName}, inArgs...)...)}
+	for _, arg := range append([]string{inName}, inArgs...) {
+		args = append(args, fmt.Sprintf("%q", arg))
+	}
+	args = []string{caller, strings.Join(args, " ")}
 	return name, args, dir, env
 }
 
