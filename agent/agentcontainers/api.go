@@ -958,7 +958,7 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 	dc, found := api.knownDevcontainers[workspaceFolder]
 	if !found {
 		api.mu.Unlock()
-		return xerrors.Errorf("no devcontainer found")
+		return xerrors.Errorf("devcontainer not found")
 	}
 
 	api.asyncWg.Add(1)
