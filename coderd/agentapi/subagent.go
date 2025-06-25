@@ -2,10 +2,11 @@ package agentapi
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/base32"
 	"errors"
 	"fmt"
-	"hash/crc32"
 	"strings"
 
 	"github.com/google/uuid"
@@ -171,8 +172,9 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 			// there is no database-layer enforcement of this constraint.
 			// We can get around this by creating a slug that *should* be
 			// unique (at least highly probable).
-			slugHash := fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte(subAgent.Name+"/"+app.Slug)))
-			computedSlug := slugHash + "-" + app.Slug
+			slugHash := sha256.Sum256([]byte(subAgent.Name + "/" + app.Slug))
+			slugHashEnc := base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString(slugHash[:])
+			computedSlug := strings.ToLower(slugHashEnc[:8]) + "-" + app.Slug
 
 			_, err := a.Database.UpsertWorkspaceApp(ctx, database.UpsertWorkspaceAppParams{
 				ID:          uuid.New(), // NOTE: we may need to maintain the app's ID here for stability, but for now we'll leave this as-is.
