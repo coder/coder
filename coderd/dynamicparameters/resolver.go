@@ -67,7 +67,7 @@ func ResolveParameters(
 	//
 	// This is how the form should look to the user on their workspace settings page.
 	// This is the original form truth that our validations should initially be based on.
-	output, diags := renderer.Render(ctx, ownerID, values.ValuesMap())
+	output, diags := renderer.Render(ctx, ownerID, previousValuesMap)
 	if diags.HasErrors() {
 		// Top level diagnostics should break the build. Previous values (and new) should
 		// always be valid. If there is a case where this is not true, then this has to
@@ -81,6 +81,7 @@ func ResolveParameters(
 	//
 	// To enforce these, the user's input values are trimmed based on the
 	// mutability and ephemeral parameters defined in the template version.
+	wasImmutable := make(map[string]struct{})
 	for _, parameter := range output.Parameters {
 		// Ephemeral parameters should not be taken from the previous build.
 		// They must always be explicitly set in every build.
@@ -98,6 +99,7 @@ func ResolveParameters(
 		//
 		// We do this so the next form render uses the original immutable value.
 		if !firstBuild && !parameter.Mutable {
+			wasImmutable[parameter.Name] = struct{}{}
 			delete(values, parameter.Name)
 			prev, ok := previousValuesMap[parameter.Name]
 			if ok {
@@ -123,7 +125,12 @@ func ResolveParameters(
 	for _, parameter := range output.Parameters {
 		parameterNames[parameter.Name] = struct{}{}
 
-		if !firstBuild && !parameter.Mutable {
+		// Immutability is sourced from the current `mutable` argument, and also the
+		// previous parameter's `mutable` argument. This means you cannot flip an
+		// `immutable` parameter to `mutable` in a single build. This is to preserve the
+		// original mutability of the parameter.
+		_, wi := wasImmutable[parameter.Name]
+		if !firstBuild && (!parameter.Mutable || wi) {
 			originalValue, ok := originalValues[parameter.Name]
 			// Immutable parameters should not be changed after the first build.
 			// If the value matches the original value, that is fine.
@@ -137,13 +144,19 @@ func ResolveParameters(
 				if parameter.Source != nil {
 					src = &parameter.Source.HCLBlock().TypeRange
 				}
+				errTitle := "Immutable"
+				// In the strange case someone flips mutability from `true` to `false`.
+				// Change the error title to indicate that this was previously immutable.
+				if wi && parameter.Mutable {
+					errTitle = "Previously immutable"
+				}
 
 				// An immutable parameter was changed, which is not allowed.
 				// Add a failed diagnostic to the output.
 				parameterError.Extend(parameter.Name, hcl.Diagnostics{
 					&hcl.Diagnostic{
 						Severity: hcl.DiagError,
-						Summary:  "Immutable parameter changed",
+						Summary:  fmt.Sprintf("%s parameter changed", errTitle),
 						Detail:   fmt.Sprintf("Parameter %q is not mutable, so it can't be updated after creating a workspace.", parameter.Name),
 						Subject:  src,
 					},

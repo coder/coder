@@ -357,6 +357,7 @@ func TestDynamicParameterBuild(t *testing.T) {
 		t.Run("ImmutableChangeValue", func(t *testing.T) {
 			// Ok this is a weird test to document how things are working.
 			// What if a parameter flips it's immutability based on a value?
+			// The current behavior is to source immutability from the previous build.
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitShort)
@@ -378,15 +379,14 @@ func TestDynamicParameterBuild(t *testing.T) {
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, wrk.LatestBuild.ID)
 
 			// Try new values
-			bld, err := templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+			_, err = templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStart,
 				RichParameterValues: []codersdk.WorkspaceBuildParameter{
 					{Name: "isimmutable", Value: "false"},
 					{Name: "immutable", Value: "not-coder"},
 				},
 			})
-			require.NoError(t, err)
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, bld.ID)
+			require.ErrorContains(t, err, `Previously immutable parameter changed`)
 		})
 	})
 }
