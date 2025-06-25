@@ -64,6 +64,38 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		filter.Username = ""
 	}
 
+	// Use the same filters to count the number of audit logs
+	count, err := api.Database.CountAuditLogs(ctx, database.CountAuditLogsParams{
+		ResourceType:   filter.ResourceType,
+		ResourceID:     filter.ResourceID,
+		OrganizationID: filter.OrganizationID,
+		ResourceTarget: filter.ResourceTarget,
+		Action:         filter.Action,
+		UserID:         filter.UserID,
+		Username:       filter.Username,
+		Email:          filter.Email,
+		DateFrom:       filter.DateFrom,
+		DateTo:         filter.DateTo,
+		BuildReason:    filter.BuildReason,
+		RequestID:      filter.RequestID,
+	})
+	if dbauthz.IsNotAuthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	// If count is 0, then we don't need to query audit logs
+	if count == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
+			AuditLogs: []codersdk.AuditLog{},
+			Count:     0,
+		})
+		return
+	}
+
 	dblogs, err := api.Database.GetAuditLogsOffset(ctx, filter)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
@@ -73,19 +105,10 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	// GetAuditLogsOffset does not return ErrNoRows because it uses a window function to get the count.
-	// So we need to check if the dblogs is empty and return an empty array if so.
-	if len(dblogs) == 0 {
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
-			AuditLogs: []codersdk.AuditLog{},
-			Count:     0,
-		})
-		return
-	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
 		AuditLogs: api.convertAuditLogs(ctx, dblogs),
-		Count:     dblogs[0].Count,
+		Count:     count,
 	})
 }
 

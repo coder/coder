@@ -441,128 +441,247 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 	return err
 }
 
-const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many
-SELECT
-    audit_logs.id, audit_logs.time, audit_logs.user_id, audit_logs.organization_id, audit_logs.ip, audit_logs.user_agent, audit_logs.resource_type, audit_logs.resource_id, audit_logs.resource_target, audit_logs.action, audit_logs.diff, audit_logs.status_code, audit_logs.additional_fields, audit_logs.request_id, audit_logs.resource_icon,
-    -- sqlc.embed(users) would be nice but it does not seem to play well with
-    -- left joins.
-    users.username AS user_username,
-    users.name AS user_name,
-    users.email AS user_email,
-    users.created_at AS user_created_at,
-    users.updated_at AS user_updated_at,
-    users.last_seen_at AS user_last_seen_at,
-    users.status AS user_status,
-    users.login_type AS user_login_type,
-    users.rbac_roles AS user_roles,
-    users.avatar_url AS user_avatar_url,
-    users.deleted AS user_deleted,
-    users.quiet_hours_schedule AS user_quiet_hours_schedule,
-    COALESCE(organizations.name, '') AS organization_name,
-    COALESCE(organizations.display_name, '') AS organization_display_name,
-    COALESCE(organizations.icon, '') AS organization_icon,
-    COUNT(audit_logs.*) OVER () AS count
-FROM
-    audit_logs
-    LEFT JOIN users ON audit_logs.user_id = users.id
-    LEFT JOIN
-        -- First join on workspaces to get the initial workspace create
-        -- to workspace build 1 id. This is because the first create is
-        -- is a different audit log than subsequent starts.
-        workspaces ON
-		    audit_logs.resource_type = 'workspace' AND
-			audit_logs.resource_id = workspaces.id
-    LEFT JOIN
-	    workspace_builds ON
-            -- Get the reason from the build if the resource type
-            -- is a workspace_build
-            (
-			    audit_logs.resource_type = 'workspace_build'
-                AND audit_logs.resource_id = workspace_builds.id
-			)
-            OR
-            -- Get the reason from the build #1 if this is the first
-            -- workspace create.
-            (
-				audit_logs.resource_type = 'workspace' AND
-				audit_logs.action = 'create' AND
-				workspaces.id = workspace_builds.workspace_id AND
-				workspace_builds.build_number = 1
-			)
-		LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
+const countAuditLogs = `-- name: CountAuditLogs :one
+SELECT COUNT(*)
+FROM audit_logs
+		 LEFT JOIN users ON audit_logs.user_id = users.id
+		 LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
+	-- First join on workspaces to get the initial workspace create
+	-- to workspace build 1 id. This is because the first create is
+	-- is a different audit log than subsequent starts.
+		 LEFT JOIN workspaces ON
+	audit_logs.resource_type = 'workspace' AND
+	audit_logs.resource_id = workspaces.id
+	-- Get the reason from the build if the resource type
+	-- is a workspace_build
+		 LEFT JOIN workspace_builds wb_build ON
+	audit_logs.resource_type = 'workspace_build' AND
+	audit_logs.resource_id = wb_build.id
+	-- Get the reason from the build #1 if this is the first
+	-- workspace create.
+		 LEFT JOIN workspace_builds wb_workspace ON
+	audit_logs.resource_type = 'workspace' AND
+	audit_logs.action = 'create' AND
+	workspaces.id = wb_workspace.workspace_id AND
+	wb_workspace.build_number = 1
 WHERE
-    -- Filter resource_type
+  -- Filter resource_type
 	CASE
-		WHEN $1 :: text != '' THEN
-			resource_type = $1 :: resource_type
+		WHEN $1 :: text != '' THEN resource_type = $1 :: resource_type
 		ELSE true
+		END
+  -- Filter resource_id
+  AND CASE
+		  WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN resource_id = $2
+		  ELSE true
 	END
-	-- Filter resource_id
-	AND CASE
-		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			resource_id = $2
-		ELSE true
+  -- Filter organization_id
+  AND CASE
+		  WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.organization_id = $3
+		  ELSE true
 	END
-  	-- Filter organization_id
-  	AND CASE
-		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			audit_logs.organization_id = $3
-		ELSE true
+  -- Filter by resource_target
+  AND CASE
+		  WHEN $4 :: text != '' THEN resource_target = $4
+		  ELSE true
 	END
-	-- Filter by resource_target
-	AND CASE
-		WHEN $4 :: text != '' THEN
-			resource_target = $4
-		ELSE true
-	END
-	-- Filter action
-	AND CASE
-		WHEN $5 :: text != '' THEN
-			action = $5 :: audit_action
-		ELSE true
-	END
+  -- Filter action
+  AND CASE
+		  WHEN $5 :: text != '' THEN
+	action = $5 :: audit_action
+	ELSE true
+END
 	-- Filter by user_id
-	AND CASE
+AND CASE
 		WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			user_id = $6
 		ELSE true
-	END
+END
 	-- Filter by username
-	AND CASE
+AND CASE
 		WHEN $7 :: text != '' THEN
 			user_id = (SELECT id FROM users WHERE lower(username) = lower($7) AND deleted = false)
 		ELSE true
-	END
+END
 	-- Filter by user_email
-	AND CASE
+AND CASE
 		WHEN $8 :: text != '' THEN
 			users.email = $8
 		ELSE true
-	END
+END
 	-- Filter by date_from
-	AND CASE
+AND CASE
 		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
 			"time" >= $9
 		ELSE true
-	END
+END
 	-- Filter by date_to
-	AND CASE
+AND CASE
 		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
 			"time" <= $10
 		ELSE true
-	END
+END
     -- Filter by build_reason
-    AND CASE
+AND CASE
 	    WHEN $11::text != '' THEN
-            workspace_builds.reason::text = $11
+            COALESCE(wb_build.reason::text, wb_workspace.reason::text)  = $11
         ELSE true
-    END
+END
 	-- Filter request_id
-	AND CASE
+AND CASE
 		WHEN $12 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			audit_logs.request_id = $12
 		ELSE true
+END
+
+	-- Authorize Filter clause will be injected below in CountAuthorizedAuditLogs
+	-- @authorize_filter
+`
+
+type CountAuditLogsParams struct {
+	ResourceType   string    `db:"resource_type" json:"resource_type"`
+	ResourceID     uuid.UUID `db:"resource_id" json:"resource_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ResourceTarget string    `db:"resource_target" json:"resource_target"`
+	Action         string    `db:"action" json:"action"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	Username       string    `db:"username" json:"username"`
+	Email          string    `db:"email" json:"email"`
+	DateFrom       time.Time `db:"date_from" json:"date_from"`
+	DateTo         time.Time `db:"date_to" json:"date_to"`
+	BuildReason    string    `db:"build_reason" json:"build_reason"`
+	RequestID      uuid.UUID `db:"request_id" json:"request_id"`
+}
+
+func (q *sqlQuerier) CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAuditLogs,
+		arg.ResourceType,
+		arg.ResourceID,
+		arg.OrganizationID,
+		arg.ResourceTarget,
+		arg.Action,
+		arg.UserID,
+		arg.Username,
+		arg.Email,
+		arg.DateFrom,
+		arg.DateTo,
+		arg.BuildReason,
+		arg.RequestID,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many
+SELECT audit_logs.id, audit_logs.time, audit_logs.user_id, audit_logs.organization_id, audit_logs.ip, audit_logs.user_agent, audit_logs.resource_type, audit_logs.resource_id, audit_logs.resource_target, audit_logs.action, audit_logs.diff, audit_logs.status_code, audit_logs.additional_fields, audit_logs.request_id, audit_logs.resource_icon,
+	   -- sqlc.embed(users) would be nice but it does not seem to play well with
+	   -- left joins.
+	   users.username                           AS user_username,
+	   users.name                               AS user_name,
+	   users.email                              AS user_email,
+	   users.created_at                         AS user_created_at,
+	   users.updated_at                         AS user_updated_at,
+	   users.last_seen_at                       AS user_last_seen_at,
+	   users.status                             AS user_status,
+	   users.login_type                         AS user_login_type,
+	   users.rbac_roles                         AS user_roles,
+	   users.avatar_url                         AS user_avatar_url,
+	   users.deleted                            AS user_deleted,
+	   users.quiet_hours_schedule               AS user_quiet_hours_schedule,
+	   COALESCE(organizations.name, '')         AS organization_name,
+	   COALESCE(organizations.display_name, '') AS organization_display_name,
+	   COALESCE(organizations.icon, '')         AS organization_icon
+FROM audit_logs
+		 LEFT JOIN users ON audit_logs.user_id = users.id
+		 LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
+	-- First join on workspaces to get the initial workspace create
+	-- to workspace build 1 id. This is because the first create is
+	-- is a different audit log than subsequent starts.
+		 LEFT JOIN workspaces ON
+	audit_logs.resource_type = 'workspace' AND
+	audit_logs.resource_id = workspaces.id
+	-- Get the reason from the build if the resource type
+	-- is a workspace_build
+		 LEFT JOIN workspace_builds wb_build ON
+	audit_logs.resource_type = 'workspace_build' AND
+	audit_logs.resource_id = wb_build.id
+	-- Get the reason from the build #1 if this is the first
+	-- workspace create.
+		 LEFT JOIN workspace_builds wb_workspace ON
+	audit_logs.resource_type = 'workspace' AND
+	audit_logs.action = 'create' AND
+	workspaces.id = wb_workspace.workspace_id AND
+	wb_workspace.build_number = 1
+WHERE
+  -- Filter resource_type
+	CASE
+		WHEN $1 :: text != '' THEN resource_type = $1 :: resource_type
+		ELSE true
+		END
+  -- Filter resource_id
+  AND CASE
+		  WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN resource_id = $2
+		  ELSE true
 	END
+  -- Filter organization_id
+  AND CASE
+		  WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.organization_id = $3
+		  ELSE true
+	END
+  -- Filter by resource_target
+  AND CASE
+		  WHEN $4 :: text != '' THEN resource_target = $4
+		  ELSE true
+	END
+  -- Filter action
+  AND CASE
+		  WHEN $5 :: text != '' THEN
+	action = $5 :: audit_action
+	ELSE true
+END
+	-- Filter by user_id
+AND CASE
+		WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = $6
+		ELSE true
+END
+	-- Filter by username
+AND CASE
+		WHEN $7 :: text != '' THEN
+			user_id = (SELECT id FROM users WHERE lower(username) = lower($7) AND deleted = false)
+		ELSE true
+END
+	-- Filter by user_email
+AND CASE
+		WHEN $8 :: text != '' THEN
+			users.email = $8
+		ELSE true
+END
+	-- Filter by date_from
+AND CASE
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" >= $9
+		ELSE true
+END
+	-- Filter by date_to
+AND CASE
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" <= $10
+		ELSE true
+END
+    -- Filter by build_reason
+AND CASE
+	    WHEN $11::text != '' THEN
+            COALESCE(wb_build.reason::text, wb_workspace.reason::text) = $11
+        ELSE true
+END
+	-- Filter request_id
+AND CASE
+		WHEN $12 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			audit_logs.request_id = $12
+		ELSE true
+END
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedAuditLogsOffset
 	-- @authorize_filter
@@ -611,7 +730,6 @@ type GetAuditLogsOffsetRow struct {
 	OrganizationName        string         `db:"organization_name" json:"organization_name"`
 	OrganizationDisplayName string         `db:"organization_display_name" json:"organization_display_name"`
 	OrganizationIcon        string         `db:"organization_icon" json:"organization_icon"`
-	Count                   int64          `db:"count" json:"count"`
 }
 
 // GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
@@ -671,7 +789,6 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 			&i.OrganizationName,
 			&i.OrganizationDisplayName,
 			&i.OrganizationIcon,
-			&i.Count,
 		); err != nil {
 			return nil, err
 		}
@@ -687,26 +804,22 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 }
 
 const insertAuditLog = `-- name: InsertAuditLog :one
-INSERT INTO
-	audit_logs (
-        id,
-        "time",
-        user_id,
-        organization_id,
-        ip,
-        user_agent,
-        resource_type,
-        resource_id,
-        resource_target,
-        action,
-        diff,
-        status_code,
-        additional_fields,
-        request_id,
-        resource_icon
-    )
-VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, time, user_id, organization_id, ip, user_agent, resource_type, resource_id, resource_target, action, diff, status_code, additional_fields, request_id, resource_icon
+INSERT INTO audit_logs (id,
+						"time",
+						user_id,
+						organization_id,
+						ip,
+						user_agent,
+						resource_type,
+						resource_id,
+						resource_target,
+						action,
+						diff,
+						status_code,
+						additional_fields,
+						request_id,
+						resource_icon)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, time, user_id, organization_id, ip, user_agent, resource_type, resource_id, resource_target, action, diff, status_code, additional_fields, request_id, resource_icon
 `
 
 type InsertAuditLogParams struct {

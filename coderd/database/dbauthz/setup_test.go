@@ -271,7 +271,7 @@ func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderd
 
 		// This is unfortunate, but if we are using `Filter` the error returned will be nil. So filter out
 		// any case where the error is nil and the response is an empty slice.
-		if err != nil || !hasEmptySliceResponse(resp) {
+		if err != nil || !hasEmptyResponse(resp) {
 			// Expect the default error
 			if testCase.notAuthorizedExpect == "" {
 				s.ErrorContainsf(err, "unauthorized", "error string should have a good message")
@@ -297,7 +297,7 @@ func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderd
 
 		// This is unfortunate, but if we are using `Filter` the error returned will be nil. So filter out
 		// any case where the error is nil and the response is an empty slice.
-		if err != nil || !hasEmptySliceResponse(resp) {
+		if err != nil || !hasEmptyResponse(resp) {
 			if testCase.cancelledCtxExpect == "" {
 				s.Errorf(err, "method should an error with cancellation")
 				s.ErrorIsf(err, context.Canceled, "error should match context.Canceled")
@@ -308,10 +308,17 @@ func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderd
 	})
 }
 
-func hasEmptySliceResponse(values []reflect.Value) bool {
+func hasEmptyResponse(values []reflect.Value) bool {
 	for _, r := range values {
 		if r.Kind() == reflect.Slice || r.Kind() == reflect.Array {
 			if r.Len() == 0 {
+				return true
+			}
+		}
+
+		// Special case for int64, as it's the return type for count query.
+		if r.Kind() == reflect.Int64 {
+			if r.Int() == 0 {
 				return true
 			}
 		}
