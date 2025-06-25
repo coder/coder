@@ -437,6 +437,7 @@ func TestAPI(t *testing.T) {
 					agentcontainers.WithContainerCLI(mLister),
 					agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
 				)
+				api.Init()
 				defer api.Close()
 				r.Mount("/", api.Routes())
 
@@ -614,6 +615,7 @@ func TestAPI(t *testing.T) {
 					agentcontainers.WithDevcontainerCLI(tt.devcontainerCLI),
 					agentcontainers.WithWatcher(watcher.NewNoop()),
 				)
+				api.Init()
 				defer api.Close()
 				r.Mount("/", api.Routes())
 
@@ -1010,6 +1012,7 @@ func TestAPI(t *testing.T) {
 				apiOptions := []agentcontainers.Option{
 					agentcontainers.WithClock(mClock),
 					agentcontainers.WithContainerCLI(tt.lister),
+					agentcontainers.WithDevcontainerCLI(&fakeDevcontainerCLI{}),
 					agentcontainers.WithWatcher(watcher.NewNoop()),
 				}
 
@@ -1027,6 +1030,7 @@ func TestAPI(t *testing.T) {
 				}
 
 				api := agentcontainers.NewAPI(logger, apiOptions...)
+				api.Init()
 				defer api.Close()
 
 				r.Mount("/", api.Routes())
@@ -1037,6 +1041,11 @@ func TestAPI(t *testing.T) {
 				// before advancing the clock.
 				tickerTrap.MustWait(ctx).MustRelease(ctx)
 				tickerTrap.Close()
+
+				for _, dc := range tt.knownDevcontainers {
+					err := api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath)
+					require.NoError(t, err)
+				}
 
 				// Advance the clock to run the updater loop.
 				_, aw := mClock.AdvanceNext()
@@ -1111,6 +1120,7 @@ func TestAPI(t *testing.T) {
 				[]codersdk.WorkspaceAgentScript{{LogSourceID: uuid.New(), ID: dc.ID}},
 			),
 		)
+		api.Init()
 		defer api.Close()
 
 		// Make sure the ticker function has been registered
@@ -1206,6 +1216,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithWatcher(fWatcher),
 			agentcontainers.WithClock(mClock),
 		)
+		api.Init()
 		defer api.Close()
 
 		r := chi.NewRouter()
@@ -1358,6 +1369,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithDevcontainerCLI(fakeDCCLI),
 			agentcontainers.WithManifestInfo("test-user", "test-workspace"),
 		)
+		api.Init()
 		apiClose := func() {
 			closeOnce.Do(func() {
 				// Close before api.Close() defer to avoid deadlock after test.
@@ -1578,6 +1590,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithSubAgentClient(fakeSAC),
 			agentcontainers.WithDevcontainerCLI(&fakeDevcontainerCLI{}),
 		)
+		api.Init()
 		defer api.Close()
 
 		tickerTrap.MustWait(ctx).MustRelease(ctx)
@@ -1899,6 +1912,7 @@ func TestAPI(t *testing.T) {
 					agentcontainers.WithSubAgentURL("test-subagent-url"),
 					agentcontainers.WithWatcher(watcher.NewNoop()),
 				)
+				api.Init()
 				defer api.Close()
 
 				// Close before api.Close() defer to avoid deadlock after test.
@@ -1991,6 +2005,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithSubAgentURL("test-subagent-url"),
 			agentcontainers.WithWatcher(watcher.NewNoop()),
 		)
+		api.Init()
 		defer api.Close()
 
 		// Close before api.Close() defer to avoid deadlock after test.
@@ -2045,6 +2060,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithExecer(fakeExec),
 			agentcontainers.WithCommandEnv(commandEnv),
 		)
+		api.Init()
 		defer api.Close()
 
 		// Call RefreshContainers directly to trigger CommandEnv usage.
@@ -2134,6 +2150,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithWatcher(fWatcher),
 			agentcontainers.WithClock(mClock),
 		)
+		api.Init()
 		defer func() {
 			close(fakeSAC.createErrC)
 			close(fakeSAC.deleteErrC)
@@ -2334,6 +2351,7 @@ func TestSubAgentCreationWithNameRetry(t *testing.T) {
 				agentcontainers.WithSubAgentClient(fSAC),
 				agentcontainers.WithWatcher(watcher.NewNoop()),
 			)
+			api.Init()
 			defer api.Close()
 
 			tickerTrap.MustWait(ctx).MustRelease(ctx)
