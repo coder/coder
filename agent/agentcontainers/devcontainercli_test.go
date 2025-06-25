@@ -3,6 +3,7 @@ package agentcontainers_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -642,6 +643,22 @@ func removeDevcontainerByID(t *testing.T, pool *dockertest.Pool, id string) {
 func TestDevcontainerFeatures_OptionsAsEnvs(t *testing.T) {
 	t.Parallel()
 
+	realConfigJSON := `{
+		"mergedConfiguration": {
+			"features": {
+				"./code-server": {
+					"port": 9090
+				},
+				"ghcr.io/devcontainers/features/docker-in-docker:2": {
+					"moby": "false"
+				}
+			}
+		}
+	}`
+	var realConfig agentcontainers.DevcontainerConfig
+	err := json.Unmarshal([]byte(realConfigJSON), &realConfig)
+	require.NoError(t, err, "unmarshal JSON payload")
+
 	tests := []struct {
 		name     string
 		features agentcontainers.DevcontainerFeatures
@@ -701,15 +718,8 @@ func TestDevcontainerFeatures_OptionsAsEnvs(t *testing.T) {
 			},
 		},
 		{
-			name: "real config example",
-			features: agentcontainers.DevcontainerFeatures{
-				"./code-server": map[string]any{
-					"port": 9090,
-				},
-				"ghcr.io/devcontainers/features/docker-in-docker:2": map[string]any{
-					"moby": "false",
-				},
-			},
+			name:     "real config example",
+			features: realConfig.MergedConfiguration.Features,
 			want: []string{
 				"FEATURE_CODE_SERVER_PORT=9090",
 				"FEATURE_DOCKER_IN_DOCKER_MOBY=false",
