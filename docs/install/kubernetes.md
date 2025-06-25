@@ -149,7 +149,6 @@ We support two release channels: mainline and stable - read the
         --version 2.23.1
     ```
 
-
 - **Stable** Coder release:
 
   - **Chart Registry**
