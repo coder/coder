@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/assert"
@@ -681,10 +682,10 @@ func TestDevcontainerFeatures_OptionsAsEnvs(t *testing.T) {
 				},
 			},
 			want: []string{
-				"FEATURE_CODE_SERVER_PORT=9090",
 				"FEATURE_CODE_SERVER_PASSWORD=secret",
-				"FEATURE_DOCKER_IN_DOCKER_MOBY=false",
+				"FEATURE_CODE_SERVER_PORT=9090",
 				"FEATURE_DOCKER_IN_DOCKER_DOCKER_DASH_COMPOSE_VERSION=v2",
+				"FEATURE_DOCKER_IN_DOCKER_MOBY=false",
 			},
 		},
 		{
@@ -717,7 +718,7 @@ func TestDevcontainerFeatures_OptionsAsEnvs(t *testing.T) {
 		{
 			name:     "empty features",
 			features: agentcontainers.DevcontainerFeatures{},
-			want:     []string{},
+			want:     nil,
 		},
 	}
 
@@ -726,11 +727,8 @@ func TestDevcontainerFeatures_OptionsAsEnvs(t *testing.T) {
 			t.Parallel()
 
 			got := tt.features.OptionsAsEnvs()
-
-			require.Len(t, got, len(tt.want), "number of environment variables should match")
-
-			for _, expected := range tt.want {
-				assert.Contains(t, got, expected, "expected environment variable not found")
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				require.Failf(t, "OptionsAsEnvs() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
