@@ -5,7 +5,9 @@ import { render } from "testHelpers/renderHelpers";
 import { DynamicParameter } from "./DynamicParameter";
 
 // Mock parameters for different form types
-const createMockParameter = (overrides: Partial<PreviewParameter> = {}): PreviewParameter => ({
+const createMockParameter = (
+	overrides: Partial<PreviewParameter> = {},
+): PreviewParameter => ({
 	name: "test_param",
 	display_name: "Test Parameter",
 	description: "A test parameter",
@@ -54,9 +56,24 @@ const mockSelectParameter = createMockParameter({
 	form_type: "select",
 	default_value: "option1",
 	options: [
-		{ name: "Option 1", description: "First option", value: "option1", icon: "" },
-		{ name: "Option 2", description: "Second option", value: "option2", icon: "/icon2.png" },
-		{ name: "Option 3", description: "Third option", value: "option3", icon: "" },
+		{
+			name: "Option 1",
+			description: "First option",
+			value: "option1",
+			icon: "",
+		},
+		{
+			name: "Option 2",
+			description: "Second option",
+			value: "option2",
+			icon: "/icon2.png",
+		},
+		{
+			name: "Option 3",
+			description: "Third option",
+			value: "option3",
+			icon: "",
+		},
 	],
 });
 
@@ -68,8 +85,18 @@ const mockRadioParameter = createMockParameter({
 	form_type: "radio",
 	default_value: "radio1",
 	options: [
-		{ name: "Radio 1", description: "First radio option", value: "radio1", icon: "" },
-		{ name: "Radio 2", description: "Second radio option", value: "radio2", icon: "" },
+		{
+			name: "Radio 1",
+			description: "First radio option",
+			value: "radio1",
+			icon: "",
+		},
+		{
+			name: "Radio 2",
+			description: "Second radio option",
+			value: "radio2",
+			icon: "",
+		},
 	],
 });
 
@@ -118,10 +145,30 @@ const mockMultiSelectParameter = createMockParameter({
 	form_type: "multiselect",
 	default_value: '["option1", "option3"]',
 	options: [
-		{ name: "Option 1", description: "First option", value: "option1", icon: "" },
-		{ name: "Option 2", description: "Second option", value: "option2", icon: "" },
-		{ name: "Option 3", description: "Third option", value: "option3", icon: "" },
-		{ name: "Option 4", description: "Fourth option", value: "option4", icon: "" },
+		{
+			name: "Option 1",
+			description: "First option",
+			value: "option1",
+			icon: "",
+		},
+		{
+			name: "Option 2",
+			description: "Second option",
+			value: "option2",
+			icon: "",
+		},
+		{
+			name: "Option 3",
+			description: "Third option",
+			value: "option3",
+			icon: "",
+		},
+		{
+			name: "Option 4",
+			description: "Fourth option",
+			value: "option4",
+			icon: "",
+		},
 	],
 });
 
@@ -193,7 +240,7 @@ describe("DynamicParameter", () => {
 					parameter={mockStringParameter}
 					value="test_value"
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			expect(screen.getByText("String Parameter")).toBeInTheDocument();
@@ -207,7 +254,7 @@ describe("DynamicParameter", () => {
 					parameter={mockStringParameter}
 					value=""
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const input = screen.getByRole("textbox");
@@ -225,7 +272,7 @@ describe("DynamicParameter", () => {
 					parameter={mockRequiredParameter}
 					value=""
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			expect(screen.getByText("*")).toBeInTheDocument();
@@ -238,7 +285,7 @@ describe("DynamicParameter", () => {
 					value=""
 					onChange={mockOnChange}
 					disabled={true}
-				/>
+				/>,
 			);
 
 			expect(screen.getByRole("textbox")).toBeDisabled();
@@ -250,7 +297,7 @@ describe("DynamicParameter", () => {
 					parameter={mockImmutableParameter}
 					value="immutable_value"
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			expect(screen.getByText(/immutable/i)).toBeInTheDocument();
@@ -262,7 +309,7 @@ describe("DynamicParameter", () => {
 					parameter={mockEphemeralParameter}
 					value=""
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			expect(screen.getByText(/ephemeral/i)).toBeInTheDocument();
@@ -274,7 +321,7 @@ describe("DynamicParameter", () => {
 					parameter={mockParameterWithIcon}
 					value=""
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const icon = screen.getByRole("img");
@@ -289,7 +336,7 @@ describe("DynamicParameter", () => {
 					parameter={mockTextareaParameter}
 					value="multiline\ntext\nvalue"
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			expect(screen.getByText("Textarea Parameter")).toBeInTheDocument();
@@ -302,7 +349,7 @@ describe("DynamicParameter", () => {
 					parameter={mockTextareaParameter}
 					value=""
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const textarea = screen.getByRole("textbox");
@@ -321,7 +368,7 @@ describe("DynamicParameter", () => {
 					parameter={mockSelectParameter}
 					value="option1"
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			expect(screen.getByText("Select Parameter")).toBeInTheDocument();
@@ -334,7 +381,7 @@ describe("DynamicParameter", () => {
 					parameter={mockSelectParameter}
 					value="option1"
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const select = screen.getByRole("combobox");
@@ -351,7 +398,7 @@ describe("DynamicParameter", () => {
 					parameter={mockSelectParameter}
 					value="option1"
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const select = screen.getByRole("combobox");
@@ -369,7 +416,7 @@ describe("DynamicParameter", () => {
 					parameter={mockSelectParameter}
 					value="option1"
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const select = screen.getByRole("combobox");
@@ -377,7 +424,9 @@ describe("DynamicParameter", () => {
 
 			// Option 2 has an icon
 			const icons = screen.getAllByRole("img");
-			expect(icons.some(icon => icon.getAttribute("src") === "/icon2.png")).toBe(true);
+			expect(
+				icons.some((icon) => icon.getAttribute("src") === "/icon2.png"),
+			).toBe(true);
 		});
 	});
 
@@ -388,7 +437,7 @@ describe("DynamicParameter", () => {
 					parameter={mockRadioParameter}
 					value="radio1"
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			expect(screen.getByText("Radio Parameter")).toBeInTheDocument();
@@ -403,7 +452,7 @@ describe("DynamicParameter", () => {
 					parameter={mockRadioParameter}
 					value="radio1"
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const radio2 = screen.getByRole("radio", { name: /radio 2/i });
@@ -420,7 +469,7 @@ describe("DynamicParameter", () => {
 					parameter={mockCheckboxParameter}
 					value="true"
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			expect(screen.getByText("Checkbox Parameter")).toBeInTheDocument();
@@ -433,7 +482,7 @@ describe("DynamicParameter", () => {
 					parameter={mockCheckboxParameter}
 					value="true"
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const checkbox = screen.getByRole("checkbox");
@@ -448,7 +497,7 @@ describe("DynamicParameter", () => {
 					parameter={mockCheckboxParameter}
 					value="false"
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const checkbox = screen.getByRole("checkbox");
@@ -467,7 +516,7 @@ describe("DynamicParameter", () => {
 					parameter={mockSwitchParameter}
 					value="false"
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			expect(screen.getByText("Switch Parameter")).toBeInTheDocument();
@@ -480,7 +529,7 @@ describe("DynamicParameter", () => {
 					parameter={mockSwitchParameter}
 					value="false"
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const switchElement = screen.getByRole("switch");
@@ -497,7 +546,7 @@ describe("DynamicParameter", () => {
 					parameter={mockSliderParameter}
 					value="50"
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			expect(screen.getByText("Slider Parameter")).toBeInTheDocument();
@@ -510,7 +559,7 @@ describe("DynamicParameter", () => {
 					parameter={mockSliderParameter}
 					value="50"
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const slider = screen.getByRole("slider");
@@ -525,7 +574,7 @@ describe("DynamicParameter", () => {
 					parameter={mockSliderParameter}
 					value="50"
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const slider = screen.getByRole("slider");
@@ -541,7 +590,7 @@ describe("DynamicParameter", () => {
 					parameter={mockTagsParameter}
 					value='["tag1", "tag2", "tag3"]'
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			expect(screen.getByText("Tags Parameter")).toBeInTheDocument();
@@ -554,7 +603,7 @@ describe("DynamicParameter", () => {
 					parameter={mockTagsParameter}
 					value='["tag1"]'
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const input = screen.getByRole("textbox");
@@ -571,7 +620,7 @@ describe("DynamicParameter", () => {
 					parameter={mockTagsParameter}
 					value='["tag1", "tag2"]'
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			// Find and click remove button for a tag
@@ -589,7 +638,7 @@ describe("DynamicParameter", () => {
 					parameter={mockMultiSelectParameter}
 					value='["option1", "option3"]'
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			expect(screen.getByText("Multi-Select Parameter")).toBeInTheDocument();
@@ -602,7 +651,7 @@ describe("DynamicParameter", () => {
 					parameter={mockMultiSelectParameter}
 					value='["option1", "option3"]'
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			expect(screen.getByText("Option 1")).toBeInTheDocument();
@@ -615,7 +664,7 @@ describe("DynamicParameter", () => {
 					parameter={mockMultiSelectParameter}
 					value='["option1"]'
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const combobox = screen.getByRole("combobox");
@@ -633,7 +682,7 @@ describe("DynamicParameter", () => {
 					parameter={mockMultiSelectParameter}
 					value='["option1", "option2"]'
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			// Find and click remove button for selected option
@@ -651,11 +700,13 @@ describe("DynamicParameter", () => {
 					parameter={mockErrorParameter}
 					value=""
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			expect(screen.getByText("Error Parameter")).toBeInTheDocument();
-			expect(screen.getByText("This parameter has a validation error")).toBeInTheDocument();
+			expect(
+				screen.getByText("This parameter has a validation error"),
+			).toBeInTheDocument();
 			expect(screen.getByRole("alert")).toBeInTheDocument();
 		});
 
@@ -665,7 +716,7 @@ describe("DynamicParameter", () => {
 					parameter={mockErrorParameter}
 					value=""
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			// Look for error icon by checking for the error alert role
@@ -681,7 +732,7 @@ describe("DynamicParameter", () => {
 					value="preset_value"
 					onChange={mockOnChange}
 					isPreset={true}
-				/>
+				/>,
 			);
 
 			expect(screen.getByText(/preset/i)).toBeInTheDocument();
@@ -694,7 +745,7 @@ describe("DynamicParameter", () => {
 					value="autofilled_value"
 					onChange={mockOnChange}
 					autofill={true}
-				/>
+				/>,
 			);
 
 			expect(screen.getByText(/autofilled/i)).toBeInTheDocument();
@@ -708,12 +759,12 @@ describe("DynamicParameter", () => {
 					parameter={mockStringParameter}
 					value=""
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const input = screen.getByRole("textbox");
 			const label = screen.getByText("String Parameter");
-			
+
 			expect(input).toHaveAccessibleName("String Parameter");
 		});
 
@@ -723,7 +774,7 @@ describe("DynamicParameter", () => {
 					parameter={mockStringParameter}
 					value=""
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const input = screen.getByRole("textbox");
@@ -736,7 +787,7 @@ describe("DynamicParameter", () => {
 					parameter={mockRequiredParameter}
 					value=""
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const input = screen.getByRole("textbox");
@@ -749,7 +800,7 @@ describe("DynamicParameter", () => {
 					parameter={mockErrorParameter}
 					value=""
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const errorAlert = screen.getByRole("alert");
@@ -760,56 +811,56 @@ describe("DynamicParameter", () => {
 	describe("Debounced Input", () => {
 		it("debounces input changes for text inputs", async () => {
 			jest.useFakeTimers();
-			
+
 			render(
 				<DynamicParameter
 					parameter={mockStringParameter}
 					value=""
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const input = screen.getByRole("textbox");
-			
+
 			// Type multiple characters quickly
 			await userEvent.type(input, "abc");
-			
+
 			// Should not call onChange immediately
 			expect(mockOnChange).not.toHaveBeenCalled();
-			
+
 			// Fast-forward time to trigger debounce
 			jest.advanceTimersByTime(500);
-			
+
 			await waitFor(() => {
 				expect(mockOnChange).toHaveBeenCalledWith("abc");
 			});
-			
+
 			jest.useRealTimers();
 		});
 
 		it("debounces textarea changes", async () => {
 			jest.useFakeTimers();
-			
+
 			render(
 				<DynamicParameter
 					parameter={mockTextareaParameter}
 					value=""
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			const textarea = screen.getByRole("textbox");
-			
+
 			await userEvent.type(textarea, "line1\nline2");
-			
+
 			expect(mockOnChange).not.toHaveBeenCalled();
-			
+
 			jest.advanceTimersByTime(500);
-			
+
 			await waitFor(() => {
 				expect(mockOnChange).toHaveBeenCalledWith("line1\nline2");
 			});
-			
+
 			jest.useRealTimers();
 		});
 	});
@@ -826,7 +877,7 @@ describe("DynamicParameter", () => {
 					parameter={paramWithEmptyOptions}
 					value=""
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			expect(screen.getByRole("combobox")).toBeInTheDocument();
@@ -838,7 +889,7 @@ describe("DynamicParameter", () => {
 					parameter={mockStringParameter}
 					value={undefined}
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			expect(screen.getByRole("textbox")).toHaveValue("");
@@ -850,7 +901,7 @@ describe("DynamicParameter", () => {
 					parameter={mockTagsParameter}
 					value="invalid json"
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			// Should not crash and should render the component
@@ -867,7 +918,7 @@ describe("DynamicParameter", () => {
 					parameter={longDescriptionParam}
 					value=""
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
 			expect(screen.getByText("A".repeat(1000))).toBeInTheDocument();
@@ -884,10 +935,12 @@ describe("DynamicParameter", () => {
 					parameter={specialCharParam}
 					value=""
 					onChange={mockOnChange}
-				/>
+				/>,
 			);
 
-			expect(screen.getByText("Param with Special Characters!@#$%")).toBeInTheDocument();
+			expect(
+				screen.getByText("Param with Special Characters!@#$%"),
+			).toBeInTheDocument();
 		});
 	});
 });
