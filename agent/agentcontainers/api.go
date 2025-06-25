@@ -949,13 +949,21 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 // The devcontainer state must be set to starting and the asyncWg must be
 // incremented before calling this function.
 func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...DevcontainerCLIUpOptions) error {
-	api.asyncWg.Add(1)
-	defer api.asyncWg.Done()
+	api.mu.Lock()
+	if api.closed {
+		api.mu.Unlock()
+		return nil
+	}
 
 	dc, found := api.knownDevcontainers[workspaceFolder]
 	if !found {
+		api.mu.Unlock()
 		return xerrors.Errorf("no devcontainer found")
 	}
+
+	api.asyncWg.Add(1)
+	defer api.asyncWg.Done()
+	api.mu.Unlock()
 
 	var (
 		err    error
