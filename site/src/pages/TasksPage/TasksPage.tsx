@@ -36,9 +36,10 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { useAuthenticated } from "hooks";
 import { useExternalAuth } from "hooks/useExternalAuth";
-import { AlertTriangleIcon, RotateCcwIcon, SendIcon } from "lucide-react";
+import { RotateCcwIcon, SendIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
@@ -49,9 +50,7 @@ import { Link as RouterLink } from "react-router-dom";
 import TextareaAutosize from "react-textarea-autosize";
 import { pageTitle } from "utils/page";
 import { relativeTime } from "utils/time";
-import { ExternalAuthButton } from "../CreateWorkspacePage/ExternalAuthButton";
 import { type UserOption, UsersCombobox } from "./UsersCombobox";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 
 type TasksFilter = {
 	user: UserOption | undefined;
