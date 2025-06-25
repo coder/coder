@@ -562,7 +562,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 								<div className="flex flex-col gap-2">
 									<div className="flex gap-2 items-center">
 										<Label className="text-sm">Preset</Label>
-										<FeatureStageBadge contentType={"beta"} size="sm" />
 									</div>
 									<div className="flex flex-col gap-4">
 										<div className="max-w-lg">
