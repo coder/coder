@@ -749,6 +749,7 @@ func TestAPI(t *testing.T) {
 			knownDevcontainers []codersdk.WorkspaceAgentDevcontainer
 			wantStatus         int
 			wantCount          int
+			wantTestContainer  bool
 			verify             func(t *testing.T, devcontainers []codersdk.WorkspaceAgentDevcontainer)
 		}{
 			{
@@ -995,6 +996,13 @@ func TestAPI(t *testing.T) {
 					assert.Len(t, names, 4, "should have four unique devcontainer names")
 				},
 			},
+			{
+				name:              "Include test containers",
+				lister:            &fakeContainerCLI{},
+				wantStatus:        http.StatusOK,
+				wantTestContainer: true,
+				wantCount:         1, // Will be appended.
+			},
 		}
 
 		for _, tt := range tests {
@@ -1007,6 +1015,18 @@ func TestAPI(t *testing.T) {
 				mClock.Set(time.Now()).MustWait(testutil.Context(t, testutil.WaitShort))
 				tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
 
+				// This container should be ignored unless explicitly included.
+				tt.lister.containers.Containers = append(tt.lister.containers.Containers, codersdk.WorkspaceAgentContainer{
+					ID:           "test-container-1",
+					FriendlyName: "test-container-1",
+					Running:      true,
+					Labels: map[string]string{
+						agentcontainers.DevcontainerLocalFolderLabel: "/workspace/test1",
+						agentcontainers.DevcontainerConfigFileLabel:  "/workspace/test1/.devcontainer/devcontainer.json",
+						agentcontainers.DevcontainerIsTestRunLabel:   "true",
+					},
+				})
+
 				// Setup router with the handler under test.
 				r := chi.NewRouter()
 				apiOptions := []agentcontainers.Option{
@@ -1014,6 +1034,12 @@ func TestAPI(t *testing.T) {
 					agentcontainers.WithContainerCLI(tt.lister),
 					agentcontainers.WithDevcontainerCLI(&fakeDevcontainerCLI{}),
 					agentcontainers.WithWatcher(watcher.NewNoop()),
+				}
+
+				if tt.wantTestContainer {
+					apiOptions = append(apiOptions, agentcontainers.WithContainerLabelIncludeFilter(
+						agentcontainers.DevcontainerIsTestRunLabel, "true",
+					))
 				}
 
 				// Generate matching scripts for the known devcontainers

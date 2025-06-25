@@ -18,6 +18,9 @@ const (
 	// DevcontainerConfigFileLabel is the label that contains the path to
 	// the devcontainer.json configuration file.
 	DevcontainerConfigFileLabel = "devcontainer.config_file"
+	// DevcontainerIsTestRunLabel is set if the devcontainer is part of a test
+	// and should be excluded.
+	DevcontainerIsTestRunLabel = "devcontainer.is_test_run"
 	// The default workspace folder inside the devcontainer.
 	DevcontainerDefaultContainerWorkspaceFolder = "/workspaces"
 )
