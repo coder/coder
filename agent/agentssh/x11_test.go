@@ -162,10 +162,17 @@ func TestServer_X11_EvictionLRU(t *testing.T) {
 
 	c := sshClient(t, ln.Addr().String())
 
+	// block off one port to test x11Forwarder evicts at highest port, not number of listeners.
+	externalListener, err := inproc.Listen("tcp",
+		fmt.Sprintf("localhost:%d", agentssh.X11StartPort+agentssh.X11DefaultDisplayOffset+1))
+	require.NoError(t, err)
+	defer externalListener.Close()
+
 	// Calculate how many simultaneous X11 sessions we can create given the
 	// configured port range.
+
 	startPort := agentssh.X11StartPort + agentssh.X11DefaultDisplayOffset
-	maxSessions := agentssh.X11MaxPort - startPort + 1
+	maxSessions := agentssh.X11MaxPort - startPort + 1 - 1 // -1 for the blocked port
 	require.Greater(t, maxSessions, 0, "expected a positive maxSessions value")
 
 	// shellSession holds references to the session and its standard streams so
