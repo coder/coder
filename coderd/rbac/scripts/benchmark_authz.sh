@@ -18,30 +18,30 @@ set -euo pipefail
 # Go benchmark parameters
 GOMAXPROCS=16
 TIMEOUT=30m
-BENCHTIME=1s 	# TODO: add 5s
-COUNT=1 			# TODO: add 5
+BENCHTIME=1s # TODO: add 5s
+COUNT=1      # TODO: add 5
 
 # Script configuration
 OUTPUT_DIR="benchmark_outputs"
 
 # List of benchmark tests
 BENCHMARKS=(
-  BenchmarkRBACAuthorize
-  BenchmarkRBACAuthorizeGroups
-  BenchmarkRBACFilter
+	BenchmarkRBACAuthorize
+	BenchmarkRBACAuthorizeGroups
+	BenchmarkRBACFilter
 )
 
 # Create output directory
 mkdir -p "$OUTPUT_DIR"
 
 function run_benchmarks() {
-  local branch=$1
-  # Replace '/' with '-' for branch names with format user/branchName
-  local filename_branch=${branch//\//-}
-  local output_file_prefix="$OUTPUT_DIR/${filename_branch}"
+	local branch=$1
+	# Replace '/' with '-' for branch names with format user/branchName
+	local filename_branch=${branch//\//-}
+	local output_file_prefix="$OUTPUT_DIR/${filename_branch}"
 
-  echo "Checking out $branch..."
-  git checkout "$branch"
+	echo "Checking out $branch..."
+	git checkout "$branch"
 
 	for bench in "${BENCHMARKS[@]}"; do
 		local output_file="${output_file_prefix}_${bench}.txt"
@@ -51,28 +51,28 @@ function run_benchmarks() {
 }
 
 if [[ "${1:-}" == "--single" ]]; then
-  current_branch=$(git rev-parse --abbrev-ref HEAD)
-  run_benchmarks "$current_branch"
+	current_branch=$(git rev-parse --abbrev-ref HEAD)
+	run_benchmarks "$current_branch"
 elif [[ "${1:-}" == "--compare" ]]; then
-  base_branch=$2
-  test_branch=$3
+	base_branch=$2
+	test_branch=$3
 
 	# Run all benchmarks on both branches
-  run_benchmarks "$base_branch"
-  run_benchmarks "$test_branch"
+	run_benchmarks "$base_branch"
+	run_benchmarks "$test_branch"
 
- 	# Compare results benchmark by benchmark
+	# Compare results benchmark by benchmark
 	for bench in "${BENCHMARKS[@]}"; do
 		# Replace / with - for branch names with format user/branchName
-    filename_base_branch=${base_branch//\//-}
-    filename_test_branch=${test_branch//\//-}
+		filename_base_branch=${base_branch//\//-}
+		filename_test_branch=${test_branch//\//-}
 
 		echo -e "\nGenerating benchmark diff for $bench using benchstat..."
 		benchstat "$OUTPUT_DIR/${filename_base_branch}_${bench}.txt" "$OUTPUT_DIR/${filename_test_branch}_${bench}.txt" | tee "$OUTPUT_DIR/${bench}_diff.txt"
 	done
 else
-  echo "Usage:"
-  echo "  $0 --single               			# run benchmarks on current branch"
-  echo "  $0 --compare branchA branchB    # compare benchmarks between two branches"
-  exit 1
+	echo "Usage:"
+	echo "  $0 --single               			# run benchmarks on current branch"
+	echo "  $0 --compare branchA branchB    # compare benchmarks between two branches"
+	exit 1
 fi
