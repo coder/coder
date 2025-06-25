@@ -24,6 +24,7 @@ message WorkspaceApp {
 		OWNER = 1;
 		AUTHENTICATED = 2;
 		PUBLIC = 3;
+		ORGANIZATION = 4;
 	}
 	SharingLevel sharing_level = 10;
 
@@ -401,10 +402,11 @@ message CreateSubAgentRequest {
 			TAB = 1;
 		}
 
-		enum Share {
+		enum SharingLevel {
 			OWNER = 0;
 			AUTHENTICATED = 1;
 			PUBLIC = 2;
+			ORGANIZATION = 3;
 		}
 
 		string slug = 1;
@@ -417,12 +419,22 @@ message CreateSubAgentRequest {
 		optional string icon = 8;
 		optional OpenIn open_in = 9;
 		optional int32 order = 10;
-		optional Share share = 11;
+		optional SharingLevel share = 11;
 		optional bool subdomain = 12;
 		optional string url = 13;
 	}
 
 	repeated App apps = 5;
+
+	enum DisplayApp {
+		VSCODE = 0;
+		VSCODE_INSIDERS = 1;
+		WEB_TERMINAL = 2;
+		SSH_HELPER = 3;
+		PORT_FORWARDING_HELPER = 4;
+	}
+
+	repeated DisplayApp display_apps = 6;
 }
 
 message CreateSubAgentResponse {

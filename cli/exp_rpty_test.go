@@ -9,6 +9,7 @@ import (
 	"github.com/ory/dockertest/v3/docker"
 
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -86,6 +87,8 @@ func TestExpRpty(t *testing.T) {
 			t.Skip("Skipping test on non-Linux platform")
 		}
 
+		wantLabel := "coder.devcontainers.TestExpRpty.Container"
+
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		pool, err := dockertest.NewPool("")
@@ -93,7 +96,10 @@ func TestExpRpty(t *testing.T) {
 		ct, err := pool.RunWithOptions(&dockertest.RunOptions{
 			Repository: "busybox",
 			Tag:        "latest",
-			Cmd:        []string{"sleep", "infnity"},
+			Cmd:        []string{"sleep", "infinity"},
+			Labels: map[string]string{
+				wantLabel: "true",
+			},
 		}, func(config *docker.HostConfig) {
 			config.AutoRemove = true
 			config.RestartPolicy = docker.RestartPolicy{Name: "no"}
@@ -110,7 +116,10 @@ func TestExpRpty(t *testing.T) {
 		})
 
 		_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
-			o.ExperimentalDevcontainersEnabled = true
+			o.Devcontainers = true
+			o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
+				agentcontainers.WithContainerLabelIncludeFilter(wantLabel, "true"),
+			)
 		})
 		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 

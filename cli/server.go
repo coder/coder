@@ -63,7 +63,6 @@ import (
 
 	"github.com/coder/coder/v2/aibridged"
 	aibridgedproto "github.com/coder/coder/v2/aibridged/proto"
-	"github.com/coder/coder/v2/coderd/ai"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -613,22 +612,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				)
 			}
 
-			aiProviders, err := ReadAIProvidersFromEnv(os.Environ())
-			if err != nil {
-				return xerrors.Errorf("read ai providers from env: %w", err)
-			}
-			vals.AI.Value.Providers = append(vals.AI.Value.Providers, aiProviders...)
-			for _, provider := range aiProviders {
-				logger.Debug(
-					ctx, "loaded ai provider",
-					slog.F("type", provider.Type),
-				)
-			}
-			languageModels, err := ai.ModelsFromConfig(ctx, vals.AI.Value.Providers)
-			if err != nil {
-				return xerrors.Errorf("create language models: %w", err)
-			}
-
 			realIPConfig, err := httpmw.ParseRealIPConfig(vals.ProxyTrustedHeaders, vals.ProxyTrustedOrigins)
 			if err != nil {
 				return xerrors.Errorf("parse real ip config: %w", err)
@@ -659,7 +642,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
 				ExternalAuthConfigs:         externalAuthConfigs,
-				LanguageModels:              languageModels,
 				RealIPConfig:                realIPConfig,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
@@ -1067,13 +1049,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}()
 
 			// Built in aibridge daemons.
-			for i := int64(0); i < vals.AI.Value.BridgeConfig.Daemons.Value(); i++ {
+			for i := int64(0); i < vals.AI.BridgeConfig.Daemons.Value(); i++ {
 				suffix := fmt.Sprintf("%d", i)
 				// The suffix is added to the hostname, so we may need to trim to fit into
 				// the 64 character limit.
 				hostname := stringutil.Truncate(cliutil.Hostname(), 63-len(suffix))
 				name := fmt.Sprintf("%s-%s", hostname, suffix)
-				daemon, err := newAIBridgeDaemon(ctx, coderAPI, name, vals.AI.Value.BridgeConfig)
+				daemon, err := newAIBridgeDaemon(ctx, coderAPI, name, vals.AI.BridgeConfig)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -1157,7 +1139,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			autobuildTicker := time.NewTicker(vals.AutobuildPollInterval.Value())
 			defer autobuildTicker.Stop()
 			autobuildExecutor := autobuild.NewExecutor(
-				ctx, options.Database, options.Pubsub, options.PrometheusRegistry, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, logger, autobuildTicker.C, options.NotificationsEnqueuer, coderAPI.Experiments)
+				ctx, options.Database, options.Pubsub, coderAPI.FileCache, options.PrometheusRegistry, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, logger, autobuildTicker.C, options.NotificationsEnqueuer, coderAPI.Experiments)
 			autobuildExecutor.Run()
 
 			jobReaperTicker := time.NewTicker(vals.JobReaperDetectorInterval.Value())
@@ -2383,19 +2365,20 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 
 	var err error
 	var sqlDB *sql.DB
+	dbNeedsClosing := true
 	// Try to connect for 30 seconds.
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	defer func() {
-		if err == nil {
+		if !dbNeedsClosing {
 			return
 		}
 		if sqlDB != nil {
 			_ = sqlDB.Close()
 			sqlDB = nil
+			logger.Debug(ctx, "closed db before returning from ConnectToPostgres")
 		}
-		logger.Error(ctx, "connect to postgres failed", slog.Error(err))
 	}()
 
 	var tries int
@@ -2431,11 +2414,8 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 		return nil, xerrors.Errorf("get postgres version: %w", err)
 	}
 	defer version.Close()
-	if version.Err() != nil {
-		return nil, xerrors.Errorf("version select: %w", version.Err())
-	}
 	if !version.Next() {
-		return nil, xerrors.Errorf("no rows returned for version select")
+		return nil, xerrors.Errorf("no rows returned for version select: %w", version.Err())
 	}
 	var versionNum int
 	err = version.Scan(&versionNum)
@@ -2477,6 +2457,7 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	// of connection churn.
 	sqlDB.SetMaxIdleConns(3)
 
+	dbNeedsClosing = false
 	return sqlDB, nil
 }
 
@@ -2712,77 +2693,6 @@ func redirectHTTPToHTTPSDeprecation(ctx context.Context, logger slog.Logger, inv
 		logger.Warn(ctx, "⚠️ --tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead")
 		cfg.RedirectToAccessURL = cfg.TLS.RedirectHTTP
 	}
-}
-
-func ReadAIProvidersFromEnv(environ []string) ([]codersdk.AIProviderConfig, error) {
-	// The index numbers must be in-order.
-	sort.Strings(environ)
-
-	var providers []codersdk.AIProviderConfig
-	for _, v := range serpent.ParseEnviron(environ, "CODER_AI_PROVIDER_") {
-		tokens := strings.SplitN(v.Name, "_", 2)
-		if len(tokens) != 2 {
-			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
-		}
-
-		providerNum, err := strconv.Atoi(tokens[0])
-		if err != nil {
-			return nil, xerrors.Errorf("parse number: %s", v.Name)
-		}
-
-		var provider codersdk.AIProviderConfig
-		switch {
-		case len(providers) < providerNum:
-			return nil, xerrors.Errorf(
-				"provider num %v skipped: %s",
-				len(providers),
-				v.Name,
-			)
-		case len(providers) == providerNum:
-			// At the next next provider.
-			providers = append(providers, provider)
-		case len(providers) == providerNum+1:
-			// At the current provider.
-			provider = providers[providerNum]
-		}
-
-		key := tokens[1]
-		switch key {
-		case "TYPE":
-			provider.Type = v.Value
-		case "API_KEY":
-			provider.APIKey = v.Value
-		case "BASE_URL":
-			provider.BaseURL = v.Value
-		case "MODELS":
-			provider.Models = strings.Split(v.Value, ",")
-		}
-		providers[providerNum] = provider
-	}
-	for _, envVar := range environ {
-		tokens := strings.SplitN(envVar, "=", 2)
-		if len(tokens) != 2 {
-			continue
-		}
-		switch tokens[0] {
-		case "OPENAI_API_KEY":
-			providers = append(providers, codersdk.AIProviderConfig{
-				Type:   "openai",
-				APIKey: tokens[1],
-			})
-		case "ANTHROPIC_API_KEY":
-			providers = append(providers, codersdk.AIProviderConfig{
-				Type:   "anthropic",
-				APIKey: tokens[1],
-			})
-		case "GOOGLE_API_KEY":
-			providers = append(providers, codersdk.AIProviderConfig{
-				Type:   "google",
-				APIKey: tokens[1],
-			})
-		}
-	}
-	return providers, nil
 }
 
 // ReadExternalAuthProvidersFromEnv is provided for compatibility purposes with

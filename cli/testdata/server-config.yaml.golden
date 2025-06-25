@@ -25,6 +25,10 @@ networking:
     # The maximum lifetime duration users can specify when creating an API token.
     # (default: 876600h0m0s, type: duration)
     maxTokenLifetime: 876600h0m0s
+    # The maximum lifetime duration administrators can specify when creating an API
+    # token.
+    # (default: 168h0m0s, type: duration)
+    maxAdminTokenLifetime: 168h0m0s
     # The token expiry duration for browser sessions. Sessions may last longer if they
     # are actively making requests, but this functionality can be disabled via
     # --disable-session-expiry-refresh.
@@ -516,14 +520,12 @@ client:
   # 'webgl', or 'dom'.
   # (default: canvas, type: string)
   webTerminalRenderer: canvas
+  # Hide AI tasks from the dashboard.
+  # (default: false, type: bool)
+  hideAITasks: false
 # Support links to display in the top right drop down menu.
 # (default: <unset>, type: struct[[]codersdk.LinkConfig])
 supportLinks: []
-# Configure AI providers.
-# (default: <unset>, type: struct[codersdk.AIConfig])
-ai:
-  bridgeconfig:
-    daemons: 3
 # External Authentication providers.
 # (default: <unset>, type: struct[[]codersdk.ExternalAuthConfig])
 externalAuthProviders: []
@@ -714,3 +716,9 @@ ai_bridge:
   # TODO.
   # (default: 3, type: int)
   daemons: 3
+  # TODO.
+  # (default: https://api.openai.com, type: string)
+  daemons: https://api.openai.com
+  # TODO.
+  # (default: https://api.anthropic.com, type: string)
+  daemons: https://api.anthropic.com

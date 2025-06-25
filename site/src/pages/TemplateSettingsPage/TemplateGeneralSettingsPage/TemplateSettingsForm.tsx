@@ -10,6 +10,7 @@ import {
 } from "api/typesGenerated";
 import { PremiumBadge } from "components/Badges/Badges";
 import { Button } from "components/Button/Button";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	FormFields,
 	FormFooter,
@@ -17,6 +18,7 @@ import {
 	HorizontalForm,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
+import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import {
@@ -25,6 +27,7 @@ import {
 } from "components/StackLabel/StackLabel";
 import { type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
+import { docs } from "utils/docs";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -63,7 +66,6 @@ export interface TemplateSettingsForm {
 	accessControlEnabled: boolean;
 	advancedSchedulingEnabled: boolean;
 	portSharingControlsEnabled: boolean;
-	isDynamicParametersEnabled: boolean;
 }
 
 export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
@@ -76,7 +78,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 	accessControlEnabled,
 	advancedSchedulingEnabled,
 	portSharingControlsEnabled,
-	isDynamicParametersEnabled,
 }) => {
 	const form = useFormik<UpdateTemplateMeta>({
 		initialValues: {
@@ -226,37 +227,47 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 							</StackLabel>
 						}
 					/>
-					{isDynamicParametersEnabled && (
-						<FormControlLabel
-							control={
-								<Checkbox
-									size="small"
-									id="use_classic_parameter_flow"
-									name="use_classic_parameter_flow"
-									checked={form.values.use_classic_parameter_flow}
-									onChange={form.handleChange}
-									disabled={false}
-								/>
-							}
-							label={
-								<StackLabel>
-									Use classic workspace creation form
-									<StackLabelHelperText>
-										<span>
-											Show the original workspace creation form and workspace
-											parameters settings form without dynamic parameters or
-											live updates. Recommended if your provisioners aren't
-											updated or the new form causes issues.{" "}
-											<strong>
-												Users can always manually switch experiences in the
-												workspace creation form.
-											</strong>
-										</span>
-									</StackLabelHelperText>
-								</StackLabel>
-							}
-						/>
-					)}
+					<FormControlLabel
+						control={
+							<Checkbox
+								size="small"
+								id="use_classic_parameter_flow"
+								name="use_classic_parameter_flow"
+								checked={!form.values.use_classic_parameter_flow}
+								onChange={(event) =>
+									form.setFieldValue(
+										"use_classic_parameter_flow",
+										!event.currentTarget.checked,
+									)
+								}
+								disabled={false}
+							/>
+						}
+						label={
+							<StackLabel>
+								<span className="flex flex-row gap-2">
+									Enable dynamic parameters for workspace creation
+									<FeatureStageBadge contentType={"beta"} size="sm" />
+								</span>
+								<StackLabelHelperText>
+									<div>
+										The new workspace form allows you to design your template
+										with new form types and identity-aware conditional
+										parameters. The form will only present options that are
+										compatible and available.
+									</div>
+									<Link
+										className="text-xs"
+										href={docs(
+											"/admin/templates/extending-templates/parameters#dynamic-parameters-beta",
+										)}
+									>
+										Learn more
+									</Link>
+								</StackLabelHelperText>
+							</StackLabel>
+						}
+					/>
 				</FormFields>
 			</FormSection>
 
@@ -313,6 +324,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						label="Maximum Port Sharing Level"
 					>
 						<MenuItem value="owner">Owner</MenuItem>
+						<MenuItem value="organization">Organization</MenuItem>
 						<MenuItem value="authenticated">Authenticated</MenuItem>
 						<MenuItem value="public">Public</MenuItem>
 					</TextField>

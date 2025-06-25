@@ -34,28 +34,21 @@ func TestUpdate(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
+		// Given: a workspace exists on the latest template version.
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
-		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version1.ID)
 
-		inv, root := clitest.New(t, "create",
-			"my-workspace",
-			"--template", template.Name,
-			"-y",
-		)
-		clitest.SetupConfig(t, member, root)
+		ws := coderdtest.CreateWorkspace(t, member, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.Name = "my-workspace"
+		})
+		require.False(t, ws.Outdated, "newly created workspace with active template version must not be outdated")
 
-		err := inv.Run()
-		require.NoError(t, err)
-
-		ws, err := client.WorkspaceByOwnerAndName(context.Background(), memberUser.Username, "my-workspace", codersdk.WorkspaceOptions{})
-		require.NoError(t, err)
-		require.Equal(t, version1.ID.String(), ws.LatestBuild.TemplateVersionID.String())
-
+		// Given: the template version is updated
 		version2 := coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionApply: echo.ApplyComplete,
@@ -63,20 +56,103 @@ func TestUpdate(t *testing.T) {
 		}, template.ID)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
 
-		err = client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
 			ID: version2.ID,
 		})
-		require.NoError(t, err)
+		require.NoError(t, err, "failed to update active template version")
 
-		inv, root = clitest.New(t, "update", ws.Name)
+		// Then: the workspace is marked as 'outdated'
+		ws, err = member.WorkspaceByOwnerAndName(ctx, codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
+		require.NoError(t, err, "member failed to get workspace they themselves own")
+		require.True(t, ws.Outdated, "workspace must be outdated after template version update")
+
+		// When: the workspace is updated
+		inv, root := clitest.New(t, "update", ws.Name)
 		clitest.SetupConfig(t, member, root)
 
 		err = inv.Run()
-		require.NoError(t, err)
+		require.NoError(t, err, "update command failed")
 
-		ws, err = member.WorkspaceByOwnerAndName(context.Background(), memberUser.Username, "my-workspace", codersdk.WorkspaceOptions{})
-		require.NoError(t, err)
-		require.Equal(t, version2.ID.String(), ws.LatestBuild.TemplateVersionID.String())
+		// Then: the workspace is no longer 'outdated'
+		ws, err = member.WorkspaceByOwnerAndName(ctx, codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
+		require.NoError(t, err, "member failed to get workspace they themselves own after update")
+		require.Equal(t, version2.ID.String(), ws.LatestBuild.TemplateVersionID.String(), "workspace must have latest template version after update")
+		require.False(t, ws.Outdated, "workspace must not be outdated after update")
+
+		// Then: the workspace must have been started with the new template version
+		require.Equal(t, int32(3), ws.LatestBuild.BuildNumber, "workspace must have 3 builds after update")
+		require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "latest build must be a start transition")
+
+		// Then: the previous workspace build must be a stop transition with the old
+		// template version.
+		// This is important to ensure that the workspace resources are recreated
+		// correctly. Simply running a start transition with the new template
+		// version may not recreate resources that were changed in the new
+		// template version. This can happen, for example, if a user specifies
+		// ignore_changes in the template.
+		prevBuild, err := member.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(ctx, codersdk.Me, ws.Name, "2")
+		require.NoError(t, err, "failed to get previous workspace build")
+		require.Equal(t, codersdk.WorkspaceTransitionStop, prevBuild.Transition, "previous build must be a stop transition")
+		require.Equal(t, version1.ID.String(), prevBuild.TemplateVersionID.String(), "previous build must have the old template version")
+	})
+
+	t.Run("Stopped", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a workspace exists on the latest template version.
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version1.ID)
+
+		ws := coderdtest.CreateWorkspace(t, member, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.Name = "my-workspace"
+		})
+		require.False(t, ws.Outdated, "newly created workspace with active template version must not be outdated")
+
+		// Given: the template version is updated
+		version2 := coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionPlan:  echo.PlanComplete,
+		}, template.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: version2.ID,
+		})
+		require.NoError(t, err, "failed to update active template version")
+
+		// Given: the workspace is in a stopped state.
+		coderdtest.MustTransitionWorkspace(t, member, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+
+		// Then: the workspace is marked as 'outdated'
+		ws, err = member.WorkspaceByOwnerAndName(ctx, codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
+		require.NoError(t, err, "member failed to get workspace they themselves own")
+		require.True(t, ws.Outdated, "workspace must be outdated after template version update")
+
+		// When: the workspace is updated
+		inv, root := clitest.New(t, "update", ws.Name)
+		clitest.SetupConfig(t, member, root)
+
+		err = inv.Run()
+		require.NoError(t, err, "update command failed")
+
+		// Then: the workspace is no longer 'outdated'
+		ws, err = member.WorkspaceByOwnerAndName(ctx, codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
+		require.NoError(t, err, "member failed to get workspace they themselves own after update")
+		require.Equal(t, version2.ID.String(), ws.LatestBuild.TemplateVersionID.String(), "workspace must have latest template version after update")
+		require.False(t, ws.Outdated, "workspace must not be outdated after update")
+
+		// Then: the workspace must have been started with the new template version
+		require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "latest build must be a start transition")
+		// Then: we expect 3 builds, as we manually stopped the workspace.
+		require.Equal(t, int32(3), ws.LatestBuild.BuildNumber, "workspace must have 3 builds after update")
 	})
 }
 

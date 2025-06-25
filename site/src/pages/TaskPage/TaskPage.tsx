@@ -1,10 +1,12 @@
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
-import type { WorkspaceStatus } from "api/typesGenerated";
+import { template as templateQueryOptions } from "api/queries/templates";
+import type { Workspace, WorkspaceStatus } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Spinner } from "components/Spinner/Spinner";
+import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { ArrowLeftIcon, RotateCcwIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import type { ReactNode } from "react";
@@ -12,7 +14,12 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
 import { Link as RouterLink } from "react-router-dom";
+import { ellipsizeText } from "utils/ellipsizeText";
 import { pageTitle } from "utils/page";
+import {
+	ActiveTransition,
+	WorkspaceBuildProgress,
+} from "../WorkspacePage/WorkspaceBuildProgress";
 import { TaskApps } from "./TaskApps";
 import { TaskSidebar } from "./TaskSidebar";
 
@@ -30,6 +37,19 @@ const TaskPage = () => {
 		queryFn: () => data.fetchTask(username, workspaceName),
 		refetchInterval: 5_000,
 	});
+
+	const { data: template } = useQuery({
+		...templateQueryOptions(task?.workspace.template_id ?? ""),
+		enabled: Boolean(task),
+	});
+
+	const waitingStatuses: WorkspaceStatus[] = ["starting", "pending"];
+	const shouldStreamBuildLogs =
+		task && waitingStatuses.includes(task.workspace.latest_build.status);
+	const buildLogs = useWorkspaceBuildLogs(
+		task?.workspace.latest_build.id ?? "",
+		shouldStreamBuildLogs,
+	);
 
 	if (error) {
 		return (
@@ -76,7 +96,6 @@ const TaskPage = () => {
 	}
 
 	let content: ReactNode = null;
-	const waitingStatuses: WorkspaceStatus[] = ["starting", "pending"];
 	const terminatedStatuses: WorkspaceStatus[] = [
 		"canceled",
 		"canceling",
@@ -87,16 +106,25 @@ const TaskPage = () => {
 	];
 
 	if (waitingStatuses.includes(task.workspace.latest_build.status)) {
+		// If no template yet, use an indeterminate progress bar.
+		const transition = (template &&
+			ActiveTransition(template, task.workspace)) || { P50: 0, P95: null };
+		const lastStage =
+			buildLogs?.[buildLogs.length - 1]?.stage || "Waiting for build status";
 		content = (
-			<div className="w-full min-h-80 flex items-center justify-center">
-				<div className="flex flex-col items-center">
-					<Spinner loading className="mb-4" />
+			<div className="w-full min-h-80 flex flex-col">
+				<div className="flex flex-col items-center grow justify-center">
 					<h3 className="m-0 font-medium text-content-primary text-base">
 						Starting your workspace
 					</h3>
-					<span className="text-content-secondary text-sm">
-						This should take a few minutes
-					</span>
+					<div className="text-content-secondary text-sm">{lastStage}</div>
+				</div>
+				<div className="w-full">
+					<WorkspaceBuildProgress
+						workspace={task.workspace}
+						transitionStats={transition}
+						variant="task"
+					/>
 				</div>
 			</div>
 		);
@@ -163,7 +191,7 @@ const TaskPage = () => {
 	return (
 		<>
 			<Helmet>
-				<title>{pageTitle(task.prompt)}</title>
+				<title>{pageTitle(ellipsizeText(task.prompt, 64) ?? "Task")}</title>
 			</Helmet>
 
 			<div className="h-full flex justify-stretch">
@@ -176,22 +204,34 @@ const TaskPage = () => {
 
 export default TaskPage;
 
+export class WorkspaceDoesNotHaveAITaskError extends Error {
+	constructor(workspace: Workspace) {
+		super(
+			`Workspace ${workspace.owner_name}/${workspace.name} is not running an AI task`,
+		);
+		this.name = "WorkspaceDoesNotHaveAITaskError";
+	}
+}
+
 export const data = {
 	fetchTask: async (workspaceOwnerUsername: string, workspaceName: string) => {
 		const workspace = await API.getWorkspaceByOwnerAndName(
 			workspaceOwnerUsername,
 			workspaceName,
 		);
+		if (
+			workspace.latest_build.job.completed_at &&
+			!workspace.latest_build.has_ai_task
+		) {
+			throw new WorkspaceDoesNotHaveAITaskError(workspace);
+		}
+
 		const parameters = await API.getWorkspaceBuildParameters(
 			workspace.latest_build.id,
 		);
-		const prompt = parameters.find(
-			(p) => p.name === AI_PROMPT_PARAMETER_NAME,
-		)?.value;
-
-		if (!prompt) {
-			return;
-		}
+		const prompt =
+			parameters.find((p) => p.name === AI_PROMPT_PARAMETER_NAME)?.value ??
+			"Unknown prompt";
 
 		return {
 			workspace,

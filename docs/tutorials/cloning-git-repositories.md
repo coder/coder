@@ -4,7 +4,6 @@
   <span style="vertical-align:middle;">Author: </span>
   <a href="https://github.com/BrunoQuaresma" style="text-decoration: none; color: inherit; margin-bottom: 0px;">
     <span style="vertical-align:middle;">Bruno Quaresma</span>
-    <img src="https://avatars.githubusercontent.com/u/3165839?v=4" alt="Bruno Quaresma" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
   </a>
 </div>
 August 06, 2024
@@ -21,9 +20,9 @@ authorization. This can be achieved by using the Git provider, such as GitHub,
 as an authentication method. If you don't know how to do that, we have written
 documentation to help you:
 
-- [GitHub](../admin/external-auth.md#github)
-- [GitLab self-managed](../admin/external-auth.md#gitlab-self-managed)
-- [Self-managed git providers](../admin/external-auth.md#self-managed-git-providers)
+- [GitHub](../admin/external-auth/index.md#github)
+- [GitLab self-managed](../admin/external-auth/index.md#gitlab-self-managed)
+- [Self-managed git providers](../admin/external-auth/index.md#self-managed-git-providers)
 
 With the authentication in place, it is time to set up the template to use the
 [Git Clone module](https://registry.coder.com/modules/git-clone) from the

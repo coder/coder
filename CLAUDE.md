@@ -101,4 +101,6 @@ Read [cursor rules](.cursorrules).
 
 ## Frontend
 
-For building Frontend refer to [this document](docs/contributing/frontend.md)
+The frontend is contained in the site folder.
+
+For building Frontend refer to [this document](docs/about/contributing/frontend.md)

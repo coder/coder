@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "2.3.0-pre2"
+      version = ">= 2.3.0"
     }
   }
 }
@@ -27,6 +27,17 @@ data "coder_workspace_preset" "MyFirstProject" {
     instances = 4
     expiration_policy {
       ttl = 86400
+    }
+    scheduling {
+      timezone = "America/Los_Angeles"
+      schedule {
+        cron      = "* 8-18 * * 1-5"
+        instances = 3
+      }
+      schedule {
+        cron      = "* 8-14 * * 6"
+        instances = 1
+      }
     }
   }
 }

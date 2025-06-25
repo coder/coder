@@ -40,10 +40,10 @@ any-custom-agent configure-mcp --name "coder" --command "coder exp mcp server"
 
 This will start the MCP server and report activity back to the Coder control plane on behalf of the coder_app resource.
 
-> See the [Goose module](https://github.com/coder/modules/blob/main/goose/main.tf) source code for a real world example.
+> See the [Goose module](https://github.com/coder/registry/blob/main/registry/coder/modules/goose/main.tf) source code for a real world example.
 
 ## Contributing
 
 We welcome contributions for various agents via the [Coder registry](https://registry.coder.com/modules?tag=agent)!
 
-See our [contributing guide](https://github.com/coder/modules/blob/main/CONTRIBUTING.md) for more information.
+See our [contributing guide](https://github.com/coder/registry/blob/main/CONTRIBUTING.md) for more information.

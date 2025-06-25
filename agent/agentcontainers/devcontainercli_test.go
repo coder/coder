@@ -22,6 +22,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -182,7 +183,7 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				configPath:      "",
 				cmd:             "echo",
 				cmdArgs:         []string{"hello"},
-				opts:            []agentcontainers.DevcontainerCLIExecOptions{agentcontainers.WithContainerID("test-container-123")},
+				opts:            []agentcontainers.DevcontainerCLIExecOptions{agentcontainers.WithExecContainerID("test-container-123")},
 				wantArgs:        "exec --workspace-folder /test/workspace --container-id test-container-123 echo hello",
 				wantError:       false,
 			},
@@ -192,7 +193,7 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				configPath:      "/test/config.json",
 				cmd:             "bash",
 				cmdArgs:         []string{"-c", "ls -la"},
-				opts:            []agentcontainers.DevcontainerCLIExecOptions{agentcontainers.WithContainerID("my-container")},
+				opts:            []agentcontainers.DevcontainerCLIExecOptions{agentcontainers.WithExecContainerID("my-container")},
 				wantArgs:        "exec --workspace-folder /test/workspace --config /test/config.json --container-id my-container bash -c ls -la",
 				wantError:       false,
 			},
@@ -203,7 +204,7 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				cmd:             "cat",
 				cmdArgs:         []string{"/etc/hostname"},
 				opts: []agentcontainers.DevcontainerCLIExecOptions{
-					agentcontainers.WithContainerID("test-container-789"),
+					agentcontainers.WithExecContainerID("test-container-789"),
 				},
 				wantArgs:  "exec --workspace-folder /test/workspace --container-id test-container-789 cat /etc/hostname",
 				wantError: false,
@@ -229,6 +230,99 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 					assert.Error(t, err, "want error")
 				} else {
 					assert.NoError(t, err, "want no error")
+				}
+			})
+		}
+	})
+
+	t.Run("ReadConfig", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name            string
+			logFile         string
+			workspaceFolder string
+			configPath      string
+			opts            []agentcontainers.DevcontainerCLIReadConfigOptions
+			wantArgs        string
+			wantError       bool
+			wantConfig      agentcontainers.DevcontainerConfig
+		}{
+			{
+				name:            "WithCoderCustomization",
+				logFile:         "read-config-with-coder-customization.log",
+				workspaceFolder: "/test/workspace",
+				configPath:      "",
+				wantArgs:        "read-configuration --include-merged-configuration --workspace-folder /test/workspace",
+				wantError:       false,
+				wantConfig: agentcontainers.DevcontainerConfig{
+					MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
+						Customizations: agentcontainers.DevcontainerMergedCustomizations{
+							Coder: []agentcontainers.CoderCustomization{
+								{
+									DisplayApps: map[codersdk.DisplayApp]bool{
+										codersdk.DisplayAppVSCodeDesktop: true,
+										codersdk.DisplayAppWebTerminal:   true,
+									},
+								},
+								{
+									DisplayApps: map[codersdk.DisplayApp]bool{
+										codersdk.DisplayAppVSCodeInsiders: true,
+										codersdk.DisplayAppWebTerminal:    false,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				name:            "WithoutCoderCustomization",
+				logFile:         "read-config-without-coder-customization.log",
+				workspaceFolder: "/test/workspace",
+				configPath:      "/test/config.json",
+				wantArgs:        "read-configuration --include-merged-configuration --workspace-folder /test/workspace --config /test/config.json",
+				wantError:       false,
+				wantConfig: agentcontainers.DevcontainerConfig{
+					MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
+						Customizations: agentcontainers.DevcontainerMergedCustomizations{
+							Coder: nil,
+						},
+					},
+				},
+			},
+			{
+				name:            "FileNotFound",
+				logFile:         "read-config-error-not-found.log",
+				workspaceFolder: "/nonexistent/workspace",
+				configPath:      "",
+				wantArgs:        "read-configuration --include-merged-configuration --workspace-folder /nonexistent/workspace",
+				wantError:       true,
+				wantConfig:      agentcontainers.DevcontainerConfig{},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitMedium)
+
+				testExecer := &testDevcontainerExecer{
+					testExePath: testExePath,
+					wantArgs:    tt.wantArgs,
+					wantError:   tt.wantError,
+					logFile:     filepath.Join("testdata", "devcontainercli", "readconfig", tt.logFile),
+				}
+
+				dccli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
+				config, err := dccli.ReadConfig(ctx, tt.workspaceFolder, tt.configPath, []string{}, tt.opts...)
+				if tt.wantError {
+					assert.Error(t, err, "want error")
+					assert.Equal(t, agentcontainers.DevcontainerConfig{}, config, "expected empty config on error")
+				} else {
+					assert.NoError(t, err, "want no error")
+					assert.Equal(t, tt.wantConfig, config, "expected config to match")
 				}
 			})
 		}
@@ -269,7 +363,7 @@ func TestDevcontainerCLI_WithOutput(t *testing.T) {
 		require.NotEmpty(t, containerID, "expected non-empty container ID")
 
 		// Read expected log content.
-		expLog, err := os.ReadFile(filepath.Join("testdata", "devcontainercli", "parse", "up.log"))
+		expLog, err := os.ReadFile(filepath.Join("testdata", "devcontainercli", "parse", "up.golden"))
 		require.NoError(t, err, "reading expected log file")
 
 		// Verify stdout buffer contains the CLI logs and stderr is empty.
@@ -306,7 +400,7 @@ func TestDevcontainerCLI_WithOutput(t *testing.T) {
 		// Call Exec with WithExecOutput and WithContainerID to capture any command output.
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		err = dccli.Exec(ctx, "/test/workspace", "", "echo", []string{"hello"},
-			agentcontainers.WithContainerID("test-container-456"),
+			agentcontainers.WithExecContainerID("test-container-456"),
 			agentcontainers.WithExecOutput(outBuf, errBuf),
 		)
 		require.NoError(t, err, "Exec should succeed")
@@ -492,7 +586,7 @@ func setupDevcontainerWorkspace(t *testing.T, workspaceFolder string) string {
 	"containerEnv": {
 		"TEST_CONTAINER": "true"
 	},
-	"runArgs": ["--label", "com.coder.test=devcontainercli"]
+	"runArgs": ["--label=com.coder.test=devcontainercli", "--label=` + agentcontainers.DevcontainerIsTestRunLabel + `=true"]
 }`
 	err = os.WriteFile(configPath, []byte(content), 0o600)
 	require.NoError(t, err, "create devcontainer.json file")

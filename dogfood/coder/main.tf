@@ -2,13 +2,23 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 2.0"
+      version = "~> 2.5"
     }
     docker = {
       source  = "kreuzwerker/docker"
       version = "~> 3.0"
     }
   }
+}
+
+// This module is a terraform no-op. It contains 5mb worth of files to test
+// Coder's behavior dealing with larger modules. This is included to test
+// protobuf message size limits and the performance of module loading.
+//
+// In reality, modules might have accidental bloat from non-terraform files such
+// as images & documentation.
+module "large-5mb-module" {
+  source = "git::https://github.com/coder/large-module.git"
 }
 
 locals {
@@ -214,6 +224,14 @@ data "coder_parameter" "res_mon_volume_path" {
   mutable     = true
 }
 
+data "coder_parameter" "devcontainer_autostart" {
+  type        = "bool"
+  name        = "Automatically start devcontainer for coder/coder"
+  default     = false
+  description = "If enabled, a devcontainer will be automatically started for the [coder/coder](https://github.com/coder/coder) repository."
+  mutable     = true
+}
+
 provider "docker" {
   host = lookup(local.docker_host, data.coder_parameter.region.value)
 }
@@ -267,21 +285,23 @@ module "personalize" {
 module "code-server" {
   count                   = data.coder_workspace.me.start_count
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.2.0"
+  version                 = "1.3.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
+  group                   = "Web Editors"
 }
 
 module "vscode-web" {
   count                   = data.coder_workspace.me.start_count
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
-  version                 = "1.1.0"
+  version                 = "1.2.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   extensions              = ["github.copilot"]
   auto_install_extensions = true # will install extensions from the repos .vscode/extensions.json file
   accept_license          = true
+  group                   = "Web Editors"
 }
 
 module "jetbrains" {
@@ -324,10 +344,18 @@ module "windsurf" {
 }
 
 module "zed" {
+  count      = data.coder_workspace.me.start_count
+  source     = "./zed"
+  agent_id   = coder_agent.dev.id
+  agent_name = "dev"
+  folder     = local.repo_dir
+}
+
+module "devcontainers-cli" {
   count    = data.coder_workspace.me.start_count
-  source   = "./zed"
+  source   = "dev.registry.coder.com/modules/devcontainers-cli/coder"
+  version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
-  folder   = local.repo_dir
 }
 
 resource "coder_agent" "dev" {
@@ -434,6 +462,11 @@ resource "coder_agent" "dev" {
       threshold = data.coder_parameter.res_mon_volume_threshold.value
       path      = data.coder_parameter.res_mon_volume_path.value
     }
+    volume {
+      enabled   = true
+      threshold = data.coder_parameter.res_mon_volume_threshold.value
+      path      = "/var/lib/docker"
+    }
   }
 
   startup_script = <<-EOT
@@ -463,20 +496,24 @@ resource "coder_agent" "dev" {
     #!/usr/bin/env bash
     set -eux -o pipefail
 
-    # Stop all running containers and prune the system to clean up
-    # /var/lib/docker to prevent errors during workspace destroy.
+    # Clean up the unused resources to keep storage usage low.
     #
     # WARNING! This will remove:
-    # - all containers
-    # - all networks
-    # - all images
-    # - all build cache
-    docker ps -q | xargs docker stop
+    #   - all stopped containers
+    #   - all networks not used by at least one container
+    #   - all images without at least one container associated to them
+    #   - all build cache
     docker system prune -a -f
 
     # Stop the Docker service to prevent errors during workspace destroy.
     sudo service docker stop
   EOT
+}
+
+resource "coder_devcontainer" "coder" {
+  count            = data.coder_parameter.devcontainer_autostart.value ? data.coder_workspace.me.start_count : 0
+  agent_id         = coder_agent.dev.id
+  workspace_folder = local.repo_dir
 }
 
 # Add a cost so we get some quota usage in dev.coder.com
@@ -487,6 +524,38 @@ resource "coder_metadata" "home_volume" {
 
 resource "docker_volume" "home_volume" {
   name = "coder-${data.coder_workspace.me.id}-home"
+  # Protect the volume from being deleted due to changes in attributes.
+  lifecycle {
+    ignore_changes = all
+  }
+  # Add labels in Docker to keep track of orphan resources.
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace_owner.me.name
+  }
+  labels {
+    label = "coder.owner_id"
+    value = data.coder_workspace_owner.me.id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+  # This field becomes outdated if the workspace is renamed but can
+  # be useful for debugging or cleaning out dangling volumes.
+  labels {
+    label = "coder.workspace_name_at_creation"
+    value = data.coder_workspace.me.name
+  }
+}
+
+resource "coder_metadata" "docker_volume" {
+  resource_id = docker_volume.docker_volume.id
+  hide        = true # Hide it as it is not useful to see in the UI.
+}
+
+resource "docker_volume" "docker_volume" {
+  name = "coder-${data.coder_workspace.me.id}-docker"
   # Protect the volume from being deleted due to changes in attributes.
   lifecycle {
     ignore_changes = all
@@ -571,6 +640,11 @@ resource "docker_container" "workspace" {
   volumes {
     container_path = "/home/coder/"
     volume_name    = docker_volume.home_volume.name
+    read_only      = false
+  }
+  volumes {
+    container_path = "/var/lib/docker/"
+    volume_name    = docker_volume.docker_volume.name
     read_only      = false
   }
   capabilities {

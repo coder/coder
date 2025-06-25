@@ -383,7 +383,6 @@ type DeploymentValues struct {
 	DisablePasswordAuth             serpent.Bool                         `json:"disable_password_auth,omitempty" typescript:",notnull"`
 	Support                         SupportConfig                        `json:"support,omitempty" typescript:",notnull"`
 	ExternalAuthConfigs             serpent.Struct[[]ExternalAuthConfig] `json:"external_auth,omitempty" typescript:",notnull"`
-	AI                              serpent.Struct[AIConfig]             `json:"ai,omitempty" typescript:",notnull"`
 	SSHConfig                       SSHConfig                            `json:"config_ssh,omitempty" typescript:",notnull"`
 	WgtunnelHost                    serpent.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
 	DisableOwnerWorkspaceExec       serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
@@ -399,6 +398,8 @@ type DeploymentValues struct {
 	AdditionalCSPPolicy             serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
 	WorkspaceHostnameSuffix         serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
 	Prebuilds                       PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
+	HideAITasks                     serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
+	AI								AIConfig							 `json:"ai,omitempty"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -468,6 +469,8 @@ type SessionLifetime struct {
 	DefaultTokenDuration serpent.Duration `json:"default_token_lifetime,omitempty" typescript:",notnull"`
 
 	MaximumTokenDuration serpent.Duration `json:"max_token_lifetime,omitempty" typescript:",notnull"`
+
+	MaximumAdminTokenDuration serpent.Duration `json:"max_admin_token_lifetime,omitempty" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -2345,6 +2348,17 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
+			Name:        "Maximum Admin Token Lifetime",
+			Description: "The maximum lifetime duration administrators can specify when creating an API token.",
+			Flag:        "max-admin-token-lifetime",
+			Env:         "CODER_MAX_ADMIN_TOKEN_LIFETIME",
+			Default:     (7 * 24 * time.Hour).String(),
+			Value:       &c.Sessions.MaximumAdminTokenDuration,
+			Group:       &deploymentGroupNetworkingHTTP,
+			YAML:        "maxAdminTokenLifetime",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
 			Name:        "Default Token Lifetime",
 			Description: "The default lifetime duration for API tokens. This value is used when creating a token without specifying a duration, such as when authenticating the CLI or an IDE plugin.",
 			Flag:        "default-token-lifetime",
@@ -2670,15 +2684,6 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "supportLinks",
 			Value:       &c.Support.Links,
 			Hidden:      false,
-		},
-		{
-			// Env handling is done in cli.ReadAIProvidersFromEnv
-			Name:        "AI",
-			Description: "Configure AI providers.",
-			YAML:        "ai",
-			Value:       &c.AI,
-			// Hidden because this is experimental.
-			Hidden: true,
 		},
 		{
 			// Env handling is done in cli.ReadGitAuthFromEnvironment
@@ -3107,6 +3112,16 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "failure_hard_limit",
 			Hidden:      true,
 		},
+		{
+			Name:        "Hide AI Tasks",
+			Description: "Hide AI tasks from the dashboard.",
+			Flag:        "hide-ai-tasks",
+			Env:         "CODER_HIDE_AI_TASKS",
+			Default:     "false",
+			Value:       &c.HideAITasks,
+			Group:       &deploymentGroupClient,
+			YAML:        "hideAITasks",
+		},
 
 		// AI Bridge Options
 		{
@@ -3114,7 +3129,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "TODO.",
 			Flag:        "ai-bridge-daemons",
 			Env:         "CODER_AI_BRIDGE_DAEMONS",
-			Value:       &c.AI.Value.BridgeConfig.Daemons,
+			Value:       &c.AI.BridgeConfig.Daemons,
 			Default:     "3",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "daemons",
@@ -3125,7 +3140,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "TODO.",
 			Flag:        "ai-bridge-openai-base-url",
 			Env:         "CODER_AI_BRIDGE_OPENAI_BASE_URL",
-			Value:       &c.AI.Value.BridgeConfig.OpenAIBaseURL,
+			Value:       &c.AI.BridgeConfig.OpenAIBaseURL,
 			Default:     "https://api.openai.com",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "daemons",
@@ -3136,7 +3151,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "TODO.",
 			Flag:        "ai-bridge-anthropic-base-url",
 			Env:         "CODER_AI_BRIDGE_Anthropic_BASE_URL",
-			Value:       &c.AI.Value.BridgeConfig.AnthropicBaseURL,
+			Value:       &c.AI.BridgeConfig.AnthropicBaseURL,
 			Default:     "https://api.anthropic.com",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "daemons",
@@ -3147,17 +3162,6 @@ Write out the current server config as YAML to stdout.`,
 	return opts
 }
 
-type AIProviderConfig struct {
-	// Type is the type of the API provider.
-	Type string `json:"type" yaml:"type"`
-	// APIKey is the API key to use for the API provider.
-	APIKey string `json:"-" yaml:"api_key"`
-	// Models is the list of models to use for the API provider.
-	Models []string `json:"models" yaml:"models"`
-	// BaseURL is the base URL to use for the API provider.
-	BaseURL string `json:"base_url" yaml:"base_url"`
-}
-
 type AIBridgeConfig struct {
 	Daemons          serpent.Int64  `json:"daemons" typescript:",notnull"`
 	OpenAIBaseURL    serpent.String `json:"openai_base_url" typescript:",notnull"`
@@ -3165,7 +3169,6 @@ type AIBridgeConfig struct {
 }
 
 type AIConfig struct {
-	Providers []AIProviderConfig `json:"providers,omitempty" yaml:"providers,omitempty"`
 	BridgeConfig AIBridgeConfig `json:"bridge,omitempty"`
 }
 
@@ -3389,11 +3392,18 @@ const (
 	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
-	ExperimentDynamicParameters  Experiment = "dynamic-parameters"   // Enables dynamic parameters when creating a workspace.
 	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
-	ExperimentAgenticChat        Experiment = "agentic-chat"         // Enables the new agentic AI chat feature.
-	ExperimentAITasks            Experiment = "ai-tasks"             // Enables the new AI tasks feature.
 )
+
+// ExperimentsKnown should include all experiments defined above.
+var ExperimentsKnown = Experiments{
+	ExperimentExample,
+	ExperimentAutoFillParameters,
+	ExperimentNotifications,
+	ExperimentWorkspaceUsage,
+	ExperimentWebPush,
+	ExperimentWorkspacePrebuilds,
+}
 
 // ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
@@ -3407,6 +3417,9 @@ var ExperimentsSafe = Experiments{
 // Multiple experiments may be enabled at the same time.
 // Experiments are not safe for production use, and are not guaranteed to
 // be backwards compatible. They may be removed or renamed at any time.
+// The below typescript-ignore annotation allows our typescript generator
+// to generate an enum list, which is used in the frontend.
+// @typescript-ignore Experiments
 type Experiments []Experiment
 
 // Returns a list of experiments that are enabled for the deployment.
@@ -3605,32 +3618,6 @@ func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error
 
 	var sshConfig SSHConfigResponse
 	return sshConfig, json.NewDecoder(res.Body).Decode(&sshConfig)
-}
-
-type LanguageModelConfig struct {
-	Models []LanguageModel `json:"models"`
-}
-
-// LanguageModel is a language model that can be used for chat.
-type LanguageModel struct {
-	// ID is used by the provider to identify the LLM.
-	ID          string `json:"id"`
-	DisplayName string `json:"display_name"`
-	// Provider is the provider of the LLM. e.g. openai, anthropic, etc.
-	Provider string `json:"provider"`
-}
-
-func (c *Client) LanguageModelConfig(ctx context.Context) (LanguageModelConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/llms", nil)
-	if err != nil {
-		return LanguageModelConfig{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return LanguageModelConfig{}, ReadBodyAsError(res)
-	}
-	var llms LanguageModelConfig
-	return llms, json.NewDecoder(res.Body).Decode(&llms)
 }
 
 type CryptoKeyFeature string

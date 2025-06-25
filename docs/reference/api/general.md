@@ -162,19 +162,10 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "agent_stat_refresh_interval": 0,
     "ai": {
-      "value": {
-        "bridge": {
-          "daemons": 0
-        },
-        "providers": [
-          {
-            "base_url": "string",
-            "models": [
-              "string"
-            ],
-            "type": "string"
-          }
-        ]
+      "bridge": {
+        "anthropic_base_url": "string",
+        "daemons": 0,
+        "openai_base_url": "string"
       }
     },
     "allow_workspace_renames": true,
@@ -275,6 +266,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "refresh": 0,
       "threshold_database": 0
     },
+    "hide_ai_tasks": true,
     "http_address": "string",
     "http_cookies": {
       "same_site": "string",
@@ -457,6 +449,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "default_duration": 0,
       "default_token_lifetime": 0,
       "disable_expiry_refresh": true,
+      "max_admin_token_lifetime": 0,
       "max_token_lifetime": 0
     },
     "ssh_keygen_algorithm": "string",
@@ -584,43 +577,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
 | Status | Meaning                                                 | Description | Schema                                                           |
 |--------|---------------------------------------------------------|-------------|------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeploymentConfig](schemas.md#codersdkdeploymentconfig) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
-## Get language models
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/deployment/llms \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /deployment/llms`
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "models": [
-    {
-      "display_name": "string",
-      "id": "string",
-      "provider": "string"
-    }
-  ]
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                                 |
-|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.LanguageModelConfig](schemas.md#codersdklanguagemodelconfig) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

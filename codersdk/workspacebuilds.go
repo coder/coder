@@ -75,6 +75,8 @@ type WorkspaceBuild struct {
 	DailyCost               int32                `json:"daily_cost"`
 	MatchedProvisioners     *MatchedProvisioners `json:"matched_provisioners,omitempty"`
 	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id" format:"uuid"`
+	HasAITask               *bool                `json:"has_ai_task,omitempty"`
+	AITaskSidebarAppID      *uuid.UUID           `json:"ai_task_sidebar_app_id,omitempty" format:"uuid"`
 }
 
 // WorkspaceResource describes resources used to create a workspace, for instance:

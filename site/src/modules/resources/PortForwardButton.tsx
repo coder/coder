@@ -1,4 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import BusinessIcon from "@mui/icons-material/Business";
 import LockIcon from "@mui/icons-material/Lock";
 import LockOpenIcon from "@mui/icons-material/LockOpen";
 import SensorsIcon from "@mui/icons-material/Sensors";
@@ -8,7 +9,6 @@ import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
-import MUITooltip from "@mui/material/Tooltip";
 import { API } from "api/api";
 import {
 	deleteWorkspacePortShare,
@@ -207,16 +207,50 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	);
 	const canSharePortsPublic =
 		canSharePorts && template.max_port_share_level === "public";
+	const canSharePortsAuthenticated =
+		canSharePorts &&
+		(template.max_port_share_level === "authenticated" || canSharePortsPublic);
+
+	const defaultShareLevel =
+		template.max_port_share_level === "organization"
+			? "organization"
+			: "authenticated";
 
 	const disabledPublicMenuItem = (
-		<MUITooltip title="This workspace template does not allow sharing ports with unauthenticated users.">
-			{/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
-			<div>
-				<MenuItem value="public" disabled>
-					Public
-				</MenuItem>
-			</div>
-		</MUITooltip>
+		<TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					{/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
+					<div>
+						<MenuItem value="public" disabled>
+							Public
+						</MenuItem>
+					</div>
+				</TooltipTrigger>
+				<TooltipContent disablePortal>
+					This workspace template does not allow sharing ports publicly.
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
+	);
+
+	const disabledAuthenticatedMenuItem = (
+		<TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					{/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
+					<div>
+						<MenuItem value="authenticated" disabled>
+							Authenticated
+						</MenuItem>
+					</div>
+				</TooltipTrigger>
+				<TooltipContent disablePortal>
+					This workspace template does not allow sharing ports outside of its
+					organization.
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 
 	return (
@@ -311,7 +345,9 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 												<span className="sr-only">Connect to port</span>
 											</Button>
 										</TooltipTrigger>
-										<TooltipContent>Connect to port</TooltipContent>
+										<TooltipContent disablePortal>
+											Connect to port
+										</TooltipContent>
 									</Tooltip>
 								</TooltipProvider>
 							</form>
@@ -379,7 +415,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 																agent_name: agent.name,
 																port: port.port,
 																protocol: listeningPortProtocol,
-																share_level: "authenticated",
+																share_level: defaultShareLevel,
 															});
 														}}
 													>
@@ -387,7 +423,9 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 														<span className="sr-only">Share</span>
 													</Button>
 												</TooltipTrigger>
-												<TooltipContent>Share this port</TooltipContent>
+												<TooltipContent disablePortal>
+													Share this port
+												</TooltipContent>
 											</Tooltip>
 										</TooltipProvider>
 									)}
@@ -406,7 +444,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 				<HelpTooltipTitle>Shared Ports</HelpTooltipTitle>
 				<HelpTooltipText css={{ color: theme.palette.text.secondary }}>
 					{canSharePorts
-						? "Ports can be shared with other Coder users or with the public."
+						? "Ports can be shared with organization members, other Coder users, or with the public."
 						: "This workspace template does not allow sharing ports. Contact a template administrator to enable port sharing."}
 				</HelpTooltipText>
 				{canSharePorts && (
@@ -437,6 +475,8 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									>
 										{share.share_level === "public" ? (
 											<LockOpenIcon css={{ width: 14, height: 14 }} />
+										) : share.share_level === "organization" ? (
+											<BusinessIcon css={{ width: 14, height: 14 }} />
 										) : (
 											<LockIcon css={{ width: 14, height: 14 }} />
 										)}
@@ -479,7 +519,14 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 													});
 												}}
 											>
-												<MenuItem value="authenticated">Authenticated</MenuItem>
+												<MenuItem value="organization">Organization</MenuItem>
+												{canSharePortsAuthenticated ? (
+													<MenuItem value="authenticated">
+														Authenticated
+													</MenuItem>
+												) : (
+													disabledAuthenticatedMenuItem
+												)}
 												{canSharePortsPublic ? (
 													<MenuItem value="public">Public</MenuItem>
 												) : (
@@ -546,7 +593,12 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									value={form.values.share_level}
 									label="Sharing Level"
 								>
-									<MenuItem value="authenticated">Authenticated</MenuItem>
+									<MenuItem value="organization">Organization</MenuItem>
+									{canSharePortsAuthenticated ? (
+										<MenuItem value="authenticated">Authenticated</MenuItem>
+									) : (
+										disabledAuthenticatedMenuItem
+									)}
 									{canSharePortsPublic ? (
 										<MenuItem value="public">Public</MenuItem>
 									) : (
@@ -568,11 +620,11 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 
 const classNames = {
 	paper: (css, theme) => css`
-    padding: 0;
-    width: 404px;
-    color: ${theme.palette.text.secondary};
-    margin-top: 4px;
-  `,
+		padding: 0;
+		width: 404px;
+		color: ${theme.palette.text.secondary};
+		margin-top: 4px;
+	`,
 } satisfies Record<string, ClassName>;
 
 const styles = {

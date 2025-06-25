@@ -5,18 +5,20 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/quartz"
+
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner"
-	"github.com/coder/quartz"
 )
 
 type SubAgentAPI struct {
@@ -55,6 +57,31 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 
 	createdAt := a.Clock.Now()
 
+	displayApps := make([]database.DisplayApp, 0, len(req.DisplayApps))
+	for idx, displayApp := range req.DisplayApps {
+		var app database.DisplayApp
+
+		switch displayApp {
+		case agentproto.CreateSubAgentRequest_PORT_FORWARDING_HELPER:
+			app = database.DisplayAppPortForwardingHelper
+		case agentproto.CreateSubAgentRequest_SSH_HELPER:
+			app = database.DisplayAppSSHHelper
+		case agentproto.CreateSubAgentRequest_VSCODE:
+			app = database.DisplayAppVscode
+		case agentproto.CreateSubAgentRequest_VSCODE_INSIDERS:
+			app = database.DisplayAppVscodeInsiders
+		case agentproto.CreateSubAgentRequest_WEB_TERMINAL:
+			app = database.DisplayAppWebTerminal
+		default:
+			return nil, codersdk.ValidationError{
+				Field:  fmt.Sprintf("display_apps[%d]", idx),
+				Detail: fmt.Sprintf("%q is not a valid display app", displayApp),
+			}
+		}
+
+		displayApps = append(displayApps, app)
+	}
+
 	subAgent, err := a.Database.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 		ID:                       uuid.New(),
 		ParentID:                 uuid.NullUUID{Valid: true, UUID: parentAgent.ID},
@@ -73,7 +100,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		ConnectionTimeoutSeconds: parentAgent.ConnectionTimeoutSeconds,
 		TroubleshootingURL:       parentAgent.TroubleshootingURL,
 		MOTDFile:                 "",
-		DisplayApps:              []database.DisplayApp{},
+		DisplayApps:              displayApps,
 		DisplayOrder:             0,
 		APIKeyScope:              parentAgent.APIKeyScope,
 	})
@@ -115,20 +142,15 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 				health = database.WorkspaceAppHealthInitializing
 			}
 
-			var sharingLevel database.AppSharingLevel
-			switch app.GetShare() {
-			case agentproto.CreateSubAgentRequest_App_OWNER:
-				sharingLevel = database.AppSharingLevelOwner
-			case agentproto.CreateSubAgentRequest_App_AUTHENTICATED:
-				sharingLevel = database.AppSharingLevelAuthenticated
-			case agentproto.CreateSubAgentRequest_App_PUBLIC:
-				sharingLevel = database.AppSharingLevelPublic
-			default:
+			share := app.GetShare()
+			protoSharingLevel, ok := agentproto.CreateSubAgentRequest_App_SharingLevel_name[int32(share)]
+			if !ok {
 				return codersdk.ValidationError{
 					Field:  "share",
-					Detail: fmt.Sprintf("%q is not a valid app sharing level", app.GetShare()),
+					Detail: fmt.Sprintf("%q is not a valid app sharing level", share.String()),
 				}
 			}
+			sharingLevel := database.AppSharingLevel(strings.ToLower(protoSharingLevel))
 
 			var openIn database.WorkspaceAppOpenIn
 			switch app.GetOpenIn() {
@@ -143,8 +165,8 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 				}
 			}
 
-			_, err := a.Database.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
-				ID:          uuid.New(),
+			_, err := a.Database.UpsertWorkspaceApp(ctx, database.UpsertWorkspaceAppParams{
+				ID:          uuid.New(), // NOTE: we may need to maintain the app's ID here for stability, but for now we'll leave this as-is.
 				CreatedAt:   createdAt,
 				AgentID:     subAgent.ID,
 				Slug:        app.Slug,

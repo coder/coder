@@ -1,8 +1,10 @@
 package coderd_test
 
 import (
+	"slices"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -78,7 +80,6 @@ func TestTemplateVersionPresets(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
@@ -134,6 +135,96 @@ func TestTemplateVersionPresets(t *testing.T) {
 					}
 				}
 				require.True(t, found, "Expected preset %s not found in results", expectedPreset.Name)
+			}
+		})
+	}
+}
+
+func TestTemplateVersionPresetsDefault(t *testing.T) {
+	t.Parallel()
+
+	type expectedPreset struct {
+		name      string
+		isDefault bool
+	}
+
+	cases := []struct {
+		name     string
+		presets  []database.InsertPresetParams
+		expected []expectedPreset
+	}{
+		{
+			name:     "no presets",
+			presets:  nil,
+			expected: nil,
+		},
+		{
+			name: "single default preset",
+			presets: []database.InsertPresetParams{
+				{Name: "Default Preset", IsDefault: true},
+			},
+			expected: []expectedPreset{
+				{name: "Default Preset", isDefault: true},
+			},
+		},
+		{
+			name: "single non-default preset",
+			presets: []database.InsertPresetParams{
+				{Name: "Regular Preset", IsDefault: false},
+			},
+			expected: []expectedPreset{
+				{name: "Regular Preset", isDefault: false},
+			},
+		},
+		{
+			name: "mixed presets",
+			presets: []database.InsertPresetParams{
+				{Name: "Default Preset", IsDefault: true},
+				{Name: "Regular Preset", IsDefault: false},
+			},
+			expected: []expectedPreset{
+				{name: "Default Preset", isDefault: true},
+				{name: "Regular Preset", isDefault: false},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+			// Create presets
+			for _, preset := range tc.presets {
+				preset.TemplateVersionID = version.ID
+				_ = dbgen.Preset(t, db, preset)
+			}
+
+			// Get presets via API
+			userSubject, _, err := httpmw.UserRBACSubject(ctx, db, user.UserID, rbac.ScopeAll)
+			require.NoError(t, err)
+			userCtx := dbauthz.As(ctx, userSubject)
+
+			gotPresets, err := client.TemplateVersionPresets(userCtx, version.ID)
+			require.NoError(t, err)
+
+			// Verify results
+			require.Len(t, gotPresets, len(tc.expected))
+
+			for _, expected := range tc.expected {
+				found := slices.ContainsFunc(gotPresets, func(preset codersdk.Preset) bool {
+					if preset.Name != expected.name {
+						return false
+					}
+
+					return assert.Equal(t, expected.isDefault, preset.Default)
+				})
+				require.True(t, found, "Expected preset %s not found", expected.name)
 			}
 		})
 	}
