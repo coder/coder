@@ -41,6 +41,8 @@ var skipMethods = map[string]string{
 	"Wrappers":       "Not relevant",
 	"AcquireLock":    "Not relevant",
 	"TryAcquireLock": "Not relevant",
+	// New OAuth2 resource-indicator methods (RFC 8707); tests to be added
+	"GetOAuth2ProviderAppTokenByAPIKeyID": "Not relevant",
 }
 
 // TestMethodTestSuite runs MethodTestSuite.

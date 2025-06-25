@@ -240,6 +240,16 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		})
 	}
 
+	// Validate OAuth2 provider app token audience (RFC 8707) if applicable
+	if key.LoginType == database.LoginTypeOAuth2ProviderApp {
+		if err := validateOAuth2ProviderAppTokenAudience(ctx, cfg.DB, *key, r); err != nil {
+			return optionalWrite(http.StatusForbidden, codersdk.Response{
+				Message: "Token audience mismatch",
+				Detail:  err.Error(),
+			})
+		}
+	}
+
 	// We only check OIDC stuff if we have a valid APIKey. An expired key means we don't trust the requestor
 	// really is the user whose key they have, and so we shouldn't be doing anything on their behalf including possibly
 	// refreshing the OIDC token.
@@ -444,6 +454,47 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	}
 
 	return key, &actor, true
+}
+
+// validateOAuth2ProviderAppTokenAudience validates that an OAuth2 provider app token
+// is being used with the correct audience/resource server (RFC 8707).
+func validateOAuth2ProviderAppTokenAudience(ctx context.Context, db database.Store, key database.APIKey, r *http.Request) error {
+	// Get the OAuth2 provider app token to check its audience
+	//nolint:gocritic // System needs to access token for audience validation
+	token, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(dbauthz.AsSystemRestricted(ctx), key.ID)
+	if err != nil {
+		return xerrors.Errorf("failed to get OAuth2 token: %w", err)
+	}
+
+	// If no audience is set, allow the request (for backward compatibility)
+	if !token.Audience.Valid || token.Audience.String == "" {
+		return nil
+	}
+
+	// Extract the expected audience from the request
+	expectedAudience := extractExpectedAudience(r)
+
+	// Validate that the token's audience matches the expected audience
+	if token.Audience.String != expectedAudience {
+		return xerrors.Errorf("token audience %q does not match expected audience %q",
+			token.Audience.String, expectedAudience)
+	}
+
+	return nil
+}
+
+// extractExpectedAudience determines the expected audience for the current request.
+// This should match the resource parameter used during authorization.
+func extractExpectedAudience(r *http.Request) string {
+	// For MCP compliance, the audience should be the canonical URI of the resource server
+	// This typically matches the access URL of the Coder deployment
+	scheme := "https"
+	if r.TLS == nil {
+		scheme = "http"
+	}
+
+	// Use the Host header to construct the canonical audience URI
+	return fmt.Sprintf("%s://%s", scheme, r.Host)
 }
 
 // UserRBACSubject fetches a user's rbac.Subject from the database. It pulls all roles from both
