@@ -26,6 +26,36 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestPGConn(t *testing.T) {
+	t.Parallel()
+
+	// This test is just to ensure that the Postgres connection is working.
+	// It does not test the cache itself, but rather the underlying database
+	// connection.
+	db, _ := dbtestutil.NewDB(t, dbtestutil.WithMaxConns(1))
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+
+	//nolint:gocritic // Unit testing
+	ctx := dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort))
+	file := dbgen.File(t, db, database.File{})
+
+	// Consume a pg connection with a transaction.
+	tx := dbtestutil.StartTx(t, db, nil)
+
+	// Acquire the file from the cache outside the transaction.
+	fs, err := cache.Acquire(ctx, db, file.ID)
+	require.NoError(t, err)
+	defer fs.Close()
+
+	// Acquire the file from the cache inside the transaction.
+	fs2, err := cache.Acquire(ctx, tx, file.ID)
+	require.NoError(t, err)
+	defer fs2.Close()
+	require.NoError(t, tx.Done()) // Close the transaction
+
+	require.Equal(t, 1, cache.Count())
+}
+
 // nolint:paralleltest,tparallel // Serially testing is easier
 func TestCacheRBAC(t *testing.T) {
 	t.Parallel()
