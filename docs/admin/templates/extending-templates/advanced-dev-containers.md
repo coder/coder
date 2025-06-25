@@ -56,6 +56,22 @@ module "git-clone-backend" {
 
 Each dev container will appear as a separate agent in the Coder UI, allowing developers to connect to different environments within the same workspace.
 
+## Add a Personal devcontainer.json alongside a repository-specific one
+
+Keep a canonical `devcontainer.json` in the repo, then let each developer add an
+untracked `devcontainer.local.json` (or another file referenced via `"extends"`).
+
+```jsonc
+// devcontainer.local.json (ignored by Git)
+{
+  "extends": "./devcontainer.json",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" }
+  },
+  "postStartCommand": "npm i -g tldr"
+}
+```
+
 ## Conditional startup with user control
 
 Allow users to selectively enable dev containers:

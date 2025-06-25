@@ -1,13 +1,50 @@
 # Configure a template for dev containers
 
-To enable dev containers in workspaces, configure your template with the dev containers
+Dev containers provide a consistent, reproducible development environment using the
+[Development Containers specification](https://containers.dev/).
+Coder's dev container support allows developers to work in fully configured environments with their preferred tools and extensions.
+
+To enable dev containers in workspaces, [configure your template](../creating-templates.md) with the dev containers
 modules and configurations outlined in this doc.
+
+## Why use dev containers
+
+Dev containers improve consistency across environments by letting developers define their development setup.
+When integrated with Coder templates, they provide:
+
+- **Project-specific environments**: Each repository can define its own tools, extensions, and configuration.
+- **Zero setup time**: Developers get fully configured environments without manual installation.
+- **Consistency across teams**: Everyone works in identical environments regardless of their local machine.
+- **Version control**: Development environment changes are tracked alongside code changes.
+
+## Prerequisites
+
+Dev containers require Docker to build and run containers.
+Ensure your workspace infrastructure has Docker configured with container creation permissions and sufficient resources.
+
+To confirm that Docker is configured correctly, create a test workspace and confirm that `docker ps` runs.
+If it doesn't, follow the steps in [Docker in workspaces](./docker-in-workspaces.md).
+
+## Enable Dev Containers Integration
+
+To enable the dev containers integration in your workspace, add the `CODER_AGENT_DEVCONTAINERS_ENABLE` environment variable to your existing `coder_agent` block:
+
+```terraform
+env = {
+  CODER_AGENT_DEVCONTAINERS_ENABLE = "true"
+  # existing variables ...
+}
+```
+
+This environment variable is required for the Coder agent to detect and manage dev containers.
+Without it, the agent will not attempt to start or connect to dev containers even if the
+`coder_devcontainer` resource is defined.
 
 ## Install the Dev Containers CLI
 
 Use the
 [devcontainers-cli](https://registry.coder.com/modules/devcontainers-cli) module
-to ensure the `@devcontainers/cli` is installed in your workspace:
+to install `@devcontainers/cli` in your workspace:
 
 ```terraform
 module "devcontainers-cli" {
@@ -17,7 +54,44 @@ module "devcontainers-cli" {
 }
 ```
 
-Alternatively, install the devcontainer CLI manually in your base image.
+Alternatively, install the devcontainer CLI manually in your base image:
+
+```shell
+RUN npm install -g @devcontainers/cli
+```
+
+## Define the dev container resource
+
+Point the resource at the folder that contains `devcontainer.json`:
+
+```terraform
+resource "coder_devcontainer" "project" {
+  count            = data.coder_workspace.me.start_count
+  agent_id         = coder_agent.dev.id
+  workspace_folder = "/home/coder/project"
+}
+```
+
+## Clone the repository
+
+This step is optional, but it ensures that the project is present before the dev container starts.
+
+```terraform
+module "git_clone" {
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/modules/git-clone/coder"
+  agent_id = coder_agent.dev.id
+  url      = "https://github.com/example/project.git"
+  path     = "/home/coder/project"
+}
+
+resource "coder_devcontainer" "project" {
+  count            = data.coder_workspace.me.start_count
+  agent_id         = coder_agent.dev.id
+  workspace_folder = module.git_clone[0].path
+  depends_on       = [module.git_clone]
+}
+```
 
 ## Configure Automatic Dev Container Startup
 
@@ -34,46 +108,67 @@ resource "coder_devcontainer" "my-repository" {
 }
 ```
 
-> [!NOTE]
->
-> The `workspace_folder` attribute must specify the location of the dev
-> container's workspace and should point to a valid project folder containing a
-> `devcontainer.json` file.
+The `workspace_folder` attribute must specify the location of the dev container's workspace and should point to a
+valid project folder that contains a `devcontainer.json` file.
 
-<!-- nolint:MD028/no-blanks-blockquote -->
+## Dev container features
 
-> [!TIP]
->
-> Consider using the [`git-clone`](https://registry.coder.com/modules/git-clone)
-> module to ensure your repository is cloned into the workspace folder and ready
-> for automatic startup.
+Enhance your dev container experience with additional features.
+For more advanced use cases, consult the [advanced dev containers doc](./advanced-dev-containers.md).
 
-## Enable Dev Containers Integration
+### Custom applications
 
-To enable the dev containers integration in your workspace, you must set the
-`CODER_AGENT_DEVCONTAINERS_ENABLE` environment variable to `true` in your
-workspace container:
-
-```terraform
-resource "docker_container" "workspace" {
-  count = data.coder_workspace.me.start_count
-  image = "codercom/oss-dogfood:latest"
-  env = [
-    "CODER_AGENT_DEVCONTAINERS_ENABLE=true",
-    # ... Other environment variables.
-  ]
-  # ... Other container configuration.
+```jsonc
+{
+  "customizations": {
+    "coder": {
+      "apps": {
+        "flask-app": {
+          "command": "python app.py",
+          "icon": "/icon/flask.svg",
+          "subdomain": true,
+          "healthcheck": {
+            "url": "http://localhost:5000/health",
+            "interval": 10,
+            "threshold": 10
+          }
+        }
+      }
+    }
+  }
 }
 ```
 
-This environment variable is required for the Coder agent to detect and manage
-dev containers. Without it, the agent will not attempt to start or connect to
-dev containers even if the `coder_devcontainer` resource is defined.
+### Agent naming
 
-## Complete Template Example
+Coder names dev container agents in this order:
 
-Here's a simplified template example that enables the dev containers
-integration:
+1. `customizations.coder.agent.name` in `devcontainer.json`
+2. `name` in `devcontainer.json`
+3. Directory name that contains the config
+4. `devcontainer` (default)
+
+### Multiple dev containers
+
+```terraform
+resource "coder_devcontainer" "frontend" {
+  count            = data.coder_workspace.me.start_count
+  agent_id         = coder_agent.dev.id
+  workspace_folder = "/home/coder/frontend"
+}
+
+resource "coder_devcontainer" "backend" {
+  count            = data.coder_workspace.me.start_count
+  agent_id         = coder_agent.dev.id
+  workspace_folder = "/home/coder/backend"
+}
+```
+
+## Complete Template Examples
+
+You can test the Coder dev container integration and features with these starter templates.
+
+<details><summary>Docker-based template (privileged)</summary>
 
 ```terraform
 terraform {
@@ -83,44 +178,137 @@ terraform {
   }
 }
 
-provider "coder" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
 resource "coder_agent" "dev" {
-  arch                    = "amd64"
-  os                      = "linux"
+  os   = "linux"
+  arch = "amd64"
+  env  = { CODER_AGENT_DEVCONTAINERS_ENABLE = "true" }
+
   startup_script_behavior = "blocking"
-  startup_script          = "sudo service docker start"
-  shutdown_script         = "sudo service docker stop"
-  # ...
+  startup_script  = "sudo service docker start"
+  shutdown_script = "sudo service docker stop"
 }
 
-module "devcontainers-cli" {
+module "devcontainers_cli" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/modules/devcontainers-cli/coder"
   agent_id = coder_agent.dev.id
 }
 
-resource "coder_devcontainer" "my-repository" {
+module "git_clone" {
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/modules/git-clone/coder"
+  agent_id = coder_agent.dev.id
+  url      = "https://github.com/example/project.git"
+  path     = "/home/coder/project"
+}
+
+resource "coder_devcontainer" "project" {
   count            = data.coder_workspace.me.start_count
   agent_id         = coder_agent.dev.id
-  workspace_folder = "/home/coder/my-repository"
+  workspace_folder = module.git_clone[0].path
+  depends_on       = [module.git_clone]
 }
 
 resource "docker_container" "workspace" {
-  count = data.coder_workspace.me.start_count
-  image = "codercom/oss-dogfood:latest"
-  env = [
-    "CODER_AGENT_DEVCONTAINERS_ENABLE=true",
-    # ... Other environment variables.
-  ]
-  # ... Other container configuration.
+  count      = data.coder_workspace.me.start_count
+  image      = "codercom/enterprise-base:ubuntu"
+  name       = "coder-$ta.coder_workspace_owner.me.name}-$ta.coder_workspace.me.name}"
+  privileged = true   # or mount /var/run/docker.sock
 }
 ```
 
+</details>
+
+<details><summary>Kubernetes-based template (Sysbox runtime)</summary>
+
+```terraform
+terraform {
+  required_providers {
+    coder      = { source = "coder/coder" }
+    kubernetes = { source = "hashicorp/kubernetes" }
+  }
+}
+
+data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
+
+resource "coder_agent" "dev" {
+  os   = "linux"
+  arch = "amd64"
+  env  = { CODER_AGENT_DEVCONTAINERS_ENABLE = "true" }
+
+  startup_script_behavior = "blocking"
+  startup_script = "sudo service docker start"
+}
+
+module "devcontainers_cli" {
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/modules/devcontainers-cli/coder"
+  agent_id = coder_agent.dev.id
+}
+
+module "git_clone" {
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/modules/git-clone/coder"
+  agent_id = coder_agent.dev.id
+  url      = "https://github.com/example/project.git"
+  path     = "/home/coder/project"
+}
+
+resource "coder_devcontainer" "project" {
+  count            = data.coder_workspace.me.start_count
+  agent_id         = coder_agent.dev.id
+  workspace_folder = module.git_clone[0].path
+  depends_on       = [module.git_clone]
+}
+
+resource "kubernetes_pod" "workspace" {
+  count = data.coder_workspace.me.start_count
+
+  metadata {
+    name      = "coder-$ta.coder_workspace_owner.me.name}-$ta.coder_workspace.me.name}"
+    namespace = "coder-workspaces"
+  }
+
+  spec {
+    container {
+      name  = "dev"
+      image = "codercom/enterprise-base:ubuntu"
+
+      security_context { privileged = true }  # or use Sysbox / rootless
+      env { name = "CODER_AGENT_TOKEN" value = coder_agent.dev.token }
+    }
+  }
+}
+```
+
+</detail>
+
+## Troubleshoot common issues
+
+### Dev container does not start
+
+1. `CODER_AGENT_DEVCONTAINERS_ENABLE=true` missing.
+1. Docker daemon not running inside the workspace.
+1. `devcontainer.json` missing or mislocated.
+1. Build errors: check agent logs.
+
+### Permission errors
+
+- Docker socket not mounted or user lacks access.
+- Workspace not `privileged` and no rootless runtime.
+
+### Slow builds
+
+- Allocate more CPU/RAM.
+- Use image caching or pre-build common images.
+
 ## Next Steps
 
+- [Advanced dev containers](./advanced-dev-containers.md)
 - [Dev Containers Integration](../../../user-guides/devcontainers/index.md)
 - [Working with Dev Containers](../../../user-guides/devcontainers/working-with-dev-containers.md)
 - [Troubleshooting Dev Containers](../../../user-guides/devcontainers/troubleshooting-dev-containers.md)
