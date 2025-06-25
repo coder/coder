@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"strings"
 
 	"github.com/google/uuid"
@@ -165,11 +166,19 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 				}
 			}
 
+			// NOTE(DanielleMaywood):
+			// Slugs must be unique PER workspace/template. As of 2025-06-25,
+			// there is no database-layer enforcement of this constraint.
+			// We can get around this by creating a slug that *should* be
+			// unique (at least highly probable).
+			slugHash := fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte(subAgent.Name+"/"+app.Slug)))
+			computedSlug := slugHash + "-" + app.Slug
+
 			_, err := a.Database.UpsertWorkspaceApp(ctx, database.UpsertWorkspaceAppParams{
 				ID:          uuid.New(), // NOTE: we may need to maintain the app's ID here for stability, but for now we'll leave this as-is.
 				CreatedAt:   createdAt,
 				AgentID:     subAgent.ID,
-				Slug:        app.Slug,
+				Slug:        computedSlug,
 				DisplayName: app.GetDisplayName(),
 				Icon:        app.GetIcon(),
 				Command: sql.NullString{
