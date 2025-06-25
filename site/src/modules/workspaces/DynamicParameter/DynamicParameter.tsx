@@ -379,11 +379,17 @@ const ParameterField: FC<ParameterFieldProps> = ({
 	id,
 }) => {
 	switch (parameter.form_type) {
-		case "dropdown":
+		case "dropdown": {
+			const EMPTY_VALUE_PLACEHOLDER = "__EMPTY_STRING__";
+			const selectValue = value === "" ? EMPTY_VALUE_PLACEHOLDER : value;
+			const handleSelectChange = (newValue: string) => {
+				onChange(newValue === EMPTY_VALUE_PLACEHOLDER ? "" : newValue);
+			};
+
 			return (
 				<Select
-					onValueChange={onChange}
-					value={value}
+					onValueChange={handleSelectChange}
+					value={selectValue}
 					disabled={disabled}
 					required={parameter.required}
 				>
@@ -393,14 +399,26 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						/>
 					</SelectTrigger>
 					<SelectContent>
-						{parameter.options.map((option) => (
-							<SelectItem key={option.value.value} value={option.value.value}>
-								<OptionDisplay option={option} />
-							</SelectItem>
-						))}
+						{parameter.options.map((option, index) => {
+							const optionValue =
+								option.value.value === ""
+									? EMPTY_VALUE_PLACEHOLDER
+									: option.value.value;
+							return (
+								<SelectItem
+									key={
+										option.value.value || `${EMPTY_VALUE_PLACEHOLDER}:${index}`
+									}
+									value={optionValue}
+								>
+									<OptionDisplay option={option} />
+								</SelectItem>
+							);
+						})}
 					</SelectContent>
 				</Select>
 			);
+		}
 
 		case "multi-select": {
 			const parsedValues = parseStringArrayValue(value ?? "");

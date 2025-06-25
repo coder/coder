@@ -363,7 +363,7 @@ func TestDevcontainerCLI_WithOutput(t *testing.T) {
 		require.NotEmpty(t, containerID, "expected non-empty container ID")
 
 		// Read expected log content.
-		expLog, err := os.ReadFile(filepath.Join("testdata", "devcontainercli", "parse", "up.log"))
+		expLog, err := os.ReadFile(filepath.Join("testdata", "devcontainercli", "parse", "up.golden"))
 		require.NoError(t, err, "reading expected log file")
 
 		// Verify stdout buffer contains the CLI logs and stderr is empty.
@@ -586,7 +586,7 @@ func setupDevcontainerWorkspace(t *testing.T, workspaceFolder string) string {
 	"containerEnv": {
 		"TEST_CONTAINER": "true"
 	},
-	"runArgs": ["--label", "com.coder.test=devcontainercli"]
+	"runArgs": ["--label=com.coder.test=devcontainercli", "--label=` + agentcontainers.DevcontainerIsTestRunLabel + `=true"]
 }`
 	err = os.WriteFile(configPath, []byte(content), 0o600)
 	require.NoError(t, err, "create devcontainer.json file")
