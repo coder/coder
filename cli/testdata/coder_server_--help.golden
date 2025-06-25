@@ -85,6 +85,9 @@ Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
           is detected. By default it instructs users to update using 'curl -L
           https://coder.com/install.sh | sh'.
 
+      --hide-ai-tasks bool, $CODER_HIDE_AI_TASKS (default: false)
+          Hide AI tasks from the dashboard.
+
       --ssh-config-options string-array, $CODER_SSH_CONFIG_OPTIONS
           These SSH config options will override the default SSH config options.
           Provide options in "key=value" or "key value" format separated by

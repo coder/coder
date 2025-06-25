@@ -212,250 +212,6 @@
 |--------------------|
 | `prebuild_claimed` |
 
-## aisdk.Attachment
-
-```json
-{
-  "contentType": "string",
-  "name": "string",
-  "url": "string"
-}
-```
-
-### Properties
-
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `contentType` | string | false    |              |             |
-| `name`        | string | false    |              |             |
-| `url`         | string | false    |              |             |
-
-## aisdk.Message
-
-```json
-{
-  "annotations": [
-    null
-  ],
-  "content": "string",
-  "createdAt": [
-    0
-  ],
-  "experimental_attachments": [
-    {
-      "contentType": "string",
-      "name": "string",
-      "url": "string"
-    }
-  ],
-  "id": "string",
-  "parts": [
-    {
-      "data": [
-        0
-      ],
-      "details": [
-        {
-          "data": "string",
-          "signature": "string",
-          "text": "string",
-          "type": "string"
-        }
-      ],
-      "mimeType": "string",
-      "reasoning": "string",
-      "source": {
-        "contentType": "string",
-        "data": "string",
-        "metadata": {
-          "property1": null,
-          "property2": null
-        },
-        "uri": "string"
-      },
-      "text": "string",
-      "toolInvocation": {
-        "args": null,
-        "result": null,
-        "state": "call",
-        "step": 0,
-        "toolCallId": "string",
-        "toolName": "string"
-      },
-      "type": "text"
-    }
-  ],
-  "role": "string"
-}
-```
-
-### Properties
-
-| Name                       | Type                                          | Required | Restrictions | Description |
-|----------------------------|-----------------------------------------------|----------|--------------|-------------|
-| `annotations`              | array of undefined                            | false    |              |             |
-| `content`                  | string                                        | false    |              |             |
-| `createdAt`                | array of integer                              | false    |              |             |
-| `experimental_attachments` | array of [aisdk.Attachment](#aisdkattachment) | false    |              |             |
-| `id`                       | string                                        | false    |              |             |
-| `parts`                    | array of [aisdk.Part](#aisdkpart)             | false    |              |             |
-| `role`                     | string                                        | false    |              |             |
-
-## aisdk.Part
-
-```json
-{
-  "data": [
-    0
-  ],
-  "details": [
-    {
-      "data": "string",
-      "signature": "string",
-      "text": "string",
-      "type": "string"
-    }
-  ],
-  "mimeType": "string",
-  "reasoning": "string",
-  "source": {
-    "contentType": "string",
-    "data": "string",
-    "metadata": {
-      "property1": null,
-      "property2": null
-    },
-    "uri": "string"
-  },
-  "text": "string",
-  "toolInvocation": {
-    "args": null,
-    "result": null,
-    "state": "call",
-    "step": 0,
-    "toolCallId": "string",
-    "toolName": "string"
-  },
-  "type": "text"
-}
-```
-
-### Properties
-
-| Name             | Type                                                    | Required | Restrictions | Description             |
-|------------------|---------------------------------------------------------|----------|--------------|-------------------------|
-| `data`           | array of integer                                        | false    |              |                         |
-| `details`        | array of [aisdk.ReasoningDetail](#aisdkreasoningdetail) | false    |              |                         |
-| `mimeType`       | string                                                  | false    |              | Type: "file"            |
-| `reasoning`      | string                                                  | false    |              | Type: "reasoning"       |
-| `source`         | [aisdk.SourceInfo](#aisdksourceinfo)                    | false    |              | Type: "source"          |
-| `text`           | string                                                  | false    |              | Type: "text"            |
-| `toolInvocation` | [aisdk.ToolInvocation](#aisdktoolinvocation)            | false    |              | Type: "tool-invocation" |
-| `type`           | [aisdk.PartType](#aisdkparttype)                        | false    |              |                         |
-
-## aisdk.PartType
-
-```json
-"text"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value             |
-|-------------------|
-| `text`            |
-| `reasoning`       |
-| `tool-invocation` |
-| `source`          |
-| `file`            |
-| `step-start`      |
-
-## aisdk.ReasoningDetail
-
-```json
-{
-  "data": "string",
-  "signature": "string",
-  "text": "string",
-  "type": "string"
-}
-```
-
-### Properties
-
-| Name        | Type   | Required | Restrictions | Description |
-|-------------|--------|----------|--------------|-------------|
-| `data`      | string | false    |              |             |
-| `signature` | string | false    |              |             |
-| `text`      | string | false    |              |             |
-| `type`      | string | false    |              |             |
-
-## aisdk.SourceInfo
-
-```json
-{
-  "contentType": "string",
-  "data": "string",
-  "metadata": {
-    "property1": null,
-    "property2": null
-  },
-  "uri": "string"
-}
-```
-
-### Properties
-
-| Name               | Type   | Required | Restrictions | Description |
-|--------------------|--------|----------|--------------|-------------|
-| `contentType`      | string | false    |              |             |
-| `data`             | string | false    |              |             |
-| `metadata`         | object | false    |              |             |
-| » `[any property]` | any    | false    |              |             |
-| `uri`              | string | false    |              |             |
-
-## aisdk.ToolInvocation
-
-```json
-{
-  "args": null,
-  "result": null,
-  "state": "call",
-  "step": 0,
-  "toolCallId": "string",
-  "toolName": "string"
-}
-```
-
-### Properties
-
-| Name         | Type                                                   | Required | Restrictions | Description |
-|--------------|--------------------------------------------------------|----------|--------------|-------------|
-| `args`       | any                                                    | false    |              |             |
-| `result`     | any                                                    | false    |              |             |
-| `state`      | [aisdk.ToolInvocationState](#aisdktoolinvocationstate) | false    |              |             |
-| `step`       | integer                                                | false    |              |             |
-| `toolCallId` | string                                                 | false    |              |             |
-| `toolName`   | string                                                 | false    |              |             |
-
-## aisdk.ToolInvocationState
-
-```json
-"call"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value          |
-|----------------|
-| `call`         |
-| `partial-call` |
-| `result`       |
-
 ## coderd.SCIMUser
 
 ```json
@@ -578,48 +334,6 @@
 |----------|-------------------------------------------------------|----------|--------------|-------------|
 | `groups` | array of [codersdk.Group](#codersdkgroup)             | false    |              |             |
 | `users`  | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |             |
-
-## codersdk.AIConfig
-
-```json
-{
-  "providers": [
-    {
-      "base_url": "string",
-      "models": [
-        "string"
-      ],
-      "type": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name        | Type                                                            | Required | Restrictions | Description |
-|-------------|-----------------------------------------------------------------|----------|--------------|-------------|
-| `providers` | array of [codersdk.AIProviderConfig](#codersdkaiproviderconfig) | false    |              |             |
-
-## codersdk.AIProviderConfig
-
-```json
-{
-  "base_url": "string",
-  "models": [
-    "string"
-  ],
-  "type": "string"
-}
-```
-
-### Properties
-
-| Name       | Type            | Required | Restrictions | Description                                               |
-|------------|-----------------|----------|--------------|-----------------------------------------------------------|
-| `base_url` | string          | false    |              | Base URL is the base URL to use for the API provider.     |
-| `models`   | array of string | false    |              | Models is the list of models to use for the API provider. |
-| `type`     | string          | false    |              | Type is the type of the API provider.                     |
 
 ## codersdk.APIKey
 
@@ -1354,97 +1068,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `one_time_passcode` | string | true     |              |             |
 | `password`          | string | true     |              |             |
 
-## codersdk.Chat
-
-```json
-{
-  "created_at": "2019-08-24T14:15:22Z",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "title": "string",
-  "updated_at": "2019-08-24T14:15:22Z"
-}
-```
-
-### Properties
-
-| Name         | Type   | Required | Restrictions | Description |
-|--------------|--------|----------|--------------|-------------|
-| `created_at` | string | false    |              |             |
-| `id`         | string | false    |              |             |
-| `title`      | string | false    |              |             |
-| `updated_at` | string | false    |              |             |
-
-## codersdk.ChatMessage
-
-```json
-{
-  "annotations": [
-    null
-  ],
-  "content": "string",
-  "createdAt": [
-    0
-  ],
-  "experimental_attachments": [
-    {
-      "contentType": "string",
-      "name": "string",
-      "url": "string"
-    }
-  ],
-  "id": "string",
-  "parts": [
-    {
-      "data": [
-        0
-      ],
-      "details": [
-        {
-          "data": "string",
-          "signature": "string",
-          "text": "string",
-          "type": "string"
-        }
-      ],
-      "mimeType": "string",
-      "reasoning": "string",
-      "source": {
-        "contentType": "string",
-        "data": "string",
-        "metadata": {
-          "property1": null,
-          "property2": null
-        },
-        "uri": "string"
-      },
-      "text": "string",
-      "toolInvocation": {
-        "args": null,
-        "result": null,
-        "state": "call",
-        "step": 0,
-        "toolCallId": "string",
-        "toolName": "string"
-      },
-      "type": "text"
-    }
-  ],
-  "role": "string"
-}
-```
-
-### Properties
-
-| Name                       | Type                                          | Required | Restrictions | Description |
-|----------------------------|-----------------------------------------------|----------|--------------|-------------|
-| `annotations`              | array of undefined                            | false    |              |             |
-| `content`                  | string                                        | false    |              |             |
-| `createdAt`                | array of integer                              | false    |              |             |
-| `experimental_attachments` | array of [aisdk.Attachment](#aisdkattachment) | false    |              |             |
-| `id`                       | string                                        | false    |              |             |
-| `parts`                    | array of [aisdk.Part](#aisdkpart)             | false    |              |             |
-| `role`                     | string                                        | false    |              |             |
-
 ## codersdk.ConnectionLatency
 
 ```json
@@ -1476,77 +1099,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |------------|------------------------------------------|----------|--------------|------------------------------------------|
 | `password` | string                                   | true     |              |                                          |
 | `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
-
-## codersdk.CreateChatMessageRequest
-
-```json
-{
-  "message": {
-    "annotations": [
-      null
-    ],
-    "content": "string",
-    "createdAt": [
-      0
-    ],
-    "experimental_attachments": [
-      {
-        "contentType": "string",
-        "name": "string",
-        "url": "string"
-      }
-    ],
-    "id": "string",
-    "parts": [
-      {
-        "data": [
-          0
-        ],
-        "details": [
-          {
-            "data": "string",
-            "signature": "string",
-            "text": "string",
-            "type": "string"
-          }
-        ],
-        "mimeType": "string",
-        "reasoning": "string",
-        "source": {
-          "contentType": "string",
-          "data": "string",
-          "metadata": {
-            "property1": null,
-            "property2": null
-          },
-          "uri": "string"
-        },
-        "text": "string",
-        "toolInvocation": {
-          "args": null,
-          "result": null,
-          "state": "call",
-          "step": 0,
-          "toolCallId": "string",
-          "toolName": "string"
-        },
-        "type": "text"
-      }
-    ],
-    "role": "string"
-  },
-  "model": "string",
-  "thinking": true
-}
-```
-
-### Properties
-
-| Name       | Type                                         | Required | Restrictions | Description |
-|------------|----------------------------------------------|----------|--------------|-------------|
-| `message`  | [codersdk.ChatMessage](#codersdkchatmessage) | false    |              |             |
-| `model`    | string                                       | false    |              |             |
-| `thinking` | boolean                                      | false    |              |             |
 
 ## codersdk.CreateFirstUserRequest
 
@@ -1812,52 +1364,12 @@ This is required on creation to enable a user-flow of validating a template work
 ## codersdk.CreateTestAuditLogRequest
 
 ```json
-{
-  "action": "create",
-  "additional_fields": [
-    0
-  ],
-  "build_reason": "autostart",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
-  "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-  "resource_type": "template",
-  "time": "2019-08-24T14:15:22Z"
-}
+{}
 ```
 
 ### Properties
 
-| Name                | Type                                           | Required | Restrictions | Description |
-|---------------------|------------------------------------------------|----------|--------------|-------------|
-| `action`            | [codersdk.AuditAction](#codersdkauditaction)   | false    |              |             |
-| `additional_fields` | array of integer                               | false    |              |             |
-| `build_reason`      | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
-| `organization_id`   | string                                         | false    |              |             |
-| `request_id`        | string                                         | false    |              |             |
-| `resource_id`       | string                                         | false    |              |             |
-| `resource_type`     | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
-| `time`              | string                                         | false    |              |             |
-
-#### Enumerated Values
-
-| Property        | Value              |
-|-----------------|--------------------|
-| `action`        | `create`           |
-| `action`        | `write`            |
-| `action`        | `delete`           |
-| `action`        | `start`            |
-| `action`        | `stop`             |
-| `build_reason`  | `autostart`        |
-| `build_reason`  | `autostop`         |
-| `build_reason`  | `initiator`        |
-| `resource_type` | `template`         |
-| `resource_type` | `template_version` |
-| `resource_type` | `user`             |
-| `resource_type` | `workspace`        |
-| `resource_type` | `workspace_build`  |
-| `resource_type` | `git_ssh_key`      |
-| `resource_type` | `auditable_group`  |
+None
 
 ## codersdk.CreateTokenRequest
 
@@ -1917,7 +1429,6 @@ This is required on creation to enable a user-flow of validating a template work
 ```json
 {
   "dry_run": true,
-  "enable_dynamic_parameters": true,
   "log_level": "debug",
   "orphan": true,
   "rich_parameter_values": [
@@ -1940,7 +1451,6 @@ This is required on creation to enable a user-flow of validating a template work
 | Name                         | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                                   |
 |------------------------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `dry_run`                    | boolean                                                                       | false    |              |                                                                                                                                                                                                               |
-| `enable_dynamic_parameters`  | boolean                                                                       | false    |              | Enable dynamic parameters skips some of the static parameter checking. It will default to whatever the template has marked as the default experience. Requires the "dynamic-experiment" to be used.           |
 | `log_level`                  | [codersdk.ProvisionerLogLevel](#codersdkprovisionerloglevel)                  | false    |              | Log level changes the default logging verbosity of a provider ("info" if empty).                                                                                                                              |
 | `orphan`                     | boolean                                                                       | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                                 |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
@@ -1982,7 +1492,6 @@ This is required on creation to enable a user-flow of validating a template work
 {
   "automatic_updates": "always",
   "autostart_schedule": "string",
-  "enable_dynamic_parameters": true,
   "name": "string",
   "rich_parameter_values": [
     {
@@ -2005,7 +1514,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 |------------------------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------|
 | `automatic_updates`          | [codersdk.AutomaticUpdates](#codersdkautomaticupdates)                        | false    |              |                                                                                                         |
 | `autostart_schedule`         | string                                                                        | false    |              |                                                                                                         |
-| `enable_dynamic_parameters`  | boolean                                                                       | false    |              |                                                                                                         |
 | `name`                       | string                                                                        | true     |              |                                                                                                         |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values allows for additional parameters to be provided during the initial provision.     |
 | `template_id`                | string                                                                        | false    |              | Template ID specifies which template should be used for creating the workspace.                         |
@@ -2332,19 +1840,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
-    "ai": {
-      "value": {
-        "providers": [
-          {
-            "base_url": "string",
-            "models": [
-              "string"
-            ],
-            "type": "string"
-          }
-        ]
-      }
-    },
     "allow_workspace_renames": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
@@ -2443,6 +1938,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "refresh": 0,
       "threshold_database": 0
     },
+    "hide_ai_tasks": true,
     "http_address": "string",
     "http_cookies": {
       "same_site": "string",
@@ -2832,19 +2328,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "user": {}
   },
   "agent_stat_refresh_interval": 0,
-  "ai": {
-    "value": {
-      "providers": [
-        {
-          "base_url": "string",
-          "models": [
-            "string"
-          ],
-          "type": "string"
-        }
-      ]
-    }
-  },
   "allow_workspace_renames": true,
   "autobuild_poll_interval": 0,
   "browser_only": true,
@@ -2943,6 +2426,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "refresh": 0,
     "threshold_database": 0
   },
+  "hide_ai_tasks": true,
   "http_address": "string",
   "http_cookies": {
     "same_site": "string",
@@ -3223,7 +2707,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `address`                            | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Deprecated: Use HTTPAddress or TLS.Address instead.                |
 | `agent_fallback_troubleshooting_url` | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                              | false    |              |                                                                    |
-| `ai`                                 | [serpent.Struct-codersdk_AIConfig](#serpentstruct-codersdk_aiconfig)                                 | false    |              |                                                                    |
 | `allow_workspace_renames`            | boolean                                                                                              | false    |              |                                                                    |
 | `autobuild_poll_interval`            | integer                                                                                              | false    |              |                                                                    |
 | `browser_only`                       | boolean                                                                                              | false    |              |                                                                    |
@@ -3243,6 +2726,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `external_auth`                      | [serpent.Struct-array_codersdk_ExternalAuthConfig](#serpentstruct-array_codersdk_externalauthconfig) | false    |              |                                                                    |
 | `external_token_encryption_keys`     | array of string                                                                                      | false    |              |                                                                    |
 | `healthcheck`                        | [codersdk.HealthcheckConfig](#codersdkhealthcheckconfig)                                             | false    |              |                                                                    |
+| `hide_ai_tasks`                      | boolean                                                                                              | false    |              |                                                                    |
 | `http_address`                       | string                                                                                               | false    |              | Http address is a string because it may be set to zero to disable. |
 | `http_cookies`                       | [codersdk.HTTPCookieConfig](#codersdkhttpcookieconfig)                                               | false    |              |                                                                    |
 | `in_memory_database`                 | boolean                                                                                              | false    |              |                                                                    |
@@ -3513,8 +2997,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `workspace-usage`      |
 | `web-push`             |
 | `workspace-prebuilds`  |
-| `agentic-chat`         |
-| `ai-tasks`             |
 
 ## codersdk.ExternalAuth
 
@@ -4153,44 +3635,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Value                         |
 |-------------------------------|
 | `REQUIRED_TEMPLATE_VARIABLES` |
-
-## codersdk.LanguageModel
-
-```json
-{
-  "display_name": "string",
-  "id": "string",
-  "provider": "string"
-}
-```
-
-### Properties
-
-| Name           | Type   | Required | Restrictions | Description                                                       |
-|----------------|--------|----------|--------------|-------------------------------------------------------------------|
-| `display_name` | string | false    |              |                                                                   |
-| `id`           | string | false    |              | ID is used by the provider to identify the LLM.                   |
-| `provider`     | string | false    |              | Provider is the provider of the LLM. e.g. openai, anthropic, etc. |
-
-## codersdk.LanguageModelConfig
-
-```json
-{
-  "models": [
-    {
-      "display_name": "string",
-      "id": "string",
-      "provider": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name     | Type                                                      | Required | Restrictions | Description |
-|----------|-----------------------------------------------------------|----------|--------------|-------------|
-| `models` | array of [codersdk.LanguageModel](#codersdklanguagemodel) | false    |              |             |
 
 ## codersdk.License
 
@@ -5498,6 +4942,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
+  "default": true,
   "id": "string",
   "name": "string",
   "parameters": [
@@ -5513,6 +4958,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 | Name         | Type                                                          | Required | Restrictions | Description |
 |--------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `default`    | boolean                                                       | false    |              |             |
 | `id`         | string                                                        | false    |              |             |
 | `name`       | string                                                        | false    |              |             |
 | `parameters` | array of [codersdk.PresetParameter](#codersdkpresetparameter) | false    |              |             |
@@ -6307,7 +5753,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `assign_org_role`                  |
 | `assign_role`                      |
 | `audit_log`                        |
-| `chat`                             |
 | `crypto_key`                       |
 | `debug_info`                       |
 | `deployment_config`                |
@@ -6326,6 +5771,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `oauth2_app_secret`                |
 | `organization`                     |
 | `organization_member`              |
+| `prebuilt_workspace`               |
 | `provisioner_daemon`               |
 | `provisioner_jobs`                 |
 | `replicas`                         |
@@ -8585,10 +8031,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
   "latest_build": {
+    "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "has_ai_task": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -9680,6 +9128,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Value      |
 |------------|
 | `working`  |
+| `idle`     |
 | `complete` |
 | `failure`  |
 
@@ -9687,10 +9136,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
   "build_number": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
+  "has_ai_task": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",
@@ -9893,10 +9344,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                         | Type                                                              | Required | Restrictions | Description                                                         |
 |------------------------------|-------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
+| `ai_task_sidebar_app_id`     | string                                                            | false    |              |                                                                     |
 | `build_number`               | integer                                                           | false    |              |                                                                     |
 | `created_at`                 | string                                                            | false    |              |                                                                     |
 | `daily_cost`                 | integer                                                           | false    |              |                                                                     |
 | `deadline`                   | string                                                            | false    |              |                                                                     |
+| `has_ai_task`                | boolean                                                           | false    |              |                                                                     |
 | `id`                         | string                                                            | false    |              |                                                                     |
 | `initiator_id`               | string                                                            | false    |              |                                                                     |
 | `initiator_name`             | string                                                            | false    |              |                                                                     |
@@ -10413,10 +9866,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
       },
       "latest_build": {
+        "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
         "build_number": 0,
         "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
         "deadline": "2019-08-24T14:15:22Z",
+        "has_ai_task": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
         "initiator_name": "string",
@@ -12258,30 +11713,6 @@ None
 | Name    | Type                                                | Required | Restrictions | Description |
 |---------|-----------------------------------------------------|----------|--------------|-------------|
 | `value` | array of [codersdk.LinkConfig](#codersdklinkconfig) | false    |              |             |
-
-## serpent.Struct-codersdk_AIConfig
-
-```json
-{
-  "value": {
-    "providers": [
-      {
-        "base_url": "string",
-        "models": [
-          "string"
-        ],
-        "type": "string"
-      }
-    ]
-  }
-}
-```
-
-### Properties
-
-| Name    | Type                                   | Required | Restrictions | Description |
-|---------|----------------------------------------|----------|--------------|-------------|
-| `value` | [codersdk.AIConfig](#codersdkaiconfig) | false    |              |             |
 
 ## serpent.URL
 

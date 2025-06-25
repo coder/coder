@@ -900,7 +900,7 @@ func TestExpMcpReporter(t *testing.T) {
 			{
 				event: makeStatusEvent(agentapi.StatusStable),
 				expected: &codersdk.WorkspaceAppStatus{
-					State:   codersdk.WorkspaceAppStatusStateComplete,
+					State:   codersdk.WorkspaceAppStatusStateIdle,
 					Message: "doing work",
 					URI:     "https://dev.coder.com",
 				},
@@ -948,7 +948,7 @@ func TestExpMcpReporter(t *testing.T) {
 			{
 				event: makeStatusEvent(agentapi.StatusStable),
 				expected: &codersdk.WorkspaceAppStatus{
-					State:   codersdk.WorkspaceAppStatusStateComplete,
+					State:   codersdk.WorkspaceAppStatusStateIdle,
 					Message: "oops",
 					URI:     "",
 				},

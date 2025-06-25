@@ -80,6 +80,7 @@ message CompletedJob {
     repeated provisioner.Timing timings = 3;
     repeated provisioner.Module modules = 4;
     repeated provisioner.ResourceReplacement resource_replacements = 5;
+    repeated provisioner.AITask ai_tasks = 6;
   }
   message TemplateImport {
     repeated provisioner.Resource start_resources = 1;
@@ -93,6 +94,7 @@ message CompletedJob {
     bytes plan = 9;
     bytes module_files = 10;
     bytes module_files_hash = 11;
+    bool has_ai_tasks = 12;
   }
   message TemplateDryRun {
     repeated provisioner.Resource resources = 1;

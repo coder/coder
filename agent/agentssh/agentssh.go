@@ -113,9 +113,10 @@ type Config struct {
 	BlockFileTransfer bool
 	// ReportConnection.
 	ReportConnection reportConnectionFunc
-	// Experimental: allow connecting to running containers if
-	// CODER_AGENT_DEVCONTAINERS_ENABLE=true.
-	ExperimentalDevContainersEnabled bool
+	// Experimental: allow connecting to running containers via Docker exec.
+	// Note that this is different from the devcontainers feature, which uses
+	// subagents.
+	ExperimentalContainers bool
 }
 
 type Server struct {
@@ -435,7 +436,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	switch ss := session.Subsystem(); ss {
 	case "":
 	case "sftp":
-		if s.config.ExperimentalDevContainersEnabled && container != "" {
+		if s.config.ExperimentalContainers && container != "" {
 			closeCause("sftp not yet supported with containers")
 			_ = session.Exit(1)
 			return
@@ -454,7 +455,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 
 	x11, hasX11 := session.X11()
 	if hasX11 {
-		display, handled := s.x11Handler(session.Context(), x11)
+		display, handled := s.x11Handler(ctx, x11)
 		if !handled {
 			logger.Error(ctx, "x11 handler failed")
 			closeCause("x11 handler failed")
@@ -549,7 +550,7 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []str
 
 	var ei usershell.EnvInfoer
 	var err error
-	if s.config.ExperimentalDevContainersEnabled && container != "" {
+	if s.config.ExperimentalContainers && container != "" {
 		ei, err = agentcontainers.EnvInfo(ctx, s.Execer, container, containerUser)
 		if err != nil {
 			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, ptyLabel, "container_env_info").Add(1)
@@ -816,6 +817,49 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) error {
 	return xerrors.Errorf("sftp server closed with error: %w", err)
 }
 
+func (s *Server) CommandEnv(ei usershell.EnvInfoer, addEnv []string) (shell, dir string, env []string, err error) {
+	if ei == nil {
+		ei = &usershell.SystemEnvInfo{}
+	}
+
+	currentUser, err := ei.User()
+	if err != nil {
+		return "", "", nil, xerrors.Errorf("get current user: %w", err)
+	}
+	username := currentUser.Username
+
+	shell, err = ei.Shell(username)
+	if err != nil {
+		return "", "", nil, xerrors.Errorf("get user shell: %w", err)
+	}
+
+	dir = s.config.WorkingDirectory()
+
+	// If the metadata directory doesn't exist, we run the command
+	// in the users home directory.
+	_, err = os.Stat(dir)
+	if dir == "" || err != nil {
+		// Default to user home if a directory is not set.
+		homedir, err := ei.HomeDir()
+		if err != nil {
+			return "", "", nil, xerrors.Errorf("get home dir: %w", err)
+		}
+		dir = homedir
+	}
+	env = append(ei.Environ(), addEnv...)
+	// Set login variables (see `man login`).
+	env = append(env, fmt.Sprintf("USER=%s", username))
+	env = append(env, fmt.Sprintf("LOGNAME=%s", username))
+	env = append(env, fmt.Sprintf("SHELL=%s", shell))
+
+	env, err = s.config.UpdateEnv(env)
+	if err != nil {
+		return "", "", nil, xerrors.Errorf("apply env: %w", err)
+	}
+
+	return shell, dir, env, nil
+}
+
 // CreateCommand processes raw command input with OpenSSH-like behavior.
 // If the script provided is empty, it will default to the users shell.
 // This injects environment variables specified by the user at launch too.
@@ -827,15 +871,10 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 	if ei == nil {
 		ei = &usershell.SystemEnvInfo{}
 	}
-	currentUser, err := ei.User()
-	if err != nil {
-		return nil, xerrors.Errorf("get current user: %w", err)
-	}
-	username := currentUser.Username
 
-	shell, err := ei.Shell(username)
+	shell, dir, env, err := s.CommandEnv(ei, env)
 	if err != nil {
-		return nil, xerrors.Errorf("get user shell: %w", err)
+		return nil, xerrors.Errorf("prepare command env: %w", err)
 	}
 
 	// OpenSSH executes all commands with the users current shell.
@@ -893,24 +932,8 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 		)
 	}
 	cmd := s.Execer.PTYCommandContext(ctx, modifiedName, modifiedArgs...)
-	cmd.Dir = s.config.WorkingDirectory()
-
-	// If the metadata directory doesn't exist, we run the command
-	// in the users home directory.
-	_, err = os.Stat(cmd.Dir)
-	if cmd.Dir == "" || err != nil {
-		// Default to user home if a directory is not set.
-		homedir, err := ei.HomeDir()
-		if err != nil {
-			return nil, xerrors.Errorf("get home dir: %w", err)
-		}
-		cmd.Dir = homedir
-	}
-	cmd.Env = append(ei.Environ(), env...)
-	// Set login variables (see `man login`).
-	cmd.Env = append(cmd.Env, fmt.Sprintf("USER=%s", username))
-	cmd.Env = append(cmd.Env, fmt.Sprintf("LOGNAME=%s", username))
-	cmd.Env = append(cmd.Env, fmt.Sprintf("SHELL=%s", shell))
+	cmd.Dir = dir
+	cmd.Env = env
 
 	// Set SSH connection environment variables (these are also set by OpenSSH
 	// and thus expected to be present by SSH clients). Since the agent does
@@ -920,11 +943,6 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 	dstAddr, dstPort := "0.0.0.0", "0"
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_CLIENT=%s %s %s", srcAddr, srcPort, dstPort))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_CONNECTION=%s %s %s %s", srcAddr, srcPort, dstAddr, dstPort))
-
-	cmd.Env, err = s.config.UpdateEnv(cmd.Env)
-	if err != nil {
-		return nil, xerrors.Errorf("apply env: %w", err)
-	}
 
 	return cmd, nil
 }
@@ -973,7 +991,7 @@ func (s *Server) handleConn(l net.Listener, c net.Conn) {
 		return
 	}
 	defer s.trackConn(l, c, false)
-	logger.Info(context.Background(), "started serving connection")
+	logger.Info(context.Background(), "started serving ssh connection")
 	// note: srv.ConnectionCompleteCallback logs completion of the connection
 	s.srv.HandleConn(c)
 }

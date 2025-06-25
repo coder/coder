@@ -92,7 +92,7 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 	sdk.SetSessionToken(token)
 	sdk.HTTPClient.Transport = &codersdk.HeaderTransport{
 		Transport: http.DefaultTransport,
-		Header:    headers,
+		Header:    headers.Clone(),
 	}
 
 	// New context, separate from initCtx. We don't want to cancel the
@@ -129,17 +129,18 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 	headers.Set(codersdk.SessionTokenHeader, token)
 	dialer := workspacesdk.NewWebsocketDialer(options.Logger, rpcURL, &websocket.DialOptions{
 		HTTPClient:      sdk.HTTPClient,
-		HTTPHeader:      headers,
+		HTTPHeader:      headers.Clone(),
 		CompressionMode: websocket.CompressionDisabled,
 	}, workspacesdk.WithWorkspaceUpdates(&proto.WorkspaceUpdatesRequest{
 		WorkspaceOwnerId: tailnet.UUIDToByteSlice(me.ID),
 	}))
 
+	clonedHeaders := headers.Clone()
 	ip := tailnet.CoderServicePrefix.RandomAddr()
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:             connInfo.DERPMap,
-		DERPHeader:          &headers,
+		DERPHeader:          &clonedHeaders,
 		DERPForceWebSockets: connInfo.DERPForceWebSockets,
 		Logger:              options.Logger,
 		BlockEndpoints:      connInfo.DisableDirectConnections,

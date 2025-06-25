@@ -354,7 +354,7 @@ func (c *Client) Dial(ctx context.Context, path string, opts *websocket.DialOpti
 	if opts.HTTPHeader == nil {
 		opts.HTTPHeader = http.Header{}
 	}
-	if opts.HTTPHeader.Get("tokenHeader") == "" {
+	if opts.HTTPHeader.Get(tokenHeader) == "" {
 		opts.HTTPHeader.Set(tokenHeader, c.SessionToken())
 	}
 

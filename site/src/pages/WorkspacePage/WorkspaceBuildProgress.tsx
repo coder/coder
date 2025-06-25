@@ -62,11 +62,18 @@ const estimateFinish = (
 interface WorkspaceBuildProgressProps {
 	workspace: Workspace;
 	transitionStats: TransitionStats;
+	// variant changes how the progress bar is displayed: with the workspace
+	// variant the workspace transition and time remaining are displayed under the
+	// bar aligned to the left and right respectively.  With the task variant the
+	// workspace transition is not displayed and the time remaining is displayed
+	// centered above the bar, and the bar's border radius is removed.
+	variant?: "workspace" | "task";
 }
 
 export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 	workspace,
 	transitionStats,
+	variant,
 }) => {
 	const job = workspace.latest_build.job;
 	const [progressValue, setProgressValue] = useState<number | undefined>(0);
@@ -114,6 +121,13 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 	}
 	return (
 		<div css={styles.stack}>
+			{variant === "task" && (
+				<div className="mb-1 text-center">
+					<div css={styles.label} data-chromatic="ignore">
+						{progressText}
+					</div>
+				</div>
+			)}
 			<LinearProgress
 				data-chromatic="ignore"
 				value={progressValue !== undefined ? progressValue : 0}
@@ -126,19 +140,26 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 						? "determinate"
 						: "indeterminate"
 				}
-				// If a transition is set, there is a moment on new load where the
-				// bar accelerates to progressValue and then rapidly decelerates, which
-				// is not indicative of true progress.
-				classes={{ bar: classNames.bar }}
+				classes={{
+					// If a transition is set, there is a moment on new load where the bar
+					// accelerates to progressValue and then rapidly decelerates, which is
+					// not indicative of true progress.
+					bar: classNames.bar,
+					// With the "task" variant, the progress bar is fullscreen, so remove
+					// the border radius.
+					root: variant === "task" ? classNames.root : undefined,
+				}}
 			/>
-			<div css={styles.barHelpers}>
-				<div css={styles.label}>
-					{capitalize(workspace.latest_build.status)} workspace...
+			{variant !== "task" && (
+				<div className="flex mt-1 justify-between">
+					<div css={styles.label}>
+						{capitalize(workspace.latest_build.status)} workspace...
+					</div>
+					<div css={styles.label} data-chromatic="ignore">
+						{progressText}
+					</div>
 				</div>
-				<div css={styles.label} data-chromatic="ignore">
-					{progressText}
-				</div>
-			</div>
+			)}
 		</div>
 	);
 };
@@ -147,17 +168,15 @@ const classNames = {
 	bar: css`
     transition: none;
   `,
+	root: css`
+    border-radius: 0;
+  `,
 };
 
 const styles = {
 	stack: {
 		paddingLeft: 2,
 		paddingRight: 2,
-	},
-	barHelpers: {
-		display: "flex",
-		justifyContent: "space-between",
-		marginTop: 4,
 	},
 	label: (theme) => ({
 		fontSize: 12,

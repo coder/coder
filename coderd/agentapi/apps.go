@@ -92,7 +92,7 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 			Health: app.Health,
 		})
 		if err != nil {
-			return nil, xerrors.Errorf("update workspace app health for app %q (%q): %w", err, app.ID, app.Slug)
+			return nil, xerrors.Errorf("update workspace app health for app %q (%q): %w", app.ID, app.Slug, err)
 		}
 	}
 

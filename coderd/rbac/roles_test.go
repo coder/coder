@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/coder/coder/v2/coderd/database"
+
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -494,6 +496,15 @@ func TestRolePermissions(t *testing.T) {
 				false: {setOtherOrg, userAdmin, templateAdmin, memberMe, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
+		{
+			Name:     "PrebuiltWorkspace",
+			Actions:  []policy.Action{policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourcePrebuiltWorkspace.WithID(uuid.New()).InOrg(orgID).WithOwner(database.PrebuildsSystemUserID.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, templateAdmin, orgTemplateAdmin},
+				false: {setOtherOrg, userAdmin, memberMe, orgUserAdmin, orgAuditor, orgMemberMe},
+			},
+		},
 		// Some admin style resources
 		{
 			Name:     "Licenses",
@@ -835,37 +846,6 @@ func TestRolePermissions(t *testing.T) {
 					orgAuditor, otherOrgAuditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
 					userAdmin, orgUserAdmin, otherOrgUserAdmin,
-				},
-			},
-		},
-		// Members may read their own chats.
-		{
-			Name:     "CreateReadUpdateDeleteMyChats",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-			Resource: rbac.ResourceChat.WithOwner(currentUser.String()),
-			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {memberMe, orgMemberMe, owner},
-				false: {
-					userAdmin, orgUserAdmin, templateAdmin,
-					orgAuditor, orgTemplateAdmin,
-					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
-					orgAdmin, otherOrgAdmin,
-				},
-			},
-		},
-		// Only owners can create, read, update, and delete other users' chats.
-		{
-			Name:     "CreateReadUpdateDeleteOtherUserChats",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-			Resource: rbac.ResourceChat.WithOwner(uuid.NewString()), // some other user
-			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {owner},
-				false: {
-					memberMe, orgMemberMe,
-					userAdmin, orgUserAdmin, templateAdmin,
-					orgAuditor, orgTemplateAdmin,
-					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
-					orgAdmin, otherOrgAdmin,
 				},
 			},
 		},
