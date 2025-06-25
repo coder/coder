@@ -3122,21 +3122,6 @@ Write out the current server config as YAML to stdout.`,
 	return opts
 }
 
-type AIProviderConfig struct {
-	// Type is the type of the API provider.
-	Type string `json:"type" yaml:"type"`
-	// APIKey is the API key to use for the API provider.
-	APIKey string `json:"-" yaml:"api_key"`
-	// Models is the list of models to use for the API provider.
-	Models []string `json:"models" yaml:"models"`
-	// BaseURL is the base URL to use for the API provider.
-	BaseURL string `json:"base_url" yaml:"base_url"`
-}
-
-type AIConfig struct {
-	Providers []AIProviderConfig `json:"providers,omitempty" yaml:"providers,omitempty"`
-}
-
 type SupportConfig struct {
 	Links serpent.Struct[[]LinkConfig] `json:"links" typescript:",notnull"`
 }
