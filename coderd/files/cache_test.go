@@ -61,8 +61,8 @@ func TestCancelledFetch(t *testing.T) {
 	// First call that will fail
 	wg.Add(1)
 	go func() {
-		close(rdy)
 		_, err := cache.Acquire(ctx, dbM, fileID)
+		close(rdy)
 		assert.ErrorIs(t, err, context.Canceled)
 		wg.Done()
 	}()

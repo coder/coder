@@ -160,12 +160,14 @@ func (c *Cache) Acquire(ctx context.Context, db database.Store, fileID uuid.UUID
 
 	// Check if the caller's context was canceled
 	if err := ctx.Err(); err != nil {
+		e.close()
 		return nil, err
 	}
 
 	// Check that the caller is authorized to access the file
 	subject, ok := dbauthz.ActorFromContext(ctx)
 	if !ok {
+		e.close()
 		return nil, dbauthz.ErrNoActor
 	}
 	if err := c.authz.Authorize(ctx, subject, policy.ActionRead, ev.Object); err != nil {
@@ -196,11 +198,6 @@ func (c *Cache) prepare(db database.Store, fileID uuid.UUID) *cacheEntry {
 		hitLabel = "false"
 
 		var purgeOnce sync.Once
-		purge := func() {
-			purgeOnce.Do(func() {
-				c.purge(fileID)
-			})
-		}
 		entry = &cacheEntry{
 			refCount: 0,
 			value: lazy.NewWithError(func() (CacheEntryValue, error) {
@@ -226,10 +223,14 @@ func (c *Cache) prepare(db database.Store, fileID uuid.UUID) *cacheEntry {
 					return
 				}
 
-				purge()
+				entry.purge()
 			},
 
-			purge: purge,
+			purge: func() {
+				purgeOnce.Do(func() {
+					c.purge(fileID)
+				})
+			},
 		}
 		c.data[fileID] = entry
 
