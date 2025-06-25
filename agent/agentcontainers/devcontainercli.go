@@ -6,7 +6,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"slices"
+	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -26,10 +29,36 @@ type DevcontainerConfig struct {
 
 type DevcontainerMergedConfiguration struct {
 	Customizations DevcontainerMergedCustomizations `json:"customizations,omitempty"`
+	Features       DevcontainerFeatures             `json:"features,omitempty"`
 }
 
 type DevcontainerMergedCustomizations struct {
 	Coder []CoderCustomization `json:"coder,omitempty"`
+}
+
+type DevcontainerFeatures map[string]any
+
+func (f DevcontainerFeatures) OptionsAsEnvs() []string {
+	var env []string
+	for k, v := range f {
+		vv, ok := v.(map[string]any)
+		if !ok {
+			continue
+		}
+		// Take the last part of the key as the feature name.
+		k = k[strings.LastIndex(k, "/")+1:]
+		// Removing trailing : and anything following it
+		if idx := strings.Index(k, ":"); idx != -1 {
+			k = k[:idx]
+		}
+		k = strings.ReplaceAll(k, "-", "_")
+		for k2, v2 := range vv {
+			k2 = strings.ReplaceAll(k2, "-", "_")
+			env = append(env, fmt.Sprintf("FEATURE_%s_%s=%s", strings.ToUpper(k), strings.ToUpper(k2), fmt.Sprintf("%v", v2)))
+		}
+	}
+	slices.Sort(env)
+	return env
 }
 
 type DevcontainerConfiguration struct {

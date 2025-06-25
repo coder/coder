@@ -637,3 +637,101 @@ func removeDevcontainerByID(t *testing.T, pool *dockertest.Pool, id string) {
 		assert.NoError(t, err, "remove container failed")
 	}
 }
+
+func TestDevcontainerFeatures_OptionsAsEnvs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		features agentcontainers.DevcontainerFeatures
+		want     []string
+	}{
+		{
+			name: "code-server feature",
+			features: agentcontainers.DevcontainerFeatures{
+				"./code-server": map[string]any{
+					"port": 9090,
+				},
+			},
+			want: []string{
+				"FEATURE_CODE_SERVER_PORT=9090",
+			},
+		},
+		{
+			name: "docker-in-docker feature",
+			features: agentcontainers.DevcontainerFeatures{
+				"ghcr.io/devcontainers/features/docker-in-docker:2": map[string]any{
+					"moby": "false",
+				},
+			},
+			want: []string{
+				"FEATURE_DOCKER_IN_DOCKER_MOBY=false",
+			},
+		},
+		{
+			name: "multiple features with multiple options",
+			features: agentcontainers.DevcontainerFeatures{
+				"./code-server": map[string]any{
+					"port":     9090,
+					"password": "secret",
+				},
+				"ghcr.io/devcontainers/features/docker-in-docker:2": map[string]any{
+					"moby":                        "false",
+					"docker-dash-compose-version": "v2",
+				},
+			},
+			want: []string{
+				"FEATURE_CODE_SERVER_PORT=9090",
+				"FEATURE_CODE_SERVER_PASSWORD=secret",
+				"FEATURE_DOCKER_IN_DOCKER_MOBY=false",
+				"FEATURE_DOCKER_IN_DOCKER_DOCKER_DASH_COMPOSE_VERSION=v2",
+			},
+		},
+		{
+			name: "feature with non-map value (should be ignored)",
+			features: agentcontainers.DevcontainerFeatures{
+				"./code-server": map[string]any{
+					"port": 9090,
+				},
+				"./invalid-feature": "not-a-map",
+			},
+			want: []string{
+				"FEATURE_CODE_SERVER_PORT=9090",
+			},
+		},
+		{
+			name: "real config example",
+			features: agentcontainers.DevcontainerFeatures{
+				"./code-server": map[string]any{
+					"port": 9090,
+				},
+				"ghcr.io/devcontainers/features/docker-in-docker:2": map[string]any{
+					"moby": "false",
+				},
+			},
+			want: []string{
+				"FEATURE_CODE_SERVER_PORT=9090",
+				"FEATURE_DOCKER_IN_DOCKER_MOBY=false",
+			},
+		},
+		{
+			name:     "empty features",
+			features: agentcontainers.DevcontainerFeatures{},
+			want:     []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.features.OptionsAsEnvs()
+
+			require.Len(t, got, len(tt.want), "number of environment variables should match")
+
+			for _, expected := range tt.want {
+				assert.Contains(t, got, expected, "expected environment variable not found")
+			}
+		})
+	}
+}

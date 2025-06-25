@@ -1302,6 +1302,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		}
 
 		var (
+			featureOptionsAsEnvs       []string
 			appsWithPossibleDuplicates []SubAgentApp
 			workspaceFolder            = DevcontainerDefaultContainerWorkspaceFolder
 		)
@@ -1313,12 +1314,14 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			)
 
 			readConfig := func() (DevcontainerConfig, error) {
-				return api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath, []string{
-					fmt.Sprintf("CODER_WORKSPACE_AGENT_NAME=%s", subAgentConfig.Name),
-					fmt.Sprintf("CODER_WORKSPACE_OWNER_NAME=%s", api.ownerName),
-					fmt.Sprintf("CODER_WORKSPACE_NAME=%s", api.workspaceName),
-					fmt.Sprintf("CODER_URL=%s", api.subAgentURL),
-				})
+				return api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath,
+					append(featureOptionsAsEnvs, []string{
+						fmt.Sprintf("CODER_WORKSPACE_AGENT_NAME=%s", subAgentConfig.Name),
+						fmt.Sprintf("CODER_WORKSPACE_OWNER_NAME=%s", api.ownerName),
+						fmt.Sprintf("CODER_WORKSPACE_NAME=%s", api.workspaceName),
+						fmt.Sprintf("CODER_URL=%s", api.subAgentURL),
+					}...),
+				)
 			}
 
 			if config, err = readConfig(); err != nil {
@@ -1333,6 +1336,11 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			}
 
 			workspaceFolder = config.Workspace.WorkspaceFolder
+
+			featureOptionsAsEnvs = config.MergedConfiguration.Features.OptionsAsEnvs()
+			if len(featureOptionsAsEnvs) > 0 {
+				configOutdated = true
+			}
 
 			// NOTE(DanielleMaywood):
 			// We only want to take an agent name specified in the root customization layer.
