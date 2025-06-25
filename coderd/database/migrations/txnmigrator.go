@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/golang-migrate/migrate/v4/database"
-	"github.com/lib/pq"
+	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/xerrors"
 )
 
@@ -81,7 +81,7 @@ func (d *pgTxnDriver) runStatement(statement []byte) error {
 		return nil
 	}
 	if _, err := d.tx.ExecContext(ctx, query); err != nil {
-		var pgErr *pq.Error
+		var pgErr *pgconn.PgError
 		if xerrors.As(err, &pgErr) {
 			var line uint
 			message := fmt.Sprintf("migration failed: %s", pgErr.Message)
@@ -131,9 +131,9 @@ func (d *pgTxnDriver) Version() (version int, dirty bool, err error) {
 		return database.NilVersion, false, nil
 
 	case err != nil:
-		var pgErr *pq.Error
+		var pgErr *pgconn.PgError
 		if xerrors.As(err, &pgErr) {
-			if pgErr.Code.Name() == "undefined_table" {
+			if pgErr.Code == "42P01" { // undefined_table
 				return database.NilVersion, false, nil
 			}
 		}

@@ -3,16 +3,21 @@ package pubsub
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"io"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/database"
 
 	"cdr.dev/slog"
 )
@@ -168,86 +173,20 @@ func (q *msgQueue) dropped() {
 	q.cond.Broadcast()
 }
 
-// pgxListener is an interface that represents a pgx connection for LISTEN/NOTIFY
-type pgxListener interface {
+// pqListener is an interface that represents a *pq.Listener for testing
+type pqListener interface {
 	io.Closer
-	Listen(ctx context.Context, channel string) error
-	Unlisten(ctx context.Context, channel string) error
-	NotifyChan() <-chan *pgconn.Notification
-	Conn() *pgx.Conn
+	Listen(string) error
+	Unlisten(string) error
+	NotifyChan() <-chan *pq.Notification
 }
 
-type pgxListenerShim struct {
-	conn     *pgx.Conn
-	notifyCh chan *pgconn.Notification
-	ctx      context.Context
-	cancel   context.CancelFunc
-	closed   bool
-	mu       sync.Mutex
+type pqListenerShim struct {
+	*pq.Listener
 }
 
-func newPgxListenerShim(conn *pgx.Conn) *pgxListenerShim {
-	ctx, cancel := context.WithCancel(context.Background())
-	l := &pgxListenerShim{
-		conn:     conn,
-		notifyCh: make(chan *pgconn.Notification, 100),
-		ctx:      ctx,
-		cancel:   cancel,
-	}
-	go l.listenLoop()
-	return l
-}
-
-func (l *pgxListenerShim) listenLoop() {
-	for {
-		select {
-		case <-l.ctx.Done():
-			return
-		default:
-			notification, err := l.conn.WaitForNotification(l.ctx)
-			if err != nil {
-				if l.ctx.Err() != nil {
-					return
-				}
-				continue
-			}
-			select {
-			case l.notifyCh <- notification:
-			case <-l.ctx.Done():
-				return
-			}
-		}
-	}
-}
-
-func (l *pgxListenerShim) Listen(ctx context.Context, channel string) error {
-	_, err := l.conn.Exec(ctx, "LISTEN "+pgx.Identifier{channel}.Sanitize())
-	return err
-}
-
-func (l *pgxListenerShim) Unlisten(ctx context.Context, channel string) error {
-	_, err := l.conn.Exec(ctx, "UNLISTEN "+pgx.Identifier{channel}.Sanitize())
-	return err
-}
-
-func (l *pgxListenerShim) NotifyChan() <-chan *pgconn.Notification {
-	return l.notifyCh
-}
-
-func (l *pgxListenerShim) Conn() *pgx.Conn {
-	return l.conn
-}
-
-func (l *pgxListenerShim) Close() error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.closed {
-		return nil
-	}
-	l.closed = true
-	l.cancel()
-	close(l.notifyCh)
-	return l.conn.Close(l.ctx)
+func (l pqListenerShim) NotifyChan() <-chan *pq.Notification {
+	return l.Notify
 }
 
 type queueSet struct {
@@ -267,7 +206,7 @@ func newQueueSet() *queueSet {
 type PGPubsub struct {
 	logger     slog.Logger
 	listenDone chan struct{}
-	pgListener pgxListener
+	pgListener pqListener
 	db         *sql.DB
 
 	qMu    sync.Mutex
@@ -364,19 +303,13 @@ func (p *PGPubsub) subscribeQueue(event string, newQ *msgQueue) (cancel func(), 
 	// notifies.  We need to avoid holding the mutex while this happens, since holding the mutex
 	// blocks reading notifications and can deadlock the pgListener.
 	// c.f. https://github.com/coder/coder/issues/11950
-	err = p.pgListener.Listen(context.Background(), event)
+	err = p.pgListener.Listen(event)
 	if err == nil {
 		p.logger.Debug(context.Background(), "started listening to event channel", slog.F("event", event))
 	}
-	// pgx doesn't have ErrChannelAlreadyOpen, but LISTEN is idempotent
-	// so we can ignore "already listening" type errors
-	if err != nil {
-		// Check if it's a "already listening" error and ignore it
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "42P01" {
-			// Ignore "already listening" errors
-			err = nil
-		}
+	if errors.Is(err, pq.ErrChannelAlreadyOpen) {
+		// It's ok if it's already open!
+		err = nil
 	}
 	if err != nil {
 		return nil, xerrors.Errorf("listen: %w", err)
@@ -402,7 +335,7 @@ func (p *PGPubsub) subscribeQueue(event string, newQ *msgQueue) (cancel func(), 
 
 		// as above, we must not hold the lock while calling into pgListener
 		if unlistening != nil {
-			uErr := p.pgListener.Unlisten(context.Background(), event)
+			uErr := p.pgListener.Unlisten(event)
 			close(unlistening)
 			// we can now delete the queueSet if it is empty.
 			func() {
@@ -428,10 +361,10 @@ func (p *PGPubsub) subscribeQueue(event string, newQ *msgQueue) (cancel func(), 
 
 func (p *PGPubsub) Publish(event string, message []byte) error {
 	p.logger.Debug(context.Background(), "publish", slog.F("event", event), slog.F("message_len", len(message)))
-	// This is safe because we are using pgx.Identifier.Sanitize(). pg_notify doesn't
+	// This is safe because we are calling pq.QuoteLiteral. pg_notify doesn't
 	// support the first parameter being a prepared statement.
 	//nolint:gosec
-	_, err := p.db.ExecContext(context.Background(), `select pg_notify(`+pgx.Identifier{event}.Sanitize()+`, $1)`, message)
+	_, err := p.db.ExecContext(context.Background(), `select pg_notify(`+pq.QuoteLiteral(event)+`, $1)`, message)
 	if err != nil {
 		p.publishesTotal.WithLabelValues("false").Inc()
 		return xerrors.Errorf("exec pg_notify: %w", err)
@@ -482,13 +415,13 @@ func (p *PGPubsub) listen() {
 	}
 }
 
-func (p *PGPubsub) listenReceive(notif *pgconn.Notification) {
+func (p *PGPubsub) listenReceive(notif *pq.Notification) {
 	sizeLabel := messageSizeNormal
-	if len(notif.Payload) >= colossalThreshold {
+	if len(notif.Extra) >= colossalThreshold {
 		sizeLabel = messageSizeColossal
 	}
 	p.messagesTotal.WithLabelValues(sizeLabel).Inc()
-	p.receivedBytesTotal.Add(float64(len(notif.Payload)))
+	p.receivedBytesTotal.Add(float64(len(notif.Extra)))
 
 	p.qMu.Lock()
 	defer p.qMu.Unlock()
@@ -496,7 +429,7 @@ func (p *PGPubsub) listenReceive(notif *pgconn.Notification) {
 	if !ok {
 		return
 	}
-	extra := []byte(notif.Payload)
+	extra := []byte(notif.Extra)
 	for q := range qSet.m {
 		q.enqueue(extra)
 	}
@@ -512,25 +445,124 @@ func (p *PGPubsub) recordReconnect() {
 	}
 }
 
+// logDialer is a pq.Dialer and pq.DialerContext that logs when it starts
+// connecting and when the TCP connection is established.
+type logDialer struct {
+	logger slog.Logger
+	d      net.Dialer
+}
 
+var (
+	_ pq.Dialer        = logDialer{}
+	_ pq.DialerContext = logDialer{}
+)
+
+func (d logDialer) Dial(network, address string) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return d.DialContext(ctx, network, address)
+}
+
+func (d logDialer) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return d.DialContext(ctx, network, address)
+}
+
+func (d logDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	deadline, hasDeadline := ctx.Deadline()
+	timeoutMS := 0
+	if hasDeadline {
+		timeoutMS = int(time.Until(deadline) / time.Millisecond)
+	}
+
+	logger := d.logger.With(slog.F("network", network), slog.F("address", address), slog.F("timeout_ms", timeoutMS))
+
+	logger.Debug(ctx, "pubsub dialing postgres")
+	start := time.Now()
+	conn, err := d.d.DialContext(ctx, network, address)
+	if err != nil {
+		logger.Error(ctx, "pubsub failed to dial postgres")
+		return nil, err
+	}
+	elapsed := time.Since(start)
+	logger.Debug(ctx, "pubsub postgres TCP connection established", slog.F("elapsed_ms", elapsed.Milliseconds()))
+	return conn, nil
+}
 
 func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 	p.connected.Set(0)
-	// Creates a new listener using pgx.
-	config, err := pgx.ParseConfig(connectURL)
-	if err != nil {
-		return xerrors.Errorf("parse connect URL: %w", err)
+	// Creates a new listener using pq.
+	var (
+		dialer = logDialer{
+			logger: p.logger,
+			// pq.defaultDialer uses a zero net.Dialer as well.
+			d: net.Dialer{},
+		}
+		connector driver.Connector
+		err       error
+	)
+
+	// Create a custom connector if the database driver supports it.
+	connectorCreator, ok := p.db.Driver().(database.ConnectorCreator)
+	if ok {
+		connector, err = connectorCreator.Connector(connectURL)
+		if err != nil {
+			return xerrors.Errorf("create custom connector: %w", err)
+		}
+	} else {
+		// use the default pq connector otherwise
+		connector, err = pq.NewConnector(connectURL)
+		if err != nil {
+			return xerrors.Errorf("create pq connector: %w", err)
+		}
 	}
 
-	// Create pgx connection for LISTEN/NOTIFY
-	conn, err := pgx.ConnectConfig(ctx, config)
-	if err != nil {
-		return xerrors.Errorf("connect to postgres: %w", err)
+	// Set the dialer if the connector supports it.
+	dc, ok := connector.(database.DialerConnector)
+	if !ok {
+		p.logger.Critical(ctx, "connector does not support setting log dialer, database connection debug logs will be missing")
+	} else {
+		dc.Dialer(dialer)
 	}
 
-	p.pgListener = newPgxListenerShim(conn)
-	p.logger.Debug(ctx, "pubsub connected to postgres")
-	p.connected.Set(1.0)
+	var (
+		errCh     = make(chan error, 1)
+		sentErrCh = false
+	)
+	p.pgListener = pqListenerShim{
+		Listener: pq.NewConnectorListener(connector, connectURL, time.Second, time.Minute, func(t pq.ListenerEventType, err error) {
+			switch t {
+			case pq.ListenerEventConnected:
+				p.logger.Debug(ctx, "pubsub connected to postgres")
+				p.connected.Set(1.0)
+			case pq.ListenerEventDisconnected:
+				p.logger.Error(ctx, "pubsub disconnected from postgres", slog.Error(err))
+				p.connected.Set(0)
+			case pq.ListenerEventReconnected:
+				p.logger.Info(ctx, "pubsub reconnected to postgres")
+				p.connected.Set(1)
+			case pq.ListenerEventConnectionAttemptFailed:
+				p.logger.Error(ctx, "pubsub failed to connect to postgres", slog.Error(err))
+			}
+			// This callback gets events whenever the connection state changes.
+			// Only send the first error.
+			if sentErrCh {
+				return
+			}
+			errCh <- err // won't block because we are buffered.
+			sentErrCh = true
+		}),
+	}
+	// We don't respect context cancellation here. There's a bug in the pq library
+	// where if you close the listener before or while the connection is being
+	// established, the connection will be established anyway, and will not be
+	// closed.
+	// https://github.com/lib/pq/issues/1192
+	if err := <-errCh; err != nil {
+		_ = p.pgListener.Close()
+		return xerrors.Errorf("create pq listener: %w", err)
+	}
 	return nil
 }
 

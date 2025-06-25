@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 
-	"github.com/lib/pq"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func IsSerializedError(err error) bool {
-	var pqErr *pq.Error
-	if errors.As(err, &pqErr) {
-		return pqErr.Code.Name() == "serialization_failure"
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "40001" // serialization_failure
 	}
 	return false
 }
@@ -20,14 +20,14 @@ func IsSerializedError(err error) bool {
 // the error must be caused by one of them. If no constraints are given,
 // this function returns true for any unique violation.
 func IsUniqueViolation(err error, uniqueConstraints ...UniqueConstraint) bool {
-	var pqErr *pq.Error
-	if errors.As(err, &pqErr) {
-		if pqErr.Code.Name() == "unique_violation" {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		if pgErr.Code == "23505" { // unique_violation
 			if len(uniqueConstraints) == 0 {
 				return true
 			}
 			for _, uc := range uniqueConstraints {
-				if pqErr.Constraint == string(uc) {
+				if pgErr.ConstraintName == string(uc) {
 					return true
 				}
 			}
@@ -42,14 +42,14 @@ func IsUniqueViolation(err error, uniqueConstraints ...UniqueConstraint) bool {
 // the error must be caused by one of them. If no constraints are given,
 // this function returns true for any foreign key violation.
 func IsForeignKeyViolation(err error, foreignKeyConstraints ...ForeignKeyConstraint) bool {
-	var pqErr *pq.Error
-	if errors.As(err, &pqErr) {
-		if pqErr.Code.Name() == "foreign_key_violation" {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		if pgErr.Code == "23503" { // foreign_key_violation
 			if len(foreignKeyConstraints) == 0 {
 				return true
 			}
 			for _, fc := range foreignKeyConstraints {
-				if pqErr.Constraint == string(fc) {
+				if pgErr.ConstraintName == string(fc) {
 					return true
 				}
 			}
@@ -61,9 +61,9 @@ func IsForeignKeyViolation(err error, foreignKeyConstraints ...ForeignKeyConstra
 
 // IsQueryCanceledError checks if the error is due to a query being canceled.
 func IsQueryCanceledError(err error) bool {
-	var pqErr *pq.Error
-	if errors.As(err, &pqErr) {
-		return pqErr.Code == "57014" // query_canceled
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "57014" // query_canceled
 	} else if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
@@ -72,9 +72,9 @@ func IsQueryCanceledError(err error) bool {
 }
 
 func IsWorkspaceAgentLogsLimitError(err error) bool {
-	var pqErr *pq.Error
-	if errors.As(err, &pqErr) {
-		return pqErr.Constraint == "max_logs_length" && pqErr.Table == "workspace_agents"
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.ConstraintName == "max_logs_length" && pgErr.TableName == "workspace_agents"
 	}
 
 	return false

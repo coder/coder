@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
