@@ -1012,6 +1012,7 @@ func TestAPI(t *testing.T) {
 				apiOptions := []agentcontainers.Option{
 					agentcontainers.WithClock(mClock),
 					agentcontainers.WithContainerCLI(tt.lister),
+					agentcontainers.WithDevcontainerCLI(&fakeDevcontainerCLI{}),
 					agentcontainers.WithWatcher(watcher.NewNoop()),
 				}
 
@@ -1040,6 +1041,11 @@ func TestAPI(t *testing.T) {
 				// before advancing the clock.
 				tickerTrap.MustWait(ctx).MustRelease(ctx)
 				tickerTrap.Close()
+
+				for _, dc := range tt.knownDevcontainers {
+					err := api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath)
+					require.NoError(t, err)
+				}
 
 				// Advance the clock to run the updater loop.
 				_, aw := mClock.AdvanceNext()

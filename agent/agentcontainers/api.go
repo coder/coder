@@ -207,7 +207,7 @@ func WithDevcontainers(devcontainers []codersdk.WorkspaceAgentDevcontainer, scri
 		api.devcontainerNames = make(map[string]bool, len(devcontainers))
 		api.devcontainerLogSourceIDs = make(map[string]uuid.UUID)
 		for _, dc := range devcontainers {
-			if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStopped {
+			if dc.Status == "" {
 				dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
 			}
 
