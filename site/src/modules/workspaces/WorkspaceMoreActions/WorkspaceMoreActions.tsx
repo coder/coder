@@ -19,6 +19,7 @@ import {
 	EllipsisVertical,
 	HistoryIcon,
 	SettingsIcon,
+	SquareCheckBigIcon,
 	TrashIcon,
 } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
@@ -125,6 +126,17 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 						<DownloadIcon />
 						Download logs&hellip;
 					</DropdownMenuItem>
+
+					{workspace.latest_build.has_ai_task && (
+						<DropdownMenuItem asChild>
+							<RouterLink
+								to={`/tasks/${workspace.owner_name}/${workspace.name}`}
+							>
+								<SquareCheckBigIcon />
+								See task
+							</RouterLink>
+						</DropdownMenuItem>
+					)}
 
 					<DropdownMenuSeparator />
 
