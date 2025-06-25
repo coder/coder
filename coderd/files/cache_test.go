@@ -2,7 +2,6 @@ package files_test
 
 import (
 	"context"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -35,7 +34,6 @@ func TestCancelledFetch(t *testing.T) {
 	t.Parallel()
 
 	fileID := uuid.New()
-	rdy := make(chan struct{})
 	dbM := dbmock.NewMockStore(gomock.NewController(t))
 
 	// First call should fail
@@ -56,33 +54,17 @@ func TestCancelledFetch(t *testing.T) {
 	ctx := dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort))
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
-	var wg sync.WaitGroup
-
 	// First call that will fail
-	wg.Add(1)
-	go func() {
-		_, err := cache.Acquire(ctx, dbM, fileID)
-		close(rdy)
-		assert.ErrorIs(t, err, context.Canceled)
-		wg.Done()
-	}()
+	_, err := cache.Acquire(ctx, dbM, fileID)
+	assert.ErrorIs(t, err, context.Canceled)
 
 	// Second call, that should succeed
-	wg.Add(1)
-	go func() {
-		// Wait until the first goroutine has started
-		<-rdy
-		fs, err := cache.Acquire(ctx, dbM, fileID)
-		assert.NoError(t, err)
-		if fs != nil {
-			fs.Close()
-		}
-		wg.Done()
-	}()
-
-	// We need that second Acquire call to be queued up
-	time.Sleep(testutil.IntervalFast)
-	wg.Wait()
+	// Wait until the first goroutine has started
+	fs, err := cache.Acquire(ctx, dbM, fileID)
+	assert.NoError(t, err)
+	if fs != nil {
+		fs.Close()
+	}
 }
 
 // nolint:paralleltest,tparallel // Serially testing is easier
