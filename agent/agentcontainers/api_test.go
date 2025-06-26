@@ -1393,7 +1393,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithSubAgentClient(fakeSAC),
 			agentcontainers.WithSubAgentURL("test-subagent-url"),
 			agentcontainers.WithDevcontainerCLI(fakeDCCLI),
-			agentcontainers.WithManifestInfo("test-user", "test-workspace"),
+			agentcontainers.WithManifestInfo("test-user", "test-workspace", "test-parent-agent"),
 		)
 		api.Init()
 		apiClose := func() {
@@ -1415,7 +1415,9 @@ func TestAPI(t *testing.T) {
 			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=coder")
 			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
 			assert.Contains(t, envs, "CODER_WORKSPACE_OWNER_NAME=test-user")
+			assert.Contains(t, envs, "CODER_WORKSPACE_PARENT_AGENT_NAME=test-parent-agent")
 			assert.Contains(t, envs, "CODER_URL=test-subagent-url")
+			assert.Contains(t, envs, "CONTAINER_ID=test-container-id")
 			return nil
 		})
 
@@ -1557,7 +1559,9 @@ func TestAPI(t *testing.T) {
 			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=coder")
 			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
 			assert.Contains(t, envs, "CODER_WORKSPACE_OWNER_NAME=test-user")
+			assert.Contains(t, envs, "CODER_WORKSPACE_PARENT_AGENT_NAME=test-parent-agent")
 			assert.Contains(t, envs, "CODER_URL=test-subagent-url")
+			assert.NotContains(t, envs, "CONTAINER_ID=test-container-id")
 			return nil
 		})
 
@@ -2134,7 +2138,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithSubAgentClient(fSAC),
 			agentcontainers.WithSubAgentURL("test-subagent-url"),
 			agentcontainers.WithWatcher(watcher.NewNoop()),
-			agentcontainers.WithManifestInfo("test-user", "test-workspace"),
+			agentcontainers.WithManifestInfo("test-user", "test-workspace", "test-parent-agent"),
 		)
 		api.Init()
 		defer api.Close()
@@ -2150,7 +2154,9 @@ func TestAPI(t *testing.T) {
 			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=coder")
 			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
 			assert.Contains(t, envs, "CODER_WORKSPACE_OWNER_NAME=test-user")
+			assert.Contains(t, envs, "CODER_WORKSPACE_PARENT_AGENT_NAME=test-parent-agent")
 			assert.Contains(t, envs, "CODER_URL=test-subagent-url")
+			assert.Contains(t, envs, "CONTAINER_ID=test-container-id")
 			// First call should not have feature envs.
 			assert.NotContains(t, envs, "FEATURE_CODE_SERVER_OPTION_PORT=9090")
 			assert.NotContains(t, envs, "FEATURE_DOCKER_IN_DOCKER_OPTION_MOBY=false")
@@ -2161,7 +2167,9 @@ func TestAPI(t *testing.T) {
 			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=coder")
 			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
 			assert.Contains(t, envs, "CODER_WORKSPACE_OWNER_NAME=test-user")
+			assert.Contains(t, envs, "CODER_WORKSPACE_PARENT_AGENT_NAME=test-parent-agent")
 			assert.Contains(t, envs, "CODER_URL=test-subagent-url")
+			assert.Contains(t, envs, "CONTAINER_ID=test-container-id")
 			// Second call should have feature envs from the first config read.
 			assert.Contains(t, envs, "FEATURE_CODE_SERVER_OPTION_PORT=9090")
 			assert.Contains(t, envs, "FEATURE_DOCKER_IN_DOCKER_OPTION_MOBY=false")
