@@ -277,6 +277,8 @@ export const PresetsWithDefault: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		// Wait for the switch to be available since preset parameters are populated asynchronously
+		await canvas.findByLabelText("Show preset parameters");
 		// Toggle off the show preset parameters switch
 		await userEvent.click(canvas.getByLabelText("Show preset parameters"));
 	},

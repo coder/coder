@@ -71,6 +71,7 @@ type API struct {
 
 	ownerName     string
 	workspaceName string
+	parentAgent   string
 
 	mu                       sync.RWMutex
 	closed                   bool
@@ -188,10 +189,11 @@ func WithSubAgentEnv(env ...string) Option {
 
 // WithManifestInfo sets the owner name, and workspace name
 // for the sub-agent.
-func WithManifestInfo(owner, workspace string) Option {
+func WithManifestInfo(owner, workspace, parentAgent string) Option {
 	return func(api *API) {
 		api.ownerName = owner
 		api.workspaceName = workspace
+		api.parentAgent = parentAgent
 	}
 }
 
@@ -494,8 +496,8 @@ func (api *API) Routes() http.Handler {
 	r.Get("/", api.handleList)
 	// TODO(mafredri): Simplify this route as the previous /devcontainers
 	// /-route was dropped. We can drop the /devcontainers prefix here too.
-	r.Route("/devcontainers", func(r chi.Router) {
-		r.Post("/container/{container}/recreate", api.handleDevcontainerRecreate)
+	r.Route("/devcontainers/{devcontainer}", func(r chi.Router) {
+		r.Post("/recreate", api.handleDevcontainerRecreate)
 	})
 
 	return r
@@ -859,68 +861,40 @@ func (api *API) getContainers() (codersdk.WorkspaceAgentListContainersResponse, 
 // devcontainer by referencing the container.
 func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	containerID := chi.URLParam(r, "container")
+	devcontainerID := chi.URLParam(r, "devcontainer")
 
-	if containerID == "" {
+	if devcontainerID == "" {
 		httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
-			Message: "Missing container ID or name",
-			Detail:  "Container ID or name is required to recreate a devcontainer.",
-		})
-		return
-	}
-
-	containers, err := api.getContainers()
-	if err != nil {
-		httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
-			Message: "Could not list containers",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	containerIdx := slices.IndexFunc(containers.Containers, func(c codersdk.WorkspaceAgentContainer) bool { return c.Match(containerID) })
-	if containerIdx == -1 {
-		httpapi.Write(ctx, w, http.StatusNotFound, codersdk.Response{
-			Message: "Container not found",
-			Detail:  "Container ID or name not found in the list of containers.",
-		})
-		return
-	}
-
-	container := containers.Containers[containerIdx]
-	workspaceFolder := container.Labels[DevcontainerLocalFolderLabel]
-	configPath := container.Labels[DevcontainerConfigFileLabel]
-
-	// Workspace folder is required to recreate a container, we don't verify
-	// the config path here because it's optional.
-	if workspaceFolder == "" {
-		httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
-			Message: "Missing workspace folder label",
-			Detail:  "The container is not a devcontainer, the container must have the workspace folder label to support recreation.",
+			Message: "Missing devcontainer ID",
+			Detail:  "Devcontainer ID is required to recreate a devcontainer.",
 		})
 		return
 	}
 
 	api.mu.Lock()
 
-	dc, ok := api.knownDevcontainers[workspaceFolder]
-	switch {
-	case !ok:
+	var dc codersdk.WorkspaceAgentDevcontainer
+	for _, knownDC := range api.knownDevcontainers {
+		if knownDC.ID.String() == devcontainerID {
+			dc = knownDC
+			break
+		}
+	}
+	if dc.ID == uuid.Nil {
 		api.mu.Unlock()
 
-		// This case should not happen if the container is a valid devcontainer.
-		api.logger.Error(ctx, "devcontainer not found for workspace folder", slog.F("workspace_folder", workspaceFolder))
-		httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, w, http.StatusNotFound, codersdk.Response{
 			Message: "Devcontainer not found.",
-			Detail:  fmt.Sprintf("Could not find devcontainer for workspace folder: %q", workspaceFolder),
+			Detail:  fmt.Sprintf("Could not find devcontainer with ID: %q", devcontainerID),
 		})
 		return
-	case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting:
+	}
+	if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting {
 		api.mu.Unlock()
 
 		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
 			Message: "Devcontainer recreation already in progress",
-			Detail:  fmt.Sprintf("Recreation for workspace folder %q is already underway.", dc.WorkspaceFolder),
+			Detail:  fmt.Sprintf("Recreation for devcontainer %q is already underway.", dc.Name),
 		})
 		return
 	}
@@ -931,14 +905,14 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	dc.Container = nil
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	go func() {
-		_ = api.CreateDevcontainer(dc.WorkspaceFolder, configPath, WithRemoveExistingContainer())
+		_ = api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath, WithRemoveExistingContainer())
 	}()
 
 	api.mu.Unlock()
 
 	httpapi.Write(ctx, w, http.StatusAccepted, codersdk.Response{
 		Message: "Devcontainer recreation initiated",
-		Detail:  fmt.Sprintf("Recreation process for workspace folder %q has started.", dc.WorkspaceFolder),
+		Detail:  fmt.Sprintf("Recreation process for devcontainer %q has started.", dc.Name),
 	})
 }
 
@@ -1319,7 +1293,9 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 						fmt.Sprintf("CODER_WORKSPACE_AGENT_NAME=%s", subAgentConfig.Name),
 						fmt.Sprintf("CODER_WORKSPACE_OWNER_NAME=%s", api.ownerName),
 						fmt.Sprintf("CODER_WORKSPACE_NAME=%s", api.workspaceName),
+						fmt.Sprintf("CODER_WORKSPACE_PARENT_AGENT_NAME=%s", api.parentAgent),
 						fmt.Sprintf("CODER_URL=%s", api.subAgentURL),
+						fmt.Sprintf("CONTAINER_ID=%s", container.ID),
 					}...),
 				)
 			}
@@ -1466,6 +1442,11 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		return xerrors.Errorf("set agent binary executable: %w", err)
 	}
 
+	// Make sure the agent binary is owned by a valid user so we can run it.
+	if _, err := api.ccli.ExecAs(ctx, container.ID, "root", "/bin/sh", "-c", fmt.Sprintf("chown $(id -u):$(id -g) %s", coderPathInsideContainer)); err != nil {
+		return xerrors.Errorf("set agent binary ownership: %w", err)
+	}
+
 	// Attempt to add CAP_NET_ADMIN to the binary to improve network
 	// performance (optional, allow to fail). See `bootstrap_linux.sh`.
 	// TODO(mafredri): Disable for now until we can figure out why this
@@ -1503,7 +1484,9 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		originalName := subAgentConfig.Name
 
 		for attempt := 1; attempt <= maxAttemptsToNameAgent; attempt++ {
-			if proc.agent, err = client.Create(ctx, subAgentConfig); err == nil {
+			agent, err := client.Create(ctx, subAgentConfig)
+			if err == nil {
+				proc.agent = agent // Only reassign on success.
 				if api.usingWorkspaceFolderName[dc.WorkspaceFolder] {
 					api.devcontainerNames[dc.Name] = true
 					delete(api.usingWorkspaceFolderName, dc.WorkspaceFolder)
@@ -1511,7 +1494,6 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 				break
 			}
-
 			// NOTE(DanielleMaywood):
 			// Ordinarily we'd use `errors.As` here, but it didn't appear to work. Not
 			// sure if this is because of the communication protocol? Instead I've opted
