@@ -1444,7 +1444,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 	// Make sure the agent binary is executable so we can run it.
 	if _, err := api.ccli.ExecAs(ctx, container.ID, "root", "/bin/sh", "-c", fmt.Sprintf("chown $(id -u):$(id -g) %s", coderPathInsideContainer)); err != nil {
-		return xerrors.Errorf("set agent binary executable: %w", err)
+		return xerrors.Errorf("set agent binary ownership: %w", err)
 	}
 
 	// Attempt to add CAP_NET_ADMIN to the binary to improve network
