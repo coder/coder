@@ -297,7 +297,7 @@ data "coder_workspace" "me" {}
 # Provides: name, id, access_url, start_count
 
 data "coder_workspace_owner" "me" {}
-# Provides: name, email, full_name
+# Provides: name, email, full_name, groups of the workspace owner. 
 ```
 
 ### Variable Design
