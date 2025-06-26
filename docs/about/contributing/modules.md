@@ -102,66 +102,66 @@ The Coder Registry organizes modules into different categories based on their fu
 
 Integrate development environments and code editors into workspaces.
 
-- **code-server**: VS Code in the browser
-- **Cursor IDE**: Add a one-click button to launch Cursor IDE
-- **JetBrains Gateway**: Add a one-click button to launch JetBrains Gateway IDEs in the dashboard
-- **Jupyter Notebook**: A module that adds Jupyter Notebook in your Coder template
-- **JupyterLab**: A module that adds JupyterLab in your Coder template
-- **VS Code Desktop**: Add a one-click button to launch VS Code Desktop
-- **VS Code Web**: VS Code Web - Visual Studio Code in the browser
-- **Windsurf Editor**: Add a one-click button to launch Windsurf Editor
+- **[code-server](https://registry.coder.com/modules/coder/code-server)**: VS Code in the browser
+- **[Cursor](https://registry.coder.com/modules/coder/cursor)**: Add a one-click button to launch Cursor IDE
+- **[JetBrains Gateway](https://registry.coder.com/modules/coder/jetbrains-gateway)**: Add a one-click button to launch JetBrains Gateway IDEs in the dashboard
+- **[Jupyter Notebook](https://registry.coder.com/modules/coder/jupyter-notebook)**: A module that adds Jupyter Notebook in your Coder template
+- **[JupyterLab](https://registry.coder.com/modules/coder/jupyterlab)**: A module that adds JupyterLab in your Coder template
+- **[VS Code Desktop](https://registry.coder.com/modules/coder/vscode-desktop)**: Add a one-click button to launch VS Code Desktop
+- **[VS Code Web](https://registry.coder.com/modules/coder/vscode-web)**: VS Code Web - Visual Studio Code in the browser
+- **[Windsurf Editor](https://registry.coder.com/modules/coder/windsurf)**: Add a one-click button to launch Windsurf Editor
 
 ### [Helper Modules](https://registry.coder.com/modules?search=tag%3Ahelper)
 
 Simplify template creation and workspace configuration.
 
-- **AWS Region**: A parameter with human region names and icons
-- **Azure Region**: A parameter with human region names and icons
-- **Coder Login**: Automatically logs the user into Coder on their workspace
-- **Dotfiles**: Allow developers to optionally bring their own dotfiles repository to customize their shell and IDE settings
-- **Fly.io Region**: A parameter with human region names and icons
-- **GCP Region**: Add Google Cloud Platform regions to your Coder template
-- **Git Clone**: Clone a Git repository by URL and skip if it exists
-- **Git commit signing**: Configures Git to sign commits using your Coder SSH key
-- **Git Config**: Stores Git configuration from Coder credentials
-- **Github Upload Public Key**: Automates uploading Coder public key to Github so users don't have to
-- **Personalize**: Allow developers to customize their workspace on start
-- **Slack Me**: Send a Slack message when a command finishes inside a workspace
+- **[AWS Region](https://registry.coder.com/modules/coder/aws-region)**: A parameter with human region names and icons
+- **[Azure Region](https://registry.coder.com/modules/coder/azure-region)**: A parameter with human region names and icons
+- **[Coder Login](https://registry.coder.com/modules/coder/coder-login)**: Automatically logs the user into Coder on their workspace
+- **[Dotfiles](https://registry.coder.com/modules/coder/dotfiles)**: Allow developers to optionally bring their own dotfiles repository to customize their shell and IDE settings
+- **[Fly.io Region](https://registry.coder.com/modules/coder/fly-region)**: A parameter with human region names and icons
+- **[GCP Region](https://registry.coder.com/modules/coder/gcp-region)**: Add Google Cloud Platform regions to your Coder template
+- **[Git Clone](https://registry.coder.com/modules/coder/git-clone)**: Clone a Git repository by URL and skip if it exists
+- **[Git commit signing](https://registry.coder.com/modules/coder/git-commit-signing)**: Configures Git to sign commits using your Coder SSH key
+- **[Git Config](https://registry.coder.com/modules/coder/git-config)**: Stores Git configuration from Coder credentials
+- **[Github Upload Public Key](https://registry.coder.com/modules/coder/github-upload-public-key)**: Automates uploading Coder public key to Github so users don't have to
+- **[Personalize](https://registry.coder.com/modules/coder/personalize)**: Allow developers to customize their workspace on start
+- **[Slack Me](https://registry.coder.com/modules/coder/slackme)**: Send a Slack message when a command finishes inside a workspace
 
 ### [Desktop Modules](https://registry.coder.com/modules?search=tag%3Adesktop)
 
 Provide graphical desktop environments for visual development workflows.
 
-- **Amazon DCV Windows**: Amazon DCV Server and Web Client for Windows
-- **KasmVNC**: A modern open source VNC server
-- **Windows RDP**: RDP Server and Web Client, powered by Devolutions Gateway
-- **Windows RDP Desktop**: Enable RDP on Windows and add a one-click Coder Desktop button for seamless access
+- **[Amazon DCV Windows](https://registry.coder.com/modules/coder/amazon-dcv-windows)**: Amazon DCV Server and Web Client for Windows
+- **[KasmVNC](https://registry.coder.com/modules/coder/kasmvnc)**: A modern open source VNC server
+- **[Windows RDP](https://registry.coder.com/modules/coder/windows-rdp)**: RDP Server and Web Client, powered by Devolutions Gateway
+- **[Windows RDP Desktop](https://registry.coder.com/modules/coder/local-windows-rdp)**: Enable RDP on Windows and add a one-click Coder Desktop button for seamless access
 
 ### [AI Modules](https://registry.coder.com/modules?search=tag%3Aai)
 
 Integrate AI-powered development tools and assistants.
 
-- **Aider**: Run Aider AI pair programming in your workspace
-- **Amazon Q**: Run Amazon Q in your workspace to access Amazon's AI coding assistant
-- **Claude Code**: Run Claude Code in your workspace
-- **Goose**: Run Goose in your workspace
+- **[Aider](https://registry.coder.com/modules/coder/aider)**: Run Aider AI pair programming in your workspace
+- **[Amazon Q](https://registry.coder.com/modules/coder/amazon-q)**: Run Amazon Q in your workspace to access Amazon's AI coding assistant
+- **[Claude Code](https://registry.coder.com/modules/coder/claude-code)**: Run Claude Code in your workspace
+- **[Goose](https://registry.coder.com/modules/coder/goose)**: Run Goose in your workspace
 
 ### [Integration Modules](https://registry.coder.com/modules?search=tag%3Aintegration)
 
 Connect with external services and platforms.
 
-- **Hashicorp Vault Integration (GitHub)**: Authenticates with Vault using GitHub
-- **Hashicorp Vault Integration (JWT)**: Authenticates with Vault using a JWT from Coder's OIDC provider
-- **Hashicorp Vault Integration (Token)**: Authenticates with Vault using Token
-- **HCP Vault Secrets**: Fetch secrets from HCP Vault
-- **JFrog (OAuth)**: Install the JF CLI and authenticate with Artifactory using OAuth
-- **JFrog (Token)**: Install the JF CLI and authenticate with Artifactory using Artifactory terraform provider
+- **[Hashicorp Vault Integration (GitHub)](https://registry.coder.com/modules/coder/vault-github)**: Authenticates with Vault using GitHub
+- **[Hashicorp Vault Integration (JWT)](https://registry.coder.com/modules/coder/vault-jwt)**: Authenticates with Vault using a JWT from Coder's OIDC provider
+- **[Hashicorp Vault Integration (Token)](https://registry.coder.com/modules/coder/vault-token)**: Authenticates with Vault using Token
+- **[HCP Vault Secrets](https://registry.coder.com/modules/coder/hcp-vault-secrets)**: Fetch secrets from HCP Vault
+- **[JFrog (OAuth)](https://registry.coder.com/modules/coder/jfrog-oauth)**: Install the JF CLI and authenticate with Artifactory using OAuth
+- **[JFrog (Token)](https://registry.coder.com/modules/coder/jfrog-token)**: Install the JF CLI and authenticate with Artifactory using Artifactory terraform provider
 
 ### [Web-based Tools](https://registry.coder.com/modules?search=tag%3Aweb)
 
 Browser-accessible applications and interfaces.
 
-- **File Browser**: A file browser for your workspace
+- **[File Browser](https://registry.coder.com/modules/coder/filebrowser)**: A file browser for your workspace
 
 Browse all available modules and explore specific categories at [registry.coder.com](https://registry.coder.com).
 
