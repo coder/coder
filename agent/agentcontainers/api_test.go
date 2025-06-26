@@ -493,78 +493,77 @@ func TestAPI(t *testing.T) {
 	t.Run("Recreate", func(t *testing.T) {
 		t.Parallel()
 
-		validContainer := codersdk.WorkspaceAgentContainer{
-			ID:           "container-id",
-			FriendlyName: "container-name",
+		devcontainerID1 := uuid.New()
+		devcontainerID2 := uuid.New()
+		workspaceFolder1 := "/workspace/test1"
+		workspaceFolder2 := "/workspace/test2"
+		configPath1 := "/workspace/test1/.devcontainer/devcontainer.json"
+		configPath2 := "/workspace/test2/.devcontainer/devcontainer.json"
+
+		// Create a container that represents an existing devcontainer
+		devContainer1 := codersdk.WorkspaceAgentContainer{
+			ID:           "container-1",
+			FriendlyName: "test-container-1",
 			Running:      true,
 			Labels: map[string]string{
-				agentcontainers.DevcontainerLocalFolderLabel: "/workspaces",
-				agentcontainers.DevcontainerConfigFileLabel:  "/workspace/.devcontainer/devcontainer.json",
+				agentcontainers.DevcontainerLocalFolderLabel: workspaceFolder1,
+				agentcontainers.DevcontainerConfigFileLabel:  configPath1,
 			},
 		}
 
-		missingFolderContainer := codersdk.WorkspaceAgentContainer{
-			ID:           "missing-folder-container",
-			FriendlyName: "missing-folder-container",
-			Labels:       map[string]string{},
+		devContainer2 := codersdk.WorkspaceAgentContainer{
+			ID:           "container-2",
+			FriendlyName: "test-container-2",
+			Running:      true,
+			Labels: map[string]string{
+				agentcontainers.DevcontainerLocalFolderLabel: workspaceFolder2,
+				agentcontainers.DevcontainerConfigFileLabel:  configPath2,
+			},
 		}
 
 		tests := []struct {
-			name            string
-			containerID     string
-			lister          *fakeContainerCLI
-			devcontainerCLI *fakeDevcontainerCLI
-			wantStatus      []int
-			wantBody        []string
+			name               string
+			devcontainerID     string
+			setupDevcontainers []codersdk.WorkspaceAgentDevcontainer
+			lister             *fakeContainerCLI
+			devcontainerCLI    *fakeDevcontainerCLI
+			wantStatus         []int
+			wantBody           []string
 		}{
 			{
-				name:            "Missing container ID",
-				containerID:     "",
+				name:            "Missing devcontainer ID",
+				devcontainerID:  "",
 				lister:          &fakeContainerCLI{},
 				devcontainerCLI: &fakeDevcontainerCLI{},
 				wantStatus:      []int{http.StatusBadRequest},
-				wantBody:        []string{"Missing container ID or name"},
+				wantBody:        []string{"Missing devcontainer ID"},
 			},
 			{
-				name:        "List error",
-				containerID: "container-id",
+				name:           "Devcontainer not found",
+				devcontainerID: uuid.NewString(),
 				lister: &fakeContainerCLI{
-					listErr: xerrors.New("list error"),
-				},
-				devcontainerCLI: &fakeDevcontainerCLI{},
-				wantStatus:      []int{http.StatusInternalServerError},
-				wantBody:        []string{"Could not list containers"},
-			},
-			{
-				name:        "Container not found",
-				containerID: "nonexistent-container",
-				lister: &fakeContainerCLI{
-					containers: codersdk.WorkspaceAgentListContainersResponse{
-						Containers: []codersdk.WorkspaceAgentContainer{validContainer},
-					},
+					arch: "<none>", // Unsupported architecture, don't inject subagent.
 				},
 				devcontainerCLI: &fakeDevcontainerCLI{},
 				wantStatus:      []int{http.StatusNotFound},
-				wantBody:        []string{"Container not found"},
+				wantBody:        []string{"Devcontainer not found"},
 			},
 			{
-				name:        "Missing workspace folder label",
-				containerID: "missing-folder-container",
-				lister: &fakeContainerCLI{
-					containers: codersdk.WorkspaceAgentListContainersResponse{
-						Containers: []codersdk.WorkspaceAgentContainer{missingFolderContainer},
+				name:           "Devcontainer CLI error",
+				devcontainerID: devcontainerID1.String(),
+				setupDevcontainers: []codersdk.WorkspaceAgentDevcontainer{
+					{
+						ID:              devcontainerID1,
+						Name:            "test-devcontainer-1",
+						WorkspaceFolder: workspaceFolder1,
+						ConfigPath:      configPath1,
+						Status:          codersdk.WorkspaceAgentDevcontainerStatusRunning,
+						Container:       &devContainer1,
 					},
 				},
-				devcontainerCLI: &fakeDevcontainerCLI{},
-				wantStatus:      []int{http.StatusBadRequest},
-				wantBody:        []string{"Missing workspace folder label"},
-			},
-			{
-				name:        "Devcontainer CLI error",
-				containerID: "container-id",
 				lister: &fakeContainerCLI{
 					containers: codersdk.WorkspaceAgentListContainersResponse{
-						Containers: []codersdk.WorkspaceAgentContainer{validContainer},
+						Containers: []codersdk.WorkspaceAgentContainer{devContainer1},
 					},
 					arch: "<none>", // Unsupported architecture, don't inject subagent.
 				},
@@ -575,11 +574,21 @@ func TestAPI(t *testing.T) {
 				wantBody:   []string{"Devcontainer recreation initiated", "Devcontainer recreation already in progress"},
 			},
 			{
-				name:        "OK",
-				containerID: "container-id",
+				name:           "OK",
+				devcontainerID: devcontainerID2.String(),
+				setupDevcontainers: []codersdk.WorkspaceAgentDevcontainer{
+					{
+						ID:              devcontainerID2,
+						Name:            "test-devcontainer-2",
+						WorkspaceFolder: workspaceFolder2,
+						ConfigPath:      configPath2,
+						Status:          codersdk.WorkspaceAgentDevcontainerStatusRunning,
+						Container:       &devContainer2,
+					},
+				},
 				lister: &fakeContainerCLI{
 					containers: codersdk.WorkspaceAgentListContainersResponse{
-						Containers: []codersdk.WorkspaceAgentContainer{validContainer},
+						Containers: []codersdk.WorkspaceAgentContainer{devContainer2},
 					},
 					arch: "<none>", // Unsupported architecture, don't inject subagent.
 				},
@@ -608,13 +617,16 @@ func TestAPI(t *testing.T) {
 
 				// Setup router with the handler under test.
 				r := chi.NewRouter()
+
 				api := agentcontainers.NewAPI(
 					logger,
 					agentcontainers.WithClock(mClock),
 					agentcontainers.WithContainerCLI(tt.lister),
 					agentcontainers.WithDevcontainerCLI(tt.devcontainerCLI),
 					agentcontainers.WithWatcher(watcher.NewNoop()),
+					agentcontainers.WithDevcontainers(tt.setupDevcontainers, nil),
 				)
+
 				api.Init()
 				defer api.Close()
 				r.Mount("/", api.Routes())
@@ -626,7 +638,7 @@ func TestAPI(t *testing.T) {
 
 				for i := range tt.wantStatus {
 					// Simulate HTTP request to the recreate endpoint.
-					req := httptest.NewRequest(http.MethodPost, "/devcontainers/container/"+tt.containerID+"/recreate", nil).
+					req := httptest.NewRequest(http.MethodPost, "/devcontainers/"+tt.devcontainerID+"/recreate", nil).
 						WithContext(ctx)
 					rec := httptest.NewRecorder()
 					r.ServeHTTP(rec, req)
