@@ -6247,13 +6247,12 @@ WITH
     latest_prebuilds
         AS (
             SELECT
-	            workspaces.name,
-                workspaces.template_id,
-                latest_build.id,
                 latest_build.workspace_id,
+                workspaces.name,
+                workspaces.template_id,
                 latest_build.template_version_id,
-                latest_build.job_id,
                 latest_build.template_version_preset_id,
+                latest_build.job_id,
                 latest_build.created_at
             FROM
                 workspaces
@@ -6295,7 +6294,7 @@ WITH
         AS (
             SELECT
                 latest_prebuilds.workspace_id AS workspace_id,
-                BOOL_AND(workspace_agents.lifecycle_state = 'ready'::workspace_agent_lifecycle_state)::boolean AS ready
+                COALESCE(BOOL_AND(workspace_agents.lifecycle_state = 'ready'::workspace_agent_lifecycle_state), false)::boolean AS ready
             FROM
                 latest_prebuilds
                 LEFT JOIN workspace_resources ON
@@ -6311,7 +6310,7 @@ SELECT
     latest_prebuilds.template_id,
     latest_prebuilds.template_version_id,
     latest_prebuilds.template_version_preset_id AS current_preset_id,
-    COALESCE(agent_readiness.ready, false) AS ready,
+    agent_readiness.ready,
     latest_prebuilds.created_at
 FROM
     latest_prebuilds
