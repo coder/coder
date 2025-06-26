@@ -127,17 +127,6 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 						Download logs&hellip;
 					</DropdownMenuItem>
 
-					{workspace.latest_build.has_ai_task && (
-						<DropdownMenuItem asChild>
-							<RouterLink
-								to={`/tasks/${workspace.owner_name}/${workspace.name}`}
-							>
-								<SquareCheckBigIcon />
-								See task
-							</RouterLink>
-						</DropdownMenuItem>
-					)}
-
 					<DropdownMenuSeparator />
 
 					<DropdownMenuItem
