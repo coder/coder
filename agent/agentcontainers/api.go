@@ -1484,7 +1484,9 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		originalName := subAgentConfig.Name
 
 		for attempt := 1; attempt <= maxAttemptsToNameAgent; attempt++ {
-			if proc.agent, err = client.Create(ctx, subAgentConfig); err == nil {
+			agent, err := client.Create(ctx, subAgentConfig)
+			if err == nil {
+				proc.agent = agent // Only reassign on success.
 				if api.usingWorkspaceFolderName[dc.WorkspaceFolder] {
 					api.devcontainerNames[dc.Name] = true
 					delete(api.usingWorkspaceFolderName, dc.WorkspaceFolder)
@@ -1492,7 +1494,6 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 				break
 			}
-
 			// NOTE(DanielleMaywood):
 			// Ordinarily we'd use `errors.As` here, but it didn't appear to work. Not
 			// sure if this is because of the communication protocol? Instead I've opted
