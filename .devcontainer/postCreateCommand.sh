@@ -23,7 +23,7 @@ install_dotfiles() {
 		return
 	fi
 
-	cd /mnt/home/coder/.config/coderv2/dotfiles
+	cd /mnt/home/coder/.config/coderv2/dotfiles || return
 	for script in install.sh install bootstrap.sh bootstrap script/bootstrap setup.sh setup script/setup; do
 		if [ -x $script ]; then
 			echo "📦 Installing dotfiles..."
