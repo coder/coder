@@ -433,38 +433,6 @@ resource "coder_app" "service" {
 }
 ```
 
-## Testing and Documentation
-
-### Module Testing
-
-While not mandatory, **tests are recommended** for all modules. A `main.test.ts` file validates that the module works correctly. Tests use **Bun** as the test runner and verify that:
-
-- **Custom configurations** work with different variable values
-- **Default configuration** creates expected resources
-- **Input validation** catches invalid parameters
-- **Required variables** are properly validated
-
-The test framework provides utilities from `~test` import to:
-
-- Initialize Terraform in the module directory
-- Apply Terraform with test variables
-- Validate the resulting infrastructure state
-- Test error conditions and edge cases
-
-Tests run in Docker with `--network=host` capabilities and help ensure module quality and reliability.
-
-### Documentation Requirements
-
-Every module requires a `README.md` with YAML frontmatter containing metadata like display name, description, icon, maintainer, and tags. The README must include:
-
-- **Purpose and functionality** - What the module does and when to use it
-- **Variable documentation** - All input variables with types, defaults, and descriptions  
-- **Resource listing** - What Coder resources the module creates
-- **Usage examples** - Basic and advanced configuration examples
-- **Requirements** - Any prerequisites or dependencies
-
-The documentation format is validated automatically and must pass validation before modules can be accepted. See the [Registry Contributing Guide](https://github.com/coder/registry/blob/main/CONTRIBUTING.md) for detailed formatting requirements and examples.
-
 ## Contributing to the Registry
 
 The [Coder Registry](https://github.com/coder/registry) hosts all community and official modules. For detailed contribution guidelines, code standards, and submission processes, refer to the [Registry Contributing Guide](https://github.com/coder/registry/blob/main/CONTRIBUTING.md).
