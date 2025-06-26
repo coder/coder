@@ -223,7 +223,7 @@ END
     -- Filter by build_reason
 AND CASE
 	    WHEN @build_reason::text != '' THEN
-            COALESCE(wb_build.reason::text, wb_workspace.reason::text)  = @build_reason
+            COALESCE(wb_build.reason::text, wb_workspace.reason::text) = @build_reason
         ELSE true
 END
 	-- Filter request_id

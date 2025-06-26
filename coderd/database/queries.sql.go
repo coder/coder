@@ -524,7 +524,7 @@ END
     -- Filter by build_reason
 AND CASE
 	    WHEN $11::text != '' THEN
-            COALESCE(wb_build.reason::text, wb_workspace.reason::text)  = $11
+            COALESCE(wb_build.reason::text, wb_workspace.reason::text) = $11
         ELSE true
 END
 	-- Filter request_id
