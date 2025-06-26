@@ -207,7 +207,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 	const selectedTemplate = templates.find(
 		(t) => t.id === selectedTemplateId,
 	) as Template;
-	const { externalAuth, isLoadingExternalAuth, externalAuthError } =
+	const { externalAuth, externalAuthError, isPollingExternalAuth } =
 		useExternalAuth(selectedTemplate.active_version_id);
 	const missedExternalAuth = externalAuth?.filter(
 		(auth) => !auth.optional && !auth.authenticated,
@@ -294,7 +294,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 					</Select>
 
 					<div className="flex items-center gap-2">
-						{missedExternalAuth && isMissingExternalAuth && (
+						{missedExternalAuth && (
 							<ExternalAuthButtons
 								template={selectedTemplate}
 								missedExternalAuth={missedExternalAuth}
@@ -303,7 +303,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 
 						<Button size="sm" type="submit" disabled={isMissingExternalAuth}>
 							<Spinner
-								loading={createTaskMutation.isPending || isLoadingExternalAuth}
+								loading={createTaskMutation.isPending || isPollingExternalAuth}
 							>
 								<SendIcon />
 							</Spinner>
@@ -325,7 +325,7 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 	template,
 	missedExternalAuth,
 }) => {
-	const { startPollingExternalAuth, isLoadingExternalAuth } = useExternalAuth(
+	const { startPollingExternalAuth, isPollingExternalAuth } = useExternalAuth(
 		template.active_version_id,
 	);
 
@@ -335,16 +335,16 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 				variant="outline"
 				key={auth.id}
 				size="sm"
-				disabled={isLoadingExternalAuth || auth.authenticated}
+				disabled={isPollingExternalAuth || auth.authenticated}
 				onClick={() => {
 					window.open(auth.authenticate_url, "_blank", "width=900,height=600");
 					startPollingExternalAuth();
 				}}
 			>
-				<Spinner loading={isLoadingExternalAuth}>
+				<Spinner loading={isPollingExternalAuth}>
 					<ExternalImage src={auth.display_icon} />
 				</Spinner>
-				Login with {auth.display_name}
+				Connect to {auth.display_name}
 			</Button>
 		);
 	});
