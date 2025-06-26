@@ -1,6 +1,17 @@
 # Coder modules
 
-Coder modules are reusable Terraform configurations that extend workspace functionality through the Coder Terraform provider. This guide focuses on understanding and creating effective modules.
+Coder modules are reusable [Terraform configurations](https://developer.hashicorp.com/terraform/language) that extend workspace functionality through the Coder Terraform provider. This guide focuses on understanding and creating effective modules.
+
+## Prerequisites
+
+This guide assumes basic familiarity with Terraform concepts. If you're new to Terraform, we recommend reviewing these resources first:
+
+- **[What is Terraform?](https://developer.hashicorp.com/terraform/intro)** - Introduction to infrastructure as code
+- **[Terraform Configuration Language](https://developer.hashicorp.com/terraform/language)** - Learn the HCL syntax used in `.tf` files
+- **[Terraform Variables](https://developer.hashicorp.com/terraform/language/values/variables)** - Understanding input variables and configuration
+- **[Terraform Modules](https://developer.hashicorp.com/terraform/language/modules)** - How modules work and module structure
+
+For hands-on learning, try the [Terraform tutorials](https://developer.hashicorp.com/terraform/tutorials) to get comfortable with basic concepts before creating Coder modules.
 
 ## Architecture Overview
 
@@ -80,12 +91,11 @@ flowchart LR
 1. **Module Registry**: External registry hosts reusable modules and starter templates
    - Modules are Terraform configurations using Coder-specific resources
    - Starter templates provide infrastructure-specific bases (Docker, AWS, GCP, etc.) to start building your own templates
-   - Community and official modules available at [registry.coder.com](https://registry.coder.com)
+   - [Coder registry](https://registry.coder.com) hosts a collection of official, partner, and community contributed templates and modules.
 
-2. **Template Development**: Your Coder templates reference modules from the registry
+2. **Templates**: Your Coder templates reference modules from the registry
    - Use starter templates as infrastructure-specific starting points for your own templates
    - Reference individual modules to add functionality to your templates
-   - Modules add `coder_script`, `coder_app`, and `coder_env` resources to templates
 
 3. **Workspace Execution**: When workspaces are created, modules run through the Coder agent
    - **Scripts** install and configure tools (IDEs, languages, services)
@@ -186,7 +196,7 @@ module-name/
 ├── main.tf          # Terraform configuration with Coder resources
 ├── main.test.ts     # Test suite
 ├── README.md        # Documentation with frontmatter
-└── run.sh           # Installation script
+└── run.sh           # Installation or setup script
 ```
 
 ### File Purposes
@@ -200,9 +210,9 @@ module-name/
 
 The Coder Terraform provider offers several resource types for different aspects of workspace functionality. Understanding when and how to use each resource is crucial for effective module development.
 
-### Coder Resources
+### [Coder Resources](https://registry.terraform.io/providers/coder/coder/latest/docs)
 
-#### coder_script - Command Execution
+#### [coder_script - Command Execution](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script)
 
 Execute commands during workspace lifecycle events. This is the primary mechanism for software installation, service configuration, and environment setup.
 
@@ -237,7 +247,7 @@ resource "coder_script" "install" {
 }
 ```
 
-#### coder_app - User Interface
+#### [coder_app - User Interface](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
 
 Create accessible applications in the Coder workspace interface, providing users with one-click access to tools and services.
 
@@ -251,7 +261,9 @@ Create accessible applications in the Coder workspace interface, providing users
 
 - `agent_id`: The Coder agent
 - `external`: `true` for protocol handlers, `false` for web apps
+- `group`: Name of a group that this app belongs to.
 - `healthcheck`: Monitor service availability
+- `order`: Control the display order of apps in the dashboard
 - `subdomain`: Access method for web apps
 - `url`: Service URL or protocol handler
 
@@ -264,14 +276,16 @@ resource "coder_app" "service" {
   url      = "http://localhost:${var.port}"
   
   healthcheck {
-    url       = "http://localhost:${var.port}/health"
+    url       = "http://localhost:${var.port}/api/status"  # Service-specific endpoint
     interval  = 5
     threshold = 6
   }
 }
 ```
 
-#### coder_env - Environment Variables
+> **⚠️ Important**: Health check URLs are service-specific. Common paths include `/health`, `/healthz`, `/ping`, `/status`, or `/api/health`. Check your service's documentation or use the main service URL if no dedicated health endpoint exists.
+
+#### [coder_env - Environment Variables](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/env)
 
 Set environment variables in workspace sessions for tool configuration and authentication.
 
