@@ -192,7 +192,7 @@ const TaskFormSection: FC<{
 	);
 };
 
-type CreateTaskMutationFnProps = { prompt: string; templateId: string };
+type CreateTaskMutationFnProps = { prompt: string; template: Template };
 
 type TaskFormProps = {
 	templates: Template[];
@@ -201,25 +201,25 @@ type TaskFormProps = {
 const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 	const { user } = useAuthenticated();
 	const queryClient = useQueryClient();
-
 	const [templateId, setTemplateId] = useState<string>(templates[0].id);
+	const selectedTemplate = templates.find(
+		(t) => t.id === templateId,
+	) as Template;
 	const {
 		externalAuth,
 		externalAuthPollingState,
 		startPollingExternalAuth,
 		isLoadingExternalAuth,
 		externalAuthError,
-	} = useExternalAuth(
-		templates.find((t) => t.id === templateId)?.active_version_id,
-	);
+	} = useExternalAuth(selectedTemplate.active_version_id);
 
 	const hasAllRequiredExternalAuth = externalAuth?.every(
 		(auth) => auth.optional || auth.authenticated,
 	);
 
 	const createTaskMutation = useMutation({
-		mutationFn: async ({ prompt, templateId }: CreateTaskMutationFnProps) =>
-			data.createTask(prompt, user.id, templateId),
+		mutationFn: async ({ prompt, template }: CreateTaskMutationFnProps) =>
+			data.createTask(prompt, user.id, template.id, template.active_version_id),
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({
 				queryKey: ["tasks"],
@@ -242,7 +242,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 		try {
 			await createTaskMutation.mutateAsync({
 				prompt,
-				templateId: templateID,
+				template: selectedTemplate,
 			});
 			form.reset();
 		} catch (error) {
@@ -533,10 +533,15 @@ export const data = {
 		prompt: string,
 		userId: string,
 		templateId: string,
+		templateVersionId: string,
 	): Promise<Task> {
+		const presets = await API.getTemplateVersionPresets(templateVersionId);
+		const defaultPreset = presets.find((p) => p.Default);
 		const workspace = await API.createWorkspace(userId, {
 			name: `task-${generateWorkspaceName()}`,
 			template_id: templateId,
+			template_version_id: templateVersionId,
+			template_version_preset_id: defaultPreset?.ID,
 			rich_parameter_values: [
 				{ name: AI_PROMPT_PARAMETER_NAME, value: prompt },
 			],
