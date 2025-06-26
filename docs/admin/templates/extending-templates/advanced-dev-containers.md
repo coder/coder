@@ -11,24 +11,24 @@ Run multiple dev containers in a single workspace for microservices or multi-com
 
 resource "coder_devcontainer" "frontend" {
   count            = data.coder_workspace.me.start_count
-  agent_id         = coder_agent.dev.id
-  workspace_folder = "/home/coder/frontend"
+  agent_id         = coder_agent.main.id
+  workspace_folder = "/home/coder/frontend/${module.git_clone_frontend[0].folder_name}"
 }
 
 # Backend dev container
 
 resource "coder_devcontainer" "backend" {
   count            = data.coder_workspace.me.start_count
-  agent_id         = coder_agent.dev.id
-  workspace_folder = "/home/coder/backend"
+  agent_id         = coder_agent.main.id
+  workspace_folder = "/home/coder/backend/${module.git_clone_frontend[0].folder_name}"
 }
 
 # Database dev container
 
 resource "coder_devcontainer" "database" {
   count            = data.coder_workspace.me.start_count
-  agent_id         = coder_agent.dev.id
-  workspace_folder = "/home/coder/database"
+  agent_id         = coder_agent.main.id
+  workspace_folder = "/home/coder/database/${module.git_clone_frontend[0].folder_name}"
 }
 
 # Clone multiple repositories
@@ -38,9 +38,9 @@ module "git-clone-frontend" {
   source   = "registry.coder.com/modules/git-clone/coder"
   version  = "~> 1.0"
 
-  agent_id = coder_agent.dev.id
+  agent_id = coder_agent.main.id
   url      = "https://github.com/your-org/frontend.git"
-  path     = "/home/coder/frontend"
+  base_dir = "/home/coder/frontend/${module.git_clone_frontend[0].folder_name}"
 }
 
 module "git-clone-backend" {
@@ -48,9 +48,9 @@ module "git-clone-backend" {
   source   = "registry.coder.com/modules/git-clone/coder"
   version  = "~> 1.0"
 
-  agent_id = coder_agent.dev.id
+  agent_id = coder_agent.main.id
   url      = "https://github.com/your-org/backend.git"
-  path     = "/home/coder/backend"
+  base_dir = "/home/coder/backend/${module.git_clone_frontend[0].folder_name}"
 }
 ```
 
@@ -97,14 +97,14 @@ data "coder_parameter" "enable_backend" {
 
 resource "coder_devcontainer" "frontend" {
   count            = data.coder_parameter.enable_frontend.value ? data.coder_workspace.me.start_count : 0
-  agent_id         = coder_agent.dev.id
-  workspace_folder = "/home/coder/frontend"
+  agent_id         = coder_agent.main.id
+  workspace_folder = "/home/coder/frontend/${module.git_clone_frontend[0].folder_name}"
 }
 
 resource "coder_devcontainer" "backend" {
   count            = data.coder_parameter.enable_backend.value ? data.coder_workspace.me.start_count : 0
-  agent_id         = coder_agent.dev.id
-  workspace_folder = "/home/coder/backend"
+  agent_id         = coder_agent.main.id
+  workspace_folder = "/home/coder/backend/${module.git_clone_frontend[0].folder_name}"
 }
 ```
 
@@ -147,9 +147,9 @@ module "git-clone" {
   source   = "registry.coder.com/modules/git-clone/coder"
   version  = "~> 1.0"
 
-  agent_id = coder_agent.dev.id
+  agent_id = coder_agent.main.id
   url      = data.coder_parameter.project.value
-  path     = "/home/coder/project"
+  base_dir = "/home/coder/project"
 }
 ```
 
@@ -204,9 +204,9 @@ module "git-clone-team-repos" {
   source   = "registry.coder.com/modules/git-clone/coder"
   version  = "~> 1.0"
 
-  agent_id = coder_agent.dev.id
+  agent_id = coder_agent.main.id
   url      = local.team_repos[data.coder_parameter.team.value][count.index % length(local.team_repos[data.coder_parameter.team.value])]
-  path     = "/home/coder/repos/$sename(local.team_repos[data.coder_parameter.team.value][count.index % length(local.team_repos[data.coder_parameter.team.value])])}"
+  base_dir = "/home/coder/repos/$sename(local.team_repos[data.coder_parameter.team.value][count.index % length(local.team_repos[data.coder_parameter.team.value])])}"
 }
 ```
 
@@ -230,7 +230,7 @@ resource "docker_container" "workspace" {
   memory_swap = 8192  # 8GB including swap
 }
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
 
 # ... other configuration
 
@@ -258,7 +258,7 @@ resource "coder_agent" "dev" {
 
 ```terraform
 resource "docker_network" "dev_network" {
-  name = "coder-$ta.coder_workspace.me.id}-dev"
+  name = "coder-${data.coder_workspace.me.id}-dev
 }
 
 resource "docker_container" "workspace" {
@@ -276,14 +276,14 @@ resource "docker_container" "workspace" {
 
 ```terraform
 resource "docker_volume" "node_modules" {
-  name = "coder-$ta.coder_workspace.me.id}-node-modules"
+  name = "coder-${data.coder_workspace.me.id}-node-modules"
   lifecycle {
     ignore_changes = all
   }
 }
 
 resource "docker_volume" "go_cache" {
-  name = "coder-$ta.coder_workspace.me.id}-go-cache"
+  name = "coder-${data.coder_workspace.me.id}-go-cache"
   lifecycle {
     ignore_changes = all
   }
@@ -370,7 +370,7 @@ data "coder_parameter" "enable_devcontainer" {
 # Create persistent volume for home directory
 
 resource "docker_volume" "home_volume" {
-  name = "coder-$ta.coder_workspace.me.id}-home"
+  name = "coder-${data.coder_workspace.me.id}-home"
   lifecycle {
     ignore_changes = all
   }
@@ -381,7 +381,7 @@ resource "docker_volume" "home_volume" {
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = "codercom/enterprise-base:ubuntu"
-  name  = "coder-$ta.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+  name  = "coder-${data.coder_workspace.me.name}-${lower(data.coder_workspace.me.name)}"
 
 # Hostname makes the shell more user friendly
 
@@ -420,7 +420,7 @@ resource "docker_container" "workspace" {
 
 # Coder agent
 
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
   arch = data.coder_provisioner.me.arch
   os   = "linux"
   dir  = "/home/coder"
@@ -457,7 +457,7 @@ resource "coder_agent" "dev" {
 module "devcontainers-cli" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/modules/devcontainers-cli/coder"
-  agent_id = coder_agent.dev.id
+  agent_id = coder_agent.main.id
 }
 
 # Clone repository
@@ -467,16 +467,16 @@ module "git-clone" {
   source   = "registry.coder.com/modules/git-clone/coder"
   version  = "~> 1.0"
 
-  agent_id = coder_agent.dev.id
+  agent_id = coder_agent.main.id
   url      = data.coder_parameter.repo_url.value
-  path     = "/home/coder/project"
+  base_dir = "/home/coder/project"
 }
 
 # Auto-start dev container
 
 resource "coder_devcontainer" "project" {
   count            = data.coder_parameter.enable_devcontainer.value ? data.coder_workspace.me.start_count : 0
-  agent_id         = coder_agent.dev.id
+  agent_id         = coder_agent.main.id
   workspace_folder = "/home/coder/project"
 }
 
@@ -486,7 +486,7 @@ module "code-server" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/modules/code-server/coder"
   version  = "~> 1.0"
-  agent_id = coder_agent.dev.id
+  agent_id = coder_agent.main.id
   order    = 1
 }
 ```
@@ -502,7 +502,7 @@ documentation for issues that affect dev containers within user workspaces.
 ### Debug startup issues
 
 ```terraform
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
 
 # ... other configuration
 
@@ -538,7 +538,7 @@ resource "coder_agent" "dev" {
 ### Add health checks and monitoring
 
 ```terraform
-resource "coder_agent" "dev" {
+resource "coder_agent" "main" {
 
 # ... other configuration
 

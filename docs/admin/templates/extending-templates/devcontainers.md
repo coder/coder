@@ -41,7 +41,7 @@ When integrated with Coder templates, they provide:
         }
         ```
 
-    1. Add `depends_on` to the `devcontainers-cli` module block:
+    1. In the `devcontainers-cli` module block, add:
 
        ```terraform
        depends_on       = [module.nodejs]
