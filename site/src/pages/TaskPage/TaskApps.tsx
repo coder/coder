@@ -57,7 +57,7 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	}
 
 	return (
-		<main className="flex flex-col h-full">
+		<main className="flex flex-col">
 			<div className="w-full flex items-center border-0 border-b border-border border-solid">
 				<div className="p-2 pb-0 flex gap-2 items-center">
 					{embeddedApps.map((app) => (
