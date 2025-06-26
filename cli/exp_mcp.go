@@ -362,11 +362,19 @@ func (*RootCmd) mcpConfigureCursor() *serpent.Command {
 }
 
 type taskReport struct {
-	link         string
-	messageID    int64
+	// link is optional.
+	link string
+	// messageID must be set if this update is from a *user* message. A user
+	// message only happens when interacting via the AI AgentAPI (as opposed to
+	// interacting with the terminal directly).
+	messageID *int64
+	// selfReported must be set if the update is directly from the AI agent
+	// (as opposed to the screen watcher).
 	selfReported bool
-	state        codersdk.WorkspaceAppStatusState
-	summary      string
+	// state must always be set.
+	state codersdk.WorkspaceAppStatusState
+	// summary is optional.
+	summary string
 }
 
 type mcpServer struct {
@@ -388,17 +396,22 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 	return &serpent.Command{
 		Use: "server",
 		Handler: func(inv *serpent.Invocation) error {
-			// lastUserMessageID is the ID of the last *user* message that we saw.  A
-			// user message only happens when interacting via the AI AgentAPI (as
-			// opposed to interacting with the terminal directly).
-			var lastUserMessageID int64
 			var lastReport taskReport
 			// Create a queue that skips duplicates and preserves summaries.
 			queue := cliutil.NewQueue[taskReport](512).WithPredicate(func(report taskReport) (taskReport, bool) {
-				// Use "working" status if this is a new user message.  If this is not a
-				// new user message, and the status is "working" and not self-reported
-				// (meaning it came from the screen watcher), then it means one of two
-				// things:
+				// Avoid queuing empty statuses (this would probably indicate a
+				// developer error)
+				if report.state == "" {
+					return report, false
+				}
+				// If this is a user message, discard if it is not new.
+				if report.messageID != nil && lastReport.messageID != nil &&
+					*lastReport.messageID >= *report.messageID {
+					return report, false
+				}
+				// If this is not a user message, and the status is "working" and not
+				// self-reported (meaning it came from the screen watcher), then it
+				// means one of two things:
 				//
 				// 1. The AI agent is not working; the user is interacting with the
 				//    terminal directly.
@@ -415,10 +428,15 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 				// user manually submits a new prompt and the AI agent becomes active
 				// (and does not update itself), but it avoids spamming useless status
 				// updates as the user is typing, so the tradeoff is worth it.
-				if report.messageID > lastUserMessageID {
-					report.state = codersdk.WorkspaceAppStatusStateWorking
-				} else if report.state == codersdk.WorkspaceAppStatusStateWorking && !report.selfReported && lastReport.state != "" {
+				if report.messageID == nil &&
+					report.state == codersdk.WorkspaceAppStatusStateWorking &&
+					!report.selfReported && lastReport.state != "" {
 					return report, false
+				}
+				// Keep track of the last message ID so we can tell when a message is
+				// new or if it has been re-emitted.
+				if report.messageID == nil {
+					report.messageID = lastReport.messageID
 				}
 				// Preserve previous message and URI if there was no message.
 				if report.summary == "" {
@@ -607,7 +625,8 @@ func (s *mcpServer) startWatcher(ctx context.Context, inv *serpent.Invocation) {
 				case agentapi.EventMessageUpdate:
 					if ev.Role == agentapi.RoleUser {
 						err := s.queue.Push(taskReport{
-							messageID: ev.Id,
+							messageID: &ev.Id,
+							state:     codersdk.WorkspaceAppStatusStateWorking,
 						})
 						if err != nil {
 							cliui.Warnf(inv.Stderr, "Failed to queue update: %s", err)

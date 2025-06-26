@@ -835,7 +835,7 @@ func TestExpMcpReporter(t *testing.T) {
 				},
 				// Agent messages are ignored.
 				{
-					event: makeMessageEvent(1, agentapi.RoleAgent),
+					event: makeMessageEvent(0, agentapi.RoleAgent),
 				},
 				// AI agent reports that it failed and URI is blank.
 				{
@@ -854,7 +854,7 @@ func TestExpMcpReporter(t *testing.T) {
 				// ... but this time we have a new user message so we know there is AI
 				// agent activity.  This time the "working" update will not be skipped.
 				{
-					event: makeMessageEvent(2, agentapi.RoleUser),
+					event: makeMessageEvent(1, agentapi.RoleUser),
 					expected: &codersdk.WorkspaceAppStatus{
 						State:   codersdk.WorkspaceAppStatusStateWorking,
 						Message: "oops",
@@ -891,6 +891,33 @@ func TestExpMcpReporter(t *testing.T) {
 					event: makeStatusEvent(agentapi.StatusStable),
 					expected: &codersdk.WorkspaceAppStatus{
 						State:   codersdk.WorkspaceAppStatusStateIdle,
+						Message: "",
+						URI:     "",
+					},
+				},
+				// Zero ID should be accepted.
+				{
+					event: makeMessageEvent(0, agentapi.RoleUser),
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateWorking,
+						Message: "",
+						URI:     "",
+					},
+				},
+				// Stable again.
+				{
+					event: makeStatusEvent(agentapi.StatusStable),
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateIdle,
+						Message: "",
+						URI:     "",
+					},
+				},
+				// Next ID.
+				{
+					event: makeMessageEvent(1, agentapi.RoleUser),
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateWorking,
 						Message: "",
 						URI:     "",
 					},
@@ -954,6 +981,7 @@ func TestExpMcpReporter(t *testing.T) {
 					case w, ok := <-watcher:
 						require.True(t, ok, "watch channel closed")
 						if w.LatestAppStatus != nil && w.LatestAppStatus.ID != lastAppStatus.ID {
+							t.Logf("Got status update: %s > %s", lastAppStatus.State, w.LatestAppStatus.State)
 							lastAppStatus = *w.LatestAppStatus
 							return lastAppStatus
 						}
