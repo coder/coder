@@ -7472,7 +7472,7 @@
 				}
 			}
 		},
-		"/workspaceagents/{workspaceagent}/containers/devcontainers/container/{container}/recreate": {
+		"/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate": {
 			"post": {
 				"security": [
 					{
@@ -7494,8 +7494,8 @@
 					},
 					{
 						"type": "string",
-						"description": "Container ID or name",
-						"name": "container",
+						"description": "Devcontainer ID",
+						"name": "devcontainer",
 						"in": "path",
 						"required": true
 					}

@@ -496,8 +496,8 @@ func (api *API) Routes() http.Handler {
 	r.Get("/", api.handleList)
 	// TODO(mafredri): Simplify this route as the previous /devcontainers
 	// /-route was dropped. We can drop the /devcontainers prefix here too.
-	r.Route("/devcontainers", func(r chi.Router) {
-		r.Post("/container/{container}/recreate", api.handleDevcontainerRecreate)
+	r.Route("/devcontainers/{devcontainer}", func(r chi.Router) {
+		r.Post("/recreate", api.handleDevcontainerRecreate)
 	})
 
 	return r
@@ -861,68 +861,40 @@ func (api *API) getContainers() (codersdk.WorkspaceAgentListContainersResponse, 
 // devcontainer by referencing the container.
 func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	containerID := chi.URLParam(r, "container")
+	devcontainerID := chi.URLParam(r, "devcontainer")
 
-	if containerID == "" {
+	if devcontainerID == "" {
 		httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
-			Message: "Missing container ID or name",
-			Detail:  "Container ID or name is required to recreate a devcontainer.",
-		})
-		return
-	}
-
-	containers, err := api.getContainers()
-	if err != nil {
-		httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
-			Message: "Could not list containers",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	containerIdx := slices.IndexFunc(containers.Containers, func(c codersdk.WorkspaceAgentContainer) bool { return c.Match(containerID) })
-	if containerIdx == -1 {
-		httpapi.Write(ctx, w, http.StatusNotFound, codersdk.Response{
-			Message: "Container not found",
-			Detail:  "Container ID or name not found in the list of containers.",
-		})
-		return
-	}
-
-	container := containers.Containers[containerIdx]
-	workspaceFolder := container.Labels[DevcontainerLocalFolderLabel]
-	configPath := container.Labels[DevcontainerConfigFileLabel]
-
-	// Workspace folder is required to recreate a container, we don't verify
-	// the config path here because it's optional.
-	if workspaceFolder == "" {
-		httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
-			Message: "Missing workspace folder label",
-			Detail:  "The container is not a devcontainer, the container must have the workspace folder label to support recreation.",
+			Message: "Missing devcontainer ID",
+			Detail:  "Devcontainer ID is required to recreate a devcontainer.",
 		})
 		return
 	}
 
 	api.mu.Lock()
 
-	dc, ok := api.knownDevcontainers[workspaceFolder]
-	switch {
-	case !ok:
+	var dc codersdk.WorkspaceAgentDevcontainer
+	for _, knownDC := range api.knownDevcontainers {
+		if knownDC.ID.String() == devcontainerID {
+			dc = knownDC
+			break
+		}
+	}
+	if dc.ID == uuid.Nil {
 		api.mu.Unlock()
 
-		// This case should not happen if the container is a valid devcontainer.
-		api.logger.Error(ctx, "devcontainer not found for workspace folder", slog.F("workspace_folder", workspaceFolder))
-		httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, w, http.StatusNotFound, codersdk.Response{
 			Message: "Devcontainer not found.",
-			Detail:  fmt.Sprintf("Could not find devcontainer for workspace folder: %q", workspaceFolder),
+			Detail:  fmt.Sprintf("Could not find devcontainer with ID: %q", devcontainerID),
 		})
 		return
-	case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting:
+	}
+	if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting {
 		api.mu.Unlock()
 
 		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
 			Message: "Devcontainer recreation already in progress",
-			Detail:  fmt.Sprintf("Recreation for workspace folder %q is already underway.", dc.WorkspaceFolder),
+			Detail:  fmt.Sprintf("Recreation for devcontainer %q is already underway.", dc.Name),
 		})
 		return
 	}
@@ -933,14 +905,14 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	dc.Container = nil
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	go func() {
-		_ = api.CreateDevcontainer(dc.WorkspaceFolder, configPath, WithRemoveExistingContainer())
+		_ = api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath, WithRemoveExistingContainer())
 	}()
 
 	api.mu.Unlock()
 
 	httpapi.Write(ctx, w, http.StatusAccepted, codersdk.Response{
 		Message: "Devcontainer recreation initiated",
-		Detail:  fmt.Sprintf("Recreation process for workspace folder %q has started.", dc.WorkspaceFolder),
+		Detail:  fmt.Sprintf("Recreation process for devcontainer %q has started.", dc.Name),
 	})
 }
 
