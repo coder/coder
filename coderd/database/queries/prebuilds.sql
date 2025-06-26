@@ -100,16 +100,18 @@ WITH
     ready_agents
         AS (
             SELECT
-                workspace_resources.job_id,
+                latest_prebuilds.job_id,
                 BOOL_AND(workspace_agents.lifecycle_state = 'ready'::workspace_agent_lifecycle_state)::boolean AS ready
             FROM
-                workspace_resources
-                JOIN workspace_agents ON
-                        workspace_agents.resource_id = workspace_resources.id
-                WHERE
-                  workspace_agents.deleted = false
+                latest_prebuilds
+            JOIN workspace_resources ON
+                 workspace_resources.job_id = latest_prebuilds.job_id
+            JOIN workspace_agents ON
+                 workspace_agents.resource_id = workspace_resources.id
+            WHERE
+                 workspace_agents.deleted = false
             GROUP BY
-              workspace_resources.job_id
+              latest_prebuilds.job_id
         )
 SELECT
     latest_prebuilds.workspace_id AS id,
