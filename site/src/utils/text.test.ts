@@ -1,5 +1,5 @@
-import { ellipsizeText, maskText } from "./text";
 import type { Nullable } from "./nullable";
+import { ellipsizeText, maskText } from "./text";
 
 describe("ellipsizeText", () => {
 	it.each([
