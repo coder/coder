@@ -12194,15 +12194,13 @@ const docTemplate = `{
                 "auto-fill-parameters",
                 "notifications",
                 "workspace-usage",
-                "web-push",
-                "workspace-prebuilds"
+                "web-push"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
-                "ExperimentWorkspacePrebuilds": "Enables the new workspace prebuilds feature.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-varnames": [
@@ -12210,8 +12208,7 @@ const docTemplate = `{
                 "ExperimentAutoFillParameters",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
-                "ExperimentWebPush",
-                "ExperimentWorkspacePrebuilds"
+                "ExperimentWebPush"
             ]
         },
         "codersdk.ExternalAuth": {
