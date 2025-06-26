@@ -387,7 +387,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 												selectedOption={presetOptions[selectedPresetIndex]}
 											/>
 										</Stack>
-										{/* Only show the preset parameter visibility toggle if preset parameters are actually being modified, otherwise it is ineffectual */}
+										{/* Only show the preset parameter visibility toggle if preset parameters are actually being modified, otherwise it has no effect. */}
 										{presetParameterNames.length > 0 && (
 											<div
 												css={{
