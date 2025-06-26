@@ -178,7 +178,7 @@ module "code-server" {
 
 ### Module structure
 
-```
+```text
 my-module/
 ├── main.tf          # Terraform configuration
 ├── README.md        # Documentation with frontmatter
