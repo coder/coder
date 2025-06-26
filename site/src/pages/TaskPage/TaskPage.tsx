@@ -14,8 +14,8 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
 import { Link as RouterLink } from "react-router-dom";
-import { pageTitle } from "utils/page";
 import { ellipsizeText } from "utils/ellipsizeText";
+import { pageTitle } from "utils/page";
 import {
 	ActiveTransition,
 	WorkspaceBuildProgress,
