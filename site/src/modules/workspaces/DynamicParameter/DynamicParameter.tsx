@@ -47,7 +47,6 @@ import {
 } from "lucide-react";
 import { type FC, useEffect, useId, useRef, useState } from "react";
 import type { AutofillBuildParameter } from "utils/richParameters";
-import { maskText } from "utils/text";
 import * as Yup from "yup";
 
 interface DynamicParameterProps {
@@ -82,7 +81,7 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 			/>
 			<div className="max-w-lg">
 				{parameter.form_type === "input" ||
-				parameter.form_type === "textarea" ? (
+					parameter.form_type === "textarea" ? (
 					<DebouncedParameterField
 						id={id}
 						parameter={parameter}
@@ -313,16 +312,13 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 
 	switch (parameter.form_type) {
 		case "textarea": {
-			const shouldMask = parameter.styling?.mask_input && !showMaskedInput;
-			const displayValue = shouldMask ? maskText(localValue) : localValue;
-
 			return (
 				<div className="relative">
 					<Textarea
 						ref={textareaRef}
 						id={id}
 						className="overflow-y-auto max-h-[500px]"
-						value={displayValue}
+						value={localValue}
 						onChange={(e) => {
 							const target = e.currentTarget;
 							target.style.height = "auto";
@@ -355,7 +351,12 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 		}
 
 		case "input": {
-			const inputType = parameter.type === "number" ? "number" : "text";
+			const inputType =
+				parameter.type === "number"
+					? "number"
+					: parameter.styling?.mask_input && !showMaskedInput
+						? "password"
+						: "text";
 			const inputProps: Record<string, unknown> = {};
 
 			if (parameter.type === "number") {
@@ -371,18 +372,12 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 				}
 			}
 
-			const shouldMask =
-				parameter.styling?.mask_input &&
-				!showMaskedInput &&
-				parameter.type !== "number";
-			const displayValue = shouldMask ? maskText(localValue) : localValue;
-
 			return (
 				<div className="relative">
 					<Input
 						id={id}
 						type={inputType}
-						value={displayValue}
+						value={localValue}
 						onChange={(e) => {
 							setLocalValue(e.target.value);
 						}}
@@ -686,11 +681,10 @@ const ParameterDiagnostics: FC<ParameterDiagnosticsProps> = ({
 				return (
 					<div
 						key={`parameter-diagnostic-${diagnostic.summary}-${index}`}
-						className={`text-xs px-1 ${
-							diagnostic.severity === "error"
+						className={`text-xs px-1 ${diagnostic.severity === "error"
 								? "text-content-destructive"
 								: "text-content-warning"
-						}`}
+							}`}
 					>
 						<p className="font-medium">{diagnostic.summary}</p>
 						{diagnostic.detail && <p className="m-0">{diagnostic.detail}</p>}
@@ -745,7 +739,7 @@ const isValidParameterOption = (
 			if (Array.isArray(parsed)) {
 				values = parsed;
 			}
-		} catch (e) {
+		} catch {
 			return false;
 		}
 
@@ -947,11 +941,10 @@ export const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 				<div
 					key={`diagnostic-${diagnostic.summary}-${index}`}
 					className={`text-xs font-semibold flex flex-col rounded-md border px-3.5 py-3.5 border-solid
-                        ${
-													diagnostic.severity === "error"
-														? "text-content-primary border-border-destructive bg-content-destructive/15"
-														: "text-content-primary border-border-warning bg-content-warning/15"
-												}`}
+	                        ${diagnostic.severity === "error"
+							? "text-content-primary border-border-destructive bg-content-destructive/15"
+							: "text-content-primary border-border-warning bg-content-warning/15"
+						}`}
 				>
 					<div className="flex flex-row items-start">
 						{diagnostic.severity === "error" && (
