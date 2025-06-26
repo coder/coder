@@ -4270,7 +4270,7 @@ func (q *FakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 }
 
 func (*FakeQuerier) GetPrebuildMetrics(_ context.Context) ([]database.GetPrebuildMetricsRow, error) {
-	return nil, ErrUnimplemented
+	return make([]database.GetPrebuildMetricsRow, 0), nil
 }
 
 func (q *FakeQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {

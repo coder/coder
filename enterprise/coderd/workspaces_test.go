@@ -531,10 +531,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 
 		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					err := dv.Experiments.Append(string(codersdk.ExperimentWorkspacePrebuilds))
-					require.NoError(t, err)
-				}),
+				DeploymentValues: coderdtest.DeploymentValues(t),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
