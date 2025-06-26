@@ -332,9 +332,7 @@ module "cursor" {
   source   = "dev.registry.coder.com/coder/cursor/coder"
   version  = "1.1.0"
   agent_id = coder_agent.dev.id
-  # Not supported yet.
-  # agent_name = "dev"
-  folder = local.repo_dir
+  folder   = local.repo_dir
 }
 
 module "windsurf" {
@@ -342,9 +340,7 @@ module "windsurf" {
   source   = "registry.coder.com/coder/windsurf/coder"
   version  = "1.0.0"
   agent_id = coder_agent.dev.id
-  # Not supported yet.
-  # agent_name = "dev"
-  folder = local.repo_dir
+  folder   = local.repo_dir
 }
 
 module "zed" {
