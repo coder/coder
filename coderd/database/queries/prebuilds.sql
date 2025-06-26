@@ -112,19 +112,17 @@ WITH
             	latest_prebuilds.workspace_id
         )
 SELECT
-    latest_prebuilds.id,
+    latest_prebuilds.workspace_id AS id,
     latest_prebuilds.name,
     latest_prebuilds.template_id,
     latest_prebuilds.template_version_id,
     latest_prebuilds.template_version_preset_id AS current_preset_id,
-    agent_readiness.ready,
+    COALESCE(agent_readiness.ready, false) AS ready,
     latest_prebuilds.created_at
 FROM
     latest_prebuilds
     JOIN agent_readiness ON
             agent_readiness.workspace_id = latest_prebuilds.workspace_id
-WHERE
-    agent_readiness.ready
 ;
 
 -- name: CountInProgressPrebuilds :many
