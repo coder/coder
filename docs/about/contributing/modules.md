@@ -99,6 +99,7 @@ flowchart LR
 The Coder Registry organizes modules into different categories based on their functionality. Here are the main types with examples of actual available modules:
 
 ### [IDE Modules](https://registry.coder.com/modules?search=tag%3Aide)
+
 Integrate development environments and code editors into workspaces.
 
 - **code-server**: VS Code in the browser
@@ -111,6 +112,7 @@ Integrate development environments and code editors into workspaces.
 - **Windsurf Editor**: Add a one-click button to launch Windsurf Editor
 
 ### [Helper Modules](https://registry.coder.com/modules?search=tag%3Ahelper)
+
 Simplify template creation and workspace configuration.
 
 - **AWS Region**: A parameter with human region names and icons
@@ -127,6 +129,7 @@ Simplify template creation and workspace configuration.
 - **Slack Me**: Send a Slack message when a command finishes inside a workspace
 
 ### [Desktop Modules](https://registry.coder.com/modules?search=tag%3Adesktop)
+
 Provide graphical desktop environments for visual development workflows.
 
 - **Amazon DCV Windows**: Amazon DCV Server and Web Client for Windows
@@ -135,6 +138,7 @@ Provide graphical desktop environments for visual development workflows.
 - **Windows RDP Desktop**: Enable RDP on Windows and add a one-click Coder Desktop button for seamless access
 
 ### [AI Modules](https://registry.coder.com/modules?search=tag%3Aai)
+
 Integrate AI-powered development tools and assistants.
 
 - **Aider**: Run Aider AI pair programming in your workspace
@@ -143,6 +147,7 @@ Integrate AI-powered development tools and assistants.
 - **Goose**: Run Goose in your workspace
 
 ### [Integration Modules](https://registry.coder.com/modules?search=tag%3Aintegration)
+
 Connect with external services and platforms.
 
 - **Hashicorp Vault Integration (GitHub)**: Authenticates with Vault using GitHub
@@ -153,6 +158,7 @@ Connect with external services and platforms.
 - **JFrog (Token)**: Install the JF CLI and authenticate with Artifactory using Artifactory terraform provider
 
 ### [Web-based Tools](https://registry.coder.com/modules?search=tag%3Aweb)
+
 Browser-accessible applications and interfaces.
 
 - **File Browser**: A file browser for your workspace
@@ -432,21 +438,6 @@ resource "coder_app" "service" {
   }
 }
 ```
-
-## Contributing to the Registry
-
-The [Coder Registry](https://github.com/coder/registry) hosts all community and official modules. For detailed contribution guidelines, code standards, and submission processes, refer to the [Registry Contributing Guide](https://github.com/coder/registry/blob/main/CONTRIBUTING.md).
-
-**Quick contribution steps**:
-
-1. Fork the [registry repository](https://github.com/coder/registry)
-2. Follow the [registry contribution guidelines](https://github.com/coder/registry/blob/main/CONTRIBUTING.md) for module creation process
-3. Implement tests: `bun test`
-4. Format code: `bun run fmt`
-5. Validate documentation: `bun run readme-validate`
-6. Submit pull request with detailed description
-
-**Important**: The registry repository contains specific requirements for module structure, testing, documentation format, and submission process. Always consult the [official contributing documentation](https://github.com/coder/registry/blob/main/CONTRIBUTING.md) for the most current guidelines.
 
 ## Next Steps
 
