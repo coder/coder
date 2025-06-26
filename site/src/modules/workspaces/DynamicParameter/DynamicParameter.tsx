@@ -949,12 +949,12 @@ export const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 			{diagnostics.map((diagnostic, index) => (
 				<div
 					key={`diagnostic-${diagnostic.summary}-${index}`}
-					className={`text-xs font-semibold flex flex-col rounded-md border px-3.5 py-3.5 border-solid
-	                        ${
-														diagnostic.severity === "error"
-															? "text-content-primary border-border-destructive bg-content-destructive/15"
-															: "text-content-primary border-border-warning bg-content-warning/15"
-													}`}
+					className={cn(
+						"text-xs font-semibold flex flex-col rounded-md border px-3.5 py-3.5 border-solid",
+						diagnostic.severity === "error"
+							? "text-content-primary border-border-destructive bg-content-destructive/15"
+							: "text-content-primary border-border-warning bg-content-warning/15",
+					)}
 				>
 					<div className="flex flex-row items-start">
 						{diagnostic.severity === "error" && (
