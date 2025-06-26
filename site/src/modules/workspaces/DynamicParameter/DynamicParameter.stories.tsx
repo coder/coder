@@ -236,6 +236,7 @@ export const MaskedInput: Story = {
 			form_type: "input",
 			styling: {
 				...MockPreviewParameter.styling,
+				placeholder: "Tell me a secret",
 				mask_input: true,
 			},
 		},
@@ -249,19 +250,6 @@ export const MaskedTextArea: Story = {
 			form_type: "textarea",
 			styling: {
 				...MockPreviewParameter.styling,
-				mask_input: true,
-			},
-		},
-	},
-};
-
-export const MaskedInputWithPlaceholder: Story = {
-	args: {
-		parameter: {
-			...MockPreviewParameter,
-			form_type: "input",
-			styling: {
-				placeholder: "Enter your secret value",
 				mask_input: true,
 			},
 		},

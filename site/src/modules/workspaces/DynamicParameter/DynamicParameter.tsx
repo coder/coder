@@ -272,7 +272,7 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 
 	// Helper function to mask all characters with *
 	const maskValue = (val: string): string => {
-		return "*".repeat(val.length);
+		return "\u2022".repeat(val.length);
 	};
 	const debouncedLocalValue = useDebouncedValue(localValue, 500);
 	const onChangeEvent = useEffectEvent(onChange);
