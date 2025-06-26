@@ -6,6 +6,10 @@
 		// See all possible options here https://github.com/devcontainers/features/tree/main/src/docker-in-docker
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {
 			"moby": "false"
+		},
+		"ghcr.io/coder/devcontainer-features/code-server:1": {
+			"auth": "none",
+			"port": 13337
 		}
 	},
 	// SYS_PTRACE to enable go debugging

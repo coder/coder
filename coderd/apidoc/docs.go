@@ -8453,7 +8453,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/{workspaceagent}/containers/devcontainers/container/{container}/recreate": {
+        "/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate": {
             "post": {
                 "security": [
                     {
@@ -8479,8 +8479,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Container ID or name",
-                        "name": "container",
+                        "description": "Devcontainer ID",
+                        "name": "devcontainer",
                         "in": "path",
                         "required": true
                     }

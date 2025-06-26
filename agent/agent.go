@@ -1166,7 +1166,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 			)
 			if a.devcontainers {
 				a.containerAPI.Init(
-					agentcontainers.WithManifestInfo(manifest.OwnerName, manifest.WorkspaceName),
+					agentcontainers.WithManifestInfo(manifest.OwnerName, manifest.WorkspaceName, manifest.AgentName),
 					agentcontainers.WithDevcontainers(manifest.Devcontainers, scripts),
 					agentcontainers.WithSubAgentClient(agentcontainers.NewSubAgentClientFromAPI(a.logger, aAPI)),
 				)
