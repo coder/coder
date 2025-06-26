@@ -8,8 +8,9 @@ import (
 	"io"
 
 	"github.com/google/uuid"
-	"github.com/kylecarbs/aisdk-go"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/aisdk-go"
 
 	"github.com/coder/coder/v2/codersdk"
 )

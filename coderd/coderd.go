@@ -45,7 +45,6 @@ import (
 
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 
-	"github.com/coder/coder/v2/coderd/ai"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/files"
@@ -160,7 +159,6 @@ type Options struct {
 	Authorizer                     rbac.Authorizer
 	AzureCertificates              x509.VerifyOptions
 	GoogleTokenValidator           *idtoken.Validator
-	LanguageModels                 ai.LanguageModels
 	GithubOAuth2Config             *GithubOAuth2Config
 	OIDCConfig                     *OIDCConfig
 	PrometheusRegistry             *prometheus.Registry
@@ -976,7 +974,6 @@ func New(options *Options) *API {
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
 			r.Get("/ssh", api.sshConfig)
-			r.Get("/llms", api.deploymentLLMs)
 		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -1018,21 +1015,6 @@ func New(options *Options) *API {
 			)
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
-		})
-		// Chats are an experimental feature
-		r.Route("/chats", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentAgenticChat),
-			)
-			r.Get("/", api.listChats)
-			r.Post("/", api.postChats)
-			r.Route("/{chat}", func(r chi.Router) {
-				r.Use(httpmw.ExtractChatParam(options.Database))
-				r.Get("/", api.chat)
-				r.Get("/messages", api.chatMessages)
-				r.Post("/messages", api.postChatMessages)
-			})
 		})
 		r.Route("/external-auth", func(r chi.Router) {
 			r.Use(
@@ -1332,7 +1314,7 @@ func New(options *Options) *API {
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)
 				r.Get("/containers", api.workspaceAgentListContainers)
-				r.Post("/containers/devcontainers/container/{container}/recreate", api.workspaceAgentRecreateDevcontainer)
+				r.Post("/containers/devcontainers/{devcontainer}/recreate", api.workspaceAgentRecreateDevcontainer)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
 
 				// PTY is part of workspaceAppServer.

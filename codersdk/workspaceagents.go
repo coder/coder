@@ -519,8 +519,8 @@ func (c *Client) WorkspaceAgentListContainers(ctx context.Context, agentID uuid.
 }
 
 // WorkspaceAgentRecreateDevcontainer recreates the devcontainer with the given ID.
-func (c *Client) WorkspaceAgentRecreateDevcontainer(ctx context.Context, agentID uuid.UUID, containerIDOrName string) (Response, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/containers/devcontainers/container/%s/recreate", agentID, containerIDOrName), nil)
+func (c *Client) WorkspaceAgentRecreateDevcontainer(ctx context.Context, agentID uuid.UUID, devcontainerID string) (Response, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/containers/devcontainers/%s/recreate", agentID, devcontainerID), nil)
 	if err != nil {
 		return Response{}, err
 	}

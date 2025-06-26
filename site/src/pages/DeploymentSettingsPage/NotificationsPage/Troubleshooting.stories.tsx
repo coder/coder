@@ -15,8 +15,10 @@ export default meta;
 type Story = StoryObj<typeof Troubleshooting>;
 
 export const TestNotification: Story = {
-	play: async ({ canvasElement }) => {
+	beforeEach() {
 		spyOn(API, "postTestNotification").mockResolvedValue();
+	},
+	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 

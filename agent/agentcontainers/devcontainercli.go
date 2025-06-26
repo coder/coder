@@ -6,7 +6,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"slices"
+	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -26,10 +29,53 @@ type DevcontainerConfig struct {
 
 type DevcontainerMergedConfiguration struct {
 	Customizations DevcontainerMergedCustomizations `json:"customizations,omitempty"`
+	Features       DevcontainerFeatures             `json:"features,omitempty"`
 }
 
 type DevcontainerMergedCustomizations struct {
 	Coder []CoderCustomization `json:"coder,omitempty"`
+}
+
+type DevcontainerFeatures map[string]any
+
+// OptionsAsEnvs converts the DevcontainerFeatures into a list of
+// environment variables that can be used to set feature options.
+// The format is FEATURE_<FEATURE_NAME>_OPTION_<OPTION_NAME>=<value>.
+// For example, if the feature is:
+//
+//		"ghcr.io/coder/devcontainer-features/code-server:1": {
+//	   "port": 9090,
+//	 }
+//
+// It will produce:
+//
+//	FEATURE_CODE_SERVER_OPTION_PORT=9090
+//
+// Note that the feature name is derived from the last part of the key,
+// so "ghcr.io/coder/devcontainer-features/code-server:1" becomes
+// "CODE_SERVER". The version part (e.g. ":1") is removed, and dashes in
+// the feature and option names are replaced with underscores.
+func (f DevcontainerFeatures) OptionsAsEnvs() []string {
+	var env []string
+	for k, v := range f {
+		vv, ok := v.(map[string]any)
+		if !ok {
+			continue
+		}
+		// Take the last part of the key as the feature name/path.
+		k = k[strings.LastIndex(k, "/")+1:]
+		// Remove ":" and anything following it.
+		if idx := strings.Index(k, ":"); idx != -1 {
+			k = k[:idx]
+		}
+		k = strings.ReplaceAll(k, "-", "_")
+		for k2, v2 := range vv {
+			k2 = strings.ReplaceAll(k2, "-", "_")
+			env = append(env, fmt.Sprintf("FEATURE_%s_OPTION_%s=%s", strings.ToUpper(k), strings.ToUpper(k2), fmt.Sprintf("%v", v2)))
+		}
+	}
+	slices.Sort(env)
+	return env
 }
 
 type DevcontainerConfiguration struct {
@@ -140,7 +186,7 @@ func WithReadConfigOutput(stdout, stderr io.Writer) DevcontainerCLIReadConfigOpt
 }
 
 func applyDevcontainerCLIUpOptions(opts []DevcontainerCLIUpOptions) devcontainerCLIUpConfig {
-	conf := devcontainerCLIUpConfig{}
+	conf := devcontainerCLIUpConfig{stdout: io.Discard, stderr: io.Discard}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&conf)
@@ -150,7 +196,7 @@ func applyDevcontainerCLIUpOptions(opts []DevcontainerCLIUpOptions) devcontainer
 }
 
 func applyDevcontainerCLIExecOptions(opts []DevcontainerCLIExecOptions) devcontainerCLIExecConfig {
-	conf := devcontainerCLIExecConfig{}
+	conf := devcontainerCLIExecConfig{stdout: io.Discard, stderr: io.Discard}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&conf)
@@ -160,7 +206,7 @@ func applyDevcontainerCLIExecOptions(opts []DevcontainerCLIExecOptions) devconta
 }
 
 func applyDevcontainerCLIReadConfigOptions(opts []DevcontainerCLIReadConfigOptions) devcontainerCLIReadConfigConfig {
-	conf := devcontainerCLIReadConfigConfig{}
+	conf := devcontainerCLIReadConfigConfig{stdout: io.Discard, stderr: io.Discard}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&conf)
@@ -200,17 +246,20 @@ func (d *devcontainerCLI) Up(ctx context.Context, workspaceFolder, configPath st
 
 	// Capture stdout for parsing and stream logs for both default and provided writers.
 	var stdoutBuf bytes.Buffer
-	stdoutWriters := []io.Writer{&stdoutBuf, &devcontainerCLILogWriter{ctx: ctx, logger: logger.With(slog.F("stdout", true))}}
-	if conf.stdout != nil {
-		stdoutWriters = append(stdoutWriters, conf.stdout)
-	}
-	cmd.Stdout = io.MultiWriter(stdoutWriters...)
+	cmd.Stdout = io.MultiWriter(
+		&stdoutBuf,
+		&devcontainerCLILogWriter{
+			ctx:    ctx,
+			logger: logger.With(slog.F("stdout", true)),
+			writer: conf.stdout,
+		},
+	)
 	// Stream stderr logs and provided writer if any.
-	stderrWriters := []io.Writer{&devcontainerCLILogWriter{ctx: ctx, logger: logger.With(slog.F("stderr", true))}}
-	if conf.stderr != nil {
-		stderrWriters = append(stderrWriters, conf.stderr)
+	cmd.Stderr = &devcontainerCLILogWriter{
+		ctx:    ctx,
+		logger: logger.With(slog.F("stderr", true)),
+		writer: conf.stderr,
 	}
-	cmd.Stderr = io.MultiWriter(stderrWriters...)
 
 	if err := cmd.Run(); err != nil {
 		_, err2 := parseDevcontainerCLILastLine[devcontainerCLIResult](ctx, logger, stdoutBuf.Bytes())
@@ -249,16 +298,16 @@ func (d *devcontainerCLI) Exec(ctx context.Context, workspaceFolder, configPath 
 	args = append(args, cmdArgs...)
 	c := d.execer.CommandContext(ctx, "devcontainer", args...)
 
-	stdoutWriters := []io.Writer{&devcontainerCLILogWriter{ctx: ctx, logger: logger.With(slog.F("stdout", true))}}
-	if conf.stdout != nil {
-		stdoutWriters = append(stdoutWriters, conf.stdout)
-	}
-	c.Stdout = io.MultiWriter(stdoutWriters...)
-	stderrWriters := []io.Writer{&devcontainerCLILogWriter{ctx: ctx, logger: logger.With(slog.F("stderr", true))}}
-	if conf.stderr != nil {
-		stderrWriters = append(stderrWriters, conf.stderr)
-	}
-	c.Stderr = io.MultiWriter(stderrWriters...)
+	c.Stdout = io.MultiWriter(conf.stdout, &devcontainerCLILogWriter{
+		ctx:    ctx,
+		logger: logger.With(slog.F("stdout", true)),
+		writer: io.Discard,
+	})
+	c.Stderr = io.MultiWriter(conf.stderr, &devcontainerCLILogWriter{
+		ctx:    ctx,
+		logger: logger.With(slog.F("stderr", true)),
+		writer: io.Discard,
+	})
 
 	if err := c.Run(); err != nil {
 		return xerrors.Errorf("devcontainer exec failed: %w", err)
@@ -283,16 +332,19 @@ func (d *devcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, confi
 	c.Env = append(c.Env, env...)
 
 	var stdoutBuf bytes.Buffer
-	stdoutWriters := []io.Writer{&stdoutBuf, &devcontainerCLILogWriter{ctx: ctx, logger: logger.With(slog.F("stdout", true))}}
-	if conf.stdout != nil {
-		stdoutWriters = append(stdoutWriters, conf.stdout)
+	c.Stdout = io.MultiWriter(
+		&stdoutBuf,
+		&devcontainerCLILogWriter{
+			ctx:    ctx,
+			logger: logger.With(slog.F("stdout", true)),
+			writer: conf.stdout,
+		},
+	)
+	c.Stderr = &devcontainerCLILogWriter{
+		ctx:    ctx,
+		logger: logger.With(slog.F("stderr", true)),
+		writer: conf.stderr,
 	}
-	c.Stdout = io.MultiWriter(stdoutWriters...)
-	stderrWriters := []io.Writer{&devcontainerCLILogWriter{ctx: ctx, logger: logger.With(slog.F("stderr", true))}}
-	if conf.stderr != nil {
-		stderrWriters = append(stderrWriters, conf.stderr)
-	}
-	c.Stderr = io.MultiWriter(stderrWriters...)
 
 	if err := c.Run(); err != nil {
 		return DevcontainerConfig{}, xerrors.Errorf("devcontainer read-configuration failed: %w", err)
@@ -385,6 +437,7 @@ type devcontainerCLIJSONLogLine struct {
 type devcontainerCLILogWriter struct {
 	ctx    context.Context
 	logger slog.Logger
+	writer io.Writer
 }
 
 func (l *devcontainerCLILogWriter) Write(p []byte) (n int, err error) {
@@ -405,7 +458,19 @@ func (l *devcontainerCLILogWriter) Write(p []byte) (n int, err error) {
 		}
 		if logLine.Level >= 3 {
 			l.logger.Info(l.ctx, "@devcontainer/cli", slog.F("line", string(line)))
+			_, _ = l.writer.Write([]byte(logLine.Text + "\n"))
 			continue
+		}
+		// If we've successfully parsed the final log line, it will successfully parse
+		// but will not fill out any of the fields for `logLine`. In this scenario we
+		// assume it is the final log line, unmarshal it as that, and check if the
+		// outcome is a non-empty string.
+		if logLine.Level == 0 {
+			var lastLine devcontainerCLIResult
+			if err := json.Unmarshal(line, &lastLine); err == nil && lastLine.Outcome != "" {
+				_, _ = l.writer.Write(line)
+				_, _ = l.writer.Write([]byte{'\n'})
+			}
 		}
 		l.logger.Debug(l.ctx, "@devcontainer/cli", slog.F("line", string(line)))
 	}

@@ -437,6 +437,7 @@ func TestAPI(t *testing.T) {
 					agentcontainers.WithContainerCLI(mLister),
 					agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
 				)
+				api.Init()
 				defer api.Close()
 				r.Mount("/", api.Routes())
 
@@ -492,78 +493,77 @@ func TestAPI(t *testing.T) {
 	t.Run("Recreate", func(t *testing.T) {
 		t.Parallel()
 
-		validContainer := codersdk.WorkspaceAgentContainer{
-			ID:           "container-id",
-			FriendlyName: "container-name",
+		devcontainerID1 := uuid.New()
+		devcontainerID2 := uuid.New()
+		workspaceFolder1 := "/workspace/test1"
+		workspaceFolder2 := "/workspace/test2"
+		configPath1 := "/workspace/test1/.devcontainer/devcontainer.json"
+		configPath2 := "/workspace/test2/.devcontainer/devcontainer.json"
+
+		// Create a container that represents an existing devcontainer
+		devContainer1 := codersdk.WorkspaceAgentContainer{
+			ID:           "container-1",
+			FriendlyName: "test-container-1",
 			Running:      true,
 			Labels: map[string]string{
-				agentcontainers.DevcontainerLocalFolderLabel: "/workspaces",
-				agentcontainers.DevcontainerConfigFileLabel:  "/workspace/.devcontainer/devcontainer.json",
+				agentcontainers.DevcontainerLocalFolderLabel: workspaceFolder1,
+				agentcontainers.DevcontainerConfigFileLabel:  configPath1,
 			},
 		}
 
-		missingFolderContainer := codersdk.WorkspaceAgentContainer{
-			ID:           "missing-folder-container",
-			FriendlyName: "missing-folder-container",
-			Labels:       map[string]string{},
+		devContainer2 := codersdk.WorkspaceAgentContainer{
+			ID:           "container-2",
+			FriendlyName: "test-container-2",
+			Running:      true,
+			Labels: map[string]string{
+				agentcontainers.DevcontainerLocalFolderLabel: workspaceFolder2,
+				agentcontainers.DevcontainerConfigFileLabel:  configPath2,
+			},
 		}
 
 		tests := []struct {
-			name            string
-			containerID     string
-			lister          *fakeContainerCLI
-			devcontainerCLI *fakeDevcontainerCLI
-			wantStatus      []int
-			wantBody        []string
+			name               string
+			devcontainerID     string
+			setupDevcontainers []codersdk.WorkspaceAgentDevcontainer
+			lister             *fakeContainerCLI
+			devcontainerCLI    *fakeDevcontainerCLI
+			wantStatus         []int
+			wantBody           []string
 		}{
 			{
-				name:            "Missing container ID",
-				containerID:     "",
+				name:            "Missing devcontainer ID",
+				devcontainerID:  "",
 				lister:          &fakeContainerCLI{},
 				devcontainerCLI: &fakeDevcontainerCLI{},
 				wantStatus:      []int{http.StatusBadRequest},
-				wantBody:        []string{"Missing container ID or name"},
+				wantBody:        []string{"Missing devcontainer ID"},
 			},
 			{
-				name:        "List error",
-				containerID: "container-id",
+				name:           "Devcontainer not found",
+				devcontainerID: uuid.NewString(),
 				lister: &fakeContainerCLI{
-					listErr: xerrors.New("list error"),
-				},
-				devcontainerCLI: &fakeDevcontainerCLI{},
-				wantStatus:      []int{http.StatusInternalServerError},
-				wantBody:        []string{"Could not list containers"},
-			},
-			{
-				name:        "Container not found",
-				containerID: "nonexistent-container",
-				lister: &fakeContainerCLI{
-					containers: codersdk.WorkspaceAgentListContainersResponse{
-						Containers: []codersdk.WorkspaceAgentContainer{validContainer},
-					},
+					arch: "<none>", // Unsupported architecture, don't inject subagent.
 				},
 				devcontainerCLI: &fakeDevcontainerCLI{},
 				wantStatus:      []int{http.StatusNotFound},
-				wantBody:        []string{"Container not found"},
+				wantBody:        []string{"Devcontainer not found"},
 			},
 			{
-				name:        "Missing workspace folder label",
-				containerID: "missing-folder-container",
-				lister: &fakeContainerCLI{
-					containers: codersdk.WorkspaceAgentListContainersResponse{
-						Containers: []codersdk.WorkspaceAgentContainer{missingFolderContainer},
+				name:           "Devcontainer CLI error",
+				devcontainerID: devcontainerID1.String(),
+				setupDevcontainers: []codersdk.WorkspaceAgentDevcontainer{
+					{
+						ID:              devcontainerID1,
+						Name:            "test-devcontainer-1",
+						WorkspaceFolder: workspaceFolder1,
+						ConfigPath:      configPath1,
+						Status:          codersdk.WorkspaceAgentDevcontainerStatusRunning,
+						Container:       &devContainer1,
 					},
 				},
-				devcontainerCLI: &fakeDevcontainerCLI{},
-				wantStatus:      []int{http.StatusBadRequest},
-				wantBody:        []string{"Missing workspace folder label"},
-			},
-			{
-				name:        "Devcontainer CLI error",
-				containerID: "container-id",
 				lister: &fakeContainerCLI{
 					containers: codersdk.WorkspaceAgentListContainersResponse{
-						Containers: []codersdk.WorkspaceAgentContainer{validContainer},
+						Containers: []codersdk.WorkspaceAgentContainer{devContainer1},
 					},
 					arch: "<none>", // Unsupported architecture, don't inject subagent.
 				},
@@ -574,11 +574,21 @@ func TestAPI(t *testing.T) {
 				wantBody:   []string{"Devcontainer recreation initiated", "Devcontainer recreation already in progress"},
 			},
 			{
-				name:        "OK",
-				containerID: "container-id",
+				name:           "OK",
+				devcontainerID: devcontainerID2.String(),
+				setupDevcontainers: []codersdk.WorkspaceAgentDevcontainer{
+					{
+						ID:              devcontainerID2,
+						Name:            "test-devcontainer-2",
+						WorkspaceFolder: workspaceFolder2,
+						ConfigPath:      configPath2,
+						Status:          codersdk.WorkspaceAgentDevcontainerStatusRunning,
+						Container:       &devContainer2,
+					},
+				},
 				lister: &fakeContainerCLI{
 					containers: codersdk.WorkspaceAgentListContainersResponse{
-						Containers: []codersdk.WorkspaceAgentContainer{validContainer},
+						Containers: []codersdk.WorkspaceAgentContainer{devContainer2},
 					},
 					arch: "<none>", // Unsupported architecture, don't inject subagent.
 				},
@@ -607,13 +617,17 @@ func TestAPI(t *testing.T) {
 
 				// Setup router with the handler under test.
 				r := chi.NewRouter()
+
 				api := agentcontainers.NewAPI(
 					logger,
 					agentcontainers.WithClock(mClock),
 					agentcontainers.WithContainerCLI(tt.lister),
 					agentcontainers.WithDevcontainerCLI(tt.devcontainerCLI),
 					agentcontainers.WithWatcher(watcher.NewNoop()),
+					agentcontainers.WithDevcontainers(tt.setupDevcontainers, nil),
 				)
+
+				api.Init()
 				defer api.Close()
 				r.Mount("/", api.Routes())
 
@@ -624,7 +638,7 @@ func TestAPI(t *testing.T) {
 
 				for i := range tt.wantStatus {
 					// Simulate HTTP request to the recreate endpoint.
-					req := httptest.NewRequest(http.MethodPost, "/devcontainers/container/"+tt.containerID+"/recreate", nil).
+					req := httptest.NewRequest(http.MethodPost, "/devcontainers/"+tt.devcontainerID+"/recreate", nil).
 						WithContext(ctx)
 					rec := httptest.NewRecorder()
 					r.ServeHTTP(rec, req)
@@ -747,6 +761,7 @@ func TestAPI(t *testing.T) {
 			knownDevcontainers []codersdk.WorkspaceAgentDevcontainer
 			wantStatus         int
 			wantCount          int
+			wantTestContainer  bool
 			verify             func(t *testing.T, devcontainers []codersdk.WorkspaceAgentDevcontainer)
 		}{
 			{
@@ -993,6 +1008,13 @@ func TestAPI(t *testing.T) {
 					assert.Len(t, names, 4, "should have four unique devcontainer names")
 				},
 			},
+			{
+				name:              "Include test containers",
+				lister:            &fakeContainerCLI{},
+				wantStatus:        http.StatusOK,
+				wantTestContainer: true,
+				wantCount:         1, // Will be appended.
+			},
 		}
 
 		for _, tt := range tests {
@@ -1005,12 +1027,31 @@ func TestAPI(t *testing.T) {
 				mClock.Set(time.Now()).MustWait(testutil.Context(t, testutil.WaitShort))
 				tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
 
+				// This container should be ignored unless explicitly included.
+				tt.lister.containers.Containers = append(tt.lister.containers.Containers, codersdk.WorkspaceAgentContainer{
+					ID:           "test-container-1",
+					FriendlyName: "test-container-1",
+					Running:      true,
+					Labels: map[string]string{
+						agentcontainers.DevcontainerLocalFolderLabel: "/workspace/test1",
+						agentcontainers.DevcontainerConfigFileLabel:  "/workspace/test1/.devcontainer/devcontainer.json",
+						agentcontainers.DevcontainerIsTestRunLabel:   "true",
+					},
+				})
+
 				// Setup router with the handler under test.
 				r := chi.NewRouter()
 				apiOptions := []agentcontainers.Option{
 					agentcontainers.WithClock(mClock),
 					agentcontainers.WithContainerCLI(tt.lister),
+					agentcontainers.WithDevcontainerCLI(&fakeDevcontainerCLI{}),
 					agentcontainers.WithWatcher(watcher.NewNoop()),
+				}
+
+				if tt.wantTestContainer {
+					apiOptions = append(apiOptions, agentcontainers.WithContainerLabelIncludeFilter(
+						agentcontainers.DevcontainerIsTestRunLabel, "true",
+					))
 				}
 
 				// Generate matching scripts for the known devcontainers
@@ -1027,6 +1068,7 @@ func TestAPI(t *testing.T) {
 				}
 
 				api := agentcontainers.NewAPI(logger, apiOptions...)
+				api.Init()
 				defer api.Close()
 
 				r.Mount("/", api.Routes())
@@ -1037,6 +1079,11 @@ func TestAPI(t *testing.T) {
 				// before advancing the clock.
 				tickerTrap.MustWait(ctx).MustRelease(ctx)
 				tickerTrap.Close()
+
+				for _, dc := range tt.knownDevcontainers {
+					err := api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath)
+					require.NoError(t, err)
+				}
 
 				// Advance the clock to run the updater loop.
 				_, aw := mClock.AdvanceNext()
@@ -1111,6 +1158,7 @@ func TestAPI(t *testing.T) {
 				[]codersdk.WorkspaceAgentScript{{LogSourceID: uuid.New(), ID: dc.ID}},
 			),
 		)
+		api.Init()
 		defer api.Close()
 
 		// Make sure the ticker function has been registered
@@ -1206,6 +1254,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithWatcher(fWatcher),
 			agentcontainers.WithClock(mClock),
 		)
+		api.Init()
 		defer api.Close()
 
 		r := chi.NewRouter()
@@ -1356,8 +1405,9 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithSubAgentClient(fakeSAC),
 			agentcontainers.WithSubAgentURL("test-subagent-url"),
 			agentcontainers.WithDevcontainerCLI(fakeDCCLI),
-			agentcontainers.WithManifestInfo("test-user", "test-workspace"),
+			agentcontainers.WithManifestInfo("test-user", "test-workspace", "test-parent-agent"),
 		)
+		api.Init()
 		apiClose := func() {
 			closeOnce.Do(func() {
 				// Close before api.Close() defer to avoid deadlock after test.
@@ -1377,7 +1427,9 @@ func TestAPI(t *testing.T) {
 			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=coder")
 			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
 			assert.Contains(t, envs, "CODER_WORKSPACE_OWNER_NAME=test-user")
+			assert.Contains(t, envs, "CODER_WORKSPACE_PARENT_AGENT_NAME=test-parent-agent")
 			assert.Contains(t, envs, "CODER_URL=test-subagent-url")
+			assert.Contains(t, envs, "CONTAINER_ID=test-container-id")
 			return nil
 		})
 
@@ -1519,7 +1571,9 @@ func TestAPI(t *testing.T) {
 			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=coder")
 			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
 			assert.Contains(t, envs, "CODER_WORKSPACE_OWNER_NAME=test-user")
+			assert.Contains(t, envs, "CODER_WORKSPACE_PARENT_AGENT_NAME=test-parent-agent")
 			assert.Contains(t, envs, "CODER_URL=test-subagent-url")
+			assert.NotContains(t, envs, "CONTAINER_ID=test-container-id")
 			return nil
 		})
 
@@ -1578,6 +1632,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithSubAgentClient(fakeSAC),
 			agentcontainers.WithDevcontainerCLI(&fakeDevcontainerCLI{}),
 		)
+		api.Init()
 		defer api.Close()
 
 		tickerTrap.MustWait(ctx).MustRelease(ctx)
@@ -1899,6 +1954,7 @@ func TestAPI(t *testing.T) {
 					agentcontainers.WithSubAgentURL("test-subagent-url"),
 					agentcontainers.WithWatcher(watcher.NewNoop()),
 				)
+				api.Init()
 				defer api.Close()
 
 				// Close before api.Close() defer to avoid deadlock after test.
@@ -1991,6 +2047,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithSubAgentURL("test-subagent-url"),
 			agentcontainers.WithWatcher(watcher.NewNoop()),
 		)
+		api.Init()
 		defer api.Close()
 
 		// Close before api.Close() defer to avoid deadlock after test.
@@ -2016,6 +2073,126 @@ func TestAPI(t *testing.T) {
 		tickerTrap.Close()
 
 		// Then: We expected it to succeed
+		require.Len(t, fSAC.created, 1)
+	})
+
+	t.Run("ReadConfigWithFeatureOptions", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("Dev Container tests are not supported on Windows (this test uses mocks but fails due to Windows paths)")
+		}
+
+		var (
+			ctx    = testutil.Context(t, testutil.WaitMedium)
+			logger = testutil.Logger(t)
+			mClock = quartz.NewMock(t)
+			mCCLI  = acmock.NewMockContainerCLI(gomock.NewController(t))
+			fSAC   = &fakeSubAgentClient{
+				logger:     logger.Named("fakeSubAgentClient"),
+				createErrC: make(chan error, 1),
+			}
+			fDCCLI = &fakeDevcontainerCLI{
+				readConfig: agentcontainers.DevcontainerConfig{
+					MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
+						Features: agentcontainers.DevcontainerFeatures{
+							"./code-server": map[string]any{
+								"port": 9090,
+							},
+							"ghcr.io/devcontainers/features/docker-in-docker:2": map[string]any{
+								"moby": "false",
+							},
+						},
+					},
+					Workspace: agentcontainers.DevcontainerWorkspace{
+						WorkspaceFolder: "/workspaces/coder",
+					},
+				},
+				readConfigErrC: make(chan func(envs []string) error, 2),
+			}
+
+			testContainer = codersdk.WorkspaceAgentContainer{
+				ID:           "test-container-id",
+				FriendlyName: "test-container",
+				Image:        "test-image",
+				Running:      true,
+				CreatedAt:    time.Now(),
+				Labels: map[string]string{
+					agentcontainers.DevcontainerLocalFolderLabel: "/workspaces/coder",
+					agentcontainers.DevcontainerConfigFileLabel:  "/workspaces/coder/.devcontainer/devcontainer.json",
+				},
+			}
+		)
+
+		coderBin, err := os.Executable()
+		require.NoError(t, err)
+
+		// Mock the `List` function to always return our test container.
+		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentContainer{testContainer},
+		}, nil).AnyTimes()
+
+		// Mock the steps used for injecting the coder agent.
+		gomock.InOrder(
+			mCCLI.EXPECT().DetectArchitecture(gomock.Any(), testContainer.ID).Return(runtime.GOARCH, nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
+			mCCLI.EXPECT().Copy(gomock.Any(), testContainer.ID, coderBin, "/.coder-agent/coder").Return(nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
+		)
+
+		mClock.Set(time.Now()).MustWait(ctx)
+		tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+
+		api := agentcontainers.NewAPI(logger,
+			agentcontainers.WithClock(mClock),
+			agentcontainers.WithContainerCLI(mCCLI),
+			agentcontainers.WithDevcontainerCLI(fDCCLI),
+			agentcontainers.WithSubAgentClient(fSAC),
+			agentcontainers.WithSubAgentURL("test-subagent-url"),
+			agentcontainers.WithWatcher(watcher.NewNoop()),
+			agentcontainers.WithManifestInfo("test-user", "test-workspace", "test-parent-agent"),
+		)
+		api.Init()
+		defer api.Close()
+
+		// Close before api.Close() defer to avoid deadlock after test.
+		defer close(fSAC.createErrC)
+		defer close(fDCCLI.readConfigErrC)
+
+		// Allow agent creation and injection to succeed.
+		testutil.RequireSend(ctx, t, fSAC.createErrC, nil)
+
+		testutil.RequireSend(ctx, t, fDCCLI.readConfigErrC, func(envs []string) error {
+			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=coder")
+			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
+			assert.Contains(t, envs, "CODER_WORKSPACE_OWNER_NAME=test-user")
+			assert.Contains(t, envs, "CODER_WORKSPACE_PARENT_AGENT_NAME=test-parent-agent")
+			assert.Contains(t, envs, "CODER_URL=test-subagent-url")
+			assert.Contains(t, envs, "CONTAINER_ID=test-container-id")
+			// First call should not have feature envs.
+			assert.NotContains(t, envs, "FEATURE_CODE_SERVER_OPTION_PORT=9090")
+			assert.NotContains(t, envs, "FEATURE_DOCKER_IN_DOCKER_OPTION_MOBY=false")
+			return nil
+		})
+
+		testutil.RequireSend(ctx, t, fDCCLI.readConfigErrC, func(envs []string) error {
+			assert.Contains(t, envs, "CODER_WORKSPACE_AGENT_NAME=coder")
+			assert.Contains(t, envs, "CODER_WORKSPACE_NAME=test-workspace")
+			assert.Contains(t, envs, "CODER_WORKSPACE_OWNER_NAME=test-user")
+			assert.Contains(t, envs, "CODER_WORKSPACE_PARENT_AGENT_NAME=test-parent-agent")
+			assert.Contains(t, envs, "CODER_URL=test-subagent-url")
+			assert.Contains(t, envs, "CONTAINER_ID=test-container-id")
+			// Second call should have feature envs from the first config read.
+			assert.Contains(t, envs, "FEATURE_CODE_SERVER_OPTION_PORT=9090")
+			assert.Contains(t, envs, "FEATURE_DOCKER_IN_DOCKER_OPTION_MOBY=false")
+			return nil
+		})
+
+		// Wait until the ticker has been registered.
+		tickerTrap.MustWait(ctx).MustRelease(ctx)
+		tickerTrap.Close()
+
+		// Verify agent was created successfully
 		require.Len(t, fSAC.created, 1)
 	})
 
@@ -2045,6 +2222,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithExecer(fakeExec),
 			agentcontainers.WithCommandEnv(commandEnv),
 		)
+		api.Init()
 		defer api.Close()
 
 		// Call RefreshContainers directly to trigger CommandEnv usage.
@@ -2134,6 +2312,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithWatcher(fWatcher),
 			agentcontainers.WithClock(mClock),
 		)
+		api.Init()
 		defer func() {
 			close(fakeSAC.createErrC)
 			close(fakeSAC.deleteErrC)
@@ -2334,6 +2513,7 @@ func TestSubAgentCreationWithNameRetry(t *testing.T) {
 				agentcontainers.WithSubAgentClient(fSAC),
 				agentcontainers.WithWatcher(watcher.NewNoop()),
 			)
+			api.Init()
 			defer api.Close()
 
 			tickerTrap.MustWait(ctx).MustRelease(ctx)
