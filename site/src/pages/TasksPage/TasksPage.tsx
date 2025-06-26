@@ -37,6 +37,12 @@ import {
 } from "components/TableLoader/TableLoader";
 
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import { useExternalAuth } from "hooks/useExternalAuth";
 import { RedoIcon, RotateCcwIcon, SendIcon } from "lucide-react";
@@ -51,12 +57,6 @@ import TextareaAutosize from "react-textarea-autosize";
 import { pageTitle } from "utils/page";
 import { relativeTime } from "utils/time";
 import { type UserOption, UsersCombobox } from "./UsersCombobox";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 
 type TasksFilter = {
 	user: UserOption | undefined;
