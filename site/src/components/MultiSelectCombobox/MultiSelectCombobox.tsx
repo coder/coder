@@ -2,8 +2,8 @@
  * This component is based on multiple-selector
  * @see {@link https://shadcnui-expansions.typeart.cc/docs/multiple-selector}
  */
-import { useTheme } from "@emotion/react";
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
+import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
 import {
 	Command,
@@ -26,7 +26,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { getExternalImageStylesFromUrl } from "theme/externalImages";
 import { cn } from "utils/cn";
 
 export interface Option {
@@ -207,7 +206,6 @@ export const MultiSelectCombobox = forwardRef<
 		const [onScrollbar, setOnScrollbar] = useState(false);
 		const [isLoading, setIsLoading] = useState(false);
 		const dropdownRef = useRef<HTMLDivElement>(null);
-		const theme = useTheme();
 
 		const [selected, setSelected] = useState<Option[]>(
 			arrayDefaultOptions ?? [],
@@ -357,7 +355,9 @@ export const MultiSelectCombobox = forwardRef<
 		}, [debouncedSearchTerm, groupBy, open, triggerSearchOnFocus, onSearch]);
 
 		const CreatableItem = () => {
-			if (!creatable) return undefined;
+			if (!creatable) {
+				return undefined;
+			}
 			if (
 				isOptionsExist(options, [{ value: inputValue, label: inputValue }]) ||
 				selected.find((s) => s.value === inputValue)
@@ -441,6 +441,7 @@ export const MultiSelectCombobox = forwardRef<
 		}
 
 		const fixedOptions = selected.filter((s) => s.fixed);
+		const showIcons = arrayOptions?.some((it) => it.icon);
 
 		return (
 			<Command
@@ -493,14 +494,10 @@ export const MultiSelectCombobox = forwardRef<
 									>
 										<div className="flex items-center gap-1">
 											{option.icon && (
-												<img
+												<Avatar
+													size="sm"
 													src={option.icon}
-													alt=""
-													className="size-icon-xs"
-													css={getExternalImageStylesFromUrl(
-														theme.externalImages,
-														option.icon,
-													)}
+													fallback={option.label}
 												/>
 											)}
 											{option.label}
@@ -657,15 +654,11 @@ export const MultiSelectCombobox = forwardRef<
 															)}
 														>
 															<div className="flex items-center gap-2">
-																{option.icon && (
-																	<img
+																{showIcons && (
+																	<Avatar
+																		size="sm"
 																		src={option.icon}
-																		alt=""
-																		className="size-icon-sm"
-																		css={getExternalImageStylesFromUrl(
-																			theme.externalImages,
-																			option.icon,
-																		)}
+																		fallback={option.label}
 																	/>
 																)}
 																{option.label}
