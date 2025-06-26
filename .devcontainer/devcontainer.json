@@ -1,7 +1,6 @@
 {
 	"name": "Development environments on your infrastructure",
 	"image": "codercom/oss-dogfood:latest",
-
 	"features": {
 		// See all possible options here https://github.com/devcontainers/features/tree/main/src/docker-in-docker
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {
@@ -13,10 +12,20 @@
 		}
 	},
 	// SYS_PTRACE to enable go debugging
-	"runArgs": ["--cap-add=SYS_PTRACE"],
+	"runArgs": [
+		"--cap-add=SYS_PTRACE"
+	],
 	"customizations": {
 		"vscode": {
-			"extensions": ["biomejs.biome"]
+			"extensions": [
+				"biomejs.biome"
+			]
 		}
-	}
+	},
+	"mounts": [
+		// Mount the entire home because conditional mounts are not supported.
+		// See: https://github.com/devcontainers/spec/issues/132
+		"source=${localEnv:HOME},target=/mnt/home/coder,type=bind,readonly"
+	],
+	"postCreateCommand": "./.devcontainer/postCreateCommand.sh"
 }
