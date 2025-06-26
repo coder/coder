@@ -39,7 +39,7 @@ import {
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { useAuthenticated } from "hooks";
 import { useExternalAuth } from "hooks/useExternalAuth";
-import { RotateCcwIcon, SendIcon } from "lucide-react";
+import { RedoIcon, RotateCcwIcon, SendIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
@@ -51,6 +51,12 @@ import TextareaAutosize from "react-textarea-autosize";
 import { pageTitle } from "utils/page";
 import { relativeTime } from "utils/time";
 import { type UserOption, UsersCombobox } from "./UsersCombobox";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 
 type TasksFilter = {
 	user: UserOption | undefined;
@@ -325,27 +331,55 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 	template,
 	missedExternalAuth,
 }) => {
-	const { startPollingExternalAuth, isPollingExternalAuth } = useExternalAuth(
-		template.active_version_id,
-	);
+	const {
+		startPollingExternalAuth,
+		isPollingExternalAuth,
+		externalAuthPollingState,
+	} = useExternalAuth(template.active_version_id);
+	const shouldRetry = externalAuthPollingState === "abandoned";
 
 	return missedExternalAuth.map((auth) => {
 		return (
-			<Button
-				variant="outline"
-				key={auth.id}
-				size="sm"
-				disabled={isPollingExternalAuth || auth.authenticated}
-				onClick={() => {
-					window.open(auth.authenticate_url, "_blank", "width=900,height=600");
-					startPollingExternalAuth();
-				}}
-			>
-				<Spinner loading={isPollingExternalAuth}>
-					<ExternalImage src={auth.display_icon} />
-				</Spinner>
-				Connect to {auth.display_name}
-			</Button>
+			<div className="flex items-center gap-2" key={auth.id}>
+				<Button
+					variant="outline"
+					size="sm"
+					disabled={isPollingExternalAuth || auth.authenticated}
+					onClick={() => {
+						window.open(
+							auth.authenticate_url,
+							"_blank",
+							"width=900,height=600",
+						);
+						startPollingExternalAuth();
+					}}
+				>
+					<Spinner loading={isPollingExternalAuth}>
+						<ExternalImage src={auth.display_icon} />
+					</Spinner>
+					Connect to {auth.display_name}
+				</Button>
+
+				{shouldRetry && !auth.authenticated && (
+					<TooltipProvider>
+						<Tooltip delayDuration={100}>
+							<TooltipTrigger asChild>
+								<Button
+									variant="outline"
+									size="icon"
+									onClick={startPollingExternalAuth}
+								>
+									<RedoIcon />
+									<span className="sr-only">Refresh external auth</span>
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>
+								Retry connect to {auth.display_name}
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				)}
+			</div>
 		);
 	});
 };
