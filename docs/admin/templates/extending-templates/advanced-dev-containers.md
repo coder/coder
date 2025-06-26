@@ -175,13 +175,13 @@ or add persistent volumes—to improve performance and isolation for dev contain
 ```terraform
 resource "docker_container" "workspace" {
   count    = data.coder_workspace.me.start_count
-  image    = "codercom/enterprise-base:ubuntu"
+  image    = "codercom/enterprise-node:ubuntu"
 
   resources {
     memory = 4096   # MiB
     cpus   = 2
+    memory_swap = 8192
   }
-  memory_swap = 8192
 }
 ```
 
