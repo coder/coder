@@ -1002,6 +1002,15 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 
 	logger.Info(ctx, "devcontainer created successfully")
 
+	// Ensure the container list is updated immediately after creation.
+	// This makes sure that dc.Container is populated before we acquire
+	// the lock avoiding a temporary inconsistency in the API state
+	// where status is running, but the container is nil.
+	if err := api.RefreshContainers(ctx); err != nil {
+		logger.Error(ctx, "failed to trigger immediate refresh after devcontainer creation", slog.Error(err))
+		return xerrors.Errorf("refresh containers: %w", err)
+	}
+
 	api.mu.Lock()
 	dc = api.knownDevcontainers[dc.WorkspaceFolder]
 	// Update the devcontainer status to Running or Stopped based on the
@@ -1019,13 +1028,6 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 	api.recreateSuccessTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "successTimes")
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	api.mu.Unlock()
-
-	// Ensure an immediate refresh to accurately reflect the
-	// devcontainer state after recreation.
-	if err := api.RefreshContainers(ctx); err != nil {
-		logger.Error(ctx, "failed to trigger immediate refresh after devcontainer creation", slog.Error(err))
-		return xerrors.Errorf("refresh containers: %w", err)
-	}
 
 	return nil
 }
