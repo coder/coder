@@ -181,6 +181,7 @@ module "code-server" {
 ```text
 my-module/
 ├── main.tf          # Terraform configuration
+├── run.sh           # Installation/setup script (optional but recommended)
 ├── README.md        # Documentation with frontmatter
 └── main.test.ts     # Test suite
 ```
@@ -212,8 +213,13 @@ variable "port" {
 data "coder_workspace" "me" {}
 
 resource "coder_script" "install" {
-  agent_id = var.agent_id
-  script   = "#!/bin/bash\necho 'Installing service...'"
+  agent_id     = var.agent_id
+  display_name = "Install Service"
+  icon         = "/icon/service.svg"
+  script = templatefile("${path.module}/run.sh", {
+    PORT = var.port
+  })
+  run_on_start = true
 }
 
 resource "coder_app" "service" {
