@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -342,6 +343,10 @@ func TestDevcontainerCLI_WithOutput(t *testing.T) {
 
 	t.Run("Up", func(t *testing.T) {
 		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows uses CRLF line endings, golden file is LF")
+		}
 
 		// Buffers to capture stdout and stderr.
 		outBuf := &bytes.Buffer{}
