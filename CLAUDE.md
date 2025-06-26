@@ -270,6 +270,114 @@ if errors.Is(err, errInvalidPKCE) {
 - Test both positive and negative cases
 - Use `testutil.WaitLong` for timeouts in tests
 
+## Code Navigation and Investigation
+
+### Using Go LSP Tools (STRONGLY RECOMMENDED)
+
+**IMPORTANT**: Always use Go LSP tools for code navigation and understanding. These tools provide accurate, real-time analysis of the codebase and should be your first choice for code investigation.
+
+When working with the Coder codebase, leverage Go Language Server Protocol tools for efficient code navigation:
+
+1. **Find function definitions** (USE THIS FREQUENTLY):
+
+   ```none
+   mcp__go-language-server__definition symbolName
+   ```
+
+   - Example: `mcp__go-language-server__definition getOAuth2ProviderAppAuthorize`
+   - Example: `mcp__go-language-server__definition ExtractAPIKeyMW`
+   - Quickly jump to function implementations across packages
+   - **Use this when**: You see a function call and want to understand its implementation
+   - **Tip**: Include package prefix if symbol is ambiguous (e.g., `httpmw.ExtractAPIKeyMW`)
+
+2. **Find symbol references** (ESSENTIAL FOR UNDERSTANDING IMPACT):
+
+   ```none
+   mcp__go-language-server__references symbolName
+   ```
+
+   - Example: `mcp__go-language-server__references APITokenFromRequest`
+   - Locate all usages of functions, types, or variables
+   - Understand code dependencies and call patterns
+   - **Use this when**: Making changes to understand what code might be affected
+   - **Critical for**: Refactoring, deprecating functions, or understanding data flow
+
+3. **Get symbol information** (HELPFUL FOR TYPE INFO):
+
+   ```none
+   mcp__go-language-server__hover filePath line column
+   ```
+
+   - Example: `mcp__go-language-server__hover /Users/thomask33/Projects/coder/coderd/httpmw/apikey.go 560 25`
+   - Get type information and documentation at specific positions
+   - **Use this when**: You need to understand the type of a variable or return value
+
+4. **Edit files using LSP** (WHEN MAKING TARGETED CHANGES):
+
+   ```none
+   mcp__go-language-server__edit_file filePath edits
+   ```
+
+   - Make precise edits using line numbers
+   - **Use this when**: You need to make small, targeted changes to specific lines
+
+5. **Get diagnostics** (ALWAYS CHECK AFTER CHANGES):
+
+   ```none
+   mcp__go-language-server__diagnostics filePath
+   ```
+
+   - Check for compilation errors, unused imports, etc.
+   - **Use this when**: After making changes to ensure code is still valid
+
+### LSP Tool Usage Priority
+
+**ALWAYS USE THESE TOOLS FIRST**:
+
+- **Use LSP `definition`** instead of manual searching for function implementations
+- **Use LSP `references`** instead of grep when looking for function/type usage
+- **Use LSP `hover`** to understand types and signatures
+- **Use LSP `diagnostics`** after making changes to check for errors
+
+**When to use other tools**:
+
+- **Use Grep for**: Text-based searches, finding patterns across files, searching comments
+- **Use Bash for**: Running tests, git commands, build operations
+- **Use Read tool for**: Reading configuration files, documentation, non-Go files
+
+### Investigation Strategy (LSP-First Approach)
+
+1. **Start with route registration** in `coderd/coderd.go` to understand API endpoints
+2. **Use LSP `definition` lookup** to trace from route handlers to actual implementations
+3. **Use LSP `references`** to understand how functions are called throughout the codebase
+4. **Follow the middleware chain** using LSP tools to understand request processing flow
+5. **Check test files** for expected behavior and error patterns
+6. **Use LSP `diagnostics`** to ensure your changes don't break compilation
+
+### Common LSP Workflows
+
+**Understanding a new feature**:
+
+1. Use `grep` to find the main entry point (e.g., route registration)
+2. Use LSP `definition` to jump to handler implementation
+3. Use LSP `references` to see how the handler is used
+4. Use LSP `definition` on each function call within the handler
+
+**Making changes to existing code**:
+
+1. Use LSP `references` to understand the impact of your changes
+2. Use LSP `definition` to understand the current implementation
+3. Make your changes using `Edit` or LSP `edit_file`
+4. Use LSP `diagnostics` to verify your changes compile correctly
+5. Run tests to ensure functionality still works
+
+**Debugging issues**:
+
+1. Use LSP `definition` to find the problematic function
+2. Use LSP `references` to trace how the function is called
+3. Use LSP `hover` to understand parameter types and return values
+4. Use `Read` to examine the full context around the issue
+
 ## Testing Scripts
 
 ### OAuth2 Test Scripts
