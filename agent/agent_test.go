@@ -2130,7 +2130,7 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 		"name": "mywork",
 		"image": "ubuntu:latest",
 		"cmd": ["sleep", "infinity"],
-		"runArgs": ["--network=host"]
+		"runArgs": ["--network=host", "--label=`+agentcontainers.DevcontainerIsTestRunLabel+`=true"]
     }`), 0o600)
 	require.NoError(t, err, "write devcontainer.json")
 
@@ -2167,6 +2167,7 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 			// Only match this specific dev container.
 			agentcontainers.WithClock(mClock),
 			agentcontainers.WithContainerLabelIncludeFilter("devcontainer.local_folder", tempWorkspaceFolder),
+			agentcontainers.WithContainerLabelIncludeFilter(agentcontainers.DevcontainerIsTestRunLabel, "true"),
 			agentcontainers.WithSubAgentURL(srv.URL),
 			// The agent will copy "itself", but in the case of this test, the
 			// agent is actually this test binary. So we'll tell the test binary
@@ -2288,7 +2289,8 @@ func TestAgent_DevcontainerRecreate(t *testing.T) {
 	err = os.WriteFile(devcontainerFile, []byte(`{
         "name": "mywork",
         "image": "busybox:latest",
-        "cmd": ["sleep", "infinity"]
+        "cmd": ["sleep", "infinity"],
+		"runArgs": ["--label=`+agentcontainers.DevcontainerIsTestRunLabel+`=true"]
     }`), 0o600)
 	require.NoError(t, err, "write devcontainer.json")
 
@@ -2315,6 +2317,7 @@ func TestAgent_DevcontainerRecreate(t *testing.T) {
 		o.Devcontainers = true
 		o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
 			agentcontainers.WithContainerLabelIncludeFilter("devcontainer.local_folder", workspaceFolder),
+			agentcontainers.WithContainerLabelIncludeFilter(agentcontainers.DevcontainerIsTestRunLabel, "true"),
 		)
 	})
 

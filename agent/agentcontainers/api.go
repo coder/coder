@@ -207,6 +207,10 @@ func WithDevcontainers(devcontainers []codersdk.WorkspaceAgentDevcontainer, scri
 		api.devcontainerNames = make(map[string]bool, len(devcontainers))
 		api.devcontainerLogSourceIDs = make(map[string]uuid.UUID)
 		for _, dc := range devcontainers {
+			if dc.Status == "" {
+				dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
+			}
+
 			api.knownDevcontainers[dc.WorkspaceFolder] = dc
 			api.devcontainerNames[dc.Name] = true
 			for _, script := range scripts {
@@ -265,8 +269,6 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 	api := &API{
 		ctx:                         ctx,
 		cancel:                      cancel,
-		watcherDone:                 make(chan struct{}),
-		updaterDone:                 make(chan struct{}),
 		initialUpdateDone:           make(chan struct{}),
 		updateTrigger:               make(chan chan error),
 		updateInterval:              defaultUpdateInterval,
@@ -315,10 +317,28 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 		api.subAgentClient.Store(&c)
 	}
 
+	return api
+}
+
+// Init applies a final set of options to the API and then
+// begins the watcherLoop and updaterLoop. This function
+// must only be called once.
+func (api *API) Init(opts ...Option) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+	if api.closed {
+		return
+	}
+
+	for _, opt := range opts {
+		opt(api)
+	}
+
+	api.watcherDone = make(chan struct{})
+	api.updaterDone = make(chan struct{})
+
 	go api.watcherLoop()
 	go api.updaterLoop()
-
-	return api
 }
 
 func (api *API) watcherLoop() {
@@ -571,7 +591,8 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 			slog.F("config_file", configFile),
 		)
 
-		if len(api.containerLabelIncludeFilter) > 0 {
+		// Filter out devcontainer tests, unless explicitly set in include filters.
+		if len(api.containerLabelIncludeFilter) > 0 || container.Labels[DevcontainerIsTestRunLabel] == "true" {
 			var ok bool
 			for label, value := range api.containerLabelIncludeFilter {
 				if v, found := container.Labels[label]; found && v == value {
@@ -909,8 +930,9 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
 	dc.Container = nil
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
-	api.asyncWg.Add(1)
-	go api.recreateDevcontainer(dc, configPath)
+	go func() {
+		_ = api.CreateDevcontainer(dc.WorkspaceFolder, configPath, WithRemoveExistingContainer())
+	}()
 
 	api.mu.Unlock()
 
@@ -920,15 +942,29 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-// recreateDevcontainer should run in its own goroutine and is responsible for
+// createDevcontainer should run in its own goroutine and is responsible for
 // recreating a devcontainer based on the provided devcontainer configuration.
 // It updates the devcontainer status and logs the process. The configPath is
 // passed as a parameter for the odd chance that the container being recreated
 // has a different config file than the one stored in the devcontainer state.
 // The devcontainer state must be set to starting and the asyncWg must be
 // incremented before calling this function.
-func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, configPath string) {
+func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...DevcontainerCLIUpOptions) error {
+	api.mu.Lock()
+	if api.closed {
+		api.mu.Unlock()
+		return nil
+	}
+
+	dc, found := api.knownDevcontainers[workspaceFolder]
+	if !found {
+		api.mu.Unlock()
+		return xerrors.Errorf("devcontainer not found")
+	}
+
+	api.asyncWg.Add(1)
 	defer api.asyncWg.Done()
+	api.mu.Unlock()
 
 	var (
 		err    error
@@ -969,12 +1005,15 @@ func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, con
 
 	logger.Debug(ctx, "starting devcontainer recreation")
 
-	_, err = api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, WithUpOutput(infoW, errW), WithRemoveExistingContainer())
+	upOptions := []DevcontainerCLIUpOptions{WithUpOutput(infoW, errW)}
+	upOptions = append(upOptions, opts...)
+
+	_, err = api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, upOptions...)
 	if err != nil {
 		// No need to log if the API is closing (context canceled), as this
 		// is expected behavior when the API is shutting down.
 		if !errors.Is(err, context.Canceled) {
-			logger.Error(ctx, "devcontainer recreation failed", slog.Error(err))
+			logger.Error(ctx, "devcontainer creation failed", slog.Error(err))
 		}
 
 		api.mu.Lock()
@@ -983,10 +1022,11 @@ func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, con
 		api.knownDevcontainers[dc.WorkspaceFolder] = dc
 		api.recreateErrorTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "errorTimes")
 		api.mu.Unlock()
-		return
+
+		return xerrors.Errorf("start devcontainer: %w", err)
 	}
 
-	logger.Info(ctx, "devcontainer recreated successfully")
+	logger.Info(ctx, "devcontainer created successfully")
 
 	api.mu.Lock()
 	dc = api.knownDevcontainers[dc.WorkspaceFolder]
@@ -1009,8 +1049,11 @@ func (api *API) recreateDevcontainer(dc codersdk.WorkspaceAgentDevcontainer, con
 	// Ensure an immediate refresh to accurately reflect the
 	// devcontainer state after recreation.
 	if err := api.RefreshContainers(ctx); err != nil {
-		logger.Error(ctx, "failed to trigger immediate refresh after devcontainer recreation", slog.Error(err))
+		logger.Error(ctx, "failed to trigger immediate refresh after devcontainer creation", slog.Error(err))
+		return xerrors.Errorf("refresh containers: %w", err)
 	}
+
+	return nil
 }
 
 // markDevcontainerDirty finds the devcontainer with the given config file path
@@ -1259,6 +1302,7 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		}
 
 		var (
+			featureOptionsAsEnvs       []string
 			appsWithPossibleDuplicates []SubAgentApp
 			workspaceFolder            = DevcontainerDefaultContainerWorkspaceFolder
 		)
@@ -1270,12 +1314,14 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			)
 
 			readConfig := func() (DevcontainerConfig, error) {
-				return api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath, []string{
-					fmt.Sprintf("CODER_WORKSPACE_AGENT_NAME=%s", subAgentConfig.Name),
-					fmt.Sprintf("CODER_WORKSPACE_OWNER_NAME=%s", api.ownerName),
-					fmt.Sprintf("CODER_WORKSPACE_NAME=%s", api.workspaceName),
-					fmt.Sprintf("CODER_URL=%s", api.subAgentURL),
-				})
+				return api.dccli.ReadConfig(ctx, dc.WorkspaceFolder, dc.ConfigPath,
+					append(featureOptionsAsEnvs, []string{
+						fmt.Sprintf("CODER_WORKSPACE_AGENT_NAME=%s", subAgentConfig.Name),
+						fmt.Sprintf("CODER_WORKSPACE_OWNER_NAME=%s", api.ownerName),
+						fmt.Sprintf("CODER_WORKSPACE_NAME=%s", api.workspaceName),
+						fmt.Sprintf("CODER_URL=%s", api.subAgentURL),
+					}...),
+				)
 			}
 
 			if config, err = readConfig(); err != nil {
@@ -1290,6 +1336,11 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 			}
 
 			workspaceFolder = config.Workspace.WorkspaceFolder
+
+			featureOptionsAsEnvs = config.MergedConfiguration.Features.OptionsAsEnvs()
+			if len(featureOptionsAsEnvs) > 0 {
+				configOutdated = true
+			}
 
 			// NOTE(DanielleMaywood):
 			// We only want to take an agent name specified in the root customization layer.
@@ -1609,8 +1660,12 @@ func (api *API) Close() error {
 	err := api.watcher.Close()
 
 	// Wait for loops to finish.
-	<-api.watcherDone
-	<-api.updaterDone
+	if api.watcherDone != nil {
+		<-api.watcherDone
+	}
+	if api.updaterDone != nil {
+		<-api.updaterDone
+	}
 
 	// Wait for all async tasks to complete.
 	api.asyncWg.Wait()
