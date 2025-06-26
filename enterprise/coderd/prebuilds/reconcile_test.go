@@ -853,11 +853,6 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer)
 
-			// Template admin to receive a notification.
-			templateAdmin := dbgen.User(t, db, database.User{
-				RBACRoles: []string{codersdk.RoleTemplateAdmin},
-			})
-
 			// Set up test environment with a template, version, and preset.
 			ownerID := uuid.New()
 			dbgen.User(t, db, database.User{
@@ -938,20 +933,6 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			require.Equal(t, 1, len(workspaces))
 			require.Equal(t, database.PrebuildStatusHardLimited, updatedPreset.PrebuildStatus)
 
-			// When hard limit is reached, a notification should be sent.
-			matching := fakeEnqueuer.Sent(func(notification *notificationstest.FakeNotification) bool {
-				if !assert.Equal(t, notifications.PrebuildFailureLimitReached, notification.TemplateID, "unexpected template") {
-					return false
-				}
-
-				if !assert.Equal(t, templateAdmin.ID, notification.UserID, "unexpected receiver") {
-					return false
-				}
-
-				return true
-			})
-			require.Len(t, matching, 1)
-
 			// When hard limit is reached, metric is set to 1.
 			mf, err = registry.Gather()
 			require.NoError(t, err)
@@ -1015,11 +996,6 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			registry := prometheus.NewRegistry()
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer)
-
-			// Template admin to receive a notification.
-			templateAdmin := dbgen.User(t, db, database.User{
-				RBACRoles: []string{codersdk.RoleTemplateAdmin},
-			})
 
 			// Set up test environment with a template, version, and preset.
 			ownerID := uuid.New()
@@ -1124,20 +1100,6 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			updatedPreset, err := db.GetPresetByID(ctx, preset.ID)
 			require.NoError(t, err)
 			require.Equal(t, database.PrebuildStatusHardLimited, updatedPreset.PrebuildStatus)
-
-			// When hard limit is reached, a notification should be sent.
-			matching := fakeEnqueuer.Sent(func(notification *notificationstest.FakeNotification) bool {
-				if !assert.Equal(t, notifications.PrebuildFailureLimitReached, notification.TemplateID, "unexpected template") {
-					return false
-				}
-
-				if !assert.Equal(t, templateAdmin.ID, notification.UserID, "unexpected receiver") {
-					return false
-				}
-
-				return true
-			})
-			require.Len(t, matching, 1)
 
 			// When hard limit is reached, metric is set to 1.
 			mf, err = registry.Gather()

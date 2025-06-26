@@ -1391,6 +1391,24 @@ func (s *MethodTestSuite) TestTemplate() {
 			ID: t1.ID,
 		}).Asserts(t1, policy.ActionUpdate)
 	}))
+	s.Run("UpdateTemplateVersionAITaskByJobID", s.Subtest(func(db database.Store, check *expects) {
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u := dbgen.User(s.T(), db, database.User{})
+		_ = dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID})
+		t := dbgen.Template(s.T(), db, database.Template{OrganizationID: o.ID, CreatedBy: u.ID})
+		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{OrganizationID: o.ID})
+		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+			JobID:          job.ID,
+			TemplateID:     uuid.NullUUID{UUID: t.ID, Valid: true},
+		})
+		check.Args(database.UpdateTemplateVersionAITaskByJobIDParams{
+			JobID:     job.ID,
+			HasAITask: sql.NullBool{Bool: true, Valid: true},
+		}).Asserts(t, policy.ActionUpdate)
+	}))
 	s.Run("UpdateTemplateWorkspacesLastUsedAt", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
@@ -1993,6 +2011,14 @@ func (s *MethodTestSuite) TestWorkspace() {
 		_ = dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		// No asserts here because SQLFilter.
 		check.Args(ws.OwnerID, emptyPreparedAuthorized{}).Asserts()
+	}))
+	s.Run("GetWorkspaceBuildParametersByBuildIDs", s.Subtest(func(db database.Store, check *expects) {
+		// no asserts here because SQLFilter
+		check.Args([]uuid.UUID{}).Asserts()
+	}))
+	s.Run("GetAuthorizedWorkspaceBuildParametersByBuildIDs", s.Subtest(func(db database.Store, check *expects) {
+		// no asserts here because SQLFilter
+		check.Args([]uuid.UUID{}, emptyPreparedAuthorized{}).Asserts()
 	}))
 	s.Run("GetLatestWorkspaceBuildByWorkspaceID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -3048,6 +3074,40 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ID:        b.ID,
 			UpdatedAt: b.UpdatedAt,
 			Deadline:  b.Deadline,
+		}).Asserts(w, policy.ActionUpdate)
+	}))
+	s.Run("UpdateWorkspaceBuildAITaskByID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		tpl := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			TemplateID:     tpl.ID,
+			OrganizationID: o.ID,
+			OwnerID:        u.ID,
+		})
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
+			JobID:             j.ID,
+			WorkspaceID:       w.ID,
+			TemplateVersionID: tv.ID,
+		})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: b.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
+		app := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agt.ID})
+		check.Args(database.UpdateWorkspaceBuildAITaskByIDParams{
+			HasAITask:    sql.NullBool{Bool: true, Valid: true},
+			SidebarAppID: uuid.NullUUID{UUID: app.ID, Valid: true},
+			ID:           b.ID,
 		}).Asserts(w, policy.ActionUpdate)
 	}))
 	s.Run("SoftDeleteWorkspaceByID", s.Subtest(func(db database.Store, check *expects) {
@@ -4114,7 +4174,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			APIKeyScope: database.AgentKeyScopeEnumAll,
 		}).Asserts(ws, policy.ActionCreateAgent)
 	}))
-	s.Run("InsertWorkspaceApp", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpsertWorkspaceApp", s.Subtest(func(db database.Store, check *expects) {
 		_ = dbgen.User(s.T(), db, database.User{})
 		u := dbgen.User(s.T(), db, database.User{})
 		o := dbgen.Organization(s.T(), db, database.Organization{})
@@ -4130,7 +4190,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: j.ID, TemplateVersionID: tv.ID})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: j.ID})
 		agent := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
-		check.Args(database.InsertWorkspaceAppParams{
+		check.Args(database.UpsertWorkspaceAppParams{
 			ID:           uuid.New(),
 			AgentID:      agent.ID,
 			Health:       database.WorkspaceAppHealthDisabled,
@@ -4999,8 +5059,7 @@ func (s *MethodTestSuite) TestPrebuilds() {
 	}))
 	s.Run("GetPrebuildMetrics", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
-			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead).
-			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
+			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
 	}))
 	s.Run("CountInProgressPrebuilds", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
@@ -5489,80 +5548,6 @@ func (s *MethodTestSuite) TestResourcesProvisionerdserver() {
 	}))
 }
 
-func (s *MethodTestSuite) TestChat() {
-	createChat := func(t *testing.T, db database.Store) (database.User, database.Chat, database.ChatMessage) {
-		t.Helper()
-
-		usr := dbgen.User(t, db, database.User{})
-		chat := dbgen.Chat(s.T(), db, database.Chat{
-			OwnerID: usr.ID,
-		})
-		msg := dbgen.ChatMessage(s.T(), db, database.ChatMessage{
-			ChatID: chat.ID,
-		})
-
-		return usr, chat, msg
-	}
-
-	s.Run("DeleteChat", s.Subtest(func(db database.Store, check *expects) {
-		_, c, _ := createChat(s.T(), db)
-		check.Args(c.ID).Asserts(c, policy.ActionDelete)
-	}))
-
-	s.Run("GetChatByID", s.Subtest(func(db database.Store, check *expects) {
-		_, c, _ := createChat(s.T(), db)
-		check.Args(c.ID).Asserts(c, policy.ActionRead).Returns(c)
-	}))
-
-	s.Run("GetChatMessagesByChatID", s.Subtest(func(db database.Store, check *expects) {
-		_, c, m := createChat(s.T(), db)
-		check.Args(c.ID).Asserts(c, policy.ActionRead).Returns([]database.ChatMessage{m})
-	}))
-
-	s.Run("GetChatsByOwnerID", s.Subtest(func(db database.Store, check *expects) {
-		u1, u1c1, _ := createChat(s.T(), db)
-		u1c2 := dbgen.Chat(s.T(), db, database.Chat{
-			OwnerID:   u1.ID,
-			CreatedAt: u1c1.CreatedAt.Add(time.Hour),
-		})
-		_, _, _ = createChat(s.T(), db) // other user's chat
-		check.Args(u1.ID).Asserts(u1c2, policy.ActionRead, u1c1, policy.ActionRead).Returns([]database.Chat{u1c2, u1c1})
-	}))
-
-	s.Run("InsertChat", s.Subtest(func(db database.Store, check *expects) {
-		usr := dbgen.User(s.T(), db, database.User{})
-		check.Args(database.InsertChatParams{
-			OwnerID:   usr.ID,
-			Title:     "test chat",
-			CreatedAt: dbtime.Now(),
-			UpdatedAt: dbtime.Now(),
-		}).Asserts(rbac.ResourceChat.WithOwner(usr.ID.String()), policy.ActionCreate)
-	}))
-
-	s.Run("InsertChatMessages", s.Subtest(func(db database.Store, check *expects) {
-		usr := dbgen.User(s.T(), db, database.User{})
-		chat := dbgen.Chat(s.T(), db, database.Chat{
-			OwnerID: usr.ID,
-		})
-		check.Args(database.InsertChatMessagesParams{
-			ChatID:    chat.ID,
-			CreatedAt: dbtime.Now(),
-			Model:     "test-model",
-			Provider:  "test-provider",
-			Content:   []byte(`[]`),
-		}).Asserts(chat, policy.ActionUpdate)
-	}))
-
-	s.Run("UpdateChatByID", s.Subtest(func(db database.Store, check *expects) {
-		_, c, _ := createChat(s.T(), db)
-		check.Args(database.UpdateChatByIDParams{
-			ID:        c.ID,
-			Title:     "new title",
-			UpdatedAt: dbtime.Now(),
-		}).Asserts(c, policy.ActionUpdate)
-	}))
-}
-
 func (s *MethodTestSuite) TestAuthorizePrebuiltWorkspace() {
 	s.Run("PrebuildDelete/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -5590,7 +5575,17 @@ func (s *MethodTestSuite) TestAuthorizePrebuiltWorkspace() {
 			Reason:            database.BuildReasonInitiator,
 			TemplateVersionID: tv.ID,
 			JobID:             pj.ID,
-		}).Asserts(w.AsPrebuild(), policy.ActionDelete)
+		}).
+			// Simulate a fallback authorization flow:
+			// - First, the default workspace authorization fails (simulated by returning an error).
+			// - Then, authorization is retried using the prebuilt workspace object, which succeeds.
+			// The test asserts that both authorization attempts occur in the correct order.
+			WithSuccessAuthorizer(func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error {
+				if obj.Type == rbac.ResourceWorkspace.Type {
+					return xerrors.Errorf("not authorized for workspace type")
+				}
+				return nil
+			}).Asserts(w, policy.ActionDelete, w.AsPrebuild(), policy.ActionDelete)
 	}))
 	s.Run("PrebuildUpdate/InsertWorkspaceBuildParameters", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -5619,6 +5614,16 @@ func (s *MethodTestSuite) TestAuthorizePrebuiltWorkspace() {
 		})
 		check.Args(database.InsertWorkspaceBuildParametersParams{
 			WorkspaceBuildID: wb.ID,
-		}).Asserts(w.AsPrebuild(), policy.ActionUpdate)
+		}).
+			// Simulate a fallback authorization flow:
+			// - First, the default workspace authorization fails (simulated by returning an error).
+			// - Then, authorization is retried using the prebuilt workspace object, which succeeds.
+			// The test asserts that both authorization attempts occur in the correct order.
+			WithSuccessAuthorizer(func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error {
+				if obj.Type == rbac.ResourceWorkspace.Type {
+					return xerrors.Errorf("not authorized for workspace type")
+				}
+				return nil
+			}).Asserts(w, policy.ActionUpdate, w.AsPrebuild(), policy.ActionUpdate)
 	}))
 }

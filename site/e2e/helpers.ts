@@ -691,6 +691,7 @@ const createTemplateVersionTar = async (
 			parameters: [],
 			externalAuthProviders: [],
 			timings: [],
+			aiTasks: [],
 			...response.apply,
 		} as ApplyComplete;
 		response.apply.resources = response.apply.resources?.map(fillResource);
@@ -713,6 +714,7 @@ const createTemplateVersionTar = async (
 			plan: emptyPlan,
 			moduleFiles: new Uint8Array(),
 			moduleFilesHash: new Uint8Array(),
+			aiTasks: [],
 			...response.plan,
 		} as PlanComplete;
 		response.plan.resources = response.plan.resources?.map(fillResource);

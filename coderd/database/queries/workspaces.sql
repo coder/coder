@@ -642,7 +642,8 @@ FROM pending_workspaces, building_workspaces, running_workspaces, failed_workspa
 -- name: GetWorkspacesEligibleForTransition :many
 SELECT
 	workspaces.id,
-	workspaces.name
+	workspaces.name,
+	workspace_builds.template_version_id as build_template_version_id
 FROM
 	workspaces
 LEFT JOIN

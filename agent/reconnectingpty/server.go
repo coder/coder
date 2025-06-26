@@ -31,8 +31,10 @@ type Server struct {
 	connCount        atomic.Int64
 	reconnectingPTYs sync.Map
 	timeout          time.Duration
-
-	ExperimentalDevcontainersEnabled bool
+	// Experimental: allow connecting to running containers via Docker exec.
+	// Note that this is different from the devcontainers feature, which uses
+	// subagents.
+	ExperimentalContainers bool
 }
 
 // NewServer returns a new ReconnectingPTY server
@@ -187,7 +189,7 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 		}()
 
 		var ei usershell.EnvInfoer
-		if s.ExperimentalDevcontainersEnabled && msg.Container != "" {
+		if s.ExperimentalContainers && msg.Container != "" {
 			dei, err := agentcontainers.EnvInfo(ctx, s.commandCreator.Execer, msg.Container, msg.ContainerUser)
 			if err != nil {
 				return xerrors.Errorf("get container env info: %w", err)

@@ -57,10 +57,9 @@ persistent environment from your main device, a tablet, or your phone.
 
 ## Windows
 
-> [!IMPORTANT]
-> If you plan to use the built-in PostgreSQL database, ensure that the
-> [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
-> is installed.
+If you plan to use the built-in PostgreSQL database, ensure that the
+[Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
+is installed.
 
 1. [Install Docker](https://docs.docker.com/desktop/install/windows-install/).
 

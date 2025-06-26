@@ -1,5 +1,9 @@
 import { deploymentDAUs } from "api/queries/deployment";
-import { availableExperiments, experiments } from "api/queries/experiments";
+import {
+	availableExperiments,
+	experiments,
+	isKnownExperiment,
+} from "api/queries/experiments";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
 import type { FC } from "react";
@@ -18,7 +22,7 @@ const OverviewPage: FC = () => {
 	const safeExperiments = safeExperimentsQuery.data?.safe ?? [];
 	const invalidExperiments =
 		enabledExperimentsQuery.data?.filter((exp) => {
-			return !safeExperiments.includes(exp);
+			return !isKnownExperiment(exp);
 		}) ?? [];
 
 	const { data: dailyActiveUsers } = useQuery(deploymentDAUs());

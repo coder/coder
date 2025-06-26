@@ -1,18 +1,60 @@
 {
 	"name": "Development environments on your infrastructure",
 	"image": "codercom/oss-dogfood:latest",
-
 	"features": {
 		// See all possible options here https://github.com/devcontainers/features/tree/main/src/docker-in-docker
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {
 			"moby": "false"
-		}
+		},
+		"ghcr.io/coder/devcontainer-features/code-server:1": {
+			"auth": "none",
+			"port": 13337
+		},
+		"./filebrowser": {}
 	},
 	// SYS_PTRACE to enable go debugging
-	"runArgs": ["--cap-add=SYS_PTRACE"],
+	"runArgs": [
+		"--cap-add=SYS_PTRACE"
+	],
 	"customizations": {
 		"vscode": {
-			"extensions": ["biomejs.biome"]
+			"extensions": [
+				"biomejs.biome"
+			]
+		},
+		"coder": {
+			"apps": [
+				{
+					"slug": "cursor",
+					"displayName": "Cursor Desktop",
+					"url": "cursor://coder.coder-remote/openDevContainer?owner=${localEnv:CODER_WORKSPACE_OWNER_NAME}&workspace=${localEnv:CODER_WORKSPACE_NAME}&agent=${localEnv:CODER_WORKSPACE_PARENT_AGENT_NAME}&url=${localEnv:CODER_URL}&token=$SESSION_TOKEN&devContainerName=${localEnv:CONTAINER_ID}&devContainerFolder=${containerWorkspaceFolder}",
+					"external": true,
+					"icon": "/icon/cursor.svg",
+					"order": 1
+				},
+				{
+					"slug": "windsurf",
+					"displayName": "Windsurf Editor",
+					"url": "windsurf://coder.coder-remote/openDevContainer?owner=${localEnv:CODER_WORKSPACE_OWNER_NAME}&workspace=${localEnv:CODER_WORKSPACE_NAME}&agent=${localEnv:CODER_WORKSPACE_PARENT_AGENT_NAME}&url=${localEnv:CODER_URL}&token=$SESSION_TOKEN&devContainerName=${localEnv:CONTAINER_ID}&devContainerFolder=${containerWorkspaceFolder}",
+					"external": true,
+					"icon": "/icon/windsurf.svg",
+					"order": 4
+				},
+				{
+					"slug": "zed",
+					"displayName": "Zed Editor",
+					"url": "zed://ssh/${localEnv:CODER_WORKSPACE_AGENT_NAME}.${localEnv:CODER_WORKSPACE_NAME}.${localEnv:CODER_WORKSPACE_OWNER_NAME}.coder/${containerWorkspaceFolder}",
+					"external": true,
+					"icon": "/icon/zed.svg",
+					"order": 5
+				}
+			]
 		}
-	}
+	},
+	"mounts": [
+		// Mount the entire home because conditional mounts are not supported.
+		// See: https://github.com/devcontainers/spec/issues/132
+		"source=${localEnv:HOME},target=/mnt/home/coder,type=bind,readonly"
+	],
+	"postCreateCommand": "./.devcontainer/postCreateCommand.sh"
 }

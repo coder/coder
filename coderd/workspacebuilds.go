@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -385,53 +386,28 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			builder = builder.State(createBuild.ProvisionerState)
 		}
 
-		if createBuild.EnableDynamicParameters != nil {
-			builder = builder.DynamicParameters(*createBuild.EnableDynamicParameters)
-		}
-
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
 			ctx,
 			tx,
 			api.FileCache,
 			func(action policy.Action, object rbac.Objecter) bool {
+				if auth := api.Authorize(r, action, object); auth {
+					return true
+				}
 				// Special handling for prebuilt workspace deletion
-				if object.RBACObject().Type == rbac.ResourceWorkspace.Type && action == policy.ActionDelete {
-					if workspaceObj, ok := object.(database.Workspace); ok {
-						// Try prebuilt-specific authorization first
-						if auth := api.Authorize(r, action, workspaceObj.AsPrebuild()); auth {
-							return auth
-						}
+				if action == policy.ActionDelete {
+					if workspaceObj, ok := object.(database.PrebuiltWorkspaceResource); ok && workspaceObj.IsPrebuild() {
+						return api.Authorize(r, action, workspaceObj.AsPrebuild())
 					}
 				}
-				// Fallback to default authorization
-				return api.Authorize(r, action, object)
+				return false
 			},
 			audit.WorkspaceBuildBaggageFromRequest(r),
 		)
 		return err
 	}, nil)
-	var buildErr wsbuilder.BuildError
-	if xerrors.As(err, &buildErr) {
-		var authErr dbauthz.NotAuthorizedError
-		if xerrors.As(err, &authErr) {
-			buildErr.Status = http.StatusForbidden
-		}
-
-		if buildErr.Status == http.StatusInternalServerError {
-			api.Logger.Error(ctx, "workspace build error", slog.Error(buildErr.Wrapped))
-		}
-
-		httpapi.Write(ctx, rw, buildErr.Status, codersdk.Response{
-			Message: buildErr.Message,
-			Detail:  buildErr.Error(),
-		})
-		return
-	}
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error posting new build",
-			Detail:  err.Error(),
-		})
+		httperror.WriteWorkspaceBuildError(ctx, rw, err)
 		return
 	}
 
@@ -1131,8 +1107,8 @@ func (api *API) convertWorkspaceBuild(
 		hasAITask = &build.HasAITask.Bool
 	}
 	var aiTasksSidebarAppID *uuid.UUID
-	if build.AITasksSidebarAppID.Valid {
-		aiTasksSidebarAppID = &build.AITasksSidebarAppID.UUID
+	if build.AITaskSidebarAppID.Valid {
+		aiTasksSidebarAppID = &build.AITaskSidebarAppID.UUID
 	}
 
 	apiJob := convertProvisionerJob(job)

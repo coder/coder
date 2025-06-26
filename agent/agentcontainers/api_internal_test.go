@@ -15,6 +15,7 @@ func TestSafeAgentName(t *testing.T) {
 		name       string
 		folderName string
 		expected   string
+		fallback   bool
 	}{
 		// Basic valid names
 		{
@@ -110,18 +111,22 @@ func TestSafeAgentName(t *testing.T) {
 		{
 			folderName: "",
 			expected:   "friendly-fallback",
+			fallback:   true,
 		},
 		{
 			folderName: "---",
 			expected:   "friendly-fallback",
+			fallback:   true,
 		},
 		{
 			folderName: "___",
 			expected:   "friendly-fallback",
+			fallback:   true,
 		},
 		{
 			folderName: "@#$",
 			expected:   "friendly-fallback",
+			fallback:   true,
 		},
 
 		// Additional edge cases
@@ -192,10 +197,162 @@ func TestSafeAgentName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.folderName, func(t *testing.T) {
 			t.Parallel()
-			name := safeAgentName(tt.folderName, "friendly-fallback")
+			name, usingWorkspaceFolder := safeAgentName(tt.folderName, "friendly-fallback")
 
 			assert.Equal(t, tt.expected, name)
 			assert.True(t, provisioner.AgentNameRegex.Match([]byte(name)))
+			assert.Equal(t, tt.fallback, !usingWorkspaceFolder)
+		})
+	}
+}
+
+func TestExpandedAgentName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		workspaceFolder string
+		friendlyName    string
+		depth           int
+		expected        string
+		fallback        bool
+	}{
+		{
+			name:            "simple path depth 1",
+			workspaceFolder: "/home/coder/project",
+			friendlyName:    "friendly-fallback",
+			depth:           0,
+			expected:        "project",
+		},
+		{
+			name:            "simple path depth 2",
+			workspaceFolder: "/home/coder/project",
+			friendlyName:    "friendly-fallback",
+			depth:           1,
+			expected:        "coder-project",
+		},
+		{
+			name:            "simple path depth 3",
+			workspaceFolder: "/home/coder/project",
+			friendlyName:    "friendly-fallback",
+			depth:           2,
+			expected:        "home-coder-project",
+		},
+		{
+			name:            "simple path depth exceeds available",
+			workspaceFolder: "/home/coder/project",
+			friendlyName:    "friendly-fallback",
+			depth:           9,
+			expected:        "home-coder-project",
+		},
+		// Cases with special characters that need sanitization
+		{
+			name:            "path with spaces and special chars",
+			workspaceFolder: "/home/coder/My Project_v2",
+			friendlyName:    "friendly-fallback",
+			depth:           1,
+			expected:        "coder-my-project-v2",
+		},
+		{
+			name:            "path with dots and underscores",
+			workspaceFolder: "/home/user.name/project_folder.git",
+			friendlyName:    "friendly-fallback",
+			depth:           1,
+			expected:        "user-name-project-folder-git",
+		},
+		// Edge cases
+		{
+			name:            "empty path",
+			workspaceFolder: "",
+			friendlyName:    "friendly-fallback",
+			depth:           0,
+			expected:        "friendly-fallback",
+			fallback:        true,
+		},
+		{
+			name:            "root path",
+			workspaceFolder: "/",
+			friendlyName:    "friendly-fallback",
+			depth:           0,
+			expected:        "friendly-fallback",
+			fallback:        true,
+		},
+		{
+			name:            "single component",
+			workspaceFolder: "project",
+			friendlyName:    "friendly-fallback",
+			depth:           0,
+			expected:        "project",
+		},
+		{
+			name:            "single component with depth 2",
+			workspaceFolder: "project",
+			friendlyName:    "friendly-fallback",
+			depth:           1,
+			expected:        "project",
+		},
+		// Collision simulation cases
+		{
+			name:            "foo/project depth 1",
+			workspaceFolder: "/home/coder/foo/project",
+			friendlyName:    "friendly-fallback",
+			depth:           0,
+			expected:        "project",
+		},
+		{
+			name:            "foo/project depth 2",
+			workspaceFolder: "/home/coder/foo/project",
+			friendlyName:    "friendly-fallback",
+			depth:           1,
+			expected:        "foo-project",
+		},
+		{
+			name:            "bar/project depth 1",
+			workspaceFolder: "/home/coder/bar/project",
+			friendlyName:    "friendly-fallback",
+			depth:           0,
+			expected:        "project",
+		},
+		{
+			name:            "bar/project depth 2",
+			workspaceFolder: "/home/coder/bar/project",
+			friendlyName:    "friendly-fallback",
+			depth:           1,
+			expected:        "bar-project",
+		},
+		// Path with trailing slashes
+		{
+			name:            "path with trailing slash",
+			workspaceFolder: "/home/coder/project/",
+			friendlyName:    "friendly-fallback",
+			depth:           1,
+			expected:        "coder-project",
+		},
+		{
+			name:            "path with multiple trailing slashes",
+			workspaceFolder: "/home/coder/project///",
+			friendlyName:    "friendly-fallback",
+			depth:           1,
+			expected:        "coder-project",
+		},
+		// Path with leading slashes
+		{
+			name:            "path with multiple leading slashes",
+			workspaceFolder: "///home/coder/project",
+			friendlyName:    "friendly-fallback",
+			depth:           1,
+			expected:        "coder-project",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			name, usingWorkspaceFolder := expandedAgentName(tt.workspaceFolder, tt.friendlyName, tt.depth)
+
+			assert.Equal(t, tt.expected, name)
+			assert.True(t, provisioner.AgentNameRegex.Match([]byte(name)))
+			assert.Equal(t, tt.fallback, !usingWorkspaceFolder)
 		})
 	}
 }

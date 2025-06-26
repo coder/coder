@@ -61,7 +61,6 @@ import (
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
 
-	"github.com/coder/coder/v2/coderd/ai"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -611,22 +610,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				)
 			}
 
-			aiProviders, err := ReadAIProvidersFromEnv(os.Environ())
-			if err != nil {
-				return xerrors.Errorf("read ai providers from env: %w", err)
-			}
-			vals.AI.Value.Providers = append(vals.AI.Value.Providers, aiProviders...)
-			for _, provider := range aiProviders {
-				logger.Debug(
-					ctx, "loaded ai provider",
-					slog.F("type", provider.Type),
-				)
-			}
-			languageModels, err := ai.ModelsFromConfig(ctx, vals.AI.Value.Providers)
-			if err != nil {
-				return xerrors.Errorf("create language models: %w", err)
-			}
-
 			realIPConfig, err := httpmw.ParseRealIPConfig(vals.ProxyTrustedHeaders, vals.ProxyTrustedOrigins)
 			if err != nil {
 				return xerrors.Errorf("parse real ip config: %w", err)
@@ -657,7 +640,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
 				ExternalAuthConfigs:         externalAuthConfigs,
-				LanguageModels:              languageModels,
 				RealIPConfig:                realIPConfig,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
@@ -1202,7 +1184,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			var wg sync.WaitGroup
 			for i, provisionerDaemon := range provisionerDaemons {
 				id := i + 1
-				provisionerDaemon := provisionerDaemon
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
@@ -1680,7 +1661,6 @@ func configureServerTLS(ctx context.Context, logger slog.Logger, tlsMinVersion, 
 
 		// Expensively check which certificate matches the client hello.
 		for _, cert := range certs {
-			cert := cert
 			if err := hi.SupportsCertificate(&cert); err == nil {
 				return &cert, nil
 			}
@@ -2640,77 +2620,6 @@ func redirectHTTPToHTTPSDeprecation(ctx context.Context, logger slog.Logger, inv
 		logger.Warn(ctx, "⚠️ --tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead")
 		cfg.RedirectToAccessURL = cfg.TLS.RedirectHTTP
 	}
-}
-
-func ReadAIProvidersFromEnv(environ []string) ([]codersdk.AIProviderConfig, error) {
-	// The index numbers must be in-order.
-	sort.Strings(environ)
-
-	var providers []codersdk.AIProviderConfig
-	for _, v := range serpent.ParseEnviron(environ, "CODER_AI_PROVIDER_") {
-		tokens := strings.SplitN(v.Name, "_", 2)
-		if len(tokens) != 2 {
-			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
-		}
-
-		providerNum, err := strconv.Atoi(tokens[0])
-		if err != nil {
-			return nil, xerrors.Errorf("parse number: %s", v.Name)
-		}
-
-		var provider codersdk.AIProviderConfig
-		switch {
-		case len(providers) < providerNum:
-			return nil, xerrors.Errorf(
-				"provider num %v skipped: %s",
-				len(providers),
-				v.Name,
-			)
-		case len(providers) == providerNum:
-			// At the next next provider.
-			providers = append(providers, provider)
-		case len(providers) == providerNum+1:
-			// At the current provider.
-			provider = providers[providerNum]
-		}
-
-		key := tokens[1]
-		switch key {
-		case "TYPE":
-			provider.Type = v.Value
-		case "API_KEY":
-			provider.APIKey = v.Value
-		case "BASE_URL":
-			provider.BaseURL = v.Value
-		case "MODELS":
-			provider.Models = strings.Split(v.Value, ",")
-		}
-		providers[providerNum] = provider
-	}
-	for _, envVar := range environ {
-		tokens := strings.SplitN(envVar, "=", 2)
-		if len(tokens) != 2 {
-			continue
-		}
-		switch tokens[0] {
-		case "OPENAI_API_KEY":
-			providers = append(providers, codersdk.AIProviderConfig{
-				Type:   "openai",
-				APIKey: tokens[1],
-			})
-		case "ANTHROPIC_API_KEY":
-			providers = append(providers, codersdk.AIProviderConfig{
-				Type:   "anthropic",
-				APIKey: tokens[1],
-			})
-		case "GOOGLE_API_KEY":
-			providers = append(providers, codersdk.AIProviderConfig{
-				Type:   "google",
-				APIKey: tokens[1],
-			})
-		}
-	}
-	return providers, nil
 }
 
 // ReadExternalAuthProvidersFromEnv is provided for compatibility purposes with

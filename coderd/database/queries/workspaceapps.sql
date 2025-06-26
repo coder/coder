@@ -10,7 +10,7 @@ SELECT * FROM workspace_apps WHERE agent_id = $1 AND slug = $2;
 -- name: GetWorkspaceAppsCreatedAfter :many
 SELECT * FROM workspace_apps WHERE created_at > $1 ORDER BY slug ASC;
 
--- name: InsertWorkspaceApp :one
+-- name: UpsertWorkspaceApp :one
 INSERT INTO
     workspace_apps (
         id,
@@ -34,7 +34,26 @@ INSERT INTO
         display_group
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *;
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+ON CONFLICT (id) DO UPDATE SET
+    display_name = EXCLUDED.display_name,
+    icon = EXCLUDED.icon,
+    command = EXCLUDED.command,
+    url = EXCLUDED.url,
+    external = EXCLUDED.external,
+    subdomain = EXCLUDED.subdomain,
+    sharing_level = EXCLUDED.sharing_level,
+    healthcheck_url = EXCLUDED.healthcheck_url,
+    healthcheck_interval = EXCLUDED.healthcheck_interval,
+    healthcheck_threshold = EXCLUDED.healthcheck_threshold,
+    health = EXCLUDED.health,
+    display_order = EXCLUDED.display_order,
+    hidden = EXCLUDED.hidden,
+    open_in = EXCLUDED.open_in,
+    display_group = EXCLUDED.display_group,
+    agent_id = EXCLUDED.agent_id,
+    slug = EXCLUDED.slug
+RETURNING *;
 
 -- name: UpdateWorkspaceAppHealthByID :exec
 UPDATE

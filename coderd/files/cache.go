@@ -71,12 +71,12 @@ func (c *Cache) registerMetrics(registerer prometheus.Registerer) *Cache {
 		Help:      "The count of file references currently open in the file cache. Multiple references can be held for the same file.",
 	})
 
-	c.totalOpenFileReferences = f.NewCounter(prometheus.CounterOpts{
+	c.totalOpenFileReferences = f.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "coderd",
 		Subsystem: subsystem,
 		Name:      "open_file_refs_total",
-		Help:      "The total number of file references ever opened in the file cache.",
-	})
+		Help:      "The total number of file references ever opened in the file cache. The 'hit' label indicates if the file was loaded from the cache.",
+	}, []string{"hit"})
 
 	return c
 }
@@ -97,7 +97,7 @@ type Cache struct {
 
 type cacheMetrics struct {
 	currentOpenFileReferences prometheus.Gauge
-	totalOpenFileReferences   prometheus.Counter
+	totalOpenFileReferences   *prometheus.CounterVec
 
 	currentOpenFiles prometheus.Gauge
 	totalOpenedFiles prometheus.Counter
@@ -173,6 +173,7 @@ func (c *Cache) prepare(ctx context.Context, db database.Store, fileID uuid.UUID
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
+	hitLabel := "true"
 	entry, ok := c.data[fileID]
 	if !ok {
 		value := lazy.NewWithError(func() (CacheEntryValue, error) {
@@ -194,10 +195,11 @@ func (c *Cache) prepare(ctx context.Context, db database.Store, fileID uuid.UUID
 		c.data[fileID] = entry
 		c.currentOpenFiles.Inc()
 		c.totalOpenedFiles.Inc()
+		hitLabel = "false"
 	}
 
 	c.currentOpenFileReferences.Inc()
-	c.totalOpenFileReferences.Inc()
+	c.totalOpenFileReferences.WithLabelValues(hitLabel).Inc()
 	entry.refCount++
 	return entry.value
 }
