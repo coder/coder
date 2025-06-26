@@ -12,3 +12,11 @@ export const ellipsizeText = (
 		? text
 		: `${text.substr(0, maxLength - 3)}...`;
 };
+
+/**
+ * Returns a string of the same length, using the unicode "bullet" character as
+ * a replacement for each character, like a password input would.
+ */
+export function maskText(val: string): string {
+	return "\u2022".repeat(val.length);
+}
