@@ -385,25 +385,28 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 												selectedOption={presetOptions[selectedPresetIndex]}
 											/>
 										</Stack>
-										<div
-											css={{
-												display: "flex",
-												alignItems: "center",
-												gap: "8px",
-											}}
-										>
-											<Switch
-												id="show-preset-parameters"
-												checked={showPresetParameters}
-												onCheckedChange={setShowPresetParameters}
-											/>
-											<label
-												htmlFor="show-preset-parameters"
-												css={styles.description}
+										{/* Only show the preset parameter visibility toggle if preset parameters are actually being modified, otherwise it has no effect. */}
+										{presetParameterNames.length > 0 && (
+											<div
+												css={{
+													display: "flex",
+													alignItems: "center",
+													gap: "8px",
+												}}
 											>
-												Show preset parameters
-											</label>
-										</div>
+												<Switch
+													id="show-preset-parameters"
+													checked={showPresetParameters}
+													onCheckedChange={setShowPresetParameters}
+												/>
+												<label
+													htmlFor="show-preset-parameters"
+													css={styles.description}
+												>
+													Show preset parameters
+												</label>
+											</div>
+										)}
 									</Stack>
 								</Stack>
 							)}

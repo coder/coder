@@ -562,7 +562,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 								<div className="flex flex-col gap-2">
 									<div className="flex gap-2 items-center">
 										<Label className="text-sm">Preset</Label>
-										<FeatureStageBadge contentType={"beta"} size="sm" />
 									</div>
 									<div className="flex flex-col gap-4">
 										<div className="max-w-lg">
@@ -594,16 +593,19 @@ export const CreateWorkspacePageViewExperimental: FC<
 												</SelectContent>
 											</Select>
 										</div>
-										<span className="flex items-center gap-3">
-											<Switch
-												id="show-preset-parameters"
-												checked={showPresetParameters}
-												onCheckedChange={setShowPresetParameters}
-											/>
-											<Label htmlFor="show-preset-parameters">
-												Show preset parameters
-											</Label>
-										</span>
+										{/* Only show the preset parameter visibility toggle if preset parameters are actually being modified, otherwise it is ineffectual */}
+										{presetParameterNames.length > 0 && (
+											<span className="flex items-center gap-3">
+												<Switch
+													id="show-preset-parameters"
+													checked={showPresetParameters}
+													onCheckedChange={setShowPresetParameters}
+												/>
+												<Label htmlFor="show-preset-parameters">
+													Show preset parameters
+												</Label>
+											</span>
+										)}
 									</div>
 								</div>
 							)}
