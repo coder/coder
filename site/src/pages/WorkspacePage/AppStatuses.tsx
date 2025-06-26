@@ -15,6 +15,7 @@ import {
 import capitalize from "lodash/capitalize";
 import { timeFrom } from "utils/time";
 
+import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	ChevronDownIcon,
 	ChevronUpIcon,
@@ -26,9 +27,8 @@ import {
 import { AppStatusStateIcon } from "modules/apps/AppStatusStateIcon";
 import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, useState } from "react";
-import { truncateURI } from "utils/uri";
 import { Link as RouterLink } from "react-router-dom";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
+import { truncateURI } from "utils/uri";
 
 interface AppStatusesProps {
 	workspace: Workspace;

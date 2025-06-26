@@ -19,7 +19,6 @@ import {
 	EllipsisVertical,
 	HistoryIcon,
 	SettingsIcon,
-	SquareCheckBigIcon,
 	TrashIcon,
 } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
