@@ -71,6 +71,7 @@ type API struct {
 
 	ownerName     string
 	workspaceName string
+	parentAgent   string
 
 	mu                       sync.RWMutex
 	closed                   bool
@@ -188,10 +189,11 @@ func WithSubAgentEnv(env ...string) Option {
 
 // WithManifestInfo sets the owner name, and workspace name
 // for the sub-agent.
-func WithManifestInfo(owner, workspace string) Option {
+func WithManifestInfo(owner, workspace, parentAgent string) Option {
 	return func(api *API) {
 		api.ownerName = owner
 		api.workspaceName = workspace
+		api.parentAgent = parentAgent
 	}
 }
 
@@ -1319,7 +1321,9 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 						fmt.Sprintf("CODER_WORKSPACE_AGENT_NAME=%s", subAgentConfig.Name),
 						fmt.Sprintf("CODER_WORKSPACE_OWNER_NAME=%s", api.ownerName),
 						fmt.Sprintf("CODER_WORKSPACE_NAME=%s", api.workspaceName),
+						fmt.Sprintf("CODER_WORKSPACE_PARENT_AGENT_NAME=%s", api.parentAgent),
 						fmt.Sprintf("CODER_URL=%s", api.subAgentURL),
+						fmt.Sprintf("CONTAINER_ID=%s", container.ID),
 					}...),
 				)
 			}
