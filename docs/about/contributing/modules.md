@@ -110,7 +110,7 @@ Browse available modules at [registry.coder.com](https://registry.coder.com).
 
 Every module consists of exactly four files:
 
-```
+```text
 module-name/
 ├── main.tf          # Terraform configuration with Coder resources
 ├── main.test.ts     # Test suite
@@ -136,12 +136,14 @@ The Coder Terraform provider offers several resource types for different aspects
 Execute commands during workspace lifecycle events. This is the primary mechanism for software installation, service configuration, and environment setup.
 
 **When to use**:
+
 - Installing software packages, binaries, or development tools
 - Configuring services and generating configuration files
 - Setting up directories, permissions, and initial workspace state
 - Running background services or daemons
 
 **Key properties**:
+
 - `agent_id`: The Coder agent to execute the script on
 - `display_name`: Name shown in the Coder dashboard during execution
 - `run_on_start`: Execute when workspace starts (most common)
@@ -150,6 +152,7 @@ Execute commands during workspace lifecycle events. This is the primary mechanis
 - `start_blocks_login`: Whether script completion is required before user access
 
 Example:
+
 ```tf
 resource "coder_script" "install" {
   agent_id          = var.agent_id
@@ -168,11 +171,13 @@ resource "coder_script" "install" {
 Create accessible applications in the Coder workspace interface, providing users with one-click access to tools and services.
 
 **When to use**:
+
 - Exposing web-based development tools (IDEs, dashboards)
 - Creating links to desktop applications via custom protocols
 - Providing access to running services
 
 **Key properties**:
+
 - `agent_id`: The Coder agent
 - `external`: `true` for protocol handlers, `false` for web apps
 - `healthcheck`: Monitor service availability
@@ -180,6 +185,7 @@ Create accessible applications in the Coder workspace interface, providing users
 - `url`: Service URL or protocol handler
 
 Example:
+
 ```tf
 resource "coder_app" "service" {
   agent_id = var.agent_id
@@ -199,11 +205,13 @@ resource "coder_app" "service" {
 Set environment variables in workspace sessions for tool configuration and authentication.
 
 **When to use**:
+
 - Configuring development tools and CLIs
 - Providing authentication tokens
 - Setting service endpoints
 
 Example:
+
 ```tf
 resource "coder_env" "config" {
   agent_id = var.agent_id
@@ -230,6 +238,7 @@ data "coder_workspace_owner" "me" {}
 ### Variable Design
 
 **Required Variables**:
+
 ```tf
 variable "agent_id" {
   type        = string
@@ -239,6 +248,7 @@ variable "agent_id" {
 ```
 
 **Optional Variables with Validation**:
+
 ```tf
 variable "version" {
   type        = string
@@ -252,6 +262,7 @@ variable "version" {
 ```
 
 **Complex Configuration Objects**:
+
 ```tf
 variable "service_config" {
   type = object({
@@ -266,6 +277,7 @@ variable "service_config" {
 ```
 
 **Sensitive Variables**:
+
 ```tf
 variable "api_key" {
   type        = string
@@ -278,6 +290,7 @@ variable "api_key" {
 ### Script Development
 
 **Template-driven scripts** pass variables to your `run.sh`:
+
 ```tf
 resource "coder_script" "install" {
   agent_id = var.agent_id
@@ -292,6 +305,7 @@ resource "coder_script" "install" {
 ```
 
 **Error handling** in your shell scripts:
+
 ```bash
 #!/bin/bash
 set -euo pipefail
@@ -313,6 +327,7 @@ fi
 ### Integration Patterns
 
 **Conditional resources** using `start_count`:
+
 ```tf
 resource "coder_app" "service" {
   count    = data.coder_workspace.me.start_count
@@ -322,6 +337,7 @@ resource "coder_app" "service" {
 ```
 
 **Multi-step installation** with dependencies:
+
 ```tf
 resource "coder_script" "install_deps" {
   agent_id = var.agent_id
@@ -338,6 +354,7 @@ resource "coder_script" "configure_service" {
 ```
 
 **Health checks** for web services:
+
 ```tf
 resource "coder_app" "service" {
   agent_id = var.agent_id
@@ -363,6 +380,7 @@ While not mandatory, **tests are recommended** for all modules. A `main.test.ts`
 - **Required variables** are properly validated
 
 The test framework provides utilities from `~test` import to:
+
 - Initialize Terraform in the module directory
 - Apply Terraform with test variables
 - Validate the resulting infrastructure state
