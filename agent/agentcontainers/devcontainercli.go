@@ -458,9 +458,7 @@ func (l *devcontainerCLILogWriter) Write(p []byte) (n int, err error) {
 		}
 		if logLine.Level >= 3 {
 			l.logger.Info(l.ctx, "@devcontainer/cli", slog.F("line", string(line)))
-			if text := strings.TrimSpace(logLine.Text); text != "" {
-				_, _ = l.writer.Write([]byte(text + "\n"))
-			}
+			_, _ = l.writer.Write([]byte(strings.TrimSpace(logLine.Text) + "\n"))
 			continue
 		}
 		// If we've successfully parsed the final log line, it will successfully parse
