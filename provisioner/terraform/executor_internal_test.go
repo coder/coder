@@ -188,13 +188,37 @@ func TestOnlyDataResources(t *testing.T) {
 func TestLogDrift_WithRealTerraformPlan(t *testing.T) {
 	t.Parallel()
 
-	logger := testutil.Logger(t)
-	tmpDir := t.TempDir()
+	cases := []struct {
+		name              string
+		isPrebuildClaim   bool
+		expectedInfoLines int
+		expectedWarnLines int
+	}{
+		{
+			name:              "regular build",
+			isPrebuildClaim:   false,
+			expectedInfoLines: 26,
+			expectedWarnLines: 0,
+		},
+		{
+			name:              "prebuild claim",
+			isPrebuildClaim:   true,
+			expectedInfoLines: 25,
+			expectedWarnLines: 1,
+		},
+	}
 
-	binPath, err := Install(t.Context(), logger, true, tmpDir, TerraformVersion)
-	require.NoError(t, err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	tfConfig := `
+			logger := testutil.Logger(t)
+			tmpDir := t.TempDir()
+
+			binPath, err := Install(t.Context(), logger, true, tmpDir, TerraformVersion)
+			require.NoError(t, err)
+
+			tfConfig := `
 terraform {
   required_providers {
     local = {
@@ -210,48 +234,56 @@ resource "local_file" "test_file" {
 }
 `
 
-	tfFile := filepath.Join(tmpDir, "main.tf")
-	require.NoError(t, os.WriteFile(tfFile, []byte(tfConfig), 0o600))
+			tfFile := filepath.Join(tmpDir, "main.tf")
+			require.NoError(t, os.WriteFile(tfFile, []byte(tfConfig), 0o600))
 
-	// Create a minimal server for the executor.
-	mockSrv := &server{
-		logger:  logger,
-		execMut: &sync.Mutex{},
-		tracer:  noop.NewTracerProvider().Tracer("test"),
-	}
+			req := &proto.PlanRequest{
+				Metadata: &proto.Metadata{
+					WorkspaceTransition:         proto.WorkspaceTransition_START,
+					PrebuiltWorkspaceBuildStage: proto.PrebuiltWorkspaceBuildStage_NONE,
+				},
+			}
+			if tc.isPrebuildClaim {
+				req.Metadata.PrebuiltWorkspaceBuildStage = proto.PrebuiltWorkspaceBuildStage_CLAIM
+			}
 
-	e := &executor{
-		logger:     logger,
-		binaryPath: binPath,
-		workdir:    tmpDir,
-		mut:        mockSrv.execMut,
-		server:     mockSrv,
-		timings:    newTimingAggregator(database.ProvisionerJobTimingStagePlan),
-	}
+			// Create a minimal server for the executor.
+			mockSrv := &server{
+				logger:  logger,
+				execMut: &sync.Mutex{},
+				tracer:  noop.NewTracerProvider().Tracer("test"),
+			}
 
-	// These contexts must be explicitly separate from the test context.
-	// We have a log message which prints when these contexts are canceled (or when the test completes if using t.Context()),
-	// and this log output would be confusing to the casual reader, while innocuous.
-	// See interruptCommandOnCancel in executor.go.
-	ctx := context.Background()
-	killCtx := context.Background()
+			e := &executor{
+				logger:     logger,
+				binaryPath: binPath,
+				workdir:    tmpDir,
+				mut:        mockSrv.execMut,
+				server:     mockSrv,
+				timings:    newTimingAggregator(database.ProvisionerJobTimingStagePlan),
+			}
 
-	var mockSink mockLogger
-	err = e.init(ctx, killCtx, &mockSink)
-	require.NoError(t, err)
+			// These contexts must be explicitly separate from the test context.
+			// We have a log message which prints when these contexts are canceled (or when the test completes if using t.Context()),
+			// and this log output would be confusing to the casual reader, while innocuous.
+			// See interruptCommandOnCancel in executor.go.
+			ctx := context.Background()
+			killCtx := context.Background()
 
-	// Create initial plan to establish state.
-	_, err = e.plan(ctx, killCtx, e.basicEnv(), []string{}, &mockSink, &proto.Metadata{
-		WorkspaceTransition: proto.WorkspaceTransition_START,
-	})
-	require.NoError(t, err)
+			var mockSink mockLogger
+			err = e.init(ctx, killCtx, &mockSink)
+			require.NoError(t, err)
 
-	// Apply the plan to create initial state.
-	_, err = e.apply(ctx, killCtx, e.basicEnv(), &mockSink)
-	require.NoError(t, err)
+			// Create initial plan to establish state.
+			_, err = e.plan(ctx, killCtx, e.basicEnv(), []string{}, &mockSink, req)
+			require.NoError(t, err)
 
-	// Now modify the terraform configuration to cause drift.
-	driftConfig := `
+			// Apply the plan to create initial state.
+			_, err = e.apply(ctx, killCtx, e.basicEnv(), &mockSink)
+			require.NoError(t, err)
+
+			// Now modify the terraform configuration to cause drift.
+			driftConfig := `
 terraform {
   required_providers {
     local = {
@@ -267,97 +299,48 @@ resource "local_file" "test_file" {
 }
 `
 
-	// Write the modified configuration.
-	require.NoError(t, os.WriteFile(tfFile, []byte(driftConfig), 0o600))
+			// Write the modified configuration.
+			require.NoError(t, os.WriteFile(tfFile, []byte(driftConfig), 0o600))
 
-	// Create a new plan that will show the drift/replacement.
-	driftLogger := &mockLogger{}
-	planResult, err := e.plan(ctx, killCtx, e.basicEnv(), []string{}, driftLogger, &proto.Metadata{
-		WorkspaceTransition: proto.WorkspaceTransition_START,
-	})
-	require.NoError(t, err)
+			// Create a new plan that will show the drift/replacement.
+			driftLogger := &mockLogger{}
+			planResult, err := e.plan(ctx, killCtx, e.basicEnv(), []string{}, driftLogger, req)
+			require.NoError(t, err)
 
-	// Verify we detected resource replacements (this triggers logDrift).
-	require.NotEmpty(t, planResult.ResourceReplacements, "Should detect resource replacements that trigger drift logging")
+			// Verify we detected resource replacements (this triggers logDrift).
+			require.NotEmpty(t, planResult.ResourceReplacements, "Should detect resource replacements that trigger drift logging")
 
-	// Verify that drift logs were captured.
-	require.NotEmpty(t, driftLogger.logs, "logDrift should produce log output")
+			// Verify that drift logs were captured.
+			require.NotEmpty(t, driftLogger.logs, "logDrift should produce log output")
 
-	// Check that we have logs showing the resource replacement(s).
-	var (
-		foundReplacementLog, foundInfoLogs, foundWarnLogs bool
-	)
+			// Check that we have logs showing the resource replacement(s).
+			var infoLines, warnLines, otherLines int
+			for _, log := range driftLogger.logs {
+				switch log.GetLevel() {
+				case proto.LogLevel_INFO:
+					infoLines++
+				case proto.LogLevel_WARN:
+					warnLines++
+				default:
+					otherLines++
+				}
+			}
 
-	for _, log := range driftLogger.logs {
-		t.Logf("[%s] %s", log.Level.String(), log.Output)
+			// Verify we found the expected logs by level.
+			require.Equal(t, tc.expectedInfoLines, infoLines)
+			require.Equal(t, tc.expectedWarnLines, warnLines)
+			require.Equal(t, 0, otherLines)
 
-		if strings.Contains(log.Output, "# forces replacement") {
-			foundReplacementLog = true
-			require.Equal(t, proto.LogLevel_WARN, log.Level, "Lines containing '# forces replacement' should be logged at WARN level")
-			foundWarnLogs = true
-		}
+			// Verify that the drift shows the resource change.
+			logOutput := strings.Join(func() []string {
+				var outputs []string
+				for _, log := range driftLogger.logs {
+					outputs = append(outputs, log.Output)
+				}
+				return outputs
+			}(), "\n")
 
-		if log.Level == proto.LogLevel_INFO {
-			foundInfoLogs = true
-		}
+			require.Contains(t, logOutput, "local_file.test_file", "Drift logs should mention the specific resource")
+		})
 	}
-
-	// Verify we found the expected log types.
-	require.True(t, foundReplacementLog, "Should find log lines containing '# forces replacement'")
-	require.True(t, foundInfoLogs, "Should find INFO level logs showing the drift details")
-	require.True(t, foundWarnLogs, "Should find WARN level logs for resource replacements")
-
-	// Verify that the drift shows the resource change.
-	logOutput := strings.Join(func() []string {
-		var outputs []string
-		for _, log := range driftLogger.logs {
-			outputs = append(outputs, log.Output)
-		}
-		return outputs
-	}(), "\n")
-
-	require.Contains(t, logOutput, "local_file.test_file", "Drift logs should mention the specific resource")
-}
-
-func TestResourceReplaceLogWriter(t *testing.T) {
-	t.Parallel()
-
-	var logr mockLogger
-	logger := testutil.Logger(t)
-	writer, doneLogging := resourceReplaceLogWriter(&logr, logger)
-
-	// Test input with both normal lines and replacement lines.
-	testInput := `  # local_file.test_file will be replaced
--/+ resource "local_file" "test_file" {
-      ~ content  = "initial content" -> "changed content" # forces replacement
-      ~ filename = "test.txt"
-        id       = "1234567890"
-    }
-
-Plan: 1 to add, 0 to change, 1 to destroy.`
-
-	_, err := writer.Write([]byte(testInput))
-	require.NoError(t, err)
-	err = writer.Close()
-	require.NoError(t, err)
-	<-doneLogging
-
-	// Verify the logs
-	require.NotEmpty(t, logr.logs, "Should produce log output")
-
-	var foundReplacementWarn, foundInfoLogs bool
-
-	for _, log := range logr.logs {
-		t.Logf("[%s] %s", log.Level.String(), log.Output)
-
-		if strings.Contains(log.Output, "# forces replacement") {
-			require.Equal(t, proto.LogLevel_WARN, log.Level, "Lines containing '# forces replacement' should be WARN level")
-			foundReplacementWarn = true
-		} else if log.Level == proto.LogLevel_INFO {
-			foundInfoLogs = true
-		}
-	}
-
-	require.True(t, foundReplacementWarn, "Should find WARN level log for '# forces replacement' line")
-	require.True(t, foundInfoLogs, "Should find INFO level logs for other lines")
 }
