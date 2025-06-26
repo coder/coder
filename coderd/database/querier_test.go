@@ -2042,9 +2042,9 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: All logs for both organizations are returned and count matches
-		expectedLogs := append(orgAuditLogs[first], orgAuditLogs[second]...)
-		expectedCount := int64(len(expectedLogs))
-		require.Equal(t, expectedCount, count, "count should match sum of both organizations")
+		expectedLogs := append([]uuid.UUID{}, orgAuditLogs[first]...)
+		expectedLogs = append(expectedLogs, orgAuditLogs[second]...)
+		require.Equal(t, int64(len(expectedLogs)), count, "count should match sum of both organizations")
 		require.ElementsMatch(t, expectedLogs, auditOnlyIDs(logs), "logs from both organizations should be returned")
 	})
 
