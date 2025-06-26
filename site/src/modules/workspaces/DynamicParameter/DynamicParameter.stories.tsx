@@ -8,18 +8,16 @@ const meta: Meta<typeof DynamicParameter> = {
 	parameters: {
 		layout: "centered",
 	},
+	args: {
+		parameter: MockPreviewParameter,
+		onChange: () => {},
+	},
 };
 
 export default meta;
 type Story = StoryObj<typeof DynamicParameter>;
 
-export const TextInput: Story = {
-	args: {
-		parameter: {
-			...MockPreviewParameter,
-		},
-	},
-};
+export const TextInput: Story = {};
 
 export const TextArea: Story = {
 	args: {
