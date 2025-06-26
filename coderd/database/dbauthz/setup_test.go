@@ -296,7 +296,7 @@ func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderd
 		resp, err := callMethod(ctx)
 
 		// This is unfortunate, but if we are using `Filter` the error returned will be nil. So filter out
-		// any case where the error is nil and the response is an empty slice.
+		// any case where the error is nil and the response is an empty slice or int64(0).
 		if err != nil || !hasEmptyResponse(resp) {
 			if testCase.cancelledCtxExpect == "" {
 				s.Errorf(err, "method should an error with cancellation")

@@ -598,7 +598,9 @@ func (q *sqlQuerier) CountAuthorizedAuditLogs(ctx context.Context, arg CountAudi
 	defer rows.Close()
 	var count int64
 	for rows.Next() {
-		count++
+		if err := rows.Scan(&count); err != nil {
+			return 0, err
+		}
 	}
 	if err := rows.Close(); err != nil {
 		return 0, err
