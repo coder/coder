@@ -48,6 +48,7 @@ import {
 import { type FC, useEffect, useId, useRef, useState } from "react";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
+import { cn } from "utils/cn";
 
 interface DynamicParameterProps {
 	parameter: PreviewParameter;
@@ -317,7 +318,12 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 					<Textarea
 						ref={textareaRef}
 						id={id}
-						className="overflow-y-auto max-h-[500px]"
+						className={cn(
+							"overflow-y-auto max-h-[500px]",
+							parameter.styling?.mask_input &&
+							!showMaskedInput &&
+							"[-webkit-text-security:disc]",
+						)}
 						value={localValue}
 						onChange={(e) => {
 							const target = e.currentTarget;
@@ -335,8 +341,9 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 							type="button"
 							variant="subtle"
 							size="sm"
-							className="absolute top-2 right-2 h-6 w-6 p-0"
-							onClick={() => setShowMaskedInput(!showMaskedInput)}
+							className="absolute top-1 right-1 h-6 w-6 p-0"
+							onMouseDown={() => setShowMaskedInput(true)}
+							onMouseUp={() => setShowMaskedInput(false)}
 							disabled={disabled}
 						>
 							{showMaskedInput ? (
@@ -391,8 +398,9 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 							type="button"
 							variant="subtle"
 							size="sm"
-							className="absolute top-1/2 right-2 h-6 w-6 p-0 -translate-y-1/2"
-							onClick={() => setShowMaskedInput(!showMaskedInput)}
+							className="absolute top-1/2 right-1 h-6 w-6 p-0"
+							onMouseDown={() => setShowMaskedInput(true)}
+							onMouseUp={() => setShowMaskedInput(false)}
 							disabled={disabled}
 						>
 							{showMaskedInput ? (
@@ -682,8 +690,8 @@ const ParameterDiagnostics: FC<ParameterDiagnosticsProps> = ({
 					<div
 						key={`parameter-diagnostic-${diagnostic.summary}-${index}`}
 						className={`text-xs px-1 ${diagnostic.severity === "error"
-								? "text-content-destructive"
-								: "text-content-warning"
+							? "text-content-destructive"
+							: "text-content-warning"
 							}`}
 					>
 						<p className="font-medium">{diagnostic.summary}</p>
