@@ -1479,9 +1479,10 @@ func newProvisionerDaemon(
 
 				err := terraform.Serve(ctx, &terraform.ServeOptions{
 					ServeOptions: &provisionersdk.ServeOptions{
-						Listener:      terraformServer,
-						Logger:        provisionerLogger,
-						WorkDirectory: workDir,
+						Listener:               terraformServer,
+						Logger:                 provisionerLogger,
+						WorkDirectory:          workDir,
+						LogTerraformPlanOutput: coderAPI.DeploymentValues.EnableTerraformPlanLogging.Value(),
 					},
 					CachePath: tfDir,
 					Tracer:    tracer,

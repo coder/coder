@@ -381,6 +381,14 @@ message ParseComplete {
   map<string, string> workspace_tags = 4;
 }
 
+// TODO: we may not need this since it might be useful to log the output always, not just for workspace builds.
+enum PlanType {
+  UNKNOWN = 0;
+  WORKSPACE_BUILD = 1;
+  TEMPLATE_IMPORT = 2;
+  TEMPLATE_DRY_RUN = 3;
+}
+
 // PlanRequest asks the provisioner to plan what resources & parameters it will create
 message PlanRequest {
   Metadata metadata = 1;
@@ -395,6 +403,9 @@ message PlanRequest {
   // backwards compatibility reasons, the zero value should be the previous
   // behavior of downloading the module files.
   bool omit_module_files = 6;
+
+  // Type of plan operation being requested
+  PlanType plan_type = 7;
 }
 
 // PlanComplete indicates a request to plan completed.

@@ -39,7 +39,8 @@ type executor struct {
 	cliConfigPath string
 	workdir       string
 	// used to capture execution times at various stages
-	timings *timingAggregator
+	timings          *timingAggregator
+	logTerraformPlan bool
 }
 
 func (e *executor) basicEnv() []string {
@@ -326,8 +327,14 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		}
 	}
 
-	// Lock held before calling (see top of method).
-	e.logDrift(ctx, killCtx, planfilePath, newDriftLogSink(logr, req))
+	// ONLY log drift when the request is a plan related to a workspace build.
+	if req.GetPlanType() == proto.PlanType_WORKSPACE_BUILD {
+		// ALWAYS show drift for prebuilt workspace claims, otherwise ONLY show if it explicitly configured to.
+		if req.GetMetadata().GetPrebuiltWorkspaceBuildStage().IsPrebuiltWorkspaceClaim() || e.logTerraformPlan {
+			// Lock held before calling (see top of method).
+			e.logDrift(ctx, killCtx, planfilePath, newDriftLogSink(logr, req))
+		}
+	}
 
 	// When a prebuild claim attempt is made, log a warning if a resource is due to be replaced, since this will obviate
 	// the point of prebuilding if the expensive resource is replaced once claimed!
@@ -477,6 +484,7 @@ func passthruLogWriter(sink logSink, logger slog.Logger) (io.WriteCloser, <-chan
 
 		scanner := bufio.NewScanner(r)
 		for scanner.Scan() {
+			// TODO: this could be DEBUG level, alternatively.
 			sink.ProvisionLog(proto.LogLevel_INFO, string(scanner.Bytes()))
 		}
 		if err := scanner.Err(); err != nil {

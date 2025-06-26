@@ -15,6 +15,7 @@ import (
 	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -30,6 +31,9 @@ type ServeOptions struct {
 	Logger              slog.Logger
 	WorkDirectory       string
 	ExternalProvisioner bool
+
+	// Whether to show the output from `terraform show <plan>` on each workspace build.
+	LogTerraformPlanOutput bool
 }
 
 type Server interface {

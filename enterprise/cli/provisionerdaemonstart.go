@@ -19,6 +19,8 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/serpent"
+
 	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -31,7 +33,6 @@ import (
 	provisionerdproto "github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
@@ -51,6 +52,8 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 
 		prometheusEnable  bool
 		prometheusAddress string
+
+		logTerraformPlan bool
 	)
 	orgContext := agpl.NewOrganizationContext()
 	client := new(codersdk.Client)
@@ -186,9 +189,10 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 
 				err := terraform.Serve(ctx, &terraform.ServeOptions{
 					ServeOptions: &provisionersdk.ServeOptions{
-						Listener:      terraformServer,
-						Logger:        logger.Named("terraform"),
-						WorkDirectory: tempDir,
+						Listener:               terraformServer,
+						Logger:                 logger.Named("terraform"),
+						WorkDirectory:          tempDir,
+						LogTerraformPlanOutput: logTerraformPlan,
 					},
 					CachePath: cacheDir,
 				})
@@ -380,6 +384,13 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			Description: "The bind address to serve prometheus metrics.",
 			Value:       serpent.StringOf(&prometheusAddress),
 			Default:     "127.0.0.1:2112",
+		},
+		{
+			Flag:        "enable-terraform-plan-logging",
+			Env:         "CODER_ENABLE_TERRAFORM_PLAN_LOGGING",
+			Description: "See the output of `terraform show <plan>` on every workspace build.",
+			Default:     "true",
+			Value:       serpent.BoolOf(&logTerraformPlan),
 		},
 	}
 	orgContext.AttachOptions(cmd)

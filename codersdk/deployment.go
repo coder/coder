@@ -388,6 +388,7 @@ type DeploymentValues struct {
 	DisableOwnerWorkspaceExec       serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval       serpent.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
 	EnableTerraformDebugMode        serpent.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
+	EnableTerraformPlanLogging      serpent.Bool                         `json:"enable_terraform_plan_logging,omitempty" typescript:",notnull"`
 	UserQuietHoursSchedule          UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
 	WebTerminalRenderer             serpent.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
 	AllowWorkspaceRenames           serpent.Bool                         `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
@@ -2265,6 +2266,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.EnableTerraformDebugMode,
 			Group:       &deploymentGroupIntrospectionLogging,
 			YAML:        "enableTerraformDebugMode",
+		},
+		{
+			Name:        "Enable Terraform plan logging",
+			Description: "See the output of `terraform show <plan>` on every workspace build.",
+			Flag:        "enable-terraform-plan-logging",
+			Env:         "CODER_ENABLE_TERRAFORM_PLAN_LOGGING",
+			Default:     "true",
+			Value:       &c.EnableTerraformPlanLogging,
+			Group:       &deploymentGroupIntrospectionLogging,
+			YAML:        "enableTerraformPlanLogging",
 		},
 		{
 			Name: "Additional CSP Policy",

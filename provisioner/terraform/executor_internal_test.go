@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	tfjson "github.com/hashicorp/terraform-json"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace/noop"
 
@@ -191,14 +192,23 @@ func TestLogDrift_WithRealTerraformPlan(t *testing.T) {
 	cases := []struct {
 		name              string
 		isPrebuildClaim   bool
+		logTerraformPlan  bool
 		expectedInfoLines int
 		expectedWarnLines int
 	}{
 		{
-			name:              "regular build",
+			name:              "regular build, no plan output",
+			isPrebuildClaim:   false,
+			expectedInfoLines: 5,
+			expectedWarnLines: 0,
+			logTerraformPlan:  false,
+		},
+		{
+			name:              "regular build, with plan output",
 			isPrebuildClaim:   false,
 			expectedInfoLines: 26,
 			expectedWarnLines: 0,
+			logTerraformPlan:  true,
 		},
 		{
 			name:              "prebuild claim",
@@ -255,12 +265,13 @@ resource "local_file" "test_file" {
 			}
 
 			e := &executor{
-				logger:     logger,
-				binaryPath: binPath,
-				workdir:    tmpDir,
-				mut:        mockSrv.execMut,
-				server:     mockSrv,
-				timings:    newTimingAggregator(database.ProvisionerJobTimingStagePlan),
+				logger:           logger,
+				binaryPath:       binPath,
+				workdir:          tmpDir,
+				mut:              mockSrv.execMut,
+				server:           mockSrv,
+				timings:          newTimingAggregator(database.ProvisionerJobTimingStagePlan),
+				logTerraformPlan: tc.logTerraformPlan,
 			}
 
 			// These contexts must be explicitly separate from the test context.
@@ -316,6 +327,8 @@ resource "local_file" "test_file" {
 			// Check that we have logs showing the resource replacement(s).
 			var infoLines, warnLines, otherLines int
 			for _, log := range driftLogger.logs {
+				t.Logf("[%s] %s", log.GetLevel(), log.GetOutput())
+
 				switch log.GetLevel() {
 				case proto.LogLevel_INFO:
 					infoLines++
@@ -327,9 +340,9 @@ resource "local_file" "test_file" {
 			}
 
 			// Verify we found the expected logs by level.
-			require.Equal(t, tc.expectedInfoLines, infoLines)
-			require.Equal(t, tc.expectedWarnLines, warnLines)
-			require.Equal(t, 0, otherLines)
+			assert.Equal(t, tc.expectedInfoLines, infoLines)
+			assert.Equal(t, tc.expectedWarnLines, warnLines)
+			assert.Equal(t, 0, otherLines)
 
 			// Verify that the drift shows the resource change.
 			logOutput := strings.Join(func() []string {

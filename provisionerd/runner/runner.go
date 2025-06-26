@@ -556,7 +556,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		CoderUrl:             r.job.GetTemplateImport().Metadata.CoderUrl,
 		WorkspaceOwnerGroups: r.job.GetTemplateImport().Metadata.WorkspaceOwnerGroups,
 		WorkspaceTransition:  sdkproto.WorkspaceTransition_START,
-	}, false)
+	}, false, sdkproto.PlanType_TEMPLATE_IMPORT)
 	if err != nil {
 		return nil, r.failedJobf("template import provision for start: %s", err)
 	}
@@ -573,6 +573,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		WorkspaceOwnerGroups: r.job.GetTemplateImport().Metadata.WorkspaceOwnerGroups,
 		WorkspaceTransition:  sdkproto.WorkspaceTransition_STOP,
 	}, true, // Modules downloaded on the start provision
+		sdkproto.PlanType_TEMPLATE_IMPORT,
 	)
 	if err != nil {
 		return nil, r.failedJobf("template import provision for stop: %s", err)
@@ -671,8 +672,8 @@ type templateImportProvision struct {
 // Performs a dry-run provision when importing a template.
 // This is used to detect resources that would be provisioned for a workspace in various states.
 // It doesn't define values for rich parameters as they're unknown during template import.
-func (r *Runner) runTemplateImportProvision(ctx context.Context, variableValues []*sdkproto.VariableValue, metadata *sdkproto.Metadata, omitModules bool) (*templateImportProvision, error) {
-	return r.runTemplateImportProvisionWithRichParameters(ctx, variableValues, nil, metadata, omitModules)
+func (r *Runner) runTemplateImportProvision(ctx context.Context, variableValues []*sdkproto.VariableValue, metadata *sdkproto.Metadata, omitModules bool, planType sdkproto.PlanType) (*templateImportProvision, error) {
+	return r.runTemplateImportProvisionWithRichParameters(ctx, variableValues, nil, metadata, omitModules, planType)
 }
 
 // Performs a dry-run provision with provided rich parameters.
@@ -683,6 +684,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 	richParameterValues []*sdkproto.RichParameterValue,
 	metadata *sdkproto.Metadata,
 	omitModules bool,
+	planType sdkproto.PlanType,
 ) (*templateImportProvision, error) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
@@ -703,6 +705,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 		PreviousParameterValues: make([]*sdkproto.RichParameterValue, 0),
 		VariableValues:          variableValues,
 		OmitModuleFiles:         omitModules,
+		PlanType:                planType,
 	}}})
 	if err != nil {
 		return nil, xerrors.Errorf("start provision: %w", err)
@@ -860,6 +863,7 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 		r.job.GetTemplateDryRun().GetRichParameterValues(),
 		metadata,
 		false,
+		sdkproto.PlanType_TEMPLATE_DRY_RUN,
 	)
 	if err != nil {
 		return nil, r.failedJobf("run dry-run provision job: %s", err)
@@ -1024,6 +1028,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 				PreviousParameterValues: r.job.GetWorkspaceBuild().PreviousParameterValues,
 				VariableValues:          r.job.GetWorkspaceBuild().VariableValues,
 				ExternalAuthProviders:   r.job.GetWorkspaceBuild().ExternalAuthProviders,
+				PlanType:                sdkproto.PlanType_WORKSPACE_BUILD,
 			},
 		},
 	})

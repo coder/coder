@@ -134,24 +134,26 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 		options.ExitTimeout = jobreaper.HungJobExitTimeout
 	}
 	return provisionersdk.Serve(ctx, &server{
-		execMut:       &sync.Mutex{},
-		binaryPath:    options.BinaryPath,
-		cachePath:     options.CachePath,
-		cliConfigPath: options.CliConfigPath,
-		logger:        options.Logger,
-		tracer:        options.Tracer,
-		exitTimeout:   options.ExitTimeout,
+		execMut:          &sync.Mutex{},
+		binaryPath:       options.BinaryPath,
+		cachePath:        options.CachePath,
+		cliConfigPath:    options.CliConfigPath,
+		logger:           options.Logger,
+		tracer:           options.Tracer,
+		exitTimeout:      options.ExitTimeout,
+		logTerraformPlan: options.LogTerraformPlanOutput,
 	}, options.ServeOptions)
 }
 
 type server struct {
-	execMut       *sync.Mutex
-	binaryPath    string
-	cachePath     string
-	cliConfigPath string
-	logger        slog.Logger
-	tracer        trace.Tracer
-	exitTimeout   time.Duration
+	execMut          *sync.Mutex
+	binaryPath       string
+	cachePath        string
+	cliConfigPath    string
+	logger           slog.Logger
+	tracer           trace.Tracer
+	exitTimeout      time.Duration
+	logTerraformPlan bool
 }
 
 func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
@@ -162,13 +164,14 @@ func (s *server) startTrace(ctx context.Context, name string, opts ...trace.Span
 
 func (s *server) executor(workdir string, stage database.ProvisionerJobTimingStage) *executor {
 	return &executor{
-		server:        s,
-		mut:           s.execMut,
-		binaryPath:    s.binaryPath,
-		cachePath:     s.cachePath,
-		cliConfigPath: s.cliConfigPath,
-		workdir:       workdir,
-		logger:        s.logger.Named("executor"),
-		timings:       newTimingAggregator(stage),
+		server:           s,
+		mut:              s.execMut,
+		binaryPath:       s.binaryPath,
+		cachePath:        s.cachePath,
+		cliConfigPath:    s.cliConfigPath,
+		workdir:          workdir,
+		logger:           s.logger.Named("executor"),
+		timings:          newTimingAggregator(stage),
+		logTerraformPlan: s.logTerraformPlan,
 	}
 }

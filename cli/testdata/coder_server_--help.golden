@@ -181,6 +181,9 @@ INTROSPECTION / LOGGING OPTIONS:
       --enable-terraform-debug-mode bool, $CODER_ENABLE_TERRAFORM_DEBUG_MODE (default: false)
           Allow administrators to enable Terraform debug output.
 
+      --enable-terraform-plan-logging bool, $CODER_ENABLE_TERRAFORM_PLAN_LOGGING (default: true)
+          See the output of `terraform show <plan>` on every workspace build.
+
       --log-human string, $CODER_LOGGING_HUMAN (default: /dev/stderr)
           Output human-readable logs to a given file.
 
