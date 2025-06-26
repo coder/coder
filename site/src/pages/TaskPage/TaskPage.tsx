@@ -170,7 +170,7 @@ const TaskPage = () => {
 				</div>
 			</Margins>
 		);
-	} else if (!task.workspace.latest_app_status) {
+	} else if (task.workspace.latest_build.status !== "running") {
 		content = (
 			<div className="w-full min-h-80 flex items-center justify-center">
 				<div className="flex flex-col items-center">
