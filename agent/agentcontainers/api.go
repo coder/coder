@@ -871,17 +871,14 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 
 	api.mu.Lock()
 
-	var workspaceFolder string
-	for _, dc := range api.knownDevcontainers {
-		if dc.ID.String() == devcontainerID {
-			workspaceFolder = dc.WorkspaceFolder
+	var dc codersdk.WorkspaceAgentDevcontainer
+	for _, knownDC := range api.knownDevcontainers {
+		if knownDC.ID.String() == devcontainerID {
+			dc = knownDC
 			break
 		}
 	}
-
-	dc, ok := api.knownDevcontainers[workspaceFolder]
-	switch {
-	case !ok:
+	if dc.ID == uuid.Nil {
 		api.mu.Unlock()
 
 		httpapi.Write(ctx, w, http.StatusNotFound, codersdk.Response{
@@ -889,7 +886,8 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 			Detail:  fmt.Sprintf("Could not find devcontainer with ID: %q", devcontainerID),
 		})
 		return
-	case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting:
+	}
+	if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting {
 		api.mu.Unlock()
 
 		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
