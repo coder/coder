@@ -34,8 +34,8 @@ flowchart LR
     end
     
     %% Module flow
-    ModuleCode -->|"Referenced by"| Template
-    StarterTemplates -->|"Used as base for"| Template
+    ModuleCode -->|"&nbsp;Referenced by&nbsp;"| Template
+    StarterTemplates -->|"&nbsp;Used as base for&nbsp;"| Template
     
     %% Template to resources
     Template --> Script
@@ -70,6 +70,9 @@ flowchart LR
     style Tools fill:#ffe0b2,stroke:#ffa726,stroke-width:1px,color:#000000
     style Apps fill:#ffe0b2,stroke:#ffa726,stroke-width:1px,color:#000000
     style Environment fill:#ffe0b2,stroke:#ffa726,stroke-width:1px,color:#000000
+    
+    %% Link styling to make arrows visible
+    linkStyle default stroke:#333333,stroke-width:2px
 ```
 
 **How Modules Work in the Coder Ecosystem:**
