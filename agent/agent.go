@@ -565,7 +565,6 @@ func (a *agent) reportMetadata(ctx context.Context, aAPI proto.DRPCAgentClient26
 			// channel to synchronize the results and avoid both messy
 			// mutex logic and overloading the API.
 			for _, md := range manifest.Metadata {
-				md := md
 				// We send the result to the channel in the goroutine to avoid
 				// sending the same result multiple times. So, we don't care about
 				// the return values.

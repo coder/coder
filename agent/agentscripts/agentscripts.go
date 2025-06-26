@@ -149,7 +149,6 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript, scriptCompleted S
 		if script.Cron == "" {
 			continue
 		}
-		script := script
 		_, err := r.cron.AddFunc(script.Cron, func() {
 			err := r.trackRun(r.cronCtx, script, ExecuteCronScripts)
 			if err != nil {
@@ -224,7 +223,6 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 			continue
 		}
 
-		script := script
 		eg.Go(func() error {
 			err := r.trackRun(ctx, script, option)
 			if err != nil {
