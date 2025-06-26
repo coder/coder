@@ -1,16 +1,8 @@
 # Dev Containers Integration
 
-> [!NOTE]
->
-> The Coder dev containers integration is an [early access](../../install/releases/feature-stages.md) feature.
->
-> While functional for testing and feedback, it may change significantly before general availability.
-
-The dev containers integration is an early access feature that enables seamless
-creation and management of dev containers in Coder workspaces. This feature
-leverages the [`@devcontainers/cli`](https://github.com/devcontainers/cli) and
-[Docker](https://www.docker.com) to provide a streamlined development
-experience.
+The dev containers integration enables seamless creation and management of dev containers in Coder workspaces.
+This feature leverages the [`@devcontainers/cli`](https://github.com/devcontainers/cli) and [Docker](https://www.docker.com)
+to provide a streamlined development experience.
 
 This implementation is different from the existing
 [Envbuilder-based dev containers](../../admin/templates/managing-templates/devcontainers/index.md)
@@ -60,18 +52,6 @@ When a workspace with the dev containers integration starts:
 - On-demand dev container recreation
 - Support for automatic port forwarding inside the container
 - Full native SSH support to dev containers
-
-## Limitations during Early Access
-
-During the early access phase, the dev containers integration has the following
-limitations:
-
-- Changes to the `devcontainer.json` file require manual container recreation
-- Automatic port forwarding only works for ports specified in `appPort`
-- SSH access requires using the `--container` flag
-- Some devcontainer features may not work as expected
-
-These limitations will be addressed in future updates as the feature matures.
 
 ## Comparison with Envbuilder-based Dev Containers
 
