@@ -5,13 +5,13 @@
 #
 # The script supports:
 # 1) Running benchmarks and saving output to a file.
-# 2) Checking out two branches, running benchmarks on each, and saving the benchstat
-# 	 comparison results to a file.
+# 2) Checking out two branches, running benchmarks on each, and saving the `benchstat`
+# comparison results to a file.
 # Benchmark results are saved with filenames based on the branch name.
 #
 # Usage:
-#   benchmark_authz.sh --single						              # Run benchmarks on current branch
-#   benchmark_authz.sh --compare <branchA> <branchB>    # Compare benchmarks between two branches
+#   benchmark_authz.sh --single												# Run benchmarks on current branch
+#   benchmark_authz.sh --compare <branchA> <branchB>	# Compare benchmarks between two branches
 
 set -euo pipefail
 
@@ -72,7 +72,7 @@ elif [[ "${1:-}" == "--compare" ]]; then
 	done
 else
 	echo "Usage:"
-	echo "  $0 --single               			# run benchmarks on current branch"
-	echo "  $0 --compare branchA branchB    # compare benchmarks between two branches"
+	echo "  $0 --single										# run benchmarks on current branch"
+	echo "  $0 --compare branchA branchB	# compare benchmarks between two branches"
 	exit 1
 fi

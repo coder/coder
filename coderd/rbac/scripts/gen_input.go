@@ -89,5 +89,5 @@ func main() {
 		log.Fatalf("Failed to generate input file: %v", err)
 	}
 
-	log.Printf("Input JSON written to %s\n", outputPath)
+	log.Println("Input JSON written to", outputPath)
 }

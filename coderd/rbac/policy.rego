@@ -40,8 +40,8 @@ bool_flip(b) := true if {
 }
 
 # number(set) maps a set of boolean values to one of the following numbers:
-#  -1: deny (if 'false' value is in the set) 		=> set is {true, false} or {false}
-#   0: no decision (if the set is empty) 			=> set is {}
+#  -1: deny (if 'false' value is in the set)		=> set is {true, false} or {false}
+#   0: no decision (if the set is empty)			=> set is {}
 #   1: allow (if only 'true' values are in the set)	=> set is {true}
 
 # Return -1 if the set contains any 'false' value (i.e., an explicit deny)
@@ -346,10 +346,9 @@ acl_allow if {
 # Scope is also applied. The default scope is "wildcard:wildcard" allowing
 # all actions. If the scope is not "1", then the action is not authorized.
 #
-#
 # Allow query:
-#	 data.authz.role_allow = true
-#    data.authz.scope_allow = true
+#	data.authz.role_allow = true
+#	data.authz.scope_allow = true
 # -------------------
 
 # The role or the ACL must allow the action. Scopes can be used to limit,

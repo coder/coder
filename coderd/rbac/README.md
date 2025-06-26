@@ -105,12 +105,13 @@ Example of a scope for a workspace agent token, using an `allow_list` containing
 ## OPA (Open Policy Agent)
 
 Open Policy Agent (OPA) is an open source tool used to define and enforce policies.
-Policies are written in a high-level, declarative language called Rego. Coder’s RBAC rules are defined in the [`policy.rego`](policy.rego) file.
+Policies are written in a high-level, declarative language called Rego.
+Coder’s RBAC rules are defined in the [`policy.rego`](policy.rego) file under the `authz` package.
 
 When OPA evaluates policies, it binds input data to a global variable called `input`.
-In the `rbac` package, this structured data is defined as JSON and contains the subject, action, and object (see `regoInputValue` in [astvalue.go](astvalue.go)).
-OPA evaluates whether the subject is allowed to perform the action on the object across three levels: site, org, and user.
-This is determined by the final rule `allow`, defined in [`policy.rego`](policy.rego), which aggregates the results of multiple rules to decide if the user has the necessary permissions.
+In the `rbac` package, this structured data is defined as JSON and contains the action, object and subject (see `regoInputValue` in [astvalue.go](astvalue.go)).
+OPA evaluates whether the subject is allowed to perform the action on the object across three levels: `site`, `org`, and `user`.
+This is determined by the final rule `allow`, which aggregates the results of multiple rules to decide if the user has the necessary permissions.
 Similarly to the input, OPA produces structured output data, which includes the `allow` variable as part of the evaluation result.
 Authorization succeeds only if `allow` explicitly evaluates to `true`. If no `allow` is returned, it is considered unauthorized.
 To learn more about OPA and Rego, see https://www.openpolicyagent.org/docs.
@@ -130,11 +131,11 @@ To learn more about partial evaluation, see this [OPA blog post](https://blog.op
 
 Application of Full and Partial evaluation in `rbac` package:
 
-- **Full Evaluation** is handled by the `RegoAuthorizer.Authorize()` method in `authz.go`.
+- **Full Evaluation** is handled by the `RegoAuthorizer.Authorize()` method in [`authz.go`](authz.go).
 This method determines whether a subject (user) can perform a specific action on an object.
-It performs a full evaluation of the Rego policy, which returns the `allow` variable to decide whether access is granted or denied (`true` or `false`, respectively).
-- **Partial Evaluation** is handled by the `RegoAuthorizer.Prepare()` method in `authz.go`.
-This method compiles Rego’s partial evaluation queries into `SQL WHERE` clauses.
+It performs a full evaluation of the Rego policy, which returns the `allow` variable to decide whether access is granted (`true`) or denied (`false` or undefined).
+- **Partial Evaluation** is handled by the `RegoAuthorizer.Prepare()` method in [`authz.go`](authz.go).
+This method compiles OPA’s partial evaluation queries into `SQL WHERE` clauses.
 These clauses are then used to enforce authorization directly in database queries, rather than in application code.
 
 Authorization Patterns:
@@ -147,7 +148,7 @@ Authorization Patterns:
 
 - OPA Playground: https://play.openpolicyagent.org/
 - OPA CLI (`opa eval`): useful for experimenting with different inputs and understanding how the policy behaves under various conditions.
-`opa eval` returns the constraints that must be satisfied for a rule to evaluate to true.
+`opa eval` returns the constraints that must be satisfied for a rule to evaluate to `true`.
 
 ### Full Evaluation
 
@@ -187,7 +188,7 @@ To capture memory and CPU profiles, use the following flags:
 - `-memprofile memprofile.out`
 - `-cpuprofile cpuprofile.out`
 
-The script [`benchmark_authz.sh`](./scripts/benchmark_authz.sh) runs the authz benchmark tests on the current Git branch or compares benchmark results between two branches using [`benchstat`](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat).
+The script [`benchmark_authz.sh`](./scripts/benchmark_authz.sh) runs the `authz` benchmark tests on the current Git branch or compares benchmark results between two branches using [`benchstat`](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat).
 `benchstat` compares the performance of a baseline benchmark against a new benchmark result and highlights any statistically significant differences.
 
 - To run benchmark on the current branch:
