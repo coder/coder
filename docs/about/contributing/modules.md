@@ -94,6 +94,71 @@ flowchart LR
 
 **Example Flow**: A template references the `code-server` module → Module adds a `coder_script` to install VS Code and a `coder_app` for browser access → Agent executes the script and serves the app → Developer gets VS Code in their workspace
 
+## Module Types and Examples
+
+The Coder Registry organizes modules into different categories based on their functionality. Here are the main types with examples of actual available modules:
+
+### [IDE Modules](https://registry.coder.com/modules?search=tag%3Aide)
+Integrate development environments and code editors into workspaces.
+
+- **code-server**: VS Code in the browser
+- **Cursor IDE**: Add a one-click button to launch Cursor IDE
+- **JetBrains Gateway**: Add a one-click button to launch JetBrains Gateway IDEs in the dashboard
+- **Jupyter Notebook**: A module that adds Jupyter Notebook in your Coder template
+- **JupyterLab**: A module that adds JupyterLab in your Coder template
+- **VS Code Desktop**: Add a one-click button to launch VS Code Desktop
+- **VS Code Web**: VS Code Web - Visual Studio Code in the browser
+- **Windsurf Editor**: Add a one-click button to launch Windsurf Editor
+
+### [Helper Modules](https://registry.coder.com/modules?search=tag%3Ahelper)
+Simplify template creation and workspace configuration.
+
+- **AWS Region**: A parameter with human region names and icons
+- **Azure Region**: A parameter with human region names and icons
+- **Coder Login**: Automatically logs the user into Coder on their workspace
+- **Dotfiles**: Allow developers to optionally bring their own dotfiles repository to customize their shell and IDE settings
+- **Fly.io Region**: A parameter with human region names and icons
+- **GCP Region**: Add Google Cloud Platform regions to your Coder template
+- **Git Clone**: Clone a Git repository by URL and skip if it exists
+- **Git commit signing**: Configures Git to sign commits using your Coder SSH key
+- **Git Config**: Stores Git configuration from Coder credentials
+- **Github Upload Public Key**: Automates uploading Coder public key to Github so users don't have to
+- **Personalize**: Allow developers to customize their workspace on start
+- **Slack Me**: Send a Slack message when a command finishes inside a workspace
+
+### [Desktop Modules](https://registry.coder.com/modules?search=tag%3Adesktop)
+Provide graphical desktop environments for visual development workflows.
+
+- **Amazon DCV Windows**: Amazon DCV Server and Web Client for Windows
+- **KasmVNC**: A modern open source VNC server
+- **Windows RDP**: RDP Server and Web Client, powered by Devolutions Gateway
+- **Windows RDP Desktop**: Enable RDP on Windows and add a one-click Coder Desktop button for seamless access
+
+### [AI Modules](https://registry.coder.com/modules?search=tag%3Aai)
+Integrate AI-powered development tools and assistants.
+
+- **Aider**: Run Aider AI pair programming in your workspace
+- **Amazon Q**: Run Amazon Q in your workspace to access Amazon's AI coding assistant
+- **Claude Code**: Run Claude Code in your workspace
+- **Goose**: Run Goose in your workspace
+
+### [Integration Modules](https://registry.coder.com/modules?search=tag%3Aintegration)
+Connect with external services and platforms.
+
+- **Hashicorp Vault Integration (GitHub)**: Authenticates with Vault using GitHub
+- **Hashicorp Vault Integration (JWT)**: Authenticates with Vault using a JWT from Coder's OIDC provider
+- **Hashicorp Vault Integration (Token)**: Authenticates with Vault using Token
+- **HCP Vault Secrets**: Fetch secrets from HCP Vault
+- **JFrog (OAuth)**: Install the JF CLI and authenticate with Artifactory using OAuth
+- **JFrog (Token)**: Install the JF CLI and authenticate with Artifactory using Artifactory terraform provider
+
+### [Web-based Tools](https://registry.coder.com/modules?search=tag%3Aweb)
+Browser-accessible applications and interfaces.
+
+- **File Browser**: A file browser for your workspace
+
+Browse all available modules and explore specific categories at [registry.coder.com](https://registry.coder.com).
+
 ## Module Integration
 
 ```tf
@@ -399,32 +464,6 @@ Every module requires a `README.md` with YAML frontmatter containing metadata li
 - **Requirements** - Any prerequisites or dependencies
 
 The documentation format is validated automatically and must pass validation before modules can be accepted. See the [Registry Contributing Guide](https://github.com/coder/registry/blob/main/CONTRIBUTING.md) for detailed formatting requirements and examples.
-
-## Common Use Case Patterns
-
-### External IDE Integration
-
-**Browser-based IDE Pattern**: Install web-based development environment with health monitoring and configuration management.
-
-**Desktop IDE Pattern**: Provide protocol-based integration for native applications with backend service management.
-
-**Editor Extension Pattern**: Configure existing editors with workspace-specific settings and extensions.
-
-### Authentication and Secrets
-
-**OAuth Integration Pattern**: Handle external authentication flows with token management and service configuration.
-
-**API Key Management Pattern**: Securely distribute credentials and configure authenticated tools.
-
-**Certificate Management Pattern**: Handle SSL certificates and secure communication setup.
-
-### Development Environment Setup
-
-**Language Runtime Pattern**: Install and configure programming language environments with package managers.
-
-**Database Service Pattern**: Deploy and configure database services with connection management.
-
-**Configuration Management Pattern**: Apply dotfiles, settings, and workspace personalization.
 
 ## Contributing to the Registry
 
