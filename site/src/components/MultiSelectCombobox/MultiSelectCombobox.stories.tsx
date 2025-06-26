@@ -40,6 +40,23 @@ export const OpenCombobox: Story = {
 	},
 };
 
+export const NoIcons: Story = {
+	args: {
+		options: organizations.map((org) => ({
+			label: org.display_name,
+			value: org.id,
+		})),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByPlaceholderText("Select organization"));
+
+		await waitFor(() =>
+			expect(canvas.getByText("My Organization")).toBeInTheDocument(),
+		);
+	},
+};
+
 export const SelectComboboxItem: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -100,7 +117,7 @@ export const ClearAllComboboxItems: Story = {
 	},
 };
 
-export const WithGroupedIcons: Story = {
+export const WithGroups: Story = {
 	args: {
 		placeholder: "Make a playlist",
 		groupBy: "album",
