@@ -6253,7 +6253,7 @@ WITH
                 latest_build.template_version_id,
                 latest_build.template_version_preset_id,
                 latest_build.job_id,
-                latest_build.created_at
+                workspaces.created_at
             FROM
                 workspaces
                 LEFT JOIN LATERAL (
@@ -6275,6 +6275,7 @@ WITH
                             workspace_builds.workspace_id
                             = workspaces.id
                         ORDER BY
+                          workspace_builds.workspace_id,
                             workspace_builds.build_number
                                 DESC
                         LIMIT
@@ -6290,19 +6291,19 @@ WITH
                 AND latest_build.job_status
                     = 'succeeded'::provisioner_job_status
         ),
-    agent_readiness
+    ready_agents
         AS (
             SELECT
-                latest_prebuilds.workspace_id AS workspace_id,
-                COALESCE(BOOL_AND(workspace_agents.lifecycle_state = 'ready'::workspace_agent_lifecycle_state), false)::boolean AS ready
+                workspace_resources.job_id,
+                BOOL_AND(workspace_agents.lifecycle_state = 'ready'::workspace_agent_lifecycle_state)::boolean AS ready
             FROM
-                latest_prebuilds
-                LEFT JOIN workspace_resources ON
-                        workspace_resources.job_id = latest_prebuilds.job_id
-                LEFT JOIN workspace_agents ON
+                workspace_resources
+                JOIN workspace_agents ON
                         workspace_agents.resource_id = workspace_resources.id
+                WHERE
+                  workspace_agents.deleted = false
             GROUP BY
-            	latest_prebuilds.workspace_id
+              workspace_resources.job_id
         )
 SELECT
     latest_prebuilds.workspace_id AS id,
@@ -6310,12 +6311,14 @@ SELECT
     latest_prebuilds.template_id,
     latest_prebuilds.template_version_id,
     latest_prebuilds.template_version_preset_id AS current_preset_id,
-    agent_readiness.ready,
+    COALESCE(ready_agents.ready, false)::boolean AS ready,
     latest_prebuilds.created_at
 FROM
     latest_prebuilds
-    JOIN agent_readiness ON
-            agent_readiness.workspace_id = latest_prebuilds.workspace_id
+    LEFT JOIN ready_agents ON
+            ready_agents.job_id = latest_prebuilds.job_id
+ORDER BY
+  latest_prebuilds.workspace_id ASC
 `
 
 type GetRunningPrebuiltWorkspacesRow struct {
