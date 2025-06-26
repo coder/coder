@@ -399,18 +399,25 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 				// new user message, and the status is "working" and not self-reported
 				// (meaning it came from the screen watcher), then it means one of two
 				// things:
-				// 1. The AI agent is still working, so there is nothing to update.
-				// 2. The AI agent stopped working, then the user has interacted with
-				//    the terminal directly.  For now, we are ignoring these updates.
-				//    This risks missing cases where the user manually submits a new
-				//    prompt and the AI agent becomes active and does not update itself,
-				//    but it avoids spamming useless status updates as the user is
-				//    typing, so the tradeoff is worth it.  In the future, if we can
-				//    reliably distinguish between user and AI agent activity, we can
-				//    change this.
+				//
+				// 1. The AI agent is not working; the user is interacting with the
+				//    terminal directly.
+				// 2. The AI agent is working.
+				//
+				// At the moment, we have no way to tell the difference between these
+				// two states. In the future, if we can reliably distinguish between
+				// user and AI agent activity, we can change this.
+				//
+				// If this is our first update, we assume it is the AI agent working and
+				// accept the update.
+				//
+				// Otherwise we discard the update.  This risks missing cases where the
+				// user manually submits a new prompt and the AI agent becomes active
+				// (and does not update itself), but it avoids spamming useless status
+				// updates as the user is typing, so the tradeoff is worth it.
 				if report.messageID > lastUserMessageID {
 					report.state = codersdk.WorkspaceAppStatusStateWorking
-				} else if report.state == codersdk.WorkspaceAppStatusStateWorking && !report.selfReported {
+				} else if report.state == codersdk.WorkspaceAppStatusStateWorking && !report.selfReported && lastReport.state != "" {
 					return report, false
 				}
 				// Preserve previous message and URI if there was no message.
