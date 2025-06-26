@@ -15,7 +15,7 @@ import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
 import { Link as RouterLink } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { ellipsizeText } from "utils/text";
+import { ellipsizeText } from "utils/ellipsizeText";
 import {
 	ActiveTransition,
 	WorkspaceBuildProgress,

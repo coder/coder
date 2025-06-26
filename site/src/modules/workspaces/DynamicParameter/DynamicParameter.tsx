@@ -46,9 +46,9 @@ import {
 	TriangleAlert,
 } from "lucide-react";
 import { type FC, useEffect, useId, useRef, useState } from "react";
+import { cn } from "utils/cn";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
-import { cn } from "utils/cn";
 
 interface DynamicParameterProps {
 	parameter: PreviewParameter;
@@ -82,7 +82,7 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 			/>
 			<div className="max-w-lg">
 				{parameter.form_type === "input" ||
-					parameter.form_type === "textarea" ? (
+				parameter.form_type === "textarea" ? (
 					<DebouncedParameterField
 						id={id}
 						parameter={parameter}
@@ -321,8 +321,8 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 						className={cn(
 							"overflow-y-auto max-h-[500px]",
 							parameter.styling?.mask_input &&
-							!showMaskedInput &&
-							"[-webkit-text-security:disc]",
+								!showMaskedInput &&
+								"[-webkit-text-security:disc]",
 						)}
 						value={localValue}
 						onChange={(e) => {
@@ -689,10 +689,11 @@ const ParameterDiagnostics: FC<ParameterDiagnosticsProps> = ({
 				return (
 					<div
 						key={`parameter-diagnostic-${diagnostic.summary}-${index}`}
-						className={`text-xs px-1 ${diagnostic.severity === "error"
-							? "text-content-destructive"
-							: "text-content-warning"
-							}`}
+						className={`text-xs px-1 ${
+							diagnostic.severity === "error"
+								? "text-content-destructive"
+								: "text-content-warning"
+						}`}
 					>
 						<p className="font-medium">{diagnostic.summary}</p>
 						{diagnostic.detail && <p className="m-0">{diagnostic.detail}</p>}
@@ -949,10 +950,11 @@ export const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 				<div
 					key={`diagnostic-${diagnostic.summary}-${index}`}
 					className={`text-xs font-semibold flex flex-col rounded-md border px-3.5 py-3.5 border-solid
-	                        ${diagnostic.severity === "error"
-							? "text-content-primary border-border-destructive bg-content-destructive/15"
-							: "text-content-primary border-border-warning bg-content-warning/15"
-						}`}
+	                        ${
+														diagnostic.severity === "error"
+															? "text-content-primary border-border-destructive bg-content-destructive/15"
+															: "text-content-primary border-border-warning bg-content-warning/15"
+													}`}
 				>
 					<div className="flex flex-row items-start">
 						{diagnostic.severity === "error" && (

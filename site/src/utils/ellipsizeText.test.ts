@@ -1,5 +1,5 @@
 import type { Nullable } from "./nullable";
-import { ellipsizeText, maskText } from "./text";
+import { ellipsizeText } from "./ellipsizeText";
 
 describe("ellipsizeText", () => {
 	it.each([
@@ -18,10 +18,4 @@ describe("ellipsizeText", () => {
 			expect(ellipsizeText(str, maxLength)).toBe(output);
 		},
 	);
-});
-
-describe("maskText", () => {
-	test("masks text", () => {
-		expect(maskText("hello, computer!")).toBe("\u2022".repeat(16));
-	});
 });
