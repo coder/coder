@@ -735,119 +735,120 @@ export const useValidationSchemaForDynamicParameters = (
 		.of(
 			Yup.object().shape({
 				name: Yup.string().required(),
-				value: Yup.string().test("verify with template", (val, ctx) => {
-					const name = ctx.parent.name;
-					const parameter = parameters.find(
-						(parameter) => parameter.name === name,
-					);
-					if (parameter) {
-						switch (parameter.type) {
-							case "number": {
-								const minValidation = parameter.validations.find(
-									(v) => v.validation_min !== null,
-								);
-								const maxValidation = parameter.validations.find(
-									(v) => v.validation_max !== null,
-								);
-
-								if (
-									minValidation &&
-									minValidation.validation_min !== null &&
-									!maxValidation &&
-									Number(val) < minValidation.validation_min
-								) {
-									return ctx.createError({
-										path: ctx.path,
-										message:
-											parameterError(parameter, val) ??
-											`Value must be greater than ${minValidation.validation_min}.`,
-									});
-								}
-
-								if (
-									!minValidation &&
-									maxValidation &&
-									maxValidation.validation_max !== null &&
-									Number(val) > maxValidation.validation_max
-								) {
-									return ctx.createError({
-										path: ctx.path,
-										message:
-											parameterError(parameter, val) ??
-											`Value must be less than ${maxValidation.validation_max}.`,
-									});
-								}
-
-								if (
-									minValidation &&
-									minValidation.validation_min !== null &&
-									maxValidation &&
-									maxValidation.validation_max !== null &&
-									(Number(val) < minValidation.validation_min ||
-										Number(val) > maxValidation.validation_max)
-								) {
-									return ctx.createError({
-										path: ctx.path,
-										message:
-											parameterError(parameter, val) ??
-											`Value must be between ${minValidation.validation_min} and ${maxValidation.validation_max}.`,
-									});
-								}
-
-								const monotonic = parameter.validations.find(
-									(v) =>
-										v.validation_monotonic !== null &&
-										v.validation_monotonic !== "",
-								);
-
-								if (monotonic && lastBuildParameters) {
-									const lastBuildParameter = lastBuildParameters.find(
-										(last: { name: string }) => last.name === name,
+				value: Yup.string()
+					.test("verify with template", (val, ctx) => {
+						const name = ctx.parent.name;
+						const parameter = parameters.find(
+							(parameter) => parameter.name === name,
+						);
+						if (parameter) {
+							switch (parameter.type) {
+								case "number": {
+									const minValidation = parameter.validations.find(
+										(v) => v.validation_min !== null,
 									);
-									if (lastBuildParameter) {
-										switch (monotonic.validation_monotonic) {
-											case "increasing":
-												if (Number(lastBuildParameter.value) > Number(val)) {
-													return ctx.createError({
-														path: ctx.path,
-														message: `Value must only ever increase (last value was ${lastBuildParameter.value})`,
-													});
-												}
-												break;
-											case "decreasing":
-												if (Number(lastBuildParameter.value) < Number(val)) {
-													return ctx.createError({
-														path: ctx.path,
-														message: `Value must only ever decrease (last value was ${lastBuildParameter.value})`,
-													});
-												}
-												break;
+									const maxValidation = parameter.validations.find(
+										(v) => v.validation_max !== null,
+									);
+
+									if (
+										minValidation &&
+										minValidation.validation_min !== null &&
+										!maxValidation &&
+										Number(val) < minValidation.validation_min
+									) {
+										return ctx.createError({
+											path: ctx.path,
+											message:
+												parameterError(parameter, val) ??
+												`Value must be greater than ${minValidation.validation_min}.`,
+										});
+									}
+
+									if (
+										!minValidation &&
+										maxValidation &&
+										maxValidation.validation_max !== null &&
+										Number(val) > maxValidation.validation_max
+									) {
+										return ctx.createError({
+											path: ctx.path,
+											message:
+												parameterError(parameter, val) ??
+												`Value must be less than ${maxValidation.validation_max}.`,
+										});
+									}
+
+									if (
+										minValidation &&
+										minValidation.validation_min !== null &&
+										maxValidation &&
+										maxValidation.validation_max !== null &&
+										(Number(val) < minValidation.validation_min ||
+											Number(val) > maxValidation.validation_max)
+									) {
+										return ctx.createError({
+											path: ctx.path,
+											message:
+												parameterError(parameter, val) ??
+												`Value must be between ${minValidation.validation_min} and ${maxValidation.validation_max}.`,
+										});
+									}
+
+									const monotonic = parameter.validations.find(
+										(v) =>
+											v.validation_monotonic !== null &&
+											v.validation_monotonic !== "",
+									);
+
+									if (monotonic && lastBuildParameters) {
+										const lastBuildParameter = lastBuildParameters.find(
+											(last: { name: string }) => last.name === name,
+										);
+										if (lastBuildParameter) {
+											switch (monotonic.validation_monotonic) {
+												case "increasing":
+													if (Number(lastBuildParameter.value) > Number(val)) {
+														return ctx.createError({
+															path: ctx.path,
+															message: `Value must only ever increase (last value was ${lastBuildParameter.value})`,
+														});
+													}
+													break;
+												case "decreasing":
+													if (Number(lastBuildParameter.value) < Number(val)) {
+														return ctx.createError({
+															path: ctx.path,
+															message: `Value must only ever decrease (last value was ${lastBuildParameter.value})`,
+														});
+													}
+													break;
+											}
 										}
 									}
+									break;
 								}
-								break;
-							}
-							case "string": {
-								const regex = parameter.validations.find(
-									(v) =>
-										v.validation_regex !== null && v.validation_regex !== "",
-								);
-								if (!regex || !regex.validation_regex) {
-									return true;
-								}
+								case "string": {
+									const regex = parameter.validations.find(
+										(v) =>
+											v.validation_regex !== null && v.validation_regex !== "",
+									);
+									if (!regex || !regex.validation_regex) {
+										return true;
+									}
 
-								if (val && !new RegExp(regex.validation_regex).test(val)) {
-									return ctx.createError({
-										path: ctx.path,
-										message: parameterError(parameter, val),
-									});
+									if (val && !new RegExp(regex.validation_regex).test(val)) {
+										return ctx.createError({
+											path: ctx.path,
+											message: parameterError(parameter, val),
+										});
+									}
+									break;
 								}
-								break;
 							}
 						}
-					}
-					return true;
-				}),
+						return true;
+					}),
 			}),
 		)
 		.required();
