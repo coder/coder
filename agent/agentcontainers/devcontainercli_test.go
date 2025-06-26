@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -343,6 +344,10 @@ func TestDevcontainerCLI_WithOutput(t *testing.T) {
 	t.Run("Up", func(t *testing.T) {
 		t.Parallel()
 
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows uses CRLF line endings, golden file is LF")
+		}
+
 		// Buffers to capture stdout and stderr.
 		outBuf := &bytes.Buffer{}
 		errBuf := &bytes.Buffer{}
@@ -368,12 +373,8 @@ func TestDevcontainerCLI_WithOutput(t *testing.T) {
 		expLog, err := os.ReadFile(filepath.Join("testdata", "devcontainercli", "parse", "up.golden"))
 		require.NoError(t, err, "reading expected log file")
 
-		// Convert all CRLF newline endings with LF endings
-		output := outBuf.String()
-		output = strings.ReplaceAll(output, "\r\n", "\n")
-
 		// Verify stdout buffer contains the CLI logs and stderr is empty.
-		assert.Equal(t, string(expLog), output, "stdout buffer should match CLI logs")
+		assert.Equal(t, string(expLog), outBuf.String(), "stdout buffer should match CLI logs")
 		assert.Empty(t, errBuf.String(), "stderr buffer should be empty on success")
 	})
 
