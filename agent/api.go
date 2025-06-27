@@ -36,7 +36,7 @@ func (a *agent) apiHandler() http.Handler {
 		cacheDuration: cacheDuration,
 	}
 
-	if a.devcontainers {
+	if a.containerAPI != nil {
 		r.Mount("/api/v0/containers", a.containerAPI.Routes())
 	} else {
 		r.HandleFunc("/api/v0/containers", func(w http.ResponseWriter, r *http.Request) {
