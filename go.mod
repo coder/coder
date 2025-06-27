@@ -483,7 +483,7 @@ require (
 require (
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
 	github.com/coder/aisdk-go v0.0.9
-	github.com/coder/preview v1.0.1
+	github.com/coder/preview v1.0.3-0.20250627161416-e1ccd88ba6c0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/mark3labs/mcp-go v0.32.0
 )
@@ -538,3 +538,5 @@ require (
 	google.golang.org/genai v1.12.0 // indirect
 	k8s.io/utils v0.0.0-20241210054802-24370beab758 // indirect
 )
+
+replace github.com/coder/preview => /home/steven/go/src/github.com/coder/preview/

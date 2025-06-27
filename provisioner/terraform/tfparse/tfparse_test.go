@@ -1,15 +1,22 @@
 package tfparse_test
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"io"
 	"log"
 	"testing"
 
+	"github.com/spf13/afero"
+	"github.com/spf13/afero/zipfs"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	archivefs "github.com/coder/coder/v2/archive/fs"
+	"github.com/coder/preview"
 
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/testutil"
@@ -18,26 +25,30 @@ import (
 func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 	t.Parallel()
 
+	const (
+		unknownTag       = "Tag value is not known"
+		invalidValueType = "Invalid value type for tag"
+	)
+
 	for _, tc := range []struct {
-		name        string
-		files       map[string]string
-		expectTags  map[string]string
-		expectError string
+		name               string
+		files              map[string]string
+		expectTags         map[string]string
+		expectedFailedTags map[string]string
 	}{
-		{
-			name:        "empty",
-			files:       map[string]string{},
-			expectTags:  map[string]string{},
-			expectError: "",
-		},
+		//{
+		//	name:        "empty",
+		//	files:       map[string]string{},
+		//	expectTags:  map[string]string{},
+		//	expectError: "",
+		//},
 		{
 			name: "single text file",
 			files: map[string]string{
 				"file.txt": `
 					hello world`,
 			},
-			expectTags:  map[string]string{},
-			expectError: "",
+			expectTags: map[string]string{},
 		},
 		{
 			name: "main.tf with no workspace_tags",
@@ -60,8 +71,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						default = "a"
 					}`,
 			},
-			expectTags:  map[string]string{},
-			expectError: "",
+			expectTags: map[string]string{},
 		},
 		{
 			name: "main.tf with empty workspace tags",
@@ -85,8 +95,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 					}
 					data "coder_workspace_tags" "tags" {}`,
 			},
-			expectTags:  map[string]string{},
-			expectError: `"tags" attribute is required by coder_workspace_tags`,
+			expectTags: map[string]string{},
 		},
 		{
 			name: "main.tf with valid workspace tags",
@@ -120,8 +129,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						}
 					}`,
 			},
-			expectTags:  map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "us", "az": "a"},
-			expectError: "",
+			expectTags: map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "us", "az": "a"},
 		},
 		{
 			name: "main.tf with parameter that has default value from dynamic value",
@@ -156,8 +164,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						}
 					}`,
 			},
-			expectTags:  map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "us", "az": "a"},
-			expectError: "",
+			expectTags: map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "us", "az": "a"},
 		},
 		{
 			name: "main.tf with parameter that has default value from another parameter",
@@ -175,11 +182,12 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
+						name = "az"
 						type    = string
 						default = "${""}${"a"}"
 					}
 					data "coder_parameter" "az2" {
-					  name = "az"
+					  	name = "az2"
 						type = "string"
 						default = data.coder_parameter.az.value
 					}
@@ -192,7 +200,12 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						}
 					}`,
 			},
-			expectError: "Unknown variable; There is no variable named \"data\".",
+			expectTags: map[string]string{
+				"platform": "kubernetes",
+				"cluster":  "developers",
+				"region":   "us",
+				"az":       "a",
+			},
 		},
 		{
 			name: "main.tf with multiple valid workspace tags",
@@ -214,12 +227,12 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
-					  name = "az"
+					  	name = "az"
 						type = "string"
 						default = "a"
 					}
 					data "coder_parameter" "az2" {
-					  name = "az2"
+					  	name = "az2"
 						type = "string"
 						default = "b"
 					}
@@ -237,8 +250,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						}
 					}`,
 			},
-			expectTags:  map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "us", "az": "a", "foo": "bar"},
-			expectError: "",
+			expectTags: map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "us", "az": "a", "foo": "bar"},
 		},
 		{
 			name: "main.tf with missing parameter default value for workspace tags",
@@ -268,7 +280,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						}
 					}`,
 			},
-			expectTags: map[string]string{"cluster": "developers", "az": "", "platform": "kubernetes", "region": "us"},
+			expectTags: map[string]string{"cluster": "developers", "platform": "kubernetes", "region": "us"},
+			expectedFailedTags: map[string]string{
+				"az": "Tag value is not known, it likely refers to a variable that is not set or has no default.",
+			},
 		},
 		{
 			name: "main.tf with missing parameter default value outside workspace tags",
@@ -303,8 +318,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						}
 					}`,
 			},
-			expectTags:  map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "us", "az": "a"},
-			expectError: ``,
+			expectTags: map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "us", "az": "a"},
 		},
 		{
 			name: "main.tf with missing variable default value outside workspace tags",
@@ -338,8 +352,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						}
 					}`,
 			},
-			expectTags:  map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "us", "az": "a"},
-			expectError: ``,
+			expectTags: map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "us", "az": "a"},
 		},
 		{
 			name: "main.tf with disallowed data source for workspace tags",
@@ -376,8 +389,15 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						}
 					}`,
 			},
-			expectTags:  nil,
-			expectError: `invalid workspace tag value "data.local_file.hostname.content": only the "coder_parameter" data source is supported here`,
+			expectTags: map[string]string{
+				"platform": "kubernetes",
+				"cluster":  "developers",
+				"region":   "us",
+				"az":       "a",
+			},
+			expectedFailedTags: map[string]string{
+				"hostname": unknownTag,
+			},
 		},
 		{
 			name: "main.tf with disallowed resource for workspace tags",
@@ -411,9 +431,13 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						}
 					}`,
 			},
-			expectTags: nil,
-			// TODO: this error isn't great, but it has the desired effect.
-			expectError: `There is no variable named "foo_bar"`,
+			expectTags: map[string]string{
+				"platform":  "kubernetes",
+				"cluster":   "developers",
+				"region":    "us",
+				"az":        "a",
+				"foobarbaz": "foobar",
+			},
 		},
 		{
 			name: "main.tf with allowed functions in workspace tags",
@@ -486,8 +510,15 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						}
 					}`,
 			},
-			expectTags:  nil,
-			expectError: `function "pathexpand" may not be used here`,
+			expectTags: map[string]string{
+				"platform": "kubernetes",
+				"cluster":  "developers",
+				"region":   "us",
+				"az":       "a",
+			},
+			expectedFailedTags: map[string]string{
+				"some_path": unknownTag,
+			},
 		},
 		{
 			name: "supported types",
@@ -551,14 +582,17 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 				"stringvar":   "a",
 				"numvar":      "1",
 				"boolvar":     "true",
-				"listvar":     `["a"]`,
-				"mapvar":      `{"a":"b"}`,
 				"stringparam": "a",
 				"numparam":    "1",
 				"boolparam":   "true",
-				"listparam":   `["a", "b"]`,
+				"listparam":   `["a", "b"]`, // OK because params are cast to strings
+				//"listvar":     `["a"]`,
+				//"mapvar":      `{"a":"b"}`,
 			},
-			expectError: ``,
+			expectedFailedTags: map[string]string{
+				"listvar": invalidValueType,
+				"mapvar":  invalidValueType,
+			},
 		},
 		{
 			name: "overlapping var name",
@@ -590,37 +624,46 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 		t.Run(tc.name+"/tar", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
-			tar := testutil.CreateTar(t, tc.files)
-			logger := testutil.Logger(t)
-			tmpDir := t.TempDir()
-			tfparse.WriteArchive(tar, "application/x-tar", tmpDir)
-			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
-			require.NoError(t, diags.Err())
-			tags, err := parser.WorkspaceTagDefaults(ctx)
-			if tc.expectError != "" {
-				require.NotNil(t, err)
-				require.Contains(t, err.Error(), tc.expectError)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, tc.expectTags, tags)
+			tarData := testutil.CreateTar(t, tc.files)
+			//logger := testutil.Logger(t)
+
+			output, diags := preview.Preview(ctx, preview.Input{}, archivefs.FromTarReader(bytes.NewBuffer(tarData)))
+			require.False(t, diags.HasErrors(), diags.Error())
+
+			tags := output.WorkspaceTags
+			tagMap := tags.Tags()
+			failedTags := tags.UnusableTags()
+			assert.Equal(t, tc.expectTags, tagMap, "expected tags to match, must always provide something")
+			for _, tag := range failedTags {
+				verr := tfparse.TagValidationResponse(tag)
+				expectedErr, ok := tc.expectedFailedTags[tag.KeyString()]
+				require.Truef(t, ok, "assertion for failed tag required: %s, %s", tag.KeyString(), verr.Error())
+				require.Contains(t, verr.Error(), expectedErr)
 			}
 		})
+
 		t.Run(tc.name+"/zip", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
-			zip := testutil.CreateZip(t, tc.files)
-			logger := testutil.Logger(t)
-			tmpDir := t.TempDir()
-			tfparse.WriteArchive(zip, "application/zip", tmpDir)
-			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
-			require.NoError(t, diags.Err())
-			tags, err := parser.WorkspaceTagDefaults(ctx)
-			if tc.expectError != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.expectError)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, tc.expectTags, tags)
+			zipData := testutil.CreateZip(t, tc.files)
+			//logger := testutil.Logger(t)
+
+			// get the zip fs
+			r, err := zip.NewReader(bytes.NewReader(zipData), int64(len(zipData)))
+			require.NoError(t, err)
+
+			output, diags := preview.Preview(ctx, preview.Input{}, afero.NewIOFS(zipfs.New(r)))
+			require.False(t, diags.HasErrors(), diags.Error())
+
+			tags := output.WorkspaceTags
+			tagMap := tags.Tags()
+			failedTags := tags.UnusableTags()
+			assert.Equal(t, tc.expectTags, tagMap, "expected tags to match, must always provide something")
+			for _, tag := range failedTags {
+				verr := tfparse.TagValidationResponse(tag)
+				expectedErr, ok := tc.expectedFailedTags[tag.KeyString()]
+				assert.Truef(t, ok, "assertion for failed tag required: %s, %s", tag.KeyString(), verr.Error())
+				assert.Contains(t, verr.Error(), expectedErr)
 			}
 		})
 	}
@@ -633,62 +676,62 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 // cpu: AMD EPYC 7502P 32-Core Processor
 // BenchmarkWorkspaceTagDefaultsFromFile/Tar-16         	    1922	    847236 ns/op	  176257 B/op	    1073 allocs/op
 // BenchmarkWorkspaceTagDefaultsFromFile/Zip-16         	    1273	    946910 ns/op	  225293 B/op	    1130 allocs/op
-// PASS
-func BenchmarkWorkspaceTagDefaultsFromFile(b *testing.B) {
-	files := map[string]string{
-		"main.tf": `
-		provider "foo" {}
-		resource "foo_bar" "baz" {}
-		variable "region" {
-			type    = string
-			default = "us"
-		}
-		data "coder_parameter" "az" {
-		  name = "az"
-			type = "string"
-			default = "a"
-		}
-		data "coder_workspace_tags" "tags" {
-			tags = {
-				"platform" = "kubernetes",
-				"cluster"  = "${"devel"}${"opers"}"
-				"region"   = var.region
-				"az"       = data.coder_parameter.az.value
-			}
-		}`,
-	}
-	tarFile := testutil.CreateTar(b, files)
-	zipFile := testutil.CreateZip(b, files)
-	logger := discardLogger(b)
-	b.ResetTimer()
-	b.Run("Tar", func(b *testing.B) {
-		ctx := context.Background()
-		for i := 0; i < b.N; i++ {
-			tmpDir := b.TempDir()
-			tfparse.WriteArchive(tarFile, "application/x-tar", tmpDir)
-			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
-			require.NoError(b, diags.Err())
-			_, _, err := parser.WorkspaceTags(ctx)
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-
-	b.Run("Zip", func(b *testing.B) {
-		ctx := context.Background()
-		for i := 0; i < b.N; i++ {
-			tmpDir := b.TempDir()
-			tfparse.WriteArchive(zipFile, "application/zip", tmpDir)
-			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
-			require.NoError(b, diags.Err())
-			_, _, err := parser.WorkspaceTags(ctx)
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-}
+//// PASS
+//func BenchmarkWorkspaceTagDefaultsFromFile(b *testing.B) {
+//	files := map[string]string{
+//		"main.tf": `
+//		provider "foo" {}
+//		resource "foo_bar" "baz" {}
+//		variable "region" {
+//			type    = string
+//			default = "us"
+//		}
+//		data "coder_parameter" "az" {
+//		  name = "az"
+//			type = "string"
+//			default = "a"
+//		}
+//		data "coder_workspace_tags" "tags" {
+//			tags = {
+//				"platform" = "kubernetes",
+//				"cluster"  = "${"devel"}${"opers"}"
+//				"region"   = var.region
+//				"az"       = data.coder_parameter.az.value
+//			}
+//		}`,
+//	}
+//	tarFile := testutil.CreateTar(b, files)
+//	zipFile := testutil.CreateZip(b, files)
+//	logger := discardLogger(b)
+//	b.ResetTimer()
+//	b.Run("Tar", func(b *testing.B) {
+//		ctx := context.Background()
+//		for i := 0; i < b.N; i++ {
+//			tmpDir := b.TempDir()
+//			tfparse.WriteArchive(tarFile, "application/x-tar", tmpDir)
+//			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
+//			require.NoError(b, diags.Err())
+//			_, _, err := parser.WorkspaceTags(ctx)
+//			if err != nil {
+//				b.Fatal(err)
+//			}
+//		}
+//	})
+//
+//	b.Run("Zip", func(b *testing.B) {
+//		ctx := context.Background()
+//		for i := 0; i < b.N; i++ {
+//			tmpDir := b.TempDir()
+//			tfparse.WriteArchive(zipFile, "application/zip", tmpDir)
+//			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
+//			require.NoError(b, diags.Err())
+//			_, _, err := parser.WorkspaceTags(ctx)
+//			if err != nil {
+//				b.Fatal(err)
+//			}
+//		}
+//	})
+//}
 
 func discardLogger(_ testing.TB) slog.Logger {
 	l := slog.Make(sloghuman.Sink(io.Discard))

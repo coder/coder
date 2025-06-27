@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -8,8 +9,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -18,6 +21,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	archivefs "github.com/coder/coder/v2/archive/fs"
+	"github.com/coder/preview"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -1589,28 +1594,43 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		}
 	}()
 
-	if err := tfparse.WriteArchive(file.Data, file.Mimetype, tempDir); err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error checking workspace tags",
-			Detail:  "extract archive to tempdir: " + err.Error(),
-		})
-		return
+	var files fs.FS
+	switch file.Mimetype {
+	case "application/x-tar":
+		files = archivefs.FromTarReader(bytes.NewBuffer(file.Data))
+	case "application/zip":
+		files, err = archivefs.FromZipReader(bytes.NewReader(file.Data), int64(len(file.Data)))
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error checking workspace tags",
+				Detail:  "extract archive to tempdir: " + err.Error(),
+			})
+			return
+		}
 	}
 
-	parser, diags := tfparse.New(tempDir, tfparse.WithLogger(api.Logger.Named("tfparse")))
+	output, diags := preview.Preview(ctx, preview.Input{}, files)
 	if diags.HasErrors() {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error checking workspace tags",
+			Message: "Internal error parsing workspace tags",
 			Detail:  "parse module: " + diags.Error(),
 		})
 		return
 	}
+	parsedTags := output.WorkspaceTags
 
-	parsedTags, err := parser.WorkspaceTagDefaults(ctx)
-	if err != nil {
+	failedTags := parsedTags.UnusableTags()
+	if len(failedTags) > 0 {
+		validations := make([]codersdk.ValidationError, 0, len(failedTags))
+		names := make([]string, 0, len(failedTags))
+		for _, tag := range failedTags {
+			validations = append(validations, tfparse.TagValidationResponse(tag))
+		}
+
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error checking workspace tags",
-			Detail:  "evaluate default values of workspace tags: " + err.Error(),
+			Message:     "Internal error checking workspace tags",
+			Detail:      fmt.Sprintf("evaluate default values of workspace tags [%s]", strings.Join(names, ", ")),
+			Validations: validations,
 		})
 		return
 	}
@@ -1618,7 +1638,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	// Ensure the "owner" tag is properly applied in addition to request tags and coder_workspace_tags.
 	// User-specified tags in the request will take precedence over tags parsed from `coder_workspace_tags`
 	// data sources defined in the template file.
-	tags := provisionersdk.MutateTags(apiKey.UserID, parsedTags, req.ProvisionerTags)
+	tags := provisionersdk.MutateTags(apiKey.UserID, parsedTags.Tags(), req.ProvisionerTags)
 
 	var templateVersion database.TemplateVersion
 	var provisionerJob database.ProvisionerJob
