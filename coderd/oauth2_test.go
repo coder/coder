@@ -67,7 +67,7 @@ func TestOAuth2ProviderApps(t *testing.T) {
 			{
 				name: "NameTaken",
 				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "taken",
+					Name:        fmt.Sprintf("taken-%d", time.Now().UnixNano()%1000000),
 					CallbackURL: "http://localhost:3000",
 				},
 			},
@@ -137,7 +137,7 @@ func TestOAuth2ProviderApps(t *testing.T) {
 
 		// Generate an application for testing name conflicts.
 		req := codersdk.PostOAuth2ProviderAppRequest{
-			Name:        "taken",
+			Name:        fmt.Sprintf("taken-%d", time.Now().UnixNano()%1000000),
 			CallbackURL: "http://coder.com",
 		}
 		//nolint:gocritic // OAauth2 app management requires owner permission.
@@ -146,7 +146,7 @@ func TestOAuth2ProviderApps(t *testing.T) {
 
 		// Generate an application for testing PUTs.
 		req = codersdk.PostOAuth2ProviderAppRequest{
-			Name:        "quark",
+			Name:        fmt.Sprintf("quark-%d", time.Now().UnixNano()%1000000),
 			CallbackURL: "http://coder.com",
 		}
 		//nolint:gocritic // OAauth2 app management requires owner permission.
@@ -1439,4 +1439,448 @@ func customTokenExchange(ctx context.Context, baseURL, clientID, clientSecret, c
 	}
 
 	return &token, nil
+}
+
+// TestOAuth2DynamicClientRegistration tests RFC 7591 dynamic client registration
+func TestOAuth2DynamicClientRegistration(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	t.Run("BasicRegistration", func(t *testing.T) {
+		t.Parallel()
+
+		clientName := fmt.Sprintf("test-client-basic-%d", time.Now().UnixNano())
+		req := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"https://example.com/callback"},
+			ClientName:   clientName,
+			ClientURI:    "https://example.com",
+			LogoURI:      "https://example.com/logo.png",
+			TOSURI:       "https://example.com/tos",
+			PolicyURI:    "https://example.com/privacy",
+			Contacts:     []string{"admin@example.com"},
+		}
+
+		// Register client
+		resp, err := client.PostOAuth2ClientRegistration(ctx, req)
+		require.NoError(t, err)
+
+		// Verify response fields
+		require.NotEmpty(t, resp.ClientID)
+		require.NotEmpty(t, resp.ClientSecret)
+		require.NotEmpty(t, resp.RegistrationAccessToken)
+		require.NotEmpty(t, resp.RegistrationClientURI)
+		require.Greater(t, resp.ClientIDIssuedAt, int64(0))
+		require.Equal(t, int64(0), resp.ClientSecretExpiresAt) // Non-expiring
+
+		// Verify default values
+		require.Contains(t, resp.GrantTypes, "authorization_code")
+		require.Contains(t, resp.GrantTypes, "refresh_token")
+		require.Contains(t, resp.ResponseTypes, "code")
+		require.Equal(t, "client_secret_basic", resp.TokenEndpointAuthMethod)
+
+		// Verify request values are preserved
+		require.Equal(t, req.RedirectURIs, resp.RedirectURIs)
+		require.Equal(t, req.ClientName, resp.ClientName)
+		require.Equal(t, req.ClientURI, resp.ClientURI)
+		require.Equal(t, req.LogoURI, resp.LogoURI)
+		require.Equal(t, req.TOSURI, resp.TOSURI)
+		require.Equal(t, req.PolicyURI, resp.PolicyURI)
+		require.Equal(t, req.Contacts, resp.Contacts)
+	})
+
+	t.Run("MinimalRegistration", func(t *testing.T) {
+		t.Parallel()
+
+		req := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"https://minimal.com/callback"},
+		}
+
+		// Register client with minimal fields
+		resp, err := client.PostOAuth2ClientRegistration(ctx, req)
+		require.NoError(t, err)
+
+		// Should still get all required fields
+		require.NotEmpty(t, resp.ClientID)
+		require.NotEmpty(t, resp.ClientSecret)
+		require.NotEmpty(t, resp.RegistrationAccessToken)
+		require.NotEmpty(t, resp.RegistrationClientURI)
+
+		// Should have defaults applied
+		require.Contains(t, resp.GrantTypes, "authorization_code")
+		require.Contains(t, resp.ResponseTypes, "code")
+		require.Equal(t, "client_secret_basic", resp.TokenEndpointAuthMethod)
+	})
+
+	t.Run("InvalidRedirectURI", func(t *testing.T) {
+		t.Parallel()
+
+		req := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"not-a-url"},
+		}
+
+		_, err := client.PostOAuth2ClientRegistration(ctx, req)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_client_metadata")
+	})
+
+	t.Run("NoRedirectURIs", func(t *testing.T) {
+		t.Parallel()
+
+		req := codersdk.OAuth2ClientRegistrationRequest{
+			ClientName: fmt.Sprintf("no-uris-client-%d", time.Now().UnixNano()),
+		}
+
+		_, err := client.PostOAuth2ClientRegistration(ctx, req)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_client_metadata")
+	})
+}
+
+// TestOAuth2ClientConfiguration tests RFC 7592 client configuration management
+func TestOAuth2ClientConfiguration(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Helper to register a client
+	registerClient := func(t *testing.T) (string, string, string) {
+		// Use shorter client name to avoid database varchar(64) constraint
+		clientName := fmt.Sprintf("client-%d", time.Now().UnixNano())
+		req := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"https://example.com/callback"},
+			ClientName:   clientName,
+			ClientURI:    "https://example.com",
+		}
+
+		resp, err := client.PostOAuth2ClientRegistration(ctx, req)
+		require.NoError(t, err)
+		return resp.ClientID, resp.RegistrationAccessToken, clientName
+	}
+
+	t.Run("GetConfiguration", func(t *testing.T) {
+		t.Parallel()
+
+		clientID, token, clientName := registerClient(t)
+
+		// Get client configuration
+		config, err := client.GetOAuth2ClientConfiguration(ctx, clientID, token)
+		require.NoError(t, err)
+
+		// Verify fields
+		require.Equal(t, clientID, config.ClientID)
+		require.Greater(t, config.ClientIDIssuedAt, int64(0))
+		require.Equal(t, []string{"https://example.com/callback"}, config.RedirectURIs)
+		require.Equal(t, clientName, config.ClientName)
+		require.Equal(t, "https://example.com", config.ClientURI)
+
+		// Should not contain client_secret in GET response
+		require.Empty(t, config.RegistrationAccessToken) // Not included in GET
+	})
+
+	t.Run("UpdateConfiguration", func(t *testing.T) {
+		t.Parallel()
+
+		clientID, token, _ := registerClient(t)
+
+		// Update client configuration
+		updatedName := fmt.Sprintf("updated-test-client-%d", time.Now().UnixNano())
+		updateReq := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"https://newdomain.com/callback", "https://example.com/callback"},
+			ClientName:   updatedName,
+			ClientURI:    "https://newdomain.com",
+			LogoURI:      "https://newdomain.com/logo.png",
+		}
+
+		config, err := client.PutOAuth2ClientConfiguration(ctx, clientID, token, updateReq)
+		require.NoError(t, err)
+
+		// Verify updates
+		require.Equal(t, clientID, config.ClientID)
+		require.Equal(t, updateReq.RedirectURIs, config.RedirectURIs)
+		require.Equal(t, updateReq.ClientName, config.ClientName)
+		require.Equal(t, updateReq.ClientURI, config.ClientURI)
+		require.Equal(t, updateReq.LogoURI, config.LogoURI)
+	})
+
+	t.Run("DeleteConfiguration", func(t *testing.T) {
+		t.Parallel()
+
+		clientID, token, _ := registerClient(t)
+
+		// Delete client
+		err := client.DeleteOAuth2ClientConfiguration(ctx, clientID, token)
+		require.NoError(t, err)
+
+		// Should no longer be able to get configuration
+		_, err = client.GetOAuth2ClientConfiguration(ctx, clientID, token)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_token")
+	})
+
+	t.Run("InvalidToken", func(t *testing.T) {
+		t.Parallel()
+
+		clientID, _, _ := registerClient(t)
+		invalidToken := "invalid-token"
+
+		// Should fail with invalid token
+		_, err := client.GetOAuth2ClientConfiguration(ctx, clientID, invalidToken)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_token")
+	})
+
+	t.Run("NonexistentClient", func(t *testing.T) {
+		t.Parallel()
+
+		fakeClientID := uuid.NewString()
+		fakeToken := "fake-token"
+
+		_, err := client.GetOAuth2ClientConfiguration(ctx, fakeClientID, fakeToken)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_token")
+	})
+
+	t.Run("MissingAuthHeader", func(t *testing.T) {
+		t.Parallel()
+
+		clientID, _, _ := registerClient(t)
+
+		// Try to access without token (empty string)
+		_, err := client.GetOAuth2ClientConfiguration(ctx, clientID, "")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_token")
+	})
+}
+
+// TestOAuth2RegistrationAccessToken tests the registration access token middleware
+func TestOAuth2RegistrationAccessToken(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	t.Run("ValidToken", func(t *testing.T) {
+		t.Parallel()
+
+		// Register a client
+		req := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"https://example.com/callback"},
+			ClientName:   fmt.Sprintf("token-test-client-%d", time.Now().UnixNano()),
+		}
+
+		resp, err := client.PostOAuth2ClientRegistration(ctx, req)
+		require.NoError(t, err)
+
+		// Valid token should work
+		config, err := client.GetOAuth2ClientConfiguration(ctx, resp.ClientID, resp.RegistrationAccessToken)
+		require.NoError(t, err)
+		require.Equal(t, resp.ClientID, config.ClientID)
+	})
+
+	t.Run("ManuallyCreatedClient", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a client through the normal API (not dynamic registration)
+		appReq := codersdk.PostOAuth2ProviderAppRequest{
+			Name:        fmt.Sprintf("manual-%d", time.Now().UnixNano()%1000000),
+			CallbackURL: "https://manual.com/callback",
+		}
+
+		app, err := client.PostOAuth2ProviderApp(ctx, appReq)
+		require.NoError(t, err)
+
+		// Should not be able to manage via RFC 7592 endpoints
+		_, err = client.GetOAuth2ClientConfiguration(ctx, app.ID.String(), "any-token")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_token") // Client was not dynamically registered
+	})
+
+	t.Run("TokenPasswordComparison", func(t *testing.T) {
+		t.Parallel()
+
+		// Register two clients to ensure tokens are unique
+		timestamp := time.Now().UnixNano()
+		req1 := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"https://client1.com/callback"},
+			ClientName:   fmt.Sprintf("client-1-%d", timestamp),
+		}
+		req2 := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"https://client2.com/callback"},
+			ClientName:   fmt.Sprintf("client-2-%d", timestamp+1),
+		}
+
+		resp1, err := client.PostOAuth2ClientRegistration(ctx, req1)
+		require.NoError(t, err)
+
+		resp2, err := client.PostOAuth2ClientRegistration(ctx, req2)
+		require.NoError(t, err)
+
+		// Each client should only work with its own token
+		_, err = client.GetOAuth2ClientConfiguration(ctx, resp1.ClientID, resp1.RegistrationAccessToken)
+		require.NoError(t, err)
+
+		_, err = client.GetOAuth2ClientConfiguration(ctx, resp2.ClientID, resp2.RegistrationAccessToken)
+		require.NoError(t, err)
+
+		// Cross-client tokens should fail
+		_, err = client.GetOAuth2ClientConfiguration(ctx, resp1.ClientID, resp2.RegistrationAccessToken)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_token")
+
+		_, err = client.GetOAuth2ClientConfiguration(ctx, resp2.ClientID, resp1.RegistrationAccessToken)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_token")
+	})
+}
+
+// TestOAuth2ClientRegistrationValidation tests validation of client registration requests
+func TestOAuth2ClientRegistrationValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ValidURIs", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		validURIs := []string{
+			"https://example.com/callback",
+			"http://localhost:8080/callback",
+			"custom-scheme://app/callback",
+		}
+
+		req := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: validURIs,
+			ClientName:   fmt.Sprintf("valid-uris-client-%d", time.Now().UnixNano()),
+		}
+
+		resp, err := client.PostOAuth2ClientRegistration(ctx, req)
+		require.NoError(t, err)
+		require.Equal(t, validURIs, resp.RedirectURIs)
+	})
+
+	t.Run("InvalidURIs", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name string
+			uris []string
+		}{
+			{
+				name: "InvalidURL",
+				uris: []string{"not-a-url"},
+			},
+			{
+				name: "EmptyFragment",
+				uris: []string{"https://example.com/callback#"},
+			},
+			{
+				name: "Fragment",
+				uris: []string{"https://example.com/callback#fragment"},
+			},
+		}
+
+		for _, tc := range testCases {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				// Create new client for each sub-test to avoid shared state issues
+				subClient := coderdtest.New(t, nil)
+				_ = coderdtest.CreateFirstUser(t, subClient)
+				subCtx := testutil.Context(t, testutil.WaitLong)
+
+				req := codersdk.OAuth2ClientRegistrationRequest{
+					RedirectURIs: tc.uris,
+					ClientName:   fmt.Sprintf("invalid-uri-client-%s-%d", tc.name, time.Now().UnixNano()),
+				}
+
+				_, err := subClient.PostOAuth2ClientRegistration(subCtx, req)
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "invalid_client_metadata")
+			})
+		}
+	})
+
+	t.Run("ValidGrantTypes", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		req := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"https://example.com/callback"},
+			ClientName:   fmt.Sprintf("valid-grant-types-client-%d", time.Now().UnixNano()),
+			GrantTypes:   []string{"authorization_code", "refresh_token"},
+		}
+
+		resp, err := client.PostOAuth2ClientRegistration(ctx, req)
+		require.NoError(t, err)
+		require.Equal(t, req.GrantTypes, resp.GrantTypes)
+	})
+
+	t.Run("InvalidGrantTypes", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		req := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"https://example.com/callback"},
+			ClientName:   fmt.Sprintf("invalid-grant-types-client-%d", time.Now().UnixNano()),
+			GrantTypes:   []string{"unsupported_grant"},
+		}
+
+		_, err := client.PostOAuth2ClientRegistration(ctx, req)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_client_metadata")
+	})
+
+	t.Run("ValidResponseTypes", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		req := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs:  []string{"https://example.com/callback"},
+			ClientName:    fmt.Sprintf("valid-response-types-client-%d", time.Now().UnixNano()),
+			ResponseTypes: []string{"code"},
+		}
+
+		resp, err := client.PostOAuth2ClientRegistration(ctx, req)
+		require.NoError(t, err)
+		require.Equal(t, req.ResponseTypes, resp.ResponseTypes)
+	})
+
+	t.Run("InvalidResponseTypes", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		req := codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs:  []string{"https://example.com/callback"},
+			ClientName:    fmt.Sprintf("invalid-response-types-client-%d", time.Now().UnixNano()),
+			ResponseTypes: []string{"token"}, // Not supported
+		}
+
+		_, err := client.PostOAuth2ClientRegistration(ctx, req)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_client_metadata")
+	})
 }
