@@ -1246,7 +1246,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			wg.Wait()
 
-
 			// Shut down aibridge daemons before waiting for WebSockets
 			// connections to close.
 			for i, aiBridgeDaemon := range aiBridgeDaemons {
@@ -1260,7 +1259,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					err := shutdownWithTimeout(func(ctx context.Context) error {
 						// We only want to cancel active jobs if we aren't exiting gracefully.
 						return aiBridgeDaemon.Shutdown(ctx)
-					}, 5 * time.Second)
+					}, 5*time.Second)
 					if err != nil {
 						cliui.Errorf(inv.Stderr, "Failed to shut down AI bridge daemon %d: %s\n", id, err)
 						return

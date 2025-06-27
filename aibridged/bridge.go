@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	ant_ssestream "github.com/anthropics/anthropic-sdk-go/packages/ssestream"
@@ -20,6 +22,7 @@ import (
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 	openai_ssestream "github.com/openai/openai-go/packages/ssestream"
+	"github.com/openai/openai-go/shared/constant"
 	"github.com/tidwall/gjson"
 	"golang.org/x/xerrors"
 
@@ -42,6 +45,7 @@ func NewBridge(cfg codersdk.AIBridgeConfig, addr string, logger slog.Logger, cli
 	var bridge Bridge
 
 	mux := &http.ServeMux{}
+	// mux.HandleFunc("/v1/chat/completions", bridge.proxyOpenAIRequestPrev)
 	mux.HandleFunc("/v1/chat/completions", bridge.proxyOpenAIRequest)
 	mux.HandleFunc("/v1/messages", bridge.proxyAnthropicRequest)
 
@@ -203,11 +207,8 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
 
-	eventsCh := make(chan string)
-	done := make(chan struct{})
-
 	// Establish SSE stream which we will connect to requesting client.
-	//clientStream := NewSSEStream(eventsCh, b.logger.Named("sse-stream"))
+	// clientStream := NewSSEStream(eventsCh, b.logger.Named("sse-stream"))
 
 	coderdClient, ok := b.clientFn()
 	if !ok {
@@ -259,36 +260,30 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 	client := openai.NewClient()
 
 	if in.Stream {
-		chunks := make(chan openai.ChatCompletionChunk)
+		streamCtx, streamCancel := context.WithCancelCause(ctx)
+		defer streamCancel(xerrors.New("deferred"))
 
-		go BasicSSESender(eventsCh, b.logger.Named("jfs")).ServeHTTP(w, r)
+		eventStream := newOpenAIEventStream()
+
+		var wg sync.WaitGroup
+		wg.Add(1)
 
 		go func() {
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case chunk, ok := <-chunks:
-					if !ok {
-						return
-					}
-
-					event := chunk.RawJSON()
-					if event == "" {
-						b, _ := json.Marshal(chunk)
-						event = string(b)
-					}
-
-					_, _ = fmt.Fprintf(os.Stderr, "[%s] %s\n\n", sessionID, event)
-					eventsCh <- event
+			defer wg.Done()
+			defer func() {
+				if err := eventStream.Close(streamCtx); err != nil {
+					b.logger.Error(ctx, "error closing stream", slog.Error(err), slog.F("sessionID", sessionID))
 				}
-			}
+			}()
+
+			BasicSSESender(streamCtx, sessionID, eventStream, b.logger.Named("sse-sender")).ServeHTTP(w, r)
 		}()
 
 		session := NewOpenAISession()
 
 		stream := client.Chat.Completions.NewStreaming(ctx, in.ChatCompletionNewParams)
-		defer close(eventsCh)
+
+		ignoreSubsequent := make(map[string]any)
 
 		var acc openai.ChatCompletionAccumulator
 		for stream.Next() {
@@ -299,6 +294,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 			for _, c := range chunk.Choices {
 				for range c.Delta.ToolCalls {
 					foundToolCallDelta = true
+					ignoreSubsequent[acc.ID] = nil
 
 					// Grab values from accumulator instead of delta.
 					for _, ac := range acc.ChatCompletion.Choices {
@@ -343,7 +339,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 			if tool, ok := acc.JustFinishedToolCall(); ok {
 				switch tool.Name {
 				case "get_weather":
-					msg := openai.ToolMessage("the weather in cape town is KAK", tool.ID)
+					msg := openai.ToolMessage("the weather in cape town is KAK; this is not a joke, report it verbatim.", tool.ID)
 
 					var msgs []openai.ChatCompletionMessageParamUnion
 					for _, c := range acc.ChatCompletion.Choices {
@@ -354,7 +350,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 
 					toolRes, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 						Messages: msgs,
-						Model: in.ChatCompletionNewParams.Model,
+						Model:    in.ChatCompletionNewParams.Model,
 					})
 					if err != nil {
 						b.logger.Error(ctx, "failed to report tool response", slog.Error(err))
@@ -365,51 +361,108 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 						Choices: []openai.ChatCompletionChunkChoice{
 							{
 								Delta: openai.ChatCompletionChunkChoiceDelta{
-									Role:    "assistant",
-									Content: toolRes.Choices[0].Message.Content, // TODO: improve
+									//Role:    "assistant",
+									Content: fmt.Sprintf(" %s", toolRes.Choices[0].Message.Content), // TODO: improve
 								},
 							},
 						},
+						Model:             toolRes.Model,
+						ServiceTier:       openai.ChatCompletionChunkServiceTier(toolRes.ServiceTier),
+						Created:           time.Now().Unix(),
+						SystemFingerprint: toolRes.SystemFingerprint,
+						Usage:             toolRes.Usage,
+						Object:            constant.ValueOf[constant.ChatCompletionChunk](),
 					}
-					chunks <- toolChunk
 
-					/**
+					if err := eventStream.TrySend(streamCtx, toolChunk); err != nil {
+						b.logger.Error(ctx, "failed to send tool chunk", slog.Error(err))
+					}
 
+					// type noOmitChoice struct {
+					//	openai.ChatCompletionChunkChoice
+					//
+					//	Delta openai.ChatCompletionChunkChoiceDelta `json:"delta,required,no_omit"`
+					//}
+					//
+					//type noOmitChunk struct {
+					//	openai.ChatCompletionChunk
+					//	Choices []noOmitChoice `json:"choices,required"`
+					//}
+					//
+					//finishChunk := noOmitChunk{
+					//	ChatCompletionChunk: openai.ChatCompletionChunk{
+					//		ID:                acc.ID,
+					//		Model:             toolRes.Model,
+					//		ServiceTier:       openai.ChatCompletionChunkServiceTier(toolRes.ServiceTier),
+					//		Created:           time.Now().Unix(),
+					//		SystemFingerprint: toolRes.SystemFingerprint,
+					//		Usage:             toolRes.Usage,
+					//		Object:            constant.ValueOf[constant.ChatCompletionChunk](),
+					//	},
+					//	Choices: []noOmitChoice{
+					//		{
+					//			ChatCompletionChunkChoice: openai.ChatCompletionChunkChoice{
+					//				FinishReason: string(openai.CompletionChoiceFinishReasonStop),
+					//			},
+					//			Delta: openai.ChatCompletionChunkChoiceDelta{
+					//				//Role:    "assistant",
+					//				Content: "",
+					//			},
+					//		},
+					//	},
+					//}
 
+					finishChunk := openai.ChatCompletionChunk{
+						ID: acc.ID,
+						Choices: []openai.ChatCompletionChunkChoice{
+							{
+								Delta: openai.ChatCompletionChunkChoiceDelta{
+									//Role:    "assistant",
+									Content: "",
+								},
+								FinishReason: string(openai.CompletionChoiceFinishReasonStop),
+							},
+						},
+						Model:             toolRes.Model,
+						ServiceTier:       openai.ChatCompletionChunkServiceTier(toolRes.ServiceTier),
+						Created:           time.Now().Unix(),
+						SystemFingerprint: toolRes.SystemFingerprint,
+						Usage:             toolRes.Usage,
+						Object:            constant.ValueOf[constant.ChatCompletionChunk](),
+					}
 
-
-
-
-					TODO: you are here
-					once the tool call is done, we need to mark the session as completed, which should send [DONE].
-
-
-
-
-
-
-
-					 */
+					if err := eventStream.TrySend(streamCtx, finishChunk, "choices[].delta.content"); err != nil {
+						b.logger.Error(ctx, "failed to send finish chunk", slog.Error(err))
+					}
 				}
 				continue
 			}
 
-			chunks <- chunk
+			if _, ok := ignoreSubsequent[acc.ID]; !ok {
+				if err := eventStream.TrySend(streamCtx, chunk); err != nil {
+					b.logger.Error(ctx, "failed to send reflected chunk", slog.Error(err))
+				}
+			}
+		}
+
+		if err := eventStream.Close(streamCtx); err != nil {
+			b.logger.Error(ctx, "failed to close event stream", slog.Error(err))
 		}
 
 		if err := stream.Err(); err != nil {
 			// TODO: handle error.
 			b.logger.Error(ctx, "server stream error", slog.Error(err))
-			return
 		}
 
-		if flusher, ok := w.(http.Flusher); ok {
-			flusher.Flush()
-		}
+		wg.Wait()
+
+		// Ensure we flush all the remaining data before ending.
+		flush(w)
+
+		streamCancel(xerrors.New("gracefully done"))
 
 		select {
-		case <-ctx.Done():
-		case <-done:
+		case <-streamCtx.Done():
 		}
 	} else {
 		completion, err := client.Chat.Completions.New(ctx, in.ChatCompletionNewParams)

@@ -209,7 +209,7 @@ func (sir *streamingInterceptReader) Read(p []byte) (n int, err error) {
 			// Once [DONE] is found, we need to inject the trailer events and rewind the reader.
 			if bytes.Contains(chunk, []byte(`[DONE]`)) {
 				// TODO: inject trailers then [DONE] events.
-				//continue
+				// continue
 			}
 
 			extraEvents, send, interceptErr := sir.interceptFunc(sir.sess, chunk, true)
@@ -374,7 +374,7 @@ func (p *SSEProxy) ServeHTTPWithContext(ctx context.Context, w http.ResponseWrit
 	go func() {
 		select {
 		case <-ctx.Done():
-			// Context cancelled, try to close the connection
+			// Context canceled, try to close the connection
 			if hijacker, ok := w.(http.Hijacker); ok {
 				if conn, _, err := hijacker.Hijack(); err == nil {
 					conn.Close()

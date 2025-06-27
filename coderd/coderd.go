@@ -1949,7 +1949,7 @@ func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context, name strin
 }
 
 //// TODO: naming...
-//func (api *API) CreateInMemoryOpenAIBridgeClient(dialCtx context.Context, srv *aibridged.Server) (client aibridgedproto.DRPCOpenAIServiceClient, err error) {
+// func (api *API) CreateInMemoryOpenAIBridgeClient(dialCtx context.Context, srv *aibridged.Server) (client aibridgedproto.DRPCOpenAIServiceClient, err error) {
 //	// TODO(dannyk): implement options.
 //	// TODO(dannyk): implement tracing.
 //

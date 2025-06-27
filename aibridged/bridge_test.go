@@ -69,7 +69,7 @@ func TestOpenAIStreaming(t *testing.T) {
 
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		DeploymentValues: coderdtest.DeploymentValues(t, func(values *codersdk.DeploymentValues) {
-			values.AI.Value.BridgeConfig.OpenAIBaseURL = serpent.String(ts.URL)
+			values.AI.BridgeConfig.OpenAIBaseURL = serpent.String(ts.URL)
 		}),
 	})
 	log := testutil.Logger(t)
@@ -77,13 +77,13 @@ func TestOpenAIStreaming(t *testing.T) {
 	fakeDialer := func(ctx context.Context) (proto.DRPCAIBridgeDaemonClient, error) {
 		return &fakeBridgeDaemonClient{}, nil
 	}
-	bridgeSrv, err := aibridged.New(fakeDialer, "127.0.0.1:0", log, api.DeploymentValues.AI.Value.BridgeConfig)
+	bridgeSrv, err := aibridged.New(fakeDialer, "127.0.0.1:0", log, api.DeploymentValues.AI.BridgeConfig)
 	require.NoError(t, err)
 	api.AIBridgeDaemons = []*aibridged.Server{bridgeSrv}
 
-	// TODO: improve approach.
+	// Wait for bridge server to start listening
 	require.Eventually(t, func() bool {
-		return len(api.AIBridgeDaemons) > 0
+		return len(api.AIBridgeDaemons) > 0 && api.AIBridgeDaemons[0].BridgeAddr() != ""
 	}, testutil.WaitMedium, testutil.IntervalFast)
 
 	body := []byte(`

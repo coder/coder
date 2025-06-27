@@ -487,7 +487,7 @@ require (
 	github.com/coder/preview v1.0.1
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/mark3labs/mcp-go v0.32.0
-	github.com/openai/openai-go v1.7.0
+	github.com/openai/openai-go v1.8.1
 )
 
 require (
