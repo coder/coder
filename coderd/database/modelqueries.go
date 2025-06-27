@@ -582,6 +582,19 @@ func (q *sqlQuerier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg 
 
 	query := fmt.Sprintf("-- name: GetAuthorizedConnectionLogsOffset :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
+		arg.OrganizationID,
+		arg.WorkspaceOwner,
+		arg.Type,
+		arg.UserID,
+		arg.Username,
+		arg.Email,
+		arg.StartedAfter,
+		arg.StartedBefore,
+		arg.ClosedAfter,
+		arg.ClosedBefore,
+		arg.WorkspaceID,
+		arg.ConnectionID,
+		arg.Status,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

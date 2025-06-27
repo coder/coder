@@ -799,7 +799,92 @@ JOIN organizations ON
 	connection_logs.organization_id = organizations.id
 JOIN workspaces ON
 	connection_logs.workspace_id = workspaces.id
-WHERE TRUE
+WHERE
+	-- Filter organization_id
+	CASE
+		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.organization_id = $1
+		ELSE true
+	END
+	-- Filter by workspace owner username
+	AND CASE
+		WHEN $2 :: text != '' THEN
+			workspace_owner_id = (
+				SELECT id FROM users
+				WHERE lower(username) = lower($2) AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by type
+	AND CASE
+		WHEN $3 :: text != '' THEN
+			type = $3 :: connection_type
+		ELSE true
+	END
+	-- Filter by user_id
+	AND CASE
+		WHEN $4 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = $4
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN $5 :: text != '' THEN
+			user_id = (
+				SELECT id FROM users
+				WHERE lower(username) = lower($5) AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN $6 :: text != '' THEN
+			users.email = $6
+		ELSE true
+	END
+	-- Filter by started_after
+	AND CASE
+		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" >= $7
+		ELSE true
+	END
+	-- Filter by started_before
+	AND CASE
+		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" <= $8
+		ELSE true
+	END
+	-- Filter by closed_after
+	AND CASE
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			close_time >= $9
+  		ELSE true
+  	END
+	 -- Filter by closed_before
+	AND CASE
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+		   close_time <= $10
+		ELSE true
+	END
+	-- Filter by workspace_id
+	AND CASE
+		WHEN $11 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.workspace_id = $11
+		ELSE true
+	END
+	-- Filter by connection_id
+	AND CASE
+		WHEN $12 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.connection_id = $12
+		ELSE true
+	END
+	-- Filter by whether the session has a close_time
+	AND CASE
+		WHEN $13 :: text != '' THEN
+	        ($13 :: connection_status = 'connected' AND close_time IS NULL) OR
+        	($13 :: connection_status = 'disconnected' AND close_time IS NOT NULL)
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in
 	-- GetAuthorizedConnectionLogsOffset
 	-- @authorize_filter
@@ -809,14 +894,27 @@ LIMIT
 	-- a limit of 0 means "no limit". The connection log table is unbounded
 	-- in size, and is expected to be quite large. Implement a default
 	-- limit of 100 to prevent accidental excessively large queries.
-	COALESCE(NULLIF($2 :: int, 0), 100)
+	COALESCE(NULLIF($15 :: int, 0), 100)
 OFFSET
-	$1
+	$14
 `
 
 type GetConnectionLogsOffsetParams struct {
-	OffsetOpt int32 `db:"offset_opt" json:"offset_opt"`
-	LimitOpt  int32 `db:"limit_opt" json:"limit_opt"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	WorkspaceOwner string    `db:"workspace_owner" json:"workspace_owner"`
+	Type           string    `db:"type" json:"type"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	Username       string    `db:"username" json:"username"`
+	Email          string    `db:"email" json:"email"`
+	StartedAfter   time.Time `db:"started_after" json:"started_after"`
+	StartedBefore  time.Time `db:"started_before" json:"started_before"`
+	ClosedAfter    time.Time `db:"closed_after" json:"closed_after"`
+	ClosedBefore   time.Time `db:"closed_before" json:"closed_before"`
+	WorkspaceID    uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	ConnectionID   uuid.UUID `db:"connection_id" json:"connection_id"`
+	Status         string    `db:"status" json:"status"`
+	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetConnectionLogsOffsetRow struct {
@@ -841,7 +939,23 @@ type GetConnectionLogsOffsetRow struct {
 }
 
 func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error) {
-	rows, err := q.db.QueryContext(ctx, getConnectionLogsOffset, arg.OffsetOpt, arg.LimitOpt)
+	rows, err := q.db.QueryContext(ctx, getConnectionLogsOffset,
+		arg.OrganizationID,
+		arg.WorkspaceOwner,
+		arg.Type,
+		arg.UserID,
+		arg.Username,
+		arg.Email,
+		arg.StartedAfter,
+		arg.StartedBefore,
+		arg.ClosedAfter,
+		arg.ClosedBefore,
+		arg.WorkspaceID,
+		arg.ConnectionID,
+		arg.Status,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
 	if err != nil {
 		return nil, err
 	}
