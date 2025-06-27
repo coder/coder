@@ -34,7 +34,7 @@ func TestServer_X11(t *testing.T) {
 
 	ctx := context.Background()
 	logger := testutil.Logger(t)
-	fs := afero.NewOsFs()
+	fs := afero.NewMemMapFs()
 	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), fs, agentexec.DefaultExecer, &agentssh.Config{})
 	require.NoError(t, err)
 	defer s.Close()
