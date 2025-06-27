@@ -83,16 +83,17 @@ func (*Server) x11Callback(_ ssh.Context, _ ssh.X11) bool {
 
 // x11Handler is called when a session has requested X11 forwarding.
 // It listens for X11 connections and forwards them to the client.
-func (x *x11Forwarder) x11Handler(ctx ssh.Context, sshSession ssh.Session) (displayNumber int, handled bool) {
+func (x *x11Forwarder) x11Handler(sshCtx ssh.Context, sshSession ssh.Session) (displayNumber int, handled bool) {
 	x11, hasX11 := sshSession.X11()
 	if !hasX11 {
 		return -1, false
 	}
-	serverConn, valid := ctx.Value(ssh.ContextKeyConn).(*gossh.ServerConn)
+	serverConn, valid := sshCtx.Value(ssh.ContextKeyConn).(*gossh.ServerConn)
 	if !valid {
-		x.logger.Warn(ctx, "failed to get server connection")
+		x.logger.Warn(sshCtx, "failed to get server connection")
 		return -1, false
 	}
+	ctx := slog.With(sshCtx, slog.F("session_id", fmt.Sprintf("%x", serverConn.SessionID())))
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -127,6 +128,7 @@ func (x *x11Forwarder) x11Handler(ctx ssh.Context, sshSession ssh.Session) (disp
 	}()
 
 	go x.listenForConnections(ctx, x11session, serverConn, x11)
+	x.logger.Debug(ctx, "X11 forwarding started", slog.F("display", x11session.display))
 
 	return x11session.display, true
 }
