@@ -530,7 +530,6 @@ func (api *API) updateContainers(ctx context.Context) error {
 		// will clear up on the next update.
 		if !errors.Is(err, context.Canceled) {
 			api.mu.Lock()
-			api.containers = codersdk.WorkspaceAgentListContainersResponse{}
 			api.containersErr = err
 			api.mu.Unlock()
 		}
@@ -947,7 +946,7 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 			slog.F("devcontainer_id", dc.ID),
 			slog.F("devcontainer_name", dc.Name),
 			slog.F("workspace_folder", dc.WorkspaceFolder),
-			slog.F("config_path", configPath),
+			slog.F("config_path", dc.ConfigPath),
 		)
 	)
 
