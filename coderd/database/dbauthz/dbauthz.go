@@ -1323,6 +1323,21 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 	return q.db.CleanTailnetTunnels(ctx)
 }
 
+func (q *querier) CountConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams) (int64, error) {
+	// Just like the actual query, shortcut if the user is an owner.
+	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog)
+	if err == nil {
+		return q.db.CountConnectionLogs(ctx, arg)
+	}
+
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceConnectionLog.Type)
+	if err != nil {
+		return 0, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+
+	return q.db.CountAuthorizedConnectionLogs(ctx, arg, prep)
+}
+
 func (q *querier) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
 		return nil, err
@@ -5300,4 +5315,8 @@ func (q *querier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg database
 
 func (q *querier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams, _ rbac.PreparedAuthorized) ([]database.GetConnectionLogsOffsetRow, error) {
 	return q.GetConnectionLogsOffset(ctx, arg)
+}
+
+func (q *querier) CountAuthorizedConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams, _ rbac.PreparedAuthorized) (int64, error) {
+	return q.CountConnectionLogs(ctx, arg)
 }

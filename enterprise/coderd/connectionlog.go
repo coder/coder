@@ -55,6 +55,38 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 		filter.Username = ""
 	}
 
+	count, err := api.Database.CountConnectionLogs(ctx, database.CountConnectionLogsParams{
+		OrganizationID: filter.OrganizationID,
+		WorkspaceOwner: filter.WorkspaceOwner,
+		Type:           filter.Type,
+		UserID:         filter.UserID,
+		Username:       filter.Username,
+		Email:          filter.Email,
+		StartedAfter:   filter.StartedAfter,
+		StartedBefore:  filter.StartedBefore,
+		ClosedAfter:    filter.ClosedAfter,
+		ClosedBefore:   filter.ClosedBefore,
+		WorkspaceID:    filter.WorkspaceID,
+		ConnectionID:   filter.ConnectionID,
+		Status:         filter.Status,
+	})
+	if dbauthz.IsNotAuthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	if count == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ConnectionLogResponse{
+			ConnectionLogs: []codersdk.ConnectionLog{},
+			Count:          0,
+		})
+		return
+	}
+
 	dblogs, err := api.Database.GetConnectionLogsOffset(ctx, filter)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
@@ -67,7 +99,7 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ConnectionLogResponse{
 		ConnectionLogs: convertConnectionLogs(dblogs),
-		Count:          0, // TODO(ethanndickson): Set count
+		Count:          count,
 	})
 }
 
