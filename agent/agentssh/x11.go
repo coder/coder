@@ -162,6 +162,11 @@ func (x *x11Forwarder) listenForConnections(
 			x.logger.Warn(ctx, "failed to accept X11 connection", slog.Error(err))
 			return
 		}
+
+		// Update session usage time since a new X11 connection was forwarded.
+		x.mu.Lock()
+		session.usedAt = time.Now()
+		x.mu.Unlock()
 		if x11.SingleConnection {
 			x.logger.Debug(ctx, "single connection requested, closing X11 listener")
 			x.closeAndRemoveSession(session)

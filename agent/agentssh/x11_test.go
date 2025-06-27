@@ -232,8 +232,31 @@ func TestServer_X11_EvictionLRU(t *testing.T) {
 		})
 	}
 
-	// Create one more session which should evict the first (LRU) session and
-	// therefore reuse the very first display/port.
+	// Connect X11 forwarding to the first session. This is used to test that
+	// connecting counts as a use of the display.
+	x11Chans := c.HandleChannelOpen("x11")
+	payload := "hello world"
+	go func() {
+		conn, err := inproc.Dial(ctx, testutil.NewAddr("tcp", fmt.Sprintf("localhost:%d", agentssh.X11StartPort+agentssh.X11DefaultDisplayOffset)))
+		assert.NoError(t, err)
+		_, err = conn.Write([]byte(payload))
+		assert.NoError(t, err)
+		_ = conn.Close()
+	}()
+
+	x11 := testutil.RequireReceive(ctx, t, x11Chans)
+	ch, reqs, err := x11.Accept()
+	require.NoError(t, err)
+	go gossh.DiscardRequests(reqs)
+	got := make([]byte, len(payload))
+	_, err = ch.Read(got)
+	require.NoError(t, err)
+	assert.Equal(t, payload, string(got))
+	_ = ch.Close()
+
+	// Create one more session which should evict a session and reuse the display.
+	// The first session was used to connect X11 forwarding, so it should not be evicted.
+	// Therefore, the second session should be evicted and its display reused.
 	extraSess, err := c.NewSession()
 	require.NoError(t, err)
 
@@ -271,17 +294,34 @@ func TestServer_X11_EvictionLRU(t *testing.T) {
 		require.NoError(t, sc.Err())
 	}
 
-	// The display number should have wrapped around to the starting value.
-	assert.Equal(t, agentssh.X11DefaultDisplayOffset, newDisplayNumber, "expected display number to be reused after eviction")
+	// The display number reused should correspond to the SECOND session (display offset 12)
+	expectedDisplay := agentssh.X11DefaultDisplayOffset + 2 // +1 was blocked port
+	assert.Equal(t, expectedDisplay, newDisplayNumber, "second session should have been evicted and its display reused")
 
-	// validate that the first session was torn down.
-	_, err = sessions[0].stdin.Write([]byte("echo DISPLAY=$DISPLAY\n"))
+	// First session should still be alive: send cmd and read output.
+	msgFirst := "still-alive"
+	_, err = sessions[0].stdin.Write([]byte("echo " + msgFirst + "\n"))
+	require.NoError(t, err)
+	for sessions[0].scanner.Scan() {
+		line := strings.TrimSpace(sessions[0].scanner.Text())
+		if strings.Contains(line, msgFirst) {
+			break
+		}
+	}
+	require.NoError(t, sessions[0].scanner.Err())
+
+	// Second session should now be closed.
+	_, err = sessions[1].stdin.Write([]byte("echo dead\n"))
 	require.ErrorIs(t, err, io.EOF)
-	err = sessions[0].sess.Wait()
+	err = sessions[1].sess.Wait()
 	require.Error(t, err)
 
 	// Cleanup.
-	for _, sh := range sessions[1:] {
+	for i, sh := range sessions {
+		if i == 1 {
+			// already closed
+			continue
+		}
 		err = sh.stdin.Close()
 		require.NoError(t, err)
 		err = sh.sess.Wait()
