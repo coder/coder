@@ -89,6 +89,10 @@ Read [cursor rules](.cursorrules).
    - Format: `{number}_{description}.{up|down}.sql`
    - Number must be unique and sequential
    - Always include both up and down migrations
+   - **Use helper scripts**:
+     - `./coderd/database/migrations/create_migration.sh "migration name"` - Creates new migration files
+     - `./coderd/database/migrations/fix_migration_numbers.sh` - Renumbers migrations to avoid conflicts
+     - `./coderd/database/migrations/create_fixture.sh "fixture name"` - Creates test fixtures for migrations
 
 2. **Update database queries**:
    - MUST DO! Any changes to database - adding queries, modifying queries should be done in the `coderd/database/queries/*.sql` files
@@ -124,6 +128,29 @@ Read [cursor rules](.cursorrules).
 3. If errors about audit table, update `enterprise/audit/table.go`
 4. Run `make gen` again
 5. Run `make lint` to catch any remaining issues
+
+### In-Memory Database Testing
+
+When adding new database fields:
+
+- **CRITICAL**: Update `coderd/database/dbmem/dbmem.go` in-memory implementations
+- The `Insert*` functions must include ALL new fields, not just basic ones
+- Common issue: Tests pass with real database but fail with in-memory database due to missing field mappings
+- Always verify in-memory database functions match the real database schema after migrations
+
+Example pattern:
+
+```go
+// In dbmem.go - ensure ALL fields are included
+code := database.OAuth2ProviderAppCode{
+    ID:                  arg.ID,
+    CreatedAt:           arg.CreatedAt,
+    // ... existing fields ...
+    ResourceUri:         arg.ResourceUri,         // New field
+    CodeChallenge:       arg.CodeChallenge,       // New field
+    CodeChallengeMethod: arg.CodeChallengeMethod, // New field
+}
+```
 
 ## Architecture
 
@@ -209,6 +236,12 @@ When working on OAuth2 provider features:
    - Avoid dependency on referer headers for security decisions
    - Support proper state parameter validation
 
+6. **RFC 8707 Resource Indicators**:
+   - Store resource parameters in database for server-side validation (opaque tokens)
+   - Validate resource consistency between authorization and token requests
+   - Support audience validation in refresh token flows
+   - Resource parameter is optional but must be consistent when provided
+
 ### OAuth2 Error Handling Pattern
 
 ```go
@@ -265,3 +298,6 @@ Always run the full test suite after OAuth2 changes:
 4. **Missing newlines** - Ensure files end with newline character
 5. **Tests passing locally but failing in CI** - Check if `dbmem` implementation needs updating
 6. **OAuth2 endpoints returning wrong error format** - Ensure OAuth2 endpoints return RFC 6749 compliant errors
+7. **OAuth2 tests failing but scripts working** - Check in-memory database implementations in `dbmem.go`
+8. **Resource indicator validation failing** - Ensure database stores and retrieves resource parameters correctly
+9. **PKCE tests failing** - Verify both authorization code storage and token exchange handle PKCE fields

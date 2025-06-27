@@ -136,6 +136,9 @@ INSERT INTO oauth2_provider_app_tokens (
 -- name: GetOAuth2ProviderAppTokenByPrefix :one
 SELECT * FROM oauth2_provider_app_tokens WHERE hash_prefix = $1;
 
+-- name: GetOAuth2ProviderAppTokenByAPIKeyID :one
+SELECT * FROM oauth2_provider_app_tokens WHERE api_key_id = $1;
+
 -- name: GetOAuth2ProviderAppsByUserID :many
 SELECT
   COUNT(DISTINCT oauth2_provider_app_tokens.id) as token_count,

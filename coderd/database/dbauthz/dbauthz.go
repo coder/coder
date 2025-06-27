@@ -2165,6 +2165,25 @@ func (q *querier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, appID 
 	return q.db.GetOAuth2ProviderAppSecretsByAppID(ctx, appID)
 }
 
+func (q *querier) GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, apiKeyID string) (database.OAuth2ProviderAppToken, error) {
+	token, err := q.db.GetOAuth2ProviderAppTokenByAPIKeyID(ctx, apiKeyID)
+	if err != nil {
+		return database.OAuth2ProviderAppToken{}, err
+	}
+
+	// Get the associated API key to check ownership
+	apiKey, err := q.db.GetAPIKeyByID(ctx, token.APIKeyID)
+	if err != nil {
+		return database.OAuth2ProviderAppToken{}, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2AppCodeToken.WithOwner(apiKey.UserID.String())); err != nil {
+		return database.OAuth2ProviderAppToken{}, err
+	}
+
+	return token, nil
+}
+
 func (q *querier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (database.OAuth2ProviderAppToken, error) {
 	token, err := q.db.GetOAuth2ProviderAppTokenByPrefix(ctx, hashPrefix)
 	if err != nil {

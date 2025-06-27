@@ -33,6 +33,8 @@ var (
 	errBadToken = xerrors.New("Invalid token")
 	// errInvalidPKCE means the PKCE verification failed.
 	errInvalidPKCE = xerrors.New("invalid code_verifier")
+	// errInvalidResource means the resource parameter validation failed.
+	errInvalidResource = xerrors.New("invalid resource parameter")
 )
 
 // OAuth2Error represents an OAuth2-compliant error response.
@@ -86,6 +88,15 @@ func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []c
 		refreshToken: p.String(vals, "", "refresh_token"),
 		codeVerifier: p.String(vals, "", "code_verifier"),
 		resource:     p.String(vals, "", "resource"),
+	}
+	// Validate resource parameter syntax (RFC 8707): must be absolute URI without fragment
+	if params.resource != "" {
+		if u, err := url.Parse(params.resource); err != nil || u.Scheme == "" || u.Fragment != "" {
+			p.Errors = append(p.Errors, codersdk.ValidationError{
+				Field:  "resource",
+				Detail: "must be an absolute URI without fragment",
+			})
+		}
 	}
 
 	p.ErrorExcessParams(vals)
@@ -156,6 +167,10 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 		}
 		if errors.Is(err, errInvalidPKCE) {
 			writeOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_grant", "The PKCE code verifier is invalid")
+			return
+		}
+		if errors.Is(err, errInvalidResource) {
+			writeOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_target", "The resource parameter is invalid")
 			return
 		}
 		if errors.Is(err, errBadToken) {
@@ -232,6 +247,20 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		if !VerifyPKCE(dbCode.CodeChallenge.String, params.codeVerifier) {
 			return oauth2.Token{}, errInvalidPKCE
 		}
+	}
+
+	// Verify resource parameter consistency (RFC 8707)
+	if dbCode.ResourceUri.Valid && dbCode.ResourceUri.String != "" {
+		// Resource was specified during authorization - it must match in token request
+		if params.resource == "" {
+			return oauth2.Token{}, errInvalidResource
+		}
+		if params.resource != dbCode.ResourceUri.String {
+			return oauth2.Token{}, errInvalidResource
+		}
+	} else if params.resource != "" {
+		// Resource was not specified during authorization but is now provided
+		return oauth2.Token{}, errInvalidResource
 	}
 
 	// Generate a refresh token.
@@ -338,6 +367,14 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	// Ensure the token has not expired.
 	if dbToken.ExpiresAt.Before(dbtime.Now()) {
 		return oauth2.Token{}, errBadToken
+	}
+
+	// Verify resource parameter consistency for refresh tokens (RFC 8707)
+	if params.resource != "" {
+		// If resource is provided in refresh request, it must match the original token's audience
+		if !dbToken.Audience.Valid || dbToken.Audience.String != params.resource {
+			return oauth2.Token{}, errInvalidResource
+		}
 	}
 
 	// Grab the user roles so we can perform the refresh as the user.
