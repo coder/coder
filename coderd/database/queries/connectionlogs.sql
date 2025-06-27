@@ -132,6 +132,112 @@ LIMIT
 OFFSET
 	@offset_opt;
 
+-- name: CountConnectionLogs :one
+SELECT
+	COUNT(*) AS count
+FROM
+	connection_logs
+JOIN users AS workspace_owner ON
+	connection_logs.workspace_owner_id = workspace_owner.id
+LEFT JOIN users ON
+	connection_logs.user_id = users.id
+JOIN organizations ON
+	connection_logs.organization_id = organizations.id
+WHERE
+	-- Filter organization_id
+	CASE
+		WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.organization_id = @organization_id
+		ELSE true
+	END
+	-- Filter by workspace owner username
+	AND CASE
+		WHEN @workspace_owner :: text != '' THEN
+			workspace_owner_id = (
+				SELECT id FROM users
+				WHERE lower(username) = lower(@workspace_owner) AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by workspace_owner_id
+	AND CASE
+		WHEN @workspace_owner_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspace_owner_id = @workspace_owner_id
+		ELSE true
+	END
+	-- Filter by workspace_owner_email
+	AND CASE
+		WHEN @workspace_owner_email :: text != '' THEN
+			workspace_owner_id = (
+				SELECT id FROM users
+				WHERE email = @workspace_owner_email AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by type
+	AND CASE
+		WHEN @type :: text != '' THEN
+			type = @type :: connection_type
+		ELSE true
+	END
+	-- Filter by user_id
+	AND CASE
+		WHEN @user_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = @user_id
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN @username :: text != '' THEN
+			user_id = (
+				SELECT id FROM users
+				WHERE lower(username) = lower(@username) AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN @user_email :: text != '' THEN
+			users.email = @user_email
+		ELSE true
+	END
+	-- Filter by connected_after
+	AND CASE
+		WHEN @connected_after :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			connect_time >= @connected_after
+		ELSE true
+	END
+	-- Filter by connected_before
+	AND CASE
+		WHEN @connected_before :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			connect_time <= @connected_before
+		ELSE true
+	END
+	-- Filter by workspace_id
+	AND CASE
+		WHEN @workspace_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.workspace_id = @workspace_id
+		ELSE true
+	END
+	-- Filter by connection_id
+	AND CASE
+		WHEN @connection_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.connection_id = @connection_id
+		ELSE true
+	END
+	-- Filter by whether the session has a disconnect_time
+	AND CASE
+		WHEN @status :: text != '' THEN
+			((@status = 'ongoing' AND disconnect_time IS NULL) OR
+			(@status = 'completed' AND disconnect_time IS NOT NULL)) AND
+			-- Exclude web events, since we don't know their close time.
+			"type" NOT IN ('workspace_app', 'port_forwarding')
+		ELSE true
+	END
+	-- Authorize Filter clause will be injected below in
+	-- CountAuthorizedConnectionLogs
+	-- @authorize_filter
+;
 
 -- name: UpsertConnectionLog :one
 INSERT INTO connection_logs (

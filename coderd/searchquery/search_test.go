@@ -435,7 +435,7 @@ func TestSearchConnectionLogs(t *testing.T) {
 			`connected_before:"2023-01-16T12:00:00+12:00" workspace_id:%s connection_id:%s status:ongoing`,
 			workspaceID.String(), connectionID.String())
 
-		values, errs := searchquery.ConnectionLogs(context.Background(), db, query, database.APIKey{})
+		values, _, errs := searchquery.ConnectionLogs(context.Background(), db, query, database.APIKey{})
 		require.Len(t, errs, 0)
 
 		expected := database.GetConnectionLogsOffsetParams{
@@ -462,7 +462,7 @@ func TestSearchConnectionLogs(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		query := `username:me workspace_owner:me`
-		values, errs := searchquery.ConnectionLogs(context.Background(), db, query, database.APIKey{UserID: userID})
+		values, _, errs := searchquery.ConnectionLogs(context.Background(), db, query, database.APIKey{UserID: userID})
 		require.Len(t, errs, 0)
 
 		expected := database.GetConnectionLogsOffsetParams{
