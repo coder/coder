@@ -1,24 +1,50 @@
-import MuiAlert, {
-	type AlertColor as MuiAlertColor,
-	type AlertProps as MuiAlertProps,
-	// biome-ignore lint/nursery/noRestrictedImports: Used as base component
-} from "@mui/material/Alert";
-import Collapse from "@mui/material/Collapse";
+import { type VariantProps, cva } from "class-variance-authority";
 import { Button } from "components/Button/Button";
 import {
 	type FC,
 	type PropsWithChildren,
 	type ReactNode,
+	forwardRef,
 	useState,
 } from "react";
+import { cn } from "utils/cn";
 
-export type AlertColor = MuiAlertColor;
+const alertVariants = cva(
+	"relative w-full rounded-lg border border-solid p-4 text-left",
+	{
+		variants: {
+			variant: {
+				default: "border-border-default",
+				info: "border-highlight-sky",
+				success: "border-surface-green",
+				warning: "border-border-warning",
+				error: "border-border-destructive",
+			},
+		},
+		defaultVariants: {
+			variant: "default",
+		},
+	},
+);
 
-export type AlertProps = MuiAlertProps & {
+// Map MUI severity to our variant
+const severityToVariant = {
+	info: "info",
+	success: "success",
+	warning: "warning",
+	error: "error",
+} as const;
+
+export type AlertColor = "info" | "success" | "warning" | "error";
+
+export type AlertProps = {
 	actions?: ReactNode;
 	dismissible?: boolean;
 	onDismiss?: () => void;
-};
+	severity?: AlertColor;
+	children?: ReactNode;
+	className?: string;
+} & VariantProps<typeof alertVariants>;
 
 export const Alert: FC<AlertProps> = ({
 	children,
@@ -26,58 +52,70 @@ export const Alert: FC<AlertProps> = ({
 	dismissible,
 	severity = "info",
 	onDismiss,
-	...alertProps
+	className,
+	variant,
+	...props
 }) => {
 	const [open, setOpen] = useState(true);
 
-	// Can't only rely on MUI's hiding behavior inside flex layouts, because even
-	// though MUI will make a dismissed alert have zero height, the alert will
-	// still behave as a flex child and introduce extra row/column gaps
 	if (!open) {
 		return null;
 	}
 
-	return (
-		<Collapse in>
-			<MuiAlert
-				{...alertProps}
-				css={{ textAlign: "left" }}
-				severity={severity}
-				action={
-					<>
-						{/* CTAs passed in by the consumer */}
-						{actions}
+	// Use severity to determine variant if variant is not explicitly provided
+	const finalVariant =
+		variant ||
+		(severity in severityToVariant ? severityToVariant[severity] : "default");
 
-						{/* close CTA */}
-						{dismissible && (
-							<Button
-								variant="subtle"
-								size="sm"
-								onClick={() => {
-									setOpen(false);
-									onDismiss?.();
-								}}
-								data-testid="dismiss-banner-btn"
-							>
-								Dismiss
-							</Button>
-						)}
-					</>
-				}
-			>
-				{children}
-			</MuiAlert>
-		</Collapse>
+	return (
+		<div
+			role="alert"
+			className={cn(alertVariants({ variant: finalVariant }), className)}
+			{...props}
+		>
+			<div className="flex items-start justify-between text-sm">
+				<div className="flex-1">{children}</div>
+				<div className="flex items-center gap-2 ml-4">
+					{/* CTAs passed in by the consumer */}
+					{actions}
+
+					{dismissible && (
+						<Button
+							variant="subtle"
+							size="sm"
+							onClick={() => {
+								setOpen(false);
+								onDismiss?.();
+							}}
+							data-testid="dismiss-banner-btn"
+						>
+							Dismiss
+						</Button>
+					)}
+				</div>
+			</div>
+		</div>
 	);
 };
 
 export const AlertDetail: FC<PropsWithChildren> = ({ children }) => {
 	return (
-		<span
-			css={(theme) => ({ color: theme.palette.text.secondary, fontSize: 13 })}
-			data-chromatic="ignore"
-		>
+		<span className="text-sm opacity-75" data-chromatic="ignore">
 			{children}
 		</span>
 	);
 };
+
+// Export AlertTitle and AlertDescription for compatibility
+export const AlertTitle = forwardRef<
+	HTMLHeadingElement,
+	React.HTMLAttributes<HTMLHeadingElement>
+>(({ className, ...props }, ref) => (
+	<h5
+		ref={ref}
+		className={cn("mb-1 font-medium leading-none tracking-tight", className)}
+		{...props}
+	/>
+));
+
+AlertTitle.displayName = "AlertTitle";
