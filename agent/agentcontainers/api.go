@@ -422,12 +422,17 @@ func (api *API) updaterLoop() {
 	// advancing the clock.
 	ticker := api.clock.TickerFunc(api.ctx, api.updateInterval, func() error {
 		done := make(chan error, 1)
-		defer close(done)
-
+		var sent bool
+		defer func() {
+			if !sent {
+				close(done)
+			}
+		}()
 		select {
 		case <-api.ctx.Done():
 			return api.ctx.Err()
 		case api.updateTrigger <- done:
+			sent = true
 			err := <-done
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
@@ -456,6 +461,7 @@ func (api *API) updaterLoop() {
 			// Note that although we pass api.ctx here, updateContainers
 			// has an internal timeout to prevent long blocking calls.
 			done <- api.updateContainers(api.ctx)
+			close(done)
 		}
 	}
 }
@@ -800,12 +806,19 @@ func (api *API) RefreshContainers(ctx context.Context) (err error) {
 	}()
 
 	done := make(chan error, 1)
+	var sent bool
+	defer func() {
+		if !sent {
+			close(done)
+		}
+	}()
 	select {
 	case <-api.ctx.Done():
 		return xerrors.Errorf("API closed: %w", api.ctx.Err())
 	case <-ctx.Done():
 		return ctx.Err()
 	case api.updateTrigger <- done:
+		sent = true
 		select {
 		case <-api.ctx.Done():
 			return xerrors.Errorf("API closed: %w", api.ctx.Err())
