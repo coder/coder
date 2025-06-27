@@ -1158,8 +1158,14 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 			}
 
-			var scriptRunnerOpts []agentscripts.InitOption
-			scripts, devcontainerScripts := agentcontainers.ExtractDevcontainerScripts(manifest.Devcontainers, manifest.Scripts)
+			var (
+				scripts             = manifest.Scripts
+				scriptRunnerOpts    []agentscripts.InitOption
+				devcontainerScripts map[uuid.UUID]codersdk.WorkspaceAgentScript
+			)
+			if a.containerAPI != nil {
+				scripts, devcontainerScripts = agentcontainers.ExtractDevcontainerScripts(manifest.Devcontainers, scripts)
+			}
 			err = a.scriptRunner.Init(scripts, aAPI.ScriptCompleted, scriptRunnerOpts...)
 			if err != nil {
 				return xerrors.Errorf("init script runner: %w", err)
