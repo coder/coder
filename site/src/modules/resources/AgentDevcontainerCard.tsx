@@ -80,7 +80,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	const rebuildDevcontainerMutation = useMutation({
 		mutationFn: async () => {
 			const response = await fetch(
-				`/api/v2/workspaceagents/${parentAgent.id}/containers/devcontainers/container/${devcontainer.container?.id}/recreate`,
+				`/api/v2/workspaceagents/${parentAgent.id}/containers/devcontainers/${devcontainer.id}/recreate`,
 				{ method: "POST" },
 			);
 			if (!response.ok) {

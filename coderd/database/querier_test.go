@@ -27,7 +27,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -1157,7 +1156,6 @@ func TestProxyByHostname(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1395,7 +1393,6 @@ func TestGetUsers_IncludeSystem(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1418,7 +1415,7 @@ func TestGetUsers_IncludeSystem(t *testing.T) {
 			for _, u := range users {
 				if u.IsSystem {
 					foundSystemUser = true
-					require.Equal(t, prebuilds.SystemUserID, u.ID)
+					require.Equal(t, database.PrebuildsSystemUserID, u.ID)
 				} else {
 					foundRegularUser = true
 					require.Equalf(t, other.ID.String(), u.ID.String(), "found unexpected regular user")
@@ -1863,8 +1860,6 @@ func TestReadCustomRoles(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
-
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -2507,7 +2502,6 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // Capture loop variable to avoid data races
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			db, _ := dbtestutil.NewDB(t)
@@ -2948,7 +2942,6 @@ func TestGetUserStatusCounts(t *testing.T) {
 	}
 
 	for _, tz := range timezones {
-		tz := tz
 		t.Run(tz, func(t *testing.T) {
 			t.Parallel()
 
@@ -2996,7 +2989,6 @@ func TestGetUserStatusCounts(t *testing.T) {
 				}
 
 				for _, tc := range testCases {
-					tc := tc
 					t.Run(tc.name, func(t *testing.T) {
 						t.Parallel()
 						db, _ := dbtestutil.NewDB(t)
@@ -3164,7 +3156,6 @@ func TestGetUserStatusCounts(t *testing.T) {
 				}
 
 				for _, tc := range testCases {
-					tc := tc
 					t.Run(tc.name, func(t *testing.T) {
 						t.Parallel()
 						db, _ := dbtestutil.NewDB(t)
@@ -3297,7 +3288,6 @@ func TestGetUserStatusCounts(t *testing.T) {
 				}
 
 				for _, tc := range testCases {
-					tc := tc
 					t.Run(tc.name, func(t *testing.T) {
 						t.Parallel()
 

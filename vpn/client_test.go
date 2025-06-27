@@ -90,6 +90,8 @@ func TestClient_WorkspaceUpdates(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
 				case "/api/v2/users/me":
+					values := r.Header.Values(codersdk.SessionTokenHeader)
+					assert.Len(t, values, 1, "expected exactly one session token header value")
 					httpapi.Write(ctx, w, http.StatusOK, codersdk.User{
 						ReducedUser: codersdk.ReducedUser{
 							MinimalUser: codersdk.MinimalUser{
@@ -101,6 +103,8 @@ func TestClient_WorkspaceUpdates(t *testing.T) {
 					user <- struct{}{}
 
 				case "/api/v2/workspaceagents/connection":
+					values := r.Header.Values(codersdk.SessionTokenHeader)
+					assert.Len(t, values, 1, "expected exactly one session token header value")
 					httpapi.Write(ctx, w, http.StatusOK, tc.agentConnectionInfo)
 					connInfo <- struct{}{}
 
@@ -108,6 +112,9 @@ func TestClient_WorkspaceUpdates(t *testing.T) {
 					// need 2.3 for WorkspaceUpdates RPC
 					cVer := r.URL.Query().Get("version")
 					assert.Equal(t, "2.3", cVer)
+
+					values := r.Header.Values(codersdk.SessionTokenHeader)
+					assert.Len(t, values, 1, "expected exactly one session token header value")
 
 					sws, err := websocket.Accept(w, r, nil)
 					if !assert.NoError(t, err) {

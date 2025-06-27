@@ -130,7 +130,7 @@
             "type": "coder_parameter",
             "name": "number_example",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 0,
+            "schema_version": 1,
             "values": {
               "default": "4",
               "description": null,
@@ -159,7 +159,7 @@
             "type": "coder_parameter",
             "name": "number_example_max",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 0,
+            "schema_version": 1,
             "values": {
               "default": "4",
               "description": null,
@@ -200,7 +200,7 @@
             "type": "coder_parameter",
             "name": "number_example_max_zero",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 0,
+            "schema_version": 1,
             "values": {
               "default": "-3",
               "description": null,
@@ -241,7 +241,7 @@
             "type": "coder_parameter",
             "name": "number_example_min",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 0,
+            "schema_version": 1,
             "values": {
               "default": "4",
               "description": null,
@@ -282,7 +282,7 @@
             "type": "coder_parameter",
             "name": "number_example_min_max",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 0,
+            "schema_version": 1,
             "values": {
               "default": "4",
               "description": null,
@@ -323,7 +323,7 @@
             "type": "coder_parameter",
             "name": "number_example_min_zero",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 0,
+            "schema_version": 1,
             "values": {
               "default": "4",
               "description": null,
@@ -426,7 +426,7 @@
               "constant_value": "number"
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "data.coder_parameter.number_example_max",
@@ -452,7 +452,7 @@
               }
             ]
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "data.coder_parameter.number_example_max_zero",
@@ -478,7 +478,7 @@
               }
             ]
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "data.coder_parameter.number_example_min",
@@ -504,7 +504,7 @@
               }
             ]
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "data.coder_parameter.number_example_min_max",
@@ -533,7 +533,7 @@
               }
             ]
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "data.coder_parameter.number_example_min_zero",
@@ -559,7 +559,7 @@
               }
             ]
           },
-          "schema_version": 0
+          "schema_version": 1
         }
       ]
     }

@@ -435,7 +435,6 @@ func applyOrgResourceActions(role *codersdk.Role, resource string, actions []str
 	// Construct new site perms with only new perms for the resource
 	keep := make([]codersdk.Permission, 0)
 	for _, perm := range role.OrganizationPermissions {
-		perm := perm
 		if string(perm.ResourceType) != resource {
 			keep = append(keep, perm)
 		}

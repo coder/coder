@@ -260,40 +260,23 @@ func TestEntitlements_Prebuilds(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name              string
-		experimentEnabled bool
-		featureEnabled    bool
-		expectedEnabled   bool
+		name            string
+		featureEnabled  bool
+		expectedEnabled bool
 	}{
 		{
-			name:              "Fully enabled",
-			featureEnabled:    true,
-			experimentEnabled: true,
-			expectedEnabled:   true,
+			name:            "Feature enabled",
+			featureEnabled:  true,
+			expectedEnabled: true,
 		},
 		{
-			name:              "Feature disabled",
-			featureEnabled:    false,
-			experimentEnabled: true,
-			expectedEnabled:   false,
-		},
-		{
-			name:              "Experiment disabled",
-			featureEnabled:    true,
-			experimentEnabled: false,
-			expectedEnabled:   false,
-		},
-		{
-			name:              "Fully disabled",
-			featureEnabled:    false,
-			experimentEnabled: false,
-			expectedEnabled:   false,
+			name:            "Feature disabled",
+			featureEnabled:  false,
+			expectedEnabled: false,
 		},
 	}
 
 	for _, tc := range cases {
-		tc := tc
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -304,11 +287,7 @@ func TestEntitlements_Prebuilds(t *testing.T) {
 
 			_, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
-					DeploymentValues: coderdtest.DeploymentValues(t, func(values *codersdk.DeploymentValues) {
-						if tc.experimentEnabled {
-							values.Experiments = serpent.StringArray{string(codersdk.ExperimentWorkspacePrebuilds)}
-						}
-					}),
+					DeploymentValues: coderdtest.DeploymentValues(t),
 				},
 
 				EntitlementsUpdateInterval: time.Second,
@@ -618,7 +597,6 @@ func TestSCIMDisabled(t *testing.T) {
 	}
 
 	for _, p := range checkPaths {
-		p := p
 		t.Run(p, func(t *testing.T) {
 			t.Parallel()
 

@@ -42,7 +42,7 @@ const mockDataForTags = {
 	user: MockUserOwner,
 	userAppearance: MockUserAppearanceSettings,
 	regions: MockRegions,
-	tasksTabVisible: MockTasksTabVisible,
+	"tasks-tab-visible": MockTasksTabVisible,
 } as const satisfies Record<MetadataKey, MetadataValue>;
 
 const emptyMetadata: RuntimeHtmlMetadata = {
@@ -74,7 +74,7 @@ const emptyMetadata: RuntimeHtmlMetadata = {
 		available: false,
 		value: undefined,
 	},
-	tasksTabVisible: {
+	"tasks-tab-visible": {
 		available: false,
 		value: undefined,
 	},
@@ -109,7 +109,7 @@ const populatedMetadata: RuntimeHtmlMetadata = {
 		available: true,
 		value: MockUserAppearanceSettings,
 	},
-	tasksTabVisible: {
+	"tasks-tab-visible": {
 		available: true,
 		value: MockTasksTabVisible,
 	},

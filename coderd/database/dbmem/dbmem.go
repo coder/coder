@@ -23,11 +23,9 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/notifications/types"
-	"github.com/coder/coder/v2/coderd/prebuilds"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -75,6 +73,7 @@ func New() database.Store {
 			parameterSchemas:               make([]database.ParameterSchema, 0),
 			presets:                        make([]database.TemplateVersionPreset, 0),
 			presetParameters:               make([]database.TemplateVersionPresetParameter, 0),
+			presetPrebuildSchedules:        make([]database.TemplateVersionPresetPrebuildSchedule, 0),
 			provisionerDaemons:             make([]database.ProvisionerDaemon, 0),
 			provisionerJobs:                make([]database.ProvisionerJob, 0),
 			provisionerJobLogs:             make([]database.ProvisionerJobLog, 0),
@@ -159,7 +158,7 @@ func New() database.Store {
 	q.mutex.Lock()
 	// We can't insert this user using the interface, because it's a system user.
 	q.data.users = append(q.data.users, database.User{
-		ID:             prebuilds.SystemUserID,
+		ID:             database.PrebuildsSystemUserID,
 		Email:          "prebuilds@coder.com",
 		Username:       "prebuilds",
 		CreatedAt:      dbtime.Now(),
@@ -216,8 +215,6 @@ type data struct {
 
 	// New tables
 	auditLogs                            []database.AuditLog
-	chats                                []database.Chat
-	chatMessages                         []database.ChatMessage
 	cryptoKeys                           []database.CryptoKey
 	dbcryptKeys                          []database.DBCryptKey
 	files                                []database.File
@@ -299,6 +296,7 @@ type data struct {
 	telemetryItems                   []database.TelemetryItem
 	presets                          []database.TemplateVersionPreset
 	presetParameters                 []database.TemplateVersionPresetParameter
+	presetPrebuildSchedules          []database.TemplateVersionPresetPrebuildSchedule
 }
 
 func tryPercentileCont(fs []float64, p float64) float64 {
@@ -1811,7 +1809,6 @@ func (q *FakeQuerier) CustomRoles(_ context.Context, arg database.CustomRolesPar
 
 	found := make([]database.CustomRole, 0)
 	for _, role := range q.data.customRoles {
-		role := role
 		if len(arg.LookupRoles) > 0 {
 			if !slices.ContainsFunc(arg.LookupRoles, func(pair database.NameOrganizationPair) bool {
 				if pair.Name != role.Name {
@@ -1908,19 +1905,6 @@ func (q *FakeQuerier) DeleteApplicationConnectAPIKeysByUserID(_ context.Context,
 	}
 
 	return nil
-}
-
-func (q *FakeQuerier) DeleteChat(ctx context.Context, id uuid.UUID) error {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i, chat := range q.chats {
-		if chat.ID == id {
-			q.chats = append(q.chats[:i], q.chats[i+1:]...)
-			return nil
-		}
-	}
-	return sql.ErrNoRows
 }
 
 func (*FakeQuerier) DeleteCoordinator(context.Context, uuid.UUID) error {
@@ -2778,6 +2762,45 @@ func (q *FakeQuerier) GetAPIKeysLastUsedAfter(_ context.Context, after time.Time
 	return apiKeys, nil
 }
 
+func (q *FakeQuerier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var activeSchedules []database.TemplateVersionPresetPrebuildSchedule
+
+	// Create a map of active template version IDs for quick lookup
+	activeTemplateVersions := make(map[uuid.UUID]bool)
+	for _, template := range q.templates {
+		if !template.Deleted && template.Deprecated == "" {
+			activeTemplateVersions[template.ActiveVersionID] = true
+		}
+	}
+
+	// Create a map of presets for quick lookup
+	presetMap := make(map[uuid.UUID]database.TemplateVersionPreset)
+	for _, preset := range q.presets {
+		presetMap[preset.ID] = preset
+	}
+
+	// Filter preset prebuild schedules to only include those for active template versions
+	for _, schedule := range q.presetPrebuildSchedules {
+		// Look up the preset using the map
+		preset, exists := presetMap[schedule.PresetID]
+		if !exists {
+			continue
+		}
+
+		// Check if preset's template version is active
+		if !activeTemplateVersions[preset.TemplateVersionID] {
+			continue
+		}
+
+		activeSchedules = append(activeSchedules, schedule)
+	}
+
+	return activeSchedules, nil
+}
+
 // nolint:revive // It's not a control flag, it's a filter.
 func (q *FakeQuerier) GetActiveUserCount(_ context.Context, includeSystem bool) (int64, error) {
 	q.mutex.RLock()
@@ -2881,7 +2904,6 @@ func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 	roles := make([]string, 0)
 	for _, u := range q.users {
 		if u.ID == userID {
-			u := u
 			roles = append(roles, u.RBACRoles...)
 			roles = append(roles, "member")
 			user = &u
@@ -2916,47 +2938,6 @@ func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 		Roles:    roles,
 		Groups:   groups,
 	}, nil
-}
-
-func (q *FakeQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, chat := range q.chats {
-		if chat.ID == id {
-			return chat, nil
-		}
-	}
-	return database.Chat{}, sql.ErrNoRows
-}
-
-func (q *FakeQuerier) GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	messages := []database.ChatMessage{}
-	for _, chatMessage := range q.chatMessages {
-		if chatMessage.ChatID == chatID {
-			messages = append(messages, chatMessage)
-		}
-	}
-	return messages, nil
-}
-
-func (q *FakeQuerier) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.Chat, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	chats := []database.Chat{}
-	for _, chat := range q.chats {
-		if chat.OwnerID == ownerID {
-			chats = append(chats, chat)
-		}
-	}
-	sort.Slice(chats, func(i, j int) bool {
-		return chats[i].CreatedAt.After(chats[j].CreatedAt)
-	})
-	return chats, nil
 }
 
 func (q *FakeQuerier) GetCoordinatorResumeTokenSigningKey(_ context.Context) (string, error) {
@@ -4289,7 +4270,7 @@ func (q *FakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 }
 
 func (*FakeQuerier) GetPrebuildMetrics(_ context.Context) ([]database.GetPrebuildMetricsRow, error) {
-	return nil, ErrUnimplemented
+	return make([]database.GetPrebuildMetricsRow, 0), nil
 }
 
 func (q *FakeQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
@@ -4460,7 +4441,8 @@ func (q *FakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.Provi
 	defer q.mutex.RUnlock()
 
 	if len(q.provisionerDaemons) == 0 {
-		return nil, sql.ErrNoRows
+		// Returning err=nil here for consistency with real querier
+		return []database.ProvisionerDaemon{}, nil
 	}
 	// copy the data so that the caller can't manipulate any data inside dbmem
 	// after returning
@@ -7922,6 +7904,11 @@ func (q *FakeQuerier) GetWorkspaceBuildParameters(_ context.Context, workspaceBu
 	return q.getWorkspaceBuildParametersNoLock(workspaceBuildID)
 }
 
+func (q *FakeQuerier) GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIDs []uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
+	// No auth filter.
+	return q.GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx, workspaceBuildIDs, nil)
+}
+
 func (q *FakeQuerier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -8084,7 +8071,6 @@ func (q *FakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 
 	var found *database.WorkspaceTable
 	for _, workspace := range q.workspaces {
-		workspace := workspace
 		if workspace.OwnerID != arg.OwnerID {
 			continue
 		}
@@ -8142,7 +8128,6 @@ func (q *FakeQuerier) GetWorkspaceByWorkspaceAppID(_ context.Context, workspaceA
 	defer q.mutex.RUnlock()
 
 	for _, workspaceApp := range q.workspaceApps {
-		workspaceApp := workspaceApp
 		if workspaceApp.ID == workspaceAppID {
 			return q.getWorkspaceByAgentIDNoLock(context.Background(), workspaceApp.AgentID)
 		}
@@ -8587,66 +8572,6 @@ func (q *FakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAudit
 	})
 
 	return alog, nil
-}
-
-func (q *FakeQuerier) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.Chat{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	chat := database.Chat{
-		ID:        uuid.New(),
-		CreatedAt: arg.CreatedAt,
-		UpdatedAt: arg.UpdatedAt,
-		OwnerID:   arg.OwnerID,
-		Title:     arg.Title,
-	}
-	q.chats = append(q.chats, chat)
-
-	return chat, nil
-}
-
-func (q *FakeQuerier) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return nil, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	id := int64(0)
-	if len(q.chatMessages) > 0 {
-		id = q.chatMessages[len(q.chatMessages)-1].ID
-	}
-
-	messages := make([]database.ChatMessage, 0)
-
-	rawMessages := make([]json.RawMessage, 0)
-	err = json.Unmarshal(arg.Content, &rawMessages)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, content := range rawMessages {
-		id++
-		_ = content
-		messages = append(messages, database.ChatMessage{
-			ID:        id,
-			ChatID:    arg.ChatID,
-			CreatedAt: arg.CreatedAt,
-			Model:     arg.Model,
-			Provider:  arg.Provider,
-			Content:   content,
-		})
-	}
-
-	q.chatMessages = append(q.chatMessages, messages...)
-	return messages, nil
 }
 
 func (q *FakeQuerier) InsertCryptoKey(_ context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
@@ -9162,6 +9087,7 @@ func (q *FakeQuerier) InsertPreset(_ context.Context, arg database.InsertPresetP
 			Valid: true,
 		},
 		PrebuildStatus: database.PrebuildStatusHealthy,
+		IsDefault:      arg.IsDefault,
 	}
 	q.presets = append(q.presets, preset)
 	return preset, nil
@@ -9189,6 +9115,25 @@ func (q *FakeQuerier) InsertPresetParameters(_ context.Context, arg database.Ins
 	}
 
 	return presetParameters, nil
+}
+
+func (q *FakeQuerier) InsertPresetPrebuildSchedule(ctx context.Context, arg database.InsertPresetPrebuildScheduleParams) (database.TemplateVersionPresetPrebuildSchedule, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.TemplateVersionPresetPrebuildSchedule{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	presetPrebuildSchedule := database.TemplateVersionPresetPrebuildSchedule{
+		ID:               uuid.New(),
+		PresetID:         arg.PresetID,
+		CronExpression:   arg.CronExpression,
+		DesiredInstances: arg.DesiredInstances,
+	}
+	q.presetPrebuildSchedules = append(q.presetPrebuildSchedules, presetPrebuildSchedule)
+	return presetPrebuildSchedule, nil
 }
 
 func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
@@ -9409,7 +9354,6 @@ func (q *FakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 		JobID:           arg.JobID,
 		CreatedBy:       arg.CreatedBy,
 		SourceExampleID: arg.SourceExampleID,
-		HasAITask:       arg.HasAITask,
 	}
 	q.templateVersions = append(q.templateVersions, version)
 	return nil
@@ -9963,48 +9907,6 @@ func (q *FakeQuerier) InsertWorkspaceAgentStats(_ context.Context, arg database.
 	return nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.WorkspaceApp{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	if arg.SharingLevel == "" {
-		arg.SharingLevel = database.AppSharingLevelOwner
-	}
-
-	if arg.OpenIn == "" {
-		arg.OpenIn = database.WorkspaceAppOpenInSlimWindow
-	}
-
-	// nolint:gosimple
-	workspaceApp := database.WorkspaceApp{
-		ID:                   arg.ID,
-		AgentID:              arg.AgentID,
-		CreatedAt:            arg.CreatedAt,
-		Slug:                 arg.Slug,
-		DisplayName:          arg.DisplayName,
-		Icon:                 arg.Icon,
-		Command:              arg.Command,
-		Url:                  arg.Url,
-		External:             arg.External,
-		Subdomain:            arg.Subdomain,
-		SharingLevel:         arg.SharingLevel,
-		HealthcheckUrl:       arg.HealthcheckUrl,
-		HealthcheckInterval:  arg.HealthcheckInterval,
-		HealthcheckThreshold: arg.HealthcheckThreshold,
-		Health:               arg.Health,
-		Hidden:               arg.Hidden,
-		DisplayOrder:         arg.DisplayOrder,
-		OpenIn:               arg.OpenIn,
-		DisplayGroup:         arg.DisplayGroup,
-	}
-	q.workspaceApps = append(q.workspaceApps, workspaceApp)
-	return workspaceApp, nil
-}
-
 func (q *FakeQuerier) InsertWorkspaceAppStats(_ context.Context, arg database.InsertWorkspaceAppStatsParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -10089,7 +9991,6 @@ func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		MaxDeadline:             arg.MaxDeadline,
 		Reason:                  arg.Reason,
 		TemplateVersionPresetID: arg.TemplateVersionPresetID,
-		HasAITask:               arg.HasAITask,
 	}
 	q.workspaceBuilds = append(q.workspaceBuilds, workspaceBuild)
 	return nil
@@ -10366,7 +10267,6 @@ func (q *FakeQuerier) OrganizationMembers(_ context.Context, arg database.Organi
 			continue
 		}
 
-		organizationMember := organizationMember
 		user, _ := q.getUserByIDNoLock(organizationMember.UserID)
 		tmp = append(tmp, database.OrganizationMembersRow{
 			OrganizationMember: organizationMember,
@@ -10619,27 +10519,6 @@ func (q *FakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 		q.apiKeys[index] = apiKey
 		return nil
 	}
-	return sql.ErrNoRows
-}
-
-func (q *FakeQuerier) UpdateChatByID(ctx context.Context, arg database.UpdateChatByIDParams) error {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i, chat := range q.chats {
-		if chat.ID == arg.ID {
-			q.chats[i].Title = arg.Title
-			q.chats[i].UpdatedAt = arg.UpdatedAt
-			q.chats[i] = chat
-			return nil
-		}
-	}
-
 	return sql.ErrNoRows
 }
 
@@ -11292,6 +11171,26 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		return nil
 	}
 
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateTemplateVersionAITaskByJobID(_ context.Context, arg database.UpdateTemplateVersionAITaskByJobIDParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, templateVersion := range q.templateVersions {
+		if templateVersion.JobID != arg.JobID {
+			continue
+		}
+		templateVersion.HasAITask = arg.HasAITask
+		templateVersion.UpdatedAt = arg.UpdatedAt
+		q.templateVersions[index] = templateVersion
+		return nil
+	}
 	return sql.ErrNoRows
 }
 
@@ -11987,6 +11886,35 @@ func (q *FakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.U
 		return nil
 	}
 
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateWorkspaceBuildAITaskByID(_ context.Context, arg database.UpdateWorkspaceBuildAITaskByIDParams) error {
+	if arg.HasAITask.Bool && !arg.SidebarAppID.Valid {
+		return xerrors.Errorf("ai_task_sidebar_app_id is required when has_ai_task is true")
+	}
+	if !arg.HasAITask.Valid && arg.SidebarAppID.Valid {
+		return xerrors.Errorf("ai_task_sidebar_app_id is can only be set when has_ai_task is true")
+	}
+
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, workspaceBuild := range q.workspaceBuilds {
+		if workspaceBuild.ID != arg.ID {
+			continue
+		}
+		workspaceBuild.HasAITask = arg.HasAITask
+		workspaceBuild.AITaskSidebarAppID = arg.SidebarAppID
+		workspaceBuild.UpdatedAt = dbtime.Now()
+		q.workspaceBuilds[index] = workspaceBuild
+		return nil
+	}
 	return sql.ErrNoRows
 }
 
@@ -13138,6 +13066,58 @@ func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(_ context.Context, arg datab
 	return psl, nil
 }
 
+func (q *FakeQuerier) UpsertWorkspaceApp(ctx context.Context, arg database.UpsertWorkspaceAppParams) (database.WorkspaceApp, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceApp{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	if arg.SharingLevel == "" {
+		arg.SharingLevel = database.AppSharingLevelOwner
+	}
+	if arg.OpenIn == "" {
+		arg.OpenIn = database.WorkspaceAppOpenInSlimWindow
+	}
+
+	buildApp := func(id uuid.UUID, createdAt time.Time) database.WorkspaceApp {
+		return database.WorkspaceApp{
+			ID:                   id,
+			CreatedAt:            createdAt,
+			AgentID:              arg.AgentID,
+			Slug:                 arg.Slug,
+			DisplayName:          arg.DisplayName,
+			Icon:                 arg.Icon,
+			Command:              arg.Command,
+			Url:                  arg.Url,
+			External:             arg.External,
+			Subdomain:            arg.Subdomain,
+			SharingLevel:         arg.SharingLevel,
+			HealthcheckUrl:       arg.HealthcheckUrl,
+			HealthcheckInterval:  arg.HealthcheckInterval,
+			HealthcheckThreshold: arg.HealthcheckThreshold,
+			Health:               arg.Health,
+			Hidden:               arg.Hidden,
+			DisplayOrder:         arg.DisplayOrder,
+			OpenIn:               arg.OpenIn,
+			DisplayGroup:         arg.DisplayGroup,
+		}
+	}
+
+	for i, app := range q.workspaceApps {
+		if app.ID == arg.ID {
+			q.workspaceApps[i] = buildApp(app.ID, app.CreatedAt)
+			return q.workspaceApps[i], nil
+		}
+	}
+
+	workspaceApp := buildApp(arg.ID, arg.CreatedAt)
+	q.workspaceApps = append(q.workspaceApps, workspaceApp)
+	return workspaceApp, nil
+}
+
 func (q *FakeQuerier) UpsertWorkspaceAppAuditSession(_ context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (bool, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -13787,6 +13767,30 @@ func (q *FakeQuerier) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Cont
 	}
 
 	return out, nil
+}
+
+func (q *FakeQuerier) GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIDs []uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.WorkspaceBuildParameter, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if prepared != nil {
+		// Call this to match the same function calls as the SQL implementation.
+		_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	filteredParameters := make([]database.WorkspaceBuildParameter, 0)
+	for _, buildID := range workspaceBuildIDs {
+		parameters, err := q.GetWorkspaceBuildParameters(ctx, buildID)
+		if err != nil {
+			return nil, err
+		}
+		filteredParameters = append(filteredParameters, parameters...)
+	}
+
+	return filteredParameters, nil
 }
 
 func (q *FakeQuerier) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersParams, prepared rbac.PreparedAuthorized) ([]database.GetUsersRow, error) {
