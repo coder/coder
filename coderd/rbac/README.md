@@ -149,6 +149,9 @@ Authorization Patterns:
 - OPA Playground: https://play.openpolicyagent.org/
 - OPA CLI (`opa eval`): useful for experimenting with different inputs and understanding how the policy behaves under various conditions.
 `opa eval` returns the constraints that must be satisfied for a rule to evaluate to `true`.
+  - `opa eval` requires an `input.json` file containing the input data to run the policy against.
+	You can generate this file using the [gen_input.go](../../scripts/rbac-authz/gen_input.go) script.
+	Note: the script currently produces a fixed input. You may need to tweak it for your specific use case.
 
 ### Full Evaluation
 
@@ -188,7 +191,7 @@ To capture memory and CPU profiles, use the following flags:
 - `-memprofile memprofile.out`
 - `-cpuprofile cpuprofile.out`
 
-The script [`benchmark_authz.sh`](./scripts/benchmark_authz.sh) runs the `authz` benchmark tests on the current Git branch or compares benchmark results between two branches using [`benchstat`](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat).
+The script [`benchmark_authz.sh`](../../scripts/rbac-authz/benchmark_authz.sh) runs the `authz` benchmark tests on the current Git branch or compares benchmark results between two branches using [`benchstat`](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat).
 `benchstat` compares the performance of a baseline benchmark against a new benchmark result and highlights any statistically significant differences.
 
 - To run benchmark on the current branch:
