@@ -2,7 +2,6 @@
 	"name": "Development environments on your infrastructure",
 	"image": "codercom/oss-dogfood:latest",
 	"features": {
-		// See all possible options here https://github.com/devcontainers/features/tree/main/src/docker-in-docker
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {
 			"moby": "false"
 		},
@@ -10,7 +9,9 @@
 			"auth": "none",
 			"port": 13337
 		},
-		"./filebrowser": {}
+		"./filebrowser": {
+			"folder": "${containerWorkspaceFolder}"
+		}
 	},
 	// SYS_PTRACE to enable go debugging
 	"runArgs": ["--cap-add=SYS_PTRACE"],
