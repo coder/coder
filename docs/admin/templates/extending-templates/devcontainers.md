@@ -167,52 +167,78 @@ You can test the Coder dev container integration and features with these starter
 
 <details><summary>Docker-based template (privileged)</summary>
 
+This version uses a Docker-in-Docker image, so it works even if the host doesn’t expose a Docker socket.
+
 ```terraform
 terraform {
   required_providers {
-    coder  = { source = "coder/coder" }
-    docker = { source = "kreuzwerker/docker" }
+    coder = {
+      source = "coder/coder"
+    }
+    docker = {
+      source = "kreuzwerker/docker"
+    }
   }
 }
 
-data "coder_workspace" "me" {}
-data "coder_workspace_owner" "me" {}
+provider "coder" {}
+
+data "coder_workspace"       "me"    {}
+data "coder_workspace_owner" "me"    {}
+
+resource "docker_container" "workspace" {
+  count      = data.coder_workspace.me.start_count
+  image      = "codercom/enterprise-base:ubuntu"           # includes Coder agent
+  name       = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+
+  # share host Docker
+  volumes {
+    host_path      = "/var/run/docker.sock"
+    container_path = "/var/run/docker.sock"
+  }
+
+  must_run = true                                          # keep container alive
+
+  env = [
+    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
+    "CODER_AGENT_URL=${data.coder_workspace.me.access_url}"   # lets built-in entrypoint phone home
+  ]
+}
 
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
-
-  startup_script_behavior = "blocking"
-  startup_script  = "sudo service docker start"
-  shutdown_script = "sudo service docker stop"
 }
 
-module "devcontainers_cli" {
+# install node
+module "nodejs" {
   count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/devcontainers-cli/coder"
+  source   = "dev.registry.coder.com/modules/nodejs/coder"
   agent_id = coder_agent.main.id
 }
 
+module "devcontainers_cli" {
+  count      = data.coder_workspace.me.start_count
+  source     = "dev.registry.coder.com/modules/devcontainers-cli/coder"
+  agent_id   = coder_agent.main.id
+  depends_on = [module.nodejs]                             # npm first
+}
+
+# clone a repo
 module "git_clone" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/modules/git-clone/coder"
   agent_id = coder_agent.main.id
-  url      = "https://github.com/example/project.git"
-  base_dir     = "/home/coder/project"
+  url      = "https://github.com/devcontainers/template-starter.git"
+  base_dir = "/home/coder/project"
 }
 
+# launch the Dev Container
 resource "coder_devcontainer" "project" {
   count            = data.coder_workspace.me.start_count
   agent_id         = coder_agent.main.id
   workspace_folder = "/home/coder/project/${module.git_clone[0].folder_name}"
   depends_on       = [module.git_clone]
-}
-
-resource "docker_container" "workspace" {
-  count      = data.coder_workspace.me.start_count
-  image      = "codercom/enterprise-node:ubuntu"
-  name       = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-  privileged = true   # or mount /var/run/docker.sock
 }
 ```
 
@@ -249,7 +275,7 @@ module "git_clone" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/modules/git-clone/coder"
   agent_id = coder_agent.main.id
-  url      = "https://github.com/example/project.git"
+  url      = "https://github.com/coder/coder.git"
   base_dir     = "/home/coder/project"
 }
 
