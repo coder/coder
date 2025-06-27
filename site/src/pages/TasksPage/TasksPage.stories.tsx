@@ -245,7 +245,7 @@ export const MissingExternalAuth: Story = {
 		});
 
 		await step("Renders external authentication", async () => {
-			await canvas.findByRole("button", { name: /login with github/i });
+			await canvas.findByRole("button", { name: /connect to github/i });
 		});
 	},
 };

@@ -213,8 +213,12 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 	const selectedTemplate = templates.find(
 		(t) => t.id === selectedTemplateId,
 	) as Template;
-	const { externalAuth, externalAuthError, isPollingExternalAuth } =
-		useExternalAuth(selectedTemplate.active_version_id);
+	const {
+		externalAuth,
+		externalAuthError,
+		isPollingExternalAuth,
+		isLoadingExternalAuth,
+	} = useExternalAuth(selectedTemplate.active_version_id);
 	const missedExternalAuth = externalAuth?.filter(
 		(auth) => !auth.optional && !auth.authenticated,
 	);
@@ -309,7 +313,11 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 
 						<Button size="sm" type="submit" disabled={isMissingExternalAuth}>
 							<Spinner
-								loading={createTaskMutation.isPending || isPollingExternalAuth}
+								loading={
+									isLoadingExternalAuth ||
+									isPollingExternalAuth ||
+									createTaskMutation.isPending
+								}
 							>
 								<SendIcon />
 							</Spinner>
@@ -374,7 +382,7 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 								</Button>
 							</TooltipTrigger>
 							<TooltipContent>
-								Retry connect to {auth.display_name}
+								Retry connecting to {auth.display_name}
 							</TooltipContent>
 						</Tooltip>
 					</TooltipProvider>
