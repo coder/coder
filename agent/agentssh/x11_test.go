@@ -3,7 +3,6 @@ package agentssh_test
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/hex"
 	"fmt"
 	"net"
@@ -32,10 +31,19 @@ func TestServer_X11(t *testing.T) {
 		t.Skip("X11 forwarding is only supported on Linux")
 	}
 
-	ctx := context.Background()
+	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := testutil.Logger(t)
 	fs := afero.NewMemMapFs()
-	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), fs, agentexec.DefaultExecer, &agentssh.Config{})
+
+	// Use in-process networking for X11 forwarding.
+	inproc := testutil.NewInProcNet()
+
+	// Create server config with custom X11 listener.
+	cfg := &agentssh.Config{
+		X11Net: inproc,
+	}
+
+	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), fs, agentexec.DefaultExecer, cfg)
 	require.NoError(t, err)
 	defer s.Close()
 	err = s.UpdateHostSigner(42)
@@ -93,17 +101,15 @@ func TestServer_X11(t *testing.T) {
 
 	x11Chans := c.HandleChannelOpen("x11")
 	payload := "hello world"
-	require.Eventually(t, func() bool {
-		conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", agentssh.X11StartPort+displayNumber))
-		if err == nil {
-			_, err = conn.Write([]byte(payload))
-			assert.NoError(t, err)
-			_ = conn.Close()
-		}
-		return err == nil
-	}, testutil.WaitShort, testutil.IntervalFast)
+	go func() {
+		conn, err := inproc.Dial(ctx, testutil.NewAddr("tcp", fmt.Sprintf("localhost:%d", agentssh.X11StartPort+displayNumber)))
+		assert.NoError(t, err)
+		_, err = conn.Write([]byte(payload))
+		assert.NoError(t, err)
+		_ = conn.Close()
+	}()
 
-	x11 := <-x11Chans
+	x11 := testutil.RequireReceive(ctx, t, x11Chans)
 	ch, reqs, err := x11.Accept()
 	require.NoError(t, err)
 	go gossh.DiscardRequests(reqs)

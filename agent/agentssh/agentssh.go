@@ -117,6 +117,10 @@ type Config struct {
 	// Note that this is different from the devcontainers feature, which uses
 	// subagents.
 	ExperimentalContainers bool
+	// X11Net allows overriding the networking implementation used for X11
+	// forwarding listeners. When nil, a default implementation backed by the
+	// standard library networking package is used.
+	X11Net X11Network
 }
 
 type Server struct {
@@ -196,6 +200,12 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 			displayOffset:    *config.X11DisplayOffset,
 			sessions:         make(map[*x11Session]struct{}),
 			connections:      make(map[net.Conn]struct{}),
+			network: func() X11Network {
+				if config.X11Net != nil {
+					return config.X11Net
+				}
+				return osNet{}
+			}(),
 		},
 	}
 
