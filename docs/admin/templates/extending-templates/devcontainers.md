@@ -17,7 +17,7 @@ When integrated with Coder templates, they provide:
 - **Consistency across teams**: Everyone works in identical environments regardless of their local machine.
 - **Version control**: Development environment changes are tracked alongside code changes.
 
-Visit [Choose an approach to Dev Containers in Coder](./dev-containers-envbuilder.md) for an in-depth comparison between
+Visit [Choose an approach to Dev Containers](./dev-containers-envbuilder.md) for an in-depth comparison between
 the Dev Container integration and the legacy Envbuilder integration.
 
 ## Prerequisites

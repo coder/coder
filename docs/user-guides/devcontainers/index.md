@@ -73,7 +73,7 @@ Add the file name to your project's `.gitignore` or to your
 
 Choose the appropriate solution based on your team's needs and infrastructure constraints.
 
-Visit [Choose an approach to Dev Containers in Coder](../../admin/templates/extending-templates/dev-containers-envbuilder.md) for a more in-depth comparison.
+Visit [Choose an approach to Dev Containers](../../admin/templates/extending-templates/dev-containers-envbuilder.md) for a more in-depth comparison.
 
 ## Known Limitations
 

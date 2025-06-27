@@ -611,7 +611,7 @@
 											"path": "./admin/templates/extending-templates/advanced-dev-containers.md"
 										},
 										{
-											"title": "Choose an approach to Dev Containers in Coder",
+											"title": "Choose an approach to Dev Containers",
 											"description": "How to choose the right Dev Container integration.",
 											"path": "./admin/templates/extending-templates/dev-containers-envbuilder.md"
 										}

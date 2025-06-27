@@ -1,4 +1,4 @@
-# Choose an approach to Dev Containers in Coder
+# Choose an approach to Dev Containers
 
 Coder supports two independent ways to run Dev Containers inside a workspace.
 
