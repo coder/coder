@@ -394,6 +394,7 @@ export interface CreateTemplateRequest {
 	readonly disable_everyone_group_access: boolean;
 	readonly require_active_version: boolean;
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel | null;
+	readonly template_use_classic_parameter_flow?: boolean;
 }
 
 // From codersdk/templateversions.go

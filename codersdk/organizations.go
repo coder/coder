@@ -205,7 +205,7 @@ type CreateTemplateRequest struct {
 	// the template should use the classic parameter flow. The default if unset is
 	// true, and is why `*bool` is used here. When dynamic parameters becomes
 	// the default, this will default to false.
-	UseClassicParameterFlow *bool `json:"template_use_classic_parameter_flow"`
+	UseClassicParameterFlow *bool `json:"template_use_classic_parameter_flow,omitempty"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
