@@ -59,7 +59,7 @@ open-source project. This means that Envbuilder can be used with Coder, but it
 is not required. It also means that dev container builds can scale independently
 of the Coder control plane and even run within a CI/CD pipeline.
 
-## Next steps
+## Next Steps
 
 - [Add an Envbuilder dev container template](./add-devcontainer.md)
 - [Choose an approach to Dev Containers](../../extending-templates/dev-containers-envbuilder.md)

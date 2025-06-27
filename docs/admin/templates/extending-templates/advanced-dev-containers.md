@@ -1,9 +1,9 @@
-# Advanced dev container configuration
+# Advanced Dev Container Configuration
 
 This page extends [devcontainers.md](./devcontainers.md) with patterns for multiple dev containers,
 user-controlled startup, repository selection, and infrastructure tuning.
 
-## Run multiple dev containers
+## Run Multiple Dev Containers
 
 Run independent dev containers in the same workspace so each component appears as its own agent.
 
@@ -67,7 +67,7 @@ resource "coder_devcontainer" "database" {
 Each dev container appears as a separate agent, so developers can connect to any
 component in the workspace.
 
-## Personal overrides
+## Personal Overrides
 
 Let developers extend the repo’s `devcontainer.json` with an ignored (by Git) `devcontainer.local.json` file
 so they can add personal tools without changing the canonical configuration:
@@ -85,7 +85,7 @@ so they can add personal tools without changing the canonical configuration:
 Add the file name to your project's `.gitignore` or the user's
 [global exclude file](https://docs.github.com/en/get-started/git-basics/ignoring-files#configuring-ignored-files-for-all-repositories-on-your-computer).
 
-## Conditional startup
+## Conditional Startup
 
 Use `coder_parameter` booleans to let workspace creators choose which dev containers start automatically,
 reducing resource usage for unneeded components:
@@ -107,7 +107,7 @@ resource "coder_devcontainer" "frontend" {
 }
 ```
 
-## Repository-selection patterns
+## Repository-selection Patterns
 
 Prompt users to pick a repository or team at workspace creation time and clone the selected repo(s) automatically into the workspace:
 
@@ -167,7 +167,7 @@ module "git_clone_team" {
 }
 ```
 
-## Infrastructure tuning
+## Infrastructure Tuning
 
 Adjust workspace infrastructure to set memory/CPU limits, attach a custom Docker network,
 or add persistent volumes—to improve performance and isolation for dev containers:
@@ -215,7 +215,7 @@ resource "docker_container" "workspace" {
 }
 ```
 
-## Troubleshooting tips
+## Troubleshooting
 
 1. Run `docker ps` inside the workspace to ensure Docker is available.
 1. Check `/tmp/startup.log` for agent logs.

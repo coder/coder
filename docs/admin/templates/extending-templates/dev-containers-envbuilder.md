@@ -1,4 +1,4 @@
-# Choose an approach to Dev Containers
+# Choose an Approach To Dev Containers
 
 Coder supports two independent ways to run Dev Containers inside a workspace.
 
@@ -7,7 +7,7 @@ who controls it, and which runtime requirements exist.
 
 Use this page to decide which path fits your project or platform needs.
 
-## Options at a glance
+## Options at a Glance
 
 | Capability / Trait                       | Dev Containers integration (CLI-based)   | Envbuilder Dev Containers                 |
 |------------------------------------------|------------------------------------------|-------------------------------------------|
@@ -20,7 +20,7 @@ Use this page to decide which path fits your project or platform needs.
 | Templates                                | Standard `devcontainer.json`             | Terraform + Envbuilder blocks             |
 | Suitable for CI / AI agents              | Yes. Deterministic, composable           | Less ideal. No isolated container         |
 
-## When to choose the Dev Containers integration
+## When To Choose the Dev Containers Integration
 
 Choose the new integration if:
 
@@ -31,7 +31,7 @@ Choose the new integration if:
 
 [Dev Container integration](./devcontainers.md) documentation.
 
-## When to choose Envbuilder
+## When To Choose Envbuilder
 
 Envbuilder remains a solid choice when:
 
@@ -42,7 +42,7 @@ Envbuilder remains a solid choice when:
 
 [Envbuilder Dev Container](../managing-templates/devcontainers/add-devcontainer.md#envbuilder-terraform-provider) documentation.
 
-## How to migrate from Envbuilder to the Dev Containers integration
+## How To Migrate From Envbuilder to the Dev Containers Integration
 
 1. Ensure the workspace image can run Docker and has sufficient resources:
 
@@ -65,7 +65,7 @@ Envbuilder remains a solid choice when:
    Coder detects and launches the dev container automatically.
 1. Verify ports, SSH, and rebuild prompts function as expected.
 
-## Related reading
+## Related Reading
 
 - [Dev Containers Integration](./index.md)
 - [Troubleshooting Dev Containers](../../../user-guides/devcontainers/troubleshooting-dev-containers.md)

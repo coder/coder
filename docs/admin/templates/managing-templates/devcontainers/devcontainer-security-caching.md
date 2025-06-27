@@ -1,16 +1,16 @@
-# Envbuilder dev container security and caching
+# Envbuilder Dev Container Security and Caching
 
 Envbuilder can pull only pre-approved images and artifacts when you configure it with your enterprise proxies,
 firewalls, and artifact managers.
 
-## Configure registry authentication
+## Configure Registry Authentication
 
 You may need to authenticate to your container registry, such as Artifactory, or
 Git provider such as GitLab, to use Envbuilder. See the
 [Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/container-registry-auth.md)
 for more information.
 
-## Layer and image caching
+## Layer and Image Caching
 
 To improve build times, dev containers can be cached. There are two main forms
 of caching:
@@ -60,7 +60,7 @@ If you are building your own Dev container template, you can consult the
 You may also wish to consult a
 [documented example usage of the `envbuilder_cached_image` resource](https://github.com/coder/terraform-provider-envbuilder/blob/main/examples/resources/envbuilder_cached_image/envbuilder_cached_image_resource.tf).
 
-## Next steps
+## Next Steps
 
 - [Dev container releases and known issues](./devcontainer-releases-known-issues.md)
 - [Dotfiles](../../../../user-guides/workspace-dotfiles.md)

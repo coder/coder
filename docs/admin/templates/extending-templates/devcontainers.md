@@ -1,4 +1,4 @@
-# Configure a template for dev containers
+# Configure a Template for Dev Containers
 
 Dev containers provide a consistent, reproducible development environment using the
 [Development Containers specification](https://containers.dev/).
@@ -7,7 +7,7 @@ Coder's dev container support allows developers to work in fully configured envi
 To enable dev containers in workspaces, [configure your template](../creating-templates.md) with the dev containers
 modules and configurations outlined in this doc.
 
-## Why use dev containers
+## Why Use Dev Containers
 
 Dev containers improve consistency across environments by letting developers define their development setup.
 When integrated with Coder templates, they provide:
@@ -72,7 +72,7 @@ Alternatively, install the devcontainer CLI manually in your base image:
 RUN npm install -g @devcontainers/cli
 ```
 
-## Define the dev container resource
+## Define the Dev Container Resource
 
 If you don't use [`git_clone`](#clone-the-repository), point the resource at the folder that contains `devcontainer.json`:
 
@@ -84,7 +84,7 @@ resource "coder_devcontainer" "project" {
 }
 ```
 
-## Clone the repository
+## Clone the Repository
 
 This step is optional, but it ensures that the project is present before the dev container starts.
 
@@ -108,7 +108,7 @@ resource "coder_devcontainer" "project" {
 }
 ```
 
-## Dev container features
+## Dev Container Features
 
 Enhance your dev container experience with additional features.
 For more advanced use cases, consult the [advanced dev containers doc](./advanced-dev-containers.md).
@@ -282,9 +282,9 @@ resource "kubernetes_pod" "workspace" {
 
 </details>
 
-## Troubleshoot common issues
+## Troubleshoot Common Issues
 
-### Disable Dev Containers Integration
+### Disable dev containers integration
 
 To disable the dev containers integration in your workspace, add the `CODER_AGENT_DEVCONTAINERS_ENABLE` environment variable to your existing `coder_agent` block:
 

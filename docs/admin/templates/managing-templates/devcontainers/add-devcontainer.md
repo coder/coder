@@ -1,4 +1,4 @@
-# Add an Envbuilder dev container template
+# Add an Envbuilder Dev Container Template
 
 This guide shows platform administrators how to add an Envbuilder dev container template to Coder.
 
@@ -118,7 +118,7 @@ their development environments:
 # …
 ```
 
-## Example templates
+## Example Templates
 
 | Template                                                                                                            | Description                                                                                                                                                         |
 |---------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -132,7 +132,7 @@ Your template can prompt the user for a repo URL with
 
 ![Dev container parameter screen](../../../../images/templates/devcontainers.png)
 
-## Dev container lifecycle scripts
+## Dev Container Lifecycle Scripts
 
 The `onCreateCommand`, `updateContentCommand`, `postCreateCommand`, and
 `postStartCommand` lifecycle scripts are run each time the container is started.
@@ -141,7 +141,7 @@ a user begins using the workspace.
 
 Lifecycle scripts are managed by project developers.
 
-## Next steps
+## Next Steps
 
 - [Choose an approach to Dev Containers](../../extending-templates/dev-containers-envbuilder.md)
 - [Dev container security and caching](./devcontainer-security-caching.md)
