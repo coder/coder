@@ -86,7 +86,7 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 	return filter, countFilter, parser.Errors
 }
 
-func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey database.APIKey) (database.GetConnectionLogsOffsetParams, []codersdk.ValidationError) {
+func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey database.APIKey) (database.GetConnectionLogsOffsetParams, database.CountConnectionLogsParams, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
@@ -94,7 +94,8 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 		return nil
 	})
 	if len(errors) > 0 {
-		return database.GetConnectionLogsOffsetParams{}, errors
+		// nolint:exhaustruct // We don't need to initialize these structs because we return an error.
+		return database.GetConnectionLogsOffsetParams{}, database.CountConnectionLogsParams{}, errors
 	}
 
 	parser := httpapi.NewQueryParamParser()
@@ -122,8 +123,24 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 		filter.WorkspaceOwner = ""
 	}
 
+	// This MUST be kept in sync with the above
+	countFilter := database.CountConnectionLogsParams{
+		OrganizationID:      filter.OrganizationID,
+		WorkspaceOwner:      filter.WorkspaceOwner,
+		WorkspaceOwnerID:    filter.WorkspaceOwnerID,
+		WorkspaceOwnerEmail: filter.WorkspaceOwnerEmail,
+		Type:                filter.Type,
+		UserID:              filter.UserID,
+		Username:            filter.Username,
+		UserEmail:           filter.UserEmail,
+		ConnectedAfter:      filter.ConnectedAfter,
+		ConnectedBefore:     filter.ConnectedBefore,
+		WorkspaceID:         filter.WorkspaceID,
+		ConnectionID:        filter.ConnectionID,
+		Status:              filter.Status,
+	}
 	parser.ErrorExcessParams(values)
-	return filter, parser.Errors
+	return filter, countFilter, parser.Errors
 }
 
 func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
