@@ -2890,6 +2890,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "styling": {
         "disabled": true,
         "label": "string",
+        "mask_input": true,
         "placeholder": "string"
       },
       "type": "string",
@@ -5019,6 +5020,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "styling": {
     "disabled": true,
     "label": "string",
+    "mask_input": true,
     "placeholder": "string"
   },
   "type": "string",
@@ -5088,6 +5090,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "disabled": true,
   "label": "string",
+  "mask_input": true,
   "placeholder": "string"
 }
 ```
@@ -5098,6 +5101,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |---------------|---------|----------|--------------|-------------|
 | `disabled`    | boolean | false    |              |             |
 | `label`       | string  | false    |              |             |
+| `mask_input`  | boolean | false    |              |             |
 | `placeholder` | string  | false    |              |             |
 
 ## codersdk.PreviewParameterValidation
