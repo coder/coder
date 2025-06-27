@@ -206,7 +206,7 @@ const TaskFormSection: FC<{
 	);
 };
 
-type CreateTaskMutationFnProps = { prompt: string; templateId: string };
+type CreateTaskMutationFnProps = { prompt: string; template: Template };
 
 type TaskFormProps = {
 	templates: Template[];
@@ -236,8 +236,8 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 		: true;
 
 	const createTaskMutation = useMutation({
-		mutationFn: async ({ prompt, templateId }: CreateTaskMutationFnProps) =>
-			data.createTask(prompt, user.id, templateId),
+		mutationFn: async ({ prompt, template }: CreateTaskMutationFnProps) =>
+			data.createTask(prompt, user.id, template.id, template.active_version_id),
 		onSuccess: async (task) => {
 			await queryClient.invalidateQueries({
 				queryKey: ["tasks"],
@@ -257,7 +257,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 		try {
 			await createTaskMutation.mutateAsync({
 				prompt,
-				templateId: templateID,
+				template: selectedTemplate,
 			});
 		} catch (error) {
 			const message = getErrorMessage(error, "Error creating task");
@@ -601,10 +601,15 @@ export const data = {
 		prompt: string,
 		userId: string,
 		templateId: string,
+		templateVersionId: string,
 	): Promise<Task> {
+		const presets = await API.getTemplateVersionPresets(templateVersionId);
+		const defaultPreset = presets.find((p) => p.Default);
 		const workspace = await API.createWorkspace(userId, {
 			name: `task-${generateWorkspaceName()}`,
 			template_id: templateId,
+			template_version_id: templateVersionId,
+			template_version_preset_id: defaultPreset?.ID,
 			rich_parameter_values: [
 				{ name: AI_PROMPT_PARAMETER_NAME, value: prompt },
 			],
