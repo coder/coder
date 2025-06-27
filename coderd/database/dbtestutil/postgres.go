@@ -82,7 +82,7 @@ func initDefaultConnection(t TBSubset) error {
 
 	var dbErr error
 	// Retry up to 3 seconds for temporary errors.
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for r := retry.New(10*time.Millisecond, 500*time.Millisecond); r.Wait(ctx); {
 		dbErr = attemptConn()
