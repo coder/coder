@@ -77,6 +77,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		assert.Equal(t, expected.Name, got.Name)
 		assert.Equal(t, expected.Description, got.Description)
 		assert.Equal(t, expected.ActivityBumpMillis, got.ActivityBumpMillis)
+		assert.Equal(t, expected.UseClassicParameterFlow, true) // Current default is true
 
 		require.Len(t, auditor.AuditLogs(), 3)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[0].Action)
