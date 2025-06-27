@@ -97,7 +97,7 @@ flowchart LR
    - Use starter templates as infrastructure-specific starting points for your own templates
    - Reference individual modules to add functionality to your templates
 
-3. **Workspace Execution**: When workspaces are created, modules run through the Coder agent
+3. **Workspace Execution**: When workspaces are created, the Coder agent handles the Coder-specific additional resources added by the module and provides the extra functionality.
    - **Scripts** install and configure tools (IDEs, languages, services)
    - **Apps** provide web interfaces accessible through Coder dashboard  
    - **Environment** sets up variables, paths, and development settings
