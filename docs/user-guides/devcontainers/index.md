@@ -4,16 +4,11 @@ The dev containers integration enables seamless creation and management of dev c
 This feature leverages the [`@devcontainers/cli`](https://github.com/devcontainers/cli) and [Docker](https://www.docker.com)
 to provide a streamlined development experience.
 
-This implementation is different from the existing
-[Envbuilder-based dev containers](../../admin/templates/managing-templates/devcontainers/index.md)
-offering.
-
 ## Prerequisites
 
-- Coder version 2.22.0 or later
-- Coder CLI version 2.22.0 or later
+- Coder version 2.24.0 or later
+- Coder CLI version 2.24.0 or later
 - A template with:
-  - Dev containers integration enabled
   - A Docker-compatible workspace image
 - Appropriate permissions to execute Docker commands inside your workspace
 
@@ -30,32 +25,45 @@ which allows for extensive customization of your development setup.
 When a workspace with the dev containers integration starts:
 
 1. The workspace initializes the Docker environment.
-1. The integration detects repositories with a `.devcontainer` directory or a
-   `devcontainer.json` file.
-1. The integration builds and starts the dev container based on the
-   configuration.
+1. The integration detects repositories with a `.devcontainer` directory or a `devcontainer.json` file.
+1. The integration builds (or rebuilds) and starts the dev container based on the configuration.
 1. Your workspace automatically detects the running dev container.
+1. If the configuration changes, the workspace prompts you to rebuild the dev container.
 
 ## Features
 
-### Available Now
+### Detection & Lifecycle
 
-- Automatic dev container detection from repositories
-- Seamless dev container startup during workspace initialization
-- Integrated IDE experience in dev containers with VS Code
-- Direct service access in dev containers
-- Limited SSH access to dev containers
+- Automatic discovery of `.devcontainer` configs.
+- Change detection with rebuild prompts.
+- Rebuild containers with one click from the Coder dashboard or from the CLI.
 
-### Coming Soon
+### Connectivity
 
-- Dev container change detection
-- On-demand dev container recreation
-- Support for automatic port forwarding inside the container
-- Full native SSH support to dev containers
+- Full SSH access directly into dev containers (`coder ssh --container ...`).
+- Automatic port forwarding based on `appPort`, `forwardPorts`, or `docker-compose.yml`.
+
+## Personal overrides
+
+To add tools or tweaks that enhance your personal experience, create a `devcontainer.local.json` file in the same
+directory as the project’s `devcontainer.json`:
+
+```jsonc
+{
+  "extends": "./devcontainer.json",
+  "features": {
+    "ghcr.io/devcontainers/features/node": { "version": "20" }
+  },
+  "postStartCommand": "npm i -g tldr"
+}
+```
+
+Add the file name to your project's `.gitignore` or to your
+[global exclude file](https://docs.github.com/en/get-started/git-basics/ignoring-files#configuring-ignored-files-for-all-repositories-on-your-computer).
 
 ## Comparison with Envbuilder-based Dev Containers
 
-| Feature        | Dev Containers (Early Access)          | Envbuilder Dev Containers                    |
+| Feature        | Dev Containers                         | Envbuilder Dev Containers                    |
 |----------------|----------------------------------------|----------------------------------------------|
 | Implementation | Direct `@devcontainers/cli` and Docker | Coder's Envbuilder                           |
 | Target users   | Individual developers                  | Platform teams and administrators            |
@@ -63,17 +71,17 @@ When a workspace with the dev containers integration starts:
 | Management     | User-controlled                        | Admin-controlled                             |
 | Requirements   | Docker access in workspace             | Compatible with more restricted environments |
 
-Choose the appropriate solution based on your team's needs and infrastructure
-constraints. For additional details on Envbuilder's dev container support, see
-the
+Choose the appropriate solution based on your team's needs and infrastructure constraints.
+For additional details on Envbuilder's dev container support, see the
 [Envbuilder devcontainer spec support documentation](https://github.com/coder/envbuilder/blob/main/docs/devcontainer-spec-support.md).
+
+## Known Limitations
+
+Currently, dev containers are not compatible with the [prebuilt workspaces](../../admin/templates/extending-templates/prebuilt-workspaces.md).
+
+If your template allows for prebuilt workspaces, do not select a prebuilt workspace if you plan to use a dev container.
 
 ## Next Steps
 
-- Explore the [dev container specification](https://containers.dev/) to learn
-  more about advanced configuration options
-- Read about [dev container features](https://containers.dev/features) to
-  enhance your development environment
-- Check the
-  [VS Code dev containers documentation](https://code.visualstudio.com/docs/devcontainers/containers)
-  for IDE-specific features
+- [Dev container specification](https://containers.dev/)
+- [VS Code dev containers documentation](https://code.visualstudio.com/docs/devcontainers/containers)
