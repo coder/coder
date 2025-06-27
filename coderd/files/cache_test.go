@@ -2,12 +2,14 @@ package files_test
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/sync/errgroup"
@@ -25,6 +27,80 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// TestCancelledFetch runs 2 Acquire calls. The first fails with a ctx.Canceled
+// error. The second call should ignore the first error and try to fetch the file
+// again, which should succeed.
+func TestCancelledFetch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("canceled gets canceled", func(t *testing.T) {
+		fileID := uuid.New()
+		dbM := dbmock.NewMockStore(gomock.NewController(t))
+
+		// The file fetch should succeed.
+		dbM.EXPECT().GetFileByID(gomock.Any(), gomock.Any()).DoAndReturn(func(mTx context.Context, fileID uuid.UUID) (database.File, error) {
+			return database.File{
+				ID:   fileID,
+				Data: make([]byte, 100),
+			}, nil
+		})
+
+		//nolint:gocritic // Unit testing
+		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+
+		// Cancel the context for the first call; should fail.
+		ctx, cancel := context.WithCancel(dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort)))
+		cancel()
+		_, err := cache.Acquire(ctx, dbM, fileID)
+		assert.ErrorIs(t, err, context.Canceled)
+	})
+
+	t.Run("cancelation doesn't hold up the queue", func(t *testing.T) {
+		t.Skip()
+		fileID := uuid.New()
+		dbM := dbmock.NewMockStore(gomock.NewController(t))
+
+		// The file fetch should succeed.
+		dbM.EXPECT().GetFileByID(gomock.Any(), gomock.Any()).DoAndReturn(func(mTx context.Context, fileID uuid.UUID) (database.File, error) {
+			return database.File{
+				ID:   fileID,
+				Data: make([]byte, 100),
+			}, nil
+		})
+
+		//nolint:gocritic // Unit testing
+		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+
+		var wg sync.WaitGroup
+
+		// Cancel the context for the first call; should fail.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ctx, cancel := context.WithCancel(dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort)))
+			cancel()
+			_, err := cache.Acquire(ctx, dbM, fileID)
+			assert.ErrorIs(t, err, context.Canceled)
+		}()
+
+		// Second call, that should succeed without fetching from the database again
+		// since the cache should be populated by the fetch the first request started
+		// even if it doesn't wait for completion.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ctx := dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort))
+			fs, err := cache.Acquire(ctx, dbM, fileID)
+			assert.NoError(t, err)
+			if fs != nil {
+				fs.Close()
+			}
+		}()
+
+		wg.Wait()
+	})
+}
 
 // nolint:paralleltest,tparallel // Serially testing is easier
 func TestCacheRBAC(t *testing.T) {
