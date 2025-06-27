@@ -12,14 +12,19 @@ This page assumes you have a [dev containers integration](./index.md) ready.
 You can SSH into your dev container directly using the Coder CLI:
 
 ```console
-coder ssh --container keen_dijkstra my-workspace
+coder ssh --container my-container-name my-workspace
 ```
+
+Remember to replace:
+
+- `my-container-name` with the dev container agent name.
+- `my-workspace` with your workspace's name.
 
 > [!NOTE]
 >
-> SSH access is not yet compatible with the `coder config-ssh` command for use
-> with OpenSSH. You would need to manually modify your SSH config to include the
-> `--container` flag in the `ProxyCommand`.
+> Starting with Coder v2.24.0, `coder config-ssh` works with dev containers.
+> If you’re using an older Coder version, add `--container <name>` to the
+> `ProxyCommand` entry in your SSH config.
 
 ## Web Terminal Access
 
