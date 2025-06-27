@@ -671,6 +671,8 @@ func APITokenFromRequest(r *http.Request) string {
 		return headerValue
 	}
 
+	// TODO(ThomasK33): Implement RFC 6750
+
 	return ""
 }
 

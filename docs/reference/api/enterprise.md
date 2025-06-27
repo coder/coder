@@ -46,6 +46,43 @@ curl -X GET http://coder-server:8080/api/v2/.well-known/oauth-authorization-serv
 |--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2AuthorizationServerMetadata](schemas.md#codersdkoauth2authorizationservermetadata) |
 
+## OAuth2 protected resource metadata
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/.well-known/oauth-protected-resource \
+  -H 'Accept: application/json'
+```
+
+`GET /.well-known/oauth-protected-resource`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "authorization_servers": [
+    "string"
+  ],
+  "bearer_methods_supported": [
+    "string"
+  ],
+  "resource": "string",
+  "scopes_supported": [
+    "string"
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                         |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2ProtectedResourceMetadata](schemas.md#codersdkoauth2protectedresourcemetadata) |
+
 ## Get appearance
 
 ### Code samples

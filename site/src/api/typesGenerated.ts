@@ -1483,6 +1483,14 @@ export interface OAuth2GithubConfig {
 }
 
 // From codersdk/oauth2.go
+export interface OAuth2ProtectedResourceMetadata {
+	readonly resource: string;
+	readonly authorization_servers: readonly string[];
+	readonly scopes_supported?: readonly string[];
+	readonly bearer_methods_supported?: readonly string[];
+}
+
+// From codersdk/oauth2.go
 export interface OAuth2ProviderApp {
 	readonly id: string;
 	readonly name: string;
