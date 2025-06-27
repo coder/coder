@@ -150,8 +150,8 @@ Authorization Patterns:
 - OPA CLI (`opa eval`): useful for experimenting with different inputs and understanding how the policy behaves under various conditions.
 `opa eval` returns the constraints that must be satisfied for a rule to evaluate to `true`.
   - `opa eval` requires an `input.json` file containing the input data to run the policy against.
-	You can generate this file using the [gen_input.go](../../scripts/rbac-authz/gen_input.go) script.
-	Note: the script currently produces a fixed input. You may need to tweak it for your specific use case.
+    You can generate this file using the [gen_input.go](../../scripts/rbac-authz/gen_input.go) script.
+    Note: the script currently produces a fixed input. You may need to tweak it for your specific use case.
 
 ### Full Evaluation
 
