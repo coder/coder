@@ -929,16 +929,22 @@ DO UPDATE SET
 	-- No-op if the connection is still open.
 	close_time = CASE
 		WHEN $16::connection_status = 'disconnected'
+		-- Can only be set once
+		AND connection_logs.close_time IS NULL
 		THEN EXCLUDED."time"
 		ELSE connection_logs.close_time
 	END,
 	close_reason = CASE
 		WHEN $16::connection_status = 'disconnected'
+		-- Can only be set once
+		AND connection_logs.close_reason IS NULL
 		THEN EXCLUDED.close_reason
 		ELSE connection_logs.close_reason
 	END,
 	code = CASE
 		WHEN $16::connection_status = 'disconnected'
+		-- Can only be set once
+		AND connection_logs.code IS NULL
 		THEN EXCLUDED.code
 		ELSE connection_logs.code
 	END

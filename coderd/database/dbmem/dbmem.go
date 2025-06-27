@@ -12249,8 +12249,15 @@ func (q *FakeQuerier) UpsertConnectionLog(_ context.Context, arg database.Upsert
 				return q.connectionLogs[i], nil
 			}
 			// Update existing connection with close time and reason
-			q.connectionLogs[i].CloseTime = sql.NullTime{Valid: true, Time: arg.Time}
-			q.connectionLogs[i].CloseReason = arg.CloseReason
+			if !q.connectionLogs[i].CloseTime.Valid {
+				q.connectionLogs[i].CloseTime = sql.NullTime{Valid: true, Time: arg.Time}
+			}
+			if !q.connectionLogs[i].CloseReason.Valid {
+				q.connectionLogs[i].CloseReason = arg.CloseReason
+			}
+			if !q.connectionLogs[i].Code.Valid {
+				q.connectionLogs[i].Code = arg.Code
+			}
 			return q.connectionLogs[i], nil
 		}
 	}

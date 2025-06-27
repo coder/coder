@@ -2362,7 +2362,7 @@ func TestUpsertConnectionLog(t *testing.T) {
 		require.Equal(t, log, rows[0].ConnectionLog)
 	})
 
-	t.Run("NoConnect", func(t *testing.T) {
+	t.Run("DisconnectThenConnect", func(t *testing.T) {
 		t.Parallel()
 
 		db, _ := dbtestutil.NewDB(t)
@@ -2375,7 +2375,7 @@ func TestUpsertConnectionLog(t *testing.T) {
 
 		// Insert just a 'disconect' event
 		disconnectTime := dbtime.Now()
-		connectParams := database.UpsertConnectionLogParams{
+		disconnectParams := database.UpsertConnectionLogParams{
 			ID:               uuid.New(),
 			Time:             disconnectTime,
 			OrganizationID:   ws.OrganizationID,
@@ -2386,20 +2386,60 @@ func TestUpsertConnectionLog(t *testing.T) {
 			Type:             database.ConnectionTypeSsh,
 			ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
 			ConnectionStatus: database.ConnectionStatusDisconnected,
+			CloseReason:      sql.NullString{String: "server shutting down", Valid: true},
 		}
 
-		_, err := db.UpsertConnectionLog(ctx, connectParams)
+		_, err := db.UpsertConnectionLog(ctx, disconnectParams)
 		require.NoError(t, err)
 
-		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{})
+		firstRows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{})
 		require.NoError(t, err)
-		require.Len(t, rows, 1)
+		require.Len(t, firstRows, 1)
 
 		// We expect the connection event to be marked as closed with the start
 		// and close time being the same.
-		require.True(t, rows[0].ConnectionLog.CloseTime.Valid)
-		require.Equal(t, disconnectTime, rows[0].ConnectionLog.CloseTime.Time.UTC())
-		require.Equal(t, rows[0].ConnectionLog.Time.UTC(), rows[0].ConnectionLog.CloseTime.Time.UTC())
+		require.True(t, firstRows[0].ConnectionLog.CloseTime.Valid)
+		require.Equal(t, disconnectTime, firstRows[0].ConnectionLog.CloseTime.Time.UTC())
+		require.Equal(t, firstRows[0].ConnectionLog.Time.UTC(), firstRows[0].ConnectionLog.CloseTime.Time.UTC())
+
+		// Now insert a 'connect' event for the same connection.
+		// This should be a no op
+		connectTime := disconnectTime.Add(time.Second)
+		connectParams := database.UpsertConnectionLogParams{
+			ID:               uuid.New(),
+			Time:             connectTime,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			WorkspaceID:      ws.ID,
+			WorkspaceName:    ws.Name,
+			AgentName:        agentName,
+			Type:             database.ConnectionTypeSsh,
+			ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
+			ConnectionStatus: database.ConnectionStatusConnected,
+			CloseReason:      sql.NullString{String: "reconnected", Valid: true},
+			Code:             sql.NullInt32{Int32: 0, Valid: false},
+		}
+
+		_, err = db.UpsertConnectionLog(ctx, connectParams)
+		require.NoError(t, err)
+
+		secondRows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{})
+		require.NoError(t, err)
+		require.Len(t, secondRows, 1)
+		require.Equal(t, firstRows, secondRows)
+
+		// Upsert a disconnection, which should also be a no op
+		disconnectParams.CloseReason = sql.NullString{
+			String: "updated close reason",
+			Valid:  true,
+		}
+		_, err = db.UpsertConnectionLog(ctx, disconnectParams)
+		require.NoError(t, err)
+		thirdRows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{})
+		require.NoError(t, err)
+		require.Len(t, secondRows, 1)
+		// The close reason shouldn't be updated
+		require.Equal(t, secondRows, thirdRows)
 	})
 }
 

@@ -320,7 +320,7 @@ func Test_ResolveRequest(t *testing.T) {
 					require.Len(t, connLogger.ConnectionLogs(), 1)
 
 					var parsedToken workspaceapps.SignedToken
-					err = jwtutils.Verify(ctx, api.AppSigningKeyCache, cookie.Value, &parsedToken)
+					err := jwtutils.Verify(ctx, api.AppSigningKeyCache, cookie.Value, &parsedToken)
 					require.NoError(t, err)
 					// normalize expiry
 					require.WithinDuration(t, token.Expiry.Time(), parsedToken.Expiry.Time(), 2*time.Second)
