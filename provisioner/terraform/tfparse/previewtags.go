@@ -4,13 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
-	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/preview"
-	"github.com/coder/preview/hclext"
 	previewtypes "github.com/coder/preview/types"
 )
 
@@ -62,6 +60,23 @@ func TagValidationResponse(tag previewtypes.Tag) codersdk.ValidationError {
 		}
 	}
 
+	// TODO: It would be really nice to pull out the variable references to help identify the source of
+	// the unknown or invalid tag.
+	unknownErr := "Tag %s is not known, it likely refers to a variable that is not set or has no default."
+	if !tag.Key.IsKnown() {
+		return codersdk.ValidationError{
+			Field:  name,
+			Detail: fmt.Sprintf(unknownErr, key),
+		}
+	}
+
+	if !tag.Value.IsKnown() {
+		return codersdk.ValidationError{
+			Field:  name,
+			Detail: fmt.Sprintf(unknownErr, value),
+		}
+	}
+
 	invalidErr := "Tag %s is not valid, it must be a non-null string value."
 	if !tag.Key.Valid() {
 		return codersdk.ValidationError{
@@ -74,25 +89,6 @@ func TagValidationResponse(tag previewtypes.Tag) codersdk.ValidationError {
 		return codersdk.ValidationError{
 			Field:  name,
 			Detail: fmt.Sprintf(invalidErr, value),
-		}
-	}
-
-	unknownErr := "Tag %s is not known, it likely refers to a variable that is not set or has no default. References: [%s]"
-	if !tag.Key.IsKnown() {
-		vars := hclext.ReferenceNames(tag.Key.ValueExpr)
-
-		return codersdk.ValidationError{
-			Field:  name,
-			Detail: fmt.Sprintf(unknownErr, key, strings.Join(vars, ", ")),
-		}
-	}
-
-	if !tag.Value.IsKnown() {
-		vars := hclext.ReferenceNames(tag.Value.ValueExpr)
-
-		return codersdk.ValidationError{
-			Field:  name,
-			Detail: fmt.Sprintf(unknownErr, value, strings.Join(vars, ", ")),
 		}
 	}
 
