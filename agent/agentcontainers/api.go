@@ -53,7 +53,6 @@ type API struct {
 	cancel                      context.CancelFunc
 	watcherDone                 chan struct{}
 	updaterDone                 chan struct{}
-	initDone                    chan struct{}   // Closed after first update in updaterLoop.
 	updateTrigger               chan chan error // Channel to trigger manual refresh.
 	updateInterval              time.Duration   // Interval for periodic container updates.
 	logger                      slog.Logger
@@ -73,7 +72,8 @@ type API struct {
 	workspaceName string
 	parentAgent   string
 
-	mu                       sync.RWMutex
+	mu                       sync.RWMutex  // Protects the following fields.
+	initDone                 chan struct{} // Closed by Init.
 	closed                   bool
 	containers               codersdk.WorkspaceAgentListContainersResponse  // Output from the last list operation.
 	containersErr            error                                          // Error from the last list operation.
@@ -322,7 +322,7 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 }
 
 // Init applies a final set of options to the API and then
-// closes initDone. This function can only be called once.
+// closes initDone. This method can only be called once.
 func (api *API) Init(opts ...Option) {
 	api.mu.Lock()
 	defer api.mu.Unlock()
