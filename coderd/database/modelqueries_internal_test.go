@@ -1,6 +1,8 @@
 package database
 
 import (
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -53,4 +55,36 @@ func TestWorkspaceTableConvert(t *testing.T) {
 	require.Equal(t, workspace.WorkspaceTable(), subset,
 		"'workspace.WorkspaceTable()' is not missing at least 1 field when converting to 'WorkspaceTable'. "+
 			"To resolve this, go to the 'func (w Workspace) WorkspaceTable()' and ensure all fields are converted.")
+}
+
+func TestConnectionLogsQueryConsistency(t *testing.T) {
+	t.Parallel()
+
+	getWhereClause := extractWhereClause(getConnectionLogsOffset)
+	require.NotEmpty(t, getWhereClause, "getConnectionLogsOffset query should have a WHERE clause")
+
+	countWhereClause := extractWhereClause(countConnectionLogs)
+	require.NotEmpty(t, countWhereClause, "countConnectionLogs query should have a WHERE clause")
+
+	require.Equal(t, getWhereClause, countWhereClause, "getConnectionLogsOffset and countConnectionLogs queries should have the same WHERE clause")
+}
+
+// extractWhereClause extracts the WHERE clause from a SQL query string
+func extractWhereClause(query string) string {
+	// Find WHERE and get everything after it
+	wherePattern := regexp.MustCompile(`(?is)WHERE\s+(.*)`)
+	whereMatches := wherePattern.FindStringSubmatch(query)
+	if len(whereMatches) < 2 {
+		return ""
+	}
+
+	whereClause := whereMatches[1]
+
+	// Remove ORDER BY, LIMIT, OFFSET clauses from the end
+	whereClause = regexp.MustCompile(`(?is)\s+(ORDER BY|LIMIT|OFFSET).*$`).ReplaceAllString(whereClause, "")
+
+	// Remove SQL comments
+	whereClause = regexp.MustCompile(`(?m)--.*$`).ReplaceAllString(whereClause, "")
+
+	return strings.TrimSpace(whereClause)
 }

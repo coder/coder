@@ -1780,6 +1780,10 @@ func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
 	return ErrUnimplemented
 }
 
+func (q *FakeQuerier) CountConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams) (int64, error) {
+	return q.CountAuthorizedConnectionLogs(ctx, arg, nil)
+}
+
 func (q *FakeQuerier) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
 	return nil, ErrUnimplemented
 }
@@ -14155,4 +14159,94 @@ func (q *FakeQuerier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg
 	}
 
 	return logs, nil
+}
+
+func (q *FakeQuerier) CountAuthorizedConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams, prepared rbac.PreparedAuthorized) (int64, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return 0, err
+	}
+
+	// Call this to match the same function calls as the SQL implementation.
+	// It functionally does nothing for filtering.
+	if prepared != nil {
+		_, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+			VariableConverter: regosql.ConnectionLogConverter(),
+		})
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var count int64
+
+	for _, clog := range q.connectionLogs {
+		if arg.OrganizationID != uuid.Nil && clog.OrganizationID != arg.OrganizationID {
+			continue
+		}
+		if arg.WorkspaceOwner != "" {
+			workspaceOwner, err := q.getUserByIDNoLock(clog.WorkspaceOwnerID)
+			if err == nil && !strings.EqualFold(arg.WorkspaceOwner, workspaceOwner.Username) {
+				continue
+			}
+		}
+		if arg.Type != "" && string(clog.Type) != arg.Type {
+			continue
+		}
+		if arg.UserID != uuid.Nil && (!clog.UserID.Valid || clog.UserID.UUID != arg.UserID) {
+			continue
+		}
+		if arg.Username != "" {
+			if !clog.UserID.Valid {
+				continue
+			}
+			user, err := q.getUserByIDNoLock(clog.UserID.UUID)
+			if err != nil || user.Username != arg.Username {
+				continue
+			}
+		}
+		if arg.Email != "" {
+			if !clog.UserID.Valid {
+				continue
+			}
+			user, err := q.getUserByIDNoLock(clog.UserID.UUID)
+			if err != nil || user.Email != arg.Email {
+				continue
+			}
+		}
+		if !arg.StartedAfter.IsZero() && clog.Time.Before(arg.StartedAfter) {
+			continue
+		}
+		if !arg.StartedBefore.IsZero() && clog.Time.After(arg.StartedBefore) {
+			continue
+		}
+		if !arg.ClosedAfter.IsZero() && (!clog.CloseTime.Valid || clog.CloseTime.Time.Before(arg.ClosedAfter)) {
+			continue
+		}
+		if !arg.ClosedBefore.IsZero() && (!clog.CloseTime.Valid || clog.CloseTime.Time.After(arg.ClosedBefore)) {
+			continue
+		}
+		if arg.WorkspaceID != uuid.Nil && clog.WorkspaceID != arg.WorkspaceID {
+			continue
+		}
+		if arg.ConnectionID != uuid.Nil && (!clog.ConnectionID.Valid || clog.ConnectionID.UUID != arg.ConnectionID) {
+			continue
+		}
+		if arg.Status != "" {
+			isConnected := !clog.CloseTime.Valid
+			if (arg.Status == "connected" && !isConnected) || (arg.Status == "disconnected" && isConnected) {
+				continue
+			}
+		}
+
+		if prepared != nil && prepared.Authorize(ctx, clog.RBACObject()) != nil {
+			continue
+		}
+
+		count++
+	}
+
+	return count, nil
 }

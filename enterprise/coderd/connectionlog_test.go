@@ -65,6 +65,7 @@ func TestConnectionLogs(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, logs.ConnectionLogs, 1)
+		require.EqualValues(t, 1, logs.Count)
 		require.Equal(t, codersdk.ConnectionTypeSSH, logs.ConnectionLogs[0].Type)
 	})
 
@@ -84,7 +85,7 @@ func TestConnectionLogs(t *testing.T) {
 
 		logs, err := client.ConnectionLogs(ctx, codersdk.ConnectionLogsRequest{})
 		require.NoError(t, err)
-
+		require.EqualValues(t, 0, logs.Count)
 		require.Len(t, logs.ConnectionLogs, 0)
 	})
 
@@ -133,6 +134,7 @@ func TestConnectionLogs(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, logs.ConnectionLogs, 1)
+		require.EqualValues(t, 1, logs.Count)
 		require.Equal(t, ws.OrganizationID, logs.ConnectionLogs[0].Organization.ID)
 	})
 
@@ -169,6 +171,7 @@ func TestConnectionLogs(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, logs.ConnectionLogs, 1)
+		require.EqualValues(t, 1, logs.Count)
 		require.NotNil(t, logs.ConnectionLogs[0].WebInfo)
 		require.Equal(t, clog.SlugOrPort.String, logs.ConnectionLogs[0].WebInfo.SlugOrPort)
 		require.Equal(t, clog.UserAgent.String, logs.ConnectionLogs[0].WebInfo.UserAgent)
@@ -241,6 +244,7 @@ func TestConnectionLogs(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, logs.ConnectionLogs, 1)
+		require.EqualValues(t, 1, logs.Count)
 		require.NotNil(t, logs.ConnectionLogs[0].SSHInfo)
 		require.Nil(t, logs.ConnectionLogs[0].WebInfo)
 		require.Equal(t, codersdk.ConnectionTypeSSH, logs.ConnectionLogs[0].Type)

@@ -766,6 +766,147 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
+const countConnectionLogs = `-- name: CountConnectionLogs :one
+SELECT
+	COUNT(*) AS count
+FROM
+	connection_logs
+JOIN users AS workspace_owner ON
+	connection_logs.workspace_owner_id = workspace_owner.id
+LEFT JOIN users ON
+	connection_logs.user_id = users.id
+JOIN organizations ON
+	connection_logs.organization_id = organizations.id
+JOIN workspaces ON
+	connection_logs.workspace_id = workspaces.id
+WHERE
+	-- Filter organization_id
+	CASE
+		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.organization_id = $1
+		ELSE true
+	END
+	-- Filter by workspace owner username
+	AND CASE
+		WHEN $2 :: text != '' THEN
+			workspace_owner_id = (
+				SELECT id FROM users
+				WHERE lower(username) = lower($2) AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by type
+	AND CASE
+		WHEN $3 :: text != '' THEN
+			type = $3 :: connection_type
+		ELSE true
+	END
+	-- Filter by user_id
+	AND CASE
+		WHEN $4 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = $4
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN $5 :: text != '' THEN
+			user_id = (
+				SELECT id FROM users
+				WHERE lower(username) = lower($5) AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN $6 :: text != '' THEN
+			users.email = $6
+		ELSE true
+	END
+	-- Filter by started_after
+	AND CASE
+		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" >= $7
+		ELSE true
+	END
+	-- Filter by started_before
+	AND CASE
+		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" <= $8
+		ELSE true
+	END
+	-- Filter by closed_after
+	AND CASE
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			close_time >= $9
+  		ELSE true
+  	END
+	 -- Filter by closed_before
+	AND CASE
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+		   close_time <= $10
+		ELSE true
+	END
+	-- Filter by workspace_id
+	AND CASE
+		WHEN $11 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.workspace_id = $11
+		ELSE true
+	END
+	-- Filter by connection_id
+	AND CASE
+		WHEN $12 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.connection_id = $12
+		ELSE true
+	END
+	-- Filter by whether the session has a close_time
+	AND CASE
+		WHEN $13 :: text != '' THEN
+	        ($13 :: connection_status = 'connected' AND close_time IS NULL) OR
+        	($13 :: connection_status = 'disconnected' AND close_time IS NOT NULL)
+		ELSE true
+	END
+	-- Authorize Filter clause will be injected below in
+	-- CountAuthorizedConnectionLogs
+	-- @authorize_filter
+`
+
+type CountConnectionLogsParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	WorkspaceOwner string    `db:"workspace_owner" json:"workspace_owner"`
+	Type           string    `db:"type" json:"type"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	Username       string    `db:"username" json:"username"`
+	Email          string    `db:"email" json:"email"`
+	StartedAfter   time.Time `db:"started_after" json:"started_after"`
+	StartedBefore  time.Time `db:"started_before" json:"started_before"`
+	ClosedAfter    time.Time `db:"closed_after" json:"closed_after"`
+	ClosedBefore   time.Time `db:"closed_before" json:"closed_before"`
+	WorkspaceID    uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	ConnectionID   uuid.UUID `db:"connection_id" json:"connection_id"`
+	Status         string    `db:"status" json:"status"`
+}
+
+func (q *sqlQuerier) CountConnectionLogs(ctx context.Context, arg CountConnectionLogsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countConnectionLogs,
+		arg.OrganizationID,
+		arg.WorkspaceOwner,
+		arg.Type,
+		arg.UserID,
+		arg.Username,
+		arg.Email,
+		arg.StartedAfter,
+		arg.StartedBefore,
+		arg.ClosedAfter,
+		arg.ClosedBefore,
+		arg.WorkspaceID,
+		arg.ConnectionID,
+		arg.Status,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
 SELECT
 	connection_logs.id, connection_logs.time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.code, connection_logs.ip, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.close_time, connection_logs.close_reason,
