@@ -486,7 +486,7 @@
 									"path": "./admin/templates/managing-templates/devcontainers/index.md",
 									"children": [
 										{
-											"title": "Add a dev container template with Envbuilder",
+											"title": "Add an Envbuilder dev container template",
 											"description": "Use Envbuilder to add a dev container template to Coder",
 											"path": "./admin/templates/managing-templates/devcontainers/add-devcontainer.md"
 										},
