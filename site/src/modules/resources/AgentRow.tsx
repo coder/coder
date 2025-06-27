@@ -156,6 +156,9 @@ export const AgentRow: FC<AgentRowProps> = ({
 		shouldDisplayAppsSection = false;
 	}
 
+	// Check if any devcontainers have errors to gray out agent border
+	const hasDevcontainerErrors = devcontainers?.some((dc) => dc.error);
+
 	return (
 		<Stack
 			key={agent.id}
@@ -165,6 +168,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 				styles.agentRow,
 				styles[`agentRow-${agent.status}`],
 				styles[`agentRow-lifecycle-${agent.lifecycle_state}`],
+				hasDevcontainerErrors && styles.agentRowWithErrors,
 			]}
 		>
 			<header css={styles.header}>
@@ -536,5 +540,9 @@ const styles = {
 		"& > div": {
 			position: "relative",
 		},
+	}),
+
+	agentRowWithErrors: (theme) => ({
+		borderColor: theme.palette.divider,
 	}),
 } satisfies Record<string, Interpolation<Theme>>;

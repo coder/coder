@@ -3329,6 +3329,7 @@ export interface WorkspaceAgentDevcontainer {
 	readonly dirty: boolean;
 	readonly container?: WorkspaceAgentContainer;
 	readonly agent?: WorkspaceAgentDevcontainerAgent;
+	readonly error?: string;
 }
 
 // From codersdk/workspaceagents.go

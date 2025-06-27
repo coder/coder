@@ -16997,6 +16997,9 @@ const docTemplate = `{
                 "dirty": {
                     "type": "boolean"
                 },
+                "error": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"

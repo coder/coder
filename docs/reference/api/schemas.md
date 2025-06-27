@@ -8554,6 +8554,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     }
   },
   "dirty": true,
+  "error": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "status": "running",
@@ -8569,6 +8570,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `config_path`      | string                                                                                 | false    |              |                            |
 | `container`        | [codersdk.WorkspaceAgentContainer](#codersdkworkspaceagentcontainer)                   | false    |              |                            |
 | `dirty`            | boolean                                                                                | false    |              |                            |
+| `error`            | string                                                                                 | false    |              |                            |
 | `id`               | string                                                                                 | false    |              |                            |
 | `name`             | string                                                                                 | false    |              |                            |
 | `status`           | [codersdk.WorkspaceAgentDevcontainerStatus](#codersdkworkspaceagentdevcontainerstatus) | false    |              | Additional runtime fields. |
@@ -8710,6 +8712,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         }
       },
       "dirty": true,
+      "error": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "name": "string",
       "status": "running",
