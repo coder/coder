@@ -148,7 +148,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 
 // BenchmarkRBACAuthorize benchmarks the rbac.Authorize method.
 //
-//	go test -run=^$ -bench BenchmarkRBACAuthorize -benchmem -memprofile memprofile.out -cpuprofile profile.out
+//	go test -run=^$ -bench '^BenchmarkRBACAuthorize$' -benchmem -memprofile memprofile.out -cpuprofile profile.out
 func BenchmarkRBACAuthorize(b *testing.B) {
 	benchCases, user, orgs := benchmarkUserCases()
 	users := append([]uuid.UUID{},
@@ -178,7 +178,7 @@ func BenchmarkRBACAuthorize(b *testing.B) {
 // BenchmarkRBACAuthorizeGroups benchmarks the rbac.Authorize method and leverages
 // groups for authorizing rather than the permissions/roles.
 //
-//	go test -bench BenchmarkRBACAuthorizeGroups -benchmem -memprofile memprofile.out -cpuprofile profile.out
+//	go test -bench '^BenchmarkRBACAuthorizeGroups$' -benchmem -memprofile memprofile.out -cpuprofile profile.out
 func BenchmarkRBACAuthorizeGroups(b *testing.B) {
 	benchCases, user, orgs := benchmarkUserCases()
 	users := append([]uuid.UUID{},
@@ -229,7 +229,7 @@ func BenchmarkRBACAuthorizeGroups(b *testing.B) {
 
 // BenchmarkRBACFilter benchmarks the rbac.Filter method.
 //
-//	go test -bench BenchmarkRBACFilter -benchmem -memprofile memprofile.out -cpuprofile profile.out
+//	go test -bench '^BenchmarkRBACFilter$' -benchmem -memprofile memprofile.out -cpuprofile profile.out
 func BenchmarkRBACFilter(b *testing.B) {
 	benchCases, user, orgs := benchmarkUserCases()
 	users := append([]uuid.UUID{},

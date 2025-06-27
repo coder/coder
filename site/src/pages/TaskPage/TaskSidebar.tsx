@@ -1,4 +1,3 @@
-import GitHub from "@mui/icons-material/GitHub";
 import type { WorkspaceApp } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
@@ -14,19 +13,12 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import {
-	ArrowLeftIcon,
-	BugIcon,
-	EllipsisVerticalIcon,
-	ExternalLinkIcon,
-	GitPullRequestArrowIcon,
-} from "lucide-react";
+import { ArrowLeftIcon, EllipsisVerticalIcon } from "lucide-react";
 import type { Task } from "modules/tasks/tasks";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
-import { cn } from "utils/cn";
-import { truncateURI } from "utils/uri";
 import { TaskAppIFrame } from "./TaskAppIframe";
+import { TaskStatusLink } from "./TaskStatusLink";
 
 type TaskSidebarProps = {
 	task: Task;
@@ -89,15 +81,7 @@ export const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
 	const [sidebarApp, sidebarAppStatus] = getSidebarApp(task);
 
 	return (
-		<aside
-			className={cn([
-				[
-					"flex flex-col h-full shrink-0",
-					"border-0 border-r border-solid border-border",
-				],
-				"w-[520px]",
-			])}
-		>
+		<aside className="flex flex-col h-full shrink-0 w-full">
 			<header className="border-0 border-b border-solid border-border p-4 pt-0">
 				<div className="flex items-center justify-between py-1">
 					<TooltipProvider>
@@ -177,42 +161,5 @@ export const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
 				</div>
 			)}
 		</aside>
-	);
-};
-
-type TaskStatusLinkProps = {
-	uri: string;
-};
-
-const TaskStatusLink: FC<TaskStatusLinkProps> = ({ uri }) => {
-	let icon = <ExternalLinkIcon />;
-	let label = truncateURI(uri);
-
-	if (uri.startsWith("https://github.com")) {
-		const issueNumber = uri.split("/").pop();
-		const [org, repo] = uri.split("/").slice(3, 5);
-		const prefix = `${org}/${repo}`;
-
-		if (uri.includes("pull/")) {
-			icon = <GitPullRequestArrowIcon />;
-			label = issueNumber
-				? `${prefix}#${issueNumber}`
-				: `${prefix} Pull Request`;
-		} else if (uri.includes("issues/")) {
-			icon = <BugIcon />;
-			label = issueNumber ? `${prefix}#${issueNumber}` : `${prefix} Issue`;
-		} else {
-			icon = <GitHub />;
-			label = `${org}/${repo}`;
-		}
-	}
-
-	return (
-		<Button asChild variant="outline" size="sm" className="min-w-0">
-			<a href={uri} target="_blank" rel="noreferrer">
-				{icon}
-				{label}
-			</a>
-		</Button>
 	);
 };

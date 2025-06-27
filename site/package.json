@@ -102,6 +102,7 @@
 		"react-helmet-async": "2.0.5",
 		"react-markdown": "9.0.3",
 		"react-query": "npm:@tanstack/react-query@5.77.0",
+		"react-resizable-panels": "3.0.3",
 		"react-router-dom": "6.26.2",
 		"react-syntax-highlighter": "15.6.1",
 		"react-textarea-autosize": "8.5.9",
