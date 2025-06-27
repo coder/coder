@@ -1,4 +1,4 @@
-# Add a dev container template to Coder
+# Add a dev container template with Envbuilder
 
 A Coder administrator adds a dev container-compatible template to Coder
 (Envbuilder). This allows the template to prompt for the developer for their dev
