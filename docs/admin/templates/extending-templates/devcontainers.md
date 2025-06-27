@@ -49,21 +49,6 @@ When integrated with Coder templates, they provide:
 
    </details>
 
-## Enable Dev Containers Integration
-
-To enable the dev containers integration in your workspace, add the `CODER_AGENT_DEVCONTAINERS_ENABLE` environment variable to your existing `coder_agent` block:
-
-```terraform
-env = {
-  CODER_AGENT_DEVCONTAINERS_ENABLE = "true"
-  # existing variables ...
-}
-```
-
-This environment variable is required for the Coder agent to detect and manage dev containers.
-Without it, the agent will not attempt to start or connect to dev containers even if the
-`coder_devcontainer` resource is defined.
-
 ## Install the Dev Containers CLI
 
 Use the
@@ -193,7 +178,6 @@ data "coder_workspace_owner" "me" {}
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
-  env  = { CODER_AGENT_DEVCONTAINERS_ENABLE = "true" }
 
   startup_script_behavior = "blocking"
   startup_script  = "sudo service docker start"
@@ -247,7 +231,6 @@ data "coder_workspace_owner" "me" {}
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
-  env  = { CODER_AGENT_DEVCONTAINERS_ENABLE = "true" }
 
   startup_script_behavior = "blocking"
   startup_script = "sudo service docker start"
@@ -298,11 +281,21 @@ resource "kubernetes_pod" "workspace" {
 
 ## Troubleshoot common issues
 
+### Disable Dev Containers Integration
+
+To disable the dev containers integration in your workspace, add the `CODER_AGENT_DEVCONTAINERS_ENABLE` environment variable to your existing `coder_agent` block:
+
+```terraform
+env = {
+  CODER_AGENT_DEVCONTAINERS_ENABLE = "false"
+  # existing variables ...
+}
+```
+
 ### Dev container does not start
 
-1. `CODER_AGENT_DEVCONTAINERS_ENABLE=true` missing.
 1. Docker daemon not running inside the workspace.
-1. `devcontainer.json` missing or mislocated.
+1. `devcontainer.json` missing or is in the wrong place.
 1. Build errors: check agent logs.
 
 ### Permission errors
