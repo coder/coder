@@ -69,6 +69,8 @@
 		}
 	},
 	"mounts": [
+		// Add a volume for the Coder home directory to persist shell history,
+		// and speed up dotfiles init and/or personalization.
 		"source=coder-coder-devcontainer-home,target=/home/coder",
 		// Mount the entire home because conditional mounts are not supported.
 		// See: https://github.com/devcontainers/spec/issues/132
