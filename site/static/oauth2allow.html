@@ -160,7 +160,9 @@ links */}}
         <span class="user-name">{{ .Username }}</span> account?
       </p>
       <div class="button-group">
-        <a class="primary-button" href="{{ .RedirectURI }}">Allow</a>
+        <form method="POST" style="display: inline;">
+          <button type="submit" class="primary-button">Allow</button>
+        </form>
         <a href="{{ .CancelURI }}">Cancel</a>
       </div>
     </div>

@@ -26,6 +26,12 @@ type OAuth2State struct {
 	StateString string
 }
 
+// OAuth2Error represents an OAuth2-compliant error response.
+type OAuth2Error struct {
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description,omitempty"`
+}
+
 // OAuth2 returns the state from an oauth request.
 func OAuth2(r *http.Request) OAuth2State {
 	oauth, ok := r.Context().Value(oauth2StateKey{}).(OAuth2State)
@@ -207,6 +213,74 @@ func OAuth2ProviderApp(r *http.Request) database.OAuth2ProviderApp {
 // middleware requires the API key middleware higher in the call stack for
 // authentication.
 func ExtractOAuth2ProviderApp(db database.Store) func(http.Handler) http.Handler {
+	return extractOAuth2ProviderAppBase(db, &codersdkErrorWriter{})
+}
+
+// ExtractOAuth2ProviderAppWithOAuth2Errors is the same as ExtractOAuth2ProviderApp but
+// returns OAuth2-compliant errors instead of generic API errors. This should be used
+// for OAuth2 endpoints like /oauth2/tokens.
+func ExtractOAuth2ProviderAppWithOAuth2Errors(db database.Store) func(http.Handler) http.Handler {
+	return extractOAuth2ProviderAppBase(db, &oauth2ErrorWriter{})
+}
+
+// errorWriter interface abstracts different error response formats.
+// This uses the Strategy pattern to avoid a control flag (useOAuth2Errors bool)
+// which was flagged by the linter as an anti-pattern. Instead of duplicating
+// the entire function logic or using a boolean parameter, we inject the error
+// handling behavior through this interface.
+type errorWriter interface {
+	writeMissingClientID(ctx context.Context, rw http.ResponseWriter)
+	writeInvalidClientID(ctx context.Context, rw http.ResponseWriter, err error)
+	writeInvalidClient(ctx context.Context, rw http.ResponseWriter)
+}
+
+// codersdkErrorWriter writes standard codersdk errors for general API endpoints
+type codersdkErrorWriter struct{}
+
+func (*codersdkErrorWriter) writeMissingClientID(ctx context.Context, rw http.ResponseWriter) {
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "Missing OAuth2 client ID.",
+	})
+}
+
+func (*codersdkErrorWriter) writeInvalidClientID(ctx context.Context, rw http.ResponseWriter, err error) {
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "Invalid OAuth2 client ID.",
+		Detail:  err.Error(),
+	})
+}
+
+func (*codersdkErrorWriter) writeInvalidClient(_ context.Context, rw http.ResponseWriter) {
+	httpapi.ResourceNotFound(rw)
+}
+
+// oauth2ErrorWriter writes OAuth2-compliant errors for OAuth2 endpoints
+type oauth2ErrorWriter struct{}
+
+func (*oauth2ErrorWriter) writeMissingClientID(ctx context.Context, rw http.ResponseWriter) {
+	httpapi.Write(ctx, rw, http.StatusBadRequest, OAuth2Error{
+		Error:            "invalid_request",
+		ErrorDescription: "Missing client_id parameter",
+	})
+}
+
+func (*oauth2ErrorWriter) writeInvalidClientID(ctx context.Context, rw http.ResponseWriter, _ error) {
+	httpapi.Write(ctx, rw, http.StatusUnauthorized, OAuth2Error{
+		Error:            "invalid_client",
+		ErrorDescription: "The client credentials are invalid",
+	})
+}
+
+func (*oauth2ErrorWriter) writeInvalidClient(ctx context.Context, rw http.ResponseWriter) {
+	httpapi.Write(ctx, rw, http.StatusUnauthorized, OAuth2Error{
+		Error:            "invalid_client",
+		ErrorDescription: "The client credentials are invalid",
+	})
+}
+
+// extractOAuth2ProviderAppBase is the internal implementation that uses the strategy pattern
+// instead of a control flag to handle different error formats.
+func extractOAuth2ProviderAppBase(db database.Store, errWriter errorWriter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -233,26 +307,21 @@ func ExtractOAuth2ProviderApp(db database.Store) func(http.Handler) http.Handler
 					}
 				}
 				if paramAppID == "" {
-					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-						Message: "Missing OAuth2 client ID.",
-					})
+					errWriter.writeMissingClientID(ctx, rw)
 					return
 				}
 
 				var err error
 				appID, err = uuid.Parse(paramAppID)
 				if err != nil {
-					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-						Message: "Invalid OAuth2 client ID.",
-						Detail:  err.Error(),
-					})
+					errWriter.writeInvalidClientID(ctx, rw, err)
 					return
 				}
 			}
 
 			app, err := db.GetOAuth2ProviderAppByID(ctx, appID)
 			if httpapi.Is404Error(err) {
-				httpapi.ResourceNotFound(rw)
+				errWriter.writeInvalidClient(ctx, rw)
 				return
 			}
 			if err != nil {

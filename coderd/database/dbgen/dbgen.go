@@ -1131,12 +1131,21 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 
 func OAuth2ProviderApp(t testing.TB, db database.Store, seed database.OAuth2ProviderApp) database.OAuth2ProviderApp {
 	app, err := db.InsertOAuth2ProviderApp(genCtx, database.InsertOAuth2ProviderAppParams{
-		ID:          takeFirst(seed.ID, uuid.New()),
-		Name:        takeFirst(seed.Name, testutil.GetRandomName(t)),
-		CreatedAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
-		UpdatedAt:   takeFirst(seed.UpdatedAt, dbtime.Now()),
-		Icon:        takeFirst(seed.Icon, ""),
-		CallbackURL: takeFirst(seed.CallbackURL, "http://localhost"),
+		ID:           takeFirst(seed.ID, uuid.New()),
+		Name:         takeFirst(seed.Name, testutil.GetRandomName(t)),
+		CreatedAt:    takeFirst(seed.CreatedAt, dbtime.Now()),
+		UpdatedAt:    takeFirst(seed.UpdatedAt, dbtime.Now()),
+		Icon:         takeFirst(seed.Icon, ""),
+		CallbackURL:  takeFirst(seed.CallbackURL, "http://localhost"),
+		RedirectUris: takeFirstSlice(seed.RedirectUris, []string{}),
+		ClientType: takeFirst(seed.ClientType, sql.NullString{
+			String: "confidential",
+			Valid:  true,
+		}),
+		DynamicallyRegistered: takeFirst(seed.DynamicallyRegistered, sql.NullBool{
+			Bool:  false,
+			Valid: true,
+		}),
 	})
 	require.NoError(t, err, "insert oauth2 app")
 	return app
@@ -1157,13 +1166,16 @@ func OAuth2ProviderAppSecret(t testing.TB, db database.Store, seed database.OAut
 
 func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2ProviderAppCode) database.OAuth2ProviderAppCode {
 	code, err := db.InsertOAuth2ProviderAppCode(genCtx, database.InsertOAuth2ProviderAppCodeParams{
-		ID:           takeFirst(seed.ID, uuid.New()),
-		CreatedAt:    takeFirst(seed.CreatedAt, dbtime.Now()),
-		ExpiresAt:    takeFirst(seed.CreatedAt, dbtime.Now()),
-		SecretPrefix: takeFirstSlice(seed.SecretPrefix, []byte("prefix")),
-		HashedSecret: takeFirstSlice(seed.HashedSecret, []byte("hashed-secret")),
-		AppID:        takeFirst(seed.AppID, uuid.New()),
-		UserID:       takeFirst(seed.UserID, uuid.New()),
+		ID:                  takeFirst(seed.ID, uuid.New()),
+		CreatedAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
+		ExpiresAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
+		SecretPrefix:        takeFirstSlice(seed.SecretPrefix, []byte("prefix")),
+		HashedSecret:        takeFirstSlice(seed.HashedSecret, []byte("hashed-secret")),
+		AppID:               takeFirst(seed.AppID, uuid.New()),
+		UserID:              takeFirst(seed.UserID, uuid.New()),
+		ResourceUri:         seed.ResourceUri,
+		CodeChallenge:       seed.CodeChallenge,
+		CodeChallengeMethod: seed.CodeChallengeMethod,
 	})
 	require.NoError(t, err, "insert oauth2 app code")
 	return code
@@ -1178,6 +1190,7 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 		RefreshHash: takeFirstSlice(seed.RefreshHash, []byte("hashed-secret")),
 		AppSecretID: takeFirst(seed.AppSecretID, uuid.New()),
 		APIKeyID:    takeFirst(seed.APIKeyID, uuid.New().String()),
+		Audience:    seed.Audience,
 	})
 	require.NoError(t, err, "insert oauth2 app token")
 	return token
