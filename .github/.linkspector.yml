@@ -25,5 +25,6 @@ ignorePatterns:
   - pattern: "docs.github.com"
   - pattern: "claude.ai"
   - pattern: "splunk.com"
+  - pattern: "stackoverflow.com"
 aliveStatusCodes:
   - 200
