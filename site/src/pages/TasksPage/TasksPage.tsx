@@ -52,7 +52,7 @@ import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName"
 import { type FC, type ReactNode, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import TextareaAutosize from "react-textarea-autosize";
 import { pageTitle } from "utils/page";
 import { relativeTime } from "utils/time";
@@ -163,6 +163,7 @@ const TaskFormSection: FC<{
 	filter: TasksFilter;
 	onFilterChange: (filter: TasksFilter) => void;
 }> = ({ showFilter, filter, onFilterChange }) => {
+	const navigate = useNavigate();
 	const {
 		data: templates,
 		error,
@@ -190,7 +191,14 @@ const TaskFormSection: FC<{
 	}
 	return (
 		<>
-			<TaskForm templates={templates} />
+			<TaskForm
+				templates={templates}
+				onSuccess={(task) => {
+					navigate(
+						`/tasks/${task.workspace.owner_name}/${task.workspace.name}`,
+					);
+				}}
+			/>
 			{showFilter && (
 				<TasksFilter filter={filter} onFilterChange={onFilterChange} />
 			)}
@@ -202,9 +210,10 @@ type CreateTaskMutationFnProps = { prompt: string; templateId: string };
 
 type TaskFormProps = {
 	templates: Template[];
+	onSuccess: (task: Task) => void;
 };
 
-const TaskForm: FC<TaskFormProps> = ({ templates }) => {
+const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 	const { user } = useAuthenticated();
 	const queryClient = useQueryClient();
 	const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
@@ -229,10 +238,11 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 	const createTaskMutation = useMutation({
 		mutationFn: async ({ prompt, templateId }: CreateTaskMutationFnProps) =>
 			data.createTask(prompt, user.id, templateId),
-		onSuccess: async () => {
+		onSuccess: async (task) => {
 			await queryClient.invalidateQueries({
 				queryKey: ["tasks"],
 			});
+			onSuccess(task);
 		},
 	});
 
@@ -249,7 +259,6 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 				prompt,
 				templateId: templateID,
 			});
-			form.reset();
 		} catch (error) {
 			const message = getErrorMessage(error, "Error creating task");
 			const detail = getErrorDetail(error) ?? "Please try again";
