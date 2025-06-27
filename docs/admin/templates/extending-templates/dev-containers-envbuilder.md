@@ -68,6 +68,6 @@ Envbuilder remains a solid choice when:
 ## Related reading
 
 - [Dev Containers Integration](./index.md)
-- [Troubleshooting Dev Containers](./troubleshooting-dev-containers.md)
-- [Envbuilder documentation](https://github.com/coder/envbuilder)
+- [Troubleshooting Dev Containers](../../../user-guides/devcontainers/troubleshooting-dev-containers.md)
+- [Envbuilder on GitHub](https://github.com/coder/envbuilder)
 - [Dev Container specification](https://containers.dev/)
