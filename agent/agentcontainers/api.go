@@ -53,7 +53,6 @@ type API struct {
 	cancel                      context.CancelFunc
 	watcherDone                 chan struct{}
 	updaterDone                 chan struct{}
-	initialUpdateDone           chan struct{}   // Closed after first update in updaterLoop.
 	updateTrigger               chan chan error // Channel to trigger manual refresh.
 	updateInterval              time.Duration   // Interval for periodic container updates.
 	logger                      slog.Logger
@@ -73,7 +72,8 @@ type API struct {
 	workspaceName string
 	parentAgent   string
 
-	mu                       sync.RWMutex
+	mu                       sync.RWMutex  // Protects the following fields.
+	initDone                 chan struct{} // Closed by Init.
 	closed                   bool
 	containers               codersdk.WorkspaceAgentListContainersResponse  // Output from the last list operation.
 	containersErr            error                                          // Error from the last list operation.
@@ -270,7 +270,7 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 	api := &API{
 		ctx:                         ctx,
 		cancel:                      cancel,
-		initialUpdateDone:           make(chan struct{}),
+		initDone:                    make(chan struct{}),
 		updateTrigger:               make(chan chan error),
 		updateInterval:              defaultUpdateInterval,
 		logger:                      logger,
@@ -322,17 +322,36 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 }
 
 // Init applies a final set of options to the API and then
-// begins the watcherLoop and updaterLoop. This function
-// must only be called once.
+// closes initDone. This method can only be called once.
 func (api *API) Init(opts ...Option) {
 	api.mu.Lock()
 	defer api.mu.Unlock()
 	if api.closed {
 		return
 	}
+	select {
+	case <-api.initDone:
+		return
+	default:
+	}
+	defer close(api.initDone)
 
 	for _, opt := range opts {
 		opt(api)
+	}
+}
+
+// Start starts the API by initializing the watcher and updater loops.
+// This method calls Init, if it is desired to apply options after
+// the API has been created, it should be done by calling Init before
+// Start. This method must only be called once.
+func (api *API) Start() {
+	api.Init()
+
+	api.mu.Lock()
+	defer api.mu.Unlock()
+	if api.closed {
+		return
 	}
 
 	api.watcherDone = make(chan struct{})
@@ -412,9 +431,6 @@ func (api *API) updaterLoop() {
 	} else {
 		api.logger.Debug(api.ctx, "initial containers update complete")
 	}
-	// Signal that the initial update attempt (successful or not) is done.
-	// Other services can wait on this if they need the first data to be available.
-	close(api.initialUpdateDone)
 
 	// We utilize a TickerFunc here instead of a regular Ticker so that
 	// we can guarantee execution of the updateContainers method after
@@ -474,7 +490,7 @@ func (api *API) UpdateSubAgentClient(client SubAgentClient) {
 func (api *API) Routes() http.Handler {
 	r := chi.NewRouter()
 
-	ensureInitialUpdateDoneMW := func(next http.Handler) http.Handler {
+	ensureInitDoneMW := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			select {
 			case <-api.ctx.Done():
@@ -485,9 +501,8 @@ func (api *API) Routes() http.Handler {
 				return
 			case <-r.Context().Done():
 				return
-			case <-api.initialUpdateDone:
-				// Initial update is done, we can start processing
-				// requests.
+			case <-api.initDone:
+				// API init is done, we can start processing requests.
 			}
 			next.ServeHTTP(rw, r)
 		})
@@ -496,7 +511,7 @@ func (api *API) Routes() http.Handler {
 	// For now, all endpoints require the initial update to be done.
 	// If we want to allow some endpoints to be available before
 	// the initial update, we can enable this per-route.
-	r.Use(ensureInitialUpdateDoneMW)
+	r.Use(ensureInitDoneMW)
 
 	r.Get("/", api.handleList)
 	// TODO(mafredri): Simplify this route as the previous /devcontainers
