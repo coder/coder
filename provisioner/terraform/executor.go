@@ -39,7 +39,8 @@ type executor struct {
 	cliConfigPath string
 	workdir       string
 	// used to capture execution times at various stages
-	timings *timingAggregator
+	timings          *timingAggregator
+	logTerraformPlan bool
 }
 
 func (e *executor) basicEnv() []string {
@@ -326,23 +327,19 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		}
 	}
 
+	// ONLY log drift when the request is a plan related to a workspace build.
+	if req.GetPlanType() == proto.PlanType_WORKSPACE_BUILD {
+		// ALWAYS show drift for prebuilt workspace claims, otherwise ONLY show if it explicitly configured to.
+		if req.GetMetadata().GetPrebuiltWorkspaceBuildStage().IsPrebuiltWorkspaceClaim() || e.logTerraformPlan {
+			// Lock held before calling (see top of method).
+			e.logDrift(ctx, killCtx, planfilePath, newDriftLogSink(logr, req))
+		}
+	}
+
 	// When a prebuild claim attempt is made, log a warning if a resource is due to be replaced, since this will obviate
 	// the point of prebuilding if the expensive resource is replaced once claimed!
-	var (
-		isPrebuildClaimAttempt = !destroy && metadata.GetPrebuiltWorkspaceBuildStage().IsPrebuiltWorkspaceClaim()
-		resReps                []*proto.ResourceReplacement
-	)
+	var resReps []*proto.ResourceReplacement
 	if repsFromPlan := findResourceReplacements(plan); len(repsFromPlan) > 0 {
-		if isPrebuildClaimAttempt {
-			// TODO(dannyk): we should log drift always (not just during prebuild claim attempts); we're validating that this output
-			//				 will not be overwhelming for end-users, but it'll certainly be super valuable for template admins
-			//				 to diagnose this resource replacement issue, at least.
-			//				 Once prebuilds moves out of beta, consider deleting this condition.
-
-			// Lock held before calling (see top of method).
-			e.logDrift(ctx, killCtx, planfilePath, logr)
-		}
-
 		resReps = make([]*proto.ResourceReplacement, 0, len(repsFromPlan))
 		for n, p := range repsFromPlan {
 			resReps = append(resReps, &proto.ResourceReplacement{
@@ -432,10 +429,33 @@ func (e *executor) parsePlan(ctx, killCtx context.Context, planfilePath string) 
 	return p, err
 }
 
+// driftLogSink raises the log level for resource replacements if the current build is a prebuilt workspace claim.
+type driftLogSink struct {
+	logSink
+	req *proto.PlanRequest
+}
+
+func newDriftLogSink(inner logSink, req *proto.PlanRequest) *driftLogSink {
+	return &driftLogSink{logSink: inner, req: req}
+}
+
+func (c *driftLogSink) ProvisionLog(level proto.LogLevel, line string) {
+	// Raise the log level for resource replacements because this impacts prebuilt workspace claiming.
+	// See https://coder.com/docs/@main/admin/templates/extending-templates/prebuilt-workspaces#preventing-resource-replacement.
+	if c.req != nil && c.req.GetMetadata().GetPrebuiltWorkspaceBuildStage().IsPrebuiltWorkspaceClaim() {
+		// Terraform indicates that a resource will be deleted and recreated by showing the change along with this substring.
+		if strings.Contains(line, "# forces replacement") {
+			level = proto.LogLevel_WARN
+		}
+	}
+
+	c.logSink.ProvisionLog(level, line)
+}
+
 // logDrift must only be called while the lock is held.
 // It will log the output of `terraform show`, which will show which resources have drifted from the known state.
 func (e *executor) logDrift(ctx, killCtx context.Context, planfilePath string, logr logSink) {
-	stdout, stdoutDone := resourceReplaceLogWriter(logr, e.logger)
+	stdout, stdoutDone := passthruLogWriter(logr, e.logger)
 	stderr, stderrDone := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
 		_ = stdout.Close()
@@ -450,12 +470,12 @@ func (e *executor) logDrift(ctx, killCtx context.Context, planfilePath string, l
 	}
 }
 
-// resourceReplaceLogWriter highlights log lines relating to resource replacement by elevating their log level.
-// This will help template admins to visually find problematic resources easier.
+// passthruLogWriter writes all given log lines as INFO level since the log lines themselves are assumed to not have
+// any level indication. This can be used when showing the raw output of terraform commands.
 //
 // The WriteCloser must be closed by the caller to end logging, after which the returned channel will be closed to
 // indicate that logging of the written data has finished.  Failure to close the WriteCloser will leak a goroutine.
-func resourceReplaceLogWriter(sink logSink, logger slog.Logger) (io.WriteCloser, <-chan struct{}) {
+func passthruLogWriter(sink logSink, logger slog.Logger) (io.WriteCloser, <-chan struct{}) {
 	r, w := io.Pipe()
 	done := make(chan struct{})
 
@@ -464,15 +484,8 @@ func resourceReplaceLogWriter(sink logSink, logger slog.Logger) (io.WriteCloser,
 
 		scanner := bufio.NewScanner(r)
 		for scanner.Scan() {
-			line := scanner.Bytes()
-			level := proto.LogLevel_INFO
-
-			// Terraform indicates that a resource will be deleted and recreated by showing the change along with this substring.
-			if bytes.Contains(line, []byte("# forces replacement")) {
-				level = proto.LogLevel_WARN
-			}
-
-			sink.ProvisionLog(level, string(line))
+			// TODO: this could be DEBUG level, alternatively.
+			sink.ProvisionLog(proto.LogLevel_INFO, string(scanner.Bytes()))
 		}
 		if err := scanner.Err(); err != nil {
 			logger.Error(context.Background(), "failed to read terraform log", slog.Error(err))

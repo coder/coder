@@ -255,6 +255,9 @@ introspection:
     # Allow administrators to enable Terraform debug output.
     # (default: false, type: bool)
     enableTerraformDebugMode: false
+    # See the output of `terraform show <plan>` on every workspace build.
+    # (default: true, type: bool)
+    enableTerraformPlanLogging: true
   healthcheck:
     # Refresh interval for healthchecks.
     # (default: 10m0s, type: duration)

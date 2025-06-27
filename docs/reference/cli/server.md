@@ -850,6 +850,17 @@ Output Stackdriver compatible logs to a given file.
 
 Allow administrators to enable Terraform debug output.
 
+### --enable-terraform-plan-logging
+
+|             |                                                               |
+|-------------|---------------------------------------------------------------|
+| Type        | <code>bool</code>                                             |
+| Environment | <code>$CODER_ENABLE_TERRAFORM_PLAN_LOGGING</code>             |
+| YAML        | <code>introspection.logging.enableTerraformPlanLogging</code> |
+| Default     | <code>true</code>                                             |
+
+See the output of `terraform show <plan>` on every workspace build.
+
 ### --additional-csp-policy
 
 |             |                                                  |
