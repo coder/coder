@@ -408,7 +408,6 @@ func TestPrebuiltWorkspacesTelemetry(t *testing.T) {
 
 	cases := []struct {
 		name                    string
-		experimentEnabled       bool
 		storeFn                 func(store database.Store) database.Store
 		expectedSnapshotEntries int
 		expectedCreated         int
@@ -416,8 +415,7 @@ func TestPrebuiltWorkspacesTelemetry(t *testing.T) {
 		expectedClaimed         int
 	}{
 		{
-			name:              "experiment enabled",
-			experimentEnabled: true,
+			name: "prebuilds enabled",
 			storeFn: func(store database.Store) database.Store {
 				return &mockDB{Store: store}
 			},
@@ -427,17 +425,9 @@ func TestPrebuiltWorkspacesTelemetry(t *testing.T) {
 			expectedClaimed:         3,
 		},
 		{
-			name:              "experiment enabled, prebuilds not used",
-			experimentEnabled: true,
+			name: "prebuilds not used",
 			storeFn: func(store database.Store) database.Store {
 				return &emptyMockDB{Store: store}
-			},
-		},
-		{
-			name:              "experiment disabled",
-			experimentEnabled: false,
-			storeFn: func(store database.Store) database.Store {
-				return &mockDB{Store: store}
 			},
 		},
 	}
@@ -448,11 +438,6 @@ func TestPrebuiltWorkspacesTelemetry(t *testing.T) {
 
 			deployment, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
 				opts.Database = tc.storeFn(db)
-				if tc.experimentEnabled {
-					opts.Experiments = codersdk.Experiments{
-						codersdk.ExperimentWorkspacePrebuilds,
-					}
-				}
 				return opts
 			})
 
@@ -544,7 +529,6 @@ func TestRecordTelemetryStatus(t *testing.T) {
 		{name: "Telemetry was disabled still disabled", recordedTelemetryEnabled: "false", telemetryEnabled: false, shouldReport: false},
 		{name: "Telemetry was disabled still disabled, invalid value", recordedTelemetryEnabled: "invalid", telemetryEnabled: false, shouldReport: false},
 	} {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 

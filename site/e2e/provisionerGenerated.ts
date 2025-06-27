@@ -140,9 +140,20 @@ export interface ExpirationPolicy {
   ttl: number;
 }
 
+export interface Schedule {
+  cron: string;
+  instances: number;
+}
+
+export interface Scheduling {
+  timezone: string;
+  schedule: Schedule[];
+}
+
 export interface Prebuild {
   instances: number;
   expirationPolicy: ExpirationPolicy | undefined;
+  scheduling: Scheduling | undefined;
 }
 
 /** Preset represents a set of preset parameters for a template version. */
@@ -150,6 +161,7 @@ export interface Preset {
   name: string;
   parameters: PresetParameter[];
   prebuild: Prebuild | undefined;
+  default: boolean;
 }
 
 export interface PresetParameter {
@@ -300,6 +312,8 @@ export interface App {
   hidden: boolean;
   openIn: AppOpenIn;
   group: string;
+  /** If nil, new UUID will be generated. */
+  id: string;
 }
 
 /** Healthcheck represents configuration for checking for app readiness. */
@@ -344,6 +358,15 @@ export interface Role {
 export interface RunningAgentAuthToken {
   agentId: string;
   token: string;
+}
+
+export interface AITaskSidebarApp {
+  id: string;
+}
+
+export interface AITask {
+  id: string;
+  sidebarApp: AITaskSidebarApp | undefined;
 }
 
 /** Metadata is information about a workspace used in the execution of a build */
@@ -428,6 +451,15 @@ export interface PlanComplete {
   resourceReplacements: ResourceReplacement[];
   moduleFiles: Uint8Array;
   moduleFilesHash: Uint8Array;
+  /**
+   * Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
+   * During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
+   * still need to know that such resources are defined.
+   *
+   * See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
+   */
+  hasAiTasks: boolean;
+  aiTasks: AITask[];
 }
 
 /**
@@ -446,6 +478,7 @@ export interface ApplyComplete {
   parameters: RichParameter[];
   externalAuthProviders: ExternalAuthProviderResource[];
   timings: Timing[];
+  aiTasks: AITask[];
 }
 
 export interface Timing {
@@ -629,6 +662,30 @@ export const ExpirationPolicy = {
   },
 };
 
+export const Schedule = {
+  encode(message: Schedule, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.cron !== "") {
+      writer.uint32(10).string(message.cron);
+    }
+    if (message.instances !== 0) {
+      writer.uint32(16).int32(message.instances);
+    }
+    return writer;
+  },
+};
+
+export const Scheduling = {
+  encode(message: Scheduling, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.timezone !== "") {
+      writer.uint32(10).string(message.timezone);
+    }
+    for (const v of message.schedule) {
+      Schedule.encode(v!, writer.uint32(18).fork()).ldelim();
+    }
+    return writer;
+  },
+};
+
 export const Prebuild = {
   encode(message: Prebuild, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.instances !== 0) {
@@ -636,6 +693,9 @@ export const Prebuild = {
     }
     if (message.expirationPolicy !== undefined) {
       ExpirationPolicy.encode(message.expirationPolicy, writer.uint32(18).fork()).ldelim();
+    }
+    if (message.scheduling !== undefined) {
+      Scheduling.encode(message.scheduling, writer.uint32(26).fork()).ldelim();
     }
     return writer;
   },
@@ -651,6 +711,9 @@ export const Preset = {
     }
     if (message.prebuild !== undefined) {
       Prebuild.encode(message.prebuild, writer.uint32(26).fork()).ldelim();
+    }
+    if (message.default === true) {
+      writer.uint32(32).bool(message.default);
     }
     return writer;
   },
@@ -1003,6 +1066,9 @@ export const App = {
     if (message.group !== "") {
       writer.uint32(106).string(message.group);
     }
+    if (message.id !== "") {
+      writer.uint32(114).string(message.id);
+    }
     return writer;
   },
 };
@@ -1110,6 +1176,27 @@ export const RunningAgentAuthToken = {
     }
     if (message.token !== "") {
       writer.uint32(18).string(message.token);
+    }
+    return writer;
+  },
+};
+
+export const AITaskSidebarApp = {
+  encode(message: AITaskSidebarApp, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    return writer;
+  },
+};
+
+export const AITask = {
+  encode(message: AITask, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.sidebarApp !== undefined) {
+      AITaskSidebarApp.encode(message.sidebarApp, writer.uint32(18).fork()).ldelim();
     }
     return writer;
   },
@@ -1294,6 +1381,12 @@ export const PlanComplete = {
     if (message.moduleFilesHash.length !== 0) {
       writer.uint32(98).bytes(message.moduleFilesHash);
     }
+    if (message.hasAiTasks === true) {
+      writer.uint32(104).bool(message.hasAiTasks);
+    }
+    for (const v of message.aiTasks) {
+      AITask.encode(v!, writer.uint32(114).fork()).ldelim();
+    }
     return writer;
   },
 };
@@ -1326,6 +1419,9 @@ export const ApplyComplete = {
     }
     for (const v of message.timings) {
       Timing.encode(v!, writer.uint32(50).fork()).ldelim();
+    }
+    for (const v of message.aiTasks) {
+      AITask.encode(v!, writer.uint32(58).fork()).ldelim();
     }
     return writer;
   },

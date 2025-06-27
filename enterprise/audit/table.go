@@ -195,7 +195,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"initiator_by_name":          ActionIgnore,
 		"template_version_preset_id": ActionIgnore, // Never changes.
 		"has_ai_task":                ActionIgnore, // Never changes.
-		"ai_tasks_sidebar_app_id":    ActionIgnore, // Never changes.
+		"ai_task_sidebar_app_id":     ActionIgnore, // Never changes.
 	},
 	&database.AuditableGroup{}: {
 		"id":              ActionTrack,
@@ -351,6 +351,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"display_order":              ActionIgnore,
 		"parent_id":                  ActionIgnore,
 		"api_key_scope":              ActionIgnore,
+		"deleted":                    ActionIgnore,
 	},
 	&database.WorkspaceApp{}: {
 		"id":                    ActionIgnore,

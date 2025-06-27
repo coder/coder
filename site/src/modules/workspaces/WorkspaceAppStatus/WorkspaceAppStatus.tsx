@@ -5,8 +5,8 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import capitalize from "lodash/capitalize";
 import { AppStatusStateIcon } from "modules/apps/AppStatusStateIcon";
-import { cn } from "utils/cn";
 
 type WorkspaceAppStatusProps = {
 	status: APIWorkspaceAppStatus | null;
@@ -25,6 +25,7 @@ export const WorkspaceAppStatus = ({
 		);
 	}
 
+	const message = status.message || capitalize(status.state);
 	return (
 		<div className="flex flex-col text-content-secondary">
 			<TooltipProvider>
@@ -35,16 +36,13 @@ export const WorkspaceAppStatus = ({
 								latest
 								disabled={disabled}
 								state={status.state}
-								className={cn({
-									"text-content-disabled": disabled,
-								})}
 							/>
 							<span className="whitespace-nowrap max-w-72 overflow-hidden text-ellipsis text-sm text-content-primary font-medium">
-								{status.message}
+								{message}
 							</span>
 						</div>
 					</TooltipTrigger>
-					<TooltipContent>{status.message}</TooltipContent>
+					<TooltipContent>{message}</TooltipContent>
 				</Tooltip>
 			</TooltipProvider>
 			<span className="text-xs first-letter:uppercase block pl-6">

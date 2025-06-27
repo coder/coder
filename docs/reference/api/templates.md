@@ -143,6 +143,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |------------------------|-----------------|
 | `max_port_share_level` | `owner`         |
 | `max_port_share_level` | `authenticated` |
+| `max_port_share_level` | `organization`  |
 | `max_port_share_level` | `public`        |
 | `provisioner`          | `terraform`     |
 
@@ -874,6 +875,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |------------------------|-----------------|
 | `max_port_share_level` | `owner`         |
 | `max_port_share_level` | `authenticated` |
+| `max_port_share_level` | `organization`  |
 | `max_port_share_level` | `public`        |
 | `provisioner`          | `terraform`     |
 
@@ -2552,8 +2554,10 @@ Status Code **200**
 | `open_in`                 | `tab`              |
 | `sharing_level`           | `owner`            |
 | `sharing_level`           | `authenticated`    |
+| `sharing_level`           | `organization`     |
 | `sharing_level`           | `public`           |
 | `state`                   | `working`          |
+| `state`                   | `idle`             |
 | `state`                   | `complete`         |
 | `state`                   | `failure`          |
 | `lifecycle_state`         | `created`          |
@@ -2907,6 +2911,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
 ```json
 [
   {
+    "default": true,
     "id": "string",
     "name": "string",
     "parameters": [
@@ -2929,14 +2934,15 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
 
 Status Code **200**
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `[array item]` | array  | false    |              |             |
-| `» id`         | string | false    |              |             |
-| `» name`       | string | false    |              |             |
-| `» parameters` | array  | false    |              |             |
-| `»» name`      | string | false    |              |             |
-| `»» value`     | string | false    |              |             |
+| Name           | Type    | Required | Restrictions | Description |
+|----------------|---------|----------|--------------|-------------|
+| `[array item]` | array   | false    |              |             |
+| `» default`    | boolean | false    |              |             |
+| `» id`         | string  | false    |              |             |
+| `» name`       | string  | false    |              |             |
+| `» parameters` | array   | false    |              |             |
+| `»» name`      | string  | false    |              |             |
+| `»» value`     | string  | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3227,8 +3233,10 @@ Status Code **200**
 | `open_in`                 | `tab`              |
 | `sharing_level`           | `owner`            |
 | `sharing_level`           | `authenticated`    |
+| `sharing_level`           | `organization`     |
 | `sharing_level`           | `public`           |
 | `state`                   | `working`          |
+| `state`                   | `idle`             |
 | `state`                   | `complete`         |
 | `state`                   | `failure`          |
 | `lifecycle_state`         | `created`          |

@@ -6,7 +6,6 @@ import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { SelectFilter } from "components/Filter/SelectFilter";
 import {
 	FormFields,
@@ -152,21 +151,31 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	const [presetOptions, setPresetOptions] = useState([
 		{ label: "None", value: "" },
 	]);
-	useEffect(() => {
-		setPresetOptions([
-			{ label: "None", value: "" },
-			...presets.map((preset) => ({
-				label: preset.Name,
-				value: preset.ID,
-			})),
-		]);
-	}, [presets]);
-
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
+	// Build options and keep default label/value in sync
+	useEffect(() => {
+		const options = [
+			{ label: "None", value: "" },
+			...presets.map((p) => ({
+				label: p.Default ? `${p.Name} (Default)` : p.Name,
+				value: p.ID,
+			})),
+		];
+		setPresetOptions(options);
+		const defaultPreset = presets.find((p) => p.Default);
+		if (defaultPreset) {
+			const idx = presets.indexOf(defaultPreset) + 1; // +1 for "None"
+			setSelectedPresetIndex(idx);
+			form.setFieldValue("template_version_preset_id", defaultPreset.ID);
+		} else {
+			setSelectedPresetIndex(0); // Explicitly set to "None"
+			form.setFieldValue("template_version_preset_id", undefined);
+		}
+	}, [presets, form.setFieldValue]);
+
 	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
 		[],
 	);
-
 	useEffect(() => {
 		const selectedPresetOption = presetOptions[selectedPresetIndex];
 		let selectedPreset: TypesGen.Preset | undefined;
@@ -352,7 +361,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 										<span css={styles.description}>
 											Select a preset to get started
 										</span>
-										<FeatureStageBadge contentType={"beta"} size="md" />
 									</Stack>
 									<Stack direction="column" spacing={2}>
 										<Stack direction="row" spacing={2}>
@@ -369,32 +377,36 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 													setSelectedPresetIndex(index);
 													form.setFieldValue(
 														"template_version_preset_id",
-														option?.value,
+														// Empty string is equivalent to using None
+														option?.value === "" ? undefined : option?.value,
 													);
 												}}
 												placeholder="Select a preset"
 												selectedOption={presetOptions[selectedPresetIndex]}
 											/>
 										</Stack>
-										<div
-											css={{
-												display: "flex",
-												alignItems: "center",
-												gap: "8px",
-											}}
-										>
-											<Switch
-												id="show-preset-parameters"
-												checked={showPresetParameters}
-												onCheckedChange={setShowPresetParameters}
-											/>
-											<label
-												htmlFor="show-preset-parameters"
-												css={styles.description}
+										{/* Only show the preset parameter visibility toggle if preset parameters are actually being modified, otherwise it has no effect. */}
+										{presetParameterNames.length > 0 && (
+											<div
+												css={{
+													display: "flex",
+													alignItems: "center",
+													gap: "8px",
+												}}
 											>
-												Show preset parameters
-											</label>
-										</div>
+												<Switch
+													id="show-preset-parameters"
+													checked={showPresetParameters}
+													onCheckedChange={setShowPresetParameters}
+												/>
+												<label
+													htmlFor="show-preset-parameters"
+													css={styles.description}
+												>
+													Show preset parameters
+												</label>
+											</div>
+										)}
 									</Stack>
 								</Stack>
 							)}

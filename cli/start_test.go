@@ -343,7 +343,6 @@ func TestStartAutoUpdate(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -359,7 +358,7 @@ func TestStartAutoUpdate(t *testing.T) {
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 			if c.Cmd == "start" {
-				coderdtest.MustTransitionWorkspace(t, member, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+				coderdtest.MustTransitionWorkspace(t, member, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 			}
 			version2 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(stringRichParameters), func(ctvr *codersdk.CreateTemplateVersionRequest) {
 				ctvr.TemplateID = template.ID

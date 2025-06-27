@@ -28,6 +28,7 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/util/slice"
 
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -321,7 +322,7 @@ func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Acquire
 	acqCtx, acqCancel := context.WithTimeout(ctx, s.acquireJobLongPollDur)
 	defer acqCancel()
 	job, err := s.Acquirer.AcquireJob(acqCtx, s.OrganizationID, s.ID, s.Provisioners, s.Tags)
-	if xerrors.Is(err, context.DeadlineExceeded) {
+	if database.IsQueryCanceledError(err) {
 		s.Logger.Debug(ctx, "successful cancel")
 		return &proto.AcquiredJob{}, nil
 	}
@@ -368,7 +369,7 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 		je = <-jec
 	case je = <-jec:
 	}
-	if xerrors.Is(je.err, context.Canceled) {
+	if database.IsQueryCanceledError(je.err) {
 		s.Logger.Debug(streamCtx, "successful cancel")
 		err := stream.Send(&proto.AcquiredJob{})
 		if err != nil {
@@ -1654,6 +1655,17 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		if err != nil {
 			return xerrors.Errorf("update template version external auth providers: %w", err)
 		}
+		err = db.UpdateTemplateVersionAITaskByJobID(ctx, database.UpdateTemplateVersionAITaskByJobIDParams{
+			JobID: jobID,
+			HasAITask: sql.NullBool{
+				Bool:  jobType.TemplateImport.HasAiTasks,
+				Valid: true,
+			},
+			UpdatedAt: now,
+		})
+		if err != nil {
+			return xerrors.Errorf("update template version external auth providers: %w", err)
+		}
 
 		// Process terraform values
 		plan := jobType.TemplateImport.Plan
@@ -1864,6 +1876,37 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			if err := InsertWorkspaceModule(ctx, db, job.ID, workspaceBuild.Transition, module, telemetrySnapshot); err != nil {
 				return xerrors.Errorf("insert provisioner job module: %w", err)
 			}
+		}
+
+		var sidebarAppID uuid.NullUUID
+		hasAITask := len(jobType.WorkspaceBuild.AiTasks) == 1
+		if hasAITask {
+			task := jobType.WorkspaceBuild.AiTasks[0]
+			if task.SidebarApp == nil {
+				return xerrors.Errorf("update ai task: sidebar app is nil")
+			}
+
+			id, err := uuid.Parse(task.SidebarApp.Id)
+			if err != nil {
+				return xerrors.Errorf("parse sidebar app id: %w", err)
+			}
+
+			sidebarAppID = uuid.NullUUID{UUID: id, Valid: true}
+		}
+
+		// Regardless of whether there is an AI task or not, update the field to indicate one way or the other since it
+		// always defaults to nil. ONLY if has_ai_task=true MUST ai_task_sidebar_app_id be set.
+		err = db.UpdateWorkspaceBuildAITaskByID(ctx, database.UpdateWorkspaceBuildAITaskByIDParams{
+			ID: workspaceBuild.ID,
+			HasAITask: sql.NullBool{
+				Bool:  hasAITask,
+				Valid: true,
+			},
+			SidebarAppID: sidebarAppID,
+			UpdatedAt:    now,
+		})
+		if err != nil {
+			return xerrors.Errorf("update workspace build ai tasks flag: %w", err)
 		}
 
 		// Insert timings inside the transaction now
@@ -2197,7 +2240,13 @@ func InsertWorkspacePresetsAndParameters(ctx context.Context, logger slog.Logger
 
 func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, templateVersionID uuid.UUID, protoPreset *sdkproto.Preset, t time.Time) error {
 	err := db.InTx(func(tx database.Store) error {
-		var desiredInstances, ttl sql.NullInt32
+		var (
+			desiredInstances   sql.NullInt32
+			ttl                sql.NullInt32
+			schedulingEnabled  bool
+			schedulingTimezone string
+			prebuildSchedules  []*sdkproto.Schedule
+		)
 		if protoPreset != nil && protoPreset.Prebuild != nil {
 			desiredInstances = sql.NullInt32{
 				Int32: protoPreset.Prebuild.Instances,
@@ -2209,6 +2258,11 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 					Valid: true,
 				}
 			}
+			if protoPreset.Prebuild.Scheduling != nil {
+				schedulingEnabled = true
+				schedulingTimezone = protoPreset.Prebuild.Scheduling.Timezone
+				prebuildSchedules = protoPreset.Prebuild.Scheduling.Schedule
+			}
 		}
 		dbPreset, err := tx.InsertPreset(ctx, database.InsertPresetParams{
 			ID:                  uuid.New(),
@@ -2217,9 +2271,24 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 			CreatedAt:           t,
 			DesiredInstances:    desiredInstances,
 			InvalidateAfterSecs: ttl,
+			SchedulingTimezone:  schedulingTimezone,
+			IsDefault:           protoPreset.GetDefault(),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert preset: %w", err)
+		}
+
+		if schedulingEnabled {
+			for _, schedule := range prebuildSchedules {
+				_, err := tx.InsertPresetPrebuildSchedule(ctx, database.InsertPresetPrebuildScheduleParams{
+					PresetID:         dbPreset.ID,
+					CronExpression:   schedule.Cron,
+					DesiredInstances: schedule.Instances,
+				})
+				if err != nil {
+					return xerrors.Errorf("failed to insert preset prebuild schedule: %w", err)
+				}
+			}
 		}
 
 		var presetParameterNames []string
@@ -2570,8 +2639,20 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				openIn = database.WorkspaceAppOpenInSlimWindow
 			}
 
-			dbApp, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
-				ID:          uuid.New(),
+			var appID string
+			if app.Id == "" || app.Id == uuid.Nil.String() {
+				appID = uuid.NewString()
+			} else {
+				appID = app.Id
+			}
+			id, err := uuid.Parse(appID)
+			if err != nil {
+				return xerrors.Errorf("parse app uuid: %w", err)
+			}
+
+			// If workspace apps are "persistent", the ID will not be regenerated across workspace builds, so we have to upsert.
+			dbApp, err := db.UpsertWorkspaceApp(ctx, database.UpsertWorkspaceAppParams{
+				ID:          id,
 				CreatedAt:   dbtime.Now(),
 				AgentID:     dbAgent.ID,
 				Slug:        slug,
@@ -2599,7 +2680,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				OpenIn:       openIn,
 			})
 			if err != nil {
-				return xerrors.Errorf("insert app: %w", err)
+				return xerrors.Errorf("upsert app: %w", err)
 			}
 			snapshot.WorkspaceApps = append(snapshot.WorkspaceApps, telemetry.ConvertWorkspaceApp(dbApp))
 		}

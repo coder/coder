@@ -85,6 +85,7 @@ type Options struct {
 	Entitlements      *entitlements.Set
 	Telemetry         telemetry.Reporter
 	Logger            slog.Logger
+	HideAITasks       bool
 }
 
 func New(opts *Options) *Handler {
@@ -316,6 +317,8 @@ type htmlState struct {
 	Experiments    string
 	Regions        string
 	DocsURL        string
+
+	TasksTabVisible string
 }
 
 type csrfState struct {
@@ -445,6 +448,7 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 	var user database.User
 	var themePreference string
 	var terminalFont string
+	var tasksTabVisible bool
 	orgIDs := []uuid.UUID{}
 	eg.Go(func() error {
 		var err error
@@ -479,6 +483,20 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		}
 		orgIDs = memberIDs[0].OrganizationIDs
 		return err
+	})
+	eg.Go(func() error {
+		// If HideAITasks is true, force hide the tasks tab
+		if h.opts.HideAITasks {
+			tasksTabVisible = false
+			return nil
+		}
+
+		hasAITask, err := h.opts.Database.HasTemplateVersionsWithAITask(ctx)
+		if err != nil {
+			return err
+		}
+		tasksTabVisible = hasAITask
+		return nil
 	})
 	err := eg.Wait()
 	if err == nil {
@@ -550,6 +568,14 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 				}
 			}()
 		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			tasksTabVisible, err := json.Marshal(tasksTabVisible)
+			if err == nil {
+				state.TasksTabVisible = html.EscapeString(string(tasksTabVisible))
+			}
+		}()
 		wg.Wait()
 	}
 
@@ -823,8 +849,6 @@ func verifyBinSha1IsCurrent(dest string, siteFS fs.FS, shaFiles map[string]strin
 
 	// Verify the hash of each on-disk binary.
 	for file, hash1 := range shaFiles {
-		file := file
-		hash1 := hash1
 		eg.Go(func() error {
 			hash2, err := sha1HashFile(filepath.Join(dest, file))
 			if err != nil {

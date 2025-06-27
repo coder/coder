@@ -1,28 +1,56 @@
 package httpmw_test
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/coderd/proxyhealth"
 )
 
-func TestCSPConnect(t *testing.T) {
+func TestCSP(t *testing.T) {
 	t.Parallel()
 
-	expected := []string{"example.com", "coder.com"}
+	proxyHosts := []*proxyhealth.ProxyHost{
+		{
+			Host:    "test.com",
+			AppHost: "*.test.com",
+		},
+		{
+			Host:    "coder.com",
+			AppHost: "*.coder.com",
+		},
+		{
+			// Host is not added because it duplicates the host header.
+			Host:    "example.com",
+			AppHost: "*.coder2.com",
+		},
+	}
 	expectedMedia := []string{"media.com", "media2.com"}
 
+	expected := []string{
+		"frame-src 'self' *.test.com *.coder.com *.coder2.com",
+		"media-src 'self' media.com media2.com",
+		strings.Join([]string{
+			"connect-src", "'self'",
+			// Added from host header.
+			"wss://example.com", "ws://example.com",
+			// Added via proxy hosts.
+			"wss://test.com", "ws://test.com", "https://test.com", "http://test.com",
+			"wss://coder.com", "ws://coder.com", "https://coder.com", "http://coder.com",
+		}, " "),
+	}
+
+	// When the host is empty, it uses example.com.
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	rw := httptest.NewRecorder()
 
-	httpmw.CSPHeaders(codersdk.Experiments{}, false, func() []string {
-		return expected
+	httpmw.CSPHeaders(false, func() []*proxyhealth.ProxyHost {
+		return proxyHosts
 	}, map[httpmw.CSPFetchDirective][]string{
 		httpmw.CSPDirectiveMediaSrc: expectedMedia,
 	})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -31,10 +59,6 @@ func TestCSPConnect(t *testing.T) {
 
 	require.NotEmpty(t, rw.Header().Get("Content-Security-Policy"), "Content-Security-Policy header should not be empty")
 	for _, e := range expected {
-		require.Containsf(t, rw.Header().Get("Content-Security-Policy"), fmt.Sprintf("ws://%s", e), "Content-Security-Policy header should contain ws://%s", e)
-		require.Containsf(t, rw.Header().Get("Content-Security-Policy"), fmt.Sprintf("wss://%s", e), "Content-Security-Policy header should contain wss://%s", e)
-	}
-	for _, e := range expectedMedia {
-		require.Containsf(t, rw.Header().Get("Content-Security-Policy"), e, "Content-Security-Policy header should contain %s", e)
+		require.Contains(t, rw.Header().Get("Content-Security-Policy"), e)
 	}
 }

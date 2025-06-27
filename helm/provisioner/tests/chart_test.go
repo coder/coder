@@ -141,9 +141,7 @@ func TestRenderChart(t *testing.T) {
 	require.NoError(t, err, "failed to build Helm dependencies")
 
 	for _, tc := range testCases {
-		tc := tc
 		for _, ns := range namespaces {
-			tc := tc
 			tc.namespace = ns
 
 			t.Run(tc.namespace+"/"+tc.name, func(t *testing.T) {
@@ -190,14 +188,12 @@ func TestUpdateGoldenFiles(t *testing.T) {
 	require.NoError(t, err, "failed to build Helm dependencies")
 
 	for _, tc := range testCases {
-		tc := tc
 		if tc.expectedError != "" {
 			t.Logf("skipping test case %q with render error", tc.name)
 			continue
 		}
 
 		for _, ns := range namespaces {
-			tc := tc
 			tc.namespace = ns
 
 			valuesPath := tc.valuesFilePath()

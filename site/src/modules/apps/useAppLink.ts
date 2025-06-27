@@ -50,7 +50,26 @@ export const useAppLink = (
 			// an error message will be displayed.
 			const openAppExternallyFailedTimeout = 500;
 			const openAppExternallyFailed = setTimeout(() => {
-				displayError(`${label} must be installed first.`);
+				// Check if this is a JetBrains IDE app
+				const isJetBrainsApp =
+					app.url &&
+					(app.url.startsWith("jetbrains-gateway:") ||
+						app.url.startsWith("jetbrains:"));
+
+				// Check if this is a coder:// URL
+				const isCoderApp = app.url?.startsWith("coder:");
+
+				if (isJetBrainsApp) {
+					displayError(
+						`To use ${label}, you need to have JetBrains Toolbox installed.`,
+					);
+				} else if (isCoderApp) {
+					displayError(
+						`To use ${label} you need to have Coder Desktop installed`,
+					);
+				} else {
+					displayError(`${label} must be installed first.`);
+				}
 			}, openAppExternallyFailedTimeout);
 			window.addEventListener("blur", () => {
 				clearTimeout(openAppExternallyFailed);

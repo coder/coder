@@ -10,10 +10,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/kylecarbs/aisdk-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+
+	"github.com/coder/aisdk-go"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -72,7 +73,14 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("ReportTask", func(t *testing.T) {
-		tb, err := toolsdk.NewDeps(memberClient, toolsdk.WithAgentClient(agentClient), toolsdk.WithAppStatusSlug("some-agent-app"))
+		tb, err := toolsdk.NewDeps(memberClient, toolsdk.WithTaskReporter(func(args toolsdk.ReportTaskArgs) error {
+			return agentClient.PatchAppStatus(setupCtx, agentsdk.PatchAppStatus{
+				AppSlug: "some-agent-app",
+				Message: args.Summary,
+				URI:     args.Link,
+				State:   codersdk.WorkspaceAppStatusState(args.State),
+			})
+		}))
 		require.NoError(t, err)
 		_, err = testTool(t, toolsdk.ReportTask, tb, toolsdk.ReportTaskArgs{
 			Summary: "test summary",

@@ -471,7 +471,6 @@ func TestServer(t *testing.T) {
 				expectGithubDefaultProviderConfigured: true,
 			},
 		} {
-			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				runGitHubProviderTest(t, tc)
 			})
@@ -629,7 +628,6 @@ func TestServer(t *testing.T) {
 		}
 
 		for _, c := range cases {
-			c := c
 			t.Run(c.name, func(t *testing.T) {
 				t.Parallel()
 				ctx, cancelFunc := context.WithCancel(context.Background())
@@ -883,8 +881,6 @@ func TestServer(t *testing.T) {
 		}
 
 		for _, c := range cases {
-			c := c
-
 			t.Run(c.name, func(t *testing.T) {
 				t.Parallel()
 

@@ -311,6 +311,10 @@ func (dcli *dockerCLI) List(ctx context.Context) (codersdk.WorkspaceAgentListCon
 // container IDs and returns the parsed output.
 // The stderr output is also returned for logging purposes.
 func runDockerInspect(ctx context.Context, execer agentexec.Execer, ids ...string) (stdout, stderr []byte, err error) {
+	if ctx.Err() != nil {
+		// If the context is done, we don't want to run the command.
+		return []byte{}, []byte{}, ctx.Err()
+	}
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd := execer.CommandContext(ctx, "docker", append([]string{"inspect"}, ids...)...)
 	cmd.Stdout = &stdoutBuf
@@ -319,6 +323,12 @@ func runDockerInspect(ctx context.Context, execer agentexec.Execer, ids ...strin
 	stdout = bytes.TrimSpace(stdoutBuf.Bytes())
 	stderr = bytes.TrimSpace(stderrBuf.Bytes())
 	if err != nil {
+		if ctx.Err() != nil {
+			// If the context was canceled while running the command,
+			// return the context error instead of the command error,
+			// which is likely to be "signal: killed".
+			return stdout, stderr, ctx.Err()
+		}
 		if bytes.Contains(stderr, []byte("No such object:")) {
 			// This can happen if a container is deleted between the time we check for its existence and the time we inspect it.
 			return stdout, stderr, nil

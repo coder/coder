@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/testutil"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -84,12 +86,12 @@ func TestNoPrebuilds(t *testing.T) {
 		preset(true, 0, current),
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, clock, testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	state := ps.CalculateState()
-	actions, err := ps.CalculateActions(clock, backoffInterval)
+	actions, err := ps.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 
 	validateState(t, prebuilds.ReconciliationState{ /*all zero values*/ }, *state)
@@ -106,12 +108,12 @@ func TestNetNew(t *testing.T) {
 		preset(true, 1, current),
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, clock, testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	state := ps.CalculateState()
-	actions, err := ps.CalculateActions(clock, backoffInterval)
+	actions, err := ps.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 
 	validateState(t, prebuilds.ReconciliationState{
@@ -148,13 +150,13 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the outdated preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
 	// THEN: we should identify that this prebuild is outdated and needs to be deleted.
 	state := ps.CalculateState()
-	actions, err := ps.CalculateActions(clock, backoffInterval)
+	actions, err := ps.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
 		Actual: 1,
@@ -172,7 +174,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 
 	// THEN: we should not be blocked from creating a new prebuild while the outdate one deletes.
 	state = ps.CalculateState()
-	actions, err = ps.CalculateActions(clock, backoffInterval)
+	actions, err = ps.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{Desired: 1}, *state)
 	validateActions(t, []*prebuilds.ReconciliationActions{
@@ -214,14 +216,14 @@ func TestDeleteOutdatedPrebuilds(t *testing.T) {
 	}
 
 	// WHEN: calculating the outdated preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
 	// THEN: we should identify that this prebuild is outdated and needs to be deleted.
 	// Despite the fact that deletion of another outdated prebuild is already in progress.
 	state := ps.CalculateState()
-	actions, err := ps.CalculateActions(clock, backoffInterval)
+	actions, err := ps.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
 		Actual:   1,
@@ -418,7 +420,6 @@ func TestInProgressActions(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -459,13 +460,13 @@ func TestInProgressActions(t *testing.T) {
 			}
 
 			// WHEN: calculating the current preset's state.
-			snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil, nil)
+			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 			ps, err := snapshot.FilterByPreset(current.presetID)
 			require.NoError(t, err)
 
 			// THEN: we should identify that this prebuild is in progress.
 			state := ps.CalculateState()
-			actions, err := ps.CalculateActions(clock, backoffInterval)
+			actions, err := ps.CalculateActions(backoffInterval)
 			require.NoError(t, err)
 			tc.checkFn(*state, actions)
 		})
@@ -502,13 +503,13 @@ func TestExtraneous(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	// THEN: an extraneous prebuild is detected and marked for deletion.
 	state := ps.CalculateState()
-	actions, err := ps.CalculateActions(clock, backoffInterval)
+	actions, err := ps.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
 		Actual: 2, Desired: 1, Extraneous: 1, Eligible: 2,
@@ -648,7 +649,6 @@ func TestExpiredPrebuilds(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -683,13 +683,13 @@ func TestExpiredPrebuilds(t *testing.T) {
 			}
 
 			// WHEN: calculating the current preset's state.
-			snapshot := prebuilds.NewGlobalSnapshot(presets, running, nil, nil, nil)
+			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, nil, nil, nil, clock, testutil.Logger(t))
 			ps, err := snapshot.FilterByPreset(current.presetID)
 			require.NoError(t, err)
 
 			// THEN: we should identify that this prebuild is expired.
 			state := ps.CalculateState()
-			actions, err := ps.CalculateActions(clock, backoffInterval)
+			actions, err := ps.CalculateActions(backoffInterval)
 			require.NoError(t, err)
 			tc.checkFn(running, *state, actions)
 		})
@@ -719,13 +719,13 @@ func TestDeprecated(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	// THEN: all running prebuilds should be deleted because the template is deprecated.
 	state := ps.CalculateState()
-	actions, err := ps.CalculateActions(clock, backoffInterval)
+	actions, err := ps.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
 		Actual: 1,
@@ -772,13 +772,13 @@ func TestLatestBuildFailed(t *testing.T) {
 	}
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, running, inProgress, backoffs, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, backoffs, nil, clock, testutil.Logger(t))
 	psCurrent, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
 	// THEN: reconciliation should backoff.
 	state := psCurrent.CalculateState()
-	actions, err := psCurrent.CalculateActions(clock, backoffInterval)
+	actions, err := psCurrent.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
 		Actual: 0, Desired: 1,
@@ -796,7 +796,7 @@ func TestLatestBuildFailed(t *testing.T) {
 
 	// THEN: it should NOT be in backoff because all is OK.
 	state = psOther.CalculateState()
-	actions, err = psOther.CalculateActions(clock, backoffInterval)
+	actions, err = psOther.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
 		Actual: 1, Desired: 1, Eligible: 1,
@@ -810,7 +810,7 @@ func TestLatestBuildFailed(t *testing.T) {
 	psCurrent, err = snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 	state = psCurrent.CalculateState()
-	actions, err = psCurrent.CalculateActions(clock, backoffInterval)
+	actions, err = psCurrent.CalculateActions(backoffInterval)
 	require.NoError(t, err)
 	validateState(t, prebuilds.ReconciliationState{
 		Actual: 0, Desired: 1,
@@ -865,7 +865,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		},
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, inProgress, nil, nil)
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, inProgress, nil, nil, clock, testutil.Logger(t))
 
 	// Nothing has to be created for preset 1.
 	{
@@ -873,7 +873,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		require.NoError(t, err)
 
 		state := ps.CalculateState()
-		actions, err := ps.CalculateActions(clock, backoffInterval)
+		actions, err := ps.CalculateActions(backoffInterval)
 		require.NoError(t, err)
 
 		validateState(t, prebuilds.ReconciliationState{
@@ -889,7 +889,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		require.NoError(t, err)
 
 		state := ps.CalculateState()
-		actions, err := ps.CalculateActions(clock, backoffInterval)
+		actions, err := ps.CalculateActions(backoffInterval)
 		require.NoError(t, err)
 
 		validateState(t, prebuilds.ReconciliationState{
@@ -903,6 +903,498 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 			},
 		}, actions)
 	}
+}
+
+func TestPrebuildScheduling(t *testing.T) {
+	t.Parallel()
+
+	// The test includes 2 presets, each with 2 schedules.
+	// It checks that the calculated actions match expectations for various provided times,
+	// based on the corresponding schedules.
+	testCases := []struct {
+		name string
+		// now specifies the current time.
+		now time.Time
+		// expected instances for preset1 and preset2, respectively.
+		expectedInstances []int32
+	}{
+		{
+			name:              "Before the 1st schedule",
+			now:               mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 01:00:00 UTC"),
+			expectedInstances: []int32{1, 1},
+		},
+		{
+			name:              "1st schedule",
+			now:               mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 03:00:00 UTC"),
+			expectedInstances: []int32{2, 1},
+		},
+		{
+			name:              "2nd schedule",
+			now:               mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 07:00:00 UTC"),
+			expectedInstances: []int32{3, 1},
+		},
+		{
+			name:              "3rd schedule",
+			now:               mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 11:00:00 UTC"),
+			expectedInstances: []int32{1, 4},
+		},
+		{
+			name:              "4th schedule",
+			now:               mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 15:00:00 UTC"),
+			expectedInstances: []int32{1, 5},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			templateID := uuid.New()
+			templateVersionID := uuid.New()
+			presetOpts1 := options{
+				templateID:          templateID,
+				templateVersionID:   templateVersionID,
+				presetID:            uuid.New(),
+				presetName:          "my-preset-1",
+				prebuiltWorkspaceID: uuid.New(),
+				workspaceName:       "prebuilds1",
+			}
+			presetOpts2 := options{
+				templateID:          templateID,
+				templateVersionID:   templateVersionID,
+				presetID:            uuid.New(),
+				presetName:          "my-preset-2",
+				prebuiltWorkspaceID: uuid.New(),
+				workspaceName:       "prebuilds2",
+			}
+
+			clock := quartz.NewMock(t)
+			clock.Set(tc.now)
+			enableScheduling := func(preset database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow {
+				preset.SchedulingTimezone = "UTC"
+				return preset
+			}
+			presets := []database.GetTemplatePresetsWithPrebuildsRow{
+				preset(true, 1, presetOpts1, enableScheduling),
+				preset(true, 1, presetOpts2, enableScheduling),
+			}
+			schedules := []database.TemplateVersionPresetPrebuildSchedule{
+				schedule(presets[0].ID, "* 2-4 * * 1-5", 2),
+				schedule(presets[0].ID, "* 6-8 * * 1-5", 3),
+				schedule(presets[1].ID, "* 10-12 * * 1-5", 4),
+				schedule(presets[1].ID, "* 14-16 * * 1-5", 5),
+			}
+
+			snapshot := prebuilds.NewGlobalSnapshot(presets, schedules, nil, nil, nil, nil, clock, testutil.Logger(t))
+
+			// Check 1st preset.
+			{
+				ps, err := snapshot.FilterByPreset(presetOpts1.presetID)
+				require.NoError(t, err)
+
+				state := ps.CalculateState()
+				actions, err := ps.CalculateActions(backoffInterval)
+				require.NoError(t, err)
+
+				validateState(t, prebuilds.ReconciliationState{
+					Starting: 0,
+					Desired:  tc.expectedInstances[0],
+				}, *state)
+				validateActions(t, []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+						Create:     tc.expectedInstances[0],
+					},
+				}, actions)
+			}
+
+			// Check 2nd preset.
+			{
+				ps, err := snapshot.FilterByPreset(presetOpts2.presetID)
+				require.NoError(t, err)
+
+				state := ps.CalculateState()
+				actions, err := ps.CalculateActions(backoffInterval)
+				require.NoError(t, err)
+
+				validateState(t, prebuilds.ReconciliationState{
+					Starting: 0,
+					Desired:  tc.expectedInstances[1],
+				}, *state)
+				validateActions(t, []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+						Create:     tc.expectedInstances[1],
+					},
+				}, actions)
+			}
+		})
+	}
+}
+
+func TestMatchesCron(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name            string
+		spec            string
+		at              time.Time
+		expectedMatches bool
+	}{
+		// A comprehensive test suite for time range evaluation is implemented in TestIsWithinRange.
+		// This test provides only basic coverage.
+		{
+			name:            "Right before the start of the time range",
+			spec:            "* 9-18 * * 1-5",
+			at:              mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 8:59:59 UTC"),
+			expectedMatches: false,
+		},
+		{
+			name:            "Start of the time range",
+			spec:            "* 9-18 * * 1-5",
+			at:              mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 9:00:00 UTC"),
+			expectedMatches: true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			matches, err := prebuilds.MatchesCron(testCase.spec, testCase.at)
+			require.NoError(t, err)
+			require.Equal(t, testCase.expectedMatches, matches)
+		})
+	}
+}
+
+func TestCalculateDesiredInstances(t *testing.T) {
+	t.Parallel()
+
+	mkPreset := func(instances int32, timezone string) database.GetTemplatePresetsWithPrebuildsRow {
+		return database.GetTemplatePresetsWithPrebuildsRow{
+			DesiredInstances: sql.NullInt32{
+				Int32: instances,
+				Valid: true,
+			},
+			SchedulingTimezone: timezone,
+		}
+	}
+	mkSchedule := func(cronExpr string, instances int32) database.TemplateVersionPresetPrebuildSchedule {
+		return database.TemplateVersionPresetPrebuildSchedule{
+			CronExpression:   cronExpr,
+			DesiredInstances: instances,
+		}
+	}
+	mkSnapshot := func(preset database.GetTemplatePresetsWithPrebuildsRow, schedules ...database.TemplateVersionPresetPrebuildSchedule) prebuilds.PresetSnapshot {
+		return prebuilds.NewPresetSnapshot(
+			preset,
+			schedules,
+			nil,
+			nil,
+			nil,
+			nil,
+			false,
+			quartz.NewMock(t),
+			testutil.Logger(t),
+		)
+	}
+
+	testCases := []struct {
+		name                        string
+		snapshot                    prebuilds.PresetSnapshot
+		at                          time.Time
+		expectedCalculatedInstances int32
+	}{
+		// "* 9-18 * * 1-5" should be interpreted as a continuous time range from 09:00:00 to 18:59:59, Monday through Friday
+		{
+			name: "Right before the start of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 8:59:59 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "Start of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 9:00:00 UTC"),
+			expectedCalculatedInstances: 3,
+		},
+		{
+			name: "9:01AM - One minute after the start of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 9:01:00 UTC"),
+			expectedCalculatedInstances: 3,
+		},
+		{
+			name: "2PM - The middle of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 14:00:00 UTC"),
+			expectedCalculatedInstances: 3,
+		},
+		{
+			name: "6PM - One hour before the end of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 18:00:00 UTC"),
+			expectedCalculatedInstances: 3,
+		},
+		{
+			name: "End of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 18:59:59 UTC"),
+			expectedCalculatedInstances: 3,
+		},
+		{
+			name: "Right after the end of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 19:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "7:01PM - Around one minute after the end of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 19:01:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "2AM - Significantly outside the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 02:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "Outside the day range #1",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Sat, 07 Jun 2025 14:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "Outside the day range #2",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Sun, 08 Jun 2025 14:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+
+		// Test multiple schedules during the day
+		// - "* 6-10 * * 1-5"
+		// - "* 12-16 * * 1-5"
+		// - "* 18-22 * * 1-5"
+		{
+			name: "Before the first schedule",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 6-10 * * 1-5", 2),
+				mkSchedule("* 12-16 * * 1-5", 3),
+				mkSchedule("* 18-22 * * 1-5", 4),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 5:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "The middle of the first schedule",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 6-10 * * 1-5", 2),
+				mkSchedule("* 12-16 * * 1-5", 3),
+				mkSchedule("* 18-22 * * 1-5", 4),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 8:00:00 UTC"),
+			expectedCalculatedInstances: 2,
+		},
+		{
+			name: "Between the first and second schedule",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 6-10 * * 1-5", 2),
+				mkSchedule("* 12-16 * * 1-5", 3),
+				mkSchedule("* 18-22 * * 1-5", 4),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 11:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "The middle of the second schedule",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 6-10 * * 1-5", 2),
+				mkSchedule("* 12-16 * * 1-5", 3),
+				mkSchedule("* 18-22 * * 1-5", 4),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 14:00:00 UTC"),
+			expectedCalculatedInstances: 3,
+		},
+		{
+			name: "The middle of the third schedule",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 6-10 * * 1-5", 2),
+				mkSchedule("* 12-16 * * 1-5", 3),
+				mkSchedule("* 18-22 * * 1-5", 4),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 20:00:00 UTC"),
+			expectedCalculatedInstances: 4,
+		},
+		{
+			name: "After the last schedule",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 6-10 * * 1-5", 2),
+				mkSchedule("* 12-16 * * 1-5", 3),
+				mkSchedule("* 18-22 * * 1-5", 4),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 23:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+
+		// Test multiple schedules during the week
+		// - "* 9-18 * * 1-5"
+		// - "* 9-13 * * 6-7"
+		{
+			name: "First schedule",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 2),
+				mkSchedule("* 9-13 * * 6,0", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 14:00:00 UTC"),
+			expectedCalculatedInstances: 2,
+		},
+		{
+			name: "Second schedule",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 2),
+				mkSchedule("* 9-13 * * 6,0", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Sat, 07 Jun 2025 10:00:00 UTC"),
+			expectedCalculatedInstances: 3,
+		},
+		{
+			name: "Outside schedule",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 2),
+				mkSchedule("* 9-13 * * 6,0", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Sat, 07 Jun 2025 14:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+
+		// Test different timezones
+		{
+			name: "3PM UTC - 8AM America/Los_Angeles; An hour before the start of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "America/Los_Angeles"),
+				mkSchedule("* 9-13 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 15:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "4PM UTC - 9AM America/Los_Angeles; Start of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "America/Los_Angeles"),
+				mkSchedule("* 9-13 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 16:00:00 UTC"),
+			expectedCalculatedInstances: 3,
+		},
+		{
+			name: "8:59PM UTC - 1:58PM America/Los_Angeles; Right before the end of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "America/Los_Angeles"),
+				mkSchedule("* 9-13 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 20:59:00 UTC"),
+			expectedCalculatedInstances: 3,
+		},
+		{
+			name: "9PM UTC - 2PM America/Los_Angeles; Right after the end of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "America/Los_Angeles"),
+				mkSchedule("* 9-13 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 21:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "11PM UTC - 4PM America/Los_Angeles; Outside the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "America/Los_Angeles"),
+				mkSchedule("* 9-13 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123, "Mon, 02 Jun 2025 23:00:00 UTC"),
+			expectedCalculatedInstances: 1,
+		},
+
+		// Verify support for time values specified in non-UTC time zones.
+		{
+			name: "8AM - before the start of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123Z, "Mon, 02 Jun 2025 04:00:00 -0400"),
+			expectedCalculatedInstances: 1,
+		},
+		{
+			name: "9AM - after the start of the time range",
+			snapshot: mkSnapshot(
+				mkPreset(1, "UTC"),
+				mkSchedule("* 9-18 * * 1-5", 3),
+			),
+			at:                          mustParseTime(t, time.RFC1123Z, "Mon, 02 Jun 2025 05:00:00 -0400"),
+			expectedCalculatedInstances: 3,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			desiredInstances := tc.snapshot.CalculateDesiredInstances(tc.at)
+			require.Equal(t, tc.expectedCalculatedInstances, desiredInstances)
+		})
+	}
+}
+
+func mustParseTime(t *testing.T, layout, value string) time.Time {
+	t.Helper()
+	parsedTime, err := time.Parse(layout, value)
+	require.NoError(t, err)
+	return parsedTime
 }
 
 func preset(active bool, instances int32, opts options, muts ...func(row database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow {
@@ -932,6 +1424,15 @@ func preset(active bool, instances int32, opts options, muts ...func(row databas
 		entry = mut(entry)
 	}
 	return entry
+}
+
+func schedule(presetID uuid.UUID, cronExpr string, instances int32) database.TemplateVersionPresetPrebuildSchedule {
+	return database.TemplateVersionPresetPrebuildSchedule{
+		ID:               uuid.New(),
+		PresetID:         presetID,
+		CronExpression:   cronExpr,
+		DesiredInstances: instances,
+	}
 }
 
 func prebuiltWorkspace(

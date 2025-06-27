@@ -39,6 +39,26 @@ export const Working: Story = {
 	},
 };
 
+export const Idle: Story = {
+	args: {
+		status: {
+			...MockWorkspaceAppStatus,
+			state: "idle",
+			message: "Done for now",
+		},
+	},
+};
+
+export const NoMessage: Story = {
+	args: {
+		status: {
+			...MockWorkspaceAppStatus,
+			state: "idle",
+			message: "",
+		},
+	},
+};
+
 export const LongMessage: Story = {
 	args: {
 		status: {
@@ -49,9 +69,43 @@ export const LongMessage: Story = {
 	},
 };
 
-export const Disabled: Story = {
+export const DisabledComplete: Story = {
 	args: {
 		status: MockWorkspaceAppStatus,
+		disabled: true,
+	},
+};
+
+export const DisabledFailure: Story = {
+	args: {
+		status: {
+			...MockWorkspaceAppStatus,
+			state: "failure",
+			message: "Couldn't figure out how to start the dev server",
+		},
+		disabled: true,
+	},
+};
+
+export const DisabledWorking: Story = {
+	args: {
+		status: {
+			...MockWorkspaceAppStatus,
+			state: "working",
+			message: "Starting dev server...",
+			uri: "",
+		},
+		disabled: true,
+	},
+};
+
+export const DisabledIdle: Story = {
+	args: {
+		status: {
+			...MockWorkspaceAppStatus,
+			state: "idle",
+			message: "Done for now",
+		},
 		disabled: true,
 	},
 };

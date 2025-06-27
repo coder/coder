@@ -19,7 +19,6 @@ func TestTemplate(t *testing.T) {
 	require.NoError(t, err, "error listing examples, run \"make gen\" to ensure examples are up to date")
 	require.NotEmpty(t, list)
 	for _, eg := range list {
-		eg := eg
 		t.Run(eg.ID, func(t *testing.T) {
 			t.Parallel()
 			assert.NotEmpty(t, eg.ID, "example ID should not be empty")

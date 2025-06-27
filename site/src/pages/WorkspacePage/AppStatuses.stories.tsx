@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { userEvent, within } from "@storybook/test";
 import type { WorkspaceAppStatus } from "api/typesGenerated";
 import {
 	MockWorkspace,
@@ -47,6 +48,40 @@ export const WorkingState: Story = {
 	},
 };
 
+export const IdleState: Story = {
+	args: {
+		agent: mockAgent([
+			{
+				...MockWorkspaceAppStatus,
+				id: "status-8",
+				icon: "",
+				message: "Done for now",
+				created_at: createTimestamp(5, 20),
+				uri: "",
+				state: "idle" as const,
+			},
+			...MockWorkspaceAppStatuses,
+		]),
+	},
+};
+
+export const NoMessage: Story = {
+	args: {
+		agent: mockAgent([
+			{
+				...MockWorkspaceAppStatus,
+				id: "status-8",
+				icon: "",
+				message: "",
+				created_at: createTimestamp(5, 20),
+				uri: "",
+				state: "idle" as const,
+			},
+			...MockWorkspaceAppStatuses,
+		]),
+	},
+};
+
 export const LongStatusText: Story = {
 	args: {
 		agent: mockAgent([
@@ -79,6 +114,37 @@ export const SingleStatus: Story = {
 				state: "complete" as const,
 			},
 		]),
+	},
+};
+
+export const MultipleStatuses: Story = {
+	args: {
+		agent: mockAgent([
+			{
+				...MockWorkspaceAppStatus,
+				id: "status-1",
+				icon: "",
+				message: "Initial setup complete.",
+				created_at: createTimestamp(5, 10), // 15:05:10 (after referenceDate)
+				uri: "",
+				state: "complete" as const,
+			},
+			{
+				...MockWorkspaceAppStatus,
+				id: "status-2",
+				icon: "",
+				message: "Working...",
+				created_at: createTimestamp(5, 0), // 15:05:00 (after referenceDate)
+				uri: "",
+				state: "working" as const,
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const submitButton = canvas.getByRole("button");
+		await userEvent.click(submitButton);
+		await canvas.findByText(/working/i);
 	},
 };
 

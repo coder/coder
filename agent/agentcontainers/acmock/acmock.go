@@ -150,9 +150,9 @@ func (mr *MockDevcontainerCLIMockRecorder) Exec(ctx, workspaceFolder, configPath
 }
 
 // ReadConfig mocks base method.
-func (m *MockDevcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, configPath string, opts ...agentcontainers.DevcontainerCLIReadConfigOptions) (agentcontainers.DevcontainerConfig, error) {
+func (m *MockDevcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, configPath string, env []string, opts ...agentcontainers.DevcontainerCLIReadConfigOptions) (agentcontainers.DevcontainerConfig, error) {
 	m.ctrl.T.Helper()
-	varargs := []any{ctx, workspaceFolder, configPath}
+	varargs := []any{ctx, workspaceFolder, configPath, env}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
@@ -163,9 +163,9 @@ func (m *MockDevcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, c
 }
 
 // ReadConfig indicates an expected call of ReadConfig.
-func (mr *MockDevcontainerCLIMockRecorder) ReadConfig(ctx, workspaceFolder, configPath any, opts ...any) *gomock.Call {
+func (mr *MockDevcontainerCLIMockRecorder) ReadConfig(ctx, workspaceFolder, configPath, env any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{ctx, workspaceFolder, configPath}, opts...)
+	varargs := append([]any{ctx, workspaceFolder, configPath, env}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadConfig", reflect.TypeOf((*MockDevcontainerCLI)(nil).ReadConfig), varargs...)
 }
 

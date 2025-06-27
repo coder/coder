@@ -37,32 +37,11 @@ func (r *RootCmd) stop() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			if workspace.LatestBuild.Job.Status == codersdk.ProvisionerJobPending {
-				// cliutil.WarnMatchedProvisioners also checks if the job is pending
-				// but we still want to avoid users spamming multiple builds that will
-				// not be picked up.
-				cliui.Warn(inv.Stderr, "The workspace is already stopping!")
-				cliutil.WarnMatchedProvisioners(inv.Stderr, workspace.LatestBuild.MatchedProvisioners, workspace.LatestBuild.Job)
-				if _, err := cliui.Prompt(inv, cliui.PromptOptions{
-					Text:      "Enqueue another stop?",
-					IsConfirm: true,
-					Default:   cliui.ConfirmNo,
-				}); err != nil {
-					return err
-				}
-			}
 
-			wbr := codersdk.CreateWorkspaceBuildRequest{
-				Transition: codersdk.WorkspaceTransitionStop,
-			}
-			if bflags.provisionerLogDebug {
-				wbr.LogLevel = codersdk.ProvisionerLogLevelDebug
-			}
-			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, wbr)
+			build, err := stopWorkspace(inv, client, workspace, bflags)
 			if err != nil {
 				return err
 			}
-			cliutil.WarnMatchedProvisioners(inv.Stderr, build.MatchedProvisioners, build.Job)
 
 			err = cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, build.ID)
 			if err != nil {
@@ -71,8 +50,8 @@ func (r *RootCmd) stop() *serpent.Command {
 
 			_, _ = fmt.Fprintf(
 				inv.Stdout,
-				"\nThe %s workspace has been stopped at %s!\n", cliui.Keyword(workspace.Name),
-
+				"\nThe %s workspace has been stopped at %s!\n",
+				cliui.Keyword(workspace.Name),
 				cliui.Timestamp(time.Now()),
 			)
 			return nil
@@ -81,4 +60,28 @@ func (r *RootCmd) stop() *serpent.Command {
 	cmd.Options = append(cmd.Options, bflags.cliOptions()...)
 
 	return cmd
+}
+
+func stopWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, bflags buildFlags) (codersdk.WorkspaceBuild, error) {
+	if workspace.LatestBuild.Job.Status == codersdk.ProvisionerJobPending {
+		// cliutil.WarnMatchedProvisioners also checks if the job is pending
+		// but we still want to avoid users spamming multiple builds that will
+		// not be picked up.
+		cliui.Warn(inv.Stderr, "The workspace is already stopping!")
+		cliutil.WarnMatchedProvisioners(inv.Stderr, workspace.LatestBuild.MatchedProvisioners, workspace.LatestBuild.Job)
+		if _, err := cliui.Prompt(inv, cliui.PromptOptions{
+			Text:      "Enqueue another stop?",
+			IsConfirm: true,
+			Default:   cliui.ConfirmNo,
+		}); err != nil {
+			return codersdk.WorkspaceBuild{}, err
+		}
+	}
+	wbr := codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStop,
+	}
+	if bflags.provisionerLogDebug {
+		wbr.LogLevel = codersdk.ProvisionerLogLevelDebug
+	}
+	return client.CreateWorkspaceBuild(inv.Context(), workspace.ID, wbr)
 }

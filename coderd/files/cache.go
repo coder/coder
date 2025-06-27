@@ -13,33 +13,22 @@ import (
 
 	archivefs "github.com/coder/coder/v2/archive/fs"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/lazy"
 )
 
-// NewFromStore returns a file cache that will fetch files from the provided
-// database.
-func NewFromStore(store database.Store, registerer prometheus.Registerer) *Cache {
-	fetch := func(ctx context.Context, fileID uuid.UUID) (cacheEntryValue, error) {
-		file, err := store.GetFileByID(ctx, fileID)
-		if err != nil {
-			return cacheEntryValue{}, xerrors.Errorf("failed to read file from database: %w", err)
-		}
-
-		content := bytes.NewBuffer(file.Data)
-		return cacheEntryValue{
-			FS:   archivefs.FromTarReader(content),
-			size: int64(content.Len()),
-		}, nil
-	}
-
-	return New(fetch, registerer)
+type FileAcquirer interface {
+	Acquire(ctx context.Context, db database.Store, fileID uuid.UUID) (*CloseFS, error)
 }
 
-func New(fetch fetcher, registerer prometheus.Registerer) *Cache {
+// New returns a file cache that will fetch files from a database
+func New(registerer prometheus.Registerer, authz rbac.Authorizer) *Cache {
 	return (&Cache{
-		lock:    sync.Mutex{},
-		data:    make(map[uuid.UUID]*cacheEntry),
-		fetcher: fetch,
+		lock:  sync.Mutex{},
+		data:  make(map[uuid.UUID]*cacheEntry),
+		authz: authz,
 	}).registerMetrics(registerer)
 }
 
@@ -82,12 +71,12 @@ func (c *Cache) registerMetrics(registerer prometheus.Registerer) *Cache {
 		Help:      "The count of file references currently open in the file cache. Multiple references can be held for the same file.",
 	})
 
-	c.totalOpenFileReferences = f.NewCounter(prometheus.CounterOpts{
+	c.totalOpenFileReferences = f.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "coderd",
 		Subsystem: subsystem,
 		Name:      "open_file_refs_total",
-		Help:      "The total number of file references ever opened in the file cache.",
-	})
+		Help:      "The total number of file references ever opened in the file cache. The 'hit' label indicates if the file was loaded from the cache.",
+	}, []string{"hit"})
 
 	return c
 }
@@ -98,9 +87,9 @@ func (c *Cache) registerMetrics(registerer prometheus.Registerer) *Cache {
 // loaded into memory exactly once. We hold those files until there are no
 // longer any open connections, and then we remove the value from the map.
 type Cache struct {
-	lock sync.Mutex
-	data map[uuid.UUID]*cacheEntry
-	fetcher
+	lock  sync.Mutex
+	data  map[uuid.UUID]*cacheEntry
+	authz rbac.Authorizer
 
 	// metrics
 	cacheMetrics
@@ -108,7 +97,7 @@ type Cache struct {
 
 type cacheMetrics struct {
 	currentOpenFileReferences prometheus.Gauge
-	totalOpenFileReferences   prometheus.Counter
+	totalOpenFileReferences   *prometheus.CounterVec
 
 	currentOpenFiles prometheus.Gauge
 	totalOpenedFiles prometheus.Counter
@@ -117,18 +106,30 @@ type cacheMetrics struct {
 	totalCacheSize   prometheus.Counter
 }
 
-type cacheEntryValue struct {
+type CacheEntryValue struct {
 	fs.FS
-	size int64
+	Object rbac.Object
+	Size   int64
 }
 
 type cacheEntry struct {
 	// refCount must only be accessed while the Cache lock is held.
 	refCount int
-	value    *lazy.ValueWithError[cacheEntryValue]
+	value    *lazy.ValueWithError[CacheEntryValue]
 }
 
-type fetcher func(context.Context, uuid.UUID) (cacheEntryValue, error)
+var _ fs.FS = (*CloseFS)(nil)
+
+// CloseFS is a wrapper around fs.FS that implements io.Closer. The Close()
+// method tells the cache to release the fileID. Once all open references are
+// closed, the file is removed from the cache.
+type CloseFS struct {
+	fs.FS
+
+	close func()
+}
+
+func (f *CloseFS) Close() { f.close() }
 
 // Acquire will load the fs.FS for the given file. It guarantees that parallel
 // calls for the same fileID will only result in one fetch, and that parallel
@@ -136,32 +137,52 @@ type fetcher func(context.Context, uuid.UUID) (cacheEntryValue, error)
 //
 // Safety: Every call to Acquire that does not return an error must have a
 // matching call to Release.
-func (c *Cache) Acquire(ctx context.Context, fileID uuid.UUID) (fs.FS, error) {
-	// It's important that this `Load` call occurs outside of `prepare`, after the
+func (c *Cache) Acquire(ctx context.Context, db database.Store, fileID uuid.UUID) (*CloseFS, error) {
+	// It's important that this `Load` call occurs outside `prepare`, after the
 	// mutex has been released, or we would continue to hold the lock until the
 	// entire file has been fetched, which may be slow, and would prevent other
 	// files from being fetched in parallel.
-	it, err := c.prepare(ctx, fileID).Load()
+	it, err := c.prepare(ctx, db, fileID).Load()
 	if err != nil {
-		c.Release(fileID)
+		c.release(fileID)
 		return nil, err
 	}
-	return it.FS, err
+
+	subject, ok := dbauthz.ActorFromContext(ctx)
+	if !ok {
+		return nil, dbauthz.ErrNoActor
+	}
+	// Always check the caller can actually read the file.
+	if err := c.authz.Authorize(ctx, subject, policy.ActionRead, it.Object); err != nil {
+		c.release(fileID)
+		return nil, err
+	}
+
+	var once sync.Once
+	return &CloseFS{
+		FS: it.FS,
+		close: func() {
+			// sync.Once makes the Close() idempotent, so we can call it
+			// multiple times without worrying about double-releasing.
+			once.Do(func() { c.release(fileID) })
+		},
+	}, nil
 }
 
-func (c *Cache) prepare(ctx context.Context, fileID uuid.UUID) *lazy.ValueWithError[cacheEntryValue] {
+func (c *Cache) prepare(ctx context.Context, db database.Store, fileID uuid.UUID) *lazy.ValueWithError[CacheEntryValue] {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
+	hitLabel := "true"
 	entry, ok := c.data[fileID]
 	if !ok {
-		value := lazy.NewWithError(func() (cacheEntryValue, error) {
-			val, err := c.fetcher(ctx, fileID)
+		value := lazy.NewWithError(func() (CacheEntryValue, error) {
+			val, err := fetch(ctx, db, fileID)
 
 			// Always add to the cache size the bytes of the file loaded.
 			if err == nil {
-				c.currentCacheSize.Add(float64(val.size))
-				c.totalCacheSize.Add(float64(val.size))
+				c.currentCacheSize.Add(float64(val.Size))
+				c.totalCacheSize.Add(float64(val.Size))
 			}
 
 			return val, err
@@ -174,17 +195,21 @@ func (c *Cache) prepare(ctx context.Context, fileID uuid.UUID) *lazy.ValueWithEr
 		c.data[fileID] = entry
 		c.currentOpenFiles.Inc()
 		c.totalOpenedFiles.Inc()
+		hitLabel = "false"
 	}
 
 	c.currentOpenFileReferences.Inc()
-	c.totalOpenFileReferences.Inc()
+	c.totalOpenFileReferences.WithLabelValues(hitLabel).Inc()
 	entry.refCount++
 	return entry.value
 }
 
-// Release decrements the reference count for the given fileID, and frees the
+// release decrements the reference count for the given fileID, and frees the
 // backing data if there are no further references being held.
-func (c *Cache) Release(fileID uuid.UUID) {
+//
+// release should only be called after a successful call to Acquire using the Release()
+// method on the returned *CloseFS.
+func (c *Cache) release(fileID uuid.UUID) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -206,7 +231,7 @@ func (c *Cache) Release(fileID uuid.UUID) {
 
 	ev, err := entry.value.Load()
 	if err == nil {
-		c.currentCacheSize.Add(-1 * float64(ev.size))
+		c.currentCacheSize.Add(-1 * float64(ev.Size))
 	}
 
 	delete(c.data, fileID)
@@ -219,4 +244,21 @@ func (c *Cache) Count() int {
 	defer c.lock.Unlock()
 
 	return len(c.data)
+}
+
+func fetch(ctx context.Context, store database.Store, fileID uuid.UUID) (CacheEntryValue, error) {
+	// Make sure the read does not fail due to authorization issues.
+	// Authz is checked on the Acquire call, so this is safe.
+	//nolint:gocritic
+	file, err := store.GetFileByID(dbauthz.AsFileReader(ctx), fileID)
+	if err != nil {
+		return CacheEntryValue{}, xerrors.Errorf("failed to read file from database: %w", err)
+	}
+
+	content := bytes.NewBuffer(file.Data)
+	return CacheEntryValue{
+		Object: file.RBACObject(),
+		FS:     archivefs.FromTarReader(content),
+		Size:   int64(len(file.Data)),
+	}, nil
 }

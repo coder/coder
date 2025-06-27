@@ -291,3 +291,14 @@ func (s *RoleSyncSettings) String() string {
 	}
 	return runtimeconfig.JSONString(s)
 }
+
+func (s *RoleSyncSettings) MarshalJSON() ([]byte, error) {
+	if s.Mapping == nil {
+		s.Mapping = make(map[string][]string)
+	}
+
+	// Aliasing the struct to avoid infinite recursion when calling json.Marshal
+	// on the struct itself.
+	type Alias RoleSyncSettings
+	return json.Marshal(&struct{ *Alias }{Alias: (*Alias)(s)})
+}

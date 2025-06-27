@@ -2,21 +2,25 @@ package agentapi
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/base32"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/quartz"
+
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner"
-	"github.com/coder/quartz"
 )
 
 type SubAgentAPI struct {
@@ -140,20 +144,15 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 				health = database.WorkspaceAppHealthInitializing
 			}
 
-			var sharingLevel database.AppSharingLevel
-			switch app.GetShare() {
-			case agentproto.CreateSubAgentRequest_App_OWNER:
-				sharingLevel = database.AppSharingLevelOwner
-			case agentproto.CreateSubAgentRequest_App_AUTHENTICATED:
-				sharingLevel = database.AppSharingLevelAuthenticated
-			case agentproto.CreateSubAgentRequest_App_PUBLIC:
-				sharingLevel = database.AppSharingLevelPublic
-			default:
+			share := app.GetShare()
+			protoSharingLevel, ok := agentproto.CreateSubAgentRequest_App_SharingLevel_name[int32(share)]
+			if !ok {
 				return codersdk.ValidationError{
 					Field:  "share",
-					Detail: fmt.Sprintf("%q is not a valid app sharing level", app.GetShare()),
+					Detail: fmt.Sprintf("%q is not a valid app sharing level", share.String()),
 				}
 			}
+			sharingLevel := database.AppSharingLevel(strings.ToLower(protoSharingLevel))
 
 			var openIn database.WorkspaceAppOpenIn
 			switch app.GetOpenIn() {
@@ -168,11 +167,20 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 				}
 			}
 
-			_, err := a.Database.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
-				ID:          uuid.New(),
+			// NOTE(DanielleMaywood):
+			// Slugs must be unique PER workspace/template. As of 2025-06-25,
+			// there is no database-layer enforcement of this constraint.
+			// We can get around this by creating a slug that *should* be
+			// unique (at least highly probable).
+			slugHash := sha256.Sum256([]byte(subAgent.Name + "/" + app.Slug))
+			slugHashEnc := base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString(slugHash[:])
+			computedSlug := strings.ToLower(slugHashEnc[:8]) + "-" + app.Slug
+
+			_, err := a.Database.UpsertWorkspaceApp(ctx, database.UpsertWorkspaceAppParams{
+				ID:          uuid.New(), // NOTE: we may need to maintain the app's ID here for stability, but for now we'll leave this as-is.
 				CreatedAt:   createdAt,
 				AgentID:     subAgent.ID,
-				Slug:        app.Slug,
+				Slug:        computedSlug,
 				DisplayName: app.GetDisplayName(),
 				Icon:        app.GetIcon(),
 				Command: sql.NullString{
