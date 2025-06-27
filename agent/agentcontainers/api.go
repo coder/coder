@@ -79,6 +79,7 @@ type API struct {
 	containersErr            error                                          // Error from the last list operation.
 	devcontainerNames        map[string]bool                                // By devcontainer name.
 	knownDevcontainers       map[string]codersdk.WorkspaceAgentDevcontainer // By workspace folder.
+	devcontainerLogSourceIDs map[string]uuid.UUID                           // By workspace folder.
 	configFileModifiedTimes  map[string]time.Time                           // By config file path.
 	recreateSuccessTimes     map[string]time.Time                           // By workspace folder.
 	recreateErrorTimes       map[string]time.Time                           // By workspace folder.
@@ -86,8 +87,6 @@ type API struct {
 	usingWorkspaceFolderName map[string]bool                                // By workspace folder.
 	ignoredDevcontainers     map[string]bool                                // By workspace folder. Tracks three states (true, false and not checked).
 	asyncWg                  sync.WaitGroup
-
-	devcontainerLogSourceIDs map[string]uuid.UUID // By workspace folder.
 }
 
 type subAgentProcess struct {
@@ -935,12 +934,7 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 		return xerrors.Errorf("devcontainer not found")
 	}
 
-	api.asyncWg.Add(1)
-	defer api.asyncWg.Done()
-	api.mu.Unlock()
-
 	var (
-		err    error
 		ctx    = api.ctx
 		logger = api.logger.With(
 			slog.F("devcontainer_id", dc.ID),
@@ -950,17 +944,21 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 		)
 	)
 
+	// Send logs via agent logging facilities.
+	logSourceID := api.devcontainerLogSourceIDs[dc.WorkspaceFolder]
+	if logSourceID == uuid.Nil {
+		api.logger.Debug(api.ctx, "devcontainer log source ID not found, falling back to external log source ID")
+		logSourceID = agentsdk.ExternalLogSourceID
+	}
+
+	api.asyncWg.Add(1)
+	defer api.asyncWg.Done()
+	api.mu.Unlock()
+
 	if dc.ConfigPath != configPath {
 		logger.Warn(ctx, "devcontainer config path mismatch",
 			slog.F("config_path_param", configPath),
 		)
-	}
-
-	// Send logs via agent logging facilities.
-	logSourceID := api.devcontainerLogSourceIDs[dc.WorkspaceFolder]
-	if logSourceID == uuid.Nil {
-		// Fallback to the external log source ID if not found.
-		logSourceID = agentsdk.ExternalLogSourceID
 	}
 
 	scriptLogger := api.scriptLogger(logSourceID)
@@ -981,7 +979,7 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 	upOptions := []DevcontainerCLIUpOptions{WithUpOutput(infoW, errW)}
 	upOptions = append(upOptions, opts...)
 
-	_, err = api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, upOptions...)
+	_, err := api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, upOptions...)
 	if err != nil {
 		// No need to log if the API is closing (context canceled), as this
 		// is expected behavior when the API is shutting down.
