@@ -679,8 +679,11 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 			return s.queue.Push(taskReport{
 				link:         args.Link,
 				selfReported: true,
-				state:        codersdk.WorkspaceAppStatusState(args.State),
-				summary:      args.Summary,
+				// The agent does not reliably report its status correctly.  We will
+				// always set the status to "working" when we get an MCP message, and
+				// rely on the screen watcher to eventually catch the idle state.
+				state:   codersdk.WorkspaceAppStatusStateWorking,
+				summary: args.Summary,
 			})
 		}),
 	}

@@ -822,7 +822,8 @@ func TestExpMcpReporter(t *testing.T) {
 						URI:     "https://dev.coder.com",
 					},
 				},
-				// A completed update at this point from the watcher should be discarded.
+				// A stable update now from the watcher should be discarded, as it is a
+				// duplicate.
 				{
 					event: makeStatusEvent(agentapi.StatusStable),
 				},
@@ -830,22 +831,17 @@ func TestExpMcpReporter(t *testing.T) {
 				// new user message.  This could be the AI agent being active again, but
 				// it could also be the user messing around.  We will prefer not updating
 				// the status so the "working" update here should be skipped.
+				//
+				// TODO: How do we test the no-op updates?  This update is skipped
+				// because of the logic mentioned above, but how do we prove this update
+				// was skipped because of that and not that the next update was skipped
+				// because it is a duplicate state?  We could mock the queue?
 				{
 					event: makeStatusEvent(agentapi.StatusRunning),
 				},
 				// Agent messages are ignored.
 				{
 					event: makeMessageEvent(0, agentapi.RoleAgent),
-				},
-				// AI agent reports that it failed and URI is blank.
-				{
-					state:   codersdk.WorkspaceAppStatusStateFailure,
-					summary: "oops",
-					expected: &codersdk.WorkspaceAppStatus{
-						State:   codersdk.WorkspaceAppStatusStateFailure,
-						Message: "oops",
-						URI:     "",
-					},
 				},
 				// The watcher reports the screen is active again...
 				{
@@ -857,8 +853,8 @@ func TestExpMcpReporter(t *testing.T) {
 					event: makeMessageEvent(1, agentapi.RoleUser),
 					expected: &codersdk.WorkspaceAppStatus{
 						State:   codersdk.WorkspaceAppStatusStateWorking,
-						Message: "oops",
-						URI:     "",
+						Message: "doing work",
+						URI:     "https://dev.coder.com",
 					},
 				},
 				// Watcher reports stable again.
@@ -866,8 +862,8 @@ func TestExpMcpReporter(t *testing.T) {
 					event: makeStatusEvent(agentapi.StatusStable),
 					expected: &codersdk.WorkspaceAppStatus{
 						State:   codersdk.WorkspaceAppStatusStateIdle,
-						Message: "oops",
-						URI:     "",
+						Message: "doing work",
+						URI:     "https://dev.coder.com",
 					},
 				},
 			},
@@ -920,6 +916,40 @@ func TestExpMcpReporter(t *testing.T) {
 						State:   codersdk.WorkspaceAppStatusStateWorking,
 						Message: "",
 						URI:     "",
+					},
+				},
+			},
+		},
+		// We ignore the state from the agent and assume "working".
+		{
+			name: "IgnoreAgentState",
+			// AI agent reports that it is finished but the summary says it is doing
+			// work.
+			tests: []test{
+				{
+					state:   codersdk.WorkspaceAppStatusStateIdle,
+					summary: "doing work",
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateWorking,
+						Message: "doing work",
+					},
+				},
+				// AI agent reports finished again, with a matching summary.  We still
+				// assume it is working.
+				{
+					state:   codersdk.WorkspaceAppStatusStateIdle,
+					summary: "finished",
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateWorking,
+						Message: "finished",
+					},
+				},
+				// Once the watcher reports stable, then we record idle.
+				{
+					event: makeStatusEvent(agentapi.StatusStable),
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateIdle,
+						Message: "finished",
 					},
 				},
 			},
