@@ -209,6 +209,26 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 			return nil, nil, false
 		}
 
+		// Add WWW-Authenticate header for 401/403 responses (RFC 6750)
+		if code == http.StatusUnauthorized || code == http.StatusForbidden {
+			// Basic Bearer challenge with realm
+			wwwAuth := `Bearer realm="coder"`
+
+			// Add error details based on the type of error
+			switch {
+			case strings.Contains(response.Message, "invalid") || strings.Contains(response.Detail, "invalid"):
+				wwwAuth = `Bearer realm="coder", error="invalid_token", error_description="The access token is invalid"`
+			case strings.Contains(response.Message, "expired") || strings.Contains(response.Detail, "expired"):
+				wwwAuth = `Bearer realm="coder", error="invalid_token", error_description="The access token has expired"`
+			case strings.Contains(response.Message, "audience") || strings.Contains(response.Message, "mismatch"):
+				wwwAuth = `Bearer realm="coder", error="invalid_token", error_description="The access token audience does not match this resource"`
+			case code == http.StatusForbidden:
+				wwwAuth = `Bearer realm="coder", error="insufficient_scope", error_description="The request requires higher privileges than provided by the access token"`
+			}
+
+			rw.Header().Set("WWW-Authenticate", wwwAuth)
+		}
+
 		httpapi.Write(ctx, rw, code, response)
 		return nil, nil, false
 	}
@@ -534,9 +554,14 @@ func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, s
 // 1: The cookie
 // 2. The coder_session_token query parameter
 // 3. The custom auth header
+// 4. RFC 6750 Authorization: Bearer header
+// 5. RFC 6750 access_token query parameter
 //
 // API tokens for apps are read from workspaceapps/cookies.go.
 func APITokenFromRequest(r *http.Request) string {
+	// Prioritize existing Coder custom authentication methods first
+	// to maintain backward compatibility and existing behavior
+
 	cookie, err := r.Cookie(codersdk.SessionTokenCookie)
 	if err == nil && cookie.Value != "" {
 		return cookie.Value
@@ -552,7 +577,18 @@ func APITokenFromRequest(r *http.Request) string {
 		return headerValue
 	}
 
-	// TODO(ThomasK33): Implement RFC 6750
+	// RFC 6750 Bearer Token support (added as fallback methods)
+	// Check Authorization: Bearer <token> header
+	authHeader := r.Header.Get("Authorization")
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		return strings.TrimPrefix(authHeader, "Bearer ")
+	}
+
+	// Check access_token query parameter
+	accessToken := r.URL.Query().Get("access_token")
+	if accessToken != "" {
+		return accessToken
+	}
 
 	return ""
 }

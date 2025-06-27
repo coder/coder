@@ -431,9 +431,8 @@ func (api *API) oauth2ProtectedResourceMetadata(rw http.ResponseWriter, r *http.
 		AuthorizationServers: []string{api.AccessURL.String()},
 		// TODO: Implement scope system based on RBAC permissions
 		ScopesSupported: []string{},
-		// Note: Coder uses custom authentication methods, not RFC 6750 bearer tokens
-		// TODO(ThomasK33): Implement RFC 6750
-		// BearerMethodsSupported: []string{}, // Omitted - no standard bearer token support
+		// RFC 6750 Bearer Token methods supported as fallback methods in api key middleware
+		BearerMethodsSupported: []string{"header", "query"},
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, metadata)
 }
