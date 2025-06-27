@@ -19,7 +19,6 @@ const meta: Meta<typeof MultiSelectCombobox> = {
 		options: organizations.map((org) => ({
 			label: org.display_name,
 			value: org.id,
-			icon: org.icon,
 		})),
 	},
 };
@@ -40,17 +39,17 @@ export const OpenCombobox: Story = {
 	},
 };
 
-export const NoIcons: Story = {
+export const WithIcons: Story = {
 	args: {
 		options: organizations.map((org) => ({
 			label: org.display_name,
 			value: org.id,
+			icon: org.icon,
 		})),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByPlaceholderText("Select organization"));
-
 		await waitFor(() =>
 			expect(canvas.getByText("My Organization")).toBeInTheDocument(),
 		);
