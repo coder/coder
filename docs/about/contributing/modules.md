@@ -89,7 +89,7 @@ flowchart LR
 **How Modules Work in the Coder Ecosystem:**
 
 1. **Module Registry**: External registry hosts reusable modules and starter templates
-   - Modules are Terraform configurations using Coder-specific resources
+   - Modules are Terraform configurations that utilize additional Terraform resources to provide enhancements or add new features and tools.
    - Starter templates provide infrastructure-specific bases (Docker, AWS, GCP, etc.) to start building your own templates
    - [Coder registry](https://registry.coder.com) hosts a collection of official, partner, and community contributed templates and modules.
 
