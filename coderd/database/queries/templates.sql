@@ -98,10 +98,11 @@ INSERT INTO
 		group_acl,
 		display_name,
 		allow_user_cancel_workspace_jobs,
-		max_port_sharing_level
+		max_port_sharing_level,
+		use_classic_parameter_flow
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16);
 
 -- name: UpdateTemplateActiveVersionByID :exec
 UPDATE
