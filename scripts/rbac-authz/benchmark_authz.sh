@@ -10,8 +10,8 @@
 # Benchmark results are saved with filenames based on the branch name.
 #
 # Usage:
-#   benchmark_authz.sh --single												# Run benchmarks on current branch
-#   benchmark_authz.sh --compare <branchA> <branchB>	# Compare benchmarks between two branches
+#   benchmark_authz.sh --single                       # Run benchmarks on current branch
+#   benchmark_authz.sh --compare <branchA> <branchB>  # Compare benchmarks between two branches
 
 set -euo pipefail
 
@@ -22,7 +22,8 @@ BENCHTIME=5s
 COUNT=5
 
 # Script configuration
-OUTPUT_DIR="benchmark_outputs"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OUTPUT_DIR="${SCRIPT_DIR}/benchmark_outputs"
 
 # List of benchmark tests
 BENCHMARKS=(
@@ -43,14 +44,20 @@ function run_benchmarks() {
 	echo "Checking out $branch..."
 	git checkout "$branch"
 
+	# Move into the rbac directory to run the benchmark tests
+	pushd ../../coderd/rbac/ >/dev/null
+
 	for bench in "${BENCHMARKS[@]}"; do
 		local output_file="${output_file_prefix}_${bench}.txt"
 		echo "Running benchmark $bench on $branch..."
 		GOMAXPROCS=$GOMAXPROCS go test -timeout $TIMEOUT -bench="^${bench}$" -run=^$ -benchtime=$BENCHTIME -count=$COUNT | tee "$output_file"
 	done
+
+	# Return to original directory
+	popd >/dev/null
 }
 
-if [[ "${1:-}" == "--single" ]]; then
+if [[ $# -eq 0 || "${1:-}" == "--single" ]]; then
 	current_branch=$(git rev-parse --abbrev-ref HEAD)
 	run_benchmarks "$current_branch"
 elif [[ "${1:-}" == "--compare" ]]; then
@@ -72,7 +79,7 @@ elif [[ "${1:-}" == "--compare" ]]; then
 	done
 else
 	echo "Usage:"
-	echo "  $0 --single										# run benchmarks on current branch"
-	echo "  $0 --compare branchA branchB	# compare benchmarks between two branches"
+	echo "  $0 --single                   # run benchmarks on current branch"
+	echo "  $0 --compare branchA branchB  # compare benchmarks between two branches"
 	exit 1
 fi

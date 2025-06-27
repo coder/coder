@@ -1,3 +1,7 @@
+// This program generates an input.json file containing action, object, and subject fields
+// to be used as input for `opa eval`, e.g.:
+// > opa eval --format=pretty "data.authz.allow" -d policy.rego -i input.json
+// This helps verify that the policy returns the expected authorization decision.
 package main
 
 import (
@@ -41,7 +45,10 @@ func newSubjectJSON(s rbac.Subject) (*SubjectJSON, error) {
 	}, nil
 }
 
-// TODO: support arguments for subject, action and object
+// TODO: Support optional CLI flags to customize the input:
+// --action=[one of the supported actions]
+// --subject=[one of the built-in roles]
+// --object=[one of the supported resources]
 func main() {
 	// Template Admin user
 	subject := rbac.Subject{
