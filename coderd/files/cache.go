@@ -5,6 +5,7 @@ import (
 	"context"
 	"io/fs"
 	"sync"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -108,9 +109,7 @@ type cacheMetrics struct {
 }
 
 type cacheEntry struct {
-	// refCount must only be accessed while the cacheEntry lock is held.
-	lock     sync.Mutex
-	refCount int
+	refCount atomic.Int32
 	value    *lazy.ValueWithError[CacheEntryValue]
 
 	close func()
@@ -199,7 +198,6 @@ func (c *Cache) prepare(db database.Store, fileID uuid.UUID) *cacheEntry {
 
 		var purgeOnce sync.Once
 		entry = &cacheEntry{
-			refCount: 0,
 			value: lazy.NewWithError(func() (CacheEntryValue, error) {
 				val, err := fetch(db, fileID)
 				if err != nil {
@@ -214,12 +212,14 @@ func (c *Cache) prepare(db database.Store, fileID uuid.UUID) *cacheEntry {
 			}),
 
 			close: func() {
-				entry.lock.Lock()
-				defer entry.lock.Unlock()
-
-				entry.refCount--
+				entry.refCount.Add(-1)
 				c.currentOpenFileReferences.Dec()
-				if entry.refCount > 0 {
+				// Safety: Another thread could grab a reference to this value between
+				// this check and entering `purge`, which will grab the cache lock. This
+				// is annoying, and may lead to temporary duplication of the file in
+				// memory, but is better than the deadlocking potential of other
+				// approaches we tried to solve this.
+				if entry.refCount.Load() > 0 {
 					return
 				}
 
@@ -238,16 +238,14 @@ func (c *Cache) prepare(db database.Store, fileID uuid.UUID) *cacheEntry {
 		c.totalOpenedFiles.Inc()
 	}
 
-	entry.lock.Lock()
-	defer entry.lock.Unlock()
 	c.currentOpenFileReferences.Inc()
 	c.totalOpenFileReferences.WithLabelValues(hitLabel).Inc()
-	entry.refCount++
+	entry.refCount.Add(1)
 	return entry
 }
 
-// purge immediately removes an entry from the cache, even if it has open references.
-// It should only be called from the `close` function in a `cacheEntry`.
+// purge immediately removes an entry from the cache, even if it has open
+// references.
 func (c *Cache) purge(fileID uuid.UUID) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
