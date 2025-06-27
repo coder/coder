@@ -86,13 +86,19 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 						theme={themes.dark}
 						onSelect={() => onChangeTheme("dark")}
 					/>
-					<ThemePreviewButton
-						displayName="Light"
-						active={currentTheme === "light"}
-						theme={themes.light}
-						onSelect={() => onChangeTheme("light")}
-					/>
-				</Stack>
+                                        <ThemePreviewButton
+                                                displayName="Light"
+                                                active={currentTheme === "light"}
+                                                theme={themes.light}
+                                                onSelect={() => onChangeTheme("light")}
+                                        />
+                                        <ThemePreviewButton
+                                                displayName="Purple"
+                                                active={currentTheme === "purple"}
+                                                theme={themes.purple}
+                                                onSelect={() => onChangeTheme("purple")}
+                                        />
+                                </Stack>
 			</Section>
 			<div css={{ marginBottom: 48 }}></div>
 			<Section
