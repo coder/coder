@@ -417,6 +417,8 @@ type WorkspaceAgentDevcontainer struct {
 	Dirty     bool                             `json:"dirty"`
 	Container *WorkspaceAgentContainer         `json:"container,omitempty"`
 	Agent     *WorkspaceAgentDevcontainerAgent `json:"agent,omitempty"`
+
+	Error string `json:"error,omitempty"`
 }
 
 // WorkspaceAgentDevcontainerAgent represents the sub agent for a
