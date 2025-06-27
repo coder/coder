@@ -70,10 +70,9 @@ component in the workspace.
 ## Personal overrides
 
 Let developers extend the repo’s `devcontainer.json` with an ignored (by Git) `devcontainer.local.json` file
- so they can add personal tools without changing the canonical config:
+so they can add personal tools without changing the canonical configuration:
 
 ```jsonc
-// devcontainer.local.json (in .gitignore)
 {
   "extends": "./devcontainer.json",
   "features": {
@@ -82,6 +81,9 @@ Let developers extend the repo’s `devcontainer.json` with an ignored (by Git) 
   "postStartCommand": "npm i -g tldr"
 }
 ```
+
+Add the file name to your project's `.gitignore` or the user's
+[global exclude file](https://docs.github.com/en/get-started/git-basics/ignoring-files#configuring-ignored-files-for-all-repositories-on-your-computer).
 
 ## Conditional startup
 
