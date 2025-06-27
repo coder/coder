@@ -11,6 +11,7 @@ import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import type { ReactNode } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useParams } from "react-router-dom";
 import { Link as RouterLink } from "react-router-dom";
 import { ellipsizeText } from "utils/ellipsizeText";
@@ -178,11 +179,15 @@ const TaskPage = () => {
 			<Helmet>
 				<title>{pageTitle(ellipsizeText(task.prompt, 64) ?? "Task")}</title>
 			</Helmet>
-
-			<div className="h-full flex justify-stretch">
-				<TaskSidebar task={task} />
-				{content}
-			</div>
+			<PanelGroup autoSaveId="task" direction="horizontal">
+				<Panel defaultSize={25} minSize={20}>
+					<TaskSidebar task={task} />
+				</Panel>
+				<PanelResizeHandle>
+					<div className="w-1 bg-border h-full hover:bg-border-hover transition-all relative" />
+				</PanelResizeHandle>
+				<Panel className="[&>*]:h-full">{content}</Panel>
+			</PanelGroup>
 		</>
 	);
 };
