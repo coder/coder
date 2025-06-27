@@ -43,11 +43,33 @@
 					"external": true,
 					"icon": "/icon/zed.svg",
 					"order": 5
+				},
+				// Reproduce `code-server` app here from the code-server
+				// feature so that we can set the correct folder and order.
+				// Currently, the order cannot be specified via option because
+				// we parse it as a number whereas variable interpolation
+				// results in a string. Additionally we set health check which
+				// is not yet set in the feature.
+				{
+					"slug": "code-server",
+					"displayName": "code-server",
+					"url": "http://${localEnv:FEATURE_CODE_SERVER_OPTION_HOST:127.0.0.1}:${localEnv:FEATURE_CODE_SERVER_OPTION_PORT:8080}/?folder=${containerWorkspaceFolder}",
+					"openIn": "${localEnv:FEATURE_CODE_SERVER_OPTION_APPOPENIN:slim-window}",
+					"share": "${localEnv:FEATURE_CODE_SERVER_OPTION_APPSHARE:owner}",
+					"icon": "/icon/code.svg",
+					"group": "${localEnv:FEATURE_CODE_SERVER_OPTION_APPGROUP:Web Editors}",
+					"order": 3,
+					"healthCheck": {
+						"url": "http://${localEnv:FEATURE_CODE_SERVER_OPTION_HOST:127.0.0.1}:${localEnv:FEATURE_CODE_SERVER_OPTION_PORT:8080}/healthz",
+						"interval": 5,
+						"threshold": 2
+					}
 				}
 			]
 		}
 	},
 	"mounts": [
+		"source=coder-coder-devcontainer-home,target=/home/coder",
 		// Mount the entire home because conditional mounts are not supported.
 		// See: https://github.com/devcontainers/spec/issues/132
 		"source=${localEnv:HOME},target=/mnt/home/coder,type=bind,readonly"
