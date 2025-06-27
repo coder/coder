@@ -1,6 +1,8 @@
 # Coder Desktop
 
-Coder Desktop transforms your remote workspaces into seamless local development environments. Work on your cloud workspaces as if they're running directly on your machine—no port forwarding, no complex networking setup, and no performance compromises. With Coder Desktop, you get the full power of cloud computing with the familiar experience of local development, enabling you to access files, run applications, and connect to services using simple workspace hostnames like `myworkspace.coder`.
+Remote development unlocks powerful computing resources that may not be available locally—including high-performance GPUs for machine learning, specialized CPU architectures, and HPC clusters for massive parallel processing. However, developers often miss the familiar, responsive, and integrated tooling experience of local environments when working remotely.
+
+Coder Desktop bridges this gap by eliminating the traditional friction points of remote development. No more CLI installation, version management, or manual port forwarding with `coder port-forward` commands. Instead, Coder Desktop provides instant, secure connectivity that makes your remote workspaces feel like local machines. Access your workspace services through simple hostnames like `myworkspace.coder`, launch native IDEs and GUI applications with one click, and synchronize files seamlessly between local and remote environments—all while maintaining the security and performance you need for professional development.
 
 > [!NOTE]
 > Coder Desktop requires a Coder deployment running [v2.20.0](https://github.com/coder/coder/releases/tag/v2.20.0) or later.
