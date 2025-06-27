@@ -36,6 +36,7 @@ type options struct {
 	returnSQLDB   func(*sql.DB)
 	logger        slog.Logger
 	url           string
+	maxConns      int
 }
 
 type Option func(*options)
@@ -63,6 +64,12 @@ func WithLogger(logger slog.Logger) Option {
 func WithURL(u string) Option {
 	return func(o *options) {
 		o.url = u
+	}
+}
+
+func WithMaxConns(maxConns int) Option {
+	return func(o *options) {
+		o.maxConns = maxConns
 	}
 }
 
@@ -137,11 +144,15 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		t.Cleanup(func() {
 			_ = sqlDB.Close()
 		})
+
 		if o.returnSQLDB != nil {
 			o.returnSQLDB(sqlDB)
 		}
 		if o.dumpOnFailure {
 			t.Cleanup(func() { DumpOnFailure(t, connectionURL) })
+		}
+		if o.maxConns > 0 {
+			sqlDB.SetMaxOpenConns(o.maxConns)
 		}
 		// Unit tests should not retry serial transaction failures.
 		db = database.New(sqlDB, database.WithSerialRetryCount(1))
