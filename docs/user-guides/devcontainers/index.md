@@ -72,8 +72,8 @@ Add the file name to your project's `.gitignore` or to your
 | Requirements   | Docker access in workspace             | Compatible with more restricted environments |
 
 Choose the appropriate solution based on your team's needs and infrastructure constraints.
-For additional details on Envbuilder's dev container support, see the
-[Envbuilder devcontainer spec support documentation](https://github.com/coder/envbuilder/blob/main/docs/devcontainer-spec-support.md).
+
+Visit [Choose an approach to Dev Containers in Coder](../../admin/templates/extending-templates/dev-containers-envbuilder.md) for a more in-depth comparison.
 
 ## Known Limitations
 
@@ -83,5 +83,5 @@ If your template allows for prebuilt workspaces, do not select a prebuilt worksp
 
 ## Next Steps
 
-- [Dev container specification](https://containers.dev/)
+- [Dev Container specification](https://containers.dev/)
 - [VS Code dev containers documentation](https://code.visualstudio.com/docs/devcontainers/containers)
