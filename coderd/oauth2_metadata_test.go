@@ -77,9 +77,9 @@ func TestOAuth2ProtectedResourceMetadata(t *testing.T) {
 	require.NotEmpty(t, metadata.AuthorizationServers)
 	require.Len(t, metadata.AuthorizationServers, 1)
 	require.Equal(t, metadata.Resource, metadata.AuthorizationServers[0])
-	// BearerMethodsSupported is omitted since Coder uses custom authentication methods
-	// Standard RFC 6750 bearer tokens are not supported
-	require.True(t, len(metadata.BearerMethodsSupported) == 0)
+	// RFC 6750 bearer tokens are now supported as fallback methods
+	require.Contains(t, metadata.BearerMethodsSupported, "header")
+	require.Contains(t, metadata.BearerMethodsSupported, "query")
 	// ScopesSupported can be empty until scope system is implemented
 	// Empty slice is marshaled as empty array, but can be nil when unmarshaled
 	require.True(t, len(metadata.ScopesSupported) == 0)
