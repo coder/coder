@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [],
+    "deny": [
+      "mcp__go-language-server__edit_file"
+    ]
+  }
+}
