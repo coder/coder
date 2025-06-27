@@ -24,6 +24,7 @@ import {
 	SelectValue,
 } from "components/Select/Select";
 import { Slider } from "components/Slider/Slider";
+import { Stack } from "components/Stack/Stack";
 import { Switch } from "components/Switch/Switch";
 import { TagInput } from "components/TagInput/TagInput";
 import { Textarea } from "components/Textarea/Textarea";
@@ -314,7 +315,7 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 	switch (parameter.form_type) {
 		case "textarea": {
 			return (
-				<div className="relative">
+				<Stack direction="row" spacing={0} alignItems="center">
 					<Textarea
 						ref={textareaRef}
 						id={id}
@@ -340,8 +341,7 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 						<Button
 							type="button"
 							variant="subtle"
-							size="sm"
-							className="absolute top-1 right-1 h-6 w-6 p-0"
+							size="icon"
 							onMouseDown={() => setShowMaskedInput(true)}
 							onMouseUp={() => setShowMaskedInput(false)}
 							disabled={disabled}
@@ -353,7 +353,7 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 							)}
 						</Button>
 					)}
-				</div>
+				</Stack>
 			);
 		}
 
@@ -380,7 +380,7 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 			}
 
 			return (
-				<div className="relative">
+				<Stack direction="row" spacing={0} alignItems="center">
 					<Input
 						id={id}
 						type={inputType}
@@ -397,8 +397,7 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 						<Button
 							type="button"
 							variant="subtle"
-							size="sm"
-							className="absolute top-1/2 right-1 h-6 w-6 p-0"
+							size="icon"
 							onMouseDown={() => setShowMaskedInput(true)}
 							onMouseUp={() => setShowMaskedInput(false)}
 							disabled={disabled}
@@ -410,7 +409,7 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 							)}
 						</Button>
 					)}
-				</div>
+				</Stack>
 			);
 		}
 	}
