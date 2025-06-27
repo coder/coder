@@ -1158,11 +1158,26 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 			}
 
-			scripts := manifest.Scripts
+			var (
+				scripts             = manifest.Scripts
+				devcontainerScripts map[uuid.UUID]codersdk.WorkspaceAgentScript
+			)
 			if a.containerAPI != nil {
+				// Init the container API with the manifest and client so that
+				// we can start accepting requests. The final start of the API
+				// happens after the startup scripts have been executed to
+				// ensure the presence of required tools. This means we can
+				// return existing devcontainers but actual container detection
+				// and creation will be deferred.
+				a.containerAPI.Init(
+					agentcontainers.WithManifestInfo(manifest.OwnerName, manifest.WorkspaceName, manifest.AgentName),
+					agentcontainers.WithDevcontainers(manifest.Devcontainers, manifest.Scripts),
+					agentcontainers.WithSubAgentClient(agentcontainers.NewSubAgentClientFromAPI(a.logger, aAPI)),
+				)
+
 				// Since devcontainer are enabled, remove devcontainer scripts
 				// from the main scripts list to avoid showing an error.
-				scripts, _ = agentcontainers.ExtractDevcontainerScripts(manifest.Devcontainers, manifest.Scripts)
+				scripts, devcontainerScripts = agentcontainers.ExtractDevcontainerScripts(manifest.Devcontainers, scripts)
 			}
 			err = a.scriptRunner.Init(scripts, aAPI.ScriptCompleted)
 			if err != nil {
@@ -1183,13 +1198,10 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				err := a.scriptRunner.Execute(a.gracefulCtx, agentscripts.ExecuteStartScripts)
 
 				if a.containerAPI != nil {
-					a.containerAPI.Init(
-						agentcontainers.WithManifestInfo(manifest.OwnerName, manifest.WorkspaceName, manifest.AgentName),
-						agentcontainers.WithDevcontainers(manifest.Devcontainers, manifest.Scripts),
-						agentcontainers.WithSubAgentClient(agentcontainers.NewSubAgentClientFromAPI(a.logger, aAPI)),
-					)
-
-					_, devcontainerScripts := agentcontainers.ExtractDevcontainerScripts(manifest.Devcontainers, manifest.Scripts)
+					// Start the container API after the startup scripts have
+					// been executed to ensure that the required tools can be
+					// installed.
+					a.containerAPI.Start()
 					for _, dc := range manifest.Devcontainers {
 						cErr := a.createDevcontainer(ctx, aAPI, dc, devcontainerScripts[dc.ID])
 						err = errors.Join(err, cErr)
