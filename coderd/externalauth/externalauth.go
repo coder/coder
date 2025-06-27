@@ -505,8 +505,6 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 	ids := map[string]struct{}{}
 	configs := []*Config{}
 	for _, entry := range entries {
-		entry := entry
-
 		// Applies defaults to the config entry.
 		// This allows users to very simply state that they type is "GitHub",
 		// apply their client secret and ID, and have the UI appear nicely.

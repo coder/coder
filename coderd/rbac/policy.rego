@@ -29,76 +29,93 @@ import rego.v1
 #    different code branches based on the org_owner. 'num's value does, but
 #    that is the whole point of partial evaluation.
 
-# bool_flip lets you assign a value to an inverted bool.
+# bool_flip(b) returns the logical negation of a boolean value 'b'.
 # You cannot do 'x := !false', but you can do 'x := bool_flip(false)'
-bool_flip(b) := flipped if {
+bool_flip(b) := false if {
 	b
-	flipped = false
 }
 
-bool_flip(b) := flipped if {
+bool_flip(b) := true if {
 	not b
-	flipped = true
 }
 
-# number is a quick way to get a set of {true, false} and convert it to
-#  -1: {false, true} or {false}
-#   0: {}
-#   1: {true}
-number(set) := c if {
-	count(set) == 0
-	c := 0
-}
+# number(set) maps a set of boolean values to one of the following numbers:
+#  -1: deny (if 'false' value is in the set)		=> set is {true, false} or {false}
+#   0: no decision (if the set is empty)			=> set is {}
+#   1: allow (if only 'true' values are in the set)	=> set is {true}
 
-number(set) := c if {
+# Return -1 if the set contains any 'false' value (i.e., an explicit deny)
+number(set) := -1 if {
 	false in set
-	c := -1
 }
 
-number(set) := c if {
+# Return 0 if the set is empty (no matching permissions)
+number(set) := 0 if {
+	count(set) == 0
+}
+
+# Return 1 if the set is non-empty and contains no 'false' values (i.e., only allows)
+number(set) := 1 if {
 	not false in set
 	set[_]
-	c := 1
 }
 
-# site, org, and user rules are all similar. Each rule should return a number
-# from [-1, 1]. The number corresponds to "negative", "abstain", and "positive"
-# for the given level. See the 'allow' rules for how these numbers are used.
-default site := 0
+# Permission evaluation is structured into three levels: site, org, and user.
+# For each level, two variables are computed:
+#   - <level>: the decision based on the subject's full set of roles for that level
+#   - scope_<level>: the decision based on the subject's scoped roles for that level
+#
+# Each of these variables is assigned one of three values:
+#   -1 => negative (deny)
+#    0 => abstain (no matching permission)
+#    1 => positive (allow)
+#
+# These values are computed by calling the corresponding <level>_allow functions.
+# The final decision is derived from combining these values (see 'allow' rule).
 
+# -------------------
+# Site Level Rules
+# -------------------
+
+default site := 0
 site := site_allow(input.subject.roles)
 
 default scope_site := 0
-
 scope_site := site_allow([input.subject.scope])
 
+# site_allow receives a list of roles and returns a single number:
+#  -1 if any matching permission denies access
+#   1 if there's at least one allow and no denies
+#   0 if there are no matching permissions
 site_allow(roles) := num if {
-	# allow is a set of boolean values without duplicates.
-	allow := {x |
+	# allow is a set of boolean values (sets don't contain duplicates)
+	allow := {is_allowed |
 		# Iterate over all site permissions in all roles
 		perm := roles[_].site[_]
 		perm.action in [input.action, "*"]
 		perm.resource_type in [input.object.type, "*"]
 
-		# x is either 'true' or 'false' if a matching permission exists.
-		x := bool_flip(perm.negate)
+		# is_allowed is either 'true' or 'false' if a matching permission exists.
+		is_allowed := bool_flip(perm.negate)
 	}
 	num := number(allow)
 }
+
+# -------------------
+# Org Level Rules
+# -------------------
 
 # org_members is the list of organizations the actor is apart of.
 org_members := {orgID |
 	input.subject.roles[_].org[orgID]
 }
 
-# org is the same as 'site' except we need to iterate over each organization
+# 'org' is the same as 'site' except we need to iterate over each organization
 # that the actor is a member of.
 default org := 0
-
 org := org_allow(input.subject.roles)
 
 default scope_org := 0
-
 scope_org := org_allow([input.scope])
 
 # org_allow_set is a helper function that iterates over all orgs that the actor
@@ -114,11 +131,14 @@ scope_org := org_allow([input.scope])
 org_allow_set(roles) := allow_set if {
 	allow_set := {id: num |
 		id := org_members[_]
-		set := {x |
+		set := {is_allowed |
+			# Iterate over all org permissions in all roles
 			perm := roles[_].org[id][_]
 			perm.action in [input.action, "*"]
 			perm.resource_type in [input.object.type, "*"]
-			x := bool_flip(perm.negate)
+
+			# is_allowed is either 'true' or 'false' if a matching permission exists.
+			is_allowed := bool_flip(perm.negate)
 		}
 		num := number(set)
 	}
@@ -191,24 +211,30 @@ org_ok if {
 	not input.object.any_org
 }
 
-# User is the same as the site, except it only applies if the user owns the object and
+# -------------------
+# User Level Rules
+# -------------------
+
+# 'user' is the same as 'site', except it only applies if the user owns the object and
 # the user is apart of the org (if the object has an org).
 default user := 0
-
 user := user_allow(input.subject.roles)
 
-default user_scope := 0
-
+default scope_user := 0
 scope_user := user_allow([input.scope])
 
 user_allow(roles) := num if {
 	input.object.owner != ""
 	input.subject.id = input.object.owner
-	allow := {x |
+
+	allow := {is_allowed |
+		# Iterate over all user permissions in all roles
 		perm := roles[_].user[_]
 		perm.action in [input.action, "*"]
 		perm.resource_type in [input.object.type, "*"]
-		x := bool_flip(perm.negate)
+
+		# is_allowed is either 'true' or 'false' if a matching permission exists.
+		is_allowed := bool_flip(perm.negate)
 	}
 	num := number(allow)
 }
@@ -227,17 +253,9 @@ scope_allow_list if {
 	input.object.id in input.subject.scope.allow_list
 }
 
-# The allow block is quite simple. Any set with `-1` cascades down in levels.
-# Authorization looks for any `allow` statement that is true. Multiple can be true!
-# Note that the absence of `allow` means "unauthorized".
-# An explicit `"allow": true` is required.
-#
-# Scope is also applied. The default scope is "wildcard:wildcard" allowing
-# all actions. If the scope is not "1", then the action is not authorized.
-#
-#
-# Allow query:
-#	 data.authz.role_allow = true data.authz.scope_allow = true
+# -------------------
+# Role-Specific Rules
+# -------------------
 
 role_allow if {
 	site = 1
@@ -257,6 +275,10 @@ role_allow if {
 	org_ok
 	user = 1
 }
+
+# -------------------
+# Scope-Specific Rules
+# -------------------
 
 scope_allow if {
 	scope_allow_list
@@ -279,6 +301,11 @@ scope_allow if {
 	org_ok
 	scope_user = 1
 }
+
+# -------------------
+# ACL-Specific Rules
+# Access Control List
+# -------------------
 
 # ACL for users
 acl_allow if {
@@ -308,11 +335,24 @@ acl_allow if {
 	[input.action, "*"][_] in perms
 }
 
-###############
+# -------------------
 # Final Allow
+#
+# The 'allow' block is quite simple. Any set with `-1` cascades down in levels.
+# Authorization looks for any `allow` statement that is true. Multiple can be true!
+# Note that the absence of `allow` means "unauthorized".
+# An explicit `"allow": true` is required.
+#
+# Scope is also applied. The default scope is "wildcard:wildcard" allowing
+# all actions. If the scope is not "1", then the action is not authorized.
+#
+# Allow query:
+#	data.authz.role_allow = true
+#	data.authz.scope_allow = true
+# -------------------
+
 # The role or the ACL must allow the action. Scopes can be used to limit,
 # so scope_allow must always be true.
-
 allow if {
 	role_allow
 	scope_allow

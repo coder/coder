@@ -2,13 +2,12 @@ import Skeleton from "@mui/material/Skeleton";
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { disabledRefetchOptions } from "api/queries/util";
-import type { Template } from "api/typesGenerated";
+import type { Template, TemplateVersionExternalAuth } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { Button } from "components/Button/Button";
-import { Form, FormFields, FormSection } from "components/Form/Form";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Margins } from "components/Margins/Margins";
 import {
@@ -37,25 +36,32 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import { useExternalAuth } from "hooks/useExternalAuth";
-import { RotateCcwIcon, SendIcon } from "lucide-react";
+import { RedoIcon, RotateCcwIcon, SendIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { type FC, type ReactNode, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import TextareaAutosize from "react-textarea-autosize";
 import { pageTitle } from "utils/page";
 import { relativeTime } from "utils/time";
-import { ExternalAuthButton } from "../CreateWorkspacePage/ExternalAuthButton";
 import { type UserOption, UsersCombobox } from "./UsersCombobox";
 
 type TasksFilter = {
 	user: UserOption | undefined;
 };
+
 const TasksPage: FC = () => {
 	const { user, permissions } = useAuthenticated();
 	const [filter, setFilter] = useState<TasksFilter>({
@@ -157,6 +163,7 @@ const TaskFormSection: FC<{
 	filter: TasksFilter;
 	onFilterChange: (filter: TasksFilter) => void;
 }> = ({ showFilter, filter, onFilterChange }) => {
+	const navigate = useNavigate();
 	const {
 		data: templates,
 		error,
@@ -184,7 +191,14 @@ const TaskFormSection: FC<{
 	}
 	return (
 		<>
-			<TaskForm templates={templates} />
+			<TaskForm
+				templates={templates}
+				onSuccess={(task) => {
+					navigate(
+						`/tasks/${task.workspace.owner_name}/${task.workspace.name}`,
+					);
+				}}
+			/>
 			{showFilter && (
 				<TasksFilter filter={filter} onFilterChange={onFilterChange} />
 			)}
@@ -192,38 +206,43 @@ const TaskFormSection: FC<{
 	);
 };
 
-type CreateTaskMutationFnProps = { prompt: string; templateId: string };
+type CreateTaskMutationFnProps = { prompt: string; template: Template };
 
 type TaskFormProps = {
 	templates: Template[];
+	onSuccess: (task: Task) => void;
 };
 
-const TaskForm: FC<TaskFormProps> = ({ templates }) => {
+const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 	const { user } = useAuthenticated();
 	const queryClient = useQueryClient();
-
-	const [templateId, setTemplateId] = useState<string>(templates[0].id);
+	const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
+		templates[0].id,
+	);
+	const selectedTemplate = templates.find(
+		(t) => t.id === selectedTemplateId,
+	) as Template;
 	const {
 		externalAuth,
-		externalAuthPollingState,
-		startPollingExternalAuth,
-		isLoadingExternalAuth,
 		externalAuthError,
-	} = useExternalAuth(
-		templates.find((t) => t.id === templateId)?.active_version_id,
+		isPollingExternalAuth,
+		isLoadingExternalAuth,
+	} = useExternalAuth(selectedTemplate.active_version_id);
+	const missedExternalAuth = externalAuth?.filter(
+		(auth) => !auth.optional && !auth.authenticated,
 	);
-
-	const hasAllRequiredExternalAuth = externalAuth?.every(
-		(auth) => auth.optional || auth.authenticated,
-	);
+	const isMissingExternalAuth = missedExternalAuth
+		? missedExternalAuth.length > 0
+		: true;
 
 	const createTaskMutation = useMutation({
-		mutationFn: async ({ prompt, templateId }: CreateTaskMutationFnProps) =>
-			data.createTask(prompt, user.id, templateId),
-		onSuccess: async () => {
+		mutationFn: async ({ prompt, template }: CreateTaskMutationFnProps) =>
+			data.createTask(prompt, user.id, template.id, template.active_version_id),
+		onSuccess: async (task) => {
 			await queryClient.invalidateQueries({
 				queryKey: ["tasks"],
 			});
+			onSuccess(task);
 		},
 	});
 
@@ -235,16 +254,11 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 		const prompt = formData.get("prompt") as string;
 		const templateID = formData.get("templateID") as string;
 
-		if (!prompt || !templateID) {
-			return;
-		}
-
 		try {
 			await createTaskMutation.mutateAsync({
 				prompt,
-				templateId: templateID,
+				template: selectedTemplate,
 			});
-			form.reset();
 		} catch (error) {
 			const message = getErrorMessage(error, "Error creating task");
 			const detail = getErrorDetail(error) ?? "Please try again";
@@ -253,8 +267,12 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 	};
 
 	return (
-		<Form onSubmit={onSubmit} aria-label="Create AI task">
-			{Boolean(externalAuthError) && <ErrorAlert error={externalAuthError} />}
+		<form
+			onSubmit={onSubmit}
+			aria-label="Create AI task"
+			className="flex flex-col gap-4"
+		>
+			{externalAuthError && <ErrorAlert error={externalAuthError} />}
 
 			<fieldset
 				className="border border-border border-solid rounded-lg p-4"
@@ -274,7 +292,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 				<div className="flex items-center justify-between pt-2">
 					<Select
 						name="templateID"
-						onValueChange={(value) => setTemplateId(value)}
+						onValueChange={(value) => setSelectedTemplateId(value)}
 						defaultValue={templates[0].id}
 						required
 					>
@@ -294,43 +312,93 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 						</SelectContent>
 					</Select>
 
-					<Button
-						size="sm"
-						type="submit"
-						disabled={!hasAllRequiredExternalAuth}
-					>
-						<Spinner
-							loading={createTaskMutation.isPending || isLoadingExternalAuth}
-						>
-							<SendIcon />
-						</Spinner>
-						Run task
-					</Button>
+					<div className="flex items-center gap-2">
+						{missedExternalAuth && (
+							<ExternalAuthButtons
+								template={selectedTemplate}
+								missedExternalAuth={missedExternalAuth}
+							/>
+						)}
+
+						<Button size="sm" type="submit" disabled={isMissingExternalAuth}>
+							<Spinner
+								loading={
+									isLoadingExternalAuth ||
+									isPollingExternalAuth ||
+									createTaskMutation.isPending
+								}
+							>
+								<SendIcon />
+							</Spinner>
+							Run task
+						</Button>
+					</div>
 				</div>
 			</fieldset>
-
-			{!hasAllRequiredExternalAuth &&
-				externalAuth &&
-				externalAuth.length > 0 && (
-					<FormSection
-						title="External Authentication"
-						description="This template uses external services for authentication."
-					>
-						<FormFields>
-							{externalAuth.map((auth) => (
-								<ExternalAuthButton
-									key={auth.id}
-									auth={auth}
-									isLoading={externalAuthPollingState === "polling"}
-									onStartPolling={startPollingExternalAuth}
-									displayRetry={externalAuthPollingState === "abandoned"}
-								/>
-							))}
-						</FormFields>
-					</FormSection>
-				)}
-		</Form>
+		</form>
 	);
+};
+
+type ExternalAuthButtonProps = {
+	template: Template;
+	missedExternalAuth: TemplateVersionExternalAuth[];
+};
+
+const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
+	template,
+	missedExternalAuth,
+}) => {
+	const {
+		startPollingExternalAuth,
+		isPollingExternalAuth,
+		externalAuthPollingState,
+	} = useExternalAuth(template.active_version_id);
+	const shouldRetry = externalAuthPollingState === "abandoned";
+
+	return missedExternalAuth.map((auth) => {
+		return (
+			<div className="flex items-center gap-2" key={auth.id}>
+				<Button
+					variant="outline"
+					size="sm"
+					disabled={isPollingExternalAuth || auth.authenticated}
+					onClick={() => {
+						window.open(
+							auth.authenticate_url,
+							"_blank",
+							"width=900,height=600",
+						);
+						startPollingExternalAuth();
+					}}
+				>
+					<Spinner loading={isPollingExternalAuth}>
+						<ExternalImage src={auth.display_icon} />
+					</Spinner>
+					Connect to {auth.display_name}
+				</Button>
+
+				{shouldRetry && !auth.authenticated && (
+					<TooltipProvider>
+						<Tooltip delayDuration={100}>
+							<TooltipTrigger asChild>
+								<Button
+									variant="outline"
+									size="icon"
+									onClick={startPollingExternalAuth}
+								>
+									<RedoIcon />
+									<span className="sr-only">Refresh external auth</span>
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>
+								Retry connecting to {auth.display_name}
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				)}
+			</div>
+		);
+	});
 };
 
 type TasksFilterProps = {
@@ -533,10 +601,15 @@ export const data = {
 		prompt: string,
 		userId: string,
 		templateId: string,
+		templateVersionId: string,
 	): Promise<Task> {
+		const presets = await API.getTemplateVersionPresets(templateVersionId);
+		const defaultPreset = presets.find((p) => p.Default);
 		const workspace = await API.createWorkspace(userId, {
 			name: `task-${generateWorkspaceName()}`,
 			template_id: templateId,
+			template_version_id: templateVersionId,
+			template_version_preset_id: defaultPreset?.ID,
 			rich_parameter_values: [
 				{ name: AI_PROMPT_PARAMETER_NAME, value: prompt },
 			],

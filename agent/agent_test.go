@@ -2372,7 +2372,7 @@ func TestAgent_DevcontainerRecreate(t *testing.T) {
 	// devcontainer, we do it in a goroutine so we can process logs
 	// concurrently.
 	go func(container codersdk.WorkspaceAgentContainer) {
-		_, err := conn.RecreateDevcontainer(ctx, container.ID)
+		_, err := conn.RecreateDevcontainer(ctx, devcontainerID.String())
 		assert.NoError(t, err, "recreate devcontainer should succeed")
 	}(container)
 

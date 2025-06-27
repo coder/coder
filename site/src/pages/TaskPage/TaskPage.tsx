@@ -5,7 +5,6 @@ import type { Workspace, WorkspaceStatus } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
-import { Spinner } from "components/Spinner/Spinner";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { ArrowLeftIcon, RotateCcwIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
@@ -149,7 +148,7 @@ const TaskPage = () => {
 				</div>
 			</div>
 		);
-	} else if (terminatedStatuses.includes(task.workspace.latest_build.status)) {
+	} else if (task.workspace.latest_build.status !== "running") {
 		content = (
 			<Margins>
 				<div className="w-full min-h-80 flex items-center justify-center">
@@ -170,20 +169,6 @@ const TaskPage = () => {
 					</div>
 				</div>
 			</Margins>
-		);
-	} else if (!task.workspace.latest_app_status) {
-		content = (
-			<div className="w-full min-h-80 flex items-center justify-center">
-				<div className="flex flex-col items-center">
-					<Spinner loading className="mb-4" />
-					<h3 className="m-0 font-medium text-content-primary text-base">
-						Running your task
-					</h3>
-					<span className="text-content-secondary text-sm">
-						The status should be available soon
-					</span>
-				</div>
-			</div>
 		);
 	} else {
 		content = <TaskApps task={task} />;

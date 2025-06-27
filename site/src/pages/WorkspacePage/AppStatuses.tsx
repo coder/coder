@@ -15,16 +15,19 @@ import {
 import capitalize from "lodash/capitalize";
 import { timeFrom } from "utils/time";
 
+import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	ChevronDownIcon,
 	ChevronUpIcon,
 	ExternalLinkIcon,
 	FileIcon,
 	LayoutGridIcon,
+	SquareCheckBigIcon,
 } from "lucide-react";
 import { AppStatusStateIcon } from "modules/apps/AppStatusStateIcon";
 import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { truncateURI } from "utils/uri";
 
 interface AppStatusesProps {
@@ -81,9 +84,9 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 							{latestStatus.message || capitalize(latestStatus.state)}
 						</span>
 					</div>
-					<span className="text-xs text-content-secondary first-letter:uppercase block pl-[26px]">
+					<time className="text-xs text-content-secondary first-letter:uppercase block pl-[26px]">
 						{timeFrom(new Date(latestStatus.created_at), comparisonDate)}
-					</span>
+					</time>
 				</div>
 
 				<div className="flex items-center gap-2">
@@ -119,6 +122,13 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 							</Button>
 						))}
 
+					<Button asChild size="sm" variant="outline">
+						<RouterLink to={`/tasks/${workspace.owner_name}/${workspace.name}`}>
+							<SquareCheckBigIcon />
+							View task
+						</RouterLink>
+					</Button>
+
 					<TooltipProvider>
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -141,35 +151,38 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 				</div>
 			</div>
 
-			{displayStatuses &&
-				otherStatuses.map((status) => {
-					const statusTime = new Date(status.created_at);
-					const formattedTimestamp = timeFrom(statusTime, comparisonDate);
+			{displayStatuses && (
+				<ScrollArea className="h-[200px]">
+					{otherStatuses.map((status) => {
+						const statusTime = new Date(status.created_at);
+						const formattedTimestamp = timeFrom(statusTime, comparisonDate);
 
-					return (
-						<div
-							key={status.id}
-							className={`
+						return (
+							<div
+								key={status.id}
+								className={`
 							flex items-center justify-between px-4 py-3
 							border-0 [&:not(:last-child)]:border-b border-solid border-border
 						`}
-						>
-							<div className="flex items-center justify-between w-full text-content-secondary">
-								<span className="text-xs flex items-center gap-2">
-									<AppStatusStateIcon
-										state={status.state}
-										latest={false}
-										className="size-icon-xs w-[18px]"
-									/>
-									{status.message || capitalize(status.state)}
-								</span>
-								<span className="text-2xs text-content-secondary first-letter:uppercase block pl-[26px]">
-									{formattedTimestamp}
-								</span>
+							>
+								<div className="flex items-center justify-between w-full text-content-secondary">
+									<span className="text-xs flex items-center gap-2">
+										<AppStatusStateIcon
+											state={status.state}
+											latest={false}
+											className="size-icon-xs w-[18px]"
+										/>
+										{status.message || capitalize(status.state)}
+									</span>
+									<span className="text-2xs text-content-secondary first-letter:uppercase block pl-[26px]">
+										{formattedTimestamp}
+									</span>
+								</div>
 							</div>
-						</div>
-					);
-				})}
+						);
+					})}
+				</ScrollArea>
+			)}
 		</div>
 	);
 };

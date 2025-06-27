@@ -112,7 +112,6 @@ func TestReinitializeAgent(t *testing.T) {
 					Pubsub:   ps,
 					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
 						dv.Prebuilds.ReconciliationInterval = serpent.Duration(time.Second)
-						dv.Experiments.Append(string(codersdk.ExperimentWorkspacePrebuilds))
 					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{

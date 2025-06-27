@@ -687,10 +687,6 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		if !r.options.Experiments.Enabled(codersdk.ExperimentWorkspacePrebuilds) {
-			return nil
-		}
-
 		metrics, err := r.options.Database.GetPrebuildMetrics(ctx)
 		if err != nil {
 			return xerrors.Errorf("get prebuild metrics: %w", err)
