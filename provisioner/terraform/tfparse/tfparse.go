@@ -39,7 +39,7 @@ type parseHCLFiler interface {
 }
 
 // Parser parses a Terraform module on disk.
-type Parser struct {
+type ParserOld struct {
 	logger     slog.Logger
 	underlying parseHCLFiler
 	module     *tfconfig.Module
@@ -47,19 +47,19 @@ type Parser struct {
 }
 
 // Option is an option for a new instance of Parser.
-type Option func(*Parser)
+type Option func(*ParserOld)
 
 // WithLogger sets the logger to be used by Parser
 func WithLogger(logger slog.Logger) Option {
-	return func(p *Parser) {
+	return func(p *ParserOld) {
 		p.logger = logger
 	}
 }
 
 // New returns a new instance of Parser, as well as any diagnostics
 // encountered while parsing the module.
-func New(workdir string, opts ...Option) (*Parser, tfconfig.Diagnostics) {
-	p := Parser{
+func NewOld(workdir string, opts ...Option) (*ParserOld, tfconfig.Diagnostics) {
+	p := ParserOld{
 		logger:     slog.Make(),
 		underlying: hclparse.NewParser(),
 		workdir:    workdir,
@@ -82,7 +82,7 @@ func New(workdir string, opts ...Option) (*Parser, tfconfig.Diagnostics) {
 // WorkspaceTags looks for all coder_workspace_tags datasource in the module
 // and returns the raw values for the tags. It also returns the set of
 // variables referenced by any expressions in the raw values of tags.
-func (p *Parser) WorkspaceTags(ctx context.Context) (map[string]string, map[string]struct{}, error) {
+func (p *ParserOld) WorkspaceTags(ctx context.Context) (map[string]string, map[string]struct{}, error) {
 	tags := map[string]string{}
 	skipped := []string{}
 	requiredVars := map[string]struct{}{}
@@ -208,7 +208,7 @@ func cleanupTraversalName(parts []string) []string {
 	return parts
 }
 
-func (p *Parser) WorkspaceTagDefaults(ctx context.Context) (map[string]string, error) {
+func (p *ParserOld) WorkspaceTagDefaults(ctx context.Context) (map[string]string, error) {
 	// This only gets us the expressions. We need to evaluate them.
 	// Example: var.region -> "us"
 	tags, requiredVars, err := p.WorkspaceTags(ctx)
@@ -244,7 +244,7 @@ func (p *Parser) WorkspaceTagDefaults(ctx context.Context) (map[string]string, e
 
 // TemplateVariables returns all of the Terraform variables in the module
 // as TemplateVariables.
-func (p *Parser) TemplateVariables() ([]*proto.TemplateVariable, error) {
+func (p *ParserOld) TemplateVariables() ([]*proto.TemplateVariable, error) {
 	// Sort variables by (filename, line) to make the ordering consistent
 	variables := make([]*tfconfig.Variable, 0, len(p.module.Variables))
 	for _, v := range p.module.Variables {
@@ -295,7 +295,7 @@ func WriteArchive(bs []byte, mimetype string, path string) error {
 }
 
 // VariableDefaults returns the default values for all variables in the module.
-func (p *Parser) VariableDefaults(ctx context.Context) (map[string]string, error) {
+func (p *ParserOld) VariableDefaults(ctx context.Context) (map[string]string, error) {
 	// iterate through vars to get the default values for all
 	// required variables.
 	m := make(map[string]string)
@@ -315,7 +315,7 @@ func (p *Parser) VariableDefaults(ctx context.Context) (map[string]string, error
 
 // CoderParameterDefaults returns the default values of all coder_parameter data sources
 // in the parsed module.
-func (p *Parser) CoderParameterDefaults(ctx context.Context, varsDefaults map[string]string, names map[string]struct{}) (map[string]string, error) {
+func (p *ParserOld) CoderParameterDefaults(ctx context.Context, varsDefaults map[string]string, names map[string]struct{}) (map[string]string, error) {
 	defaultsM := make(map[string]string)
 	var (
 		skipped []string

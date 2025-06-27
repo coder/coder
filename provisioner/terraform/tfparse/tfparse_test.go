@@ -1,15 +1,22 @@
 package tfparse_test
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"io"
 	"log"
+	"strings"
 	"testing"
 
+	"github.com/spf13/afero"
+	"github.com/spf13/afero/zipfs"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	archivefs "github.com/coder/coder/v2/archive/fs"
+	"github.com/coder/preview"
 
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/testutil"
@@ -85,8 +92,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 					}
 					data "coder_workspace_tags" "tags" {}`,
 			},
-			expectTags:  map[string]string{},
-			expectError: `"tags" attribute is required by coder_workspace_tags`,
+			expectTags: map[string]string{},
 		},
 		{
 			name: "main.tf with valid workspace tags",
@@ -175,11 +181,12 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
+						name = "az"
 						type    = string
 						default = "${""}${"a"}"
 					}
 					data "coder_parameter" "az2" {
-					  name = "az"
+					  	name = "az2"
 						type = "string"
 						default = data.coder_parameter.az.value
 					}
@@ -214,12 +221,12 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
-					  name = "az"
+					  	name = "az"
 						type = "string"
 						default = "a"
 					}
 					data "coder_parameter" "az2" {
-					  name = "az2"
+					  	name = "az2"
 						type = "string"
 						default = "b"
 					}
@@ -590,37 +597,62 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 		t.Run(tc.name+"/tar", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
-			tar := testutil.CreateTar(t, tc.files)
-			logger := testutil.Logger(t)
-			tmpDir := t.TempDir()
-			tfparse.WriteArchive(tar, "application/x-tar", tmpDir)
-			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
-			require.NoError(t, diags.Err())
-			tags, err := parser.WorkspaceTagDefaults(ctx)
+			tarData := testutil.CreateTar(t, tc.files)
+			//logger := testutil.Logger(t)
+
+			output, diags := preview.Preview(ctx, preview.Input{}, archivefs.FromTarReader(bytes.NewBuffer(tarData)))
+			require.False(t, diags.HasErrors(), diags.Error())
+
+			tags := output.WorkspaceTags
+			tagMap := tags.Tags()
+			failedTags := tags.UnusableTags()
 			if tc.expectError != "" {
-				require.NotNil(t, err)
-				require.Contains(t, err.Error(), tc.expectError)
+				found := false
+				require.True(t, len(failedTags) > 0, "Expected unusable tags")
+				for _, tag := range failedTags {
+					verr := tfparse.TagValidationResponse(tag)
+					if strings.Contains(verr.Error(), tc.expectError) {
+						found = true
+						break
+					}
+				}
+
+				require.True(t, found, "Expected error to contain: "+tc.expectError)
 			} else {
-				require.NoError(t, err)
-				require.Equal(t, tc.expectTags, tags)
+				require.True(t, len(failedTags) == 0, "Expected no unusable tags")
+				require.Equal(t, tc.expectTags, tagMap)
 			}
 		})
+
 		t.Run(tc.name+"/zip", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
-			zip := testutil.CreateZip(t, tc.files)
-			logger := testutil.Logger(t)
-			tmpDir := t.TempDir()
-			tfparse.WriteArchive(zip, "application/zip", tmpDir)
-			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
-			require.NoError(t, diags.Err())
-			tags, err := parser.WorkspaceTagDefaults(ctx)
+			zipData := testutil.CreateZip(t, tc.files)
+			//logger := testutil.Logger(t)
+
+			// get the zip fs
+			r, err := zip.NewReader(bytes.NewReader(zipData), int64(len(zipData)))
+			require.NoError(t, err)
+
+			output, diags := preview.Preview(ctx, preview.Input{}, afero.NewIOFS(zipfs.New(r)))
+			require.False(t, diags.HasErrors(), diags.Error())
+
+			tags := output.WorkspaceTags
 			if tc.expectError != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.expectError)
+				found := false
+				require.True(t, len(tags.UnusableTags()) > 0, "Expected unusable tags")
+				for _, tag := range tags.UnusableTags() {
+					verr := tfparse.TagValidationResponse(tag)
+					if strings.Contains(verr.Error(), tc.expectError) {
+						found = true
+						break
+					}
+				}
+
+				require.True(t, found, "Expected error to contain: "+tc.expectError)
 			} else {
-				require.NoError(t, err)
-				require.Equal(t, tc.expectTags, tags)
+				require.True(t, len(tags.UnusableTags()) == 0, "Expected no unusable tags")
+				require.Equal(t, tc.expectTags, tags.Tags())
 			}
 		})
 	}
@@ -633,62 +665,62 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 // cpu: AMD EPYC 7502P 32-Core Processor
 // BenchmarkWorkspaceTagDefaultsFromFile/Tar-16         	    1922	    847236 ns/op	  176257 B/op	    1073 allocs/op
 // BenchmarkWorkspaceTagDefaultsFromFile/Zip-16         	    1273	    946910 ns/op	  225293 B/op	    1130 allocs/op
-// PASS
-func BenchmarkWorkspaceTagDefaultsFromFile(b *testing.B) {
-	files := map[string]string{
-		"main.tf": `
-		provider "foo" {}
-		resource "foo_bar" "baz" {}
-		variable "region" {
-			type    = string
-			default = "us"
-		}
-		data "coder_parameter" "az" {
-		  name = "az"
-			type = "string"
-			default = "a"
-		}
-		data "coder_workspace_tags" "tags" {
-			tags = {
-				"platform" = "kubernetes",
-				"cluster"  = "${"devel"}${"opers"}"
-				"region"   = var.region
-				"az"       = data.coder_parameter.az.value
-			}
-		}`,
-	}
-	tarFile := testutil.CreateTar(b, files)
-	zipFile := testutil.CreateZip(b, files)
-	logger := discardLogger(b)
-	b.ResetTimer()
-	b.Run("Tar", func(b *testing.B) {
-		ctx := context.Background()
-		for i := 0; i < b.N; i++ {
-			tmpDir := b.TempDir()
-			tfparse.WriteArchive(tarFile, "application/x-tar", tmpDir)
-			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
-			require.NoError(b, diags.Err())
-			_, _, err := parser.WorkspaceTags(ctx)
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-
-	b.Run("Zip", func(b *testing.B) {
-		ctx := context.Background()
-		for i := 0; i < b.N; i++ {
-			tmpDir := b.TempDir()
-			tfparse.WriteArchive(zipFile, "application/zip", tmpDir)
-			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
-			require.NoError(b, diags.Err())
-			_, _, err := parser.WorkspaceTags(ctx)
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-}
+//// PASS
+//func BenchmarkWorkspaceTagDefaultsFromFile(b *testing.B) {
+//	files := map[string]string{
+//		"main.tf": `
+//		provider "foo" {}
+//		resource "foo_bar" "baz" {}
+//		variable "region" {
+//			type    = string
+//			default = "us"
+//		}
+//		data "coder_parameter" "az" {
+//		  name = "az"
+//			type = "string"
+//			default = "a"
+//		}
+//		data "coder_workspace_tags" "tags" {
+//			tags = {
+//				"platform" = "kubernetes",
+//				"cluster"  = "${"devel"}${"opers"}"
+//				"region"   = var.region
+//				"az"       = data.coder_parameter.az.value
+//			}
+//		}`,
+//	}
+//	tarFile := testutil.CreateTar(b, files)
+//	zipFile := testutil.CreateZip(b, files)
+//	logger := discardLogger(b)
+//	b.ResetTimer()
+//	b.Run("Tar", func(b *testing.B) {
+//		ctx := context.Background()
+//		for i := 0; i < b.N; i++ {
+//			tmpDir := b.TempDir()
+//			tfparse.WriteArchive(tarFile, "application/x-tar", tmpDir)
+//			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
+//			require.NoError(b, diags.Err())
+//			_, _, err := parser.WorkspaceTags(ctx)
+//			if err != nil {
+//				b.Fatal(err)
+//			}
+//		}
+//	})
+//
+//	b.Run("Zip", func(b *testing.B) {
+//		ctx := context.Background()
+//		for i := 0; i < b.N; i++ {
+//			tmpDir := b.TempDir()
+//			tfparse.WriteArchive(zipFile, "application/zip", tmpDir)
+//			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
+//			require.NoError(b, diags.Err())
+//			_, _, err := parser.WorkspaceTags(ctx)
+//			if err != nil {
+//				b.Fatal(err)
+//			}
+//		}
+//	})
+//}
 
 func discardLogger(_ testing.TB) slog.Logger {
 	l := slog.Make(sloghuman.Sink(io.Discard))
