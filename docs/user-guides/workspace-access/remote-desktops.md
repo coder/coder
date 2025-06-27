@@ -42,7 +42,7 @@ coder port-forward <workspace-name> --tcp 3399:3389
 Then, connect to your workspace via RDP at `localhost:3399`.
 ![windows-rdp](../../images/ides/windows_rdp_client.png)
 
-### RDP with Coder Desktop (Beta)
+### RDP with Coder Desktop
 
 [Coder Desktop](../desktop/index.md)'s Coder Connect feature creates a connection to your workspaces in the background.
 There is no need for port forwarding when it is enabled.
