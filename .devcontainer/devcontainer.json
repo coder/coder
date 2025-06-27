@@ -56,5 +56,6 @@
 		// See: https://github.com/devcontainers/spec/issues/132
 		"source=${localEnv:HOME},target=/mnt/home/coder,type=bind,readonly"
 	],
-	"postCreateCommand": "./.devcontainer/postCreateCommand.sh"
+	"postCreateCommand": "./.devcontainer/postCreateCommand.sh",
+	"postStartCommand": "sudo service docker start"
 }

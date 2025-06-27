@@ -79,6 +79,7 @@ type API struct {
 	containersErr            error                                          // Error from the last list operation.
 	devcontainerNames        map[string]bool                                // By devcontainer name.
 	knownDevcontainers       map[string]codersdk.WorkspaceAgentDevcontainer // By workspace folder.
+	devcontainerLogSourceIDs map[string]uuid.UUID                           // By workspace folder.
 	configFileModifiedTimes  map[string]time.Time                           // By config file path.
 	recreateSuccessTimes     map[string]time.Time                           // By workspace folder.
 	recreateErrorTimes       map[string]time.Time                           // By workspace folder.
@@ -86,8 +87,6 @@ type API struct {
 	usingWorkspaceFolderName map[string]bool                                // By workspace folder.
 	ignoredDevcontainers     map[string]bool                                // By workspace folder. Tracks three states (true, false and not checked).
 	asyncWg                  sync.WaitGroup
-
-	devcontainerLogSourceIDs map[string]uuid.UUID // By workspace folder.
 }
 
 type subAgentProcess struct {
@@ -530,7 +529,6 @@ func (api *API) updateContainers(ctx context.Context) error {
 		// will clear up on the next update.
 		if !errors.Is(err, context.Canceled) {
 			api.mu.Lock()
-			api.containers = codersdk.WorkspaceAgentListContainersResponse{}
 			api.containersErr = err
 			api.mu.Unlock()
 		}
@@ -936,32 +934,31 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 		return xerrors.Errorf("devcontainer not found")
 	}
 
-	api.asyncWg.Add(1)
-	defer api.asyncWg.Done()
-	api.mu.Unlock()
-
 	var (
-		err    error
 		ctx    = api.ctx
 		logger = api.logger.With(
 			slog.F("devcontainer_id", dc.ID),
 			slog.F("devcontainer_name", dc.Name),
 			slog.F("workspace_folder", dc.WorkspaceFolder),
-			slog.F("config_path", configPath),
+			slog.F("config_path", dc.ConfigPath),
 		)
 	)
+
+	// Send logs via agent logging facilities.
+	logSourceID := api.devcontainerLogSourceIDs[dc.WorkspaceFolder]
+	if logSourceID == uuid.Nil {
+		api.logger.Debug(api.ctx, "devcontainer log source ID not found, falling back to external log source ID")
+		logSourceID = agentsdk.ExternalLogSourceID
+	}
+
+	api.asyncWg.Add(1)
+	defer api.asyncWg.Done()
+	api.mu.Unlock()
 
 	if dc.ConfigPath != configPath {
 		logger.Warn(ctx, "devcontainer config path mismatch",
 			slog.F("config_path_param", configPath),
 		)
-	}
-
-	// Send logs via agent logging facilities.
-	logSourceID := api.devcontainerLogSourceIDs[dc.WorkspaceFolder]
-	if logSourceID == uuid.Nil {
-		// Fallback to the external log source ID if not found.
-		logSourceID = agentsdk.ExternalLogSourceID
 	}
 
 	scriptLogger := api.scriptLogger(logSourceID)
@@ -982,7 +979,7 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 	upOptions := []DevcontainerCLIUpOptions{WithUpOutput(infoW, errW)}
 	upOptions = append(upOptions, opts...)
 
-	_, err = api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, upOptions...)
+	_, err := api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, upOptions...)
 	if err != nil {
 		// No need to log if the API is closing (context canceled), as this
 		// is expected behavior when the API is shutting down.
@@ -1002,15 +999,6 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 
 	logger.Info(ctx, "devcontainer created successfully")
 
-	// Ensure the container list is updated immediately after creation.
-	// This makes sure that dc.Container is populated before we acquire
-	// the lock avoiding a temporary inconsistency in the API state
-	// where status is running, but the container is nil.
-	if err := api.RefreshContainers(ctx); err != nil {
-		logger.Error(ctx, "failed to trigger immediate refresh after devcontainer creation", slog.Error(err))
-		return xerrors.Errorf("refresh containers: %w", err)
-	}
-
 	api.mu.Lock()
 	dc = api.knownDevcontainers[dc.WorkspaceFolder]
 	// Update the devcontainer status to Running or Stopped based on the
@@ -1028,6 +1016,13 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 	api.recreateSuccessTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "successTimes")
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	api.mu.Unlock()
+
+	// Ensure an immediate refresh to accurately reflect the
+	// devcontainer state after recreation.
+	if err := api.RefreshContainers(ctx); err != nil {
+		logger.Error(ctx, "failed to trigger immediate refresh after devcontainer creation", slog.Error(err))
+		return xerrors.Errorf("refresh containers: %w", err)
+	}
 
 	return nil
 }

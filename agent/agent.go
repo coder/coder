@@ -1158,21 +1158,13 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 			}
 
-			var (
-				scripts             = manifest.Scripts
-				scriptRunnerOpts    []agentscripts.InitOption
-				devcontainerScripts map[uuid.UUID]codersdk.WorkspaceAgentScript
-			)
-			if a.devcontainers {
-				a.containerAPI.Init(
-					agentcontainers.WithManifestInfo(manifest.OwnerName, manifest.WorkspaceName, manifest.AgentName),
-					agentcontainers.WithDevcontainers(manifest.Devcontainers, scripts),
-					agentcontainers.WithSubAgentClient(agentcontainers.NewSubAgentClientFromAPI(a.logger, aAPI)),
-				)
-
-				scripts, devcontainerScripts = agentcontainers.ExtractDevcontainerScripts(manifest.Devcontainers, scripts)
+			scripts := manifest.Scripts
+			if a.containerAPI != nil {
+				// Since devcontainer are enabled, remove devcontainer scripts
+				// from the main scripts list to avoid showing an error.
+				scripts, _ = agentcontainers.ExtractDevcontainerScripts(manifest.Devcontainers, manifest.Scripts)
 			}
-			err = a.scriptRunner.Init(scripts, aAPI.ScriptCompleted, scriptRunnerOpts...)
+			err = a.scriptRunner.Init(scripts, aAPI.ScriptCompleted)
 			if err != nil {
 				return xerrors.Errorf("init script runner: %w", err)
 			}
@@ -1190,9 +1182,18 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// autostarted devcontainer will be included in this time.
 				err := a.scriptRunner.Execute(a.gracefulCtx, agentscripts.ExecuteStartScripts)
 
-				for _, dc := range manifest.Devcontainers {
-					cErr := a.createDevcontainer(ctx, aAPI, dc, devcontainerScripts[dc.ID])
-					err = errors.Join(err, cErr)
+				if a.containerAPI != nil {
+					a.containerAPI.Init(
+						agentcontainers.WithManifestInfo(manifest.OwnerName, manifest.WorkspaceName, manifest.AgentName),
+						agentcontainers.WithDevcontainers(manifest.Devcontainers, manifest.Scripts),
+						agentcontainers.WithSubAgentClient(agentcontainers.NewSubAgentClientFromAPI(a.logger, aAPI)),
+					)
+
+					_, devcontainerScripts := agentcontainers.ExtractDevcontainerScripts(manifest.Devcontainers, manifest.Scripts)
+					for _, dc := range manifest.Devcontainers {
+						cErr := a.createDevcontainer(ctx, aAPI, dc, devcontainerScripts[dc.ID])
+						err = errors.Join(err, cErr)
+					}
 				}
 
 				dur := time.Since(start).Seconds()
