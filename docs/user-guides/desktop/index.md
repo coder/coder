@@ -1,7 +1,6 @@
-# Coder Desktop (Beta)
+# Coder Desktop
 
-Use Coder Desktop to work on your workspaces as though they're on your LAN, no
-port-forwarding required.
+Coder Desktop transforms your remote workspaces into seamless local development environments. Work on your cloud workspaces as if they're running directly on your machine—no port forwarding, no complex networking setup, and no performance compromises. With Coder Desktop, you get the full power of cloud computing with the familiar experience of local development, enabling you to access files, run applications, and connect to services using simple workspace hostnames like `myworkspace.coder`.
 
 > [!NOTE]
 > Coder Desktop requires a Coder deployment running [v2.20.0](https://github.com/coder/coder/releases/tag/v2.20.0) or later.
