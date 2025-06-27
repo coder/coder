@@ -5,6 +5,8 @@ visual representation of the running environment:
 
 ![Dev container integration in Coder dashboard](../../images/user-guides/devcontainers/devcontainer-agent-ports.png)
 
+This page assumes you have a [dev containers integration](./index.md) ready.
+
 ## SSH Access
 
 You can SSH into your dev container directly using the Coder CLI:
@@ -42,31 +44,15 @@ work.
 
 ## Port Forwarding
 
-During the early access phase, port forwarding is limited to ports defined via
-[`appPort`](https://containers.dev/implementors/json_reference/#image-specific)
-in your `devcontainer.json` file.
-
-> [!NOTE]
->
-> Support for automatic port forwarding via the `forwardPorts` property in
-> `devcontainer.json` is planned for a future release.
-
-For example, with this `devcontainer.json` configuration:
-
-```json
-{
-    "appPort": ["8080:8080", "4000:3000"]
-}
-```
-
-You can forward these ports to your local machine using:
+Coder automatically forwards any port declared in `appPort`, `forwardPorts`,
+or exposed by `docker-compose.yml`.
+Use the dashboard to open a forwarded port, or the CLI:
 
 ```console
 coder port-forward my-workspace --tcp 8080,4000
 ```
 
-This forwards port 8080 (local) -> 8080 (agent) -> 8080 (dev container) and port
-4000 (local) -> 4000 (agent) -> 3000 (dev container).
+If you need a port that isn’t declared, pass it explicitly to `coder port-forward`.
 
 ## Dev Container Features
 

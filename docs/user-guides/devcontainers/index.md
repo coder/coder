@@ -85,3 +85,4 @@ If your template allows for prebuilt workspaces, do not select a prebuilt worksp
 
 - [Dev Container specification](https://containers.dev/)
 - [VS Code dev containers documentation](https://code.visualstudio.com/docs/devcontainers/containers)
+- [Choose an approach to Dev Containers](../../admin/templates/extending-templates/dev-containers-envbuilder.md)
