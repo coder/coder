@@ -13,14 +13,10 @@
 		"./filebrowser": {}
 	},
 	// SYS_PTRACE to enable go debugging
-	"runArgs": [
-		"--cap-add=SYS_PTRACE"
-	],
+	"runArgs": ["--cap-add=SYS_PTRACE"],
 	"customizations": {
 		"vscode": {
-			"extensions": [
-				"biomejs.biome"
-			]
+			"extensions": ["biomejs.biome"]
 		},
 		"coder": {
 			"apps": [
@@ -43,7 +39,7 @@
 				{
 					"slug": "zed",
 					"displayName": "Zed Editor",
-					"url": "zed://ssh/${localEnv:CODER_WORKSPACE_AGENT_NAME}.${localEnv:CODER_WORKSPACE_NAME}.${localEnv:CODER_WORKSPACE_OWNER_NAME}.coder/${containerWorkspaceFolder}",
+					"url": "zed://ssh/${localEnv:CODER_WORKSPACE_AGENT_NAME}.${localEnv:CODER_WORKSPACE_NAME}.${localEnv:CODER_WORKSPACE_OWNER_NAME}.coder${containerWorkspaceFolder}",
 					"external": true,
 					"icon": "/icon/zed.svg",
 					"order": 5
@@ -56,5 +52,6 @@
 		// See: https://github.com/devcontainers/spec/issues/132
 		"source=${localEnv:HOME},target=/mnt/home/coder,type=bind,readonly"
 	],
-	"postCreateCommand": "./.devcontainer/postCreateCommand.sh"
+	"postCreateCommand": "./.devcontainer/postCreateCommand.sh",
+	"postStartCommand": "sudo service docker start"
 }
