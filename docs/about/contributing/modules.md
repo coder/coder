@@ -108,17 +108,26 @@ flowchart LR
 
 The Coder Registry organizes modules into different categories based on their functionality. Here are the main types with examples of actual available modules:
 
-### [IDE Modules](https://registry.coder.com/modules?search=tag%3Aide)
+### [IDE & Development Environments](https://registry.coder.com/modules?search=tag%3Aide)
 
 Integrate development environments and code editors into workspaces.
 
+#### Browser-based IDEs
+
+Access development environments directly through your browser.
+
 - **[code-server](https://registry.coder.com/modules/coder/code-server)**: VS Code in the browser
-- **[Cursor](https://registry.coder.com/modules/coder/cursor)**: Add a one-click button to launch Cursor IDE
-- **[JetBrains Gateway](https://registry.coder.com/modules/coder/jetbrains-gateway)**: Add a one-click button to launch JetBrains Gateway IDEs in the dashboard
+- **[VS Code Web](https://registry.coder.com/modules/coder/vscode-web)**: VS Code Web - Visual Studio Code in the browser
 - **[Jupyter Notebook](https://registry.coder.com/modules/coder/jupyter-notebook)**: A module that adds Jupyter Notebook in your Coder template
 - **[JupyterLab](https://registry.coder.com/modules/coder/jupyterlab)**: A module that adds JupyterLab in your Coder template
+
+#### Desktop IDEs
+
+One-click launch buttons to connect local IDE applications to your workspace.
+
+- **[Cursor](https://registry.coder.com/modules/coder/cursor)**: Add a one-click button to launch Cursor IDE
+- **[JetBrains Gateway](https://registry.coder.com/modules/coder/jetbrains-gateway)**: Add a one-click button to launch JetBrains Gateway IDEs in the dashboard
 - **[VS Code Desktop](https://registry.coder.com/modules/coder/vscode-desktop)**: Add a one-click button to launch VS Code Desktop
-- **[VS Code Web](https://registry.coder.com/modules/coder/vscode-web)**: VS Code Web - Visual Studio Code in the browser
 - **[Windsurf Editor](https://registry.coder.com/modules/coder/windsurf)**: Add a one-click button to launch Windsurf Editor
 
 ### [Helper Modules](https://registry.coder.com/modules?search=tag%3Ahelper)
@@ -129,6 +138,7 @@ Simplify template creation and workspace configuration.
 - **[Azure Region](https://registry.coder.com/modules/coder/azure-region)**: A parameter with human region names and icons
 - **[Coder Login](https://registry.coder.com/modules/coder/coder-login)**: Automatically logs the user into Coder on their workspace
 - **[Dotfiles](https://registry.coder.com/modules/coder/dotfiles)**: Allow developers to optionally bring their own dotfiles repository to customize their shell and IDE settings
+- **[File Browser](https://registry.coder.com/modules/coder/filebrowser)**: A file browser for your workspace
 - **[Fly.io Region](https://registry.coder.com/modules/coder/fly-region)**: A parameter with human region names and icons
 - **[GCP Region](https://registry.coder.com/modules/coder/gcp-region)**: Add Google Cloud Platform regions to your Coder template
 - **[Git Clone](https://registry.coder.com/modules/coder/git-clone)**: Clone a Git repository by URL and skip if it exists
@@ -165,12 +175,6 @@ Connect with external services and platforms.
 - **[Hashicorp Vault Integration (Token)](https://registry.coder.com/modules/coder/vault-token)**: Authenticates with Vault using Token
 - **[JFrog (OAuth)](https://registry.coder.com/modules/coder/jfrog-oauth)**: Install the JF CLI and authenticate with Artifactory using OAuth
 - **[JFrog (Token)](https://registry.coder.com/modules/coder/jfrog-token)**: Install the JF CLI and authenticate with Artifactory using Artifactory terraform provider
-
-### [Web-based Tools](https://registry.coder.com/modules?search=tag%3Aweb)
-
-Browser-accessible applications and interfaces.
-
-- **[File Browser](https://registry.coder.com/modules/coder/filebrowser)**: A file browser for your workspace
 
 Browse all available modules and explore specific categories at [registry.coder.com](https://registry.coder.com).
 
