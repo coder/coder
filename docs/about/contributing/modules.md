@@ -114,7 +114,7 @@ Integrate development environments and code editors into workspaces.
 
 #### Browser-based IDEs
 
-Access development environments directly through your browser.
+Access development environments directly through your browser. These modules use `coder_script` to install and launch the IDE service within your workspace, then provide a `coder_app` for seamless browser access through the Coder dashboard.
 
 - **[code-server](https://registry.coder.com/modules/coder/code-server)**: VS Code in the browser
 - **[VS Code Web](https://registry.coder.com/modules/coder/vscode-web)**: VS Code Web - Visual Studio Code in the browser
@@ -123,7 +123,7 @@ Access development environments directly through your browser.
 
 #### Desktop IDEs
 
-One-click launch buttons to connect local IDE applications to your workspace.
+One-click launch buttons to connect local IDE applications to your workspace. These modules only use `coder_app` to provide launch buttons in the dashboard - no installation required since they connect to IDEs already installed on your local machine.
 
 - **[Cursor](https://registry.coder.com/modules/coder/cursor)**: Add a one-click button to launch Cursor IDE
 - **[JetBrains Gateway](https://registry.coder.com/modules/coder/jetbrains-gateway)**: Add a one-click button to launch JetBrains Gateway IDEs in the dashboard
