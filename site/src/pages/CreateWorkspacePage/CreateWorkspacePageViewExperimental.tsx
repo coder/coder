@@ -29,8 +29,8 @@ import { type FormikContextType, useFormik } from "formik";
 import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
 import { ArrowLeft, CircleHelp } from "lucide-react";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
-import { Diagnostics } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import {
+	Diagnostics,
 	DynamicParameter,
 	getInitialParameterValues,
 	useValidationSchemaForDynamicParameters,
@@ -190,13 +190,25 @@ export const CreateWorkspacePageViewExperimental: FC<
 		setPresetOptions([
 			{ label: "None", value: "None" },
 			...presets.map((preset) => ({
-				label: preset.Name,
+				label: preset.Default ? `${preset.Name} (Default)` : preset.Name,
 				value: preset.ID,
 			})),
 		]);
 	}, [presets]);
 
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
+
+	// Set default preset when presets are loaded
+	useEffect(() => {
+		const defaultPreset = presets.find((preset) => preset.Default);
+		if (defaultPreset) {
+			// +1 because "None" is at index 0
+			const defaultIndex =
+				presets.findIndex((preset) => preset.ID === defaultPreset.ID) + 1;
+			setSelectedPresetIndex(defaultIndex);
+		}
+	}, [presets]);
+
 	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
 		[],
 	);
@@ -393,7 +405,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 						</TooltipProvider>
 					</span>
 					<FeatureStageBadge
-						contentType={"early_access"}
+						contentType={"beta"}
 						size="sm"
 						labelText="Dynamic parameters"
 					/>
@@ -550,11 +562,11 @@ export const CreateWorkspacePageViewExperimental: FC<
 								<div className="flex flex-col gap-2">
 									<div className="flex gap-2 items-center">
 										<Label className="text-sm">Preset</Label>
-										<FeatureStageBadge contentType={"beta"} size="sm" />
 									</div>
 									<div className="flex flex-col gap-4">
 										<div className="max-w-lg">
 											<Select
+												value={presetOptions[selectedPresetIndex]?.value}
 												onValueChange={(option) => {
 													const index = presetOptions.findIndex(
 														(preset) => preset.value === option,
@@ -563,6 +575,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 														return;
 													}
 													setSelectedPresetIndex(index);
+													form.setFieldValue(
+														"template_version_preset_id",
+														index === 0 ? undefined : option,
+													);
 												}}
 											>
 												<SelectTrigger>
@@ -577,16 +593,19 @@ export const CreateWorkspacePageViewExperimental: FC<
 												</SelectContent>
 											</Select>
 										</div>
-										<span className="flex items-center gap-3">
-											<Switch
-												id="show-preset-parameters"
-												checked={showPresetParameters}
-												onCheckedChange={setShowPresetParameters}
-											/>
-											<Label htmlFor="show-preset-parameters">
-												Show preset parameters
-											</Label>
-										</span>
+										{/* Only show the preset parameter visibility toggle if preset parameters are actually being modified, otherwise it is ineffectual */}
+										{presetParameterNames.length > 0 && (
+											<span className="flex items-center gap-3">
+												<Switch
+													id="show-preset-parameters"
+													checked={showPresetParameters}
+													onCheckedChange={setShowPresetParameters}
+												/>
+												<Label htmlFor="show-preset-parameters">
+													Show preset parameters
+												</Label>
+											</span>
+										)}
 									</div>
 								</div>
 							)}

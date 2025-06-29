@@ -62,7 +62,6 @@ func Test_configureCipherSuites(t *testing.T) {
 	cipherByName := func(cipher string) *tls.CipherSuite {
 		for _, c := range append(tls.CipherSuites(), tls.InsecureCipherSuites()...) {
 			if cipher == c.Name {
-				c := c
 				return c
 			}
 		}
@@ -173,7 +172,6 @@ func Test_configureCipherSuites(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
@@ -245,7 +243,6 @@ func TestRedirectHTTPToHTTPSDeprecation(t *testing.T) {
 	}
 
 	for _, tc := range testcases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
@@ -310,7 +307,6 @@ func TestIsDERPPath(t *testing.T) {
 		},
 	}
 	for _, tc := range testcases {
-		tc := tc
 		t.Run(tc.path, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tc.expected, isDERPPath(tc.path))
@@ -363,7 +359,6 @@ func TestEscapePostgresURLUserInfo(t *testing.T) {
 		},
 	}
 	for _, tc := range testcases {
-		tc := tc
 		t.Run(tc.input, func(t *testing.T) {
 			t.Parallel()
 			o, err := escapePostgresURLUserInfo(tc.input)

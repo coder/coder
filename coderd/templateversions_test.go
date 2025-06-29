@@ -604,7 +604,6 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				},
 			},
 		} {
-			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 				ctx := testutil.Context(t, testutil.WaitShort)
@@ -1393,7 +1392,6 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 	file, err := client.Upload(egCtx, codersdk.ContentTypeTar, bytes.NewReader(data))
 	require.NoError(t, err)
 	for i := 0; i < total; i++ {
-		i := i
 		eg.Go(func() error {
 			templateVersion, err := client.CreateTemplateVersion(egCtx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 				Name:          uuid.NewString(),
@@ -1466,7 +1464,6 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

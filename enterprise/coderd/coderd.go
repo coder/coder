@@ -1150,21 +1150,14 @@ func (api *API) Authorize(r *http.Request, action policy.Action, object rbac.Obj
 
 // nolint:revive // featureEnabled is a legit control flag.
 func (api *API) setupPrebuilds(featureEnabled bool) (agplprebuilds.ReconciliationOrchestrator, agplprebuilds.Claimer) {
-	experimentEnabled := api.AGPL.Experiments.Enabled(codersdk.ExperimentWorkspacePrebuilds)
-	if !experimentEnabled || !featureEnabled {
-		levelFn := api.Logger.Debug
-		// If the experiment is enabled but the license does not entitle the feature, operators should be warned.
-		if !featureEnabled {
-			levelFn = api.Logger.Warn
-		}
-
-		levelFn(context.Background(), "prebuilds not enabled; ensure you have a premium license and the 'workspace-prebuilds' experiment set",
-			slog.F("experiment_enabled", experimentEnabled), slog.F("feature_enabled", featureEnabled))
+	if !featureEnabled {
+		api.Logger.Warn(context.Background(), "prebuilds not enabled; ensure you have a premium license",
+			slog.F("feature_enabled", featureEnabled))
 
 		return agplprebuilds.DefaultReconciler, agplprebuilds.DefaultClaimer
 	}
 
-	reconciler := prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.DeploymentValues.Prebuilds,
+	reconciler := prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.AGPL.FileCache, api.DeploymentValues.Prebuilds,
 		api.Logger.Named("prebuilds"), quartz.NewReal(), api.PrometheusRegistry, api.NotificationsEnqueuer)
 	return reconciler, prebuilds.NewEnterpriseClaimer(api.Database)
 }

@@ -859,19 +859,19 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/container/{container}/recreate \
+curl -X POST http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /workspaceagents/{workspaceagent}/containers/devcontainers/container/{container}/recreate`
+`POST /workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate`
 
 ### Parameters
 
-| Name             | In   | Type         | Required | Description          |
-|------------------|------|--------------|----------|----------------------|
-| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID   |
-| `container`      | path | string       | true     | Container ID or name |
+| Name             | In   | Type         | Required | Description        |
+|------------------|------|--------------|----------|--------------------|
+| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
+| `devcontainer`   | path | string       | true     | Devcontainer ID    |
 
 ### Example responses
 

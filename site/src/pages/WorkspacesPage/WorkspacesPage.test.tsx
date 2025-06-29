@@ -107,7 +107,7 @@ describe("WorkspacesPage", () => {
 			}
 
 			await user.click(screen.getByRole("button", { name: /bulk actions/i }));
-			const updateButton = await screen.findByText(/update/i);
+			const updateButton = await screen.findByTestId("bulk-action-update");
 			await user.click(updateButton);
 
 			// One click: no running workspaces warning, no dormant workspaces warning.
@@ -146,7 +146,7 @@ describe("WorkspacesPage", () => {
 			}
 
 			await user.click(screen.getByRole("button", { name: /bulk actions/i }));
-			const updateButton = await screen.findByText(/update/i);
+			const updateButton = await screen.findByTestId("bulk-action-update");
 			await user.click(updateButton);
 
 			// Two clicks: 1 running workspace, no dormant workspaces warning.
@@ -184,7 +184,7 @@ describe("WorkspacesPage", () => {
 			}
 
 			await user.click(screen.getByRole("button", { name: /bulk actions/i }));
-			const updateButton = await screen.findByText(/update/i);
+			const updateButton = await screen.findByTestId("bulk-action-update");
 			await user.click(updateButton);
 
 			// Two clicks: no running workspaces warning, 1 dormant workspace.
@@ -224,7 +224,7 @@ describe("WorkspacesPage", () => {
 			}
 
 			await user.click(screen.getByRole("button", { name: /bulk actions/i }));
-			const updateButton = await screen.findByText(/update/i);
+			const updateButton = await screen.findByTestId("bulk-action-update");
 			await user.click(updateButton);
 
 			// Three clicks: 1 running workspace, 1 dormant workspace.

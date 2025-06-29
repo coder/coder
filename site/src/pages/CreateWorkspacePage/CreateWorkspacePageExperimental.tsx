@@ -326,7 +326,6 @@ const CreateWorkspacePageExperimental: FC = () => {
 
 						const workspace = await createWorkspaceMutation.mutateAsync({
 							...workspaceRequest,
-							enable_dynamic_parameters: true,
 							userId: owner.id,
 						});
 						onCreateWorkspace(workspace);

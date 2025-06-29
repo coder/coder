@@ -29,11 +29,9 @@ curl -L https://coder.com/install.sh | sh
 
 ## Windows
 
-> [!IMPORTANT]
-> If you plan to use the built-in PostgreSQL database, you will
-> need to ensure that the
-> [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
-> is installed.
+If you plan to use the built-in PostgreSQL database, ensure that the
+[Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
+is installed.
 
 You can use the
 [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
