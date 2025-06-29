@@ -1122,6 +1122,279 @@ curl -X POST http://coder-server:8080/api/v2/oauth2/authorize?client_id=string&s
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get OAuth2 client configuration (RFC 7592)
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/oauth2/clients/{client_id} \
+  -H 'Accept: application/json'
+```
+
+`GET /oauth2/clients/{client_id}`
+
+### Parameters
+
+| Name        | In   | Type   | Required | Description |
+|-------------|------|--------|----------|-------------|
+| `client_id` | path | string | true     | Client ID   |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "client_id": "string",
+  "client_id_issued_at": 0,
+  "client_name": "string",
+  "client_secret_expires_at": 0,
+  "client_uri": "string",
+  "contacts": [
+    "string"
+  ],
+  "grant_types": [
+    "string"
+  ],
+  "jwks": {},
+  "jwks_uri": "string",
+  "logo_uri": "string",
+  "policy_uri": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "registration_access_token": "string",
+  "registration_client_uri": "string",
+  "response_types": [
+    "string"
+  ],
+  "scope": "string",
+  "software_id": "string",
+  "software_version": "string",
+  "token_endpoint_auth_method": "string",
+  "tos_uri": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2ClientConfiguration](schemas.md#codersdkoauth2clientconfiguration) |
+
+## Update OAuth2 client configuration (RFC 7592)
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/oauth2/clients/{client_id} \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json'
+```
+
+`PUT /oauth2/clients/{client_id}`
+
+> Body parameter
+
+```json
+{
+  "client_name": "string",
+  "client_uri": "string",
+  "contacts": [
+    "string"
+  ],
+  "grant_types": [
+    "string"
+  ],
+  "jwks": {},
+  "jwks_uri": "string",
+  "logo_uri": "string",
+  "policy_uri": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "response_types": [
+    "string"
+  ],
+  "scope": "string",
+  "software_id": "string",
+  "software_statement": "string",
+  "software_version": "string",
+  "token_endpoint_auth_method": "string",
+  "tos_uri": "string"
+}
+```
+
+### Parameters
+
+| Name        | In   | Type                                                                                           | Required | Description           |
+|-------------|------|------------------------------------------------------------------------------------------------|----------|-----------------------|
+| `client_id` | path | string                                                                                         | true     | Client ID             |
+| `body`      | body | [codersdk.OAuth2ClientRegistrationRequest](schemas.md#codersdkoauth2clientregistrationrequest) | true     | Client update request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "client_id": "string",
+  "client_id_issued_at": 0,
+  "client_name": "string",
+  "client_secret_expires_at": 0,
+  "client_uri": "string",
+  "contacts": [
+    "string"
+  ],
+  "grant_types": [
+    "string"
+  ],
+  "jwks": {},
+  "jwks_uri": "string",
+  "logo_uri": "string",
+  "policy_uri": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "registration_access_token": "string",
+  "registration_client_uri": "string",
+  "response_types": [
+    "string"
+  ],
+  "scope": "string",
+  "software_id": "string",
+  "software_version": "string",
+  "token_endpoint_auth_method": "string",
+  "tos_uri": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2ClientConfiguration](schemas.md#codersdkoauth2clientconfiguration) |
+
+## Delete OAuth2 client registration (RFC 7592)
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/oauth2/clients/{client_id}
+
+```
+
+`DELETE /oauth2/clients/{client_id}`
+
+### Parameters
+
+| Name        | In   | Type   | Required | Description |
+|-------------|------|--------|----------|-------------|
+| `client_id` | path | string | true     | Client ID   |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+## OAuth2 dynamic client registration (RFC 7591)
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/oauth2/register \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json'
+```
+
+`POST /oauth2/register`
+
+> Body parameter
+
+```json
+{
+  "client_name": "string",
+  "client_uri": "string",
+  "contacts": [
+    "string"
+  ],
+  "grant_types": [
+    "string"
+  ],
+  "jwks": {},
+  "jwks_uri": "string",
+  "logo_uri": "string",
+  "policy_uri": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "response_types": [
+    "string"
+  ],
+  "scope": "string",
+  "software_id": "string",
+  "software_statement": "string",
+  "software_version": "string",
+  "token_endpoint_auth_method": "string",
+  "tos_uri": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                           | Required | Description                 |
+|--------|------|------------------------------------------------------------------------------------------------|----------|-----------------------------|
+| `body` | body | [codersdk.OAuth2ClientRegistrationRequest](schemas.md#codersdkoauth2clientregistrationrequest) | true     | Client registration request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "client_id": "string",
+  "client_id_issued_at": 0,
+  "client_name": "string",
+  "client_secret": "string",
+  "client_secret_expires_at": 0,
+  "client_uri": "string",
+  "contacts": [
+    "string"
+  ],
+  "grant_types": [
+    "string"
+  ],
+  "jwks": {},
+  "jwks_uri": "string",
+  "logo_uri": "string",
+  "policy_uri": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "registration_access_token": "string",
+  "registration_client_uri": "string",
+  "response_types": [
+    "string"
+  ],
+  "scope": "string",
+  "software_id": "string",
+  "software_version": "string",
+  "token_endpoint_auth_method": "string",
+  "tos_uri": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                                                           |
+|--------|--------------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.OAuth2ClientRegistrationResponse](schemas.md#codersdkoauth2clientregistrationresponse) |
+
 ## OAuth2 token exchange
 
 ### Code samples

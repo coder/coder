@@ -252,3 +252,137 @@ type OAuth2ProtectedResourceMetadata struct {
 	ScopesSupported        []string `json:"scopes_supported,omitempty"`
 	BearerMethodsSupported []string `json:"bearer_methods_supported,omitempty"`
 }
+
+// OAuth2ClientRegistrationRequest represents RFC 7591 Dynamic Client Registration Request
+type OAuth2ClientRegistrationRequest struct {
+	RedirectURIs            []string        `json:"redirect_uris,omitempty"`
+	ClientName              string          `json:"client_name,omitempty"`
+	ClientURI               string          `json:"client_uri,omitempty"`
+	LogoURI                 string          `json:"logo_uri,omitempty"`
+	TOSURI                  string          `json:"tos_uri,omitempty"`
+	PolicyURI               string          `json:"policy_uri,omitempty"`
+	JWKSURI                 string          `json:"jwks_uri,omitempty"`
+	JWKS                    json.RawMessage `json:"jwks,omitempty" swaggertype:"object"`
+	SoftwareID              string          `json:"software_id,omitempty"`
+	SoftwareVersion         string          `json:"software_version,omitempty"`
+	SoftwareStatement       string          `json:"software_statement,omitempty"`
+	GrantTypes              []string        `json:"grant_types,omitempty"`
+	ResponseTypes           []string        `json:"response_types,omitempty"`
+	TokenEndpointAuthMethod string          `json:"token_endpoint_auth_method,omitempty"`
+	Scope                   string          `json:"scope,omitempty"`
+	Contacts                []string        `json:"contacts,omitempty"`
+}
+
+// OAuth2ClientRegistrationResponse represents RFC 7591 Dynamic Client Registration Response
+type OAuth2ClientRegistrationResponse struct {
+	ClientID                string          `json:"client_id"`
+	ClientSecret            string          `json:"client_secret,omitempty"`
+	ClientIDIssuedAt        int64           `json:"client_id_issued_at"`
+	ClientSecretExpiresAt   int64           `json:"client_secret_expires_at,omitempty"`
+	RedirectURIs            []string        `json:"redirect_uris,omitempty"`
+	ClientName              string          `json:"client_name,omitempty"`
+	ClientURI               string          `json:"client_uri,omitempty"`
+	LogoURI                 string          `json:"logo_uri,omitempty"`
+	TOSURI                  string          `json:"tos_uri,omitempty"`
+	PolicyURI               string          `json:"policy_uri,omitempty"`
+	JWKSURI                 string          `json:"jwks_uri,omitempty"`
+	JWKS                    json.RawMessage `json:"jwks,omitempty" swaggertype:"object"`
+	SoftwareID              string          `json:"software_id,omitempty"`
+	SoftwareVersion         string          `json:"software_version,omitempty"`
+	GrantTypes              []string        `json:"grant_types"`
+	ResponseTypes           []string        `json:"response_types"`
+	TokenEndpointAuthMethod string          `json:"token_endpoint_auth_method"`
+	Scope                   string          `json:"scope,omitempty"`
+	Contacts                []string        `json:"contacts,omitempty"`
+	RegistrationAccessToken string          `json:"registration_access_token"`
+	RegistrationClientURI   string          `json:"registration_client_uri"`
+}
+
+// PostOAuth2ClientRegistration dynamically registers a new OAuth2 client (RFC 7591)
+func (c *Client) PostOAuth2ClientRegistration(ctx context.Context, req OAuth2ClientRegistrationRequest) (OAuth2ClientRegistrationResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/oauth2/register", req)
+	if err != nil {
+		return OAuth2ClientRegistrationResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return OAuth2ClientRegistrationResponse{}, ReadBodyAsError(res)
+	}
+	var resp OAuth2ClientRegistrationResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GetOAuth2ClientConfiguration retrieves client configuration (RFC 7592)
+func (c *Client) GetOAuth2ClientConfiguration(ctx context.Context, clientID string, registrationAccessToken string) (OAuth2ClientConfiguration, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/oauth2/clients/%s", clientID), nil,
+		func(r *http.Request) {
+			r.Header.Set("Authorization", "Bearer "+registrationAccessToken)
+		})
+	if err != nil {
+		return OAuth2ClientConfiguration{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OAuth2ClientConfiguration{}, ReadBodyAsError(res)
+	}
+	var resp OAuth2ClientConfiguration
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// PutOAuth2ClientConfiguration updates client configuration (RFC 7592)
+func (c *Client) PutOAuth2ClientConfiguration(ctx context.Context, clientID string, registrationAccessToken string, req OAuth2ClientRegistrationRequest) (OAuth2ClientConfiguration, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/oauth2/clients/%s", clientID), req,
+		func(r *http.Request) {
+			r.Header.Set("Authorization", "Bearer "+registrationAccessToken)
+		})
+	if err != nil {
+		return OAuth2ClientConfiguration{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OAuth2ClientConfiguration{}, ReadBodyAsError(res)
+	}
+	var resp OAuth2ClientConfiguration
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// DeleteOAuth2ClientConfiguration deletes client registration (RFC 7592)
+func (c *Client) DeleteOAuth2ClientConfiguration(ctx context.Context, clientID string, registrationAccessToken string) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/oauth2/clients/%s", clientID), nil,
+		func(r *http.Request) {
+			r.Header.Set("Authorization", "Bearer "+registrationAccessToken)
+		})
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// OAuth2ClientConfiguration represents RFC 7592 Client Configuration (for GET/PUT operations)
+// Same as OAuth2ClientRegistrationResponse but without client_secret in GET responses
+type OAuth2ClientConfiguration struct {
+	ClientID                string          `json:"client_id"`
+	ClientIDIssuedAt        int64           `json:"client_id_issued_at"`
+	ClientSecretExpiresAt   int64           `json:"client_secret_expires_at,omitempty"`
+	RedirectURIs            []string        `json:"redirect_uris,omitempty"`
+	ClientName              string          `json:"client_name,omitempty"`
+	ClientURI               string          `json:"client_uri,omitempty"`
+	LogoURI                 string          `json:"logo_uri,omitempty"`
+	TOSURI                  string          `json:"tos_uri,omitempty"`
+	PolicyURI               string          `json:"policy_uri,omitempty"`
+	JWKSURI                 string          `json:"jwks_uri,omitempty"`
+	JWKS                    json.RawMessage `json:"jwks,omitempty" swaggertype:"object"`
+	SoftwareID              string          `json:"software_id,omitempty"`
+	SoftwareVersion         string          `json:"software_version,omitempty"`
+	GrantTypes              []string        `json:"grant_types"`
+	ResponseTypes           []string        `json:"response_types"`
+	TokenEndpointAuthMethod string          `json:"token_endpoint_auth_method"`
+	Scope                   string          `json:"scope,omitempty"`
+	Contacts                []string        `json:"contacts,omitempty"`
+	RegistrationAccessToken string          `json:"registration_access_token"`
+	RegistrationClientURI   string          `json:"registration_client_uri"`
+}
