@@ -116,7 +116,7 @@ export default defineConfig({
 				secure: process.env.NODE_ENV === "production",
 			},
 		},
-		allowedHosts: true,
+		allowedHosts: [".coder"],
 	},
 	resolve: {
 		alias: {

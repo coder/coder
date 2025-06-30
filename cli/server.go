@@ -1184,7 +1184,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			var wg sync.WaitGroup
 			for i, provisionerDaemon := range provisionerDaemons {
 				id := i + 1
-				provisionerDaemon := provisionerDaemon
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
@@ -1662,7 +1661,6 @@ func configureServerTLS(ctx context.Context, logger slog.Logger, tlsMinVersion, 
 
 		// Expensively check which certificate matches the client hello.
 		for _, cert := range certs {
-			cert := cert
 			if err := hi.SupportsCertificate(&cert); err == nil {
 				return &cert, nil
 			}

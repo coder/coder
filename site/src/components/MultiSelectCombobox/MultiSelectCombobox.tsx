@@ -3,6 +3,7 @@
  * @see {@link https://shadcnui-expansions.typeart.cc/docs/multiple-selector}
  */
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
+import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
 import {
 	Command,
@@ -30,6 +31,7 @@ import { cn } from "utils/cn";
 export interface Option {
 	value: string;
 	label: string;
+	icon?: string;
 	disable?: boolean;
 	/** fixed option that can't be removed. */
 	fixed?: boolean;
@@ -353,7 +355,9 @@ export const MultiSelectCombobox = forwardRef<
 		}, [debouncedSearchTerm, groupBy, open, triggerSearchOnFocus, onSearch]);
 
 		const CreatableItem = () => {
-			if (!creatable) return undefined;
+			if (!creatable) {
+				return undefined;
+			}
 			if (
 				isOptionsExist(options, [{ value: inputValue, label: inputValue }]) ||
 				selected.find((s) => s.value === inputValue)
@@ -437,6 +441,7 @@ export const MultiSelectCombobox = forwardRef<
 		}
 
 		const fixedOptions = selected.filter((s) => s.fixed);
+		const showIcons = arrayOptions?.some((it) => it.icon);
 
 		return (
 			<Command
@@ -487,7 +492,16 @@ export const MultiSelectCombobox = forwardRef<
 										data-fixed={option.fixed}
 										data-disabled={disabled || undefined}
 									>
-										{option.label}
+										<div className="flex items-center gap-1">
+											{option.icon && (
+												<Avatar
+													size="sm"
+													src={option.icon}
+													fallback={option.label}
+												/>
+											)}
+											{option.label}
+										</div>
 										<button
 											type="button"
 											data-testid="clear-option-button"
@@ -639,7 +653,16 @@ export const MultiSelectCombobox = forwardRef<
 																	"cursor-default text-content-disabled",
 															)}
 														>
-															{option.label}
+															<div className="flex items-center gap-2">
+																{showIcons && (
+																	<Avatar
+																		size="sm"
+																		src={option.icon}
+																		fallback={option.label}
+																	/>
+																)}
+																{option.label}
+															</div>
 														</CommandItem>
 													);
 												})}
