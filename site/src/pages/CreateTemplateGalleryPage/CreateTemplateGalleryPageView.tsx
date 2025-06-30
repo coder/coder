@@ -1,4 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import { css, useTheme } from "@emotion/react";
 import Card from "@mui/material/Card";
 import CardActionArea from "@mui/material/CardActionArea";
 import CardContent from "@mui/material/CardContent";
@@ -22,17 +23,21 @@ interface CreateTemplateGalleryPageViewProps {
 export const CreateTemplateGalleryPageView: FC<
 	CreateTemplateGalleryPageViewProps
 > = ({ starterTemplatesByTag, error }) => {
+	const theme = useTheme();
 	return (
 		<Margins>
 			<PageHeader
 				actions={
-					<Link
-						href="https://registry.coder.com"
-						target="_blank"
-						rel="noopener noreferrer"
-					>
-						Browse the Coder Registry
-					</Link>
+					<span css={{ whiteSpace: "nowrap" }}>
+						<Link
+							href="https://registry.coder.com"
+							target="_blank"
+							rel="noopener noreferrer"
+							size="sm"
+						>
+							Browse the Coder Registry
+						</Link>
+					</span>
 				}
 			>
 				<PageHeaderTitle>Create a Template</PageHeaderTitle>

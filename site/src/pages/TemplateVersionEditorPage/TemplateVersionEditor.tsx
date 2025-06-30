@@ -256,6 +256,17 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							paddingRight: 16,
 						}}
 					>
+						<span css={{ marginRight: 8, whiteSpace: "nowrap" }}>
+  <Link 
+    href="https://registry.coder.com" 
+    target="_blank" 
+    rel="noopener noreferrer"
+    size="sm"
+  >
+    Browse the Coder Registry
+  </Link>
+</span>
+						
 						<TemplateVersionStatusBadge version={templateVersion} />
 
 						<div className="flex gap-1 items-center">
@@ -274,14 +285,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 								onTagsChange={onUpdateProvisionerTags}
 							/>
 						</div>
-
-						<Link
-							href="https://registry.coder.com"
-							target="_blank"
-							rel="noopener noreferrer"
-						>
-							Browse the Coder Registry
-						</Link>
 
 						<TopbarButton
 							variant="default"
