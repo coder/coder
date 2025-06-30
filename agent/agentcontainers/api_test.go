@@ -3,7 +3,6 @@ package agentcontainers_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -1717,7 +1716,7 @@ func TestAPI(t *testing.T) {
 			require.Equal(t, http.StatusAccepted, rec.Code)
 
 			// Given: We simulate an error running `devcontainer up`
-			simulatedError := errors.New("simulated error")
+			simulatedError := xerrors.New("simulated error")
 			testutil.RequireSend(ctx, t, fDCCLI.upErrC, simulatedError)
 
 			nowRecreateErrorTrap.MustWait(ctx).MustRelease(ctx)
