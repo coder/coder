@@ -437,7 +437,7 @@ func TestAPI(t *testing.T) {
 					agentcontainers.WithContainerCLI(mLister),
 					agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
 				)
-				api.Init()
+				api.Start()
 				defer api.Close()
 				r.Mount("/", api.Routes())
 
@@ -627,7 +627,7 @@ func TestAPI(t *testing.T) {
 					agentcontainers.WithDevcontainers(tt.setupDevcontainers, nil),
 				)
 
-				api.Init()
+				api.Start()
 				defer api.Close()
 				r.Mount("/", api.Routes())
 
@@ -1068,7 +1068,7 @@ func TestAPI(t *testing.T) {
 				}
 
 				api := agentcontainers.NewAPI(logger, apiOptions...)
-				api.Init()
+				api.Start()
 				defer api.Close()
 
 				r.Mount("/", api.Routes())
@@ -1158,7 +1158,7 @@ func TestAPI(t *testing.T) {
 				[]codersdk.WorkspaceAgentScript{{LogSourceID: uuid.New(), ID: dc.ID}},
 			),
 		)
-		api.Init()
+		api.Start()
 		defer api.Close()
 
 		// Make sure the ticker function has been registered
@@ -1254,7 +1254,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithWatcher(fWatcher),
 			agentcontainers.WithClock(mClock),
 		)
-		api.Init()
+		api.Start()
 		defer api.Close()
 
 		r := chi.NewRouter()
@@ -1392,6 +1392,7 @@ func TestAPI(t *testing.T) {
 			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
 			mCCLI.EXPECT().Copy(gomock.Any(), "test-container-id", coderBin, "/.coder-agent/coder").Return(nil),
 			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "/bin/sh", "-c", "chown $(id -u):$(id -g) /.coder-agent/coder").Return(nil, nil),
 		)
 
 		mClock.Set(time.Now()).MustWait(ctx)
@@ -1407,7 +1408,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithDevcontainerCLI(fakeDCCLI),
 			agentcontainers.WithManifestInfo("test-user", "test-workspace", "test-parent-agent"),
 		)
-		api.Init()
+		api.Start()
 		apiClose := func() {
 			closeOnce.Do(func() {
 				// Close before api.Close() defer to avoid deadlock after test.
@@ -1480,6 +1481,7 @@ func TestAPI(t *testing.T) {
 			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
 			mCCLI.EXPECT().Copy(gomock.Any(), "test-container-id", coderBin, "/.coder-agent/coder").Return(nil),
 			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "test-container-id", "root", "/bin/sh", "-c", "chown $(id -u):$(id -g) /.coder-agent/coder").Return(nil, nil),
 		)
 
 		// Verify that the agent has started.
@@ -1540,6 +1542,7 @@ func TestAPI(t *testing.T) {
 			mCCLI.EXPECT().ExecAs(gomock.Any(), "new-test-container-id", "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
 			mCCLI.EXPECT().Copy(gomock.Any(), "new-test-container-id", coderBin, "/.coder-agent/coder").Return(nil),
 			mCCLI.EXPECT().ExecAs(gomock.Any(), "new-test-container-id", "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), "new-test-container-id", "root", "/bin/sh", "-c", "chown $(id -u):$(id -g) /.coder-agent/coder").Return(nil, nil),
 		)
 
 		fakeDCCLI.readConfig.MergedConfiguration.Customizations.Coder = []agentcontainers.CoderCustomization{
@@ -1632,7 +1635,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithSubAgentClient(fakeSAC),
 			agentcontainers.WithDevcontainerCLI(&fakeDevcontainerCLI{}),
 		)
-		api.Init()
+		api.Start()
 		defer api.Close()
 
 		tickerTrap.MustWait(ctx).MustRelease(ctx)
@@ -1941,6 +1944,7 @@ func TestAPI(t *testing.T) {
 					mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
 					mCCLI.EXPECT().Copy(gomock.Any(), testContainer.ID, coderBin, "/.coder-agent/coder").Return(nil),
 					mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
+					mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "/bin/sh", "-c", "chown $(id -u):$(id -g) /.coder-agent/coder").Return(nil, nil),
 				)
 
 				mClock.Set(time.Now()).MustWait(ctx)
@@ -1954,7 +1958,7 @@ func TestAPI(t *testing.T) {
 					agentcontainers.WithSubAgentURL("test-subagent-url"),
 					agentcontainers.WithWatcher(watcher.NewNoop()),
 				)
-				api.Init()
+				api.Start()
 				defer api.Close()
 
 				// Close before api.Close() defer to avoid deadlock after test.
@@ -2034,6 +2038,7 @@ func TestAPI(t *testing.T) {
 			mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
 			mCCLI.EXPECT().Copy(gomock.Any(), testContainer.ID, coderBin, "/.coder-agent/coder").Return(nil),
 			mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "/bin/sh", "-c", "chown $(id -u):$(id -g) /.coder-agent/coder").Return(nil, nil),
 		)
 
 		mClock.Set(time.Now()).MustWait(ctx)
@@ -2047,7 +2052,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithSubAgentURL("test-subagent-url"),
 			agentcontainers.WithWatcher(watcher.NewNoop()),
 		)
-		api.Init()
+		api.Start()
 		defer api.Close()
 
 		// Close before api.Close() defer to avoid deadlock after test.
@@ -2138,6 +2143,7 @@ func TestAPI(t *testing.T) {
 			mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
 			mCCLI.EXPECT().Copy(gomock.Any(), testContainer.ID, coderBin, "/.coder-agent/coder").Return(nil),
 			mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
+			mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "/bin/sh", "-c", "chown $(id -u):$(id -g) /.coder-agent/coder").Return(nil, nil),
 		)
 
 		mClock.Set(time.Now()).MustWait(ctx)
@@ -2152,7 +2158,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithWatcher(watcher.NewNoop()),
 			agentcontainers.WithManifestInfo("test-user", "test-workspace", "test-parent-agent"),
 		)
-		api.Init()
+		api.Start()
 		defer api.Close()
 
 		// Close before api.Close() defer to avoid deadlock after test.
@@ -2222,7 +2228,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithExecer(fakeExec),
 			agentcontainers.WithCommandEnv(commandEnv),
 		)
-		api.Init()
+		api.Start()
 		defer api.Close()
 
 		// Call RefreshContainers directly to trigger CommandEnv usage.
@@ -2312,12 +2318,15 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithWatcher(fWatcher),
 			agentcontainers.WithClock(mClock),
 		)
-		api.Init()
+		api.Start()
 		defer func() {
 			close(fakeSAC.createErrC)
 			close(fakeSAC.deleteErrC)
 			api.Close()
 		}()
+
+		err := api.RefreshContainers(ctx)
+		require.NoError(t, err, "RefreshContainers should not error")
 
 		r := chi.NewRouter()
 		r.Mount("/", api.Routes())
@@ -2329,7 +2338,7 @@ func TestAPI(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code)
 
 		var response codersdk.WorkspaceAgentListContainersResponse
-		err := json.NewDecoder(rec.Body).Decode(&response)
+		err = json.NewDecoder(rec.Body).Decode(&response)
 		require.NoError(t, err)
 
 		assert.Empty(t, response.Devcontainers, "ignored devcontainer should not be in response when ignore=true")
@@ -2513,7 +2522,7 @@ func TestSubAgentCreationWithNameRetry(t *testing.T) {
 				agentcontainers.WithSubAgentClient(fSAC),
 				agentcontainers.WithWatcher(watcher.NewNoop()),
 			)
-			api.Init()
+			api.Start()
 			defer api.Close()
 
 			tickerTrap.MustWait(ctx).MustRelease(ctx)

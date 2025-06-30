@@ -39,6 +39,23 @@ export const OpenCombobox: Story = {
 	},
 };
 
+export const WithIcons: Story = {
+	args: {
+		options: organizations.map((org) => ({
+			label: org.display_name,
+			value: org.id,
+			icon: org.icon,
+		})),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByPlaceholderText("Select organization"));
+		await waitFor(() =>
+			expect(canvas.getByText("My Organization")).toBeInTheDocument(),
+		);
+	},
+};
+
 export const SelectComboboxItem: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -95,6 +112,52 @@ export const ClearAllComboboxItems: Story = {
 			expect(
 				canvas.getByPlaceholderText("Select organization"),
 			).toBeInTheDocument(),
+		);
+	},
+};
+
+export const WithGroups: Story = {
+	args: {
+		placeholder: "Make a playlist",
+		groupBy: "album",
+		options: [
+			{
+				label: "Photo Facing Water",
+				value: "photo-facing-water",
+				album: "Papillon",
+				icon: "/emojis/1f301.png",
+			},
+			{
+				label: "Mercurial",
+				value: "mercurial",
+				album: "Papillon",
+				icon: "/emojis/1fa90.png",
+			},
+			{
+				label: "Merging",
+				value: "merging",
+				album: "Papillon",
+				icon: "/lol-not-a-real-image.png",
+			},
+			{
+				label: "Flacks",
+				value: "flacks",
+				album: "aBliss",
+				// intentionally omitted icon
+			},
+			{
+				label: "aBliss",
+				value: "abliss",
+				album: "aBliss",
+				// intentionally omitted icon
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByPlaceholderText("Make a playlist"));
+		await waitFor(() =>
+			expect(canvas.getByText("Papillon")).toBeInTheDocument(),
 		);
 	},
 };

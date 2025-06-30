@@ -808,7 +808,6 @@ export type Experiment =
 	| "example"
 	| "notifications"
 	| "web-push"
-	| "workspace-prebuilds"
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
@@ -816,7 +815,6 @@ export const Experiments: Experiment[] = [
 	"example",
 	"notifications",
 	"web-push",
-	"workspace-prebuilds",
 	"workspace-usage",
 ];
 

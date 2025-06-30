@@ -3075,7 +3075,6 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupPrebuilds,
 			YAML:        "reconciliation_interval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
-			Hidden:      ExperimentsSafe.Enabled(ExperimentWorkspacePrebuilds), // Hide setting while this feature is experimental.
 		},
 		{
 			Name:        "Reconciliation Backoff Interval",
@@ -3392,7 +3391,6 @@ const (
 	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
-	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
 )
 
 // ExperimentsKnown should include all experiments defined above.
@@ -3402,16 +3400,13 @@ var ExperimentsKnown = Experiments{
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
 	ExperimentWebPush,
-	ExperimentWorkspacePrebuilds,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsSafe = Experiments{
-	ExperimentWorkspacePrebuilds,
-}
+var ExperimentsSafe = Experiments{}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.

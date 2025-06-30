@@ -433,6 +433,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			const options: Option[] = parameter.options.map((opt) => ({
 				value: opt.value.value,
 				label: opt.name,
+				icon: opt.icon,
 				disable: false,
 			}));
 
