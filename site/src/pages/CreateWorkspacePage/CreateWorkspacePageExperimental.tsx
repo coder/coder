@@ -279,7 +279,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 			<Helmet>
 				<title>{pageTitle(title)}</title>
 			</Helmet>
-			{!latestResponse ||
+			{(!latestResponse && !wsError) ||
 			!templateQuery.data ||
 			isLoadingFormData ||
 			isLoadingExternalAuth ||
