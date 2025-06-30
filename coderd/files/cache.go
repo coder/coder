@@ -154,10 +154,12 @@ func (c *Cache) Acquire(ctx context.Context, db database.Store, fileID uuid.UUID
 		return nil, err
 	}
 
-	// We always run the fetch under a system context and actor, so we need to check the caller's
-	// context manually before returning.
+	// We always run the fetch under a system context and actor, so we need to
+	// check the caller's context (including the actor) manually before returning.
 
-	// Check if the caller's context was canceled
+	// Check if the caller's context was canceled. Even though `Authorize` takes
+	// a context, we still check it manually first because none of our mock
+	// database implementations check for context cancellation.
 	if err := ctx.Err(); err != nil {
 		e.close()
 		return nil, err
