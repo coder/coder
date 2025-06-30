@@ -215,6 +215,7 @@ type data struct {
 
 	// New tables
 	auditLogs                            []database.AuditLog
+	connectionLogs                       []database.ConnectionLog
 	cryptoKeys                           []database.CryptoKey
 	dbcryptKeys                          []database.DBCryptKey
 	files                                []database.File
@@ -2938,6 +2939,10 @@ func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 		Roles:    roles,
 		Groups:   groups,
 	}, nil
+}
+
+func (q *FakeQuerier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
+	return q.GetAuthorizedConnectionLogsOffset(ctx, arg, nil)
 }
 
 func (q *FakeQuerier) GetCoordinatorResumeTokenSigningKey(_ context.Context) (string, error) {
@@ -12227,6 +12232,73 @@ func (q *FakeQuerier) UpsertApplicationName(_ context.Context, data string) erro
 	return nil
 }
 
+func (q *FakeQuerier) UpsertConnectionLog(_ context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.ConnectionLog{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, existing := range q.connectionLogs {
+		if existing.ConnectionID == arg.ConnectionID &&
+			existing.WorkspaceID == arg.WorkspaceID &&
+			existing.AgentName == arg.AgentName {
+			if arg.ConnectionStatus != database.ConnectionStatusDisconnected {
+				return q.connectionLogs[i], nil
+			}
+			// Update existing connection with close time and reason
+			if !q.connectionLogs[i].CloseTime.Valid {
+				q.connectionLogs[i].CloseTime = sql.NullTime{Valid: true, Time: arg.Time}
+			}
+			if !q.connectionLogs[i].CloseReason.Valid {
+				q.connectionLogs[i].CloseReason = arg.CloseReason
+			}
+			if !q.connectionLogs[i].Code.Valid {
+				q.connectionLogs[i].Code = arg.Code
+			}
+			return q.connectionLogs[i], nil
+		}
+	}
+
+	var closeTime sql.NullTime
+	if arg.ConnectionStatus == database.ConnectionStatusDisconnected {
+		closeTime = sql.NullTime{Valid: true, Time: arg.Time}
+	}
+
+	log := database.ConnectionLog{
+		ID:               arg.ID,
+		Time:             arg.Time,
+		OrganizationID:   arg.OrganizationID,
+		WorkspaceOwnerID: arg.WorkspaceOwnerID,
+		WorkspaceID:      arg.WorkspaceID,
+		WorkspaceName:    arg.WorkspaceName,
+		AgentName:        arg.AgentName,
+		Type:             arg.Type,
+		Code:             arg.Code,
+		Ip:               arg.Ip,
+		UserAgent:        arg.UserAgent,
+		UserID:           arg.UserID,
+		SlugOrPort:       arg.SlugOrPort,
+		ConnectionID:     arg.ConnectionID,
+		CloseReason:      arg.CloseReason,
+		CloseTime:        closeTime,
+	}
+
+	q.connectionLogs = append(q.connectionLogs, log)
+	slices.SortFunc(q.connectionLogs, func(a, b database.ConnectionLog) int {
+		if a.Time.Before(b.Time) {
+			return -1
+		} else if a.Time.Equal(b.Time) {
+			return 0
+		}
+		return 1
+	})
+
+	return log, nil
+}
+
 func (q *FakeQuerier) UpsertCoordinatorResumeTokenSigningKey(_ context.Context, value string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -13941,6 +14013,93 @@ func (q *FakeQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg data
 	count := int64(len(logs))
 	for i := range logs {
 		logs[i].Count = count
+	}
+
+	return logs, nil
+}
+
+func (q *FakeQuerier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams, prepared rbac.PreparedAuthorized) ([]database.GetConnectionLogsOffsetRow, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return nil, err
+	}
+
+	// Call this to match the same function calls as the SQL implementation.
+	// It functionally does nothing for filtering.
+	if prepared != nil {
+		_, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+			VariableConverter: regosql.ConnectionLogConverter(),
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if arg.LimitOpt == 0 {
+		// Default to 100 is set in the SQL query.
+		arg.LimitOpt = 100
+	}
+
+	logs := make([]database.GetConnectionLogsOffsetRow, 0, arg.LimitOpt)
+
+	for _, clog := range q.connectionLogs {
+		if arg.OffsetOpt > 0 {
+			arg.OffsetOpt--
+			continue
+		}
+		if prepared != nil && prepared.Authorize(ctx, clog.RBACObject()) != nil {
+			continue
+		}
+
+		workspaceOwner, err := q.getUserByIDNoLock(clog.WorkspaceOwnerID)
+		if err != nil {
+			continue // JOIN on workspace_owner failed
+		}
+		org, err := q.getOrganizationByIDNoLock(clog.OrganizationID)
+		if err != nil {
+			continue // JOIN on organizations failed
+		}
+		workspace, err := q.getWorkspaceByIDNoLock(ctx, clog.WorkspaceID)
+		if err != nil {
+			continue // JOIN on workspaces failed
+		}
+
+		// LEFT JOIN on users
+		var user database.User
+		var userErr error
+		if clog.UserID.Valid {
+			user, userErr = q.getUserByIDNoLock(clog.UserID.UUID)
+		}
+		userValid := clog.UserID.Valid && userErr == nil
+
+		// Append the fully hydrated row
+		logs = append(logs, database.GetConnectionLogsOffsetRow{
+			ConnectionLog:           clog,
+			WorkspaceDeleted:        workspace.Deleted,
+			WorkspaceOwnerUsername:  workspaceOwner.Username,
+			OrganizationName:        org.Name,
+			OrganizationDisplayName: org.DisplayName,
+			OrganizationIcon:        org.Icon,
+			UserUsername:            sql.NullString{String: user.Username, Valid: userValid},
+			UserName:                sql.NullString{String: user.Name, Valid: userValid},
+			UserEmail:               sql.NullString{String: user.Email, Valid: userValid},
+			UserCreatedAt:           sql.NullTime{Time: user.CreatedAt, Valid: userValid},
+			UserUpdatedAt:           sql.NullTime{Time: user.UpdatedAt, Valid: userValid},
+			UserLastSeenAt:          sql.NullTime{Time: user.LastSeenAt, Valid: userValid},
+			UserStatus:              database.NullUserStatus{UserStatus: user.Status, Valid: userValid},
+			UserLoginType:           database.NullLoginType{LoginType: user.LoginType, Valid: userValid},
+			UserRoles:               user.RBACRoles,
+			UserAvatarUrl:           sql.NullString{String: user.AvatarURL, Valid: userValid},
+			UserDeleted:             sql.NullBool{Bool: user.Deleted, Valid: userValid},
+			UserQuietHoursSchedule:  sql.NullString{String: user.QuietHoursSchedule, Valid: userValid},
+		})
+
+		// Apply LIMIT, same as the audit log implementation.
+		if len(logs) >= int(arg.LimitOpt) {
+			break
+		}
 	}
 
 	return logs, nil

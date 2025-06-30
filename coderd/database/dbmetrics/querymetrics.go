@@ -641,6 +641,13 @@ func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID
 	return row, err
 }
 
+func (m queryMetricsStore) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetConnectionLogsOffset(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetConnectionLogsOffset").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetCoordinatorResumeTokenSigningKey(ctx)
@@ -3105,6 +3112,13 @@ func (m queryMetricsStore) UpsertApplicationName(ctx context.Context, value stri
 	return r0
 }
 
+func (m queryMetricsStore) UpsertConnectionLog(ctx context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertConnectionLog(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertConnectionLog").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error {
 	start := time.Now()
 	r0 := m.s.UpsertCoordinatorResumeTokenSigningKey(ctx, value)
@@ -3319,5 +3333,12 @@ func (m queryMetricsStore) GetAuthorizedAuditLogsOffset(ctx context.Context, arg
 	start := time.Now()
 	r0, r1 := m.s.GetAuthorizedAuditLogsOffset(ctx, arg, prepared)
 	m.queryLatencies.WithLabelValues("GetAuthorizedAuditLogsOffset").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams, prepared rbac.PreparedAuthorized) ([]database.GetConnectionLogsOffsetRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizedConnectionLogsOffset(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedConnectionLogsOffset").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
