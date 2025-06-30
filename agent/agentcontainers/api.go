@@ -703,9 +703,10 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 				err := api.maybeInjectSubAgentIntoContainerLocked(ctx, dc)
 				if err != nil {
 					logger.Error(ctx, "inject subagent into container failed", slog.Error(err))
+					dc.Error = err.Error()
+				} else {
+					dc.Error = ""
 				}
-
-				dc.Error = err.Error()
 			}
 
 		case dc.Container == nil:
