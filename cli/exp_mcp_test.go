@@ -793,8 +793,9 @@ func TestExpMcpReporter(t *testing.T) {
 	}
 
 	runs := []struct {
-		name  string
-		tests []test
+		name            string
+		tests           []test
+		disableAgentAPI bool
 	}{
 		// In this run the AI agent starts with a state change but forgets to update
 		// that it finished.
@@ -954,6 +955,29 @@ func TestExpMcpReporter(t *testing.T) {
 				},
 			},
 		},
+		// When AgentAPI is not being used, we accept agent state updates as-is.
+		{
+			name: "KeepAgentState",
+			tests: []test{
+				{
+					state:   codersdk.WorkspaceAppStatusStateWorking,
+					summary: "doing work",
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateWorking,
+						Message: "doing work",
+					},
+				},
+				{
+					state:   codersdk.WorkspaceAppStatusStateIdle,
+					summary: "finished",
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateIdle,
+						Message: "finished",
+					},
+				},
+			},
+			disableAgentAPI: true,
+		},
 	}
 
 	for _, run := range runs {
@@ -980,25 +1004,6 @@ func TestExpMcpReporter(t *testing.T) {
 				return a
 			}).Do()
 
-			// Mock the AI AgentAPI server.
-			listening := make(chan func(sse codersdk.ServerSentEvent) error)
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				send, closed, err := httpapi.ServerSentEventSender(w, r)
-				if err != nil {
-					httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
-						Message: "Internal error setting up server-sent events.",
-						Detail:  err.Error(),
-					})
-					return
-				}
-				// Send initial message.
-				send(*makeMessageEvent(0, agentapi.RoleAgent))
-				listening <- send
-				<-closed
-			}))
-			t.Cleanup(srv.Close)
-			aiAgentAPIURL := srv.URL
-
 			// Watch the workspace for changes.
 			watcher, err := client.WatchWorkspace(ctx, r.Workspace.ID)
 			require.NoError(t, err)
@@ -1019,15 +1024,39 @@ func TestExpMcpReporter(t *testing.T) {
 				}
 			}
 
-			inv, _ := clitest.New(t,
+			args := []string{
 				"exp", "mcp", "server",
-				// We need the agent credentials, AI AgentAPI url, and a slug for reporting.
+				// We need the agent credentials, AI AgentAPI url (if not
+				// disabled), and a slug for reporting.
 				"--agent-url", client.URL.String(),
 				"--agent-token", r.AgentToken,
 				"--app-status-slug", "vscode",
-				"--ai-agentapi-url", aiAgentAPIURL,
 				"--allowed-tools=coder_report_task",
-			)
+			}
+
+			// Mock the AI AgentAPI server.
+			listening := make(chan func(sse codersdk.ServerSentEvent) error)
+			if !run.disableAgentAPI {
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					send, closed, err := httpapi.ServerSentEventSender(w, r)
+					if err != nil {
+						httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+							Message: "Internal error setting up server-sent events.",
+							Detail:  err.Error(),
+						})
+						return
+					}
+					// Send initial message.
+					send(*makeMessageEvent(0, agentapi.RoleAgent))
+					listening <- send
+					<-closed
+				}))
+				t.Cleanup(srv.Close)
+				aiAgentAPIURL := srv.URL
+				args = append(args, "--ai-agentapi-url", aiAgentAPIURL)
+			}
+
+			inv, _ := clitest.New(t, args...)
 			inv = inv.WithContext(ctx)
 
 			pty := ptytest.New(t)
@@ -1050,7 +1079,10 @@ func TestExpMcpReporter(t *testing.T) {
 			_ = pty.ReadLine(ctx) // ignore echo
 			_ = pty.ReadLine(ctx) // ignore init response
 
-			sender := <-listening
+			var sender func(sse codersdk.ServerSentEvent) error
+			if !run.disableAgentAPI {
+				sender = <-listening
+			}
 
 			for _, test := range run.tests {
 				if test.event != nil {

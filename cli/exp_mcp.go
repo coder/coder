@@ -676,14 +676,19 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 	// Add tool dependencies.
 	toolOpts := []func(*toolsdk.Deps){
 		toolsdk.WithTaskReporter(func(args toolsdk.ReportTaskArgs) error {
+			// The agent does not reliably report its status correctly.  If AgentAPI
+			// is enabled, we will always set the status to "working" when we get an
+			// MCP message, and rely on the screen watcher to eventually catch the
+			// idle state.
+			state := codersdk.WorkspaceAppStatusStateWorking
+			if s.aiAgentAPIClient == nil {
+				state = codersdk.WorkspaceAppStatusState(args.State)
+			}
 			return s.queue.Push(taskReport{
 				link:         args.Link,
 				selfReported: true,
-				// The agent does not reliably report its status correctly.  We will
-				// always set the status to "working" when we get an MCP message, and
-				// rely on the screen watcher to eventually catch the idle state.
-				state:   codersdk.WorkspaceAppStatusStateWorking,
-				summary: args.Summary,
+				state:        state,
+				summary:      args.Summary,
 			})
 		}),
 	}
