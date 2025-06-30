@@ -102,6 +102,43 @@ func TestCancelledFetch(t *testing.T) {
 	})
 }
 
+func TestConcurrentFetch(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+
+	// Only allow one call, which should succeed
+	dbM := dbmock.NewMockStore(gomock.NewController(t))
+	dbM.EXPECT().GetFileByID(gomock.Any(), gomock.Any()).DoAndReturn(func(mTx context.Context, fileID uuid.UUID) (database.File, error) {
+		return database.File{ID: fileID}, nil
+	})
+
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	//nolint:gocritic // Unit testing
+	ctx := dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort))
+
+	// Expect 2 calls to Acquire before we continue the test
+	var hold sync.WaitGroup
+	hold.Add(2)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	for range 2 {
+		go func() {
+			hold.Done()
+			hold.Wait()
+			_, err := cache.Acquire(ctx, dbM, fileID)
+			require.NoError(t, err)
+			wg.Done()
+		}()
+	}
+
+	// Wait for both go routines to assert their errors and finish.
+	wg.Wait()
+	require.Equal(t, 1, cache.Count())
+}
+
 // nolint:paralleltest,tparallel // Serially testing is easier
 func TestCacheRBAC(t *testing.T) {
 	t.Parallel()
