@@ -2596,3 +2596,82 @@ func fakeContainer(t *testing.T, mut ...func(*codersdk.WorkspaceAgentContainer))
 	}
 	return ct
 }
+
+func TestWithDevcontainersNameGeneration(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("Dev Container tests are not supported on Windows")
+	}
+
+	devcontainers := []codersdk.WorkspaceAgentDevcontainer{
+		{
+			ID:              uuid.New(),
+			Name:            "original-name",
+			WorkspaceFolder: "/home/coder/foo/project",
+			ConfigPath:      "/home/coder/foo/project/.devcontainer/devcontainer.json",
+		},
+		{
+			ID:              uuid.New(),
+			Name:            "another-name",
+			WorkspaceFolder: "/home/coder/bar/project",
+			ConfigPath:      "/home/coder/bar/project/.devcontainer/devcontainer.json",
+		},
+	}
+
+	scripts := []codersdk.WorkspaceAgentScript{
+		{ID: devcontainers[0].ID, LogSourceID: uuid.New()},
+		{ID: devcontainers[1].ID, LogSourceID: uuid.New()},
+	}
+
+	logger := testutil.Logger(t)
+
+	// This should trigger the WithDevcontainers code path where names are generated
+	api := agentcontainers.NewAPI(logger,
+		agentcontainers.WithDevcontainers(devcontainers, scripts),
+		agentcontainers.WithContainerCLI(&fakeContainerCLI{
+			containers: codersdk.WorkspaceAgentListContainersResponse{
+				Containers: []codersdk.WorkspaceAgentContainer{
+					fakeContainer(t, func(c *codersdk.WorkspaceAgentContainer) {
+						c.ID = "some-container-id-1"
+						c.FriendlyName = "container-name-1"
+						c.Labels[agentcontainers.DevcontainerLocalFolderLabel] = "/home/coder/baz/project"
+						c.Labels[agentcontainers.DevcontainerConfigFileLabel] = "/home/coder/baz/project/.devcontainer/devcontainer.json"
+					}),
+				},
+			},
+		}),
+		agentcontainers.WithDevcontainerCLI(&fakeDevcontainerCLI{}),
+		agentcontainers.WithSubAgentClient(&fakeSubAgentClient{}),
+		agentcontainers.WithWatcher(watcher.NewNoop()),
+	)
+	defer api.Close()
+	api.Start()
+
+	r := chi.NewRouter()
+	r.Mount("/", api.Routes())
+
+	ctx := context.Background()
+
+	err := api.RefreshContainers(ctx)
+	require.NoError(t, err, "RefreshContainers should not error")
+
+	// Initial request returns the initial data.
+	req := httptest.NewRequest(http.MethodGet, "/", nil).
+		WithContext(ctx)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var response codersdk.WorkspaceAgentListContainersResponse
+	err = json.NewDecoder(rec.Body).Decode(&response)
+	require.NoError(t, err)
+
+	// Verify the devcontainers have the expected names.
+	require.Len(t, response.Devcontainers, 3, "should have two devcontainers")
+	assert.NotEqual(t, "original-name", response.Devcontainers[2].Name, "first devcontainer should not keep original name")
+	assert.Equal(t, "project", response.Devcontainers[2].Name, "first devcontainer should use the project folder name")
+	assert.NotEqual(t, "another-name", response.Devcontainers[0].Name, "second devcontainer should not keep original name")
+	assert.Equal(t, "bar-project", response.Devcontainers[0].Name, "second devcontainer should has a collision and uses the folder name with a prefix")
+	assert.Equal(t, "baz-project", response.Devcontainers[1].Name, "third devcontainer should use the folder name with a prefix since it collides with the first two")
+}
