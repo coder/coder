@@ -1,6 +1,7 @@
 # Coder Desktop
 
-Coder Desktop provides seamless access to your remote workspaces without CLI installation or manual port forwarding. Connect to workspace services using simple hostnames like `myworkspace.coder`, launch native applications with one click, and synchronize files between local and remote environments.
+Coder Desktop provides seamless access to your remote workspaces without the need to install a CLI or configure manual port forwarding.
+Connect to workspace services using simple hostnames like `myworkspace.coder`, launch native applications with one click, and synchronize files between local and remote environments.
 
 > [!NOTE]
 > Coder Desktop requires a Coder deployment running [v2.20.0](https://github.com/coder/coder/releases/tag/v2.20.0) or later.
