@@ -8,6 +8,7 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import type { StarterTemplatesByTag } from "utils/starterTemplates";
@@ -23,7 +24,19 @@ export const CreateTemplateGalleryPageView: FC<
 > = ({ starterTemplatesByTag, error }) => {
 	return (
 		<Margins>
-			<PageHeader>
+			<PageHeader
+				actions={
+					<a
+						href="https://registry.coder.com"
+						target="_blank"
+						rel="noopener noreferrer"
+						css={styles.registryLink}
+					>
+						Browse the Coder Registry
+						<ExternalLinkIcon className="size-4" />
+					</a>
+				}
+			>
 				<PageHeaderTitle>Create a Template</PageHeaderTitle>
 			</PageHeader>
 			<Stack spacing={8}>
@@ -66,39 +79,6 @@ export const CreateTemplateGalleryPageView: FC<
 											<h4 css={styles.cardTitle}>Upload Template</h4>
 											<span css={styles.cardDescription}>
 												Get started by uploading an existing template
-											</span>
-										</div>
-									</Stack>
-								</CardContent>
-							</CardActionArea>
-						</Card>
-						<Card variant="outlined" css={{ width: 320, borderRadius: 6 }}>
-							<CardActionArea
-								component="a"
-								href="https://registry.coder.com"
-								target="_blank"
-								rel="noopener noreferrer"
-								sx={{ height: 115, padding: 1 }}
-							>
-								<CardContent>
-									<Stack
-										direction="row"
-										spacing={3}
-										css={{ alignItems: "center" }}
-									>
-										<div css={styles.icon}>
-											<ExternalImage
-												src="/emojis/1f4da.png"
-												css={{
-													width: "100%",
-													height: "100%",
-												}}
-											/>
-										</div>
-										<div>
-											<h4 css={styles.cardTitle}>Browse Templates</h4>
-											<span css={styles.cardDescription}>
-												Discover community templates on the Coder registry
 											</span>
 										</div>
 									</Stack>
@@ -151,5 +131,20 @@ const styles = {
 		color: theme.palette.text.secondary,
 		width: 20,
 		height: 20,
+	}),
+
+	registryLink: (theme) => ({
+		display: "flex",
+		alignItems: "center",
+		gap: 8,
+		color: theme.palette.text.secondary,
+		textDecoration: "none",
+		fontSize: 14,
+		fontWeight: 500,
+
+		"&:hover": {
+			color: theme.palette.text.primary,
+			textDecoration: "underline",
+		},
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
