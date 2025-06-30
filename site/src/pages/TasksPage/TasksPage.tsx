@@ -37,6 +37,7 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { useAuthenticated } from "hooks";
 import { useExternalAuth } from "hooks/useExternalAuth";
 import { RotateCcwIcon, SendIcon } from "lucide-react";
@@ -73,7 +74,10 @@ const TasksPage: FC = () => {
 			</Helmet>
 			<Margins>
 				<PageHeader>
-					<PageHeaderTitle>Tasks</PageHeaderTitle>
+					<span className="flex flex-row gap-2">
+						<PageHeaderTitle>Tasks</PageHeaderTitle>
+						<FeatureStageBadge contentType={"beta"} size="md" />
+					</span>
 					<PageHeaderSubtitle>Automate tasks with AI</PageHeaderSubtitle>
 				</PageHeader>
 
