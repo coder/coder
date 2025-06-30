@@ -1021,6 +1021,7 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 		api.mu.Lock()
 		dc = api.knownDevcontainers[dc.WorkspaceFolder]
 		dc.Status = codersdk.WorkspaceAgentDevcontainerStatusError
+		dc.Error = err.Error()
 		api.knownDevcontainers[dc.WorkspaceFolder] = dc
 		api.recreateErrorTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "errorTimes")
 		api.mu.Unlock()
@@ -1044,6 +1045,7 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 		}
 	}
 	dc.Dirty = false
+	dc.Error = ""
 	api.recreateSuccessTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "successTimes")
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	api.mu.Unlock()

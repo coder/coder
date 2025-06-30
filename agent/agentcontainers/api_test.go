@@ -3,6 +3,7 @@ package agentcontainers_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -1656,107 +1657,216 @@ func TestAPI(t *testing.T) {
 			t.Skip("Dev Container tests are not supported on Windows (this test uses mocks but fails due to Windows paths)")
 		}
 
-		var (
-			ctx    = testutil.Context(t, testutil.WaitMedium)
-			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-			mClock = quartz.NewMock(t)
-			mCCLI  = acmock.NewMockContainerCLI(gomock.NewController(t))
-			fDCCLI = &fakeDevcontainerCLI{}
-			fSAC   = &fakeSubAgentClient{
-				logger:     logger.Named("fakeSubAgentClient"),
-				createErrC: make(chan error, 1),
-			}
+		t.Run("DuringUp", func(t *testing.T) {
+			t.Parallel()
 
-			containerCreatedAt = time.Now()
-			testContainer      = codersdk.WorkspaceAgentContainer{
-				ID:           "test-container-id",
-				FriendlyName: "test-container",
-				Image:        "test-image",
-				Running:      true,
-				CreatedAt:    containerCreatedAt,
-				Labels: map[string]string{
-					agentcontainers.DevcontainerLocalFolderLabel: "/workspaces",
-					agentcontainers.DevcontainerConfigFileLabel:  "/workspace/.devcontainer/devcontainer.json",
-				},
-			}
-		)
+			var (
+				ctx    = testutil.Context(t, testutil.WaitMedium)
+				logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+				mClock = quartz.NewMock(t)
+				fCCLI  = &fakeContainerCLI{arch: "<none>"}
+				fDCCLI = &fakeDevcontainerCLI{
+					upErrC: make(chan error, 1),
+				}
+				fSAC = &fakeSubAgentClient{
+					logger: logger.Named("fakeSubAgentClient"),
+				}
 
-		coderBin, err := os.Executable()
-		require.NoError(t, err)
+				testDevcontainer = codersdk.WorkspaceAgentDevcontainer{
+					ID:              uuid.New(),
+					Name:            "test-devcontainer",
+					WorkspaceFolder: "/workspaces/project",
+					ConfigPath:      "/workspaces/project/.devcontainer/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				}
+			)
 
-		// Mock the `List` function to always return the test container.
-		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
-			Containers: []codersdk.WorkspaceAgentContainer{testContainer},
-		}, nil).AnyTimes()
+			mClock.Set(time.Now()).MustWait(ctx)
+			tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+			nowRecreateErrorTrap := mClock.Trap().Now("recreate", "errorTimes")
+			nowRecreateSuccessTrap := mClock.Trap().Now("recreate", "successTimes")
 
-		// We're going to force the container CLI to fail, which will allow us to test the
-		// error handling.
-		simulatedError := xerrors.New("simulated error")
-		mCCLI.EXPECT().DetectArchitecture(gomock.Any(), testContainer.ID).Return("", simulatedError).Times(1)
+			api := agentcontainers.NewAPI(logger,
+				agentcontainers.WithClock(mClock),
+				agentcontainers.WithContainerCLI(fCCLI),
+				agentcontainers.WithDevcontainerCLI(fDCCLI),
+				agentcontainers.WithDevcontainers(
+					[]codersdk.WorkspaceAgentDevcontainer{testDevcontainer},
+					[]codersdk.WorkspaceAgentScript{{ID: testDevcontainer.ID, LogSourceID: uuid.New()}},
+				),
+				agentcontainers.WithSubAgentClient(fSAC),
+				agentcontainers.WithSubAgentURL("test-subagent-url"),
+				agentcontainers.WithWatcher(watcher.NewNoop()),
+			)
+			api.Start()
+			defer func() {
+				close(fDCCLI.upErrC)
+				api.Close()
+			}()
 
-		mClock.Set(containerCreatedAt).MustWait(ctx)
-		tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+			r := chi.NewRouter()
+			r.Mount("/", api.Routes())
 
-		api := agentcontainers.NewAPI(logger,
-			agentcontainers.WithClock(mClock),
-			agentcontainers.WithContainerCLI(mCCLI),
-			agentcontainers.WithDevcontainerCLI(fDCCLI),
-			agentcontainers.WithSubAgentClient(fSAC),
-			agentcontainers.WithSubAgentURL("test-subagent-url"),
-			agentcontainers.WithWatcher(watcher.NewNoop()),
-		)
-		api.Start()
-		defer func() {
-			close(fSAC.createErrC)
-			api.Close()
-		}()
+			tickerTrap.MustWait(ctx).MustRelease(ctx)
+			tickerTrap.Close()
 
-		r := chi.NewRouter()
-		r.Mount("/", api.Routes())
+			// Given: We send a 'recreate' request.
+			req := httptest.NewRequest(http.MethodPost, "/devcontainers/"+testDevcontainer.ID.String()+"/recreate", nil)
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+			require.Equal(t, http.StatusAccepted, rec.Code)
 
-		// Given: We allow an attempt at creation to occur.
-		tickerTrap.MustWait(ctx).MustRelease(ctx)
-		tickerTrap.Close()
+			// Given: We simulate an error running `devcontainer up`
+			simulatedError := errors.New("simulated error")
+			testutil.RequireSend(ctx, t, fDCCLI.upErrC, simulatedError)
 
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		rec := httptest.NewRecorder()
-		r.ServeHTTP(rec, req)
-		require.Equal(t, http.StatusOK, rec.Code)
+			nowRecreateErrorTrap.MustWait(ctx).MustRelease(ctx)
+			nowRecreateErrorTrap.Close()
 
-		var response codersdk.WorkspaceAgentListContainersResponse
-		err = json.NewDecoder(rec.Body).Decode(&response)
-		require.NoError(t, err)
+			req = httptest.NewRequest(http.MethodGet, "/", nil)
+			rec = httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+			require.Equal(t, http.StatusOK, rec.Code)
 
-		// Then: We expect that there will be an error associated with the devcontainer.
-		require.Len(t, response.Devcontainers, 1)
-		require.Equal(t, "detect architecture: simulated error", response.Devcontainers[0].Error)
+			var response codersdk.WorkspaceAgentListContainersResponse
+			err := json.NewDecoder(rec.Body).Decode(&response)
+			require.NoError(t, err)
 
-		gomock.InOrder(
-			mCCLI.EXPECT().DetectArchitecture(gomock.Any(), testContainer.ID).Return(runtime.GOARCH, nil),
-			mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
-			mCCLI.EXPECT().Copy(gomock.Any(), testContainer.ID, coderBin, "/.coder-agent/coder").Return(nil),
-			mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
-			mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "/bin/sh", "-c", "chown $(id -u):$(id -g) /.coder-agent/coder").Return(nil, nil),
-		)
+			// Then: We expect that there will be an error associated with the devcontainer.
+			require.Len(t, response.Devcontainers, 1)
+			require.Equal(t, "simulated error", response.Devcontainers[0].Error)
 
-		// Given: We allow creation to succeed.
-		testutil.RequireSend(ctx, t, fSAC.createErrC, nil)
+			// Given: We send another 'recreate' request.
+			req = httptest.NewRequest(http.MethodPost, "/devcontainers/"+testDevcontainer.ID.String()+"/recreate", nil)
+			rec = httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+			require.Equal(t, http.StatusAccepted, rec.Code)
 
-		_, aw := mClock.AdvanceNext()
-		aw.MustWait(ctx)
+			// Given: We allow `devcontainer up` to succeed.
+			testutil.RequireSend(ctx, t, fDCCLI.upErrC, nil)
 
-		req = httptest.NewRequest(http.MethodGet, "/", nil)
-		rec = httptest.NewRecorder()
-		r.ServeHTTP(rec, req)
-		require.Equal(t, http.StatusOK, rec.Code)
+			nowRecreateSuccessTrap.MustWait(ctx).MustRelease(ctx)
+			nowRecreateSuccessTrap.Close()
 
-		response = codersdk.WorkspaceAgentListContainersResponse{}
-		err = json.NewDecoder(rec.Body).Decode(&response)
-		require.NoError(t, err)
+			req = httptest.NewRequest(http.MethodGet, "/", nil)
+			rec = httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+			require.Equal(t, http.StatusOK, rec.Code)
 
-		// Then: We expect that the error will be gone
-		require.Len(t, response.Devcontainers, 1)
-		require.Equal(t, "", response.Devcontainers[0].Error)
+			response = codersdk.WorkspaceAgentListContainersResponse{}
+			err = json.NewDecoder(rec.Body).Decode(&response)
+			require.NoError(t, err)
+
+			// Then: We expect that there will be no error associated with the devcontainer.
+			require.Len(t, response.Devcontainers, 1)
+			require.Equal(t, "", response.Devcontainers[0].Error)
+		})
+
+		t.Run("DuringInjection", func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				ctx    = testutil.Context(t, testutil.WaitMedium)
+				logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+				mClock = quartz.NewMock(t)
+				mCCLI  = acmock.NewMockContainerCLI(gomock.NewController(t))
+				fDCCLI = &fakeDevcontainerCLI{}
+				fSAC   = &fakeSubAgentClient{
+					logger:     logger.Named("fakeSubAgentClient"),
+					createErrC: make(chan error, 1),
+				}
+
+				containerCreatedAt = time.Now()
+				testContainer      = codersdk.WorkspaceAgentContainer{
+					ID:           "test-container-id",
+					FriendlyName: "test-container",
+					Image:        "test-image",
+					Running:      true,
+					CreatedAt:    containerCreatedAt,
+					Labels: map[string]string{
+						agentcontainers.DevcontainerLocalFolderLabel: "/workspaces",
+						agentcontainers.DevcontainerConfigFileLabel:  "/workspace/.devcontainer/devcontainer.json",
+					},
+				}
+			)
+
+			coderBin, err := os.Executable()
+			require.NoError(t, err)
+
+			// Mock the `List` function to always return the test container.
+			mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
+				Containers: []codersdk.WorkspaceAgentContainer{testContainer},
+			}, nil).AnyTimes()
+
+			// We're going to force the container CLI to fail, which will allow us to test the
+			// error handling.
+			simulatedError := xerrors.New("simulated error")
+			mCCLI.EXPECT().DetectArchitecture(gomock.Any(), testContainer.ID).Return("", simulatedError).Times(1)
+
+			mClock.Set(containerCreatedAt).MustWait(ctx)
+			tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+
+			api := agentcontainers.NewAPI(logger,
+				agentcontainers.WithClock(mClock),
+				agentcontainers.WithContainerCLI(mCCLI),
+				agentcontainers.WithDevcontainerCLI(fDCCLI),
+				agentcontainers.WithSubAgentClient(fSAC),
+				agentcontainers.WithSubAgentURL("test-subagent-url"),
+				agentcontainers.WithWatcher(watcher.NewNoop()),
+			)
+			api.Start()
+			defer func() {
+				close(fSAC.createErrC)
+				api.Close()
+			}()
+
+			r := chi.NewRouter()
+			r.Mount("/", api.Routes())
+
+			// Given: We allow an attempt at creation to occur.
+			tickerTrap.MustWait(ctx).MustRelease(ctx)
+			tickerTrap.Close()
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+			require.Equal(t, http.StatusOK, rec.Code)
+
+			var response codersdk.WorkspaceAgentListContainersResponse
+			err = json.NewDecoder(rec.Body).Decode(&response)
+			require.NoError(t, err)
+
+			// Then: We expect that there will be an error associated with the devcontainer.
+			require.Len(t, response.Devcontainers, 1)
+			require.Equal(t, "detect architecture: simulated error", response.Devcontainers[0].Error)
+
+			gomock.InOrder(
+				mCCLI.EXPECT().DetectArchitecture(gomock.Any(), testContainer.ID).Return(runtime.GOARCH, nil),
+				mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
+				mCCLI.EXPECT().Copy(gomock.Any(), testContainer.ID, coderBin, "/.coder-agent/coder").Return(nil),
+				mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
+				mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "/bin/sh", "-c", "chown $(id -u):$(id -g) /.coder-agent/coder").Return(nil, nil),
+			)
+
+			// Given: We allow creation to succeed.
+			testutil.RequireSend(ctx, t, fSAC.createErrC, nil)
+
+			_, aw := mClock.AdvanceNext()
+			aw.MustWait(ctx)
+
+			req = httptest.NewRequest(http.MethodGet, "/", nil)
+			rec = httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+			require.Equal(t, http.StatusOK, rec.Code)
+
+			response = codersdk.WorkspaceAgentListContainersResponse{}
+			err = json.NewDecoder(rec.Body).Decode(&response)
+			require.NoError(t, err)
+
+			// Then: We expect that the error will be gone
+			require.Len(t, response.Devcontainers, 1)
+			require.Equal(t, "", response.Devcontainers[0].Error)
+		})
 	})
 
 	t.Run("Create", func(t *testing.T) {
