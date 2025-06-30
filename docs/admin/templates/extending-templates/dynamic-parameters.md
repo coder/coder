@@ -112,7 +112,9 @@ The "Options" column in the table below indicates whether the form type requires
 
 All single-select parameters with options may now use the `form_type=\"dropdown\"` attribute for better organization.
 
-```
+[Try dropdown lists on the Parameter Playground](https://playground.coder.app/parameters/kgNBpjnz7x)
+
+```terraform
 locals {
   ides = [
     "VS Code",
