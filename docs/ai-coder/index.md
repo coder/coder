@@ -16,4 +16,4 @@ In cases where the IDE is secondary, such as protyping or long-running backgroun
 
 ![Coder Tasks UI](../images/guides/ai-agents/tasks-ui.png)
 
-[Learn more about Coder Tasks](./tasks.md)
+[Learn more about Coder Tasks](./tasks.md) to how to get started and best practices.
