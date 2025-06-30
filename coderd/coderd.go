@@ -972,6 +972,10 @@ func New(options *Options) *API {
 		r.Route("/aitasks", func(r chi.Router) {
 			r.Get("/prompts", api.aiTasksPrompts)
 		})
+		r.Route("/mcp", func(r chi.Router) {
+			// MCP HTTP transport endpoint with mandatory authentication
+			r.Mount("/http", api.mcpHTTPHandler())
+		})
 	})
 
 	r.Route("/api/v2", func(r chi.Router) {
