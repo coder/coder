@@ -3,8 +3,9 @@ package files
 import (
 	"context"
 
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/google/uuid"
+
+	"github.com/coder/coder/v2/coderd/database"
 )
 
 // LeakCache prevents entries from even being released to enable testing certain
