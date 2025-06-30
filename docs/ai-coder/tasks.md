@@ -33,7 +33,7 @@ Coming soon!
 
 </div>
 
-Coder's [built-in modules for agents](https://registry.coder.com/modules?search=tag%3Aagent) will pre-install the agent alongside [AgentAPI](https://github.com/coder/agentapi), an open source project developed by Coder, is installed alongside the agent inside the workspace for improved status chat, status reporting & updates, regardless of which agent you use.
+Coder's [built-in modules for agents](https://registry.coder.com/modules?search=tag%3Aagent) will pre-install the agent alongside [AgentAPI](https://github.com/coder/agentapi). AgentAPI is an open source project developed by Coder which improves status reporting and the Chat UI, regardless of which agent you use.
 
 ## Getting Started with Tasks
 
