@@ -84,12 +84,14 @@ A malicious workspace could reuse Coder cookies to call the API or interact with
    export CODER_DISABLE_PATH_APPS=true
    ```
 
-By default, Coder mitigates the impact of having path-based apps enabled, but we still recommend disabling it to prevent malicious workspaces accessing other workspaces owned by the same user or performing requests against the Coder API.
+By default, Coder mitigates the impact of having path-based apps enabled, but we still recommend disabling it to prevent
+malicious workspaces accessing other workspaces owned by the same user or performing requests against the Coder API.
 
 If you do keep path-based apps enabled:
 
 - Path-based apps cannot be shared with other users unless you start the Coder server with `--dangerous-allow-path-app-sharing`.
-- Users with the site `owner` role cannot use their admin privileges to access path-based apps for workspace unless the server is started with `--dangerous-allow-path-app-site-owner-access`.
+- Users with the site `owner` role cannot use their admin privileges to access path-based apps for workspace unless the
+  server is started with `--dangerous-allow-path-app-site-owner-access`.
 
 ## PostgreSQL
 
