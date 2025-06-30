@@ -1667,12 +1667,13 @@ func TestAPI(t *testing.T) {
 				createErrC: make(chan error, 1),
 			}
 
-			testContainer = codersdk.WorkspaceAgentContainer{
+			containerCreatedAt = time.Now()
+			testContainer      = codersdk.WorkspaceAgentContainer{
 				ID:           "test-container-id",
 				FriendlyName: "test-container",
 				Image:        "test-image",
 				Running:      true,
-				CreatedAt:    time.Now(),
+				CreatedAt:    containerCreatedAt,
 				Labels: map[string]string{
 					agentcontainers.DevcontainerLocalFolderLabel: "/workspaces",
 					agentcontainers.DevcontainerConfigFileLabel:  "/workspace/.devcontainer/devcontainer.json",
@@ -1693,7 +1694,7 @@ func TestAPI(t *testing.T) {
 		simulatedError := xerrors.New("simulated error")
 		mCCLI.EXPECT().DetectArchitecture(gomock.Any(), testContainer.ID).Return("", simulatedError).Times(1)
 
-		mClock.Set(time.Now()).MustWait(ctx)
+		mClock.Set(containerCreatedAt).MustWait(ctx)
 		tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
 
 		api := agentcontainers.NewAPI(logger,
