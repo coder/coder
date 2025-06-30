@@ -25,7 +25,7 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { TriangleAlertIcon } from "lucide-react";
 import { ChevronLeftIcon } from "lucide-react";
-import { PlayIcon, PlusIcon, XIcon } from "lucide-react";
+import { PlayIcon, PlusIcon, XIcon, ExternalLinkIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
 import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
@@ -274,15 +274,15 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							/>
 						</div>
 
-						<TopbarButton
-							component="a"
+						<a
 							href="https://registry.coder.com"
 							target="_blank"
 							rel="noopener noreferrer"
-							variant="outline"
+							css={styles.registryLink}
 						>
-							Browse Modules
-						</TopbarButton>
+							Browse the Coder Registry
+							<ExternalLinkIcon className="size-4" />
+						</a>
 
 						<TopbarButton
 							variant="default"
@@ -804,4 +804,19 @@ const styles = {
 			},
 		},
 	},
+
+	registryLink: (theme) => ({
+		display: "flex",
+		alignItems: "center",
+		gap: 8,
+		color: theme.palette.text.secondary,
+		textDecoration: "none",
+		fontSize: 14,
+		fontWeight: 500,
+
+		"&:hover": {
+			color: theme.palette.text.primary,
+			textDecoration: "underline",
+		},
+	}),
 } satisfies Record<string, Interpolation<Theme>>;
