@@ -33,7 +33,8 @@ import (
 //   - resource_type: string (enum)
 //   - action: string (enum)
 //   - build_reason: string (enum)
-func AuditLogs(ctx context.Context, db database.Store, query string) (database.GetAuditLogsOffsetParams, []codersdk.ValidationError) {
+func AuditLogs(ctx context.Context, db database.Store, query string) (database.GetAuditLogsOffsetParams,
+	database.CountAuditLogsParams, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
@@ -41,7 +42,7 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 		return nil
 	})
 	if len(errors) > 0 {
-		return database.GetAuditLogsOffsetParams{}, errors
+		return database.GetAuditLogsOffsetParams{}, database.CountAuditLogsParams{}, errors
 	}
 
 	const dateLayout = "2006-01-02"
@@ -63,8 +64,23 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 		filter.DateTo = filter.DateTo.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
 	}
 
+	// Prepare the count filter, which uses the same parameters as the GetAuditLogsOffsetParams.
+	countFilter := database.CountAuditLogsParams{
+		RequestID:      filter.RequestID,
+		ResourceID:     filter.ResourceID,
+		ResourceTarget: filter.ResourceTarget,
+		Username:       filter.Username,
+		Email:          filter.Email,
+		DateFrom:       filter.DateFrom,
+		DateTo:         filter.DateTo,
+		OrganizationID: filter.OrganizationID,
+		ResourceType:   filter.ResourceType,
+		Action:         filter.Action,
+		BuildReason:    filter.BuildReason,
+	}
+
 	parser.ErrorExcessParams(values)
-	return filter, parser.Errors
+	return filter, countFilter, parser.Errors
 }
 
 func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {

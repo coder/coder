@@ -46,7 +46,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.AuditLogs(ctx, api.Database, queryStr)
+	filter, countFilter, errs := searchquery.AuditLogs(ctx, api.Database, queryStr)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid audit search query.",
@@ -62,23 +62,12 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	if filter.Username == "me" {
 		filter.UserID = apiKey.UserID
 		filter.Username = ""
+		countFilter.UserID = apiKey.UserID
+		countFilter.Username = ""
 	}
 
 	// Use the same filters to count the number of audit logs
-	count, err := api.Database.CountAuditLogs(ctx, database.CountAuditLogsParams{
-		ResourceType:   filter.ResourceType,
-		ResourceID:     filter.ResourceID,
-		OrganizationID: filter.OrganizationID,
-		ResourceTarget: filter.ResourceTarget,
-		Action:         filter.Action,
-		UserID:         filter.UserID,
-		Username:       filter.Username,
-		Email:          filter.Email,
-		DateFrom:       filter.DateFrom,
-		DateTo:         filter.DateTo,
-		BuildReason:    filter.BuildReason,
-		RequestID:      filter.RequestID,
-	})
+	count, err := api.Database.CountAuditLogs(ctx, countFilter)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
 		return
