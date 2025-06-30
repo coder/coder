@@ -211,6 +211,25 @@ func WithDevcontainers(devcontainers []codersdk.WorkspaceAgentDevcontainer, scri
 			if dc.Status == "" {
 				dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
 			}
+			logger := api.logger.With(
+				slog.F("devcontainer_id", dc.ID),
+				slog.F("devcontainer_name", dc.Name),
+				slog.F("workspace_folder", dc.WorkspaceFolder),
+				slog.F("config_path", dc.ConfigPath),
+			)
+
+			// Devcontainers have a name originating from Terraform, but
+			// we need to ensure that the name is unique. We will use
+			// the workspace folder name to generate a unique agent name,
+			// and if that fails, we will fall back to the devcontainers
+			// original name.
+			name, usingWorkspaceFolder := api.makeAgentName(dc.WorkspaceFolder, dc.Name)
+			if name != dc.Name {
+				logger = logger.With(slog.F("devcontainer_name", name))
+				logger.Debug(api.ctx, "updating devcontainer name", slog.F("devcontainer_old_name", dc.Name))
+				dc.Name = name
+				api.usingWorkspaceFolderName[dc.WorkspaceFolder] = usingWorkspaceFolder
+			}
 
 			api.knownDevcontainers[dc.WorkspaceFolder] = dc
 			api.devcontainerNames[dc.Name] = true
@@ -223,12 +242,7 @@ func WithDevcontainers(devcontainers []codersdk.WorkspaceAgentDevcontainer, scri
 				}
 			}
 			if api.devcontainerLogSourceIDs[dc.WorkspaceFolder] == uuid.Nil {
-				api.logger.Error(api.ctx, "devcontainer log source ID not found for devcontainer",
-					slog.F("devcontainer_id", dc.ID),
-					slog.F("devcontainer_name", dc.Name),
-					slog.F("workspace_folder", dc.WorkspaceFolder),
-					slog.F("config_path", dc.ConfigPath),
-				)
+				logger.Error(api.ctx, "devcontainer log source ID not found for devcontainer")
 			}
 		}
 	}
@@ -872,7 +886,7 @@ func (api *API) getContainers() (codersdk.WorkspaceAgentListContainersResponse, 
 			devcontainers = append(devcontainers, dc)
 		}
 		slices.SortFunc(devcontainers, func(a, b codersdk.WorkspaceAgentDevcontainer) int {
-			return strings.Compare(a.Name, b.Name)
+			return strings.Compare(a.WorkspaceFolder, b.WorkspaceFolder)
 		})
 	}
 
