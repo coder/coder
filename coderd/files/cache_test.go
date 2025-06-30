@@ -71,44 +71,20 @@ func TestCancelledConcurrentFetch(t *testing.T) {
 
 	cache := files.LeakCache{Cache: files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})}
 
-	// Expect 2 calls to Acquire before we continue the test
-	var (
-		hold sync.WaitGroup
-		wg   sync.WaitGroup
-	)
-
 	//nolint:gocritic // Unit testing
 	ctx := dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort))
 
 	// Cancel the context for the first call; should fail.
-	hold.Add(1)
-	// TODO: wg.Go in Go 1.25
-	wg.Add(1)
-	go func() {
-		hold.Done()
-		hold.Wait()
-		defer wg.Done()
-		ctx, cancel := context.WithCancel(ctx)
-		cancel()
-		_, err := cache.Acquire(ctx, dbM, fileID)
-		require.ErrorIs(t, err, context.Canceled)
-	}()
+	canceledCtx, cancel := context.WithCancel(ctx)
+	cancel()
+	_, err := cache.Acquire(canceledCtx, dbM, fileID)
+	require.ErrorIs(t, err, context.Canceled)
 
 	// Second call, that should succeed without fetching from the database again
 	// since the cache should be populated by the fetch the first request started
 	// even if it doesn't wait for completion.
-	hold.Add(1)
-	// TODO: wg.Go in Go 1.25
-	wg.Add(1)
-	go func() {
-		hold.Done()
-		hold.Wait()
-		defer wg.Done()
-		_, err := cache.Acquire(ctx, dbM, fileID)
-		require.NoError(t, err)
-	}()
-
-	wg.Wait()
+	_, err = cache.Acquire(ctx, dbM, fileID)
+	require.NoError(t, err)
 }
 
 func TestConcurrentFetch(t *testing.T) {
