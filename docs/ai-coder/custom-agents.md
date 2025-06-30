@@ -1,16 +1,6 @@
 # Custom Agents
 
-> [!NOTE]
->
-> This functionality is in beta and is evolving rapidly.
->
-> When using any AI tool for development, exercise a level of caution appropriate to your use case and environment.
-> Always review AI-generated content before using it in critical systems.
->
-> Join our [Discord channel](https://discord.gg/coder) or
-> [contact us](https://coder.com/contact) to get help or share feedback.
-
-Custom agents beyond the ones listed in the [Coder registry](https://registry.coder.com/modules?tag=agent) can be used with Coder.
+Custom agents beyond the ones listed in the [Coder registry](https://registry.coder.com/modules?tag=agent) can be used with Coder Tasks.
 
 ## Prerequisites
 
