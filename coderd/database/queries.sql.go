@@ -6255,14 +6255,10 @@ WITH latest_prebuilds AS (
 	FROM workspaces
 	JOIN LATERAL (
 		SELECT
-			workspace_builds.id,
 			workspace_builds.workspace_id,
 			workspace_builds.template_version_id,
 			workspace_builds.job_id,
-			workspace_builds.template_version_preset_id,
-			workspace_builds.transition,
-			workspace_builds.created_at,
-			provisioner_jobs.job_status
+			workspace_builds.template_version_preset_id
 		FROM workspace_builds
 		JOIN provisioner_jobs ON provisioner_jobs.id = workspace_builds.job_id
 		WHERE workspace_builds.workspace_id = workspaces.id
@@ -6284,7 +6280,7 @@ ready_agents AS (
 	WHERE workspace_agents.deleted = false
 	AND workspace_agents.parent_id IS NULL
 	GROUP BY latest_prebuilds.job_id
-	)
+)
 SELECT
 	latest_prebuilds.workspace_id AS id,
 	latest_prebuilds.name,
