@@ -275,6 +275,16 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 						</div>
 
 						<TopbarButton
+							component="a"
+							href="https://registry.coder.com"
+							target="_blank"
+							rel="noopener noreferrer"
+							variant="outline"
+						>
+							Browse Modules
+						</TopbarButton>
+
+						<TopbarButton
 							variant="default"
 							disabled={dirty || !canPublish}
 							onClick={onPublish}

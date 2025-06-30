@@ -72,6 +72,39 @@ export const CreateTemplateGalleryPageView: FC<
 								</CardContent>
 							</CardActionArea>
 						</Card>
+						<Card variant="outlined" css={{ width: 320, borderRadius: 6 }}>
+							<CardActionArea
+								component="a"
+								href="https://registry.coder.com"
+								target="_blank"
+								rel="noopener noreferrer"
+								sx={{ height: 115, padding: 1 }}
+							>
+								<CardContent>
+									<Stack
+										direction="row"
+										spacing={3}
+										css={{ alignItems: "center" }}
+									>
+										<div css={styles.icon}>
+											<ExternalImage
+												src="/emojis/1f4da.png"
+												css={{
+													width: "100%",
+													height: "100%",
+												}}
+											/>
+										</div>
+										<div>
+											<h4 css={styles.cardTitle}>Browse Templates</h4>
+											<span css={styles.cardDescription}>
+												Discover community templates on the Coder registry
+											</span>
+										</div>
+									</Stack>
+								</CardContent>
+							</CardActionArea>
+						</Card>
 					</div>
 				</Stack>
 
