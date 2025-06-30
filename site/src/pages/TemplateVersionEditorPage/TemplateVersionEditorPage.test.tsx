@@ -335,7 +335,7 @@ describe.each([
 );
 
 test("displays registry link in template editor topbar", async () => {
-	renderEditorPage();
+	renderEditorPage(createTestQueryClient());
 	await waitForLoaderToBeRemoved();
 
 	const registryLink = screen.getByRole("link", {
