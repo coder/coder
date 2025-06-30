@@ -34,7 +34,8 @@ import (
 //   - action: string (enum)
 //   - build_reason: string (enum)
 func AuditLogs(ctx context.Context, db database.Store, query string) (database.GetAuditLogsOffsetParams,
-	database.CountAuditLogsParams, []codersdk.ValidationError) {
+	database.CountAuditLogsParams, []codersdk.ValidationError,
+) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
