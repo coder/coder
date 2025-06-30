@@ -42,6 +42,7 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 		return nil
 	})
 	if len(errors) > 0 {
+		// nolint:exhaustruct // We don't need to initialize these structs because we return an error.
 		return database.GetAuditLogsOffsetParams{}, database.CountAuditLogsParams{}, errors
 	}
 
@@ -65,6 +66,7 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 	}
 
 	// Prepare the count filter, which uses the same parameters as the GetAuditLogsOffsetParams.
+	// nolint:exhaustruct // UserID is not obtained from the query parameters.
 	countFilter := database.CountAuditLogsParams{
 		RequestID:      filter.RequestID,
 		ResourceID:     filter.ResourceID,
