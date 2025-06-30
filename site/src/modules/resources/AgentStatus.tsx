@@ -283,7 +283,7 @@ export const AgentStatus: FC<AgentStatusProps> = ({ agent }) => {
 	);
 };
 
-export const SubAgentStatus: FC<SubAgentStatusProps> = ({ agent }) => {
+const SubAgentStatus: FC<SubAgentStatusProps> = ({ agent }) => {
 	if (!agent) {
 		return <DisconnectedStatus />;
 	}
@@ -305,7 +305,7 @@ export const SubAgentStatus: FC<SubAgentStatusProps> = ({ agent }) => {
 	);
 };
 
-export const DevcontainerStartError: FC<AgentStatusProps> = ({ agent }) => {
+const DevcontainerStartError: FC<AgentStatusProps> = ({ agent }) => {
 	return (
 		<HelpTooltip>
 			<PopoverTrigger role="status" aria-label="Start error">

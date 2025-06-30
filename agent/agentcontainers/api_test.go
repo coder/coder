@@ -3,7 +3,6 @@ package agentcontainers_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -1687,7 +1686,7 @@ func TestAPI(t *testing.T) {
 
 		// We're going to force the container CLI to fail, which will allow us to test the
 		// error handling.
-		var simulatedError = errors.New("simulated error")
+		simulatedError := xerrors.New("simulated error")
 		mCCLI.EXPECT().DetectArchitecture(gomock.Any(), testContainer.ID).Return("", simulatedError).Times(1)
 
 		mClock.Set(time.Now()).MustWait(ctx)

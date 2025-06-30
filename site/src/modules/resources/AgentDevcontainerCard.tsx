@@ -24,6 +24,7 @@ import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import type { FC } from "react";
 import { useEffect } from "react";
 import { useMutation, useQueryClient } from "react-query";
+import { cn } from "utils/cn";
 import { portForwardURL } from "utils/portForward";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentButton } from "./AgentButton";
@@ -34,7 +35,6 @@ import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { SubAgentOutdatedTooltip } from "./SubAgentOutdatedTooltip";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDevContainerButton } from "./VSCodeDevContainerButton/VSCodeDevContainerButton";
-import { cn } from "utils/cn";
 
 type AgentDevcontainerCardProps = {
 	parentAgent: WorkspaceAgent;
