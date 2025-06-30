@@ -12,6 +12,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -21,7 +22,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
-	openai_ssestream "github.com/openai/openai-go/packages/ssestream"
 	"github.com/openai/openai-go/shared/constant"
 	"github.com/tidwall/gjson"
 	"golang.org/x/xerrors"
@@ -45,7 +45,6 @@ func NewBridge(cfg codersdk.AIBridgeConfig, addr string, logger slog.Logger, cli
 	var bridge Bridge
 
 	mux := &http.ServeMux{}
-	// mux.HandleFunc("/v1/chat/completions", bridge.proxyOpenAIRequestPrev)
 	mux.HandleFunc("/v1/chat/completions", bridge.proxyOpenAIRequest)
 	mux.HandleFunc("/v1/messages", bridge.proxyAnthropicRequest)
 
@@ -99,82 +98,6 @@ func (b *ChatCompletionNewParamsWrapper) UnmarshalJSON(raw []byte) error {
 	return nil
 }
 
-// type SSERoundTripper struct {
-//	transport http.RoundTripper
-//}
-//
-// func (s *SSERoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-//	// Use default transport if none specified
-//	transport := s.transport
-//	if transport == nil {
-//		transport = &http.Transport{
-//			DisableCompression:    true,
-//			ResponseHeaderTimeout: 0, // No timeout for SSE
-//			IdleConnTimeout:       300 * time.Second,
-//		}
-//	}
-//
-//	// Modify request for SSE
-//	req.Header.Set("Cache-Control", "no-cache")
-//	req.Header.Set("Accept", "text/event-stream")
-//
-//	resp, err := transport.RoundTrip(req)
-//	if err != nil {
-//		return resp, err
-//	}
-//
-//	resp.Body = wrapResponseBody(resp.Body)
-//
-//	//var buf bytes.Buffer
-//	//teeReader := io.TeeReader(resp.Body, &buf)
-//	////out, err := io.ReadAll(teeReader)
-//	////if err != nil {
-//	////	return nil, xerrors.Errorf("intercept stream: %w", err)
-//	////}
-//	//
-//	//newResp := &http.Response{
-//	//	Body:   io.NopCloser(bytes.NewBuffer(buf.Bytes())),
-//	//	Header: resp.Header,
-//	//}
-//	//
-//	//stream := openai_ssestream.NewStream[openai.ChatCompletionChunk](openai_ssestream.NewDecoder(newResp), nil)
-//	//
-//	//var msg openai.ChatCompletionAccumulator
-//	//for stream.Next() {
-//	//	chunk := stream.Current()
-//	//	msg.AddChunk(chunk)
-//	//
-//	//	fmt.Println(chunk)
-//	//}
-//
-//	return resp, err
-//}
-//
-// func wrapResponseBody(body io.ReadCloser) io.ReadCloser {
-//	pr, pw := io.Pipe()
-//	go func() {
-//		defer pw.Close()
-//		defer body.Close()
-//
-//		var buf bytes.Buffer
-//		teeReader := io.TeeReader(pr, &buf)
-//
-//		// Read the entire stream first
-//		streamData, err := io.ReadAll(teeReader)
-//		if err != nil {
-//			return
-//		}
-//
-//		// Write the original data to the pipe for the client
-//		go func() {
-//			defer pw.Close()
-//			pw.Write(streamData)
-//		}()
-//	}()
-//
-//	return pr
-//}
-
 func (b *Bridge) openAITarget() *url.URL {
 	u := b.cfg.OpenAIBaseURL.String()
 	target, err := url.Parse(u)
@@ -207,16 +130,12 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
 
-	// Establish SSE stream which we will connect to requesting client.
-	// clientStream := NewSSEStream(eventsCh, b.logger.Named("sse-stream"))
-
 	coderdClient, ok := b.clientFn()
 	if !ok {
 		// TODO: log issue.
 		http.Error(w, "could not acquire coderd client", http.StatusInternalServerError)
 		return
 	}
-	_ = coderdClient
 
 	// Parse incoming request, inject tool calls.
 	var in ChatCompletionNewParamsWrapper
@@ -232,6 +151,31 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 		b.logger.Error(r.Context(), "failed to unmarshal request", slog.Error(err))
 		http.Error(w, "failed to unmarshal request", http.StatusInternalServerError)
 		return
+	}
+
+	if len(in.Messages) > 0 {
+		// Find last user message.
+		var msg *openai.ChatCompletionUserMessageParam
+		for i := len(in.Messages) - 1; i >= 0; i-- {
+			m := in.Messages[i]
+			if m.OfUser != nil {
+				msg = m.OfUser
+				break
+			}
+		}
+
+		if msg != nil {
+			message := msg.Content.OfString.String()
+			if isCursor, _ := regexp.MatchString("<user_query>", message); isCursor {
+				message = b.extractCursorUserQuery(message)
+			}
+
+			if _, err = coderdClient.TrackUserPrompts(ctx, &proto.TrackUserPromptsRequest{
+				Prompt: message,
+			}); err != nil {
+				b.logger.Error(r.Context(), "failed to track user prompt", slog.Error(err))
+			}
+		}
 	}
 
 	// Prepend assistant message.
@@ -378,40 +322,6 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 						b.logger.Error(ctx, "failed to send tool chunk", slog.Error(err))
 					}
 
-					// type noOmitChoice struct {
-					//	openai.ChatCompletionChunkChoice
-					//
-					//	Delta openai.ChatCompletionChunkChoiceDelta `json:"delta,required,no_omit"`
-					//}
-					//
-					//type noOmitChunk struct {
-					//	openai.ChatCompletionChunk
-					//	Choices []noOmitChoice `json:"choices,required"`
-					//}
-					//
-					//finishChunk := noOmitChunk{
-					//	ChatCompletionChunk: openai.ChatCompletionChunk{
-					//		ID:                acc.ID,
-					//		Model:             toolRes.Model,
-					//		ServiceTier:       openai.ChatCompletionChunkServiceTier(toolRes.ServiceTier),
-					//		Created:           time.Now().Unix(),
-					//		SystemFingerprint: toolRes.SystemFingerprint,
-					//		Usage:             toolRes.Usage,
-					//		Object:            constant.ValueOf[constant.ChatCompletionChunk](),
-					//	},
-					//	Choices: []noOmitChoice{
-					//		{
-					//			ChatCompletionChunkChoice: openai.ChatCompletionChunkChoice{
-					//				FinishReason: string(openai.CompletionChoiceFinishReasonStop),
-					//			},
-					//			Delta: openai.ChatCompletionChunkChoiceDelta{
-					//				//Role:    "assistant",
-					//				Content: "",
-					//			},
-					//		},
-					//	},
-					//}
-
 					finishChunk := openai.ChatCompletionChunk{
 						ID: acc.ID,
 						Choices: []openai.ChatCompletionChunkChoice{
@@ -438,6 +348,10 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
+			// TODO: clean this up. Once we receive a tool invocation we need to hijack the conversation, since the client
+			// 		 won't be handling the tool call if auto-injected. That means that any subsequent events which wrap
+			//		 up the stream need to be ignored because we send those after the tool call is executed and the result
+			//		 is appended as if it came from the assistant.
 			if _, ok := ignoreSubsequent[acc.ID]; !ok {
 				if err := eventStream.TrySend(streamCtx, chunk); err != nil {
 					b.logger.Error(ctx, "failed to send reflected chunk", slog.Error(err))
@@ -477,201 +391,17 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (b *Bridge) proxyOpenAIRequestPrev(w http.ResponseWriter, r *http.Request) {
-	coderdClient, ok := b.clientFn()
-	if !ok {
-		// TODO: log issue.
-		http.Error(w, "could not acquire coderd client", http.StatusInternalServerError)
-		return
-	}
-
-	var acc openai.ChatCompletionAccumulator
-	proxy, err := NewSSEProxyWithConfig(ProxyConfig{
-		OpenAISession: NewOpenAISession(),
-		Target:        b.openAITarget(),
-		ModifyRequest: func(req *http.Request) {
-			var in ChatCompletionNewParamsWrapper
-
-			body, err := io.ReadAll(req.Body)
-			if err != nil {
-				b.logger.Error(req.Context(), "failed to read body", slog.Error(err))
-				http.Error(w, "failed to read body", http.StatusInternalServerError)
-				return
-			}
-
-			if err = json.Unmarshal(body, &in); err != nil {
-				b.logger.Error(req.Context(), "failed to unmarshal request", slog.Error(err))
-				http.Error(w, "failed to unmarshal request", http.StatusInternalServerError)
-				return
-			}
-
-			in.Tools = []openai.ChatCompletionToolParam{
-				{
-					Function: openai.FunctionDefinitionParam{
-						Name:        "get_weather",
-						Description: openai.String("Get weather at the given location"),
-						Parameters: openai.FunctionParameters{
-							"type": "object",
-							"properties": map[string]interface{}{
-								"location": map[string]string{
-									"type": "string",
-								},
-							},
-							"required": []string{"location"},
-						},
-					},
-				},
-			}
-
-			newBody, err := json.Marshal(in)
-			if err != nil {
-				b.logger.Error(req.Context(), "failed to marshal request", slog.Error(err))
-				http.Error(w, "failed to marshal request", http.StatusInternalServerError)
-				return
-			}
-
-			req.Body = io.NopCloser(bytes.NewReader(newBody))
-		},
-		RequestInterceptFunc: func(req *http.Request, body []byte) error {
-			var msg ChatCompletionNewParamsWrapper
-			err := json.NewDecoder(bytes.NewReader(body)).Decode(&msg)
-			if err != nil {
-				http.Error(w, "could not unmarshal request body", http.StatusBadRequest)
-				return xerrors.Errorf("unmarshal request body: %w", err)
-			}
-			// TODO: robustness
-			if len(msg.Messages) > 0 {
-				latest := msg.Messages[len(msg.Messages)-1]
-				if latest.OfUser != nil {
-					if latest.OfUser.Content.OfString.String() != "" {
-						_, _ = coderdClient.TrackUserPrompts(r.Context(), &proto.TrackUserPromptsRequest{
-							Prompt: strings.TrimSpace(latest.OfUser.Content.OfString.String()),
-						})
-					}
-				}
-			}
-			return nil
-		},
-		ResponseInterceptFunc: func(session *OpenAISession, data []byte, isStreaming bool) ([][]byte, bool, error) {
-			b.logger.Info(r.Context(), "openai response received", slog.F("data", data), slog.F("streaming", isStreaming))
-
-			if !isStreaming {
-				return nil, true, nil
-			}
-
-			response := &http.Response{
-				Body: io.NopCloser(bytes.NewReader(data)),
-			}
-			stream := openai_ssestream.NewStream[openai.ChatCompletionChunk](openai_ssestream.NewDecoder(response), nil)
-
-			var (
-				inputToks, outputToks int64
-			)
-			for stream.Next() {
-				chunk := stream.Current()
-
-				acc.AddChunk(chunk)
-				b.logger.Info(r.Context(), "openai chunk", slog.F("msgID", acc.ID), slog.F("contents", fmt.Sprintf("%+v", acc)))
-
-				if acc.Usage.PromptTokens+acc.Usage.CompletionTokens > 0 {
-					inputToks = acc.Usage.PromptTokens
-					outputToks = acc.Usage.CompletionTokens
-				}
-
-				var foundToolCallDelta bool
-				for _, c := range chunk.Choices {
-					for range c.Delta.ToolCalls {
-						foundToolCallDelta = true
-
-						// Grab values from accumulator instead of delta.
-						for _, ac := range acc.ChatCompletion.Choices {
-							for _, at := range ac.Message.ToolCalls {
-								var (
-									tc *OpenAIToolCall
-									ok bool
-								)
-								if tc, ok = session.toolCallsRequired[at.ID]; !ok {
-									session.toolCallsRequired[at.ID] = &OpenAIToolCall{}
-									tc = session.toolCallsRequired[at.ID]
-								}
-
-								session.toolCallsState[at.ID] = OpenAIToolCallNotReady
-
-								tc.funcName = at.Function.Name
-								args := make(map[string]string)
-								err := json.Unmarshal([]byte(at.Function.Arguments), &args)
-								if err == nil { // Note: inverted.
-									tc.args = args
-								}
-							}
-						}
-					}
-
-					// Once we receive a finish reason of "tool_calls", the API is waiting for the responses for this/these tool(s).
-					// We mark all the tool calls as ready. Once we see observe the [DONE] event, we will execute these tool calls.
-					if c.FinishReason == "tool_calls" {
-						for idx := range session.toolCallsState {
-							session.toolCallsState[idx] = OpenAIToolCallReady
-						}
-					}
-				}
-
-				if foundToolCallDelta {
-					// Don't reflect these events back to client since they contain tool calls.
-					return nil, false, nil
-				}
-			}
-			if err := stream.Err(); err != nil {
-				panic(err)
-			}
-
-			if inputToks+outputToks > 0 {
-				_, _ = coderdClient.TrackTokenUsage(r.Context(), &proto.TrackTokenUsageRequest{
-					MsgId:        acc.ID,
-					InputTokens:  inputToks,
-					OutputTokens: outputToks,
-				})
-			}
-
-			if len(acc.Choices) < 0 {
-				return nil, true, nil
-			}
-
-			var extra [][]byte
-			for idx, t := range session.toolCallsRequired {
-				// TODO: locking.
-				// TODO: index check.
-				session.toolCallsState[idx] = OpenAIToolCallInProgress
-
-				fmt.Printf("EXEC TOOL! %s with %+v\n", t.funcName, t.args)
-				b, _ := json.Marshal(openai.ToolMessage("weather is rainy and cold in cape town today", idx)) // TODO: error handling.
-				extra = append(extra, b)
-
-				session.toolCallsState[idx] = OpenAIToolCallDone
-			}
-
-			return extra, true, nil
-		},
-	})
-	if err != nil {
-		b.logger.Error(r.Context(), "failed to create OpenAI proxy", slog.Error(err))
-		http.Error(w, "failed to create OpenAI proxy", http.StatusInternalServerError)
-		return
-	}
-
-	originalDirector := proxy.Director
-	proxy.Director = func(req *http.Request) {
-		originalDirector(req)
-		// Add OpenAI-specific headers
-		if strings.TrimSpace(req.Header.Get("Authorization")) == "" {
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("OPENAI_API_KEY")))
+func (b *Bridge) extractCursorUserQuery(message string) string {
+	pat := regexp.MustCompile(`<user_query>(?P<content>[\s\S]*?)</user_query>`)
+	match := pat.FindStringSubmatch(message)
+	if match != nil {
+		// Get the named group by index
+		contentIndex := pat.SubexpIndex("content")
+		if contentIndex != -1 {
+			message = match[contentIndex]
 		}
 	}
-
-	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-	proxy.ServeHTTP(w, r)
+	return strings.TrimSpace(message)
 }
 
 func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
