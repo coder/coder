@@ -3716,9 +3716,9 @@ func createPrebuiltWorkspace(
 	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 		Type:           database.ProvisionerJobTypeWorkspaceBuild,
 		OrganizationID: orgID,
-
-		CreatedAt: now.Add(-1 * time.Minute),
-		Error:     jobError,
+		CreatedAt:      now.Add(-1 * time.Minute),
+		CompletedAt:    sql.NullTime{Time: now, Valid: true},
+		Error:          jobError,
 	})
 
 	// create ready agents
@@ -3884,6 +3884,95 @@ func TestWorkspacePrebuildsView(t *testing.T) {
 			workspacePrebuilds := getWorkspacePrebuilds(sqlDB)
 			require.Len(t, workspacePrebuilds, 1)
 			require.Equal(t, tc.expectReady, workspacePrebuilds[0].Ready)
+		})
+	}
+}
+
+func TestGetRunningPrebuiltWorkspaces(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.SkipNow()
+	}
+
+	now := dbtime.Now()
+	orgID := uuid.New()
+	userID := uuid.New()
+
+	testCases := []struct {
+		name           string
+		readyAgents    int
+		notReadyAgents int
+		expectRows     int
+		expectReady    bool
+	}{
+		{
+			name:           "one ready agent",
+			readyAgents:    1,
+			notReadyAgents: 0,
+			expectRows:     1,
+			expectReady:    true,
+		},
+		{
+			name:           "one not ready agent",
+			readyAgents:    0,
+			notReadyAgents: 1,
+			expectRows:     1,
+			expectReady:    false,
+		},
+		{
+			name:           "one ready, one not ready",
+			readyAgents:    1,
+			notReadyAgents: 1,
+			expectRows:     1,
+			expectReady:    false,
+		},
+		{
+			name:           "both ready",
+			readyAgents:    2,
+			notReadyAgents: 0,
+			expectRows:     1,
+			expectReady:    true,
+		},
+		{
+			name:           "five ready, one not ready",
+			readyAgents:    5,
+			notReadyAgents: 1,
+			expectRows:     1,
+			expectReady:    false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			sqlDB := testSQLDB(t)
+			err := migrations.Up(sqlDB)
+			require.NoError(t, err)
+			db := database.New(sqlDB)
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			dbgen.Organization(t, db, database.Organization{
+				ID: orgID,
+			})
+			dbgen.User(t, db, database.User{
+				ID: userID,
+			})
+
+			tmpl := createTemplate(t, db, orgID, userID)
+			tmplV1 := createTmplVersionAndPreset(t, db, tmpl, tmpl.ActiveVersionID, now, nil)
+			createPrebuiltWorkspace(ctx, t, db, tmpl, tmplV1, orgID, now, &createPrebuiltWorkspaceOpts{
+				readyAgents:    tc.readyAgents,
+				notReadyAgents: tc.notReadyAgents,
+			})
+
+			workspacePrebuilds, err := db.GetRunningPrebuiltWorkspaces(ctx)
+			require.NoError(t, err)
+			require.Len(t, workspacePrebuilds, tc.expectRows)
+			if tc.expectRows > 0 {
+				require.Equal(t, tc.expectReady, workspacePrebuilds[0].Ready)
+			}
 		})
 	}
 }
