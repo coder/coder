@@ -1,6 +1,6 @@
 # Coder Tasks (Beta)
 
-Coder Tasks is an interface for running & managing coding agents such as Claude Code and Aider.
+Coder Tasks is an interface for running & managing coding agents such as Claude Code and Aider, powered by Coder workspaces.
 
 ![Tasks UI](../images/guides/ai-agents/tasks-ui.png)
 
