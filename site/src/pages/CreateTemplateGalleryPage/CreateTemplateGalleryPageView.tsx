@@ -5,10 +5,10 @@ import CardContent from "@mui/material/CardContent";
 import Stack from "@mui/material/Stack";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import type { StarterTemplatesByTag } from "utils/starterTemplates";
@@ -26,15 +26,13 @@ export const CreateTemplateGalleryPageView: FC<
 		<Margins>
 			<PageHeader
 				actions={
-					<a
+					<Link
 						href="https://registry.coder.com"
 						target="_blank"
 						rel="noopener noreferrer"
-						css={styles.registryLink}
 					>
 						Browse the Coder Registry
-						<ExternalLinkIcon className="size-4" />
-					</a>
+					</Link>
 				}
 			>
 				<PageHeaderTitle>Create a Template</PageHeaderTitle>
@@ -131,20 +129,5 @@ const styles = {
 		color: theme.palette.text.secondary,
 		width: 20,
 		height: 20,
-	}),
-
-	registryLink: (theme) => ({
-		display: "flex",
-		alignItems: "center",
-		gap: 8,
-		color: theme.palette.text.secondary,
-		textDecoration: "none",
-		fontSize: 14,
-		fontWeight: 500,
-
-		"&:hover": {
-			color: theme.palette.text.primary,
-			textDecoration: "underline",
-		},
 	}),
 } satisfies Record<string, Interpolation<Theme>>;

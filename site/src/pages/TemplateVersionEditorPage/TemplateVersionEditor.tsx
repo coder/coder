@@ -22,10 +22,11 @@ import {
 	TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import { TriangleAlertIcon } from "lucide-react";
 import { ChevronLeftIcon } from "lucide-react";
-import { PlayIcon, PlusIcon, XIcon, ExternalLinkIcon } from "lucide-react";
+import { PlayIcon, PlusIcon, XIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
 import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
@@ -274,15 +275,13 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							/>
 						</div>
 
-						<a
+						<Link
 							href="https://registry.coder.com"
 							target="_blank"
 							rel="noopener noreferrer"
-							css={styles.registryLink}
 						>
 							Browse the Coder Registry
-							<ExternalLinkIcon className="size-4" />
-						</a>
+						</Link>
 
 						<TopbarButton
 							variant="default"
@@ -804,19 +803,4 @@ const styles = {
 			},
 		},
 	},
-
-	registryLink: (theme) => ({
-		display: "flex",
-		alignItems: "center",
-		gap: 8,
-		color: theme.palette.text.secondary,
-		textDecoration: "none",
-		fontSize: 14,
-		fontWeight: 500,
-
-		"&:hover": {
-			color: theme.palette.text.primary,
-			textDecoration: "underline",
-		},
-	}),
 } satisfies Record<string, Interpolation<Theme>>;
