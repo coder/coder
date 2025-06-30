@@ -58,7 +58,7 @@ replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0
 // Adds support for a new Listener from a driver.Connector
 // This lets us use rotating authentication tokens for passwords in connection strings
 // which we use in the awsiamrds package.
-replace github.com/lib/pq => github.com/coder/pq v1.10.5-0.20240813183442-0c420cb5a048
+replace github.com/lib/pq => github.com/coder/pq v1.10.5-0.20250630052411-a259f96b6102
 
 // Removes an init() function that causes terminal sequences to be printed to the web terminal when
 // used in conjunction with agent-exec. See https://github.com/coder/coder/pull/15817
