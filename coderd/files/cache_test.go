@@ -28,78 +28,87 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// TestCancelledFetch runs 2 Acquire calls. The first fails with a ctx.Canceled
-// error. The second call should ignore the first error and try to fetch the file
-// again, which should succeed.
 func TestCancelledFetch(t *testing.T) {
 	t.Parallel()
 
-	t.Run("canceled gets canceled", func(t *testing.T) {
-		fileID := uuid.New()
-		dbM := dbmock.NewMockStore(gomock.NewController(t))
+	fileID := uuid.New()
+	dbM := dbmock.NewMockStore(gomock.NewController(t))
 
-		// The file fetch should succeed.
-		dbM.EXPECT().GetFileByID(gomock.Any(), gomock.Any()).DoAndReturn(func(mTx context.Context, fileID uuid.UUID) (database.File, error) {
-			return database.File{
-				ID:   fileID,
-				Data: make([]byte, 100),
-			}, nil
-		})
+	// The file fetch should succeed.
+	dbM.EXPECT().GetFileByID(gomock.Any(), gomock.Any()).DoAndReturn(func(mTx context.Context, fileID uuid.UUID) (database.File, error) {
+		return database.File{
+			ID:   fileID,
+			Data: make([]byte, 100),
+		}, nil
+	})
 
-		//nolint:gocritic // Unit testing
-		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 
-		// Cancel the context for the first call; should fail.
-		ctx, cancel := context.WithCancel(dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort)))
+	// Cancel the context for the first call; should fail.
+	//nolint:gocritic // Unit testing
+	ctx, cancel := context.WithCancel(dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort)))
+	cancel()
+	_, err := cache.Acquire(ctx, dbM, fileID)
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+// TestCancelledConcurrentFetch runs 2 Acquire calls. The first has a canceled
+// context and will get a ctx.Canceled error. The second call should get a warmfirst error and try to fetch the file
+// again, which should succeed.
+func TestCancelledConcurrentFetch(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+	dbM := dbmock.NewMockStore(gomock.NewController(t))
+
+	// The file fetch should succeed.
+	dbM.EXPECT().GetFileByID(gomock.Any(), gomock.Any()).DoAndReturn(func(mTx context.Context, fileID uuid.UUID) (database.File, error) {
+		return database.File{
+			ID:   fileID,
+			Data: make([]byte, 100),
+		}, nil
+	})
+
+	cache := files.LeakCache{Cache: files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})}
+
+	// Expect 2 calls to Acquire before we continue the test
+	var (
+		hold sync.WaitGroup
+		wg   sync.WaitGroup
+	)
+
+	//nolint:gocritic // Unit testing
+	ctx := dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort))
+
+	// Cancel the context for the first call; should fail.
+	hold.Add(1)
+	// TODO: wg.Go in Go 1.25
+	wg.Add(1)
+	go func() {
+		hold.Done()
+		hold.Wait()
+		defer wg.Done()
+		ctx, cancel := context.WithCancel(ctx)
 		cancel()
 		_, err := cache.Acquire(ctx, dbM, fileID)
-		assert.ErrorIs(t, err, context.Canceled)
-	})
+		require.ErrorIs(t, err, context.Canceled)
+	}()
 
-	t.Run("cancelation doesn't hold up the queue", func(t *testing.T) {
-		t.Skip()
-		fileID := uuid.New()
-		dbM := dbmock.NewMockStore(gomock.NewController(t))
+	// Second call, that should succeed without fetching from the database again
+	// since the cache should be populated by the fetch the first request started
+	// even if it doesn't wait for completion.
+	hold.Add(1)
+	// TODO: wg.Go in Go 1.25
+	wg.Add(1)
+	go func() {
+		hold.Done()
+		hold.Wait()
+		defer wg.Done()
+		_, err := cache.Acquire(ctx, dbM, fileID)
+		require.NoError(t, err)
+	}()
 
-		// The file fetch should succeed.
-		dbM.EXPECT().GetFileByID(gomock.Any(), gomock.Any()).DoAndReturn(func(mTx context.Context, fileID uuid.UUID) (database.File, error) {
-			return database.File{
-				ID:   fileID,
-				Data: make([]byte, 100),
-			}, nil
-		})
-
-		//nolint:gocritic // Unit testing
-		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
-
-		var wg sync.WaitGroup
-
-		// Cancel the context for the first call; should fail.
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			ctx, cancel := context.WithCancel(dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort)))
-			cancel()
-			_, err := cache.Acquire(ctx, dbM, fileID)
-			assert.ErrorIs(t, err, context.Canceled)
-		}()
-
-		// Second call, that should succeed without fetching from the database again
-		// since the cache should be populated by the fetch the first request started
-		// even if it doesn't wait for completion.
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			ctx := dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort))
-			fs, err := cache.Acquire(ctx, dbM, fileID)
-			assert.NoError(t, err)
-			if fs != nil {
-				fs.Close()
-			}
-		}()
-
-		wg.Wait()
-	})
+	wg.Wait()
 }
 
 func TestConcurrentFetch(t *testing.T) {
@@ -118,19 +127,21 @@ func TestConcurrentFetch(t *testing.T) {
 	ctx := dbauthz.AsFileReader(testutil.Context(t, testutil.WaitShort))
 
 	// Expect 2 calls to Acquire before we continue the test
-	var hold sync.WaitGroup
-	hold.Add(2)
-
-	var wg sync.WaitGroup
-	wg.Add(2)
+	var (
+		hold sync.WaitGroup
+		wg   sync.WaitGroup
+	)
 
 	for range 2 {
+		hold.Add(1)
+		// TODO: wg.Go in Go 1.25
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			hold.Done()
 			hold.Wait()
 			_, err := cache.Acquire(ctx, dbM, fileID)
 			require.NoError(t, err)
-			wg.Done()
 		}()
 	}
 
