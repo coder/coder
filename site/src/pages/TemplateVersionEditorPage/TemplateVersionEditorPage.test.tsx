@@ -334,6 +334,18 @@ describe.each([
 	},
 );
 
+test("displays registry link in template editor topbar", async () => {
+	renderEditorPage();
+	await waitForLoaderToBeRemoved();
+
+	const registryLink = screen.getByRole("link", {
+		name: /browse the coder registry/i,
+	});
+	expect(registryLink).toHaveAttribute("href", "https://registry.coder.com");
+	expect(registryLink).toHaveAttribute("target", "_blank");
+	expect(registryLink).toHaveAttribute("rel", "noopener noreferrer");
+});
+
 test("display pending badge and update it to running when status changes", async () => {
 	const MockPendingTemplateVersion = {
 		...MockTemplateVersion,
