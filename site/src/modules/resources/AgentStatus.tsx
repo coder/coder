@@ -337,6 +337,9 @@ export const DevcontainerStatus: FC<DevcontainerStatusProps> = ({
 	agent,
 }) => {
 	if (devcontainer.error) {
+		// When a dev container has an 'error' associated with it,
+		// then we won't have an agent associated with it. This is
+		// why we use the parent agent instead of the sub agent.
 		return <DevcontainerStartError agent={parentAgent} />;
 	}
 
