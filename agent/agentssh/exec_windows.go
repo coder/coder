@@ -2,6 +2,7 @@ package agentssh
 
 import (
 	"context"
+	"os"
 	"syscall"
 
 	"cdr.dev/slog"
