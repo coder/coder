@@ -257,16 +257,16 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 						}}
 					>
 						<span css={{ marginRight: 8, whiteSpace: "nowrap" }}>
-  <Link 
-    href="https://registry.coder.com" 
-    target="_blank" 
-    rel="noopener noreferrer"
-    size="sm"
-  >
-    Browse the Coder Registry
-  </Link>
-</span>
-						
+							<Link
+								href="https://registry.coder.com"
+								target="_blank"
+								rel="noopener noreferrer"
+								size="sm"
+							>
+								Browse the Coder Registry
+							</Link>
+						</span>
+
 						<TemplateVersionStatusBadge version={templateVersion} />
 
 						<div className="flex gap-1 items-center">
