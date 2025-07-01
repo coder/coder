@@ -160,6 +160,12 @@ func (c *Cache) Acquire(ctx context.Context, db database.Store, fileID uuid.UUID
 		return nil, err
 	}
 
+	cleanup := func() {
+		c.lock.Lock()
+		defer c.lock.Unlock()
+		e.close()
+	}
+
 	// We always run the fetch under a system context and actor, so we need to
 	// check the caller's context (including the actor) manually before returning.
 
@@ -167,18 +173,18 @@ func (c *Cache) Acquire(ctx context.Context, db database.Store, fileID uuid.UUID
 	// a context, we still check it manually first because none of our mock
 	// database implementations check for context cancellation.
 	if err := ctx.Err(); err != nil {
-		e.close()
+		cleanup()
 		return nil, err
 	}
 
 	// Check that the caller is authorized to access the file
 	subject, ok := dbauthz.ActorFromContext(ctx)
 	if !ok {
-		e.close()
+		cleanup()
 		return nil, dbauthz.ErrNoActor
 	}
 	if err := c.authz.Authorize(ctx, subject, policy.ActionRead, ev.Object); err != nil {
-		e.close()
+		cleanup()
 		return nil, err
 	}
 
