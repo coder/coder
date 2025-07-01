@@ -37,7 +37,6 @@ In v2.24.0, you can opt-in to Dynamic Parameters on a per-template basis. To use
 
 Next, update your template to use version >=2.4.0 of the Coder provider with the following Terraform block.
 
-
 ```terraform
 terraform {
   required_providers {
@@ -48,7 +47,6 @@ terraform {
   }
 }
 ```
-
 
 Once configured, users should see the updated workspace creation form. Then you are ready to start leveraging the new conditionality system and new input types. Note that these new features must be declared in your Terraform to start leveraging Dynamic Parameters. Note that dynamic parameters is backwards compatible, so all existing templates may be upgraded in-place.
 
@@ -108,9 +106,9 @@ The "Options" column in the table below indicates whether the form type requires
 
 The [`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute can be used to select from a variety of form controls. See the following examples for usage in the [Parameters Playground](https://playground.coder.app/parameters).
 
-<tabs>
+<div class="tabs">
 
-## Dropdown lists
+### Dropdowns
 
 All single-select parameters with options may now use the `form_type=\"dropdown\"` attribute for better organization.
 
@@ -147,13 +145,11 @@ data "coder_parameter" "ides_dropdown" {
 }
 ```
 
-
-## Text area
+### Text area
 
 The large text entry option can be used to enter long strings like AI prompts, scripts, or natural language.
 
 [Try textarea parameters on the Parameter Playground](https://playground.coder.app/parameters/RCAHA1Oi1_)
-
 
 ```terraform
 
@@ -178,7 +174,7 @@ data "coder_parameter" "text_area" {
 
 ```
 
-## Multi-select
+### Multi-select
 
 Multi-select parameters allow users to select one or many options from a single list of options. For example, adding multiple IDEs with a single parameter.
 
@@ -217,12 +213,46 @@ data "coder_parameter" "ide_selector" {
 }
 ```
 
-## Checkboxes
+### Radio (classic)
 
+Radio buttons are used to select a single option with high visibility. This is the original styling for list parameters.
+
+[Try radio parameters on the Parameter Playground](https://playground.coder.app/parameters/3OMDp5ANZI).
+
+```terraform
+data "coder_parameter" "environment" {
+  name         = "environment"
+  display_name = "Environment"
+  description  = "An example of environment listing with the radio form type."
+  type         = "string"
+  default      = "dev"
+
+  form_type    = "radio"
+
+  option {
+    name  = "Development"
+    value = "dev"
+  }
+  option {
+    name  = "Experimental"
+    value = "exp"
+  }
+  option {
+    name  = "Staging"
+    value = "staging"
+  }
+  option {
+    name  = "Production"
+    value = "prod"
+  }
+}
+```
+
+### Checkboxes
 
 Checkbox: A single checkbox for boolean values
 
-[Try checkbox parameters on the playground](https://playground.coder.app/parameters/ycWuQJk2Py)
+[Try checkbox parameters on the Parameters Playground](https://playground.coder.app/parameters/ycWuQJk2Py).
 
 ```terraform
 data "coder_parameter" "enable_gpu" {
@@ -234,155 +264,13 @@ data "coder_parameter" "enable_gpu" {
 }
 ```
 
-</tabs>
+### Slider
 
+Sliders can be used for configuration on a linear scale, like resource allocation. The `validation` block is used to clamp the minimum and maximum values for the parameter.
 
-
-### Conditional Parameters
-
-<tabs>
-
-## Conditionally hide parameters
+[Try slider parameters on the Parameters Playground](https://playground.coder.app/parameters/RsBNcWVvfm).
 
 ```terraform
-
-
-```
-
-
-## Dynamic Defaults
-
-
-##
-
-
-
-</tabs>
-
-
-
-<tabs>
-
-## Admin Options
-
-## Role-specific options
-
-## Groups as namespaces
-
- </tabs>
-
-
-### Form Type Examples
-
-<details><summary></summary>
-
-
-</details>
-
-<details><summary>dropdown: A searchable select menu for choosing a single option from a list</summary>
-
-```tf
-data "coder_parameter" "region" {
-  name         = "region"
-  display_name = "Region"
-  description  = "Select a region"
-  type         = "string"
-  form_type    = "dropdown" # This is the default for string parameters with options
-
-  option {
-    name  = "US East"
-    value = "us-east-1"
-  }
-  option {
-    name  = "US West"
-    value = "us-west-2"
-  }
-}
-```
-
-</details>
-
-<details><summary>input: A standard text input field</summary>
-
-```tf
-data "coder_parameter" "custom_domain" {
-  name         = "custom_domain"
-  display_name = "Custom Domain"
-  type         = "string"
-  form_type    = "input" # This is the default for string parameters without options
-  default      = ""
-}
-```
-
-</details>
-
-<details><summary>multi-select: Checkboxes for selecting multiple options from a list</summary>
-
-```tf
-data "coder_parameter" "tools" {
-  name         = "tools"
-  display_name = "Developer Tools"
-  type         = "list(string)"
-  form_type    = "multi-select"
-  default      = jsonencode(["git", "docker"])
-
-  option {
-    name  = "Git"
-    value = "git"
-  }
-  option {
-    name  = "Docker"
-    value = "docker"
-  }
-  option {
-    name  = "Kubernetes CLI"
-    value = "kubectl"
-  }
-}
-```
-
-</details>
-
-<details><summary>password: A text input that masks sensitive information</summary>
-
-```tf
-data "coder_parameter" "api_key" {
-  name         = "api_key"
-  display_name = "API Key"
-  type         = "string"
-  form_type    = "password"
-  secret       = true
-}
-```
-
-</details>
-
-<details><summary>radio: Radio buttons for selecting a single option with high visibility</summary>
-
-```tf
-data "coder_parameter" "environment" {
-  name         = "environment"
-  display_name = "Environment"
-  type         = "string"
-  form_type    = "radio"
-  default      = "dev"
-
-  option {
-    name  = "Development"
-    value = "dev"
-  }
-  option {
-    name  = "Staging"
-    value = "staging"
-  }
-}
-```
-
-</details>
-
-<details><summary>slider: A slider for selecting numeric values within a range</summary>
-
-```tf
 data "coder_parameter" "cpu_cores" {
   name         = "cpu_cores"
   display_name = "CPU Cores"
@@ -396,35 +284,95 @@ data "coder_parameter" "cpu_cores" {
 }
 ```
 
-</details>
+</div>
 
-<details><summary>switch: A toggle switch for boolean values</summary>
+### Conditional Parameters
 
-```tf
-data "coder_parameter" "advanced_mode" {
-  name         = "advanced_mode"
-  display_name = "Advanced Mode"
+Using native Terraform syntax and parameter attributes like `count`, we can allow some parameters to react to user inputs. This means:
+
+- Hiding parameters unless activated
+- Conditionally setting default values
+- Changing available options based on other parameter inputs
+
+Using these in conjunction, administrators can build intuitive, reactive forms for workspace creation
+
+<div class="tabs">
+
+## Conditionally hide/show options
+
+Using Terraform conditionals and the `count` block, we can allow a checkbox to expose or hide a subsequent parameter.
+
+[Try conditional parameters on the Parameter Playground](https://playground.coder.app/parameters/xmG5MKEGNM).
+
+```terraform
+data "coder_parameter" "show_cpu_cores" {
+  name         = "show_cpu_cores"
+  display_name = "Toggles next parameter"
+  description  = "Select this checkbox to show the CPU cores parameter."
   type         = "bool"
-  form_type    = "switch"
+  form_type    = "checkbox"
   default      = false
+  order        = 1
+}
+
+
+data "coder_parameter" "cpu_cores" {
+  # Only show this parameter if the previous box is selected.
+  count = data.coder_parameter.show_cpu_cores.value ? 1 : 0
+
+  name         = "cpu_cores"
+  display_name = "CPU Cores"
+  type         = "number"
+  form_type    = "slider"
+  default      = 2
+  order        = 2
+  validation {
+    min = 1
+    max = 8
+  }
 }
 ```
 
-</details>
+## Dynamic Defaults
 
-<details><summary>textarea: A multi-line text input field for longer content</summary>
+## Dynamic Validation
 
-```tf
-data "coder_parameter" "init_script" {
-  name         = "init_script"
-  display_name = "Initialization Script"
+
+
+## Daisy Chaining
+
+```
+
+
+```
+
+</div>
+
+<div class="tabs">
+
+## Admin Options
+
+```
+data "coder_parameter" "advanced_setting" {
+  # This parameter is only visible when show_advanced is true
+  count = contains(data.workspace_owner.groups) ? 1 : 0
+  name         = "advanced_setting"
+  display_name = "Advanced Setting"
+  description  = "An advanced configuration option"
   type         = "string"
-  form_type    = "textarea"
-  default      = "#!/bin/bash\necho 'Hello World'"
+  default      = "default_value"
+  mutable      = true
+  order        = 1
 }
 ```
 
-</details>
+## Role-specific options
+
+## Groups as namespaces
+
+ </div>
+
+## Advanced use cases
 
 ## Dynamic Parameter Use Case Examples
 
@@ -503,41 +451,6 @@ data "coder_parameter" "advanced_setting" {
   default      = "default_value"
   mutable      = true
   order        = 1
-}
-
-</details>
-
-<details><summary>Multi-select IDE Options</summary>
-
-This example allows selecting multiple IDEs to install:
-
-```tf
-data "coder_parameter" "ides" {
-  name         = "ides"
-  display_name = "IDEs to Install"
-  description  = "Select which IDEs to install in your workspace"
-  type         = "list(string)"
-  default      = jsonencode(["vscode"])
-  mutable      = true
-  form_type    = "multi-select"
-
-  option {
-    name  = "VS Code"
-    value = "vscode"
-    icon  = "/icon/vscode.png"
-  }
-
-  option {
-    name  = "JetBrains IntelliJ"
-    value = "intellij"
-    icon  = "/icon/intellij.png"
-  }
-
-  option {
-    name  = "JupyterLab"
-    value = "jupyter"
-    icon  = "/icon/jupyter.png"
-  }
 }
 ```
 
