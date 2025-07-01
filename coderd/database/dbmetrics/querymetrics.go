@@ -249,13 +249,6 @@ func (m queryMetricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.C
 	return err
 }
 
-func (m queryMetricsStore) DeleteChat(ctx context.Context, id uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.DeleteChat(ctx, id)
-	m.queryLatencies.WithLabelValues("DeleteChat").Observe(time.Since(start).Seconds())
-	return r0
-}
-
 func (m queryMetricsStore) DeleteCoordinator(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteCoordinator(ctx, id)
@@ -646,27 +639,6 @@ func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID
 	row, err := m.s.GetAuthorizationUserRoles(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetAuthorizationUserRoles").Observe(time.Since(start).Seconds())
 	return row, err
-}
-
-func (m queryMetricsStore) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatByID(ctx, id)
-	m.queryLatencies.WithLabelValues("GetChatByID").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatMessagesByChatID(ctx, chatID)
-	m.queryLatencies.WithLabelValues("GetChatMessagesByChatID").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.Chat, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatsByOwnerID(ctx, ownerID)
-	m.queryLatencies.WithLabelValues("GetChatsByOwnerID").Observe(time.Since(start).Seconds())
-	return r0, r1
 }
 
 func (m queryMetricsStore) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
@@ -2083,20 +2055,6 @@ func (m queryMetricsStore) InsertAuditLog(ctx context.Context, arg database.Inse
 	return log, err
 }
 
-func (m queryMetricsStore) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertChat(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertChat").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m queryMetricsStore) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertChatMessages(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertChatMessages").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	start := time.Now()
 	key, err := m.s.InsertCryptoKey(ctx, arg)
@@ -2620,13 +2578,6 @@ func (m queryMetricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.Up
 	err := m.s.UpdateAPIKeyByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateAPIKeyByID").Observe(time.Since(start).Seconds())
 	return err
-}
-
-func (m queryMetricsStore) UpdateChatByID(ctx context.Context, arg database.UpdateChatByIDParams) error {
-	start := time.Now()
-	r0 := m.s.UpdateChatByID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateChatByID").Observe(time.Since(start).Seconds())
-	return r0
 }
 
 func (m queryMetricsStore) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {

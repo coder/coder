@@ -6,18 +6,6 @@ export interface ACLAvailable {
 	readonly groups: readonly Group[];
 }
 
-// From codersdk/deployment.go
-export interface AIConfig {
-	readonly providers?: readonly AIProviderConfig[];
-}
-
-// From codersdk/deployment.go
-export interface AIProviderConfig {
-	readonly type: string;
-	readonly models: readonly string[];
-	readonly base_url: string;
-}
-
 // From codersdk/aitasks.go
 export const AITaskPromptParameterName = "AI Prompt";
 
@@ -311,28 +299,6 @@ export interface ChangePasswordWithOneTimePasscodeRequest {
 	readonly one_time_passcode: string;
 }
 
-// From codersdk/chat.go
-export interface Chat {
-	readonly id: string;
-	readonly created_at: string;
-	readonly updated_at: string;
-	readonly title: string;
-}
-
-// From codersdk/chat.go
-export interface ChatMessage {
-	readonly id: string;
-	readonly createdAt?: Record<string, string>;
-	readonly content: string;
-	readonly role: string;
-	// external type "github.com/kylecarbs/aisdk-go.Part", to include this type the package must be explicitly included in the parsing
-	readonly parts?: readonly unknown[];
-	// empty interface{} type, falling back to unknown
-	readonly annotations?: readonly unknown[];
-	// external type "github.com/kylecarbs/aisdk-go.Attachment", to include this type the package must be explicitly included in the parsing
-	readonly experimental_attachments?: readonly unknown[];
-}
-
 // From codersdk/client.go
 export const CoderDesktopTelemetryHeader = "Coder-Desktop-Telemetry";
 
@@ -352,14 +318,6 @@ export const ContentTypeZip = "application/zip";
 export interface ConvertLoginRequest {
 	readonly to_type: LoginType;
 	readonly password: string;
-}
-
-// From codersdk/chat.go
-export interface CreateChatMessageRequest {
-	readonly model: string;
-	// external type "github.com/kylecarbs/aisdk-go.Message", to include this type the package must be explicitly included in the parsing
-	readonly message: unknown;
-	readonly thinking: boolean;
 }
 
 // From codersdk/users.go
@@ -726,7 +684,6 @@ export interface DeploymentValues {
 	readonly disable_password_auth?: boolean;
 	readonly support?: SupportConfig;
 	readonly external_auth?: SerpentStruct<ExternalAuthConfig[]>;
-	readonly ai?: SerpentStruct<AIConfig>;
 	readonly config_ssh?: SSHConfig;
 	readonly wgtunnel_host?: string;
 	readonly disable_owner_workspace_exec?: boolean;
@@ -834,7 +791,6 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
-	| "agentic-chat"
 	| "auto-fill-parameters"
 	| "example"
 	| "notifications"
@@ -843,7 +799,6 @@ export type Experiment =
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
-	"agentic-chat",
 	"auto-fill-parameters",
 	"example",
 	"notifications",
@@ -1258,18 +1213,6 @@ export interface IssueReconnectingPTYSignedTokenResponse {
 export type JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES";
 
 export const JobErrorCodes: JobErrorCode[] = ["REQUIRED_TEMPLATE_VARIABLES"];
-
-// From codersdk/deployment.go
-export interface LanguageModel {
-	readonly id: string;
-	readonly display_name: string;
-	readonly provider: string;
-}
-
-// From codersdk/deployment.go
-export interface LanguageModelConfig {
-	readonly models: readonly LanguageModel[];
-}
 
 // From codersdk/licenses.go
 export interface License {
@@ -2186,7 +2129,6 @@ export type RBACResource =
 	| "assign_org_role"
 	| "assign_role"
 	| "audit_log"
-	| "chat"
 	| "crypto_key"
 	| "debug_info"
 	| "deployment_config"
@@ -2226,7 +2168,6 @@ export const RBACResources: RBACResource[] = [
 	"assign_org_role",
 	"assign_role",
 	"audit_log",
-	"chat",
 	"crypto_key",
 	"debug_info",
 	"deployment_config",

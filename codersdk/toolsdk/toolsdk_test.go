@@ -10,10 +10,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/kylecarbs/aisdk-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+
+	"github.com/coder/aisdk-go"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"

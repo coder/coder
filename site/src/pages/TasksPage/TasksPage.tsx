@@ -8,6 +8,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { Button } from "components/Button/Button";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Form, FormFields, FormSection } from "components/Form/Form";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Margins } from "components/Margins/Margins";
@@ -36,7 +37,6 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-
 import { useAuthenticated } from "hooks";
 import { useExternalAuth } from "hooks/useExternalAuth";
 import { RotateCcwIcon, SendIcon } from "lucide-react";
@@ -73,7 +73,10 @@ const TasksPage: FC = () => {
 			</Helmet>
 			<Margins>
 				<PageHeader>
-					<PageHeaderTitle>Tasks</PageHeaderTitle>
+					<span className="flex flex-row gap-2">
+						<PageHeaderTitle>Tasks</PageHeaderTitle>
+						<FeatureStageBadge contentType={"beta"} size="md" />
+					</span>
 					<PageHeaderSubtitle>Automate tasks with AI</PageHeaderSubtitle>
 				</PageHeader>
 

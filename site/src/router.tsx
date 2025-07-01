@@ -1,6 +1,4 @@
 import { GlobalErrorBoundary } from "components/ErrorBoundary/GlobalErrorBoundary";
-import { ChatLayout } from "pages/ChatPage/ChatLayout";
-import { ChatMessages } from "pages/ChatPage/ChatMessages";
 import { TemplateRedirectController } from "pages/TemplatePage/TemplateRedirectController";
 import { Suspense, lazy } from "react";
 import {
@@ -33,7 +31,6 @@ const NotFoundPage = lazy(() => import("./pages/404Page/404Page"));
 const DeploymentSettingsLayout = lazy(
 	() => import("./modules/management/DeploymentSettingsLayout"),
 );
-const ChatLanding = lazy(() => import("./pages/ChatPage/ChatLanding"));
 const DeploymentConfigProvider = lazy(
 	() => import("./modules/management/DeploymentConfigProvider"),
 );
@@ -435,11 +432,6 @@ export const router = createBrowserRouter(
 					/>
 
 					<Route path="/audit" element={<AuditPage />} />
-
-					<Route path="/chat" element={<ChatLayout />}>
-						<Route index element={<ChatLanding />} />
-						<Route path=":chatID" element={<ChatMessages />} />
-					</Route>
 
 					<Route path="/tasks" element={<TasksPage />} />
 

@@ -4,7 +4,6 @@ import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import type { ProxyContextValue } from "contexts/ProxyContext";
-import { useAgenticChat } from "contexts/useAgenticChat";
 import { useWebpushNotifications } from "contexts/useWebpushNotifications";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
@@ -141,7 +140,6 @@ interface NavItemsProps {
 
 const NavItems: FC<NavItemsProps> = ({ className }) => {
 	const location = useLocation();
-	const agenticChat = useAgenticChat();
 	const { metadata } = useEmbeddedMetadata();
 
 	return (
@@ -165,16 +163,6 @@ const NavItems: FC<NavItemsProps> = ({ className }) => {
 			>
 				Templates
 			</NavLink>
-			{agenticChat.enabled && (
-				<NavLink
-					className={({ isActive }) => {
-						return cn(linkStyles.default, isActive ? linkStyles.active : "");
-					}}
-					to="/chat"
-				>
-					Chat
-				</NavLink>
-			)}
 			{metadata["tasks-tab-visible"].value && (
 				<NavLink
 					className={({ isActive }) => {
