@@ -119,6 +119,10 @@ Before you can use Coder Desktop, you will need to sign in.
 
 1. Coder Connect is now running!
 
+## Troubleshooting
+
+- Do not install more than one copy of Coder Desktop. To avoid system VPN configuration conflicts, only one copy of `Coder Desktop.app` should exist on your Mac, and it must remain in `/Applications`.
+
 ## Next Steps
 
 - [Connect to and work on your workspace](./desktop-connect-sync.md)
