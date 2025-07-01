@@ -82,7 +82,7 @@ Dynamic Parameters introduces three primary enhancements to the standard paramet
 
 Dynamic Parameters supports a variety of form types to create rich, interactive user experiences.
 
-You can specify the form type using the `form_type` property.
+You can specify the form type using the [`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute.
 Different parameter types support different form types.
 
 The "Options" column in the table below indicates whether the form type requires options to be defined (Yes) or doesn't support/require them (No). When required, options are specified using one or more `option` blocks in your parameter definition, where each option has a `name` (displayed to the user) and a `value` (used in your template logic).
@@ -104,7 +104,7 @@ The "Options" column in the table below indicates whether the form type requires
 
 ### New Form Types
 
-The [`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute can be used to select from a variety of form controls. See the following examples for usage in the [Parameters Playground](https://playground.coder.app/parameters).
+The following examples show some basic usage of the sing the [`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute explained above.
 
 <div class="tabs">
 
@@ -298,7 +298,7 @@ Using these in conjunction, administrators can build intuitive, reactive forms f
 
 <div class="tabs">
 
-## Conditionally hide/show options
+## Hide/show options
 
 Using Terraform conditionals and the `count` block, we can allow a checkbox to expose or hide a subsequent parameter.
 
@@ -335,9 +335,9 @@ data "coder_parameter" "cpu_cores" {
 
 ## Dynamic Defaults
 
+For a given parameter, we can influence which option is selected by default based on the selection of another parameter.
+
 ## Dynamic Validation
-
-
 
 ## Daisy Chaining
 
