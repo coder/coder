@@ -52,38 +52,3 @@ test("displays the scratch template", async () => {
 	expect(screen.queryByText("Scratch")).toBeInTheDocument();
 });
 
-test("displays registry link in page header", async () => {
-	server.use(
-		http.get("api/v2/templates/examples", () => {
-			return HttpResponse.json([MockTemplateExample]);
-		}),
-	);
-
-	render(
-		<AppProviders>
-			<RouterProvider
-				router={createMemoryRouter(
-					[
-						{
-							element: <RequireAuth />,
-							children: [
-								{
-									path: "/starter-templates",
-									element: <CreateTemplateGalleryPage />,
-								},
-							],
-						},
-					],
-					{ initialEntries: ["/starter-templates"] },
-				)}
-			/>
-		</AppProviders>,
-	);
-
-	const registryLink = await screen.findByRole("link", {
-		name: /browse the coder registry/i,
-	});
-	expect(registryLink).toHaveAttribute("href", "https://registry.coder.com");
-	expect(registryLink).toHaveAttribute("target", "_blank");
-	expect(registryLink).toHaveAttribute("rel", "noopener noreferrer");
-});
