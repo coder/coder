@@ -69,7 +69,7 @@ func (f *fakeContainerCLI) ExecAs(ctx context.Context, name, user string, args .
 type fakeDevcontainerCLI struct {
 	upID           string
 	upErr          error
-	upErrC         chan error // If set, send to return err, close to return upErr.
+	upErrC         chan func() error // If set, send to return err, close to return upErr.
 	execErr        error
 	execErrC       chan func(cmd string, args ...string) error // If set, send fn to return err, nil or close to return execErr.
 	readConfig     agentcontainers.DevcontainerConfig
@@ -82,9 +82,9 @@ func (f *fakeDevcontainerCLI) Up(ctx context.Context, _, _ string, _ ...agentcon
 		select {
 		case <-ctx.Done():
 			return "", ctx.Err()
-		case err, ok := <-f.upErrC:
+		case fn, ok := <-f.upErrC:
 			if ok {
-				return f.upID, err
+				return f.upID, fn()
 			}
 		}
 	}
@@ -613,7 +613,7 @@ func TestAPI(t *testing.T) {
 				nowRecreateErrorTrap := mClock.Trap().Now("recreate", "errorTimes")
 				nowRecreateSuccessTrap := mClock.Trap().Now("recreate", "successTimes")
 
-				tt.devcontainerCLI.upErrC = make(chan error)
+				tt.devcontainerCLI.upErrC = make(chan func() error)
 
 				// Setup router with the handler under test.
 				r := chi.NewRouter()
@@ -1665,7 +1665,7 @@ func TestAPI(t *testing.T) {
 				mClock = quartz.NewMock(t)
 				fCCLI  = &fakeContainerCLI{arch: "<none>"}
 				fDCCLI = &fakeDevcontainerCLI{
-					upErrC: make(chan error, 1),
+					upErrC: make(chan func() error, 1),
 				}
 				fSAC = &fakeSubAgentClient{
 					logger: logger.Named("fakeSubAgentClient"),
@@ -1717,7 +1717,7 @@ func TestAPI(t *testing.T) {
 
 			// Given: We simulate an error running `devcontainer up`
 			simulatedError := xerrors.New("simulated error")
-			testutil.RequireSend(ctx, t, fDCCLI.upErrC, simulatedError)
+			testutil.RequireSend(ctx, t, fDCCLI.upErrC, func() error { return simulatedError })
 
 			nowRecreateErrorTrap.MustWait(ctx).MustRelease(ctx)
 			nowRecreateErrorTrap.Close()
@@ -1742,7 +1742,22 @@ func TestAPI(t *testing.T) {
 			require.Equal(t, http.StatusAccepted, rec.Code)
 
 			// Given: We allow `devcontainer up` to succeed.
-			testutil.RequireSend(ctx, t, fDCCLI.upErrC, nil)
+			testutil.RequireSend(ctx, t, fDCCLI.upErrC, func() error {
+				req = httptest.NewRequest(http.MethodGet, "/", nil)
+				rec = httptest.NewRecorder()
+				r.ServeHTTP(rec, req)
+				require.Equal(t, http.StatusOK, rec.Code)
+
+				response = codersdk.WorkspaceAgentListContainersResponse{}
+				err = json.NewDecoder(rec.Body).Decode(&response)
+				require.NoError(t, err)
+
+				// Then: We make sure that the error has been cleared before running up.
+				require.Len(t, response.Devcontainers, 1)
+				require.Equal(t, "", response.Devcontainers[0].Error)
+
+				return nil
+			})
 
 			nowRecreateSuccessTrap.MustWait(ctx).MustRelease(ctx)
 			nowRecreateSuccessTrap.Close()
@@ -1756,7 +1771,7 @@ func TestAPI(t *testing.T) {
 			err = json.NewDecoder(rec.Body).Decode(&response)
 			require.NoError(t, err)
 
-			// Then: We expect that there will be no error associated with the devcontainer.
+			// Then: We also expect no error after running up..
 			require.Len(t, response.Devcontainers, 1)
 			require.Equal(t, "", response.Devcontainers[0].Error)
 		})

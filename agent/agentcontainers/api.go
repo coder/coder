@@ -946,6 +946,7 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	// devcontainer multiple times in parallel.
 	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
 	dc.Container = nil
+	dc.Error = ""
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	go func() {
 		_ = api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath, WithRemoveExistingContainer())
