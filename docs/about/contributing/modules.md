@@ -41,9 +41,9 @@ Understanding how modules fit into the Coder ecosystem:
 
 The Coder Registry organizes modules into different categories based on their functionality. Here are the main types with examples of actual available modules:
 
-### [IDE & Development Environments](https://registry.coder.com/modules?search=tag%3Aide)
+### IDE & Development Environments
 
-Integrate development environments and code editors into workspaces.
+[Integrate development environments and code editors into workspaces](https://registry.coder.com/modules?search=tag%3Aide).
 
 #### Browser-based IDEs
 
@@ -63,9 +63,9 @@ One-click launch buttons to connect local IDE applications to your workspace. Th
 - **[VS Code Desktop](https://registry.coder.com/modules/coder/vscode-desktop)**: Add a one-click button to launch VS Code Desktop
 - **[Windsurf Editor](https://registry.coder.com/modules/coder/windsurf)**: Add a one-click button to launch Windsurf Editor
 
-### [Helper Modules](https://registry.coder.com/modules?search=tag%3Ahelper)
+### Helper Modules
 
-Simplify template creation and workspace configuration.
+[Simplify template creation and workspace configuration](https://registry.coder.com/modules?search=tag%3Ahelper).
 
 #### Parameter Modules
 
@@ -90,27 +90,27 @@ Automate workspace setup and configuration tasks. These modules use `coder_scrip
 - **[Personalize](https://registry.coder.com/modules/coder/personalize)**: Allow developers to customize their workspace on start
 - **[Slack Me](https://registry.coder.com/modules/coder/slackme)**: Send a Slack message when a command finishes inside a workspace
 
-### [Desktop Modules](https://registry.coder.com/modules?search=tag%3Adesktop)
+### Desktop Modules
 
-Provide graphical desktop environments for visual development workflows.
+[Provide graphical desktop environments for visual development workflows](https://registry.coder.com/modules?search=tag%3Adesktop).
 
 - **[Amazon DCV Windows](https://registry.coder.com/modules/coder/amazon-dcv-windows)**: Amazon DCV Server and Web Client for Windows
 - **[KasmVNC](https://registry.coder.com/modules/coder/kasmvnc)**: A modern open source VNC server
 - **[Windows RDP](https://registry.coder.com/modules/coder/windows-rdp)**: RDP Server and Web Client, powered by Devolutions Gateway
 - **[Windows RDP Desktop](https://registry.coder.com/modules/coder/local-windows-rdp)**: Enable RDP on Windows and add a one-click Coder Desktop button for seamless access
 
-### [AI Modules](https://registry.coder.com/modules?search=tag%3Aai)
+### AI Modules
 
-Integrate AI-powered development tools and assistants.
+[Integrate AI-powered development tools and assistants](https://registry.coder.com/modules?search=tag%3Aai).
 
 - **[Aider](https://registry.coder.com/modules/coder/aider)**: Run Aider AI pair programming in your workspace
 - **[Amazon Q](https://registry.coder.com/modules/coder/amazon-q)**: Run Amazon Q in your workspace to access Amazon's AI coding assistant
 - **[Claude Code](https://registry.coder.com/modules/coder/claude-code)**: Run Claude Code in your workspace
 - **[Goose](https://registry.coder.com/modules/coder/goose)**: Run Goose in your workspace
 
-### [Integration Modules](https://registry.coder.com/modules?search=tag%3Aintegration)
+### Integration Modules
 
-Connect with external services and platforms.
+[Connect with external services and platforms](https://registry.coder.com/modules?search=tag%3Aintegration).
 
 - **[Hashicorp Vault Integration (GitHub)](https://registry.coder.com/modules/coder/vault-github)**: Authenticates with Vault using GitHub
 - **[Hashicorp Vault Integration (JWT)](https://registry.coder.com/modules/coder/vault-jwt)**: Authenticates with Vault using a JWT from Coder's OIDC provider
@@ -153,13 +153,13 @@ module-name/
 
 ## Understanding Coder Resources
 
-The Coder Terraform provider offers several resource types for different aspects of workspace functionality. Understanding when and how to use each resource is crucial for effective module development.
+The [Coder Terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs) offers several resource types for different aspects of workspace functionality. Understanding when and how to use each resource is crucial for effective module development.
 
-### [Coder Resources](https://registry.terraform.io/providers/coder/coder/latest/docs)
+### Coder Resources
 
-#### [coder_script - Command Execution](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script)
+#### coder_script - Command Execution
 
-Execute commands during workspace lifecycle events. This is the primary mechanism for software installation, service configuration, and environment setup.
+[Execute commands during workspace lifecycle events](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script). This is the primary mechanism for software installation, service configuration, and environment setup.
 
 **When to use**:
 
@@ -192,9 +192,9 @@ resource "coder_script" "install" {
 }
 ```
 
-#### [coder_app - User Interface](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
+#### coder_app - User Interface
 
-Create accessible applications in the Coder workspace interface, providing users with one-click access to tools and services.
+[Create accessible applications in the Coder workspace interface](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app), providing users with one-click access to tools and services.
 
 **When to use**:
 
@@ -230,9 +230,9 @@ resource "coder_app" "service" {
 
 > **⚠️ Important**: Health check URLs are service-specific. Common paths include `/health`, `/healthz`, `/ping`, `/status`, or `/api/health`. Check your service's documentation or use the main service URL if no dedicated health endpoint exists.
 
-#### [coder_env - Environment Variables](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/env)
+#### coder_env - Environment Variables
 
-Set environment variables in workspace sessions for tool configuration and authentication.
+[Set environment variables in workspace sessions](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/env) for tool configuration and authentication.
 
 **When to use**:
 
