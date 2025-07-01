@@ -530,7 +530,8 @@
 								{
 									"title": "Build Parameters",
 									"description": "Use parameters to customize workspaces at build",
-									"path": "./admin/templates/extending-templates/parameters.md"
+									"path": "./admin/templates/extending-templates/parameters.md",
+									"state": ["beta"]
 								},
 								{
 									"title": "Dynamic Parameters",
