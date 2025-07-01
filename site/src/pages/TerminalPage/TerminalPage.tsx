@@ -36,6 +36,9 @@ export const Language = {
 	websocketErrorMessagePrefix: "WebSocket failed: ",
 };
 
+// WebSocket close codes
+const WEBSOCKET_CLOSE_NORMAL = 1000; // Normal closure
+
 const TerminalPage: FC = () => {
 	// Maybe one day we'll support a light themed terminal, but terminal coloring
 	// is notably a pain because of assumptions certain programs might make about your
@@ -98,7 +101,7 @@ const TerminalPage: FC = () => {
 
 		// Close existing websocket if any
 		if (websocketRef.current) {
-			websocketRef.current.close(1000);
+			websocketRef.current.close(WEBSOCKET_CLOSE_NORMAL);
 			websocketRef.current = null;
 		}
 
@@ -380,7 +383,7 @@ const TerminalPage: FC = () => {
 			for (const d of disposers) {
 				d.dispose();
 			}
-			websocketRef.current?.close(1000);
+			websocketRef.current?.close(WEBSOCKET_CLOSE_NORMAL);
 			websocketRef.current = null;
 		};
 	}, [
