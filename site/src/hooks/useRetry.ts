@@ -99,6 +99,8 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 		setTimeUntilNextRetry(null);
 		setCurrentDelay(null);
 		clearTimers();
+		// Increment attempt count when starting the retry
+		setAttemptCount(prev => prev + 1);
 
 		try {
 			await onRetryEvent();
@@ -107,8 +109,7 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 			setIsRetrying(false);
 			setIsManualRetry(false);
 		} catch (error) {
-			// If retry fails, schedule next attempt (if not manual and under max attempts)
-			setAttemptCount((prev) => prev + 1);
+			// If retry fails, just update state (attemptCount already incremented)
 			setIsRetrying(false);
 			setIsManualRetry(false);
 		}
@@ -116,12 +117,12 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 
 	const scheduleNextRetry = useCallback(
 		(attempt: number) => {
-			if (attempt >= maxAttempts) {
+			if (attempt > maxAttempts) {
 				return;
 			}
 
-			// Calculate delay based on attempt - 2 (so second attempt gets initialDelay)
-		const delay = calculateDelay(Math.max(0, attempt - 2));
+			// Calculate delay based on attempt - 1 (so first retry gets initialDelay)
+		const delay = calculateDelay(Math.max(0, attempt - 1));
 			setCurrentDelay(delay);
 			setTimeUntilNextRetry(delay);
 			startTimeRef.current = Date.now();
@@ -155,8 +156,8 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 		if (
 			!isRetrying &&
 			!isManualRetry &&
-			attemptCount > 1 &&
-			attemptCount <= maxAttempts
+			attemptCount > 0 &&
+			attemptCount < maxAttempts
 		) {
 			scheduleNextRetry(attemptCount);
 		}
@@ -172,7 +173,6 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 
 	const startRetrying = useCallback(() => {
 		// Immediately perform the first retry attempt
-		setAttemptCount(1);
 		performRetry();
 	}, [performRetry]);
 
