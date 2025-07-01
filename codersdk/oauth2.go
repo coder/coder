@@ -231,3 +231,16 @@ func (c *Client) RevokeOAuth2ProviderApp(ctx context.Context, appID uuid.UUID) e
 type OAuth2DeviceFlowCallbackResponse struct {
 	RedirectURL string `json:"redirect_url"`
 }
+
+// OAuth2AuthorizationServerMetadata represents RFC 8414 OAuth 2.0 Authorization Server Metadata
+type OAuth2AuthorizationServerMetadata struct {
+	Issuer                            string   `json:"issuer"`
+	AuthorizationEndpoint             string   `json:"authorization_endpoint"`
+	TokenEndpoint                     string   `json:"token_endpoint"`
+	RegistrationEndpoint              string   `json:"registration_endpoint,omitempty"`
+	ResponseTypesSupported            []string `json:"response_types_supported"`
+	GrantTypesSupported               []string `json:"grant_types_supported"`
+	CodeChallengeMethodsSupported     []string `json:"code_challenge_methods_supported"`
+	ScopesSupported                   []string `json:"scopes_supported,omitempty"`
+	TokenEndpointAuthMethodsSupported []string `json:"token_endpoint_auth_methods_supported,omitempty"`
+}
