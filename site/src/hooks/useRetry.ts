@@ -132,7 +132,8 @@ function retryReducer(state: RetryState, action: RetryAction): RetryState {
  * Hook for handling exponential backoff retry logic
  */
 export function useRetry(options: UseRetryOptions): UseRetryReturn {
-	const { onRetry, maxAttempts, initialDelay, maxDelay, multiplier, enabled } = options;
+	const { onRetry, maxAttempts, initialDelay, maxDelay, multiplier, enabled } =
+		options;
 	const [state, dispatch] = useReducer(retryReducer, initialState);
 
 	const timeoutRef = useRef<number | null>(null);
@@ -162,6 +163,7 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 		[initialDelay, multiplier, maxDelay],
 	);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: onRetryEvent is created with useEffectEvent and is stable
 	const performRetry = useCallback(async () => {
 		dispatch({ type: "START_RETRY" });
 		clearTimers();
@@ -222,7 +224,12 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 		}
 
 		// When enabled and no attempts yet, start first retry (only once)
-		if (enabled && state.attemptCount === 0 && !state.isRetrying && !hasStartedRef.current) {
+		if (
+			enabled &&
+			state.attemptCount === 0 &&
+			!state.isRetrying &&
+			!hasStartedRef.current
+		) {
 			hasStartedRef.current = true;
 			performRetry();
 			return;
