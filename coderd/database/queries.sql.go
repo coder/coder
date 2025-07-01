@@ -19066,11 +19066,21 @@ WHERE
 	ORDER BY
 		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
 		CASE WHEN owner_id = $20 AND favorite THEN 0 ELSE 1 END ASC,
-		(latest_build_completed_at IS NOT NULL AND
-			latest_build_canceled_at IS NULL AND
-			latest_build_error IS NULL AND
-			latest_build_transition = 'start'::workspace_transition) DESC,
+		-- For AI tasks, put anything running or starting first.  Otherwise put
+		-- running only first.
+		CASE WHEN $19 :: boolean = true THEN
+			(latest_build_canceled_at IS NULL AND
+				latest_build_error IS NULL AND
+				latest_build_transition = 'start'::workspace_transition)
+		ELSE
+			(latest_build_completed_at IS NOT NULL AND
+				latest_build_canceled_at IS NULL AND
+				latest_build_error IS NULL AND
+				latest_build_transition = 'start'::workspace_transition)
+		END DESC,
 		LOWER(owner_username) ASC,
+		-- AI tasks are additionally sorted by creation date before the name.
+		CASE WHEN $19 :: boolean = true THEN created_at END DESC,
 		LOWER(name) ASC
 	LIMIT
 		CASE

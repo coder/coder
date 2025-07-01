@@ -13637,6 +13637,10 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		return job.CompletedAt.Valid && !job.CanceledAt.Valid && !job.Error.Valid && build.Transition == database.WorkspaceTransitionStart
 	}
 
+	isStarted := func(build database.WorkspaceBuild, job database.ProvisionerJob) bool {
+		return !job.CanceledAt.Valid && !job.Error.Valid && build.Transition == database.WorkspaceTransitionStart
+	}
+
 	preloadedWorkspaceBuilds := map[uuid.UUID]database.WorkspaceBuild{}
 	preloadedProvisionerJobs := map[uuid.UUID]database.ProvisionerJob{}
 	preloadedUsers := map[uuid.UUID]database.User{}
@@ -13676,16 +13680,34 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			return false
 		}
 
-		// Order by: running
-		w1IsRunning := isRunning(preloadedWorkspaceBuilds[w1.ID], preloadedProvisionerJobs[w1.ID])
-		w2IsRunning := isRunning(preloadedWorkspaceBuilds[w2.ID], preloadedProvisionerJobs[w2.ID])
+		// For tasks, order anything starting or running first, and then by created
+		// date.
+		if arg.HasAITask.Bool {
+			w1IsStarted := isStarted(preloadedWorkspaceBuilds[w1.ID], preloadedProvisionerJobs[w1.ID])
+			w2IsStarted := isStarted(preloadedWorkspaceBuilds[w2.ID], preloadedProvisionerJobs[w2.ID])
+			if w1IsStarted && !w2IsStarted {
+				return true
+			}
 
-		if w1IsRunning && !w2IsRunning {
-			return true
-		}
+			if !w1IsStarted && w2IsStarted {
+				return false
+			}
 
-		if !w1IsRunning && w2IsRunning {
-			return false
+			if w1.CreatedAt.After(w2.CreatedAt) {
+				return true
+			}
+		} else {
+			// Order by: running
+			w1IsRunning := isRunning(preloadedWorkspaceBuilds[w1.ID], preloadedProvisionerJobs[w1.ID])
+			w2IsRunning := isRunning(preloadedWorkspaceBuilds[w2.ID], preloadedProvisionerJobs[w2.ID])
+
+			if w1IsRunning && !w2IsRunning {
+				return true
+			}
+
+			if !w1IsRunning && w2IsRunning {
+				return false
+			}
 		}
 
 		// Order by: usernames
