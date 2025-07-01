@@ -163,7 +163,6 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 		[initialDelay, multiplier, maxDelay],
 	);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: onRetryEvent is created with useEffectEvent and is stable
 	const performRetry = useCallback(async () => {
 		dispatch({ type: "START_RETRY" });
 		clearTimers();
@@ -176,7 +175,7 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 			// If retry fails, just update state
 			dispatch({ type: "RETRY_FAILURE" });
 		}
-	}, [clearTimers]);
+	}, [onRetryEvent, clearTimers]);
 
 	const scheduleNextRetry = useCallback(
 		(attempt: number) => {
