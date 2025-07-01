@@ -209,16 +209,13 @@ const DisconnectedAlert: FC<DisconnectedAlertProps> = ({
 			{...props}
 			severity="warning"
 			actions={
-				<div className="flex items-center gap-3">
-					<TerminalRetryConnection
-						isRetrying={isRetrying}
-						timeUntilNextRetry={timeUntilNextRetry}
-						attemptCount={attemptCount}
-						maxAttempts={maxAttempts}
-						onRetryNow={onRetryNow || (() => {})}
-					/>
-					<RefreshSessionButton />
-				</div>
+				<TerminalRetryConnection
+					isRetrying={isRetrying}
+					timeUntilNextRetry={timeUntilNextRetry}
+					attemptCount={attemptCount}
+					maxAttempts={maxAttempts}
+					onRetryNow={onRetryNow || (() => {})}
+				/>
 			}
 		>
 			Disconnected
