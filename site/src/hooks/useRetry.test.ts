@@ -221,7 +221,8 @@ describe("useRetry", () => {
 		mockOnRetry.mockRejectedValue(new Error("Connection failed"));
 
 		const { result, rerender } = renderHook(
-			({ enabled }) => useRetry({ ...defaultOptions, onRetry: mockOnRetry, enabled }),
+			({ enabled }) =>
+				useRetry({ ...defaultOptions, onRetry: mockOnRetry, enabled }),
 			{ initialProps: { enabled: true } },
 		);
 

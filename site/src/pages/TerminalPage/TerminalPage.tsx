@@ -195,16 +195,13 @@ const TerminalPage: FC = () => {
 		initialDelay: 1000, // 1 second
 		maxDelay: 30000, // 30 seconds
 		multiplier: 2,
-		enabled: connectionStatus === "disconnected" && Boolean(terminal && workspaceAgent),
+		enabled:
+			connectionStatus === "disconnected" &&
+			Boolean(terminal && workspaceAgent),
 	};
 
-	const {
-		retry,
-		isRetrying,
-		currentDelay,
-		attemptCount,
-		timeUntilNextRetry,
-	} = useRetry(retryConfig);
+	const { retry, isRetrying, currentDelay, attemptCount, timeUntilNextRetry } =
+		useRetry(retryConfig);
 
 	// Periodically report workspace usage.
 	useQuery(
