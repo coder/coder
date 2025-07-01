@@ -1,6 +1,7 @@
 # Prebuilt workspaces
 
-> [!WARNING] Prebuilds Compatibility Limitations
+> [!WARNING]
+> Prebuilds Compatibility Limitations:
 > Prebuilt workspaces are currently not compatible with configurations that have Workspace schedule (autostart/autostop), or Dormancy enabled.
 > If these features are configured, prebuilt workspaces may fail to run correctly.
 >
