@@ -54,8 +54,10 @@ const getSidebarApp = (task: Task): [WorkspaceApp | null, SidebarAppStatus] => {
 		// indefinitely if there's a genuine issue, but this is preferable to false error alerts.
 		return [null, "loading"];
 	}
+	// "disabled" means that the health check is disabled, so we assume
+	// that the app is healthy
 	if (sidebarApp.health === "disabled") {
-		return [sidebarApp, "error"];
+		return [sidebarApp, "healthy"];
 	}
 	if (sidebarApp.health === "healthy") {
 		return [sidebarApp, "healthy"];
