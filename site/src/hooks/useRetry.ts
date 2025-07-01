@@ -138,7 +138,7 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 	const timeoutRef = useRef<number | null>(null);
 	const countdownRef = useRef<number | null>(null);
 	const startTimeRef = useRef<number | null>(null);
-	const prevEnabledRef = useRef<boolean>(enabled);
+	const hasStartedRef = useRef<boolean>(false);
 
 	const onRetryEvent = useEffectEvent(onRetry);
 
@@ -174,7 +174,7 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 			// If retry fails, just update state
 			dispatch({ type: "RETRY_FAILURE" });
 		}
-	}, [onRetryEvent, clearTimers]);
+	}, [clearTimers]);
 
 	const scheduleNextRetry = useCallback(
 		(attempt: number) => {
@@ -217,11 +217,13 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 			// When disabled, clear timers and reset state
 			clearTimers();
 			dispatch({ type: "RESET" });
+			hasStartedRef.current = false;
 			return;
 		}
 
-		// When enabled and no attempts yet, start first retry
-		if (enabled && state.attemptCount === 0 && !state.isRetrying) {
+		// When enabled and no attempts yet, start first retry (only once)
+		if (enabled && state.attemptCount === 0 && !state.isRetrying && !hasStartedRef.current) {
+			hasStartedRef.current = true;
 			performRetry();
 			return;
 		}
