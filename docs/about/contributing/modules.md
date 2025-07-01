@@ -17,74 +17,7 @@ For hands-on learning, try the [Terraform tutorials](https://developer.hashicorp
 
 Understanding how modules fit into the Coder ecosystem:
 
-```mermaid
-flowchart LR
-    subgraph Registry["🌐 Module Registry"]
-        ModuleCode["📦 Modules<br/>Terraform configurations<br/>with coder resources"]
-        StarterTemplates["📋 Starter Templates<br/>Infrastructure-specific bases<br/>(Docker, AWS, GCP, etc.)"]
-    end
-    
-    subgraph CoderInstance["🏢 Your Coder Instance"]
-        Template["📄 Template<br/>References modules<br/>from registry"]
-        
-        subgraph ModuleResources["🔧 Module Resources"]
-            Script["📜 coder_script<br/>Installation scripts"]
-            App["🖥️ coder_app<br/>UI applications"]  
-            Env["🌍 coder_env<br/>Environment variables"]
-        end
-    end
-    
-    subgraph Workspace["💻 Developer Workspace"]
-        Agent["🤖 Coder Agent"]
-        
-        subgraph Results["Results"]
-            Tools["🛠️ Installed Tools<br/>IDEs, CLIs, Services"]
-            Apps["📱 Accessible Apps<br/>Web interfaces"]
-            Environment["⚙️ Configured Environment<br/>Variables, paths, settings"]
-        end
-    end
-    
-    %% Module flow
-    ModuleCode -->|"&nbsp;Referenced by&nbsp;"| Template
-    StarterTemplates -->|"&nbsp;Used as base for&nbsp;"| Template
-    
-    %% Template to resources
-    Template --> Script
-    Template --> App
-    Template --> Env
-    
-    %% Resources to agent
-    Script --> Agent
-    App --> Agent
-    Env --> Agent
-    
-    %% Agent to results
-    Agent --> Tools
-    Agent --> Apps
-    Agent --> Environment
-    
-    %% Styling
-    style Registry fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px,color:#000000
-    style ModuleCode fill:#c8e6c9,stroke:#388e3c,stroke-width:2px,color:#000000
-    style StarterTemplates fill:#c8e6c9,stroke:#388e3c,stroke-width:2px,color:#000000
-    
-    style CoderInstance fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000000
-    style Template fill:#bbdefb,stroke:#1e88e5,stroke-width:2px,color:#000000
-    style ModuleResources fill:#90caf9,stroke:#42a5f5,stroke-width:2px,color:#000000
-    style Script fill:#90caf9,stroke:#42a5f5,stroke-width:1px,color:#000000
-    style App fill:#90caf9,stroke:#42a5f5,stroke-width:1px,color:#000000
-    style Env fill:#90caf9,stroke:#42a5f5,stroke-width:1px,color:#000000
-    
-    style Workspace fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000000
-    style Agent fill:#ffcc02,stroke:#ff9800,stroke-width:2px,color:#000000
-    style Results fill:#ffe0b2,stroke:#ffa726,stroke-width:2px,color:#000000
-    style Tools fill:#ffe0b2,stroke:#ffa726,stroke-width:1px,color:#000000
-    style Apps fill:#ffe0b2,stroke:#ffa726,stroke-width:1px,color:#000000
-    style Environment fill:#ffe0b2,stroke:#ffa726,stroke-width:1px,color:#000000
-    
-    %% Link styling to make arrows visible
-    linkStyle default stroke:#333333,stroke-width:2px
-```
+![Module Architecture](../images/modules/module_chart.png)
 
 **How Modules Work in the Coder Ecosystem:**
 
@@ -99,7 +32,7 @@ flowchart LR
 
 3. **Workspace Execution**: When workspaces are created, the Coder agent handles the Coder-specific additional resources added by the module and provides the extra functionality.
    - **Scripts** install and configure tools (IDEs, languages, services)
-   - **Apps** provide web interfaces accessible through Coder dashboard  
+   - **Apps** provide web interfaces accessible through Coder dashboard
    - **Environment** sets up variables, paths, and development settings
 
 **Example Flow**: A template references the `code-server` module → Module adds a `coder_script` to install VS Code and a `coder_app` for browser access → Agent executes the script and serves the app → Developer gets VS Code in their workspace
@@ -134,13 +67,22 @@ One-click launch buttons to connect local IDE applications to your workspace. Th
 
 Simplify template creation and workspace configuration.
 
+#### Parameter Modules
+
+Provide user-friendly parameter inputs for template configuration. These modules use `coder_parameter` resources to create dropdown menus and input fields with validation, icons, and human-readable options.
+
 - **[AWS Region](https://registry.coder.com/modules/coder/aws-region)**: A parameter with human region names and icons
 - **[Azure Region](https://registry.coder.com/modules/coder/azure-region)**: A parameter with human region names and icons
+- **[Fly.io Region](https://registry.coder.com/modules/coder/fly-region)**: A parameter with human region names and icons
+- **[GCP Region](https://registry.coder.com/modules/coder/gcp-region)**: Add Google Cloud Platform regions to your Coder template
+
+#### Workspace Enhancement Modules
+
+Automate workspace setup and configuration tasks. These modules use `coder_script` to install tools, configure services, or set up development environments during workspace creation.
+
 - **[Coder Login](https://registry.coder.com/modules/coder/coder-login)**: Automatically logs the user into Coder on their workspace
 - **[Dotfiles](https://registry.coder.com/modules/coder/dotfiles)**: Allow developers to optionally bring their own dotfiles repository to customize their shell and IDE settings
 - **[File Browser](https://registry.coder.com/modules/coder/filebrowser)**: A file browser for your workspace
-- **[Fly.io Region](https://registry.coder.com/modules/coder/fly-region)**: A parameter with human region names and icons
-- **[GCP Region](https://registry.coder.com/modules/coder/gcp-region)**: Add Google Cloud Platform regions to your Coder template
 - **[Git Clone](https://registry.coder.com/modules/coder/git-clone)**: Clone a Git repository by URL and skip if it exists
 - **[Git commit signing](https://registry.coder.com/modules/coder/git-commit-signing)**: Configures Git to sign commits using your Coder SSH key
 - **[Git Config](https://registry.coder.com/modules/coder/git-config)**: Stores Git configuration from Coder credentials
@@ -277,7 +219,7 @@ resource "coder_app" "service" {
   agent_id = var.agent_id
   slug     = "service"
   url      = "http://localhost:${var.port}"
-  
+
   healthcheck {
     url       = "http://localhost:${var.port}/api/status"  # Service-specific endpoint
     interval  = 5
@@ -320,7 +262,7 @@ data "coder_workspace" "me" {}
 # Provides: name, id, access_url, start_count
 
 data "coder_workspace_owner" "me" {}
-# Provides: name, email, full_name, groups of the workspace owner. 
+# Provides: name, email, full_name, groups of the workspace owner.
 ```
 
 ### Variable Design
@@ -447,7 +389,7 @@ resource "coder_script" "configure_service" {
 resource "coder_app" "service" {
   agent_id = var.agent_id
   url      = "http://localhost:${var.port}"
-  
+
   healthcheck {
     url       = "http://localhost:${var.port}/health"
     interval  = 5
