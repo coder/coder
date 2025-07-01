@@ -108,6 +108,7 @@ type cacheMetrics struct {
 }
 
 type cacheEntry struct {
+	// refCount must only be accessed while the Cache lock is held.
 	refCount int
 	value    *lazy.ValueWithError[CacheEntryValue]
 
