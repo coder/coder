@@ -195,6 +195,7 @@ const TerminalPage: FC = () => {
 		initialDelay: 1000, // 1 second
 		maxDelay: 30000, // 30 seconds
 		multiplier: 2,
+		enabled: connectionStatus === "disconnected" && Boolean(terminal && workspaceAgent),
 	};
 
 	const {
@@ -203,18 +204,7 @@ const TerminalPage: FC = () => {
 		currentDelay,
 		attemptCount,
 		timeUntilNextRetry,
-		startRetrying,
-		stopRetrying,
 	} = useRetry(retryConfig);
-
-	// Trigger retry when disconnected
-	useEffect(() => {
-		if (connectionStatus === "disconnected" && terminal && workspaceAgent) {
-			startRetrying();
-		} else if (connectionStatus === "connected") {
-			stopRetrying();
-		}
-	}, [connectionStatus, terminal, workspaceAgent, startRetrying, stopRetrying]);
 
 	// Periodically report workspace usage.
 	useQuery(

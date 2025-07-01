@@ -22,6 +22,10 @@ interface UseRetryOptions {
 	 * Backoff multiplier
 	 */
 	multiplier: number;
+	/**
+	 * Whether retry is enabled
+	 */
+	enabled: boolean;
 }
 
 interface UseRetryReturn {
@@ -45,14 +49,6 @@ interface UseRetryReturn {
 	 * Time in milliseconds until the next automatic retry (null if not scheduled)
 	 */
 	timeUntilNextRetry: number | null;
-	/**
-	 * Start the retry process
-	 */
-	startRetrying: () => void;
-	/**
-	 * Stop the retry process and reset state
-	 */
-	stopRetrying: () => void;
 }
 
 interface RetryState {
@@ -136,12 +132,13 @@ function retryReducer(state: RetryState, action: RetryAction): RetryState {
  * Hook for handling exponential backoff retry logic
  */
 export function useRetry(options: UseRetryOptions): UseRetryReturn {
-	const { onRetry, maxAttempts, initialDelay, maxDelay, multiplier } = options;
+	const { onRetry, maxAttempts, initialDelay, maxDelay, multiplier, enabled } = options;
 	const [state, dispatch] = useReducer(retryReducer, initialState);
 
 	const timeoutRef = useRef<number | null>(null);
 	const countdownRef = useRef<number | null>(null);
 	const startTimeRef = useRef<number | null>(null);
+	const prevEnabledRef = useRef<boolean>(enabled);
 
 	const onRetryEvent = useEffectEvent(onRetry);
 
@@ -214,9 +211,24 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 		[calculateDelay, maxAttempts, performRetry],
 	);
 
-	// Effect to schedule next retry after a failed attempt
+	// Effect to handle enabled state and retry scheduling
 	useEffect(() => {
+		if (!enabled) {
+			// When disabled, clear timers and reset state
+			clearTimers();
+			dispatch({ type: "RESET" });
+			return;
+		}
+
+		// When enabled and no attempts yet, start first retry
+		if (enabled && state.attemptCount === 0 && !state.isRetrying) {
+			performRetry();
+			return;
+		}
+
+		// Schedule next retry after a failed attempt
 		if (
+			enabled &&
 			!state.isRetrying &&
 			!state.isManualRetry &&
 			state.attemptCount > 0 &&
@@ -225,29 +237,23 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 			scheduleNextRetry(state.attemptCount);
 		}
 	}, [
+		enabled,
 		state.attemptCount,
 		state.isRetrying,
 		state.isManualRetry,
 		maxAttempts,
+		clearTimers,
+		performRetry,
 		scheduleNextRetry,
 	]);
 
 	const retry = useCallback(() => {
+		if (!enabled) return; // Don't allow manual retry when disabled
 		dispatch({ type: "SET_MANUAL_RETRY", isManual: true });
 		clearTimers();
 		dispatch({ type: "CANCEL_RETRY" });
 		performRetry();
-	}, [clearTimers, performRetry]);
-
-	const startRetrying = useCallback(() => {
-		// Immediately perform the first retry attempt
-		performRetry();
-	}, [performRetry]);
-
-	const stopRetrying = useCallback(() => {
-		clearTimers();
-		dispatch({ type: "RESET" });
-	}, [clearTimers]);
+	}, [enabled, clearTimers, performRetry]);
 
 	// Cleanup on unmount
 	useEffect(() => {
@@ -262,7 +268,5 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 		currentDelay: state.currentDelay,
 		attemptCount: state.attemptCount,
 		timeUntilNextRetry: state.timeUntilNextRetry,
-		startRetrying,
-		stopRetrying,
 	};
 }
