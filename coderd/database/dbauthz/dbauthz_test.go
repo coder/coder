@@ -4205,8 +4205,10 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			AgentID:      agent.ID,
 			Health:       database.WorkspaceAppHealthDisabled,
 			SharingLevel: database.AppSharingLevelOwner,
+			OpenIn:       database.WorkspaceAppOpenInSlimWindow,
 			CORSBehavior: database.AppCorsBehaviorSimple,
 		}).Asserts(ws, policy.ActionUpdate)
+	}))
 	s.Run("InsertWorkspaceResourceMetadata", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertWorkspaceResourceMetadataParams{
 			WorkspaceResourceID: uuid.New(),
