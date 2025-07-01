@@ -195,7 +195,7 @@ data "coder_parameter" "ide_selector" {
   name = "ide_selector"
   description  = "Choose any IDEs for your workspace."
   mutable      = true
-  display_name = "Select mutliple IDEs"
+  display_name = "Select multiple IDEs"
 
 
   # Allows users to select multiple IDEs from the list.
@@ -335,7 +335,59 @@ data "coder_parameter" "cpu_cores" {
 
 ## Dynamic Defaults
 
-For a given parameter, we can influence which option is selected by default based on the selection of another parameter.
+For a given parameter, we can influence which option is selected by default based on the selection of another. This allows us to suggest an option dynamically without strict enforcement.
+
+[Try dynamic defaults in the Parameter Playground](https://playground.coder.app/parameters/Ilko59tf89).
+
+```terraform
+data "coder_parameter" "git_repo" {
+  name = "git_repo"
+  display_name = "Git repo"
+  description = "Select a git repo to work on."
+  order = 1
+  mutable = true
+  type = "string"
+  form_type = "dropdown"
+
+  option {
+    # A Go-heavy repository
+    name = "coder/coder"
+    value = "coder/coder"
+  }
+
+  option {
+    # A python-heavy repository
+    name = "coder/mlkit"
+    value = "coder/mlkit"
+  }
+}
+
+data "coder_parameter" "ide_selector" {
+  # Conditionally expose this parameter
+  count = try(data.coder_parameter.git_repo.value, "") != "" ? 1 : 0
+
+  name = "ide_selector"
+  description  = "Choose any IDEs for your workspace."
+  order        = 2
+  mutable      = true
+
+  display_name = "Select IDEs"
+  form_type = "multi-select"
+  type      = "list(string)"
+  default   = try(data.coder_parameter.git_repo.value, "") == "coder/mlkit" ? jsonencode(["Databricks", "PyCharm"]) : jsonencode(["VS Code", "GoLand"])
+
+
+  dynamic "option" {
+    for_each = local.ides
+    content {
+      name  = option.value
+      value = option.value
+    }
+  }
+}
+```
+
+
 
 ## Dynamic Validation
 
