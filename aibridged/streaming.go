@@ -3,7 +3,7 @@ package aibridged
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"encoding/json"
 	"net/http"
 	"os"
 	"sync"
@@ -43,16 +43,11 @@ func BasicSSESender(outerCtx context.Context, sessionID uuid.UUID, stream EventS
 					return
 				}
 
-				var buf bytes.Buffer
-
-				buf.Write([]byte("data: "))
-				buf.Write(payload)
-				buf.Write([]byte("\n\n"))
-
 				// TODO: use logger, make configurable.
-				_, _ = fmt.Fprintf(os.Stderr, "[%s] 	%s", sessionID, buf.Bytes())
+				//_, _ = fmt.Fprintf(os.Stderr, "[%s] 	%s", sessionID, payload)
+				_, _ = os.Stderr.Write(payload)
 
-				_, err := w.Write(buf.Bytes())
+				_, err := w.Write(payload)
 				if err != nil {
 					logger.Error(ctx, "failed to write SSE event", slog.Error(err))
 					return
@@ -84,29 +79,38 @@ type EventStreamer interface {
 	Closed() <-chan any
 }
 
-type openAIEventStream struct {
+type eventStream struct {
 	eventsCh chan []byte
+	kind     eventStreamProvider
 
 	closedOnce sync.Once
 	closedCh   chan any
 }
 
-func newOpenAIEventStream() *openAIEventStream {
-	return &openAIEventStream{
+type eventStreamProvider string
+
+const (
+	openAIEventStream    eventStreamProvider = "openai"
+	anthropicEventStream eventStreamProvider = "anthropic"
+)
+
+func newEventStream(kind eventStreamProvider) *eventStream {
+	return &eventStream{
+		kind:     kind,
 		eventsCh: make(chan []byte),
 		closedCh: make(chan any),
 	}
 }
 
-func (s *openAIEventStream) Events() <-chan []byte {
+func (s *eventStream) Events() <-chan []byte {
 	return s.eventsCh
 }
 
-func (s *openAIEventStream) Closed() <-chan any {
+func (s *eventStream) Closed() <-chan any {
 	return s.closedCh
 }
 
-func (s *openAIEventStream) TrySend(ctx context.Context, data any, exclusions ...string) error {
+func (s *eventStream) TrySend(ctx context.Context, data any, exclusions ...string) error {
 	// Save an unnecessary marshaling if possible.
 	select {
 	case <-ctx.Done():
@@ -116,7 +120,21 @@ func (s *openAIEventStream) TrySend(ctx context.Context, data any, exclusions ..
 	default:
 	}
 
-	payload, err := util.MarshalNoZero(data, exclusions...)
+	var (
+		payload []byte
+		err     error
+	)
+	switch s.kind {
+	case openAIEventStream:
+		// https://github.com/openai/openai-go#request-fields
+		// I noticed that Cursor would bork if it received streaming response payloads which had zero values.
+		// I'm not sure if this is a Cursor-specific issue or more widespread, but I've vibed a marshaler which will filter
+		// out all the zero value objects in the response, with optional exclusions.
+		payload, err = util.MarshalNoZero(data, exclusions...)
+	default:
+		payload, err = json.Marshal(data)
+	}
+
 	if err != nil {
 		return xerrors.Errorf("marshal payload: %w", err)
 	}
@@ -124,7 +142,36 @@ func (s *openAIEventStream) TrySend(ctx context.Context, data any, exclusions ..
 	return s.send(ctx, payload)
 }
 
-func (s *openAIEventStream) send(ctx context.Context, payload []byte) error {
+func (s *eventStream) send(ctx context.Context, payload []byte) error {
+	switch s.kind {
+	case openAIEventStream:
+		var buf bytes.Buffer
+		buf.WriteString("data: ")
+		buf.Write(payload)
+		buf.WriteString("\n\n")
+		payload = buf.Bytes()
+	case anthropicEventStream:
+		// TODO: improve this approach.
+		type msgType struct {
+			Val string `json:"type"`
+		}
+		var typ msgType
+		if err := json.NewDecoder(bytes.NewBuffer(payload)).Decode(&typ); err != nil {
+			return xerrors.Errorf("failed to determine anthropic event type for %q: %w", payload, err)
+		}
+
+		var buf bytes.Buffer
+		buf.WriteString("event: ")
+		buf.WriteString(typ.Val)
+		buf.WriteString("\n")
+		buf.WriteString("data: ")
+		buf.Write(payload)
+		buf.WriteString("\n\n")
+		payload = buf.Bytes()
+	default:
+		return xerrors.Errorf("unknown stream kind: %q", s.kind)
+	}
+
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -135,12 +182,15 @@ func (s *openAIEventStream) send(ctx context.Context, payload []byte) error {
 	}
 }
 
-func (s *openAIEventStream) Close(ctx context.Context) error {
+func (s *eventStream) Close(ctx context.Context) error {
 	var out error
 	s.closedOnce.Do(func() {
-		err := s.send(ctx, []byte("[DONE]")) // TODO: OpenAI-specific?
-		if err != nil {
-			out = xerrors.Errorf("close stream: %w", err)
+		switch s.kind {
+		case openAIEventStream:
+			err := s.send(ctx, []byte("[DONE]"))
+			if err != nil {
+				out = xerrors.Errorf("close stream: %w", err)
+			}
 		}
 
 		close(s.closedCh)

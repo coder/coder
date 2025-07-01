@@ -137,9 +137,6 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse incoming request, inject tool calls.
-	var in ChatCompletionNewParamsWrapper
-
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		b.logger.Error(r.Context(), "failed to read body", slog.Error(err))
@@ -147,6 +144,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var in ChatCompletionNewParamsWrapper
 	if err = json.Unmarshal(body, &in); err != nil {
 		b.logger.Error(r.Context(), "failed to unmarshal request", slog.Error(err))
 		http.Error(w, "failed to unmarshal request", http.StatusInternalServerError)
@@ -207,7 +205,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 		streamCtx, streamCancel := context.WithCancelCause(ctx)
 		defer streamCancel(xerrors.New("deferred"))
 
-		eventStream := newOpenAIEventStream()
+		es := newEventStream(openAIEventStream)
 
 		var wg sync.WaitGroup
 		wg.Add(1)
@@ -215,12 +213,12 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 		go func() {
 			defer wg.Done()
 			defer func() {
-				if err := eventStream.Close(streamCtx); err != nil {
+				if err := es.Close(streamCtx); err != nil {
 					b.logger.Error(ctx, "error closing stream", slog.Error(err), slog.F("sessionID", sessionID))
 				}
 			}()
 
-			BasicSSESender(streamCtx, sessionID, eventStream, b.logger.Named("sse-sender")).ServeHTTP(w, r)
+			BasicSSESender(streamCtx, sessionID, es, b.logger.Named("sse-sender")).ServeHTTP(w, r)
 		}()
 
 		session := NewOpenAISession()
@@ -318,7 +316,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 						Object:            constant.ValueOf[constant.ChatCompletionChunk](),
 					}
 
-					if err := eventStream.TrySend(streamCtx, toolChunk); err != nil {
+					if err := es.TrySend(streamCtx, toolChunk); err != nil {
 						b.logger.Error(ctx, "failed to send tool chunk", slog.Error(err))
 					}
 
@@ -341,7 +339,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 						Object:            constant.ValueOf[constant.ChatCompletionChunk](),
 					}
 
-					if err := eventStream.TrySend(streamCtx, finishChunk, "choices[].delta.content"); err != nil {
+					if err := es.TrySend(streamCtx, finishChunk, "choices[].delta.content"); err != nil {
 						b.logger.Error(ctx, "failed to send finish chunk", slog.Error(err))
 					}
 				}
@@ -353,13 +351,13 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 			//		 up the stream need to be ignored because we send those after the tool call is executed and the result
 			//		 is appended as if it came from the assistant.
 			if _, ok := ignoreSubsequent[acc.ID]; !ok {
-				if err := eventStream.TrySend(streamCtx, chunk); err != nil {
+				if err := es.TrySend(streamCtx, chunk); err != nil {
 					b.logger.Error(ctx, "failed to send reflected chunk", slog.Error(err))
 				}
 			}
 		}
 
-		if err := eventStream.Close(streamCtx); err != nil {
+		if err := es.Close(streamCtx); err != nil {
 			b.logger.Error(ctx, "failed to close event stream", slog.Error(err))
 		}
 
@@ -405,6 +403,146 @@ func (b *Bridge) extractCursorUserQuery(message string) string {
 }
 
 func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
+	sessionID := uuid.New()
+	_, _ = fmt.Fprintf(os.Stderr, "[%s] new chat session started\n\n", sessionID)
+	defer func() {
+		_, _ = fmt.Fprintf(os.Stderr, "[%s] chat session ended\n\n", sessionID)
+	}()
+
+	//out, _ := httputil.DumpRequest(r, true)
+	//fmt.Printf("\n\nREQUEST: %s\n\n", out)
+
+	// Allow us to interrupt watch via cancel.
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
+
+	coderdClient, ok := b.clientFn()
+	if !ok {
+		// TODO: log issue.
+		http.Error(w, "could not acquire coderd client", http.StatusInternalServerError)
+		return
+	}
+	_ = coderdClient
+
+	useBeta := r.URL.Query().Get("beta") == "true"
+	if !useBeta {
+		http.Error(w, "only beta API supported", http.StatusInternalServerError)
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		b.logger.Error(r.Context(), "failed to read body", slog.Error(err))
+		http.Error(w, "failed to read body", http.StatusInternalServerError)
+		return
+	}
+
+	//var in streamer
+	//if useBeta {
+	var in BetaMessageNewParamsWrapper
+	//} else {
+	//	in = &MessageNewParamsWrapper{}
+	//}
+
+	if err = json.Unmarshal(body, &in); err != nil {
+		b.logger.Error(r.Context(), "failed to unmarshal request", slog.Error(err))
+		http.Error(w, "failed to unmarshal request", http.StatusInternalServerError)
+		return
+	}
+
+	// looks up API key with os.LookupEnv("ANTHROPIC_API_KEY")
+	client := anthropic.NewClient()
+	if !in.UseStreaming() {
+		msg, err := client.Beta.Messages.New(ctx, in.BetaMessageNewParams)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+
+		out := []byte(msg.RawJSON())
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(out)
+		return
+	}
+
+	streamCtx, streamCancel := context.WithCancelCause(ctx)
+	defer streamCancel(xerrors.New("deferred"))
+
+	es := newEventStream(anthropicEventStream)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		defer func() {
+			if err := es.Close(streamCtx); err != nil {
+				b.logger.Error(ctx, "error closing stream", slog.Error(err), slog.F("sessionID", sessionID))
+			}
+		}()
+
+		BasicSSESender(streamCtx, sessionID, es, b.logger.Named("sse-sender")).ServeHTTP(w, r)
+	}()
+
+	stream := client.Beta.Messages.NewStreaming(streamCtx, in.BetaMessageNewParams)
+
+	var message anthropic.BetaMessage
+	for stream.Next() {
+		event := stream.Current()
+
+		// Log MCP tool result events
+		eventData := event.RawJSON()
+		if strings.Contains(eventData, "web_search_requests") {
+			b.logger.Info(ctx, "Usage event with web_search_requests", slog.F("event", eventData))
+		}
+		if strings.Contains(eventData, "mcp_tool_result") {
+			b.logger.Info(ctx, "MCP tool result event", slog.F("event", eventData))
+		}
+		if strings.Contains(eventData, "tool_result") {
+			b.logger.Info(ctx, "Tool result event", slog.F("event", eventData))
+		}
+		if strings.Contains(eventData, "tool_use") {
+			b.logger.Info(ctx, "Tool use event", slog.F("event", eventData))
+		}
+
+		if err := message.Accumulate(event); err != nil {
+			b.logger.Error(ctx, "failed to accumulate streaming events", slog.Error(err), slog.F("event", event), slog.F("msg", message.RawJSON()))
+			http.Error(w, "failed to proxy request", http.StatusInternalServerError)
+			return
+		}
+
+		if err := es.TrySend(streamCtx, event); err != nil {
+			b.logger.Error(ctx, "failed to send event", slog.Error(err))
+		}
+	}
+
+	var streamErr error
+	if streamErr = stream.Err(); streamErr != nil {
+		http.Error(w, stream.Err().Error(), http.StatusInternalServerError)
+	}
+
+	err = es.Close(streamCtx)
+	if err != nil {
+		b.logger.Error(ctx, "failed to close event stream", slog.Error(err))
+	}
+
+	wg.Wait()
+
+	// Ensure we flush all the remaining data before ending.
+	flush(w)
+
+	if err != nil || streamErr != nil {
+		streamCancel(xerrors.Errorf("stream err: %w", err))
+	} else {
+		streamCancel(xerrors.New("gracefully done"))
+	}
+
+	select {
+	case <-streamCtx.Done():
+	}
+}
+
+func (b *Bridge) proxyAnthropicRequestPrev(w http.ResponseWriter, r *http.Request) {
 	coderdClient, ok := b.clientFn()
 	if !ok {
 		// TODO: log issue.
