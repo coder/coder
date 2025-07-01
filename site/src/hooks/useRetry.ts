@@ -100,7 +100,7 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 		setCurrentDelay(null);
 		clearTimers();
 		// Increment attempt count when starting the retry
-		setAttemptCount(prev => prev + 1);
+		setAttemptCount((prev) => prev + 1);
 
 		try {
 			await onRetryEvent();
@@ -122,7 +122,7 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 			}
 
 			// Calculate delay based on attempt - 1 (so first retry gets initialDelay)
-		const delay = calculateDelay(Math.max(0, attempt - 1));
+			const delay = calculateDelay(Math.max(0, attempt - 1));
 			setCurrentDelay(delay);
 			setTimeUntilNextRetry(delay);
 			startTimeRef.current = Date.now();
