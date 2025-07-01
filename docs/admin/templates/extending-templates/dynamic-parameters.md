@@ -1,9 +1,9 @@
 # Dynamic Parameters (Beta)
 
-Coder v2.24.0 introduces Dynamic Parameters to extend the existing parameter system with conditional form controls, enriched input types, and user idenitity awareness. 
-This feature allows template authors to create interactive workspace creation forms, meaning more environment customization and fewer templates to maintain. 
+Coder v2.24.0 introduces Dynamic Parameters to extend the existing parameter system with conditional form controls, enriched input types, and user idenitity awareness.
+This feature allows template authors to create interactive workspace creation forms, meaning more environment customization and fewer templates to maintain.
 
-All parameters are parsed from Terraform, meaning your workspace creation forms live in the same location as your provisioning code. You can use all the native Terraform functions and conditionality to create a self-service tooling catalog for every template. 
+All parameters are parsed from Terraform, meaning your workspace creation forms live in the same location as your provisioning code. You can use all the native Terraform functions and conditionality to create a self-service tooling catalog for every template.
 
 Administrators can now:
 
@@ -11,7 +11,7 @@ Administrators can now:
 - Only show parameters when other input criteria is met
 - Only show select parameters to target Coder roles or groups
 
-You can try the dynamic parameter syntax and any of the code examples below in the [Parameters Playground](https://playground.coder.app/parameters) today. We advise experimenting here before upgrading templates.  
+You can try the dynamic parameter syntax and any of the code examples below in the [Parameters Playground](https://playground.coder.app/parameters) today. We advise experimenting here before upgrading templates.
 
 ### When you should upgrade to Dynamic Parameters
 
@@ -25,13 +25,13 @@ There are three reasons for users to try Dynamic Parameters:
 - You want to selectively expose privledged workspace options to admins, power users, or personas
 - You want to make the workspace creation flow more ergonomic for developers.
 
-Dynamic Parameters help you reduce template duplication by setting conditions on which users may see which parameters. They increase the potential complexity of user-facing configuration by allowing administrators to organize a long list of options into interactive, branching paths for workspace customization. They allow you to set resource guardrails by referencing coder identity in the `coder_workspace_owner` data source. 
+Dynamic Parameters help you reduce template duplication by setting conditions on which users may see which parameters. They increase the potential complexity of user-facing configuration by allowing administrators to organize a long list of options into interactive, branching paths for workspace customization. They allow you to set resource guardrails by referencing coder identity in the `coder_workspace_owner` data source.
 
 Read on for setup steps and code examples.
 
 ### How to enable Dynamic Parameters
 
-In v2.24.0, you can opt-in to Dynamic Parameters on a per-template basis. To use dynamic parameters, go to your template settings and toggle the "Enable Dynamic Parameters Beta" option. 
+In v2.24.0, you can opt-in to Dynamic Parameters on a per-template basis. To use dynamic parameters, go to your template settings and toggle the "Enable Dynamic Parameters Beta" option.
 
 [Image of template settings with dynamic parameters beta option]
 
@@ -106,6 +106,8 @@ The "Options" column in the table below indicates whether the form type requires
 
 ### New Form Types
 
+The [`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute can be used to select from a variety of form controls. See the following examples for usage in the [Parameters Playground](https://playground.coder.app/parameters).
+
 <tabs>
 
 ## Dropdown lists
@@ -146,11 +148,91 @@ data "coder_parameter" "ides_dropdown" {
 ```
 
 
-## Large text entry
+## Text area
+
+The large text entry option can be used to enter long strings like AI prompts, scripts, or natural language.
+
+[Try textarea parameters on the Parameter Playground](https://playground.coder.app/parameters/RCAHA1Oi1_)
+
+
+```terraform
+
+data "coder_parameter" "text_area" {
+  name = "text_area"
+  description  = "Enter mutli-line text."
+  mutable      = true
+  display_name = "Select mutliple IDEs"
+
+  form_type = "textarea"
+  type      = "string"
+
+  default = <<-EOT
+    This is an example of mult-line text entry.
+
+    The 'textarea' form_type is useful for
+    - AI prompts
+    - Scripts
+    - Read-only info (try the 'disabled' styling option)
+  EOT
+}
+
+```
 
 ## Multi-select
 
+Multi-select parameters allow users to select one or many options from a single list of options. For example, adding multiple IDEs with a single parameter.
 
+[Try multi-select parameters on the Parameter Playground](https://playground.coder.app/parameters/XogX54JV_f)
+
+```terraform
+locals {
+  ides = [
+    "VS Code", "JetBrains IntelliJ",
+    "GoLand", "WebStorm",
+    "Vim", "Emacs",
+    "Neovim", "PyCharm",
+    "Databricks", "Jupyter Notebook",
+  ]
+}
+
+data "coder_parameter" "ide_selector" {
+  name = "ide_selector"
+  description  = "Choose any IDEs for your workspace."
+  mutable      = true
+  display_name = "Select mutliple IDEs"
+
+
+  # Allows users to select multiple IDEs from the list.
+  form_type = "multi-select"
+  type      = "list(string)"
+
+
+  dynamic "option" {
+    for_each = local.ides
+    content {
+      name  = option.value
+      value = option.value
+    }
+  }
+}
+```
+
+## Checkboxes
+
+
+Checkbox: A single checkbox for boolean values
+
+[Try checkbox parameters on the playground](https://playground.coder.app/parameters/ycWuQJk2Py)
+
+```terraform
+data "coder_parameter" "enable_gpu" {
+  name         = "enable_gpu"
+  display_name = "Enable GPU"
+  type         = "bool"
+  form_type    = "checkbox" # This is the default for boolean parameters
+  default      = false
+}
+```
 
 </tabs>
 
@@ -159,6 +241,19 @@ data "coder_parameter" "ides_dropdown" {
 ### Conditional Parameters
 
 <tabs>
+
+## Conditionally hide parameters
+
+```terraform
+
+
+```
+
+
+## Dynamic Defaults
+
+
+##
 
 
 
@@ -172,24 +267,15 @@ data "coder_parameter" "ides_dropdown" {
 
 ## Role-specific options
 
-## 
+## Groups as namespaces
 
  </tabs>
 
 
 ### Form Type Examples
 
-<details><summary>checkbox: A single checkbox for boolean values</summary>
+<details><summary></summary>
 
-```tf
-data "coder_parameter" "enable_gpu" {
-  name         = "enable_gpu"
-  display_name = "Enable GPU"
-  type         = "bool"
-  form_type    = "checkbox" # This is the default for boolean parameters
-  default      = false
-}
-```
 
 </details>
 
