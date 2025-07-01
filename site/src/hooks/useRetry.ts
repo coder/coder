@@ -76,11 +76,11 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 
 	const clearTimers = useCallback(() => {
 		if (timeoutRef.current) {
-			clearTimeout(timeoutRef.current);
+			window.clearTimeout(timeoutRef.current);
 			timeoutRef.current = null;
 		}
 		if (countdownRef.current) {
-			clearInterval(countdownRef.current);
+			window.clearInterval(countdownRef.current);
 			countdownRef.current = null;
 		}
 		startTimeRef.current = null;
@@ -128,7 +128,7 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 			startTimeRef.current = Date.now();
 
 			// Start countdown timer
-			countdownRef.current = setInterval(() => {
+			countdownRef.current = window.setInterval(() => {
 				if (startTimeRef.current) {
 					const elapsed = Date.now() - startTimeRef.current;
 					const remaining = Math.max(0, delay - elapsed);
@@ -136,7 +136,7 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 
 					if (remaining <= 0) {
 						if (countdownRef.current) {
-							clearInterval(countdownRef.current);
+							window.clearInterval(countdownRef.current);
 							countdownRef.current = null;
 						}
 					}
@@ -144,7 +144,7 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 			}, 100); // Update every 100ms for smooth countdown
 
 			// Schedule the actual retry
-			timeoutRef.current = setTimeout(() => {
+			timeoutRef.current = window.setTimeout(() => {
 				performRetry();
 			}, delay);
 		},
