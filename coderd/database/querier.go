@@ -64,6 +64,7 @@ type sqlcQuerier interface {
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
+	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	// CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.
 	// Prebuild considered in-progress if it's in the "starting", "stopping", or "deleting" state.
 	CountInProgressPrebuilds(ctx context.Context) ([]CountInProgressPrebuildsRow, error)

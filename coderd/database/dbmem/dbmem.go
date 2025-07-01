@@ -1779,6 +1779,10 @@ func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
 	return ErrUnimplemented
 }
 
+func (q *FakeQuerier) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
+	return q.CountAuthorizedAuditLogs(ctx, arg, nil)
+}
+
 func (q *FakeQuerier) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
 	return nil, ErrUnimplemented
 }
@@ -13930,7 +13934,6 @@ func (q *FakeQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg data
 			UserQuietHoursSchedule:  sql.NullString{String: user.QuietHoursSchedule, Valid: userValid},
 			UserStatus:              database.NullUserStatus{UserStatus: user.Status, Valid: userValid},
 			UserRoles:               user.RBACRoles,
-			Count:                   0,
 		})
 
 		if len(logs) >= int(arg.LimitOpt) {
@@ -13938,10 +13941,82 @@ func (q *FakeQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg data
 		}
 	}
 
-	count := int64(len(logs))
-	for i := range logs {
-		logs[i].Count = count
+	return logs, nil
+}
+
+func (q *FakeQuerier) CountAuthorizedAuditLogs(ctx context.Context, arg database.CountAuditLogsParams, prepared rbac.PreparedAuthorized) (int64, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return 0, err
 	}
 
-	return logs, nil
+	// Call this to match the same function calls as the SQL implementation.
+	// It functionally does nothing for filtering.
+	if prepared != nil {
+		_, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+			VariableConverter: regosql.AuditLogConverter(),
+		})
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var count int64
+
+	// q.auditLogs are already sorted by time DESC, so no need to sort after the fact.
+	for _, alog := range q.auditLogs {
+		if arg.RequestID != uuid.Nil && arg.RequestID != alog.RequestID {
+			continue
+		}
+		if arg.OrganizationID != uuid.Nil && arg.OrganizationID != alog.OrganizationID {
+			continue
+		}
+		if arg.Action != "" && string(alog.Action) != arg.Action {
+			continue
+		}
+		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
+			continue
+		}
+		if arg.ResourceID != uuid.Nil && alog.ResourceID != arg.ResourceID {
+			continue
+		}
+		if arg.Username != "" {
+			user, err := q.getUserByIDNoLock(alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Username, user.Username) {
+				continue
+			}
+		}
+		if arg.Email != "" {
+			user, err := q.getUserByIDNoLock(alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
+				continue
+			}
+		}
+		if !arg.DateFrom.IsZero() {
+			if alog.Time.Before(arg.DateFrom) {
+				continue
+			}
+		}
+		if !arg.DateTo.IsZero() {
+			if alog.Time.After(arg.DateTo) {
+				continue
+			}
+		}
+		if arg.BuildReason != "" {
+			workspaceBuild, err := q.getWorkspaceBuildByIDNoLock(context.Background(), alog.ResourceID)
+			if err == nil && !strings.EqualFold(arg.BuildReason, string(workspaceBuild.Reason)) {
+				continue
+			}
+		}
+		// If the filter exists, ensure the object is authorized.
+		if prepared != nil && prepared.Authorize(ctx, alog.RBACObject()) != nil {
+			continue
+		}
+
+		count++
+	}
+
+	return count, nil
 }
