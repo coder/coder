@@ -40,8 +40,8 @@ When a workspace with the dev containers integration starts:
 
 ### Connectivity
 
-- Full SSH access directly into dev containers (`coder ssh --container ...`).
-- Automatic port forwarding based on `appPort`, `forwardPorts`, or `docker-compose.yml`.
+- Full SSH access directly into dev containers (`coder ssh <workspace>.<devcontainer>`).
+- Automatic port forwarding.
 
 ## Personal overrides
 

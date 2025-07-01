@@ -97,13 +97,13 @@ module "git_clone" {
   source   = "dev.registry.coder.com/modules/git-clone/coder"
   agent_id = coder_agent.main.id
   url      = "https://github.com/example/project.git"
-  base_dir = "/home/coder/project"
+  base_dir = "/home/coder"
 }
 
 resource "coder_devcontainer" "project" {
   count            = data.coder_workspace.me.start_count
   agent_id         = coder_agent.main.id
-  workspace_folder = "/home/coder/project/${module.git_clone[0].folder_name}"
+  workspace_folder = "/home/coder/${module.git_clone[0].folder_name}"
   depends_on       = [module.git_clone]
 }
 ```
@@ -119,8 +119,9 @@ For more advanced use cases, consult the [advanced dev containers doc](./advance
 {
   "customizations": {
     "coder": {
-      "apps": {
-        "flask-app": {
+      "apps": [
+        {
+          "slug": "flask-app",
           "command": "python app.py",
           "icon": "/icon/flask.svg",
           "subdomain": true,
@@ -130,7 +131,7 @@ For more advanced use cases, consult the [advanced dev containers doc](./advance
             "threshold": 10
           }
         }
-      }
+      ]
     }
   }
 }
@@ -140,10 +141,10 @@ For more advanced use cases, consult the [advanced dev containers doc](./advance
 
 Coder names dev container agents in this order:
 
-1. `customizations.coder.agent.name` in `devcontainer.json`
-1. `name` in `devcontainer.json`
-1. Directory name that contains the config
-1. `devcontainer` (default)
+1. `customizations.coder.name` in `devcontainer.json`
+1. Resource name used in terraform (`resource "coder_devcontainer" "name"`)
+1. Project directory name (name of folder containing `devcontainer.json` or `.devcontainer` folder)
+1. If project directory name is already taken, the name is expanded to include the parent folder (`/home/coder/some/project` -> `project` (taken) -> `some-project`)
 
 ### Multiple dev containers
 
