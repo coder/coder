@@ -26,6 +26,40 @@ In both cases, you can access the dashboard on `http://localhost:8080`. If using
 > [!NOTE]
 > **Default Credentials:** `admin@coder.com` and `SomeSecurePassword!`.
 
+## Development Commands
+
+All commands should be run from the `site/` directory:
+
+```bash
+# Development
+pnpm dev                    # Start Vite development server
+pnpm storybook --no-open    # Run Storybook for component development
+
+# Testing
+pnpm test                   # Run Jest unit tests
+pnpm test -- path/to/file   # Run specific test file
+pnpm playwright:test        # Run Playwright E2E tests (requires license)
+
+# Code Quality
+pnpm lint                   # Run complete linting suite (Biome + TypeScript + circular deps + knip)
+pnpm lint:fix               # Auto-fix linting issues where possible
+pnpm format                 # Format code with Biome (always run before PR)
+pnpm check                  # Type-check with TypeScript
+
+# Build
+pnpm build                  # Production build
+```
+
+### Pre-PR Checklist
+
+Before creating a pull request, ensure you run:
+
+1. `pnpm check` - Ensure no TypeScript errors
+2. `pnpm lint` - Fix linting issues
+3. `pnpm format` - Format code consistently
+4. `pnpm test` - Run affected unit tests
+5. Visual check in Storybook if component changes
+
 ## Tech Stack Overview
 
 All our dependencies are described in `site/package.json`, but the following are
@@ -34,7 +68,9 @@ the most important.
 - [React](https://reactjs.org/) for the UI framework
 - [Typescript](https://www.typescriptlang.org/) to keep our sanity
 - [Vite](https://vitejs.dev/) to build the project
-- [Material V5](https://mui.com/material-ui/getting-started/) for UI components
+- [TailwindCSS](https://tailwindcss.com/) for styling (migrating from Emotion)
+- [shadcn/ui](https://ui.shadcn.com/) + [Radix UI](https://www.radix-ui.com/) for UI components (migrating from Material UI)
+- [Lucide React](https://lucide.dev/) for icons
 - [react-router](https://reactrouter.com/en/main) for routing
 - [TanStack Query v4](https://tanstack.com/query/v4/docs/react/overview) for
   fetching data
@@ -43,7 +79,41 @@ the most important.
 - [Jest](https://jestjs.io/) for integration testing
 - [Storybook](https://storybook.js.org/) and
   [Chromatic](https://www.chromatic.com/) for visual testing
+- [Biome](https://biomejs.dev/) for linting and formatting
 - [PNPM](https://pnpm.io/) as the package manager
+
+## Migration Status
+
+**⚠️ Important: We are currently migrating from Material UI (MUI) to shadcn/ui and from Emotion to TailwindCSS.**
+
+### Current State
+- **~210 files** still use MUI components (`@mui/material`)
+- **~41 components** have been migrated to use TailwindCSS classes
+- **shadcn/ui components** are being added incrementally to `src/components/`
+- **Emotion CSS** is deprecated but still present in legacy components
+
+### Migration Guidelines
+
+When working on existing components:
+1. **Prefer shadcn/ui components** over MUI when available
+2. **Use TailwindCSS classes** instead of Emotion `css` prop or `sx` prop
+3. **Check `src/components/`** for existing shadcn/ui implementations before creating new ones
+4. **Do not use the shadcn CLI** - manually add components to maintain consistency
+5. **Update tests** to reflect new component structure when migrating
+
+For new components:
+1. **Always use TailwindCSS** for styling
+2. **Use shadcn/ui components** as the foundation
+3. **Use Lucide React icons** instead of MUI icons
+4. **Follow the semantic color tokens** defined in `tailwind.config.js`
+
+### Semantic Color System
+
+Use the custom semantic color tokens defined in our Tailwind configuration:
+- **Content colors**: `content-primary`, `content-secondary`, `content-disabled`, `content-invert`, `content-success`, `content-link`, `content-destructive`, `content-warning`
+- **Surface colors**: `surface-primary`, `surface-secondary`, `surface-tertiary`, `surface-quaternary`, `surface-invert-primary`, `surface-invert-secondary`, `surface-destructive`, `surface-green`, `surface-grey`, `surface-orange`, `surface-sky`, `surface-red`, `surface-purple`
+- **Border colors**: `border-default`, `border-warning`, `border-destructive`, `border-success`, `border-hover`
+- **Highlight colors**: `highlight-purple`, `highlight-green`, `highlight-grey`, `highlight-sky`, `highlight-red`
 
 ## Structure
 
@@ -182,13 +252,36 @@ Components should be atomic, reusable and free of business logic. Modules are
 similar to components except that they can be more complex and can contain
 business logic specific to the product.
 
-### MUI
+### UI Components
 
-The codebase is currently using MUI v5. Please see the
-[official documentation](https://mui.com/material-ui/getting-started/). In
-general, favor building a custom component via MUI instead of plain React/HTML,
-as MUI's suite of components is thoroughly battle-tested and accessible right
-out of the box.
+**⚠️ MUI is deprecated** - we are migrating to shadcn/ui + Radix UI.
+
+#### shadcn/ui Components (Preferred)
+
+We use [shadcn/ui](https://ui.shadcn.com/) components built on top of [Radix UI](https://www.radix-ui.com/) primitives. These components are:
+- **Accessible by default** with ARIA attributes and keyboard navigation
+- **Customizable** with TailwindCSS classes
+- **Consistent** with our design system
+- **Type-safe** with full TypeScript support
+
+Existing shadcn/ui components can be found in `src/components/`. Examples include:
+- `Checkbox` - Form checkbox input
+- `ScrollArea` - Custom scrollable area
+- `Table` - Data table with sorting and filtering
+- `Slider` - Range input slider
+- `Switch` - Toggle switch
+- `Command` - Command palette/search
+- `Collapsible` - Expandable content sections
+
+#### MUI Components (Legacy)
+
+The codebase still contains MUI v5 components that are being phased out. When encountering MUI components:
+1. **Check if a shadcn/ui equivalent exists** in `src/components/`
+2. **Migrate to the shadcn/ui version** when making changes
+3. **Create a new shadcn/ui component** if no equivalent exists
+4. **Do not add new MUI components** to the codebase
+
+For reference, the [MUI documentation](https://mui.com/material-ui/getting-started/) can still be consulted for understanding existing legacy components.
 
 ### Structure
 
@@ -199,35 +292,65 @@ remain easy to navigate, healthy and maintainable for all contributors.
 
 ### Accessibility
 
-We strive to keep our UI accessible.
+We strive to keep our UI accessible. **shadcn/ui components are accessible by default** with proper ARIA attributes, keyboard navigation, and focus management.
 
-In general, colors should come from the app theme, but if there is a need to add
-a custom color, please ensure that the foreground and background have a minimum
-contrast ratio of 4.5:1 to meet WCAG level AA compliance. WebAIM has
-[a great tool for checking your colors directly](https://webaim.org/resources/contrastchecker/),
-but tools like
-[Dequeue's axe DevTools](https://chrome.google.com/webstore/detail/axe-devtools-web-accessib/lhdoppojpmngadmnindnejefpokejbdd)
-can also do automated checks in certain situations.
+#### Color Contrast
 
-When using any kind of input element, always make sure that there is a label
-associated with that element (the label can be made invisible for aesthetic
-reasons, but it should always be in the HTML markup). Labels are important for
-screen-readers; a placeholder text value is not enough for all users.
+Colors should come from our semantic color tokens in the Tailwind theme. These tokens are designed to meet WCAG level AA compliance (4.5:1 contrast ratio). If you need to add a custom color, ensure proper contrast using:
+- [WebAIM Contrast Checker](https://webaim.org/resources/contrastchecker/)
+- [Dequeue's axe DevTools](https://chrome.google.com/webstore/detail/axe-devtools-web-accessib/lhdoppojpmngadmnindnejefpokejbdd)
 
-When possible, make sure that all image/graphic elements have accompanying text
-that describes the image. `<img />` elements should have an `alt` text value. In
-other situations, it might make sense to place invisible, descriptive text
-inside the component itself using MUI's `visuallyHidden` utility function.
+#### Form Labels
+
+Always associate labels with input elements. Labels can be visually hidden but must be present in the markup for screen readers.
 
 ```tsx
-import { visuallyHidden } from "@mui/utils";
+// ✅ Good: Visible label
+<label htmlFor="email" className="text-content-primary">
+  Email Address
+</label>
+<input id="email" type="email" className="border border-default" />
 
-<Button>
-    <GearIcon />
-    <Box component="span" sx={visuallyHidden}>
-        Settings
-    </Box>
-</Button>;
+// ✅ Good: Visually hidden label
+<label htmlFor="search" className="sr-only">
+  Search
+</label>
+<input id="search" placeholder="Search..." className="border border-default" />
+```
+
+#### Images and Icons
+
+Provide descriptive text for images and icons:
+
+```tsx
+// ✅ Good: Alt text for images
+<img src="chart.png" alt="Revenue increased 25% this quarter" />
+
+// ✅ Good: Screen reader text for icons
+<button className="p-2">
+  <GearIcon aria-hidden="true" />
+  <span className="sr-only">Settings</span>
+</button>
+
+// ✅ Good: Using Lucide React icons with proper labeling
+import { Settings } from "lucide-react";
+<button>
+  <Settings className="w-4 h-4" aria-hidden="true" />
+  <span className="sr-only">Open settings</span>
+</button>
+```
+
+#### Legacy MUI Accessibility
+
+For legacy MUI components, you may still see the `visuallyHidden` utility:
+
+```tsx
+// ❌ Legacy: MUI visuallyHidden
+import { visuallyHidden } from "@mui/utils";
+<Box component="span" sx={visuallyHidden}>Settings</Box>
+
+// ✅ Migrated: Tailwind sr-only class
+<span className="sr-only">Settings</span>
 ```
 
 ### Should I create a new component or module?
@@ -250,7 +373,54 @@ new conventions, but all new components should follow these guidelines.
 
 ## Styling
 
-We use [Emotion](https://emotion.sh/) to handle CSS styles.
+**⚠️ Emotion is deprecated** - we are migrating to TailwindCSS.
+
+### TailwindCSS (Preferred)
+
+We use [TailwindCSS](https://tailwindcss.com/) for all new styling. Key points:
+
+- **Use semantic color tokens** from our custom theme (see Migration Status section above)
+- **Responsive design** with Tailwind's responsive prefixes (`sm:`, `md:`, `lg:`, `xl:`)
+- **No dark mode prefix** - our theme handles light/dark mode automatically
+- **Custom utilities** are defined in `tailwind.config.js`
+- **Conditional styling** using `clsx` utility for dynamic classes
+
+#### TailwindCSS Best Practices
+
+```tsx
+// ✅ Good: Use semantic color tokens
+<div className="bg-surface-primary text-content-primary border border-default">
+
+// ✅ Good: Group related classes
+<div className="flex items-center justify-between p-4 rounded-lg">
+
+// ✅ Good: Responsive design
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+
+// ✅ Good: Conditional styling with clsx
+import { clsx } from "clsx";
+<button className={clsx(
+  "px-4 py-2 rounded",
+  isActive && "bg-surface-tertiary",
+  isDisabled && "opacity-50 cursor-not-allowed"
+)}>
+```
+
+### Emotion (Legacy)
+
+Legacy components may still use [Emotion](https://emotion.sh/) with the `css` prop or `sx` prop from MUI. When working with these:
+
+1. **Migrate to TailwindCSS classes** when making changes
+2. **Remove Emotion imports** after migration
+3. **Update tests** to reflect new class-based styling
+
+```tsx
+// ❌ Legacy: Emotion css prop
+<div css={{ padding: 16, backgroundColor: 'white' }}>
+
+// ✅ Migrated: TailwindCSS classes
+<div className="p-4 bg-surface-primary">
+```
 
 ## Forms
 
@@ -365,4 +535,138 @@ createMachine({ ... }, {
     getUpdateCheck: () => getUpdateCheck(),
   },
 })
+```
+
+## Migration Guide: MUI to shadcn/ui
+
+This section provides practical guidance for migrating components from MUI to shadcn/ui.
+
+### Step-by-Step Migration Process
+
+1. **Identify the component** you're working on
+2. **Check for existing shadcn/ui equivalent** in `src/components/`
+3. **Plan the migration** - identify props, styling, and functionality
+4. **Update imports** - replace MUI imports with shadcn/ui
+5. **Replace styling** - convert Emotion/sx props to TailwindCSS classes
+6. **Update tests** - ensure component tests still pass
+7. **Test accessibility** - verify keyboard navigation and screen reader support
+
+### Common Migration Patterns
+
+#### Button Migration
+
+```tsx
+// ❌ Before: MUI Button
+import { Button } from "@mui/material";
+
+<Button 
+  variant="contained" 
+  color="primary"
+  sx={{ margin: 2 }}
+  onClick={handleClick}
+>
+  Click me
+</Button>
+
+// ✅ After: shadcn/ui Button (if available) or custom button
+import { Button } from "components/Button";
+
+<Button 
+  variant="primary"
+  className="m-2"
+  onClick={handleClick}
+>
+  Click me
+</Button>
+```
+
+#### Form Field Migration
+
+```tsx
+// ❌ Before: MUI TextField
+import { TextField } from "@mui/material";
+
+<TextField
+  label="Email"
+  variant="outlined"
+  error={!!errors.email}
+  helperText={errors.email}
+  sx={{ marginBottom: 2 }}
+/>
+
+// ✅ After: shadcn/ui Input with Label
+import { Input } from "components/Input";
+import { Label } from "components/Label";
+
+<div className="mb-2">
+  <Label htmlFor="email">Email</Label>
+  <Input 
+    id="email"
+    className={errors.email ? "border-border-destructive" : ""}
+  />
+  {errors.email && (
+    <p className="text-content-destructive text-sm mt-1">
+      {errors.email}
+    </p>
+  )}
+</div>
+```
+
+#### Icon Migration
+
+```tsx
+// ❌ Before: MUI Icons
+import { Settings as SettingsIcon } from "@mui/icons-material";
+
+<SettingsIcon fontSize="small" />
+
+// ✅ After: Lucide React Icons
+import { Settings } from "lucide-react";
+
+<Settings className="w-4 h-4" />
+```
+
+### Migration Checklist
+
+When migrating a component, ensure you:
+
+- [ ] Replace MUI imports with shadcn/ui equivalents
+- [ ] Convert `sx` props and Emotion `css` to TailwindCSS classes
+- [ ] Use semantic color tokens from the theme
+- [ ] Update icon imports to use Lucide React
+- [ ] Maintain or improve accessibility
+- [ ] Update component tests
+- [ ] Update Storybook stories if they exist
+- [ ] Verify responsive behavior
+- [ ] Test keyboard navigation
+- [ ] Check color contrast compliance
+
+### Getting Help
+
+If you encounter challenges during migration:
+
+1. **Check existing implementations** in `src/components/` for patterns
+2. **Refer to shadcn/ui documentation** at [ui.shadcn.com](https://ui.shadcn.com/)
+3. **Ask in Discord** - the team is happy to help with migration questions
+4. **Look at recent PRs** for migration examples
+
+### Creating New shadcn/ui Components
+
+When a shadcn/ui equivalent doesn't exist:
+
+1. **Check the shadcn/ui registry** for the component
+2. **Copy the component code** (don't use the CLI)
+3. **Adapt to our theme** using semantic color tokens
+4. **Add to `src/components/`** with proper folder structure
+5. **Create Storybook stories** for documentation
+6. **Add TypeScript types** for props
+7. **Include accessibility features** (ARIA attributes, keyboard support)
+
+Example component structure:
+```
+src/components/NewComponent/
+├── NewComponent.tsx
+├── NewComponent.stories.tsx
+├── NewComponent.test.tsx
+└── index.ts
 ```
