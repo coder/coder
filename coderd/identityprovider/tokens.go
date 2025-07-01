@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
@@ -30,6 +32,8 @@ var (
 	errBadCode = xerrors.New("Invalid code")
 	// errBadToken means the user provided a bad token.
 	errBadToken = xerrors.New("Invalid token")
+	// errInvalidPKCE means the PKCE verification failed.
+	errInvalidPKCE = xerrors.New("invalid code_verifier")
 )
 
 type tokenParams struct {
@@ -39,6 +43,8 @@ type tokenParams struct {
 	grantType    codersdk.OAuth2ProviderGrantType
 	redirectURL  *url.URL
 	refreshToken string
+	codeVerifier string // PKCE verifier
+	resource     string // RFC 8707 resource for token binding
 }
 
 func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []codersdk.ValidationError, error) {
@@ -65,6 +71,8 @@ func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []c
 		grantType:    grantType,
 		redirectURL:  p.RedirectURL(vals, callbackURL, "redirect_uri"),
 		refreshToken: p.String(vals, "", "refresh_token"),
+		codeVerifier: p.String(vals, "", "code_verifier"),
+		resource:     p.String(vals, "", "resource"),
 	}
 
 	p.ErrorExcessParams(vals)
@@ -94,11 +102,25 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 
 		params, validationErrs, err := extractTokenParams(r, callbackURL)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message:     "Invalid query params.",
-				Detail:      err.Error(),
-				Validations: validationErrs,
-			})
+			// Check for specific validation errors in priority order
+			if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
+				return validationError.Field == "grant_type"
+			}) {
+				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "unsupported_grant_type", "The grant type is missing or unsupported")
+				return
+			}
+
+			// Check for missing required parameters for authorization_code grant
+			for _, field := range []string{"code", "client_id", "client_secret"} {
+				if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
+					return validationError.Field == field
+				}) {
+					httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_request", fmt.Sprintf("Missing required parameter: %s", field))
+					return
+				}
+			}
+			// Generic invalid request for other validation errors
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_request", "The request is missing required parameters or is otherwise malformed")
 			return
 		}
 
@@ -111,23 +133,29 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 		case codersdk.OAuth2ProviderGrantTypeAuthorizationCode:
 			token, err = authorizationCodeGrant(ctx, db, app, lifetimes, params)
 		default:
-			// Grant types are validated by the parser, so getting through here means
-			// the developer added a type but forgot to add a case here.
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Unhandled grant type.",
-				Detail:  fmt.Sprintf("Grant type %q is unhandled", params.grantType),
-			})
+			// This should handle truly invalid grant types
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "unsupported_grant_type", fmt.Sprintf("The grant type %q is not supported", params.grantType))
 			return
 		}
 
-		if errors.Is(err, errBadCode) || errors.Is(err, errBadSecret) {
-			httpapi.Write(r.Context(), rw, http.StatusUnauthorized, codersdk.Response{
-				Message: err.Error(),
-			})
+		if errors.Is(err, errBadSecret) {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusUnauthorized, "invalid_client", "The client credentials are invalid")
+			return
+		}
+		if errors.Is(err, errBadCode) {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_grant", "The authorization code is invalid or expired")
+			return
+		}
+		if errors.Is(err, errInvalidPKCE) {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_grant", "The PKCE code verifier is invalid")
+			return
+		}
+		if errors.Is(err, errBadToken) {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_grant", "The refresh token is invalid or expired")
 			return
 		}
 		if err != nil {
-			httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to exchange token",
 				Detail:  err.Error(),
 			})
@@ -186,6 +214,16 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	// Ensure the code has not expired.
 	if dbCode.ExpiresAt.Before(dbtime.Now()) {
 		return oauth2.Token{}, errBadCode
+	}
+
+	// Verify PKCE challenge if present
+	if dbCode.CodeChallenge.Valid && dbCode.CodeChallenge.String != "" {
+		if params.codeVerifier == "" {
+			return oauth2.Token{}, errInvalidPKCE
+		}
+		if !VerifyPKCE(dbCode.CodeChallenge.String, params.codeVerifier) {
+			return oauth2.Token{}, errInvalidPKCE
+		}
 	}
 
 	// Generate a refresh token.
@@ -247,6 +285,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 			RefreshHash: []byte(refreshToken.Hashed),
 			AppSecretID: dbSecret.ID,
 			APIKeyID:    newKey.ID,
+			Audience:    dbCode.ResourceUri,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert oauth2 refresh token: %w", err)
@@ -262,6 +301,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		TokenType:    "Bearer",
 		RefreshToken: refreshToken.Formatted,
 		Expiry:       key.ExpiresAt,
+		ExpiresIn:    int64(time.Until(key.ExpiresAt).Seconds()),
 	}, nil
 }
 
@@ -345,6 +385,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 			RefreshHash: []byte(refreshToken.Hashed),
 			AppSecretID: dbToken.AppSecretID,
 			APIKeyID:    newKey.ID,
+			Audience:    dbToken.Audience,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert oauth2 refresh token: %w", err)
@@ -360,5 +401,6 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 		TokenType:    "Bearer",
 		RefreshToken: refreshToken.Formatted,
 		Expiry:       key.ExpiresAt,
+		ExpiresIn:    int64(time.Until(key.ExpiresAt).Seconds()),
 	}, nil
 }
