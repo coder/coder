@@ -334,7 +334,6 @@ describe.each([
 	},
 );
 
-
 test("display pending badge and update it to running when status changes", async () => {
 	const MockPendingTemplateVersion = {
 		...MockTemplateVersion,

@@ -51,4 +51,3 @@ test("displays the scratch template", async () => {
 	screen.getByText(MockTemplateExample2.name);
 	expect(screen.queryByText("Scratch")).toBeInTheDocument();
 });
-
