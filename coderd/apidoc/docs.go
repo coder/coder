@@ -14176,6 +14176,9 @@ const docTemplate = `{
                 "label": {
                     "type": "string"
                 },
+                "mask_input": {
+                    "type": "boolean"
+                },
                 "placeholder": {
                     "type": "string"
                 }

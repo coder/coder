@@ -1836,6 +1836,7 @@ export interface PreviewParameterStyling {
 	readonly placeholder?: string;
 	readonly disabled?: boolean;
 	readonly label?: string;
+	readonly mask_input?: boolean;
 }
 
 // From codersdk/parameters.go
