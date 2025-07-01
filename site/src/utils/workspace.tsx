@@ -1,14 +1,12 @@
 import type { Theme } from "@emotion/react";
-import ErrorIcon from "@mui/icons-material/ErrorOutline";
-import QueuedIcon from "@mui/icons-material/HourglassEmpty";
-import PlayIcon from "@mui/icons-material/PlayArrowOutlined";
-import StopIcon from "@mui/icons-material/StopOutlined";
 import type * as TypesGen from "api/typesGenerated";
 import { PillSpinner } from "components/Pill/Pill";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import minMax from "dayjs/plugin/minMax";
 import utc from "dayjs/plugin/utc";
+import { HourglassIcon } from "lucide-react";
+import { CircleAlertIcon, PlayIcon, SquareIcon } from "lucide-react";
 import semver from "semver";
 import { getPendingStatusLabel } from "./provisionerJob";
 
@@ -168,14 +166,29 @@ export const getDisplayWorkspaceTemplateName = (
 		: workspace.template_name;
 };
 
+export type DisplayWorkspaceStatusType =
+	| "success"
+	| "active"
+	| "inactive"
+	| "error"
+	| "warning"
+	| "danger";
+
+type DisplayWorkspaceStatus = {
+	text: string;
+	type: DisplayWorkspaceStatusType;
+	icon: React.ReactNode;
+};
+
 export const getDisplayWorkspaceStatus = (
 	workspaceStatus: TypesGen.WorkspaceStatus,
 	provisionerJob?: TypesGen.ProvisionerJob,
-) => {
+): DisplayWorkspaceStatus => {
 	switch (workspaceStatus) {
 		case undefined:
 			return {
 				text: "Loading",
+				type: "active",
 				icon: <PillSpinner />,
 			} as const;
 		case "running":
@@ -200,7 +213,7 @@ export const getDisplayWorkspaceStatus = (
 			return {
 				type: "inactive",
 				text: "Stopped",
-				icon: <StopIcon />,
+				icon: <SquareIcon />,
 			} as const;
 		case "deleting":
 			return {
@@ -212,7 +225,7 @@ export const getDisplayWorkspaceStatus = (
 			return {
 				type: "danger",
 				text: "Deleted",
-				icon: <ErrorIcon />,
+				icon: <CircleAlertIcon aria-hidden="true" className="size-icon-sm" />,
 			} as const;
 		case "canceling":
 			return {
@@ -224,25 +237,21 @@ export const getDisplayWorkspaceStatus = (
 			return {
 				type: "inactive",
 				text: "Canceled",
-				icon: <ErrorIcon />,
+				icon: <CircleAlertIcon aria-hidden="true" className="size-icon-sm" />,
 			} as const;
 		case "failed":
 			return {
 				type: "error",
 				text: "Failed",
-				icon: <ErrorIcon />,
+				icon: <CircleAlertIcon aria-hidden="true" className="size-icon-sm" />,
 			} as const;
 		case "pending":
 			return {
 				type: "active",
 				text: getPendingStatusLabel(provisionerJob),
-				icon: <QueuedIcon />,
+				icon: <HourglassIcon className="size-icon-sm" />,
 			} as const;
 	}
-};
-
-export const hasJobError = (workspace: TypesGen.Workspace) => {
-	return workspace.latest_build.job.error !== undefined;
 };
 
 export const paramsUsedToCreateWorkspace = (
@@ -306,4 +315,24 @@ const FALLBACK_ICON = "/icon/widgets.svg";
 
 export const getResourceIconPath = (resourceType: string): string => {
 	return BUILT_IN_ICON_PATHS[resourceType] ?? FALLBACK_ICON;
+};
+
+export const lastUsedMessage = (lastUsedAt: string | Date): string => {
+	const t = dayjs(lastUsedAt);
+	const now = dayjs();
+	let message = t.fromNow();
+
+	if (t.isAfter(now.subtract(1, "hour"))) {
+		message = "Now";
+	} else if (t.isAfter(now.subtract(3, "day"))) {
+		message = t.fromNow();
+	} else if (t.isAfter(now.subtract(1, "month"))) {
+		message = t.fromNow();
+	} else if (t.isAfter(now.subtract(100, "year"))) {
+		message = t.fromNow();
+	} else {
+		message = "Never";
+	}
+
+	return message;
 };

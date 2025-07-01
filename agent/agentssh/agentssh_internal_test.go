@@ -39,6 +39,8 @@ func Test_sessionStart_orphan(t *testing.T) {
 	s, err := NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 	require.NoError(t, err)
 	defer s.Close()
+	err = s.UpdateHostSigner(42)
+	assert.NoError(t, err)
 
 	// Here we're going to call the handler directly with a faked SSH session
 	// that just uses io.Pipes instead of a network socket.  There is a large

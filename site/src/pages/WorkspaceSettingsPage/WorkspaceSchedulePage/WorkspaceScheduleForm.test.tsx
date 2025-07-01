@@ -236,9 +236,9 @@ describe("ttlShutdownAt", () => {
 			"Your workspace will shut down 12 minutes after its next start.",
 		],
 		[
-			"48.258 hours --> helper text shows shutdown after 2 days and 15 minutes and 28 seconds",
+			"48.258 hours --> helper text shows shutdown after 2 days, 15 minutes and 29 seconds",
 			48.258,
-			"Your workspace will shut down 2 days and 15 minutes and 28 seconds after its next start.",
+			"Your workspace will shut down 2 days, 15 minutes and 29 seconds after its next start.",
 		],
 	])("%p", (_, ttlHours, expected) => {
 		expect(ttlShutdownAt(ttlHours)).toEqual(expected);
@@ -416,7 +416,9 @@ test("form should be enabled when both auto stop and auto start features are dis
 		/>,
 	);
 
-	const submitButton = await screen.findByRole("button", { name: "Submit" });
+	const submitButton = await screen.findByRole("button", {
+		name: /save/i,
+	});
 	expect(submitButton).toBeEnabled();
 });
 
@@ -432,6 +434,8 @@ test("form should be disabled when both auto stop and auto start features are di
 	jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
 	render(<WorkspaceScheduleForm {...props} />);
 
-	const submitButton = await screen.findByRole("button", { name: "Submit" });
+	const submitButton = await screen.findByRole("button", {
+		name: /save/i,
+	});
 	expect(submitButton).toBeDisabled();
 });

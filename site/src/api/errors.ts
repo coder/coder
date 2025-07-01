@@ -11,7 +11,7 @@ export interface FieldError {
 	detail: string;
 }
 
-export type FieldErrors = Record<FieldError["field"], FieldError["detail"]>;
+type FieldErrors = Record<FieldError["field"], FieldError["detail"]>;
 
 export interface ApiErrorResponse {
 	message: string;
@@ -31,7 +31,7 @@ export const isApiError = (err: unknown): err is ApiError => {
 	);
 };
 
-export const isApiErrorResponse = (err: unknown): err is ApiErrorResponse => {
+const isApiErrorResponse = (err: unknown): err is ApiErrorResponse => {
 	return (
 		typeof err === "object" &&
 		err !== null &&
@@ -128,6 +128,14 @@ export const getErrorDetail = (error: unknown): string | undefined => {
 
 	if (error instanceof Error) {
 		return "Please check the developer console for more details.";
+	}
+
+	return undefined;
+};
+
+export const getErrorStatus = (error: unknown): number | undefined => {
+	if (isApiError(error)) {
+		return error.status;
 	}
 
 	return undefined;

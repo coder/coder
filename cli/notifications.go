@@ -23,6 +23,10 @@ func (r *RootCmd) notifications() *serpent.Command {
 				Description: "Resume Coder notifications",
 				Command:     "coder notifications resume",
 			},
+			Example{
+				Description: "Send a test notification. Administrators can use this to verify the notification target settings.",
+				Command:     "coder notifications test",
+			},
 		),
 		Aliases: []string{"notification"},
 		Handler: func(inv *serpent.Invocation) error {
@@ -31,6 +35,7 @@ func (r *RootCmd) notifications() *serpent.Command {
 		Children: []*serpent.Command{
 			r.pauseNotifications(),
 			r.resumeNotifications(),
+			r.testNotifications(),
 		},
 	}
 	return cmd
@@ -78,6 +83,27 @@ func (r *RootCmd) resumeNotifications() *serpent.Command {
 			}
 
 			_, _ = fmt.Fprintln(inv.Stderr, "Notifications are now resumed.")
+			return nil
+		},
+	}
+	return cmd
+}
+
+func (r *RootCmd) testNotifications() *serpent.Command {
+	client := new(codersdk.Client)
+	cmd := &serpent.Command{
+		Use:   "test",
+		Short: "Send a test notification",
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(0),
+			r.InitClient(client),
+		),
+		Handler: func(inv *serpent.Invocation) error {
+			if err := client.PostTestNotification(inv.Context()); err != nil {
+				return xerrors.Errorf("unable to post test notification: %w", err)
+			}
+
+			_, _ = fmt.Fprintln(inv.Stderr, "A test notification has been sent. If you don't receive the notification, check Coder's logs for any errors.")
 			return nil
 		},
 	}

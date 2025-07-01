@@ -505,8 +505,6 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 	ids := map[string]struct{}{}
 	configs := []*Config{}
 	for _, entry := range entries {
-		entry := entry
-
 		// Applies defaults to the config entry.
 		// This allows users to very simply state that they type is "GitHub",
 		// apply their client secret and ID, and have the UI appear nicely.
@@ -664,7 +662,7 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 	if config.Regex == "" {
 		config.Regex = defaults.Regex
 	}
-	if config.Scopes == nil || len(config.Scopes) == 0 {
+	if len(config.Scopes) == 0 {
 		config.Scopes = defaults.Scopes
 	}
 	if config.DeviceCodeURL == "" {
@@ -676,7 +674,7 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 	if config.DisplayIcon == "" {
 		config.DisplayIcon = defaults.DisplayIcon
 	}
-	if config.ExtraTokenKeys == nil || len(config.ExtraTokenKeys) == 0 {
+	if len(config.ExtraTokenKeys) == 0 {
 		config.ExtraTokenKeys = defaults.ExtraTokenKeys
 	}
 

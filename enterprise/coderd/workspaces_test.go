@@ -1,13 +1,20 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -25,7 +32,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -37,6 +46,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -68,8 +78,7 @@ func TestCreateWorkspace(t *testing.T) {
 
 		other, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleMember(), rbac.RoleOwner())
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		org, err := other.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
 			Name: "another",
@@ -77,6 +86,8 @@ func TestCreateWorkspace(t *testing.T) {
 		require.NoError(t, err)
 		version := coderdtest.CreateTemplateVersion(t, other, org.ID, nil)
 		template := coderdtest.CreateTemplate(t, other, org.ID, version.ID)
+
+		ctx = testutil.Context(t, testutil.WaitLong) // Reset the context to avoid timeouts.
 
 		_, err = client.CreateWorkspace(ctx, first.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
 			TemplateID: template.ID,
@@ -103,8 +114,7 @@ func TestCreateWorkspace(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		acl, err := templateAdminClient.TemplateACL(ctx, template.ID)
 		require.NoError(t, err)
@@ -158,8 +168,7 @@ func TestCreateWorkspace(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
 		template := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Remove everyone access
 		err := templateAdmin.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
@@ -189,12 +198,247 @@ func TestCreateWorkspace(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "doesn't exist")
 	})
+
+	// Auditors cannot "use" templates, they can only read them.
+	t.Run("Auditor", func(t *testing.T) {
+		t.Parallel()
+
+		owner, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC:          1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		// A member of the org as an auditor
+		auditor, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleAuditor())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Given: a template with a version without the "use" permission on everyone
+		version := coderdtest.CreateTemplateVersion(t, owner, first.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, owner, version.ID)
+		template := coderdtest.CreateTemplate(t, owner, first.OrganizationID, version.ID)
+
+		//nolint:gocritic // This should be run as the owner user.
+		err := owner.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+			UserPerms: nil,
+			GroupPerms: map[string]codersdk.TemplateRole{
+				first.OrganizationID.String(): codersdk.TemplateRoleDeleted,
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = auditor.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "workspace",
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Unauthorized access to use the template")
+	})
 }
 
 func TestCreateUserWorkspace(t *testing.T) {
 	t.Parallel()
 
+	// Create a custom role that can create workspaces for another user.
+	t.Run("ForAnotherUser", func(t *testing.T) {
+		t.Parallel()
+
+		owner, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:  1,
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // using owner to setup roles
+		r, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
+			Name:           "creator",
+			OrganizationID: first.OrganizationID.String(),
+			DisplayName:    "Creator",
+			OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace:          {codersdk.ActionCreate, codersdk.ActionWorkspaceStart, codersdk.ActionUpdate, codersdk.ActionRead},
+				codersdk.ResourceOrganizationMember: {codersdk.ActionRead},
+			}),
+		})
+		require.NoError(t, err)
+
+		// use admin for setting up test
+		admin, adminID := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleTemplateAdmin())
+
+		// try the test action with this user & custom role
+		creator, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleMember(), rbac.RoleIdentifier{
+			Name:           r.Name,
+			OrganizationID: first.OrganizationID,
+		})
+
+		template, _ := coderdtest.DynamicParameterTemplate(t, admin, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{})
+
+		ctx = testutil.Context(t, testutil.WaitLong)
+
+		wrk, err := creator.CreateUserWorkspace(ctx, adminID.ID.String(), codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "workspace",
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, admin, wrk.LatestBuild.ID)
+
+		_, err = creator.WorkspaceByOwnerAndName(ctx, adminID.Username, wrk.Name, codersdk.WorkspaceOptions{
+			IncludeDeleted: false,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("ForANonOrgMember", func(t *testing.T) {
+		t.Parallel()
+
+		owner, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:           1,
+					codersdk.FeatureTemplateRBAC:          1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // using owner to setup roles
+		r, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
+			Name:           "creator",
+			OrganizationID: first.OrganizationID.String(),
+			DisplayName:    "Creator",
+			OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace:          {codersdk.ActionCreate, codersdk.ActionWorkspaceStart, codersdk.ActionUpdate, codersdk.ActionRead},
+				codersdk.ResourceOrganizationMember: {codersdk.ActionRead},
+			}),
+		})
+		require.NoError(t, err)
+
+		// user to make the workspace for, **note** the user is not a member of the first org.
+		// This is strange, but technically valid. The creator can create a workspace for
+		// this user in this org, even though the user cannot access the workspace.
+		secondOrg := coderdenttest.CreateOrganization(t, owner, coderdenttest.CreateOrganizationOptions{})
+		_, forUser := coderdtest.CreateAnotherUser(t, owner, secondOrg.ID)
+
+		// try the test action with this user & custom role
+		creator, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleMember(),
+			rbac.RoleTemplateAdmin(), // Need site wide access to make workspace for non-org
+			rbac.RoleIdentifier{
+				Name:           r.Name,
+				OrganizationID: first.OrganizationID,
+			},
+		)
+
+		template, _ := coderdtest.DynamicParameterTemplate(t, creator, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{})
+
+		ctx = testutil.Context(t, testutil.WaitLong)
+
+		wrk, err := creator.CreateUserWorkspace(ctx, forUser.ID.String(), codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "workspace",
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, creator, wrk.LatestBuild.ID)
+
+		_, err = creator.WorkspaceByOwnerAndName(ctx, forUser.Username, wrk.Name, codersdk.WorkspaceOptions{
+			IncludeDeleted: false,
+		})
+		require.NoError(t, err)
+	})
+
+	// Asserting some authz calls when creating a workspace.
+	t.Run("AuthzStory", func(t *testing.T) {
+		t.Parallel()
+		owner, _, api, first := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:  1,
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*2000)
+		defer cancel()
+
+		//nolint:gocritic // using owner to setup roles
+		creatorRole, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
+			Name:           "creator",
+			OrganizationID: first.OrganizationID.String(),
+			OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace:          {codersdk.ActionCreate, codersdk.ActionWorkspaceStart, codersdk.ActionUpdate, codersdk.ActionRead},
+				codersdk.ResourceOrganizationMember: {codersdk.ActionRead},
+			}),
+		})
+		require.NoError(t, err)
+
+		version := coderdtest.CreateTemplateVersion(t, owner, first.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, owner, version.ID)
+		template := coderdtest.CreateTemplate(t, owner, first.OrganizationID, version.ID)
+		_, userID := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+		creator, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleIdentifier{
+			Name:           creatorRole.Name,
+			OrganizationID: first.OrganizationID,
+		})
+
+		// Create a workspace with the current api using an org admin.
+		authz := coderdtest.AssertRBAC(t, api.AGPL, creator)
+		authz.Reset() // Reset all previous checks done in setup.
+		_, err = creator.CreateUserWorkspace(ctx, userID.ID.String(), codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "test-user",
+		})
+		require.NoError(t, err)
+
+		// Assert all authz properties
+		t.Run("OnlyOrganizationAuthzCalls", func(t *testing.T) {
+			// Creating workspaces is an organization action. So organization
+			// permissions should be sufficient to complete the action.
+			for _, call := range authz.AllCalls() {
+				if call.Action == policy.ActionRead &&
+					call.Object.Equal(rbac.ResourceUser.WithOwner(userID.ID.String()).WithID(userID.ID)) {
+					// User read checks are called. If they fail, ignore them.
+					if call.Err != nil {
+						continue
+					}
+				}
+
+				if call.Object.Type == rbac.ResourceDeploymentConfig.Type {
+					continue // Ignore
+				}
+
+				assert.Falsef(t, call.Object.OrgID == "",
+					"call %q for object %q has no organization set. Site authz calls not expected here",
+					call.Action, call.Object.String(),
+				)
+			}
+		})
+	})
+
 	t.Run("NoTemplateAccess", func(t *testing.T) {
+		// NoTemplateAccess intentionally does not use provisioners. The template
+		// version will be stuck in 'pending' forever.
 		t.Parallel()
 
 		client, first := coderdenttest.New(t, &coderdenttest.Options{
@@ -208,8 +452,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 
 		other, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleMember(), rbac.RoleOwner())
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		org, err := other.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
 			Name: "another",
@@ -217,6 +460,8 @@ func TestCreateUserWorkspace(t *testing.T) {
 		require.NoError(t, err)
 		version := coderdtest.CreateTemplateVersion(t, other, org.ID, nil)
 		template := coderdtest.CreateTemplate(t, other, org.ID, version.ID)
+
+		ctx = testutil.Context(t, testutil.WaitLong) // Reset the context to avoid timeouts.
 
 		_, err = client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
 			TemplateID: template.ID,
@@ -243,8 +488,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		acl, err := templateAdminClient.TemplateACL(ctx, template.ID)
 		require.NoError(t, err)
@@ -276,6 +520,76 @@ func TestCreateUserWorkspace(t *testing.T) {
 
 		_, err = client1.CreateUserWorkspace(ctx, user1.ID.String(), req)
 		require.Error(t, err)
+	})
+
+	t.Run("ClaimPrebuild", func(t *testing.T) {
+		t.Parallel()
+
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("dbmem cannot currently claim a workspace")
+		}
+
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: coderdtest.DeploymentValues(t),
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspacePrebuilds: 1,
+				},
+			},
+		})
+
+		// GIVEN a template, template version, preset and a prebuilt workspace that uses them all
+		presetID := uuid.New()
+		tv := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+			OrganizationID: user.OrganizationID,
+			CreatedBy:      user.UserID,
+		}).Preset(database.TemplateVersionPreset{
+			ID: presetID,
+		}).Do()
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:    database.PrebuildsSystemUserID,
+			TemplateID: tv.Template.ID,
+		}).Seed(database.WorkspaceBuild{
+			TemplateVersionID: tv.TemplateVersion.ID,
+			TemplateVersionPresetID: uuid.NullUUID{
+				UUID:  presetID,
+				Valid: true,
+			},
+		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+			return a
+		}).Do()
+
+		// nolint:gocritic // this is a test
+		ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
+		agent, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, uuid.MustParse(r.AgentToken))
+		require.NoError(t, err)
+
+		err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             agent.WorkspaceAgent.ID,
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		})
+		require.NoError(t, err)
+
+		// WHEN a workspace is created that matches the available prebuilt workspace
+		_, err = client.CreateUserWorkspace(ctx, user.UserID.String(), codersdk.CreateWorkspaceRequest{
+			TemplateVersionID:       tv.TemplateVersion.ID,
+			TemplateVersionPresetID: presetID,
+			Name:                    "claimed-workspace",
+		})
+		require.NoError(t, err)
+
+		// THEN a new build is scheduled with the build stage specified
+		build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		require.NotEqual(t, build.ID, r.Build.ID)
+		job, err := db.GetProvisionerJobByID(ctx, build.JobID)
+		require.NoError(t, err)
+		var metadata provisionerdserver.WorkspaceProvisionJob
+		require.NoError(t, json.Unmarshal(job.Input, &metadata))
+		require.Equal(t, metadata.PrebuiltWorkspaceBuildStage, proto.PrebuiltWorkspaceBuildStage_CLAIM)
 	})
 }
 
@@ -426,7 +740,6 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		t.Parallel()
 
 		var (
-			ctx           = testutil.Context(t, testutil.WaitMedium)
 			ticker        = make(chan time.Time)
 			statCh        = make(chan autobuild.Stats)
 			inactiveTTL   = time.Minute
@@ -486,6 +799,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.Equal(t, int32(http.StatusOK), alog.StatusCode)
 		require.Equal(t, database.AuditActionWrite, alog.Action)
 		require.Equal(t, workspace.Name, alog.ResourceTarget)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		dormantLastUsedAt := ws.LastUsedAt
 		// nolint:gocritic // this test is not testing RBAC.
@@ -702,7 +1017,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Stop the workspace so we can assert autobuild does nothing
 		// if we breach our inactivity threshold.
-		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Simulate not having accessed the workspace in a while.
 		ticker <- ws.LastUsedAt.Add(2 * inactiveTTL)
@@ -856,7 +1171,6 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		t.Parallel()
 
 		var (
-			ctx         = testutil.Context(t, testutil.WaitMedium)
 			tickCh      = make(chan time.Time)
 			statsCh     = make(chan autobuild.Stats)
 			inactiveTTL = time.Minute
@@ -891,7 +1205,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			cwr.AutostartSchedule = ptr.Ref(sched.String())
 		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Assert that autostart works when the workspace isn't dormant..
 		tickCh <- sched.Next(ws.LatestBuild.CreatedAt)
@@ -903,6 +1217,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		ws = coderdtest.MustWorkspace(t, client, ws.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		// Now that we've validated that the workspace is eligible for autostart
 		// lets cause it to become dormant.
@@ -939,7 +1255,6 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			ticker        = make(chan time.Time)
 			statCh        = make(chan autobuild.Stats)
 			transitionTTL = time.Minute
-			ctx           = testutil.Context(t, testutil.WaitMedium)
 		)
 
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
@@ -979,6 +1294,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
 		// Try to delete the workspace. This simulates a "failed" autodelete.
 		build, err := templateAdmin.CreateWorkspaceBuild(ctx, ws.ID, codersdk.CreateWorkspaceBuildRequest{
 			Transition:        codersdk.WorkspaceTransitionDelete,
@@ -988,6 +1305,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 		require.NotEmpty(t, build.Job.Error)
+
+		ctx = testutil.Context(t, testutil.WaitLong) // Reset the context to avoid timeouts.
 
 		// Update our workspace to be dormant so that it qualifies for auto-deletion.
 		err = templateAdmin.UpdateWorkspaceDormancy(ctx, ws.ID, codersdk.UpdateWorkspaceDormancy{
@@ -1025,7 +1344,6 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		var (
 			tickCh  = make(chan time.Time)
 			statsCh = make(chan autobuild.Stats)
-			ctx     = testutil.Context(t, testutil.WaitMedium)
 		)
 
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
@@ -1056,7 +1374,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		})
 
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Create a new version so that we can assert we don't update
 		// to the latest by default.
@@ -1064,6 +1382,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			ctvr.TemplateID = template.ID
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		// Make sure to promote it.
 		err = client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
@@ -1084,6 +1404,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		firstBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, started.LatestBuild.ID)
 		require.Equal(t, version1.ID, firstBuild.TemplateVersionID)
 
+		ctx = testutil.Context(t, testutil.WaitMedium) // Reset the context after workspace operations.
+
 		// Update the template to require the promoted version.
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			RequireActiveVersion: true,
@@ -1093,7 +1415,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Reset the workspace to the stopped state so we can try
 		// to autostart again.
-		coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop, func(req *codersdk.CreateWorkspaceBuildRequest) {
+		coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop, func(req *codersdk.CreateWorkspaceBuildRequest) {
 			req.TemplateVersionID = ws.LatestBuild.TemplateVersionID
 		})
 
@@ -1153,7 +1475,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		})
 
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 		next := ws.LatestBuild.CreatedAt
 
 		// For each day of the week (Monday-Sunday)
@@ -1181,7 +1503,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[ws.ID])
 
 				coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-				ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+				ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 			}
 
 			// Ensure that there is a valid next start at and that is is after
@@ -1244,7 +1566,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		})
 
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Our next start at should be Monday
 		require.NotNil(t, ws.NextStartAt)
@@ -1306,7 +1628,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		})
 
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Check we have a 'NextStartAt'
 		require.NotNil(t, ws.NextStartAt)
@@ -1389,35 +1711,399 @@ func TestTemplateDoesNotAllowUserAutostop(t *testing.T) {
 		require.Equal(t, templateTTL, template.DefaultTTLMillis)
 		require.Equal(t, templateTTL, *workspace.TTLMillis)
 	})
+}
 
-	t.Run("ExtendIsNotEnabledByTemplate", func(t *testing.T) {
-		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		client := coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-			TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, nil),
-		})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.AllowUserAutostop = ptr.Ref(false)
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+// TestWorkspaceTemplateParamsChange tests a workspace with a parameter that
+// validation changes on apply. The params used in create workspace are invalid
+// according to the static params on import.
+//
+// This is testing that dynamic params defers input validation to terraform.
+// It does not try to do this in coder/coder.
+func TestWorkspaceTemplateParamsChange(t *testing.T) {
+	mainTfTemplate := `
+		terraform {
+			required_providers {
+				coder = {
+					source = "coder/coder"
+				}
+			}
+		}
+		provider "coder" {}
+		data "coder_workspace" "me" {}
+		data "coder_workspace_owner" "me" {}
 
-		require.Equal(t, false, template.AllowUserAutostop, "template should have AllowUserAutostop as false")
+		data "coder_parameter" "param_min" {
+			name = "param_min"
+			type = "number"
+			default = 10
+		}
 
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ttl := 8 * time.Hour
-		newDeadline := time.Now().Add(ttl + time.Hour).UTC()
+		data "coder_parameter" "param" {
+			name    = "param"
+			type    = "number"
+			default = 12
+			validation {
+				min = data.coder_parameter.param_min.value
+			}
+		}
+	`
+	tfCliConfigPath := downloadProviders(t, mainTfTemplate)
+	t.Setenv("TF_CLI_CONFIG_FILE", tfCliConfigPath)
 
-		err := client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
-			Deadline: newDeadline,
-		})
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false})
+	dv := coderdtest.DeploymentValues(t)
 
-		require.ErrorContains(t, err, "template does not allow user autostop")
+	client, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			Logger: &logger,
+			// We intentionally do not run a built-in provisioner daemon here.
+			IncludeProvisionerDaemon: false,
+			DeploymentValues:         dv,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
+		},
 	})
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+	member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+	_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, nil)
+
+	// This can take a while, so set a relatively long timeout.
+	ctx := testutil.Context(t, 2*testutil.WaitSuperLong)
+
+	// Creating a template as a template admin must succeed
+	templateFiles := map[string]string{"main.tf": mainTfTemplate}
+	tarBytes := testutil.CreateTar(t, templateFiles)
+	fi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarBytes))
+	require.NoError(t, err, "failed to upload file")
+
+	tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+		Name:               testutil.GetRandomName(t),
+		FileID:             fi.ID,
+		StorageMethod:      codersdk.ProvisionerStorageMethodFile,
+		Provisioner:        codersdk.ProvisionerTypeTerraform,
+		UserVariableValues: []codersdk.VariableValue{},
+	})
+	require.NoError(t, err, "failed to create template version")
+	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
+	tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
+
+	// Set to dynamic params
+	tpl, err = client.UpdateTemplateMeta(ctx, tpl.ID, codersdk.UpdateTemplateMeta{
+		UseClassicParameterFlow: ptr.Ref(false),
+	})
+	require.NoError(t, err, "failed to update template meta")
+	require.False(t, tpl.UseClassicParameterFlow, "template to use dynamic parameters")
+
+	// When: we create a workspace build using the above template but with
+	// parameter values that are different from those defined in the template.
+	// The new values are not valid according to the original plan, but are valid.
+	ws, err := member.CreateUserWorkspace(ctx, memberUser.Username, codersdk.CreateWorkspaceRequest{
+		TemplateID: tpl.ID,
+		Name:       coderdtest.RandomUsername(t),
+		RichParameterValues: []codersdk.WorkspaceBuildParameter{
+			{
+				Name:  "param_min",
+				Value: "5",
+			},
+			{
+				Name:  "param",
+				Value: "7",
+			},
+		},
+	})
+
+	// Then: the build should succeed. The updated value of param_min should be
+	// used to validate param instead of the value defined in the temp
+	require.NoError(t, err, "failed to create workspace")
+	createBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
+	require.Equal(t, createBuild.Status, codersdk.WorkspaceStatusRunning)
+
+	// Now delete the workspace
+	build, err := member.CreateWorkspaceBuild(ctx, ws.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionDelete,
+	})
+	require.NoError(t, err)
+	build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, build.ID)
+	require.Equal(t, codersdk.WorkspaceStatusDeleted, build.Status)
+}
+
+// TestWorkspaceTagsTerraform tests that a workspace can be created with tags.
+// This is an end-to-end-style test, meaning that we actually run the
+// real Terraform provisioner and validate that the workspace is created
+// successfully. The workspace itself does not specify any resources, and
+// this is fine.
+// To improve speed, we pre-download the providers and set a custom Terraform
+// config file so that we only reference those
+// nolint:paralleltest // t.Setenv
+func TestWorkspaceTagsTerraform(t *testing.T) {
+	mainTfTemplate := `
+		terraform {
+			required_providers {
+				coder = {
+					source = "coder/coder"
+				}
+			}
+		}
+		provider "coder" {}
+		data "coder_workspace" "me" {}
+		data "coder_workspace_owner" "me" {}
+		data "coder_parameter" "unrelated" {
+			name    = "unrelated"
+			type    = "list(string)"
+			default = jsonencode(["a", "b"])
+		}
+		%s
+	`
+	tfCliConfigPath := downloadProviders(t, fmt.Sprintf(mainTfTemplate, ""))
+	t.Setenv("TF_CLI_CONFIG_FILE", tfCliConfigPath)
+
+	for _, tc := range []struct {
+		name string
+		// tags to apply to the external provisioner
+		provisionerTags map[string]string
+		// tags to apply to the create template version request
+		createTemplateVersionRequestTags map[string]string
+		// the coder_workspace_tags bit of main.tf.
+		// you can add more stuff here if you need
+		tfWorkspaceTags                  string
+		templateImportUserVariableValues []codersdk.VariableValue
+		// if we need to set parameters on workspace build
+		workspaceBuildParameters []codersdk.WorkspaceBuildParameter
+		skipCreateWorkspace      bool
+	}{
+		{
+			name:            "no tags",
+			tfWorkspaceTags: ``,
+		},
+		{
+			name: "empty tags",
+			tfWorkspaceTags: `
+				data "coder_workspace_tags" "tags" {
+					tags = {}
+				}
+			`,
+		},
+		{
+			name:            "static tag",
+			provisionerTags: map[string]string{"foo": "bar"},
+			tfWorkspaceTags: `
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo" = "bar"
+					}
+				}`,
+		},
+		{
+			name:            "tag variable",
+			provisionerTags: map[string]string{"foo": "bar"},
+			tfWorkspaceTags: `
+				variable "foo" {
+					default = "bar"
+				}
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo" = var.foo
+					}
+				}`,
+		},
+		{
+			name:            "tag param",
+			provisionerTags: map[string]string{"foo": "bar"},
+			tfWorkspaceTags: `
+				data "coder_parameter" "foo" {
+					name = "foo"
+					type = "string"
+					default = "bar"
+				}
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo" = data.coder_parameter.foo.value
+					}
+				}`,
+		},
+		{
+			name:            "tag param with default from var",
+			provisionerTags: map[string]string{"foo": "bar"},
+			tfWorkspaceTags: `
+				variable "foo" {
+					type = string
+					default = "bar"
+				}
+				data "coder_parameter" "foo" {
+					name = "foo"
+					type = "string"
+					default = var.foo
+				}
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo" = data.coder_parameter.foo.value
+					}
+				}`,
+		},
+		{
+			name:                             "override no tags",
+			provisionerTags:                  map[string]string{"foo": "baz"},
+			createTemplateVersionRequestTags: map[string]string{"foo": "baz"},
+			tfWorkspaceTags:                  ``,
+		},
+		{
+			name:                             "override empty tags",
+			provisionerTags:                  map[string]string{"foo": "baz"},
+			createTemplateVersionRequestTags: map[string]string{"foo": "baz"},
+			tfWorkspaceTags: `
+				data "coder_workspace_tags" "tags" {
+					tags = {}
+				}`,
+		},
+		{
+			name:                             "overrides static tag from request",
+			provisionerTags:                  map[string]string{"foo": "baz"},
+			createTemplateVersionRequestTags: map[string]string{"foo": "baz"},
+			tfWorkspaceTags: `
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo" = "bar"
+					}
+				}`,
+			// When we go to create the workspace, there won't be any provisioner
+			// matching tag foo=bar.
+			skipCreateWorkspace: true,
+		},
+		{
+			name:                             "overrides with dynamic option from var",
+			provisionerTags:                  map[string]string{"foo": "bar"},
+			createTemplateVersionRequestTags: map[string]string{"foo": "bar"},
+			templateImportUserVariableValues: []codersdk.VariableValue{{Name: "default_foo", Value: "baz"}, {Name: "foo", Value: "bar,baz"}},
+			workspaceBuildParameters:         []codersdk.WorkspaceBuildParameter{{Name: "foo", Value: "bar"}},
+			tfWorkspaceTags: `
+				variable "default_foo" {
+					type = string
+				}
+				variable "foo" {
+					type = string
+				}
+				data "coder_parameter" "foo" {
+					name = "foo"
+					type = "string"
+					default = var.default_foo
+					mutable = false
+					dynamic "option" {
+						for_each = toset(split(",", var.foo))
+						content {
+							name  = option.value
+							value = option.value
+						}
+					}
+				}
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo" = data.coder_parameter.foo.value
+					}
+				}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client, owner := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					// We intentionally do not run a built-in provisioner daemon here.
+					IncludeProvisionerDaemon: false,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureExternalProvisionerDaemons: 1,
+					},
+				},
+			})
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+			member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+			_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, tc.provisionerTags)
+
+			// This can take a while, so set a relatively long timeout.
+			ctx := testutil.Context(t, 2*testutil.WaitSuperLong)
+
+			// Creating a template as a template admin must succeed
+			templateFiles := map[string]string{"main.tf": fmt.Sprintf(mainTfTemplate, tc.tfWorkspaceTags)}
+			tarBytes := testutil.CreateTar(t, templateFiles)
+			fi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarBytes))
+			require.NoError(t, err, "failed to upload file")
+			tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+				Name:               testutil.GetRandomName(t),
+				FileID:             fi.ID,
+				StorageMethod:      codersdk.ProvisionerStorageMethodFile,
+				Provisioner:        codersdk.ProvisionerTypeTerraform,
+				ProvisionerTags:    tc.createTemplateVersionRequestTags,
+				UserVariableValues: tc.templateImportUserVariableValues,
+			})
+			require.NoError(t, err, "failed to create template version")
+			coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
+			tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
+
+			if !tc.skipCreateWorkspace {
+				// Creating a workspace as a non-privileged user must succeed
+				ws, err := member.CreateUserWorkspace(ctx, memberUser.Username, codersdk.CreateWorkspaceRequest{
+					TemplateID:          tpl.ID,
+					Name:                coderdtest.RandomUsername(t),
+					RichParameterValues: tc.workspaceBuildParameters,
+				})
+				require.NoError(t, err, "failed to create workspace")
+				coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
+			}
+		})
+	}
+}
+
+// downloadProviders is a test helper that creates a temporary file and writes a
+// terraform CLI config file with a provider_installation stanza for coder/coder
+// using dev_overrides. It also fetches the latest provider release from GitHub
+// and extracts the binary to the temporary dir. It is the responsibility of the
+// caller to set TF_CLI_CONFIG_FILE.
+func downloadProviders(t *testing.T, providersTf string) string {
+	t.Helper()
+	// We firstly write a Terraform CLI config file to a temporary directory:
+	var (
+		tempDir         = t.TempDir()
+		cacheDir        = filepath.Join(tempDir, ".cache")
+		providersTfPath = filepath.Join(tempDir, "providers.tf")
+		cliConfigPath   = filepath.Join(tempDir, "local.tfrc")
+	)
+
+	// Write files to disk
+	require.NoError(t, os.MkdirAll(cacheDir, os.ModePerm|os.ModeDir))
+	require.NoError(t, os.WriteFile(providersTfPath, []byte(providersTf), os.ModePerm)) // nolint:gosec
+	cliConfigTemplate := `
+	provider_installation {
+		filesystem_mirror {
+			path = %q
+			include = ["*/*/*"]
+		}
+		direct {
+			exclude = ["*/*/*"]
+		}
+	}`
+	err := os.WriteFile(cliConfigPath, []byte(fmt.Sprintf(cliConfigTemplate, cacheDir)), os.ModePerm) // nolint:gosec
+	require.NoError(t, err, "failed to write %s", cliConfigPath)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Run terraform providers mirror to mirror required providers to cacheDir
+	cmd := exec.CommandContext(ctx, "terraform", "providers", "mirror", cacheDir)
+	cmd.Env = os.Environ() // without this terraform may complain about path
+	cmd.Env = append(cmd.Env, "TF_CLI_CONFIG_FILE="+cliConfigPath)
+	cmd.Dir = tempDir
+	out, err := cmd.CombinedOutput()
+	if !assert.NoError(t, err) {
+		t.Log("failed to download providers:")
+		t.Log(string(out))
+		t.FailNow()
+	}
+
+	t.Logf("Set TF_CLI_CONFIG_FILE=%s", cliConfigPath)
+	return cliConfigPath
 }
 
 // Blocked by autostart requirements
@@ -1467,7 +2153,7 @@ func TestExecutorAutostartBlocked(t *testing.T) {
 	)
 
 	// Given: workspace is stopped
-	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 	// When: the autobuild executor ticks into the future
 	go func() {
@@ -1487,7 +2173,6 @@ func TestWorkspacesFiltering(t *testing.T) {
 	t.Run("Dormant", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitMedium)
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -1520,6 +2205,8 @@ func TestWorkspacesFiltering(t *testing.T) {
 			OrganizationID: owner.OrganizationID,
 			TemplateID:     resp.Template.ID,
 		}).Do().Workspace
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		err := templateAdminClient.UpdateWorkspaceDormancy(ctx, dormantWS1.ID, codersdk.UpdateWorkspaceDormancy{Dormant: true})
 		require.NoError(t, err)
@@ -1831,9 +2518,6 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 	t.Run("No Matching Provisioner", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
 		client, db, userResponse := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -1841,6 +2525,9 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 				},
 			},
 		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
 		userSubject, _, err := httpmw.UserRBACSubject(ctx, db, userResponse.UserID, rbac.ExpandableScope(rbac.ScopeAll))
 		require.NoError(t, err)
 		user, err := client.User(ctx, userSubject.ID)
@@ -1854,6 +2541,8 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, userResponse.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, userResponse.OrganizationID, version.ID)
+
+		ctx = testutil.Context(t, testutil.WaitLong) // Reset the context to avoid timeouts.
 
 		// nolint:gocritic // unit testing
 		daemons, err := db.GetProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
@@ -1906,9 +2595,6 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 	t.Run("Unavailable Provisioner", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
 		client, db, userResponse := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -1916,6 +2602,9 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 				},
 			},
 		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
 		userSubject, _, err := httpmw.UserRBACSubject(ctx, db, userResponse.UserID, rbac.ExpandableScope(rbac.ScopeAll))
 		require.NoError(t, err)
 		user, err := client.User(ctx, userSubject.ID)
@@ -1929,6 +2618,8 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, userResponse.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, userResponse.OrganizationID, version.ID)
+
+		ctx = testutil.Context(t, testutil.WaitLong) // Reset the context to avoid timeouts.
 
 		// nolint:gocritic // unit testing
 		daemons, err := db.GetProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))

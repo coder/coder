@@ -1,0 +1,10 @@
+contact_links:
+  - name: Questions, suggestion or feature requests?
+    url: https://github.com/coder/coder/discussions/new/choose
+    about: Our preferred starting point if you have any questions or suggestions about configuration, features or unexpected behavior.
+  - name: Coder Docs
+    url: https://coder.com/docs
+    about: Check our docs.
+  - name: Coder Discord Community
+    url: https://discord.gg/coder
+    about: Get in touch with the Coder developers and community for support.

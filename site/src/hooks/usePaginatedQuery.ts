@@ -5,6 +5,7 @@ import {
 	type QueryKey,
 	type UseQueryOptions,
 	type UseQueryResult,
+	keepPreviousData,
 	useQuery,
 	useQueryClient,
 } from "react-query";
@@ -140,7 +141,7 @@ export function usePaginatedQuery<
 	const query = useQuery<TQueryFnData, TError, TData, TQueryKey>({
 		...extraOptions,
 		...getQueryOptionsFromPage(currentPage),
-		keepPreviousData: true,
+		placeholderData: keepPreviousData,
 	});
 
 	const totalRecords = query.data?.count;

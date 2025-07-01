@@ -5,27 +5,32 @@ import type {
 	ProvisionerLogLevel,
 	UsageAppName,
 	Workspace,
+	WorkspaceAgentLog,
 	WorkspaceBuild,
 	WorkspaceBuildParameter,
 	WorkspacesRequest,
 	WorkspacesResponse,
 } from "api/typesGenerated";
 import type { Dayjs } from "dayjs";
+import {
+	type WorkspacePermissions,
+	workspaceChecks,
+} from "modules/workspaces/permissions";
 import type { ConnectionStatus } from "pages/TerminalPage/types";
 import type {
 	QueryClient,
 	QueryOptions,
 	UseMutationOptions,
+	UseQueryOptions,
 } from "react-query";
+import { checkAuthorization } from "./authCheck";
 import { disabledRefetchOptions } from "./util";
 import { workspaceBuildsKey } from "./workspaceBuilds";
 
-export const workspaceByOwnerAndNameKey = (owner: string, name: string) => [
-	"workspace",
-	owner,
-	name,
-	"settings",
-];
+export const workspaceByOwnerAndNameKey = (
+	ownerUsername: string,
+	name: string,
+) => ["workspace", ownerUsername, name, "settings"];
 
 export const workspaceByOwnerAndName = (owner: string, name: string) => {
 	return {
@@ -48,7 +53,7 @@ export const createWorkspace = (queryClient: QueryClient) => {
 			return API.createWorkspace(userId, req);
 		},
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(["workspaces"]);
+			await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
 		},
 	};
 };
@@ -107,7 +112,7 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
 			});
 		},
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(["workspaces"]);
+			await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
 		},
 	};
 };
@@ -133,19 +138,15 @@ async function findMatchWorkspace(q: string): Promise<Workspace | undefined> {
 	}
 }
 
-export function workspacesKey(config: WorkspacesRequest = {}) {
+function workspacesKey(config: WorkspacesRequest = {}) {
 	const { q, limit } = config;
 	return ["workspaces", { q, limit }] as const;
 }
 
 export function workspaces(config: WorkspacesRequest = {}) {
-	// Duplicates some of the work from workspacesKey, but that felt better than
-	// letting invisible properties sneak into the query logic
-	const { q, limit } = config;
-
 	return {
 		queryKey: workspacesKey(config),
-		queryFn: () => API.getWorkspaces({ q, limit }),
+		queryFn: () => API.getWorkspaces(config),
 	} as const satisfies QueryOptions<WorkspacesResponse>;
 }
 
@@ -162,6 +163,7 @@ export const updateDeadline = (
 export const changeVersion = (
 	workspace: Workspace,
 	queryClient: QueryClient,
+	isDynamicParametersEnabled: boolean,
 ) => {
 	return {
 		mutationFn: ({
@@ -171,7 +173,12 @@ export const changeVersion = (
 			versionId: string;
 			buildParameters?: WorkspaceBuildParameter[];
 		}) => {
-			return API.changeWorkspaceVersion(workspace, versionId, buildParameters);
+			return API.changeWorkspaceVersion(
+				workspace,
+				versionId,
+				buildParameters,
+				isDynamicParametersEnabled,
+			);
 		},
 		onSuccess: async (build: WorkspaceBuild) => {
 			await updateWorkspaceBuild(build, queryClient);
@@ -184,8 +191,18 @@ export const updateWorkspace = (
 	queryClient: QueryClient,
 ) => {
 	return {
-		mutationFn: (buildParameters?: WorkspaceBuildParameter[]) => {
-			return API.updateWorkspace(workspace, buildParameters);
+		mutationFn: ({
+			buildParameters,
+			isDynamicParametersEnabled,
+		}: {
+			buildParameters?: WorkspaceBuildParameter[];
+			isDynamicParametersEnabled: boolean;
+		}) => {
+			return API.updateWorkspace(
+				workspace,
+				buildParameters,
+				isDynamicParametersEnabled,
+			);
 		},
 		onSuccess: async (build: WorkspaceBuild) => {
 			await updateWorkspaceBuild(build, queryClient);
@@ -281,7 +298,10 @@ const updateWorkspaceBuild = async (
 		build.workspace_owner_name,
 		build.workspace_name,
 	);
-	const previousData = queryClient.getQueryData(workspaceKey) as Workspace;
+	const previousData = queryClient.getQueryData<Workspace>(workspaceKey);
+	if (!previousData) {
+		return;
+	}
 
 	// Check if the build returned is newer than the previous build that could be
 	// updated from web socket
@@ -338,24 +358,18 @@ export const buildLogs = (workspace: Workspace) => {
 	};
 };
 
-export const agentLogsKey = (workspaceId: string, agentId: string) => [
-	"workspaces",
-	workspaceId,
-	"agents",
-	agentId,
-	"logs",
-];
+export const agentLogsKey = (agentId: string) => ["agents", agentId, "logs"];
 
-export const agentLogs = (workspaceId: string, agentId: string) => {
+export const agentLogs = (agentId: string) => {
 	return {
-		queryKey: agentLogsKey(workspaceId, agentId),
+		queryKey: agentLogsKey(agentId),
 		queryFn: () => API.getWorkspaceAgentLogs(agentId),
 		...disabledRefetchOptions,
-	};
+	} satisfies UseQueryOptions<WorkspaceAgentLog[]>;
 };
 
 // workspace usage options
-export interface WorkspaceUsageOptions {
+interface WorkspaceUsageOptions {
 	usageApp: UsageAppName;
 	connectionStatus: ConnectionStatus;
 	workspaceId: string | undefined;
@@ -389,5 +403,16 @@ export const workspaceUsage = (options: WorkspaceUsageOptions) => {
 		// ...disabledRefetchOptions,
 		refetchInterval: 60000,
 		refetchIntervalInBackground: true,
+	};
+};
+
+export const workspacePermissions = (workspace?: Workspace) => {
+	return {
+		...checkAuthorization<WorkspacePermissions>({
+			checks: workspace ? workspaceChecks(workspace) : {},
+		}),
+		queryKey: ["workspaces", workspace?.id, "permissions"],
+		enabled: !!workspace,
+		staleTime: Number.POSITIVE_INFINITY,
 	};
 };

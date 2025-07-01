@@ -1,7 +1,7 @@
 import { API } from "api/api";
 import { cachedQuery } from "api/queries/util";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import {
 	type FC,
@@ -15,6 +15,8 @@ import {
 import { useQuery } from "react-query";
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
 
+export type Proxies = readonly Region[] | readonly WorkspaceProxy[];
+export type ProxyLatencies = Record<string, ProxyLatencyReport>;
 export interface ProxyContextValue {
 	// proxy is **always** the workspace proxy that should be used.
 	// The 'proxy.selectedProxy' field is the proxy being used and comes from either:
@@ -43,7 +45,7 @@ export interface ProxyContextValue {
 	// WorkspaceProxy[] is returned if the user is an admin. WorkspaceProxy extends Region with
 	//  more information about the proxy and the status. More information includes the error message if
 	//  the proxy is unhealthy.
-	proxies?: readonly Region[] | readonly WorkspaceProxy[];
+	proxies?: Proxies;
 	// isFetched is true when the 'proxies' api call is complete.
 	isFetched: boolean;
 	isLoading: boolean;
@@ -51,7 +53,10 @@ export interface ProxyContextValue {
 	// proxyLatencies is a map of proxy id to latency report. If the proxyLatencies[proxy.id] is undefined
 	// then the latency has not been fetched yet. Calculations happen async for each proxy in the list.
 	// Refer to the returned report for a given proxy for more information.
-	proxyLatencies: Record<string, ProxyLatencyReport>;
+	proxyLatencies: ProxyLatencies;
+	// latenciesLoaded is true when the latencies have been initially loaded.
+	// Once set to true, it will not be set to false again.
+	latenciesLoaded: boolean;
 	// refetchProxyLatencies will trigger refreshing of the proxy latencies. By default the latencies
 	// are loaded once.
 	refetchProxyLatencies: () => Date;
@@ -120,8 +125,11 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
 	// Every time we get a new proxiesResponse, update the latency check
 	// to each workspace proxy.
-	const { proxyLatencies, refetch: refetchProxyLatencies } =
-		useProxyLatency(proxiesResp);
+	const {
+		proxyLatencies,
+		refetch: refetchProxyLatencies,
+		loaded: latenciesLoaded,
+	} = useProxyLatency(proxiesResp);
 
 	// updateProxy is a helper function that when called will
 	// update the proxy being used.
@@ -134,7 +142,8 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 				loadUserSelectedProxy(),
 				proxyLatencies,
 				// Do not auto select based on latencies, as inconsistent latencies can cause this
-				// to behave poorly.
+				// to change on each call. updateProxy should be stable when selecting a proxy to
+				// prevent flickering.
 				false,
 			),
 		);
@@ -147,6 +156,34 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 		updateProxy();
 	}, [proxiesResp, proxyLatencies]);
 
+	// This useEffect will auto select the best proxy if the user has not selected one.
+	// It must wait until all latencies are loaded to select based on latency. This does mean
+	// the first time a user loads the page, the proxy will "flicker" to the best proxy.
+	//
+	// Once the page is loaded, or the user selects a proxy, this will not run again.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Only update if the source data changes
+	useEffect(() => {
+		if (loadUserSelectedProxy() !== undefined) {
+			return; // User has selected a proxy, do not auto select.
+		}
+		if (!latenciesLoaded) {
+			// Wait until the latencies are loaded first.
+			return;
+		}
+
+		const best = getPreferredProxy(
+			proxiesResp ?? [],
+			loadUserSelectedProxy(),
+			proxyLatencies,
+			true,
+		);
+
+		if (best?.proxy) {
+			saveUserSelectedProxy(best.proxy);
+			updateProxy();
+		}
+	}, [latenciesLoaded, proxiesResp, proxyLatencies]);
+
 	return (
 		<ProxyContext.Provider
 			value={{
@@ -155,6 +192,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 				userProxy: userSavedProxy,
 				proxy: proxy,
 				proxies: proxiesResp,
+				latenciesLoaded: latenciesLoaded,
 				isLoading: proxiesLoading,
 				isFetched: proxiesFetched,
 				error: proxiesError,
@@ -212,12 +250,12 @@ export const getPreferredProxy = (
 
 	// If no proxy is selected, or the selected proxy is unhealthy default to the primary proxy.
 	if (!selectedProxy || !selectedProxy.healthy) {
-		// By default, use the primary proxy.
+		// Default to the primary proxy
 		selectedProxy = proxies.find((proxy) => proxy.name === "primary");
 
 		// If we have latencies, then attempt to use the best proxy by latency instead.
 		const best = selectByLatency(proxies, latencies);
-		if (autoSelectBasedOnLatency && best) {
+		if (autoSelectBasedOnLatency && best !== undefined) {
 			selectedProxy = best;
 		}
 	}
@@ -278,7 +316,7 @@ const computeUsableURLS = (proxy?: Region): PreferredProxy => {
 
 // Local storage functions
 
-export const clearUserSelectedProxy = (): void => {
+const clearUserSelectedProxy = (): void => {
 	localStorage.removeItem("user-selected-proxy");
 };
 
@@ -286,7 +324,7 @@ export const saveUserSelectedProxy = (saved: Region): void => {
 	localStorage.setItem("user-selected-proxy", JSON.stringify(saved));
 };
 
-export const loadUserSelectedProxy = (): Region | undefined => {
+const loadUserSelectedProxy = (): Region | undefined => {
 	const str = localStorage.getItem("user-selected-proxy");
 	if (!str) {
 		return undefined;

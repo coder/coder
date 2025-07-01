@@ -33,6 +33,7 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/fullsailor/pkcs7"
+	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -51,6 +52,9 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/quartz"
+
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
@@ -65,6 +69,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/jobreaper"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -72,15 +77,15 @@ import (
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
-	"github.com/coder/coder/v2/coderd/unhanger"
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/coder/v2/codersdk/drpc"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -90,8 +95,9 @@ import (
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/quartz"
 )
+
+const defaultTestDaemonName = "test-daemon"
 
 type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
@@ -132,6 +138,7 @@ type Options struct {
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
 	IncludeProvisionerDaemon    bool
+	ProvisionerDaemonVersion    string
 	ProvisionerDaemonTags       map[string]string
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
@@ -146,6 +153,11 @@ type Options struct {
 	Database database.Store
 	Pubsub   pubsub.Pubsub
 
+	// APIMiddleware inserts middleware before api.RootHandler, this can be
+	// useful in certain tests where you want to intercept requests before
+	// passing them on to the API, e.g. for synchronization of execution.
+	APIMiddleware func(http.Handler) http.Handler
+
 	ConfigSSH codersdk.SSHConfigResponse
 
 	SwaggerEndpoint bool
@@ -154,6 +166,7 @@ type Options struct {
 	Logger       *slog.Logger
 	StatsBatcher workspacestats.Batcher
 
+	WebpushDispatcher                  webpush.Dispatcher
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 	AllowWorkspaceRenames              bool
 	NewTicker                          func(duration time.Duration) (<-chan time.Time, func())
@@ -164,6 +177,7 @@ type Options struct {
 	APIKeyEncryptionCache              cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache                cryptokeys.SigningKeycache
 	Clock                              quartz.Clock
+	TelemetryReporter                  telemetry.Reporter
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -272,6 +286,15 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		require.NoError(t, err, "insert a deployment id")
 	}
 
+	if options.WebpushDispatcher == nil {
+		// nolint:gocritic // Gets/sets VAPID keys.
+		pushNotifier, err := webpush.New(dbauthz.AsNotifier(context.Background()), options.Logger, options.Database, "http://example.com")
+		if err != nil {
+			panic(xerrors.Errorf("failed to create web push notifier: %w", err))
+		}
+		options.WebpushDispatcher = pushNotifier
+	}
+
 	if options.DeploymentValues == nil {
 		options.DeploymentValues = DeploymentValues(t)
 	}
@@ -332,10 +355,12 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	auditor.Store(&options.Auditor)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
+	experiments := coderd.ReadExperiments(*options.Logger, options.DeploymentValues.Experiments)
 	lifecycleExecutor := autobuild.NewExecutor(
 		ctx,
 		options.Database,
 		options.Pubsub,
+		files.New(prometheus.NewRegistry(), options.Authorizer),
 		prometheus.NewRegistry(),
 		&templateScheduleStore,
 		&auditor,
@@ -343,14 +368,19 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		*options.Logger,
 		options.AutobuildTicker,
 		options.NotificationsEnqueuer,
+		experiments,
 	).WithStatsChannel(options.AutobuildStats)
 	lifecycleExecutor.Run()
 
-	hangDetectorTicker := time.NewTicker(options.DeploymentValues.JobHangDetectorInterval.Value())
-	defer hangDetectorTicker.Stop()
-	hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, options.Logger.Named("unhanger.detector"), hangDetectorTicker.C)
-	hangDetector.Start()
-	t.Cleanup(hangDetector.Close)
+	jobReaperTicker := time.NewTicker(options.DeploymentValues.JobReaperDetectorInterval.Value())
+	defer jobReaperTicker.Stop()
+	jobReaper := jobreaper.New(ctx, options.Database, options.Pubsub, options.Logger.Named("reaper.detector"), jobReaperTicker.C)
+	jobReaper.Start()
+	t.Cleanup(jobReaper.Close)
+
+	if options.TelemetryReporter == nil {
+		options.TelemetryReporter = telemetry.NewNoop()
+	}
 
 	// Did last_used_at not update? Scratching your noggin? Here's why.
 	// Workspace usage tracking must be triggered manually in tests.
@@ -382,6 +412,12 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		workspacestats.TrackerWithTickFlush(options.WorkspaceUsageTrackerTick, options.WorkspaceUsageTrackerFlush),
 	)
 
+	// create the TempDir for the HTTP file cache BEFORE we start the server and set a t.Cleanup to close it. TempDir()
+	// registers a Cleanup function that deletes the directory, and Cleanup functions are called in reverse order. If
+	// we don't do this, then we could try to delete the directory before the HTTP server is done with all files in it,
+	// which on Windows will fail (can't delete files until all programs have closed handles to them).
+	cacheDir := t.TempDir()
+
 	var mutex sync.RWMutex
 	var handler http.Handler
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -392,6 +428,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			handler.ServeHTTP(w, r)
 		}
 	}))
+	t.Logf("coderdtest server listening on %s", srv.Listener.Addr().String())
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
 		return ctx
 	}
@@ -404,7 +441,12 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	} else {
 		srv.Start()
 	}
-	t.Cleanup(srv.Close)
+	t.Logf("coderdtest server started on %s", srv.URL)
+	t.Cleanup(func() {
+		t.Logf("closing coderdtest server on %s", srv.Listener.Addr().String())
+		srv.Close()
+		t.Logf("closed coderdtest server on %s", srv.Listener.Addr().String())
+	})
 
 	tcpAddr, ok := srv.Listener.Addr().(*net.TCPAddr)
 	require.True(t, ok)
@@ -492,7 +534,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			AppHostname:                    options.AppHostname,
 			AppHostnameRegex:               appHostnameRegex,
 			Logger:                         *options.Logger,
-			CacheDir:                       t.TempDir(),
+			CacheDir:                       cacheDir,
 			RuntimeConfig:                  runtimeManager,
 			Database:                       options.Database,
 			Pubsub:                         options.Pubsub,
@@ -511,13 +553,14 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			LoginRateLimit:                     options.LoginRateLimit,
 			FilesRateLimit:                     options.FilesRateLimit,
 			Authorizer:                         options.Authorizer,
-			Telemetry:                          telemetry.NewNoop(),
+			Telemetry:                          options.TelemetryReporter,
 			TemplateScheduleStore:              &templateScheduleStore,
 			AccessControlStore:                 accessControlStore,
 			TLSCertificates:                    options.TLSCertificates,
 			TrialGenerator:                     options.TrialGenerator,
 			RefreshEntitlements:                options.RefreshEntitlements,
 			TailnetCoordinator:                 options.Coordinator,
+			WebPushDispatcher:                  options.WebpushDispatcher,
 			BaseDERPMap:                        derpMap,
 			DERPMapUpdateFrequency:             150 * time.Millisecond,
 			CoordinatorResumeTokenProvider:     options.CoordinatorResumeTokenProvider,
@@ -555,10 +598,17 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 	setHandler, cancelFunc, serverURL, newOptions := NewOptions(t, options)
 	// We set the handler after server creation for the access URL.
 	coderAPI := coderd.New(newOptions)
-	setHandler(coderAPI.RootHandler)
+	rootHandler := coderAPI.RootHandler
+	if options.APIMiddleware != nil {
+		r := chi.NewRouter()
+		r.Use(options.APIMiddleware)
+		r.Mount("/", rootHandler)
+		rootHandler = r
+	}
+	setHandler(rootHandler)
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {
-		provisionerCloser = NewTaggedProvisionerDaemon(t, coderAPI, "test", options.ProvisionerDaemonTags)
+		provisionerCloser = NewTaggedProvisionerDaemon(t, coderAPI, defaultTestDaemonName, options.ProvisionerDaemonTags, coderd.MemoryProvisionerWithVersionOverride(options.ProvisionerDaemonVersion))
 	}
 	client := codersdk.New(serverURL)
 	t.Cleanup(func() {
@@ -602,10 +652,10 @@ func (c *ProvisionerdCloser) Close() error {
 // well with coderd testing. It registers the "echo" provisioner for
 // quick testing.
 func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
-	return NewTaggedProvisionerDaemon(t, coderAPI, "test", nil)
+	return NewTaggedProvisionerDaemon(t, coderAPI, defaultTestDaemonName, nil)
 }
 
-func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string, provisionerTags map[string]string) io.Closer {
+func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string, provisionerTags map[string]string, opts ...coderd.MemoryProvisionerDaemonOption) io.Closer {
 	t.Helper()
 
 	// t.Cleanup runs in last added, first called order. t.TempDir() will delete
@@ -614,7 +664,7 @@ func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string,
 	// seems t.TempDir() is not safe to call from a different goroutine
 	workDir := t.TempDir()
 
-	echoClient, echoServer := drpc.MemTransportPipe()
+	echoClient, echoServer := drpcsdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(func() {
 		_ = echoClient.Close()
@@ -631,8 +681,9 @@ func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string,
 		assert.NoError(t, err)
 	}()
 
+	connectedCh := make(chan struct{})
 	daemon := provisionerd.New(func(dialCtx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-		return coderAPI.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho}, provisionerTags)
+		return coderAPI.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho}, provisionerTags, opts...)
 	}, &provisionerd.Options{
 		Logger:              coderAPI.Logger.Named("provisionerd").Leveled(slog.LevelDebug),
 		UpdateInterval:      250 * time.Millisecond,
@@ -640,7 +691,12 @@ func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string,
 		Connector: provisionerd.LocalProvisioners{
 			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
 		},
+		InitConnectionCh: connectedCh,
 	})
+	// Wait for the provisioner daemon to connect before continuing.
+	// Users of this function tend to assume that the provisioner is connected
+	// and ready to use when that may not strictly be the case.
+	<-connectedCh
 	closer := NewProvisionerDaemonCloser(daemon)
 	t.Cleanup(func() {
 		_ = closer.Close()
@@ -1056,6 +1112,69 @@ func (w WorkspaceAgentWaiter) MatchResources(m func([]codersdk.WorkspaceResource
 	return w
 }
 
+// WaitForAgentFn represents a boolean assertion to be made against each agent
+// that a given WorkspaceAgentWaited knows about. Each WaitForAgentFn should apply
+// the check to a single agent, but it should be named for plural, because `func (w WorkspaceAgentWaiter) WaitFor`
+// applies the check to all agents that it is aware of. This ensures that the public API of the waiter
+// reads correctly. For example:
+//
+// waiter := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID)
+// waiter.WaitFor(coderdtest.AgentsReady)
+type WaitForAgentFn func(agent codersdk.WorkspaceAgent) bool
+
+// AgentsReady checks that the latest lifecycle state of an agent is "Ready".
+func AgentsReady(agent codersdk.WorkspaceAgent) bool {
+	return agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady
+}
+
+// AgentsNotReady checks that the latest lifecycle state of an agent is anything except "Ready".
+func AgentsNotReady(agent codersdk.WorkspaceAgent) bool {
+	return !AgentsReady(agent)
+}
+
+func (w WorkspaceAgentWaiter) WaitFor(criteria ...WaitForAgentFn) {
+	w.t.Helper()
+
+	agentNamesMap := make(map[string]struct{}, len(w.agentNames))
+	for _, name := range w.agentNames {
+		agentNamesMap[name] = struct{}{}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	w.t.Logf("waiting for workspace agents (workspace %s)", w.workspaceID)
+	require.Eventually(w.t, func() bool {
+		var err error
+		workspace, err := w.client.Workspace(ctx, w.workspaceID)
+		if err != nil {
+			return false
+		}
+		if workspace.LatestBuild.Job.CompletedAt == nil {
+			return false
+		}
+		if workspace.LatestBuild.Job.CompletedAt.IsZero() {
+			return false
+		}
+
+		for _, resource := range workspace.LatestBuild.Resources {
+			for _, agent := range resource.Agents {
+				if len(w.agentNames) > 0 {
+					if _, ok := agentNamesMap[agent.Name]; !ok {
+						continue
+					}
+				}
+				for _, criterium := range criteria {
+					if !criterium(agent) {
+						return false
+					}
+				}
+			}
+		}
+		return true
+	}, testutil.WaitLong, testutil.IntervalMedium)
+}
+
 // Wait waits for the agent(s) to connect and fails the test if they do not within testutil.WaitLong
 func (w WorkspaceAgentWaiter) Wait() []codersdk.WorkspaceResource {
 	w.t.Helper()
@@ -1128,16 +1247,16 @@ func CreateWorkspace(t testing.TB, client *codersdk.Client, templateID uuid.UUID
 }
 
 // TransitionWorkspace is a convenience method for transitioning a workspace from one state to another.
-func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition, muts ...func(req *codersdk.CreateWorkspaceBuildRequest)) codersdk.Workspace {
+func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID, from, to codersdk.WorkspaceTransition, muts ...func(req *codersdk.CreateWorkspaceBuildRequest)) codersdk.Workspace {
 	t.Helper()
 	ctx := context.Background()
 	workspace, err := client.Workspace(ctx, workspaceID)
 	require.NoError(t, err, "unexpected error fetching workspace")
-	require.Equal(t, workspace.LatestBuild.Transition, codersdk.WorkspaceTransition(from), "expected workspace state: %s got: %s", from, workspace.LatestBuild.Transition)
+	require.Equal(t, workspace.LatestBuild.Transition, from, "expected workspace state: %s got: %s", from, workspace.LatestBuild.Transition)
 
 	req := codersdk.CreateWorkspaceBuildRequest{
 		TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
-		Transition:        codersdk.WorkspaceTransition(to),
+		Transition:        to,
 	}
 
 	for _, mut := range muts {
@@ -1150,7 +1269,7 @@ func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID 
 	_ = AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
 	updated := MustWorkspace(t, client, workspace.ID)
-	require.Equal(t, codersdk.WorkspaceTransition(to), updated.LatestBuild.Transition, "expected workspace to be in state %s but got %s", to, updated.LatestBuild.Transition)
+	require.Equal(t, to, updated.LatestBuild.Transition, "expected workspace to be in state %s but got %s", to, updated.LatestBuild.Transition)
 	return updated
 }
 
@@ -1169,7 +1288,7 @@ func MustWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID)
 // RequestExternalAuthCallback makes a request with the proper OAuth2 state cookie
 // to the external auth callback endpoint.
 func RequestExternalAuthCallback(t testing.TB, providerID string, client *codersdk.Client, opts ...func(*http.Request)) *http.Response {
-	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	client.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 	state := "somestate"

@@ -61,9 +61,7 @@ test("Create template from starter template", async () => {
 			MockTemplateVersionVariable3,
 		]);
 	await userEvent.type(screen.getByLabelText(/Name/), "my-template");
-	await userEvent.click(
-		within(form).getByRole("button", { name: /create template/i }),
-	);
+	await userEvent.click(within(form).getByRole("button", { name: /save/i }));
 
 	// Wait for the drawer error to be rendered
 	await screen.findByRole("heading", { name: /missing variables/i });
@@ -92,9 +90,7 @@ test("Create template from starter template", async () => {
 		.mockResolvedValue(MockTemplateVersion);
 	jest.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
 	jest.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate);
-	await userEvent.click(
-		within(form).getByRole("button", { name: /create template/i }),
-	);
+	await userEvent.click(within(form).getByRole("button", { name: /save/i }));
 	await waitFor(() => expect(API.createTemplate).toBeCalledTimes(1));
 	expect(router.state.location.pathname).toEqual(
 		`/templates/${MockTemplate.name}/files`,
@@ -142,9 +138,7 @@ test("Create template from duplicating a template", async () => {
 		.mockResolvedValue(MockTemplateVersion);
 	jest.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
 	jest.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate);
-	await userEvent.click(
-		screen.getByRole("button", { name: /create template/i }),
-	);
+	await userEvent.click(screen.getByRole("button", { name: /save/i }));
 	await waitFor(() => {
 		expect(router.state.location.pathname).toEqual(
 			`/templates/${MockTemplate.name}/files`,

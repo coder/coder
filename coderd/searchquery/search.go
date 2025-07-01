@@ -19,7 +19,23 @@ import (
 
 // AuditLogs requires the database to fetch an organization by name
 // to convert to organization uuid.
-func AuditLogs(ctx context.Context, db database.Store, query string) (database.GetAuditLogsOffsetParams, []codersdk.ValidationError) {
+//
+// Supported query parameters:
+//
+//   - request_id: UUID (can be used to search for associated audits e.g. connect/disconnect or open/close)
+//   - resource_id: UUID
+//   - resource_target: string
+//   - username: string
+//   - email: string
+//   - date_from: string (date in format "2006-01-02")
+//   - date_to: string (date in format "2006-01-02")
+//   - organization: string (organization UUID or name)
+//   - resource_type: string (enum)
+//   - action: string (enum)
+//   - build_reason: string (enum)
+func AuditLogs(ctx context.Context, db database.Store, query string) (database.GetAuditLogsOffsetParams,
+	database.CountAuditLogsParams, []codersdk.ValidationError,
+) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
@@ -27,12 +43,14 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 		return nil
 	})
 	if len(errors) > 0 {
-		return database.GetAuditLogsOffsetParams{}, errors
+		// nolint:exhaustruct // We don't need to initialize these structs because we return an error.
+		return database.GetAuditLogsOffsetParams{}, database.CountAuditLogsParams{}, errors
 	}
 
 	const dateLayout = "2006-01-02"
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetAuditLogsOffsetParams{
+		RequestID:      parser.UUID(values, uuid.Nil, "request_id"),
 		ResourceID:     parser.UUID(values, uuid.Nil, "resource_id"),
 		ResourceTarget: parser.String(values, "", "resource_target"),
 		Username:       parser.String(values, "", "username"),
@@ -48,8 +66,24 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 		filter.DateTo = filter.DateTo.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
 	}
 
+	// Prepare the count filter, which uses the same parameters as the GetAuditLogsOffsetParams.
+	// nolint:exhaustruct // UserID is not obtained from the query parameters.
+	countFilter := database.CountAuditLogsParams{
+		RequestID:      filter.RequestID,
+		ResourceID:     filter.ResourceID,
+		ResourceTarget: filter.ResourceTarget,
+		Username:       filter.Username,
+		Email:          filter.Email,
+		DateFrom:       filter.DateFrom,
+		DateTo:         filter.DateTo,
+		OrganizationID: filter.OrganizationID,
+		ResourceType:   filter.ResourceType,
+		Action:         filter.Action,
+		BuildReason:    filter.BuildReason,
+	}
+
 	parser.ErrorExcessParams(values)
-	return filter, parser.Errors
+	return filter, countFilter, parser.Errors
 }
 
 func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
@@ -65,11 +99,15 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetUsersParams{
-		Search:         parser.String(values, "", "search"),
-		Status:         httpapi.ParseCustomList(parser, values, []database.UserStatus{}, "status", httpapi.ParseEnum[database.UserStatus]),
-		RbacRole:       parser.Strings(values, []string{}, "role"),
-		LastSeenAfter:  parser.Time3339Nano(values, time.Time{}, "last_seen_after"),
-		LastSeenBefore: parser.Time3339Nano(values, time.Time{}, "last_seen_before"),
+		Search:          parser.String(values, "", "search"),
+		Status:          httpapi.ParseCustomList(parser, values, []database.UserStatus{}, "status", httpapi.ParseEnum[database.UserStatus]),
+		RbacRole:        parser.Strings(values, []string{}, "role"),
+		LastSeenAfter:   parser.Time3339Nano(values, time.Time{}, "last_seen_after"),
+		LastSeenBefore:  parser.Time3339Nano(values, time.Time{}, "last_seen_before"),
+		CreatedAfter:    parser.Time3339Nano(values, time.Time{}, "created_after"),
+		CreatedBefore:   parser.Time3339Nano(values, time.Time{}, "created_before"),
+		GithubComUserID: parser.Int64(values, 0, "github_com_user_id"),
+		LoginType:       httpapi.ParseCustomList(parser, values, []database.LoginType{}, "login_type", httpapi.ParseEnum[database.LoginType]),
 	}
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
@@ -79,8 +117,10 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	filter := database.GetWorkspacesParams{
 		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
 
+		// #nosec G115 - Safe conversion for pagination offset which is expected to be within int32 range
 		Offset: int32(page.Offset),
-		Limit:  int32(page.Limit),
+		// #nosec G115 - Safe conversion for pagination limit which is expected to be within int32 range
+		Limit: int32(page.Limit),
 	}
 
 	if query == "" {
@@ -125,6 +165,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 		// which will return all workspaces.
 		Valid: values.Has("outdated"),
 	}
+	filter.HasAITask = parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 
 	type paramMatch struct {
@@ -185,6 +226,7 @@ func Templates(ctx context.Context, db database.Store, query string) (database.G
 		IDs:            parser.UUIDs(values, []uuid.UUID{}, "ids"),
 		Deprecated:     parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
 		OrganizationID: parseOrganization(ctx, db, parser, values, "organization"),
+		HasAITask:      parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
 	}
 
 	parser.ErrorExcessParams(values)
@@ -241,7 +283,9 @@ func parseOrganization(ctx context.Context, db database.Store, parser *httpapi.Q
 		if err == nil {
 			return organizationID, nil
 		}
-		organization, err := db.GetOrganizationByName(ctx, v)
+		organization, err := db.GetOrganizationByName(ctx, database.GetOrganizationByNameParams{
+			Name: v, Deleted: false,
+		})
 		if err != nil {
 			return uuid.Nil, xerrors.Errorf("organization %q either does not exist, or you are unauthorized to view it", v)
 		}

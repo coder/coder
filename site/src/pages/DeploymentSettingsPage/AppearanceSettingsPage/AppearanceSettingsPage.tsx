@@ -27,7 +27,7 @@ const AppearanceSettingsPage: FC = () => {
 
 		try {
 			await updateAppearanceMutation.mutateAsync(newAppearance);
-			await queryClient.invalidateQueries(appearanceConfigKey);
+			await queryClient.invalidateQueries({ queryKey: appearanceConfigKey });
 			displaySuccess("Successfully updated appearance settings!");
 		} catch (error) {
 			displayError(

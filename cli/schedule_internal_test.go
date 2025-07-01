@@ -100,7 +100,6 @@ func TestParseCLISchedule(t *testing.T) {
 			expectedError: errInvalidTimeFormat.Error(),
 		},
 	} {
-		testCase := testCase
 		//nolint:paralleltest // t.Setenv
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Setenv("TZ", testCase.tzEnv)

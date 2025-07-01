@@ -3,7 +3,7 @@ coder v0.0.0-devel
 USAGE:
   coder config-ssh [flags]
 
-  Add an SSH Host entry for your workspaces "ssh coder.workspace"
+  Add an SSH Host entry for your workspaces "ssh workspace.coder"
 
     - You can use -o (or --ssh-option) so set SSH options to be used for all
   your
@@ -32,6 +32,9 @@ OPTIONS:
           ssh config. This might be an issue in Windows machine that use a
           unix-like shell. This flag forces the use of unix file paths (the
           forward slash '/').
+
+      --hostname-suffix string, $CODER_CONFIGSSH_HOSTNAME_SUFFIX
+          Override the default hostname suffix.
 
       --ssh-config-file string, $CODER_SSH_CONFIG_FILE (default: ~/.ssh/config)
           Specifies the path to an SSH config.

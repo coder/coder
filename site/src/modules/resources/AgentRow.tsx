@@ -1,18 +1,21 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";
 import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
-import { xrayScan } from "api/queries/integrations";
+import { API } from "api/api";
 import type {
 	Template,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
+import { isAxiosError } from "axios";
+import { Button } from "components/Button/Button";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import {
 	type FC,
 	useCallback,
@@ -25,66 +28,49 @@ import {
 import { useQuery } from "react-query";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
+import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
+import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 import { AgentLatency } from "./AgentLatency";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
 import { AgentLogs } from "./AgentLogs/AgentLogs";
-import { useAgentLogs } from "./AgentLogs/useAgentLogs";
 import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
-import { AppLink } from "./AppLink/AppLink";
 import { DownloadAgentLogsButton } from "./DownloadAgentLogsButton";
 import { PortForwardButton } from "./PortForwardButton";
-import { SSHButton } from "./SSHButton/SSHButton";
+import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
-import { XRayScanAlert } from "./XRayScanAlert";
+import { useAgentLogs } from "./useAgentLogs";
 
-export interface AgentRowProps {
+interface AgentRowProps {
 	agent: WorkspaceAgent;
+	subAgents?: WorkspaceAgent[];
 	workspace: Workspace;
-	showApps: boolean;
-	showBuiltinApps?: boolean;
-	sshPrefix?: string;
-	hideSSHButton?: boolean;
-	hideVSCodeDesktopButton?: boolean;
-	serverVersion: string;
-	serverAPIVersion: string;
-	onUpdateAgent: () => void;
 	template: Template;
-	storybookAgentMetadata?: WorkspaceAgentMetadata[];
+	initialMetadata?: WorkspaceAgentMetadata[];
+	onUpdateAgent: () => void;
 }
 
 export const AgentRow: FC<AgentRowProps> = ({
 	agent,
+	subAgents,
 	workspace,
 	template,
-	showApps,
-	showBuiltinApps = true,
-	hideSSHButton,
-	hideVSCodeDesktopButton,
-	serverVersion,
-	serverAPIVersion,
 	onUpdateAgent,
-	storybookAgentMetadata,
-	sshPrefix,
+	initialMetadata,
 }) => {
-	// XRay integration
-	const xrayScanQuery = useQuery(
-		xrayScan({ workspaceId: workspace.id, agentId: agent.id }),
-	);
-
-	// Apps visibility
-	const visibleApps = agent.apps.filter((app) => !app.hidden);
-	const hasAppsToDisplay = !hideVSCodeDesktopButton || visibleApps.length > 0;
-	const shouldDisplayApps =
-		showApps &&
-		((agent.status === "connected" && hasAppsToDisplay) ||
-			agent.status === "connecting");
+	const { browser_only } = useFeatureVisibility();
+	const appSections = organizeAgentApps(agent.apps);
+	const hasAppsToDisplay =
+		!browser_only || appSections.some((it) => it.apps.length > 0);
+	const shouldDisplayAgentApps =
+		(agent.status === "connected" && hasAppsToDisplay) ||
+		agent.status === "connecting";
 	const hasVSCodeApp =
 		agent.display_apps.includes("vscode") ||
 		agent.display_apps.includes("vscode_insiders");
-	const showVSCode = hasVSCodeApp && !hideVSCodeDesktopButton;
+	const showVSCode = hasVSCodeApp && !browser_only;
 
 	const hasStartupFeatures = Boolean(agent.logs_length);
 	const { proxy } = useProxy();
@@ -92,12 +78,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		["starting", "start_timeout"].includes(agent.lifecycle_state) &&
 			hasStartupFeatures,
 	);
-	const agentLogs = useAgentLogs({
-		workspaceId: workspace.id,
-		agentId: agent.id,
-		agentLifeCycleState: agent.lifecycle_state,
-		enabled: showLogs,
-	});
+	const agentLogs = useAgentLogs(agent, showLogs);
 	const logListRef = useRef<List>(null);
 	const logListDivRef = useRef<HTMLDivElement>(null);
 	const startupLogs = useMemo(() => {
@@ -152,6 +133,32 @@ export const AgentRow: FC<AgentRowProps> = ({
 		setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
 	}, []);
 
+	const { data: devcontainers } = useQuery({
+		queryKey: ["agents", agent.id, "containers"],
+		queryFn: () => API.getAgentContainers(agent.id),
+		enabled: agent.status === "connected",
+		select: (res) => res.devcontainers,
+		// TODO: Implement a websocket connection to get updates on containers
+		// without having to poll.
+		refetchInterval: ({ state }) => {
+			const { error } = state;
+			return isAxiosError(error) && error.response?.status === 403
+				? false
+				: 10_000;
+		},
+	});
+
+	// This is used to show the parent apps of the devcontainer.
+	const [showParentApps, setShowParentApps] = useState(false);
+
+	let shouldDisplayAppsSection = shouldDisplayAgentApps;
+	if (devcontainers && devcontainers.length > 0 && !showParentApps) {
+		shouldDisplayAppsSection = false;
+	}
+
+	// Check if any devcontainers have errors to gray out agent border
+	const hasDevcontainerErrors = devcontainers?.some((dc) => dc.error);
+
 	return (
 		<Stack
 			key={agent.id}
@@ -161,6 +168,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 				styles.agentRow,
 				styles[`agentRow-${agent.status}`],
 				styles[`agentRow-lifecycle-${agent.lifecycle_state}`],
+				hasDevcontainerErrors && styles.agentRowWithErrors,
 			]}
 		>
 			<header css={styles.header}>
@@ -171,12 +179,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</div>
 					{agent.status === "connected" && (
 						<>
-							<AgentVersion
-								agent={agent}
-								serverVersion={serverVersion}
-								serverAPIVersion={serverAPIVersion}
-								onUpdate={onUpdateAgent}
-							/>
+							<AgentVersion agent={agent} onUpdate={onUpdateAgent} />
 							<AgentLatency agent={agent} />
 						</>
 					)}
@@ -188,37 +191,48 @@ export const AgentRow: FC<AgentRowProps> = ({
 					)}
 				</div>
 
-				{showBuiltinApps && (
-					<div css={{ display: "flex" }}>
-						{!hideSSHButton && agent.display_apps.includes("ssh_helper") && (
-							<SSHButton
-								workspaceName={workspace.name}
-								agentName={agent.name}
-								sshPrefix={sshPrefix}
+				<div className="flex items-center gap-2">
+					{devcontainers && devcontainers.length > 0 && (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setShowParentApps((show) => !show)}
+						>
+							Show parent apps
+							<DropdownArrow close={showParentApps} margin={false} />
+						</Button>
+					)}
+
+					{!browser_only && agent.display_apps.includes("ssh_helper") && (
+						<AgentSSHButton
+							workspaceName={workspace.name}
+							agentName={agent.name}
+							workspaceOwnerUsername={workspace.owner_name}
+						/>
+					)}
+					{proxy.preferredWildcardHostname !== "" &&
+						agent.display_apps.includes("port_forwarding_helper") && (
+							<PortForwardButton
+								host={proxy.preferredWildcardHostname}
+								workspace={workspace}
+								agent={agent}
+								template={template}
 							/>
 						)}
-						{proxy.preferredWildcardHostname &&
-							proxy.preferredWildcardHostname !== "" &&
-							agent.display_apps.includes("port_forwarding_helper") && (
-								<PortForwardButton
-									host={proxy.preferredWildcardHostname}
-									workspaceName={workspace.name}
-									agent={agent}
-									username={workspace.owner_name}
-									workspaceID={workspace.id}
-									template={template}
-								/>
-							)}
-					</div>
-				)}
+				</div>
 			</header>
 
-			{xrayScanQuery.data && <XRayScanAlert scan={xrayScanQuery.data} />}
-
 			<div css={styles.content}>
-				{agent.status === "connected" && (
+				{workspace.latest_app_status?.agent_id === agent.id && (
+					<section>
+						<h3 className="sr-only">App statuses</h3>
+						<AppStatuses workspace={workspace} agent={agent} />
+					</section>
+				)}
+
+				{shouldDisplayAppsSection && (
 					<section css={styles.apps}>
-						{shouldDisplayApps && (
+						{shouldDisplayAgentApps && (
 							<>
 								{showVSCode && (
 									<VSCodeDesktopButton
@@ -229,10 +243,10 @@ export const AgentRow: FC<AgentRowProps> = ({
 										displayApps={agent.display_apps}
 									/>
 								)}
-								{visibleApps.map((app) => (
-									<AppLink
-										key={app.slug}
-										app={app}
+								{appSections.map((section, i) => (
+									<AgentApps
+										key={section.group ?? i}
+										section={section}
 										agent={agent}
 										workspace={workspace}
 									/>
@@ -240,7 +254,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 							</>
 						)}
 
-						{showBuiltinApps && agent.display_apps.includes("web_terminal") && (
+						{agent.display_apps.includes("web_terminal") && (
 							<TerminalLink
 								workspaceName={workspace.name}
 								agentName={agent.name}
@@ -267,10 +281,25 @@ export const AgentRow: FC<AgentRowProps> = ({
 					</section>
 				)}
 
-				<AgentMetadata
-					storybookMetadata={storybookAgentMetadata}
-					agent={agent}
-				/>
+				{devcontainers && devcontainers.length > 0 && (
+					<section className="flex flex-col gap-4">
+						{devcontainers.map((devcontainer) => {
+							return (
+								<AgentDevcontainerCard
+									key={devcontainer.id}
+									devcontainer={devcontainer}
+									workspace={workspace}
+									template={template}
+									wildcardHostname={proxy.preferredWildcardHostname}
+									parentAgent={agent}
+									subAgents={subAgents ?? []}
+								/>
+							);
+						})}
+					</section>
+				)}
+
+				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />
 			</div>
 
 			{hasStartupFeatures && (
@@ -304,11 +333,11 @@ export const AgentRow: FC<AgentRowProps> = ({
 
 					<Stack css={{ padding: "12px 16px" }} direction="row" spacing={1}>
 						<Button
-							variant="text"
-							size="small"
-							startIcon={<DropdownArrow close={showLogs} margin={false} />}
+							size="sm"
+							variant="subtle"
 							onClick={() => setShowLogs((v) => !v)}
 						>
+							<DropdownArrow close={showLogs} margin={false} />
 							Logs
 						</Button>
 						<Divider orientation="vertical" variant="middle" flexItem />
@@ -511,5 +540,9 @@ const styles = {
 		"& > div": {
 			position: "relative",
 		},
+	}),
+
+	agentRowWithErrors: (theme) => ({
+		borderColor: theme.palette.divider,
 	}),
 } satisfies Record<string, Interpolation<Theme>>;

@@ -20,14 +20,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
@@ -430,7 +430,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NotNil(t, appTokenCookie, "no signed app token cookie in response")
 			require.Equal(t, appTokenCookie.Path, u.Path, "incorrect path on app token cookie")
 
-			object, err := jose.ParseSigned(appTokenCookie.Value)
+			object, err := jose.ParseSigned(appTokenCookie.Value, []jose.SignatureAlgorithm{jwtutils.SigningAlgo})
 			require.NoError(t, err)
 			require.Len(t, object.Signatures, 1)
 
@@ -622,8 +622,6 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			}
 
 			for _, c := range cases {
-				c := c
-
 				if c.name == "Path" && appHostIsPrimary {
 					// Workspace application auth does not apply to path apps
 					// served from the primary access URL as no smuggling needs
@@ -835,7 +833,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 		// Parse the JWT without verifying it (since we can't access the key
 		// from this test).
-		object, err := jose.ParseSigned(appTokenCookie.Value)
+		object, err := jose.ParseSigned(appTokenCookie.Value, []jose.SignatureAlgorithm{jwtutils.SigningAlgo})
 		require.NoError(t, err)
 		require.Len(t, object.Signatures, 1)
 
@@ -1315,7 +1313,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NotNil(t, appTokenCookie, "no signed token cookie in response")
 			require.Equal(t, appTokenCookie.Path, "/", "incorrect path on signed token cookie")
 
-			object, err := jose.ParseSigned(appTokenCookie.Value)
+			object, err := jose.ParseSigned(appTokenCookie.Value, []jose.SignatureAlgorithm{jwtutils.SigningAlgo})
 			require.NoError(t, err)
 			require.Len(t, object.Signatures, 1)
 
@@ -1950,6 +1948,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		require.True(t, ok)
 
 		appDetails := setupProxyTest(t, &DeploymentOptions{
+			// #nosec G115 - Safe conversion as TCP port numbers are within uint16 range (0-65535)
 			port: uint16(tcpAddr.Port),
 		})
 
@@ -1968,8 +1967,6 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		}
 
 		for _, c := range cases {
-			c := c
-
 			t.Run(c.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -2186,7 +2183,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_ = coderdtest.MustTransitionWorkspace(t, appDetails.SDKClient, appDetails.Workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		_ = coderdtest.MustTransitionWorkspace(t, appDetails.SDKClient, appDetails.Workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		u := appDetails.PathAppURL(appDetails.Apps.Owner)
 		resp, err := appDetails.AppClient(t).Request(ctx, http.MethodGet, u.String(), nil)

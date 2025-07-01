@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { CreateTokenPage } from "./CreateTokenPage";
+import CreateTokenPage from "./CreateTokenPage";
 
 const meta: Meta<typeof CreateTokenPage> = {
 	title: "components/CreateTokenPage",
@@ -12,12 +12,6 @@ const meta: Meta<typeof CreateTokenPage> = {
 			},
 		],
 	},
-	decorators: [
-		(Story) => {
-			Date.now = () => new Date("01/01/2014").getTime();
-			return <Story />;
-		},
-	],
 };
 
 export default meta;

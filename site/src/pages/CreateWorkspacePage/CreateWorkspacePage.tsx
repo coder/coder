@@ -4,17 +4,19 @@ import { checkAuthorization } from "api/queries/authCheck";
 import {
 	richParameters,
 	templateByName,
-	templateVersionExternalAuth,
+	templateVersionPresets,
 } from "api/queries/templates";
 import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
 import type {
+	Template,
 	TemplateVersionParameter,
 	UserParameter,
 	Workspace,
 } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { useExternalAuth } from "hooks/useExternalAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
@@ -25,12 +27,13 @@ import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
-import { type CreateWSPermissions, createWorkspaceChecks } from "./permissions";
+import {
+	type CreateWorkspacePermissions,
+	createWorkspaceChecks,
+} from "./permissions";
 
-export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
+const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
-
-export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePage: FC = () => {
 	const { organization: organizationName = "default", template: templateName } =
@@ -56,13 +59,16 @@ const CreateWorkspacePage: FC = () => {
 	const templateQuery = useQuery(
 		templateByName(organizationName, templateName),
 	);
-	const permissionsQuery = useQuery(
-		templateQuery.data
-			? checkAuthorization({
-					checks: createWorkspaceChecks(templateQuery.data.organization_id),
-				})
-			: { enabled: false },
-	);
+	const templateVersionPresetsQuery = useQuery({
+		...templateVersionPresets(templateQuery.data?.active_version_id ?? ""),
+		enabled: !!templateQuery.data,
+	});
+	const permissionsQuery = useQuery({
+		...checkAuthorization({
+			checks: createWorkspaceChecks(templateQuery.data?.organization_id ?? ""),
+		}),
+		enabled: !!templateQuery.data,
+	});
 	const realizedVersionId =
 		customVersionId ?? templateQuery.data?.active_version_id;
 	const organizationId = templateQuery.data?.organization_id;
@@ -88,7 +94,7 @@ const CreateWorkspacePage: FC = () => {
 	const loadFormDataError =
 		templateQuery.error ?? permissionsQuery.error ?? richParametersQuery.error;
 
-	const title = autoCreateWorkspaceMutation.isLoading
+	const title = autoCreateWorkspaceMutation.isPending
 		? "Creating workspace..."
 		: "Create workspace";
 
@@ -103,7 +109,7 @@ const CreateWorkspacePage: FC = () => {
 	const autofillEnabled = experiments.includes("auto-fill-parameters");
 	const userParametersQuery = useQuery({
 		queryKey: ["userParameters"],
-		queryFn: () => API.getUserParameters(templateQuery.data!.id),
+		queryFn: () => API.getUserParameters(templateQuery.data?.id ?? ""),
 		enabled: autofillEnabled && templateQuery.isSuccess,
 	});
 	const autofillParameters = getAutofillParameters(
@@ -129,7 +135,7 @@ const CreateWorkspacePage: FC = () => {
 			});
 
 			onCreateWorkspace(newWorkspace);
-		} catch (err) {
+		} catch {
 			setMode("form");
 		}
 	});
@@ -195,15 +201,16 @@ const CreateWorkspacePage: FC = () => {
 						autoCreateWorkspaceMutation.error
 					}
 					resetMutation={createWorkspaceMutation.reset}
-					template={templateQuery.data!}
+					template={templateQuery.data as Template}
 					versionId={realizedVersionId}
 					externalAuth={externalAuth ?? []}
 					externalAuthPollingState={externalAuthPollingState}
 					startPollingExternalAuth={startPollingExternalAuth}
 					hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
-					permissions={permissionsQuery.data as CreateWSPermissions}
+					permissions={permissionsQuery.data as CreateWorkspacePermissions}
 					parameters={realizedParameters as TemplateVersionParameter[]}
-					creatingWorkspace={createWorkspaceMutation.isLoading}
+					presets={templateVersionPresetsQuery.data ?? []}
+					creatingWorkspace={createWorkspaceMutation.isPending}
 					onCancel={() => {
 						navigate(-1);
 					}}
@@ -226,54 +233,6 @@ const CreateWorkspacePage: FC = () => {
 			)}
 		</>
 	);
-};
-
-const useExternalAuth = (versionId: string | undefined) => {
-	const [externalAuthPollingState, setExternalAuthPollingState] =
-		useState<ExternalAuthPollingState>("idle");
-
-	const startPollingExternalAuth = useCallback(() => {
-		setExternalAuthPollingState("polling");
-	}, []);
-
-	const { data: externalAuth, isLoading: isLoadingExternalAuth } = useQuery(
-		versionId
-			? {
-					...templateVersionExternalAuth(versionId),
-					refetchInterval:
-						externalAuthPollingState === "polling" ? 1000 : false,
-				}
-			: { enabled: false },
-	);
-
-	const allSignedIn = externalAuth?.every((it) => it.authenticated);
-
-	useEffect(() => {
-		if (allSignedIn) {
-			setExternalAuthPollingState("idle");
-			return;
-		}
-
-		if (externalAuthPollingState !== "polling") {
-			return;
-		}
-
-		// Poll for a maximum of one minute
-		const quitPolling = setTimeout(
-			() => setExternalAuthPollingState("abandoned"),
-			60_000,
-		);
-		return () => {
-			clearTimeout(quitPolling);
-		};
-	}, [externalAuthPollingState, allSignedIn]);
-
-	return {
-		startPollingExternalAuth,
-		externalAuth,
-		externalAuthPollingState,
-		isLoadingExternalAuth,
-	};
 };
 
 const getAutofillParameters = (

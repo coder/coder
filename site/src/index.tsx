@@ -14,5 +14,10 @@ if (element === null) {
 	throw new Error("root element is null");
 }
 
+// The service worker handles push notifications.
+if ("serviceWorker" in navigator) {
+	navigator.serviceWorker.register("/serviceWorker.js");
+}
+
 const root = createRoot(element);
 root.render(<App />);

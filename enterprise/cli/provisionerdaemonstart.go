@@ -25,7 +25,7 @@ import (
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/drpc"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionerd"
 	provisionerdproto "github.com/coder/coder/v2/provisionerd/proto"
@@ -173,7 +173,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				return err
 			}
 
-			terraformClient, terraformServer := drpc.MemTransportPipe()
+			terraformClient, terraformServer := drpcsdk.MemTransportPipe()
 			go func() {
 				<-ctx.Done()
 				_ = terraformClient.Close()
@@ -225,7 +225,6 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			}
 			srv := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 				return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
-					ID:   uuid.New(),
 					Name: name,
 					Provisioners: []codersdk.ProvisionerType{
 						codersdk.ProvisionerTypeTerraform,
@@ -236,10 +235,11 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 					ProvisionerKey: provisionerKey,
 				})
 			}, &provisionerd.Options{
-				Logger:         logger,
-				UpdateInterval: 500 * time.Millisecond,
-				Connector:      connector,
-				Metrics:        metrics,
+				Logger:              logger,
+				UpdateInterval:      500 * time.Millisecond,
+				Connector:           connector,
+				Metrics:             metrics,
+				ExternalProvisioner: true,
 			})
 
 			waitForProvisionerJobs := false

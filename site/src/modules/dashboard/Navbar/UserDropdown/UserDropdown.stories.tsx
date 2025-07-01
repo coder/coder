@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, screen, userEvent, waitFor, within } from "@storybook/test";
-import { MockBuildInfo, MockUser } from "testHelpers/entities";
+import { MockBuildInfo, MockUserOwner } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import { UserDropdown } from "./UserDropdown";
 
@@ -8,7 +8,7 @@ const meta: Meta<typeof UserDropdown> = {
 	title: "modules/dashboard/UserDropdown",
 	component: UserDropdown,
 	args: {
-		user: MockUser,
+		user: MockUserOwner,
 		buildInfo: MockBuildInfo,
 		supportLinks: [
 			{ icon: "docs", name: "Documentation", target: "" },

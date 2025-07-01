@@ -3,6 +3,7 @@ package cli
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
+
+	"github.com/coder/coder/v2/cli/cliutil"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -48,6 +51,7 @@ var supportBundleBlurb = cliui.Bold("This will collect the following information
   - Agent details (with environment variable sanitized)
   - Agent network diagnostics
   - Agent logs
+  - License status
 ` + cliui.Bold("Note: ") +
 	cliui.Wrap("While we try to sanitize sensitive data from support bundles, we cannot guarantee that they do not contain information that you or your organization may consider sensitive.\n") +
 	cliui.Bold("Please confirm that you will:\n") +
@@ -302,6 +306,11 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		return xerrors.Errorf("decode template zip from base64")
 	}
 
+	licenseStatus, err := humanizeLicenses(src.Deployment.Licenses)
+	if err != nil {
+		return xerrors.Errorf("format license status: %w", err)
+	}
+
 	// The below we just write as we have them:
 	for k, v := range map[string]string{
 		"agent/logs.txt":                 string(src.Agent.Logs),
@@ -315,6 +324,7 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		"network/tailnet_debug.html":     src.Network.TailnetDebug,
 		"workspace/build_logs.txt":       humanizeBuildLogs(src.Workspace.BuildLogs),
 		"workspace/template_file.zip":    string(templateVersionBytes),
+		"license-status.txt":             licenseStatus,
 	} {
 		f, err := dest.Create(k)
 		if err != nil {
@@ -358,4 +368,14 @@ func humanizeBuildLogs(ls []codersdk.ProvisionerJobLog) string {
 	}
 	_ = tw.Flush()
 	return buf.String()
+}
+
+func humanizeLicenses(licenses []codersdk.License) (string, error) {
+	formatter := cliutil.NewLicenseFormatter()
+
+	if len(licenses) == 0 {
+		return "No licenses found", nil
+	}
+
+	return formatter.Format(context.Background(), licenses)
 }

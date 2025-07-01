@@ -96,8 +96,6 @@ func TestCheckACLPermissions(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		c := c
-
 		t.Run("CheckAuthorization/"+c.Name, func(t *testing.T) {
 			t.Parallel()
 

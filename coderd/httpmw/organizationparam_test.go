@@ -13,9 +13,11 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -40,10 +42,10 @@ func TestOrganizationParam(t *testing.T) {
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db   = dbmem.New()
-			rw   = httptest.NewRecorder()
-			r, _ = setupAuthentication(db)
-			rtr  = chi.NewRouter()
+			db, _ = dbtestutil.NewDB(t)
+			rw    = httptest.NewRecorder()
+			r, _  = setupAuthentication(db)
+			rtr   = chi.NewRouter()
 		)
 		rtr.Use(
 			httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -62,10 +64,10 @@ func TestOrganizationParam(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db   = dbmem.New()
-			rw   = httptest.NewRecorder()
-			r, _ = setupAuthentication(db)
-			rtr  = chi.NewRouter()
+			db, _ = dbtestutil.NewDB(t)
+			rw    = httptest.NewRecorder()
+			r, _  = setupAuthentication(db)
+			rtr   = chi.NewRouter()
 		)
 		chi.RouteContext(r.Context()).URLParams.Add("organization", uuid.NewString())
 		rtr.Use(
@@ -85,10 +87,10 @@ func TestOrganizationParam(t *testing.T) {
 	t.Run("InvalidUUID", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db   = dbmem.New()
-			rw   = httptest.NewRecorder()
-			r, _ = setupAuthentication(db)
-			rtr  = chi.NewRouter()
+			db, _ = dbtestutil.NewDB(t)
+			rw    = httptest.NewRecorder()
+			r, _  = setupAuthentication(db)
+			rtr   = chi.NewRouter()
 		)
 		chi.RouteContext(r.Context()).URLParams.Add("organization", "not-a-uuid")
 		rtr.Use(
@@ -108,10 +110,10 @@ func TestOrganizationParam(t *testing.T) {
 	t.Run("NotInOrganization", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db   = dbmem.New()
-			rw   = httptest.NewRecorder()
-			r, u = setupAuthentication(db)
-			rtr  = chi.NewRouter()
+			db, _ = dbtestutil.NewDB(t)
+			rw    = httptest.NewRecorder()
+			r, u  = setupAuthentication(db)
+			rtr   = chi.NewRouter()
 		)
 		organization, err := db.InsertOrganization(r.Context(), database.InsertOrganizationParams{
 			ID:        uuid.New(),
@@ -142,7 +144,7 @@ func TestOrganizationParam(t *testing.T) {
 		t.Parallel()
 		var (
 			ctx     = testutil.Context(t, testutil.WaitShort)
-			db      = dbmem.New()
+			db, _   = dbtestutil.NewDB(t)
 			rw      = httptest.NewRecorder()
 			r, user = setupAuthentication(db)
 			rtr     = chi.NewRouter()
@@ -167,6 +169,10 @@ func TestOrganizationParam(t *testing.T) {
 			httpmw.ExtractOrganizationParam(db),
 			httpmw.ExtractUserParam(db),
 			httpmw.ExtractOrganizationMemberParam(db),
+			httpmw.ExtractOrganizationMembersParam(db, func(r *http.Request, _ policy.Action, _ rbac.Objecter) bool {
+				// Assume the caller cannot read the member
+				return false
+			}),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 			org := httpmw.OrganizationParam(r)
@@ -190,6 +196,11 @@ func TestOrganizationParam(t *testing.T) {
 			assert.NotEmpty(t, orgMem.OrganizationMember.UpdatedAt)
 			assert.NotEmpty(t, orgMem.OrganizationMember.UserID)
 			assert.NotEmpty(t, orgMem.OrganizationMember.Roles)
+
+			orgMems := httpmw.OrganizationMembersParam(r)
+			assert.NotZero(t, orgMems)
+			assert.Equal(t, orgMem.UserID, orgMems.Memberships[0].UserID)
+			assert.Nil(t, orgMems.User, "user data should not be available, hard coded false authorize")
 		})
 
 		// Try by ID

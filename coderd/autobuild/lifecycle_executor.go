@@ -3,7 +3,10 @@ package autobuild
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,6 +19,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/files"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -26,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // Executor automatically starts or stops workspaces.
@@ -33,6 +38,7 @@ type Executor struct {
 	ctx                   context.Context
 	db                    database.Store
 	ps                    pubsub.Pubsub
+	fileCache             *files.Cache
 	templateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 	accessControlStore    *atomic.Pointer[dbauthz.AccessControlStore]
 	auditor               *atomic.Pointer[audit.Auditor]
@@ -42,6 +48,7 @@ type Executor struct {
 	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
 	notificationsEnqueuer notifications.Enqueuer
 	reg                   prometheus.Registerer
+	experiments           codersdk.Experiments
 
 	metrics executorMetrics
 }
@@ -58,13 +65,14 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments) *Executor {
 	factory := promauto.With(reg)
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
 		ctx:                   dbauthz.AsAutostart(ctx),
 		db:                    db,
 		ps:                    ps,
+		fileCache:             fc,
 		templateScheduleStore: tss,
 		tick:                  tick,
 		log:                   log.Named("autobuild"),
@@ -72,6 +80,7 @@ func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, reg p
 		accessControlStore:    acs,
 		notificationsEnqueuer: enqueuer,
 		reg:                   reg,
+		experiments:           exp,
 		metrics: executorMetrics{
 			autobuildExecutionDuration: factory.NewHistogram(prometheus.HistogramOpts{
 				Namespace: "coderd",
@@ -148,6 +157,22 @@ func (e *Executor) runOnce(t time.Time) Stats {
 		return stats
 	}
 
+	// Sort the workspaces by build template version ID so that we can group
+	// identical template versions together. This is a slight (and imperfect)
+	// optimization.
+	//
+	// `wsbuilder` needs to load the terraform files for a given template version
+	// into memory. If 2 workspaces are using the same template version, they will
+	// share the same files in the FileCache. This only happens if the builds happen
+	// in parallel.
+	// TODO: Actually make sure the cache has the files in the cache for the full
+	//  set of identical template versions. Then unload the files when the builds
+	//  are done. Right now, this relies on luck for the 10 goroutine workers to
+	//  overlap and keep the file reference in the cache alive.
+	slices.SortFunc(workspaces, func(a, b database.GetWorkspacesEligibleForTransitionRow) int {
+		return strings.Compare(a.BuildTemplateVersionID.UUID.String(), b.BuildTemplateVersionID.UUID.String())
+	})
+
 	// We only use errgroup here for convenience of API, not for early
 	// cancellation. This means we only return nil errors in th eg.Go.
 	eg := errgroup.Group{}
@@ -176,6 +201,15 @@ func (e *Executor) runOnce(t time.Time) Stats {
 				)
 				err := e.db.InTx(func(tx database.Store) error {
 					var err error
+
+					ok, err := tx.TryAcquireLock(e.ctx, database.GenLockID(fmt.Sprintf("lifecycle-executor:%s", wsID)))
+					if err != nil {
+						return xerrors.Errorf("try acquire lifecycle executor lock: %w", err)
+					}
+					if !ok {
+						log.Debug(e.ctx, "unable to acquire lock for workspace, skipping")
+						return nil
+					}
 
 					// Re-check eligibility since the first check was outside the
 					// transaction and the workspace settings may have changed.
@@ -248,6 +282,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						builder := wsbuilder.New(ws, nextTransition).
 							SetLastWorkspaceBuildInTx(&latestBuild).
 							SetLastWorkspaceBuildJobInTx(&latestJob).
+							Experiments(e.experiments).
 							Reason(reason)
 						log.Debug(e.ctx, "auto building workspace", slog.F("transition", nextTransition))
 						if nextTransition == database.WorkspaceTransitionStart &&
@@ -262,7 +297,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							}
 						}
 
-						nextBuild, job, _, err = builder.Build(e.ctx, tx, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
+						nextBuild, job, _, err = builder.Build(e.ctx, tx, e.fileCache, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
 						if err != nil {
 							return xerrors.Errorf("build workspace with transition %q: %w", nextTransition, err)
 						}
@@ -339,13 +374,18 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						nextBuildReason = string(nextBuild.Reason)
 					}
 
+					templateVersionMessage := activeTemplateVersion.Message
+					if templateVersionMessage == "" {
+						templateVersionMessage = "None provided"
+					}
+
 					if _, err := e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, notifications.TemplateWorkspaceAutoUpdated,
 						map[string]string{
 							"name":                     ws.Name,
 							"initiator":                "autobuild",
 							"reason":                   nextBuildReason,
 							"template_version_name":    activeTemplateVersion.Name,
-							"template_version_message": activeTemplateVersion.Message,
+							"template_version_message": templateVersionMessage,
 						}, "autobuild",
 						// Associate this notification with all the related entities.
 						ws.ID, ws.OwnerID, ws.TemplateID, ws.OrganizationID,
@@ -389,7 +429,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 				}
 				return nil
 			}()
-			if err != nil {
+			if err != nil && !xerrors.Is(err, context.Canceled) {
 				log.Error(e.ctx, "failed to transition workspace", slog.Error(err))
 				statsMu.Lock()
 				stats.Errors[wsID] = err

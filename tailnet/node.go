@@ -3,11 +3,11 @@ package tailnet
 import (
 	"context"
 	"net/netip"
+	"slices"
 	"sync"
 	"time"
 
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 	"tailscale.com/wgengine"

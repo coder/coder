@@ -7,6 +7,8 @@ import (
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 )
 
+var _ idpsync.IDPSync = &EnterpriseIDPSync{}
+
 // EnterpriseIDPSync enabled syncing user information from an external IDP.
 // The sync is an enterprise feature, so this struct wraps the AGPL implementation
 // and extends it with enterprise capabilities. These capabilities can entirely

@@ -17,15 +17,23 @@ import {
 	MockBuildInfo,
 	MockOrganization,
 	MockPendingProvisionerJob,
+	MockStoppedWorkspace,
 	MockTemplate,
-	MockUser,
+	MockUserOwner,
 	MockWorkspace,
+	MockWorkspaceAgent,
+	MockWorkspaceAppStatus,
 	mockApiError,
 } from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withProxyProvider,
+} from "testHelpers/storybook";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
 const createWorkspace = (
+	name: string,
 	status: WorkspaceStatus,
 	outdated = false,
 	lastUsedAt = "0001-01-01",
@@ -35,6 +43,7 @@ const createWorkspace = (
 	return {
 		...MockWorkspace,
 		id: uniqueId("workspace"),
+		name: name,
 		outdated,
 		latest_build: {
 			...MockWorkspace.latest_build,
@@ -52,17 +61,50 @@ const createWorkspace = (
 
 // This is type restricted to prevent future statuses from slipping
 // through the cracks unchecked!
-const workspaces = WorkspaceStatuses.map((status) => createWorkspace(status));
+const workspaces = WorkspaceStatuses.map((status) =>
+	createWorkspace(status, status),
+);
 
 // Additional Workspaces depending on time
 const additionalWorkspaces: Record<string, Workspace> = {
 	today: createWorkspace(
+		"running-outdated",
 		"running",
 		true,
 		dayjs().subtract(3, "hour").toString(),
 	),
-	old: createWorkspace("running", true, dayjs().subtract(1, "week").toString()),
+	old: createWorkspace(
+		"old-outdated",
+		"running",
+		true,
+		dayjs().subtract(1, "week").toString(),
+	),
+	oldStopped: createWorkspace(
+		"old-stopped-outdated",
+		"stopped",
+		true,
+		dayjs().subtract(1, "week").toString(),
+	),
+	oldRequireActiveVersion: {
+		...createWorkspace(
+			"old-require-active-version-outdated",
+			"running",
+			true,
+			dayjs().subtract(1, "week").toString(),
+		),
+		template_require_active_version: true,
+	},
+	oldStoppedRequireActiveVersion: {
+		...createWorkspace(
+			"old-stopped-require-active-version-outdated",
+			"stopped",
+			true,
+			dayjs().subtract(1, "week").toString(),
+		),
+		template_require_active_version: true,
+	},
 	veryOld: createWorkspace(
+		"very-old-running-outdated",
 		"running",
 		true,
 		dayjs().subtract(1, "month").subtract(4, "day").toString(),
@@ -71,12 +113,14 @@ const additionalWorkspaces: Record<string, Workspace> = {
 
 const dormantWorkspaces: Record<string, Workspace> = {
 	dormantNoDelete: createWorkspace(
+		"dormant-no-delete",
 		"stopped",
 		false,
 		dayjs().subtract(1, "month").toString(),
 		dayjs().subtract(1, "month").toString(),
 	),
 	dormantAutoDelete: createWorkspace(
+		"dormant-auto-delete",
 		"stopped",
 		false,
 		dayjs().subtract(1, "month").toString(),
@@ -101,7 +145,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 		organizations: MockMenu,
 	},
 	values: {
-		owner: MockUser.username,
+		owner: MockUserOwner.username,
 		template: undefined,
 		status: undefined,
 	},
@@ -140,8 +184,9 @@ const meta: Meta<typeof WorkspacesPageView> = {
 				data: MockBuildInfo,
 			},
 		],
+		user: MockUserOwner,
 	},
-	decorators: [withDashboardProvider],
+	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
 };
 
 export default meta;
@@ -237,7 +282,7 @@ export const UnhealthyWorkspace: Story = {
 	args: {
 		workspaces: [
 			{
-				...createWorkspace("running"),
+				...createWorkspace("unhealthy", "running"),
 				health: {
 					healthy: false,
 					failing_agents: [],
@@ -269,9 +314,52 @@ export const InvalidPageNumber: Story = {
 	},
 };
 
+export const MultipleApps: Story = {
+	args: {
+		workspaces: [
+			{
+				...MockWorkspace,
+				name: "multiple-apps",
+				latest_build: {
+					...MockWorkspace.latest_build,
+					resources: [
+						{
+							...MockWorkspace.latest_build.resources[0],
+							agents: [
+								{
+									...MockWorkspaceAgent,
+									apps: [
+										{
+											...MockWorkspaceAgent.apps[0],
+											display_name: "App 1",
+											id: "app-1",
+										},
+										{
+											...MockWorkspaceAgent.apps[0],
+											display_name: "App 2",
+											id: "app-2",
+										},
+									],
+								},
+							],
+						},
+					],
+				},
+			},
+		],
+		count: allWorkspaces.length,
+	},
+};
+
 export const ShowOrganizations: Story = {
 	args: {
-		workspaces: [{ ...MockWorkspace, organization_name: "limbus-co" }],
+		workspaces: [
+			{
+				...MockWorkspace,
+				name: "other-org-workspace",
+				organization_name: "limbus-co",
+			},
+		],
 	},
 
 	parameters: {
@@ -295,5 +383,70 @@ export const ShowOrganizations: Story = {
 		});
 
 		expect(accessibleTableCell).toBeDefined();
+	},
+};
+
+export const WithLatestAppStatus: Story = {
+	args: {
+		workspaces: [
+			{
+				...MockWorkspace,
+				name: "long-app-status",
+				latest_app_status: {
+					...MockWorkspaceAppStatus,
+					message:
+						"This is a long message that will wrap around the component. It should wrap many times because this is very very very very very long.",
+				},
+			},
+			{
+				...MockWorkspace,
+				name: "no-app-status",
+				latest_app_status: null,
+			},
+			{
+				...MockWorkspace,
+				name: "app-status-working",
+				latest_app_status: {
+					...MockWorkspaceAppStatus,
+					state: "working",
+					message: "Fixing the competitors page...",
+				},
+			},
+			{
+				...MockWorkspace,
+				name: "app-status-failure",
+				latest_app_status: {
+					...MockWorkspaceAppStatus,
+					state: "failure",
+					message: "I couldn't figure it out...",
+				},
+			},
+			{
+				...{
+					...MockStoppedWorkspace,
+					latest_build: {
+						...MockStoppedWorkspace.latest_build,
+						resources: [],
+					},
+				},
+				name: "stopped-app-status-failure",
+				latest_app_status: {
+					...MockWorkspaceAppStatus,
+					state: "failure",
+					message: "I couldn't figure it out...",
+					uri: "",
+				},
+			},
+			{
+				...MockWorkspace,
+				name: "app-status-working-with-uri",
+				latest_app_status: {
+					...MockWorkspaceAppStatus,
+					state: "working",
+					message: "Updating the README...",
+					uri: "file:///home/coder/projects/coder/coder/README.md",
+				},
+			},
+		],
 	},
 };

@@ -151,7 +151,6 @@ func TestOAuth2ProviderApps(t *testing.T) {
 		require.NoError(t, err)
 
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				ctx := testutil.Context(t, testutil.WaitLong)
@@ -423,7 +422,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			preAuth: func(valid *oauth2.Config) {
 				valid.ClientID = uuid.NewString()
 			},
-			authError: "Resource not found",
+			authError: "invalid_client",
 		},
 		{
 			name: "TokenInvalidAppID",
@@ -431,7 +430,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			preToken: func(valid *oauth2.Config) {
 				valid.ClientID = uuid.NewString()
 			},
-			tokenError: "Resource not found",
+			tokenError: "invalid_client",
 		},
 		{
 			name: "InvalidPort",
@@ -441,7 +440,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 				newURL.Host = newURL.Hostname() + ":8081"
 				valid.RedirectURL = newURL.String()
 			},
-			authError: "Invalid query params",
+			authError: "Invalid query params:",
 		},
 		{
 			name: "WrongAppHost",
@@ -449,7 +448,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			preAuth: func(valid *oauth2.Config) {
 				valid.RedirectURL = apps.NoPort.CallbackURL
 			},
-			authError: "Invalid query params",
+			authError: "Invalid query params:",
 		},
 		{
 			name: "InvalidHostPrefix",
@@ -459,7 +458,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 				newURL.Host = "prefix" + newURL.Hostname()
 				valid.RedirectURL = newURL.String()
 			},
-			authError: "Invalid query params",
+			authError: "Invalid query params:",
 		},
 		{
 			name: "InvalidHost",
@@ -469,7 +468,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 				newURL.Host = "invalid"
 				valid.RedirectURL = newURL.String()
 			},
-			authError: "Invalid query params",
+			authError: "Invalid query params:",
 		},
 		{
 			name: "InvalidHostAndPort",
@@ -479,7 +478,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 				newURL.Host = "invalid:8080"
 				valid.RedirectURL = newURL.String()
 			},
-			authError: "Invalid query params",
+			authError: "Invalid query params:",
 		},
 		{
 			name: "InvalidPath",
@@ -489,7 +488,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 				newURL.Path = path.Join("/prepend", newURL.Path)
 				valid.RedirectURL = newURL.String()
 			},
-			authError: "Invalid query params",
+			authError: "Invalid query params:",
 		},
 		{
 			name: "MissingPath",
@@ -499,7 +498,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 				newURL.Path = "/"
 				valid.RedirectURL = newURL.String()
 			},
-			authError: "Invalid query params",
+			authError: "Invalid query params:",
 		},
 		{
 			// TODO: This is valid for now, but should it be?
@@ -530,7 +529,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 				newURL.Host = "sub." + newURL.Host
 				valid.RedirectURL = newURL.String()
 			},
-			authError: "Invalid query params",
+			authError: "Invalid query params:",
 		},
 		{
 			name: "NoSecretScheme",
@@ -538,7 +537,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			preToken: func(valid *oauth2.Config) {
 				valid.ClientSecret = "1234_4321"
 			},
-			tokenError: "Invalid client secret",
+			tokenError: "The client credentials are invalid",
 		},
 		{
 			name: "InvalidSecretScheme",
@@ -546,7 +545,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			preToken: func(valid *oauth2.Config) {
 				valid.ClientSecret = "notcoder_1234_4321"
 			},
-			tokenError: "Invalid client secret",
+			tokenError: "The client credentials are invalid",
 		},
 		{
 			name: "MissingSecretSecret",
@@ -554,7 +553,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			preToken: func(valid *oauth2.Config) {
 				valid.ClientSecret = "coder_1234"
 			},
-			tokenError: "Invalid client secret",
+			tokenError: "The client credentials are invalid",
 		},
 		{
 			name: "MissingSecretPrefix",
@@ -562,7 +561,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			preToken: func(valid *oauth2.Config) {
 				valid.ClientSecret = "coder__1234"
 			},
-			tokenError: "Invalid client secret",
+			tokenError: "The client credentials are invalid",
 		},
 		{
 			name: "InvalidSecretPrefix",
@@ -570,7 +569,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			preToken: func(valid *oauth2.Config) {
 				valid.ClientSecret = "coder_1234_4321"
 			},
-			tokenError: "Invalid client secret",
+			tokenError: "The client credentials are invalid",
 		},
 		{
 			name: "MissingSecret",
@@ -578,48 +577,48 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			preToken: func(valid *oauth2.Config) {
 				valid.ClientSecret = ""
 			},
-			tokenError: "Invalid query params",
+			tokenError: "invalid_request",
 		},
 		{
 			name:        "NoCodeScheme",
 			app:         apps.Default,
 			defaultCode: ptr.Ref("1234_4321"),
-			tokenError:  "Invalid code",
+			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "InvalidCodeScheme",
 			app:         apps.Default,
 			defaultCode: ptr.Ref("notcoder_1234_4321"),
-			tokenError:  "Invalid code",
+			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "MissingCodeSecret",
 			app:         apps.Default,
 			defaultCode: ptr.Ref("coder_1234"),
-			tokenError:  "Invalid code",
+			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "MissingCodePrefix",
 			app:         apps.Default,
 			defaultCode: ptr.Ref("coder__1234"),
-			tokenError:  "Invalid code",
+			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "InvalidCodePrefix",
 			app:         apps.Default,
 			defaultCode: ptr.Ref("coder_1234_4321"),
-			tokenError:  "Invalid code",
+			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "MissingCode",
 			app:         apps.Default,
 			defaultCode: ptr.Ref(""),
-			tokenError:  "Invalid query params",
+			tokenError:  "invalid_request",
 		},
 		{
 			name:       "InvalidGrantType",
 			app:        apps.Default,
-			tokenError: "Invalid query params",
+			tokenError: "unsupported_grant_type",
 			exchangeMutate: []oauth2.AuthCodeOption{
 				oauth2.SetAuthURLParam("grant_type", "foobar"),
 			},
@@ -627,7 +626,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 		{
 			name:       "EmptyGrantType",
 			app:        apps.Default,
-			tokenError: "Invalid query params",
+			tokenError: "unsupported_grant_type",
 			exchangeMutate: []oauth2.AuthCodeOption{
 				oauth2.SetAuthURLParam("grant_type", ""),
 			},
@@ -636,7 +635,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			name:        "ExpiredCode",
 			app:         apps.Default,
 			defaultCode: ptr.Ref("coder_prefix_code"),
-			tokenError:  "Invalid code",
+			tokenError:  "The authorization code is invalid or expired",
 			setup: func(ctx context.Context, client *codersdk.Client, user codersdk.User) error {
 				// Insert an expired code.
 				hashedCode, err := userpassword.Hash("prefix_code")
@@ -661,7 +660,6 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
@@ -722,7 +720,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotEmpty(t, token.AccessToken)
-				require.True(t, time.Now().After(token.Expiry))
+				require.True(t, time.Now().Before(token.Expiry))
 
 				// Check that the token works.
 				newClient := codersdk.New(userClient.URL)
@@ -766,37 +764,37 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 			name:         "NoTokenScheme",
 			app:          apps.Default,
 			defaultToken: ptr.Ref("1234_4321"),
-			error:        "Invalid token",
+			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "InvalidTokenScheme",
 			app:          apps.Default,
 			defaultToken: ptr.Ref("notcoder_1234_4321"),
-			error:        "Invalid token",
+			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "MissingTokenSecret",
 			app:          apps.Default,
 			defaultToken: ptr.Ref("coder_1234"),
-			error:        "Invalid token",
+			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "MissingTokenPrefix",
 			app:          apps.Default,
 			defaultToken: ptr.Ref("coder__1234"),
-			error:        "Invalid token",
+			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "InvalidTokenPrefix",
 			app:          apps.Default,
 			defaultToken: ptr.Ref("coder_1234_4321"),
-			error:        "Invalid token",
+			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:    "Expired",
 			app:     apps.Default,
 			expires: time.Now().Add(time.Minute * -1),
-			error:   "Invalid token",
+			error:   "The refresh token is invalid or expired",
 		},
 		{
 			name: "OK",
@@ -804,7 +802,6 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
@@ -996,7 +993,6 @@ func TestOAuth2ProviderRevoke(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
@@ -1089,20 +1085,21 @@ func generateApps(ctx context.Context, t *testing.T, client *codersdk.Client, su
 
 func authorizationFlow(ctx context.Context, client *codersdk.Client, cfg *oauth2.Config) (string, error) {
 	state := uuid.NewString()
+	authURL := cfg.AuthCodeURL(state)
+
+	// Make a POST request to simulate clicking "Allow" on the authorization page
+	// This bypasses the HTML consent page and directly processes the authorization
 	return oidctest.OAuth2GetCode(
-		cfg.AuthCodeURL(state),
+		authURL,
 		func(req *http.Request) (*http.Response, error) {
-			// TODO: Would be better if client had a .Do() method.
-			// TODO: Is this the best way to handle redirects?
+			// Change to POST to simulate the form submission
+			req.Method = http.MethodPost
+
+			// Prevent automatic redirect following
 			client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
 			}
-			return client.Request(ctx, req.Method, req.URL.String(), nil, func(req *http.Request) {
-				// Set the referer so the request bypasses the HTML page (normally you
-				// have to click "allow" first, and the way we detect that is using the
-				// referer header).
-				req.Header.Set("Referer", req.URL.String())
-			})
+			return client.Request(ctx, req.Method, req.URL.String(), nil)
 		},
 	)
 }

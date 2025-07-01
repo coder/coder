@@ -1,11 +1,15 @@
-import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
-import Button from "@mui/material/Button";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { Button } from "components/Button/Button";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import { ChevronLeftIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
 type CreateOAuth2AppProps = {
@@ -26,16 +30,18 @@ export const CreateOAuth2AppPageView: FC<CreateOAuth2AppProps> = ({
 				direction="row"
 				justifyContent="space-between"
 			>
-				<SettingsHeader
-					title="Add an OAuth2 application"
-					description="Configure an application to use Coder as an OAuth2 provider."
-				/>
-				<Button
-					component={Link}
-					startIcon={<KeyboardArrowLeft />}
-					to="/deployment/oauth2-provider/apps"
-				>
-					All OAuth2 Applications
+				<SettingsHeader>
+					<SettingsHeaderTitle>Add an OAuth2 application</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Configure an application to use Coder as an OAuth2 provider.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
+
+				<Button variant="outline" asChild>
+					<RouterLink to="/deployment/oauth2-provider/apps">
+						<ChevronLeftIcon />
+						All OAuth2 Applications
+					</RouterLink>
 				</Button>
 			</Stack>
 

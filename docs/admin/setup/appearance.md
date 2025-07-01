@@ -1,4 +1,8 @@
-# Appearance (enterprise) (premium)
+# Appearance
+
+> [!NOTE]
+> Customizing Coder's appearance is a Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Customize the look of your Coder deployment to meet your enterprise
 requirements.
@@ -37,7 +41,7 @@ users of which network their Coder deployment is on.
 
 ## OIDC Login Button Customization
 
-[Use environment variables to customize](../users/oidc-auth.md#oidc-login-customization)
+[Use environment variables to customize](../users/oidc-auth/index.md#oidc-login-customization)
 the text and icon on the OIDC button on the Sign In page.
 
 ## Support Links

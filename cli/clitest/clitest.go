@@ -168,6 +168,12 @@ func StartWithAssert(t *testing.T, inv *serpent.Invocation, assertCallback func(
 		switch {
 		case errors.Is(err, context.Canceled):
 			return
+		case err != nil && strings.Contains(err.Error(), "driver: bad connection"):
+			// When we cancel the context on a query that's being executed within
+			// a transaction, sometimes, instead of a context.Canceled error we get
+			// a "driver: bad connection" error.
+			// https://github.com/lib/pq/issues/1137
+			return
 		default:
 			assert.NoError(t, err)
 		}

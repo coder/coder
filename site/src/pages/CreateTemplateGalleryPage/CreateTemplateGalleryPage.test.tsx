@@ -10,7 +10,7 @@ import {
 import { server } from "testHelpers/server";
 import CreateTemplateGalleryPage from "./CreateTemplateGalleryPage";
 
-test("does not display the scratch template", async () => {
+test("displays the scratch template", async () => {
 	server.use(
 		http.get("api/v2/templates/examples", () => {
 			return HttpResponse.json([
@@ -49,5 +49,5 @@ test("does not display the scratch template", async () => {
 
 	await screen.findByText(MockTemplateExample.name);
 	screen.getByText(MockTemplateExample2.name);
-	expect(screen.queryByText("Scratch")).not.toBeInTheDocument();
+	expect(screen.queryByText("Scratch")).toBeInTheDocument();
 });

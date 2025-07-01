@@ -103,11 +103,6 @@ export const MockRoles: (AssignableRoles | Role)[] = [
 			},
 			{
 				negate: false,
-				resource_type: "provisioner_keys",
-				action: "*" as RBACAction,
-			},
-			{
-				negate: false,
 				resource_type: "replicas",
 				action: "*" as RBACAction,
 			},

@@ -1,8 +1,8 @@
 import { css } from "@emotion/css";
 import { useTheme } from "@emotion/react";
-import Button, { type ButtonProps } from "@mui/material/Button";
 import IconButton, { type IconButtonProps } from "@mui/material/IconButton";
-import { type AvatarProps, ExternalAvatar } from "components/Avatar/Avatar";
+import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
+import { Button, type ButtonProps } from "components/Button/Button";
 import {
 	type FC,
 	type ForwardedRef,
@@ -11,6 +11,7 @@ import {
 	cloneElement,
 	forwardRef,
 } from "react";
+import { cn } from "utils/cn";
 
 export const Topbar: FC<HTMLAttributes<HTMLElement>> = (props) => {
 	const theme = useTheme();
@@ -54,19 +55,7 @@ export const TopbarIconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
 
 export const TopbarButton = forwardRef<HTMLButtonElement, ButtonProps>(
 	(props: ButtonProps, ref) => {
-		return (
-			<Button
-				ref={ref}
-				color="neutral"
-				css={{
-					height: 28,
-					fontSize: 13,
-					borderRadius: 4,
-					padding: "0 12px",
-				}}
-				{...props}
-			/>
-		);
+		return <Button ref={ref} variant="outline" size="sm" {...props} />;
 	},
 );
 
@@ -94,21 +83,14 @@ export const TopbarDivider: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
 };
 
 export const TopbarAvatar: FC<AvatarProps> = (props) => {
-	return (
-		<ExternalAvatar
-			{...props}
-			variant="square"
-			fitImage
-			css={{ width: 16, height: 16 }}
-		/>
-	);
+	return <Avatar {...props} variant="icon" size="sm" />;
 };
 
 type TopbarIconProps = HTMLAttributes<HTMLOrSVGElement>;
 
 export const TopbarIcon = forwardRef<HTMLOrSVGElement, TopbarIconProps>(
 	(props: TopbarIconProps, ref) => {
-		const { children, ...restProps } = props;
+		const { children, className, ...restProps } = props;
 		const theme = useTheme();
 
 		return cloneElement(
@@ -120,7 +102,10 @@ export const TopbarIcon = forwardRef<HTMLOrSVGElement, TopbarIconProps>(
 			{
 				...restProps,
 				ref,
-				className: css({ fontSize: 16, color: theme.palette.text.disabled }),
+				className: cn([
+					css({ fontSize: 16, color: theme.palette.text.disabled }),
+					"size-icon-sm",
+				]),
 			},
 		);
 	},

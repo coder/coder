@@ -7,6 +7,20 @@ const userAppsKey = (userId: string) => appsKey.concat(userId);
 const appKey = (appId: string) => appsKey.concat(appId);
 const appSecretsKey = (appId: string) => appKey(appId).concat("secrets");
 
+export const getGitHubDevice = () => {
+	return {
+		queryKey: ["oauth2-provider", "github", "device"],
+		queryFn: () => API.getOAuth2GitHubDevice(),
+	};
+};
+
+export const getGitHubDeviceFlowCallback = (code: string, state: string) => {
+	return {
+		queryKey: ["oauth2-provider", "github", "callback", code, state],
+		queryFn: () => API.getOAuth2GitHubDeviceFlowCallback(code, state),
+	};
+};
+
 export const getApps = (userId?: string) => {
 	return {
 		queryKey: userId ? appsKey.concat(userId) : appsKey,

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { userEvent, within } from "@storybook/test";
 import {
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
@@ -26,11 +27,13 @@ const meta: Meta<typeof PortForwardPopoverView> = {
 		),
 	],
 	args: {
+		listeningPorts: MockListeningPortsResponse.ports,
+		sharedPorts: MockSharedPortsResponse.shares,
 		agent: MockWorkspaceAgent,
 		template: MockTemplate,
-		workspaceID: MockWorkspace.id,
+		workspace: MockWorkspace,
 		portSharingControlsEnabled: true,
-		host: "coder.com",
+		host: "*.coder.com",
 	},
 };
 
@@ -40,14 +43,7 @@ type Story = StoryObj<typeof PortForwardPopoverView>;
 export const WithPorts: Story = {
 	args: {
 		listeningPorts: MockListeningPortsResponse.ports,
-	},
-	parameters: {
-		queries: [
-			{
-				key: ["sharedPorts", MockWorkspace.id],
-				data: MockSharedPortsResponse,
-			},
-		],
+		sharedPorts: MockSharedPortsResponse.shares,
 	},
 };
 
@@ -59,48 +55,24 @@ export const WithManyPorts: Story = {
 			port: 3000 + i,
 		})),
 	},
-	parameters: {
-		queries: [
-			{
-				key: ["sharedPorts", MockWorkspace.id],
-				data: MockSharedPortsResponse,
-			},
-		],
-	},
 };
 
 export const Empty: Story = {
 	args: {
 		listeningPorts: [],
-	},
-	parameters: {
-		queries: [
-			{
-				key: ["sharedPorts", MockWorkspace.id],
-				data: { shares: [] },
-			},
-		],
+		sharedPorts: [],
 	},
 };
 
 export const AGPLPortSharing: Story = {
 	args: {
-		listeningPorts: MockListeningPortsResponse.ports,
 		portSharingControlsEnabled: false,
-	},
-	parameters: {
-		queries: [
-			{
-				key: ["sharedPorts", MockWorkspace.id],
-				data: MockSharedPortsResponse,
-			},
-		],
+		sharedPorts: MockSharedPortsResponse.shares,
 	},
 };
 
 export const EnterprisePortSharingControlsOwner: Story = {
 	args: {
-		listeningPorts: MockListeningPortsResponse.ports,
 		template: {
 			...MockTemplate,
 			max_port_share_level: "owner",
@@ -110,22 +82,29 @@ export const EnterprisePortSharingControlsOwner: Story = {
 
 export const EnterprisePortSharingControlsAuthenticated: Story = {
 	args: {
-		listeningPorts: MockListeningPortsResponse.ports,
 		template: {
 			...MockTemplate,
 			max_port_share_level: "authenticated",
 		},
+		sharedPorts: MockSharedPortsResponse.shares.filter(
+			(share) => share.share_level === "authenticated",
+		),
 	},
-	parameters: {
-		queries: [
-			{
-				key: ["sharedPorts", MockWorkspace.id],
-				data: {
-					shares: MockSharedPortsResponse.shares.filter((share) => {
-						return share.share_level === "authenticated";
-					}),
-				},
-			},
-		],
+};
+
+export const DisabledOptions: Story = {
+	args: {
+		template: {
+			...MockTemplate,
+			max_port_share_level: "organization",
+		},
+		sharedPorts: MockSharedPortsResponse.shares.filter(
+			(share) => share.share_level === "organization",
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const dropdown = canvas.getByLabelText("Sharing Level");
+		await userEvent.click(dropdown);
 	},
 };

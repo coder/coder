@@ -135,8 +135,8 @@ func (api *API) workspaceAgentPortShares(rw http.ResponseWriter, r *http.Request
 	})
 }
 
-// @Summary Get workspace agent port shares
-// @ID get-workspace-agent-port-shares
+// @Summary Delete workspace agent port share
+// @ID delete-workspace-agent-port-share
 // @Security CoderSessionToken
 // @Accept json
 // @Tags PortSharing

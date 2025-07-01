@@ -32,12 +32,12 @@ func TestWatchdog_NoTimeout(t *testing.T) {
 	// right baseline time.
 	pc, err := pubTrap.Wait(ctx)
 	require.NoError(t, err)
-	pc.Release()
+	pc.MustRelease(ctx)
 	require.Equal(t, 15*time.Second, pc.Duration)
 
 	// we subscribe after starting the timer, so we know the timer also starts
 	// from the baseline.
-	sub := testutil.RequireRecvCtx(ctx, t, fPS.subs)
+	sub := testutil.TryReceive(ctx, t, fPS.subs)
 	require.Equal(t, pubsub.EventPubsubWatchdog, sub.event)
 
 	// 5 min / 15 sec = 20, so do 21 ticks
@@ -45,7 +45,7 @@ func TestWatchdog_NoTimeout(t *testing.T) {
 		d, w := mClock.AdvanceNext()
 		w.MustWait(ctx)
 		require.LessOrEqual(t, d, 15*time.Second)
-		p := testutil.RequireRecvCtx(ctx, t, fPS.pubs)
+		p := testutil.TryReceive(ctx, t, fPS.pubs)
 		require.Equal(t, pubsub.EventPubsubWatchdog, p)
 		mClock.Advance(30 * time.Millisecond). // reasonable round-trip
 							MustWait(ctx)
@@ -66,8 +66,8 @@ func TestWatchdog_NoTimeout(t *testing.T) {
 	}()
 	sc, err := subTrap.Wait(ctx) // timer.Stop() called
 	require.NoError(t, err)
-	sc.Release()
-	err = testutil.RequireRecvCtx(ctx, t, errCh)
+	sc.MustRelease(ctx)
+	err = testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 }
 
@@ -88,12 +88,12 @@ func TestWatchdog_Timeout(t *testing.T) {
 	// right baseline time.
 	pc, err := pubTrap.Wait(ctx)
 	require.NoError(t, err)
-	pc.Release()
+	pc.MustRelease(ctx)
 	require.Equal(t, 15*time.Second, pc.Duration)
 
 	// we subscribe after starting the timer, so we know the timer also starts
 	// from the baseline.
-	sub := testutil.RequireRecvCtx(ctx, t, fPS.subs)
+	sub := testutil.TryReceive(ctx, t, fPS.subs)
 	require.Equal(t, pubsub.EventPubsubWatchdog, sub.event)
 
 	// 5 min / 15 sec = 20, so do 19 ticks without timing out
@@ -101,7 +101,7 @@ func TestWatchdog_Timeout(t *testing.T) {
 		d, w := mClock.AdvanceNext()
 		w.MustWait(ctx)
 		require.LessOrEqual(t, d, 15*time.Second)
-		p := testutil.RequireRecvCtx(ctx, t, fPS.pubs)
+		p := testutil.TryReceive(ctx, t, fPS.pubs)
 		require.Equal(t, pubsub.EventPubsubWatchdog, p)
 		mClock.Advance(30 * time.Millisecond). // reasonable round-trip
 							MustWait(ctx)
@@ -117,9 +117,9 @@ func TestWatchdog_Timeout(t *testing.T) {
 	d, w := mClock.AdvanceNext()
 	w.MustWait(ctx)
 	require.LessOrEqual(t, d, 15*time.Second)
-	p := testutil.RequireRecvCtx(ctx, t, fPS.pubs)
+	p := testutil.TryReceive(ctx, t, fPS.pubs)
 	require.Equal(t, pubsub.EventPubsubWatchdog, p)
-	testutil.RequireRecvCtx(ctx, t, uut.Timeout())
+	testutil.TryReceive(ctx, t, uut.Timeout())
 
 	err = uut.Close()
 	require.NoError(t, err)

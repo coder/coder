@@ -20,7 +20,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestRemoteConnector_Mainline(t *testing.T) {
@@ -33,7 +33,6 @@ func TestRemoteConnector_Mainline(t *testing.T) {
 		{name: "Smokescreen", smokescreen: true},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)

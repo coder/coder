@@ -243,7 +243,6 @@ func TestFilter(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			actor := tc.Actor
@@ -1053,6 +1052,64 @@ func TestAuthorizeScope(t *testing.T) {
 			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: []policy.Action{policy.ActionCreate}, allow: false},
 		},
 	)
+
+	meID := uuid.New()
+	user = Subject{
+		ID: meID.String(),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(ScopedRoleOrgMember(defOrg))),
+		},
+		Scope: must(ScopeNoUserData.Expand()),
+	}
+
+	// Test 1: Verify that no_user_data scope prevents accessing user data
+	testAuthorize(t, "ReadPersonalUser", user,
+		cases(func(c authTestCase) authTestCase {
+			c.actions = ResourceUser.AvailableActions()
+			c.allow = false
+			c.resource.ID = meID.String()
+			return c
+		}, []authTestCase{
+			{resource: ResourceUser.WithOwner(meID.String()).InOrg(defOrg).WithID(meID)},
+		}),
+	)
+
+	// Test 2: Verify token can still perform regular member actions that don't involve user data
+	testAuthorize(t, "NoUserData_CanStillUseRegularPermissions", user,
+		// Test workspace access - should still work
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []policy.Action{policy.ActionRead}
+			c.allow = true
+			return c
+		}, []authTestCase{
+			// Can still read owned workspaces
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID)},
+		}),
+		// Test workspace create - should still work
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []policy.Action{policy.ActionCreate}
+			c.allow = true
+			return c
+		}, []authTestCase{
+			// Can still create workspaces
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID)},
+		}),
+	)
+
+	// Test 3: Verify token cannot perform actions outside of member role
+	testAuthorize(t, "NoUserData_CannotExceedMemberRole", user,
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete}
+			c.allow = false
+			return c
+		}, []authTestCase{
+			// Cannot access other users' workspaces
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("other-user")},
+			// Cannot access admin resources
+			{resource: ResourceOrganization.WithID(defOrg)},
+		}),
+	)
 }
 
 // cases applies a given function to all test cases. This makes generalities easier to create.
@@ -1077,7 +1134,6 @@ func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTes
 	authorizer := NewAuthorizer(prometheus.NewRegistry())
 	for _, cases := range sets {
 		for i, c := range cases {
-			c := c
 			caseName := fmt.Sprintf("%s/%d", name, i)
 			t.Run(caseName, func(t *testing.T) {
 				t.Parallel()

@@ -1,30 +1,36 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within } from "@storybook/test";
-import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
+import { spyOn, userEvent, within } from "@storybook/test";
+import { API } from "api/api";
+import {
+	MockDeploymentSSH,
+	MockWorkspace,
+	MockWorkspaceAgent,
+} from "testHelpers/entities";
 import { withDesktopViewport } from "testHelpers/storybook";
-import { SSHButton } from "./SSHButton";
+import { AgentSSHButton } from "./SSHButton";
 
-const meta: Meta<typeof SSHButton> = {
-	title: "modules/resources/SSHButton",
-	component: SSHButton,
+const meta: Meta<typeof AgentSSHButton> = {
+	title: "modules/resources/AgentSSHButton",
+	component: AgentSSHButton,
 };
 
 export default meta;
-type Story = StoryObj<typeof SSHButton>;
+type Story = StoryObj<typeof AgentSSHButton>;
 
 export const Closed: Story = {
 	args: {
 		workspaceName: MockWorkspace.name,
 		agentName: MockWorkspaceAgent.name,
-		sshPrefix: "coder.",
 	},
 };
 
 export const Opened: Story = {
+	beforeEach: () => {
+		spyOn(API, "getDeploymentSSHConfig").mockResolvedValue(MockDeploymentSSH);
+	},
 	args: {
 		workspaceName: MockWorkspace.name,
 		agentName: MockWorkspaceAgent.name,
-		sshPrefix: "coder.",
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

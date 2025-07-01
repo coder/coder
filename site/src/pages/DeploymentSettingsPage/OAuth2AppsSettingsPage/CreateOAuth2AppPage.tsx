@@ -19,7 +19,7 @@ const CreateOAuth2AppPage: FC = () => {
 			</Helmet>
 
 			<CreateOAuth2AppPageView
-				isUpdating={postAppMutation.isLoading}
+				isUpdating={postAppMutation.isPending}
 				error={postAppMutation.error}
 				createApp={async (req) => {
 					try {
@@ -28,7 +28,7 @@ const CreateOAuth2AppPage: FC = () => {
 							`Successfully added the OAuth2 application "${app.name}".`,
 						);
 						navigate(`/deployment/oauth2-provider/apps/${app.id}?created=true`);
-					} catch (ignore) {
+					} catch {
 						displayError("Failed to create OAuth2 application");
 					}
 				}}

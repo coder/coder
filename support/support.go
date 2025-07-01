@@ -43,6 +43,7 @@ type Deployment struct {
 	Config       *codersdk.DeploymentConfig   `json:"config"`
 	Experiments  codersdk.Experiments         `json:"experiments"`
 	HealthReport *healthsdk.HealthcheckReport `json:"health_report"`
+	Licenses     []codersdk.License           `json:"licenses"`
 }
 
 type Network struct {
@@ -135,6 +136,21 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 			return xerrors.Errorf("fetch experiments: %w", err)
 		}
 		d.Experiments = exp
+		return nil
+	})
+
+	eg.Go(func() error {
+		licenses, err := client.Licenses(ctx)
+		if err != nil {
+			// Ignore 404 because AGPL doesn't have this endpoint
+			if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() != http.StatusNotFound {
+				return xerrors.Errorf("fetch license status: %w", err)
+			}
+		}
+		if licenses == nil {
+			licenses = make([]codersdk.License, 0)
+		}
+		d.Licenses = licenses
 		return nil
 	})
 
@@ -241,11 +257,9 @@ func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger
 			return xerrors.Errorf("fetch provisioner job logs: %w", err)
 		}
 		defer closer.Close()
-		var logs []codersdk.ProvisionerJobLog
 		for log := range buildLogCh {
-			logs = append(w.BuildLogs, log)
+			w.BuildLogs = append(w.BuildLogs, log)
 		}
-		w.BuildLogs = logs
 		return nil
 	})
 

@@ -22,6 +22,9 @@ OPTIONS:
           Set the value of ephemeral parameters defined in the template. The
           format is "name=value".
 
+      --no-wait bool
+          Return immediately after starting the workspace.
+
       --parameter string-array, $CODER_RICH_PARAMETER
           Rich parameter value in the format "name=value".
 

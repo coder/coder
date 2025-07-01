@@ -1,6 +1,5 @@
 import { css } from "@emotion/css";
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
@@ -10,16 +9,14 @@ import type {
 	TemplateVersionVariable,
 	VariableValue,
 } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import type { DialogProps } from "components/Dialogs/Dialog";
 import { FormFields, VerticalForm } from "components/Form/Form";
 import { Loader } from "components/Loader/Loader";
 import { VariableInput } from "pages/CreateTemplatePage/VariableInput";
 import { type FC, useEffect, useState } from "react";
 
-export type MissingTemplateVariablesDialogProps = Omit<
-	DialogProps,
-	"onSubmit"
-> & {
+type MissingTemplateVariablesDialogProps = Omit<DialogProps, "onSubmit"> & {
 	onClose: () => void;
 	onSubmit: (values: VariableValue[]) => void;
 	missingVariables?: TemplateVersionVariable[];
@@ -93,10 +90,15 @@ export const MissingTemplateVariablesDialog: FC<
 				</VerticalForm>
 			</DialogContent>
 			<DialogActions disableSpacing css={styles.dialogActions}>
-				<Button color="primary" fullWidth type="submit" form="updateVariables">
+				<Button className="w-full" type="submit" form="updateVariables">
 					Submit
 				</Button>
-				<Button fullWidth type="button" onClick={dialogProps.onClose}>
+				<Button
+					variant="outline"
+					className="w-full"
+					type="button"
+					onClick={dialogProps.onClose}
+				>
 					Cancel
 				</Button>
 			</DialogActions>

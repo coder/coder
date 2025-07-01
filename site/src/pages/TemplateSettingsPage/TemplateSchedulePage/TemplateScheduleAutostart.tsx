@@ -7,7 +7,7 @@ import {
 	sortedDays,
 } from "utils/schedule";
 
-export interface TemplateScheduleAutostartProps {
+interface TemplateScheduleAutostartProps {
 	enabled: boolean;
 	value: TemplateAutostartRequirementDaysValue[];
 	isSubmitting: boolean;

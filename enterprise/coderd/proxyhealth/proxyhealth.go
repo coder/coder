@@ -21,6 +21,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
+	agplproxyhealth "github.com/coder/coder/v2/coderd/proxyhealth"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -63,7 +65,7 @@ type ProxyHealth struct {
 
 	// Cached values for quick access to the health of proxies.
 	cache      *atomic.Pointer[map[uuid.UUID]ProxyStatus]
-	proxyHosts *atomic.Pointer[[]string]
+	proxyHosts *atomic.Pointer[[]*agplproxyhealth.ProxyHost]
 
 	// PromMetrics
 	healthCheckDuration prometheus.Histogram
@@ -116,7 +118,7 @@ func New(opts *Options) (*ProxyHealth, error) {
 		logger:              opts.Logger,
 		client:              client,
 		cache:               &atomic.Pointer[map[uuid.UUID]ProxyStatus]{},
-		proxyHosts:          &atomic.Pointer[[]string]{},
+		proxyHosts:          &atomic.Pointer[[]*agplproxyhealth.ProxyHost]{},
 		healthCheckDuration: healthCheckDuration,
 		healthCheckResults:  healthCheckResults,
 	}, nil
@@ -144,9 +146,9 @@ func (p *ProxyHealth) Run(ctx context.Context) {
 }
 
 func (p *ProxyHealth) storeProxyHealth(statuses map[uuid.UUID]ProxyStatus) {
-	var proxyHosts []string
+	var proxyHosts []*agplproxyhealth.ProxyHost
 	for _, s := range statuses {
-		if s.ProxyHost != "" {
+		if s.ProxyHost != nil {
 			proxyHosts = append(proxyHosts, s.ProxyHost)
 		}
 	}
@@ -190,23 +192,22 @@ type ProxyStatus struct {
 	// then the proxy in hand. AKA if the proxy was updated, and the status was for
 	// an older proxy.
 	Proxy database.WorkspaceProxy
-	// ProxyHost is the host:port of the proxy url. This is included in the status
-	// to make sure the proxy url is a valid URL. It also makes it easier to
-	// escalate errors if the url.Parse errors (should never happen).
-	ProxyHost string
+	// ProxyHost is the base host:port and app host of the proxy. This is included
+	// in the status to make sure the proxy url is a valid URL. It also makes it
+	// easier to escalate errors if the url.Parse errors (should never happen).
+	ProxyHost *agplproxyhealth.ProxyHost
 	Status    Status
 	Report    codersdk.ProxyHealthReport
 	CheckedAt time.Time
 }
 
-// ProxyHosts returns the host:port of all healthy proxies.
-// This can be computed from HealthStatus, but is cached to avoid the
-// caller needing to loop over all proxies to compute this on all
-// static web requests.
-func (p *ProxyHealth) ProxyHosts() []string {
+// ProxyHosts returns the host:port and wildcard host of all healthy proxies.
+// This can be computed from HealthStatus, but is cached to avoid the caller
+// needing to loop over all proxies to compute this on all static web requests.
+func (p *ProxyHealth) ProxyHosts() []*agplproxyhealth.ProxyHost {
 	ptr := p.proxyHosts.Load()
 	if ptr == nil {
-		return []string{}
+		return []*agplproxyhealth.ProxyHost{}
 	}
 	return *ptr
 }
@@ -239,7 +240,6 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 		}
 		// Each proxy needs to have a status set. Make a local copy for the
 		// call to be run async.
-		proxy := proxy
 		status := ProxyStatus{
 			Proxy:     proxy,
 			CheckedAt: now,
@@ -350,7 +350,10 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 				status.Report.Errors = append(status.Report.Errors, fmt.Sprintf("failed to parse proxy url: %s", err.Error()))
 				status.Status = Unhealthy
 			}
-			status.ProxyHost = u.Host
+			status.ProxyHost = &agplproxyhealth.ProxyHost{
+				Host:    u.Host,
+				AppHost: appurl.ConvertAppHostForCSP(u.Host, proxy.WildcardHostname),
+			}
 
 			// Set the prometheus metric correctly.
 			switch status.Status {

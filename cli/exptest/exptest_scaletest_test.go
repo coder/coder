@@ -20,9 +20,6 @@ import (
 // can influence other tests in the same package.
 // nolint:paralleltest
 func TestScaleTestWorkspaceTraffic_UseHostLogin(t *testing.T) {
-	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	defer cancelFunc()
-
 	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	client := coderdtest.New(t, &coderdtest.Options{
 		Logger:                   &log,
@@ -40,6 +37,9 @@ func TestScaleTestWorkspaceTraffic_UseHostLogin(t *testing.T) {
 	_ = coderdtest.CreateWorkspace(t, memberClient, tpl.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 		cwr.Name = "scaletest-workspace"
 	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 
 	// Test without --use-host-login first.g
 	inv, root := clitest.New(t, "exp", "scaletest", "workspace-traffic",

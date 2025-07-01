@@ -267,7 +267,7 @@ func CompileHostnamePattern(pattern string) (*regexp.Regexp, error) {
 	regexPattern = strings.Replace(regexPattern, "*", "([^.]+)", 1)
 
 	// Allow trailing period.
-	regexPattern = regexPattern + "\\.?"
+	regexPattern += "\\.?"
 
 	// Allow optional port number.
 	regexPattern += "(:\\d+)?"
@@ -288,4 +288,24 @@ func ExecuteHostnamePattern(pattern *regexp.Regexp, hostname string) (string, bo
 	}
 
 	return matches[1], true
+}
+
+// ConvertAppHostForCSP converts the wildcard host to a format accepted by CSP.
+// For example *--apps.coder.com must become *.coder.com.  If there is no
+// wildcard host, or it cannot be converted, return the base host.
+func ConvertAppHostForCSP(host, wildcard string) string {
+	if wildcard == "" {
+		return host
+	}
+	parts := strings.Split(wildcard, ".")
+	for i, part := range parts {
+		if strings.Contains(part, "*") {
+			// The wildcard can only be in the first section.
+			if i != 0 {
+				return host
+			}
+			parts[i] = "*"
+		}
+	}
+	return strings.Join(parts, ".")
 }

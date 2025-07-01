@@ -9,7 +9,7 @@ import type { PaginationResult } from "./PaginationContainer";
 
 type ResultBase = Omit<
 	PaginationResult,
-	"isPreviousData" | "currentOffsetStart" | "totalRecords" | "totalPages"
+	"isPlaceholderData" | "currentOffsetStart" | "totalRecords" | "totalPages"
 >;
 
 export const mockPaginationResultBase: ResultBase = {
@@ -27,7 +27,7 @@ export const mockPaginationResultBase: ResultBase = {
 export const mockInitialRenderResult: PaginationResult = {
 	...mockPaginationResultBase,
 	isSuccess: false,
-	isPreviousData: false,
+	isPlaceholderData: false,
 	currentOffsetStart: undefined,
 	hasNextPage: false,
 	hasPreviousPage: false,
@@ -38,7 +38,7 @@ export const mockInitialRenderResult: PaginationResult = {
 export const mockSuccessResult: PaginationResult = {
 	...mockPaginationResultBase,
 	isSuccess: true,
-	isPreviousData: false,
+	isPlaceholderData: false,
 	currentOffsetStart: 1,
 	totalPages: 1,
 	totalRecords: 4,

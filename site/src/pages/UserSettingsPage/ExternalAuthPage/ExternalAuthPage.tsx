@@ -58,7 +58,7 @@ const ExternalAuthPage: FC = () => {
         do so on the oauth2 provider's side."
 				label="Name of the application to unlink"
 				isOpen={appToUnlink !== undefined}
-				confirmLoading={unlinkAppMutation.isLoading}
+				confirmLoading={unlinkAppMutation.isPending}
 				name={appToUnlink ?? ""}
 				entity="application"
 				onCancel={() => setAppToUnlink(undefined)}

@@ -10,6 +10,7 @@ import {
 import type { UpdateUserProfileRequest, User } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { type Permissions, permissionChecks } from "modules/permissions";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -18,7 +19,6 @@ import {
 	useContext,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { type Permissions, permissionsToCheck } from "./permissions";
 
 export type AuthContextValue = {
 	isLoading: boolean;
@@ -50,13 +50,13 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 	const hasFirstUserQuery = useQuery(hasFirstUser(userMetadataState));
 
 	const permissionsQuery = useQuery({
-		...checkAuthorization({ checks: permissionsToCheck }),
+		...checkAuthorization({ checks: permissionChecks }),
 		enabled: userQuery.data !== undefined,
 	});
 
 	const queryClient = useQueryClient();
 	const loginMutation = useMutation(
-		login({ checks: permissionsToCheck }, queryClient),
+		login({ checks: permissionChecks }, queryClient),
 	);
 
 	const logoutMutation = useMutation(logout(queryClient));
@@ -72,7 +72,7 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 		userQuery.isError &&
 		isApiError(userQuery.error) &&
 		userQuery.error.response.status === 401;
-	const isSigningOut = logoutMutation.isLoading;
+	const isSigningOut = logoutMutation.isPending;
 	const isLoading =
 		userQuery.isLoading ||
 		hasFirstUserQuery.isLoading ||
@@ -80,8 +80,8 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 	const isConfiguringTheFirstUser =
 		!hasFirstUserQuery.isLoading && !hasFirstUserQuery.data;
 	const isSignedIn = userQuery.isSuccess && userQuery.data !== undefined;
-	const isSigningIn = loginMutation.isLoading;
-	const isUpdatingProfile = updateProfileMutation.isLoading;
+	const isSigningIn = loginMutation.isPending;
+	const isUpdatingProfile = updateProfileMutation.isPending;
 
 	const signOut = useCallback(() => {
 		logoutMutation.mutate();

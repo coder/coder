@@ -1,8 +1,10 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import WarningRounded from "@mui/icons-material/WarningRounded";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
-import type { WorkspaceAgent } from "api/typesGenerated";
+import type {
+	WorkspaceAgent,
+	WorkspaceAgentDevcontainer,
+} from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import {
 	HelpTooltip,
@@ -10,10 +12,11 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { PopoverTrigger } from "components/Popover/Popover";
+import { PopoverTrigger } from "components/deprecated/Popover/Popover";
+import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 
-// If we think in the agent status and lifecycle into a single enum/state I’d
+// If we think in the agent status and lifecycle into a single enum/state I'd
 // say we would have: connecting, timeout, disconnected, connected:created,
 // connected:starting, connected:start_timeout, connected:start_error,
 // connected:ready, connected:shutting_down, connected:shutdown_timeout,
@@ -46,11 +49,21 @@ interface AgentStatusProps {
 	agent: WorkspaceAgent;
 }
 
+interface SubAgentStatusProps {
+	agent?: WorkspaceAgent;
+}
+
+interface DevcontainerStatusProps {
+	devcontainer: WorkspaceAgentDevcontainer;
+	parentAgent: WorkspaceAgent;
+	agent?: WorkspaceAgent;
+}
+
 const StartTimeoutLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 	return (
 		<HelpTooltip>
 			<PopoverTrigger role="status" aria-label="Agent timeout">
-				<WarningRounded css={styles.timeoutWarning} />
+				<TriangleAlertIcon css={styles.timeoutWarning} />
 			</PopoverTrigger>
 
 			<HelpTooltipContent>
@@ -75,7 +88,7 @@ const StartErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 	return (
 		<HelpTooltip>
 			<PopoverTrigger role="status" aria-label="Start error">
-				<WarningRounded css={styles.errorWarning} />
+				<TriangleAlertIcon css={styles.errorWarning} />
 			</PopoverTrigger>
 			<HelpTooltipContent>
 				<HelpTooltipTitle>Error starting the agent</HelpTooltipTitle>
@@ -111,7 +124,7 @@ const ShutdownTimeoutLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 	return (
 		<HelpTooltip>
 			<PopoverTrigger role="status" aria-label="Stop timeout">
-				<WarningRounded css={styles.timeoutWarning} />
+				<TriangleAlertIcon css={styles.timeoutWarning} />
 			</PopoverTrigger>
 			<HelpTooltipContent>
 				<HelpTooltipTitle>Agent is taking too long to stop</HelpTooltipTitle>
@@ -135,7 +148,7 @@ const ShutdownErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 	return (
 		<HelpTooltip>
 			<PopoverTrigger role="status" aria-label="Stop error">
-				<WarningRounded css={styles.errorWarning} />
+				<TriangleAlertIcon css={styles.errorWarning} />
 			</PopoverTrigger>
 			<HelpTooltipContent>
 				<HelpTooltipTitle>Error stopping the agent</HelpTooltipTitle>
@@ -231,7 +244,7 @@ const TimeoutStatus: FC<AgentStatusProps> = ({ agent }) => {
 	return (
 		<HelpTooltip>
 			<PopoverTrigger role="status" aria-label="Timeout">
-				<WarningRounded css={styles.timeoutWarning} />
+				<TriangleAlertIcon css={styles.timeoutWarning} />
 			</PopoverTrigger>
 			<HelpTooltipContent>
 				<HelpTooltipTitle>Agent is taking too long to connect</HelpTooltipTitle>
@@ -268,6 +281,69 @@ export const AgentStatus: FC<AgentStatusProps> = ({ agent }) => {
 			</Cond>
 		</ChooseOne>
 	);
+};
+
+const SubAgentStatus: FC<SubAgentStatusProps> = ({ agent }) => {
+	if (!agent) {
+		return <DisconnectedStatus />;
+	}
+	return (
+		<ChooseOne>
+			<Cond condition={agent.status === "connected"}>
+				<ConnectedStatus agent={agent} />
+			</Cond>
+			<Cond condition={agent.status === "disconnected"}>
+				<DisconnectedStatus />
+			</Cond>
+			<Cond condition={agent.status === "timeout"}>
+				<TimeoutStatus agent={agent} />
+			</Cond>
+			<Cond>
+				<ConnectingStatus />
+			</Cond>
+		</ChooseOne>
+	);
+};
+
+const DevcontainerStartError: FC<AgentStatusProps> = ({ agent }) => {
+	return (
+		<HelpTooltip>
+			<PopoverTrigger role="status" aria-label="Start error">
+				<TriangleAlertIcon css={styles.errorWarning} />
+			</PopoverTrigger>
+			<HelpTooltipContent>
+				<HelpTooltipTitle>
+					Error starting the devcontainer agent
+				</HelpTooltipTitle>
+				<HelpTooltipText>
+					Something went wrong during the devcontainer agent startup.{" "}
+					<Link
+						target="_blank"
+						rel="noreferrer"
+						href={agent.troubleshooting_url}
+					>
+						Troubleshoot
+					</Link>
+					.
+				</HelpTooltipText>
+			</HelpTooltipContent>
+		</HelpTooltip>
+	);
+};
+
+export const DevcontainerStatus: FC<DevcontainerStatusProps> = ({
+	devcontainer,
+	parentAgent,
+	agent,
+}) => {
+	if (devcontainer.error) {
+		// When a dev container has an 'error' associated with it,
+		// then we won't have an agent associated with it. This is
+		// why we use the parent agent instead of the sub agent.
+		return <DevcontainerStartError agent={parentAgent} />;
+	}
+
+	return <SubAgentStatus agent={agent} />;
 };
 
 const styles = {

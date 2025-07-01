@@ -1,18 +1,23 @@
 import { useTheme } from "@emotion/react";
-import HelpOutline from "@mui/icons-material/HelpOutline";
 import CircularProgress from "@mui/material/CircularProgress";
 import Tooltip from "@mui/material/Tooltip";
 import { visuallyHidden } from "@mui/utils";
 import { Abbr } from "components/Abbr/Abbr";
+import { CircleHelpIcon } from "lucide-react";
 import type { FC } from "react";
 import { getLatencyColor } from "utils/latency";
 
 interface LatencyProps {
 	latency?: number;
 	isLoading?: boolean;
+	size?: number;
 }
 
-export const Latency: FC<LatencyProps> = ({ latency, isLoading }) => {
+export const Latency: FC<LatencyProps> = ({
+	latency,
+	isLoading,
+	size = 14,
+}) => {
 	const theme = useTheme();
 	// Always use the no latency color for loading.
 	const color = getLatencyColor(theme, isLoading ? undefined : latency);
@@ -21,7 +26,7 @@ export const Latency: FC<LatencyProps> = ({ latency, isLoading }) => {
 		return (
 			<Tooltip title="Loading latency...">
 				<CircularProgress
-					size={14}
+					size={size}
 					css={{ marginLeft: "auto" }}
 					style={{ color }}
 				/>
@@ -36,10 +41,10 @@ export const Latency: FC<LatencyProps> = ({ latency, isLoading }) => {
 				<>
 					<span css={{ ...visuallyHidden }}>{notAvailableText}</span>
 
-					<HelpOutline
+					<CircleHelpIcon
+						className="size-icon-sm"
 						css={{
 							marginLeft: "auto",
-							fontSize: "14px !important",
 						}}
 						style={{ color }}
 					/>

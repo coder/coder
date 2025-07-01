@@ -49,7 +49,7 @@ Remote development offers several benefits for users and administrators, includi
 - **Increased security**
 
   - Centralize source code and other data onto private servers or cloud services instead of local developers' machines.
-  - Manage users and groups with [SSO](./admin/users/oidc-auth.md) and [Role-based access controlled (RBAC)](./admin/users/groups-roles.md#roles).
+  - Manage users and groups with [SSO](./admin/users/oidc-auth/index.md) and [Role-based access controlled (RBAC)](./admin/users/groups-roles.md#roles).
 
 - **Improved compatibility**
 
@@ -141,6 +141,6 @@ or [the v2 migration guide and FAQ](https://coder.com/docs/v1/guides/v2-faq).
 
 ## Up next
 
-- Learn about [Templates](./admin/templates/index.md)
-- [Install Coder](./install/index.md)
-- Follow the [Quickstart guide](./tutorials/quickstart.md) to try Coder out for yourself.
+- [Template](./admin/templates/index.md)
+- [Installing Coder](./install/index.md)
+- [Quickstart](./tutorials/quickstart.md) to try Coder out for yourself.

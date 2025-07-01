@@ -1,5 +1,5 @@
 import { type CSSObject, useTheme } from "@emotion/react";
-import Button from "@mui/material/Button";
+import { Button } from "components/Button/Button";
 import type { FC, FormEventHandler, ReactNode } from "react";
 
 interface FieldsetProps {

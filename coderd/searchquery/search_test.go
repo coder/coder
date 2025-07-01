@@ -222,6 +222,36 @@ func TestSearchWorkspace(t *testing.T) {
 				OrganizationID: uuid.MustParse("08eb6715-02f8-45c5-b86d-03786fcfbb4e"),
 			},
 		},
+		{
+			Name:  "HasAITaskTrue",
+			Query: "has-ai-task:true",
+			Expected: database.GetWorkspacesParams{
+				HasAITask: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasAITaskFalse",
+			Query: "has-ai-task:false",
+			Expected: database.GetWorkspacesParams{
+				HasAITask: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasAITaskMissing",
+			Query: "",
+			Expected: database.GetWorkspacesParams{
+				HasAITask: sql.NullBool{
+					Bool:  false,
+					Valid: false,
+				},
+			},
+		},
 
 		// Failures
 		{
@@ -267,7 +297,6 @@ func TestSearchWorkspace(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			// TODO: Replace this with the mock database.
@@ -314,6 +343,7 @@ func TestSearchAudit(t *testing.T) {
 		Name                  string
 		Query                 string
 		Expected              database.GetAuditLogsOffsetParams
+		ExpectedCountParams   database.CountAuditLogsParams
 		ExpectedErrorContains string
 	}{
 		{
@@ -343,17 +373,24 @@ func TestSearchAudit(t *testing.T) {
 			Expected: database.GetAuditLogsOffsetParams{
 				ResourceTarget: "foo",
 			},
+			ExpectedCountParams: database.CountAuditLogsParams{
+				ResourceTarget: "foo",
+			},
+		},
+		{
+			Name:                  "RequestID",
+			Query:                 "request_id:foo",
+			ExpectedErrorContains: "valid uuid",
 		},
 	}
 
 	for _, c := range testCases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			// Do not use a real database, this is only used for an
 			// organization lookup.
 			db := dbmem.New()
-			values, errs := searchquery.AuditLogs(context.Background(), db, c.Query)
+			values, countValues, errs := searchquery.AuditLogs(context.Background(), db, c.Query)
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
@@ -364,6 +401,7 @@ func TestSearchAudit(t *testing.T) {
 			} else {
 				require.Len(t, errs, 0, "expected no error")
 				require.Equal(t, c.Expected, values, "expected values")
+				require.Equal(t, c.ExpectedCountParams, countValues, "expected count values")
 			}
 		})
 	}
@@ -381,62 +419,69 @@ func TestSearchUsers(t *testing.T) {
 			Name:  "Empty",
 			Query: "",
 			Expected: database.GetUsersParams{
-				Status:   []database.UserStatus{},
-				RbacRole: []string{},
+				Status:    []database.UserStatus{},
+				RbacRole:  []string{},
+				LoginType: []database.LoginType{},
 			},
 		},
 		{
 			Name:  "Username",
 			Query: "user-name",
 			Expected: database.GetUsersParams{
-				Search:   "user-name",
-				Status:   []database.UserStatus{},
-				RbacRole: []string{},
+				Search:    "user-name",
+				Status:    []database.UserStatus{},
+				RbacRole:  []string{},
+				LoginType: []database.LoginType{},
 			},
 		},
 		{
 			Name:  "UsernameWithSpaces",
 			Query: "   user-name    ",
 			Expected: database.GetUsersParams{
-				Search:   "user-name",
-				Status:   []database.UserStatus{},
-				RbacRole: []string{},
+				Search:    "user-name",
+				Status:    []database.UserStatus{},
+				RbacRole:  []string{},
+				LoginType: []database.LoginType{},
 			},
 		},
 		{
 			Name:  "Username+Param",
 			Query: "usEr-name stAtus:actiVe",
 			Expected: database.GetUsersParams{
-				Search:   "user-name",
-				Status:   []database.UserStatus{database.UserStatusActive},
-				RbacRole: []string{},
+				Search:    "user-name",
+				Status:    []database.UserStatus{database.UserStatusActive},
+				RbacRole:  []string{},
+				LoginType: []database.LoginType{},
 			},
 		},
 		{
 			Name:  "OnlyParams",
 			Query: "status:acTIve sEArch:User-Name role:Owner",
 			Expected: database.GetUsersParams{
-				Search:   "user-name",
-				Status:   []database.UserStatus{database.UserStatusActive},
-				RbacRole: []string{codersdk.RoleOwner},
+				Search:    "user-name",
+				Status:    []database.UserStatus{database.UserStatusActive},
+				RbacRole:  []string{codersdk.RoleOwner},
+				LoginType: []database.LoginType{},
 			},
 		},
 		{
 			Name:  "QuotedParam",
 			Query: `status:SuSpenDeD sEArch:"User Name" role:meMber`,
 			Expected: database.GetUsersParams{
-				Search:   "user name",
-				Status:   []database.UserStatus{database.UserStatusSuspended},
-				RbacRole: []string{codersdk.RoleMember},
+				Search:    "user name",
+				Status:    []database.UserStatus{database.UserStatusSuspended},
+				RbacRole:  []string{codersdk.RoleMember},
+				LoginType: []database.LoginType{},
 			},
 		},
 		{
 			Name:  "QuotedKey",
 			Query: `"status":acTIve "sEArch":User-Name "role":Owner`,
 			Expected: database.GetUsersParams{
-				Search:   "user-name",
-				Status:   []database.UserStatus{database.UserStatusActive},
-				RbacRole: []string{codersdk.RoleOwner},
+				Search:    "user-name",
+				Status:    []database.UserStatus{database.UserStatusActive},
+				RbacRole:  []string{codersdk.RoleOwner},
+				LoginType: []database.LoginType{},
 			},
 		},
 		{
@@ -444,9 +489,48 @@ func TestSearchUsers(t *testing.T) {
 			Name:  "QuotedSpecial",
 			Query: `search:"user:name"`,
 			Expected: database.GetUsersParams{
-				Search:   "user:name",
+				Search:    "user:name",
+				Status:    []database.UserStatus{},
+				RbacRole:  []string{},
+				LoginType: []database.LoginType{},
+			},
+		},
+		{
+			Name:  "LoginType",
+			Query: "login_type:github",
+			Expected: database.GetUsersParams{
+				Search:    "",
+				Status:    []database.UserStatus{},
+				RbacRole:  []string{},
+				LoginType: []database.LoginType{database.LoginTypeGithub},
+			},
+		},
+		{
+			Name:  "MultipleLoginTypesWithSpaces",
+			Query: "login_type:github login_type:password",
+			Expected: database.GetUsersParams{
+				Search:   "",
 				Status:   []database.UserStatus{},
 				RbacRole: []string{},
+				LoginType: []database.LoginType{
+					database.LoginTypeGithub,
+					database.LoginTypePassword,
+				},
+			},
+		},
+		{
+			Name:  "MultipleLoginTypesWithCommas",
+			Query: "login_type:github,password,none,oidc",
+			Expected: database.GetUsersParams{
+				Search:   "",
+				Status:   []database.UserStatus{},
+				RbacRole: []string{},
+				LoginType: []database.LoginType{
+					database.LoginTypeGithub,
+					database.LoginTypePassword,
+					database.LoginTypeNone,
+					database.LoginTypeOIDC,
+				},
 			},
 		},
 
@@ -469,7 +553,6 @@ func TestSearchUsers(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			values, errs := searchquery.Users(c.Query)
@@ -508,10 +591,39 @@ func TestSearchTemplates(t *testing.T) {
 				FuzzyName: "foobar",
 			},
 		},
+		{
+			Name:  "HasAITaskTrue",
+			Query: "has-ai-task:true",
+			Expected: database.GetTemplatesWithFilterParams{
+				HasAITask: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasAITaskFalse",
+			Query: "has-ai-task:false",
+			Expected: database.GetTemplatesWithFilterParams{
+				HasAITask: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasAITaskMissing",
+			Query: "",
+			Expected: database.GetTemplatesWithFilterParams{
+				HasAITask: sql.NullBool{
+					Bool:  false,
+					Valid: false,
+				},
+			},
+		},
 	}
 
 	for _, c := range testCases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			// Do not use a real database, this is only used for an

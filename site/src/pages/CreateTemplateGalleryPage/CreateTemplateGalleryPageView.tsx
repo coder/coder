@@ -4,16 +4,18 @@ import CardActionArea from "@mui/material/CardActionArea";
 import CardContent from "@mui/material/CardContent";
 import Stack from "@mui/material/Stack";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import type { StarterTemplatesByTag } from "utils/starterTemplates";
 import { StarterTemplates } from "./StarterTemplates";
 
-export interface CreateTemplateGalleryPageViewProps {
+interface CreateTemplateGalleryPageViewProps {
 	starterTemplatesByTag?: StarterTemplatesByTag;
 	error?: unknown;
 }
@@ -23,7 +25,21 @@ export const CreateTemplateGalleryPageView: FC<
 > = ({ starterTemplatesByTag, error }) => {
 	return (
 		<Margins>
-			<PageHeader>
+			<PageHeader
+				actions={
+					<Button asChild size="sm" variant="outline">
+						<a
+							href="https://registry.coder.com"
+							target="_blank"
+							rel="noopener noreferrer"
+							className="flex items-center"
+						>
+							Browse the Coder Registry
+							<ExternalLinkIcon className="size-icon-sm ml-1" />
+						</a>
+					</Button>
+				}
+			>
 				<PageHeaderTitle>Create a Template</PageHeaderTitle>
 			</PageHeader>
 			<Stack spacing={8}>
@@ -41,34 +57,6 @@ export const CreateTemplateGalleryPageView: FC<
 							height: "max-content",
 						}}
 					>
-						<Card variant="outlined" css={{ width: 320, borderRadius: 6 }}>
-							<CardActionArea
-								component={RouterLink}
-								to="/templates/new?exampleId=scratch"
-								sx={{ height: 115, padding: 1 }}
-							>
-								<CardContent>
-									<Stack
-										direction="row"
-										spacing={3}
-										css={{ alignItems: "center" }}
-									>
-										<div css={styles.icon}>
-											<ExternalImage
-												src="/emojis/1f4c4.png"
-												css={{ width: "100%", height: "100%" }}
-											/>
-										</div>
-										<div>
-											<h4 css={styles.cardTitle}>Scratch Template</h4>
-											<span css={styles.cardDescription}>
-												Create a minimal starter template that you can customize
-											</span>
-										</div>
-									</Stack>
-								</CardContent>
-							</CardActionArea>
-						</Card>
 						<Card variant="outlined" css={{ width: 320, borderRadius: 6 }}>
 							<CardActionArea
 								component={RouterLink}

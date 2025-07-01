@@ -13,9 +13,8 @@ You can use `coder_metadata` to show Terraform resource attributes like these:
 
 ![ui](../../../images/admin/templates/coder-metadata-ui.png)
 
-<blockquote class="info">
-Coder automatically generates the <code>type</code> metadata.
-</blockquote>
+> [!NOTE]
+> Coder automatically generates the <code>type</code> metadata.
 
 You can also present automatically updating, dynamic values with
 [agent metadata](./agent-metadata.md).

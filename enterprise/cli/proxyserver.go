@@ -34,15 +34,15 @@ import (
 	"github.com/coder/serpent"
 )
 
-type closers []func()
+type closerFuncs []func()
 
-func (c closers) Close() {
+func (c closerFuncs) Close() {
 	for _, closeF := range c {
 		closeF()
 	}
 }
 
-func (c *closers) Add(f func()) {
+func (c *closerFuncs) Add(f func()) {
 	*c = append(*c, f)
 }
 
@@ -113,7 +113,8 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 			serpent.RequireNArgs(0),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			var closers closers
+			var closers closerFuncs
+			defer closers.Close()
 			// Main command context for managing cancellation of running
 			// services.
 			ctx, topCancel := context.WithCancel(inv.Context())
@@ -204,7 +205,7 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 			httpClient.Transport = headerTransport
 
 			accessURL := cfg.AccessURL.String()
-			cliui.Infof(inv.Stdout, lipgloss.NewStyle().
+			cliui.Info(inv.Stdout, lipgloss.NewStyle().
 				Border(lipgloss.DoubleBorder()).
 				Align(lipgloss.Center).
 				Padding(0, 3).
@@ -263,7 +264,7 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 				Tracing:                tracer,
 				PrometheusRegistry:     prometheusRegistry,
 				APIRateLimit:           int(cfg.RateLimit.API.Value()),
-				SecureAuthCookie:       cfg.SecureAuthCookie.Value(),
+				CookieConfig:           cfg.HTTPCookies,
 				DisablePathApps:        cfg.DisablePathApps.Value(),
 				ProxySessionToken:      proxySessionToken.Value(),
 				AllowAllCors:           cfg.Dangerous.AllowAllCors.Value(),
@@ -307,7 +308,7 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 
 			// TODO: So this obviously is not going to work well.
 			errCh := make(chan error, 1)
-			go rpprof.Do(ctx, rpprof.Labels("service", "workspace-proxy"), func(ctx context.Context) {
+			go rpprof.Do(ctx, rpprof.Labels("service", "workspace-proxy"), func(_ context.Context) {
 				errCh <- httpServers.Serve(httpServer)
 			})
 

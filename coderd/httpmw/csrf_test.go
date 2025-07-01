@@ -53,11 +53,10 @@ func TestCSRFExemptList(t *testing.T) {
 		},
 	}
 
-	mw := httpmw.CSRF(false)
+	mw := httpmw.CSRF(codersdk.HTTPCookieConfig{})
 	csrfmw := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})).(*nosurf.CSRFHandler)
 
 	for _, c := range cases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -87,7 +86,7 @@ func TestCSRFError(t *testing.T) {
 	var handler http.Handler = http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusOK)
 	})
-	handler = httpmw.CSRF(false)(handler)
+	handler = httpmw.CSRF(codersdk.HTTPCookieConfig{})(handler)
 
 	// Not testing the error case, just providing the example of things working
 	// to base the failure tests off of.

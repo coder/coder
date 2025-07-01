@@ -31,7 +31,7 @@ export const Language = {
 	activeVersionHelpBody: "Review the documentation",
 };
 
-export type PublishTemplateVersionDialogProps = DialogProps & {
+type PublishTemplateVersionDialogProps = DialogProps & {
 	defaultName: string;
 	isPublishing: boolean;
 	publishingError?: unknown;
@@ -133,7 +133,7 @@ export const PublishTemplateVersionDialog: FC<
 										<HelpTooltipLinksGroup>
 											<HelpTooltipLink
 												href={docs(
-													"/admin/templates/managing-templates#template-update-policies-enterprise-premium",
+													"/admin/templates/managing-templates#template-update-policies",
 												)}
 											>
 												{Language.activeVersionHelpBody}

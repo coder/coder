@@ -25,7 +25,7 @@ import {
 	createTestQueryClient,
 } from "./renderHelpers";
 
-export type RouterLocationSnapshot<TLocationState = unknown> = Readonly<{
+type RouterLocationSnapshot<TLocationState = unknown> = Readonly<{
 	search: URLSearchParams;
 	pathname: string;
 	state: Location<TLocationState>["state"];
@@ -34,7 +34,7 @@ export type RouterLocationSnapshot<TLocationState = unknown> = Readonly<{
 export type GetLocationSnapshot<TLocationState = unknown> =
 	() => RouterLocationSnapshot<TLocationState>;
 
-export type RenderHookWithAuthResult<
+type RenderHookWithAuthResult<
 	TResult,
 	TProps,
 	TLocationState = unknown,
@@ -54,7 +54,7 @@ export type RenderHookWithAuthResult<
 	}
 >;
 
-export type RenderHookWithAuthConfig<TProps> = Readonly<{
+type RenderHookWithAuthConfig<TProps> = Readonly<{
 	routingOptions?: Omit<RenderWithAuthOptions, "children">;
 	renderOptions?: Omit<RenderHookOptions<TProps>, "wrapper">;
 }>;

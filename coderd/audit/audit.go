@@ -2,18 +2,18 @@ package audit
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"testing"
 
 	"github.com/google/uuid"
-	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/v2/coderd/database"
 )
 
 type Auditor interface {
 	Export(ctx context.Context, alog database.AuditLog) error
-	diff(old, new any) Map
+	diff(old, newVal any) Map
 }
 
 type AdditionalFields struct {
@@ -93,7 +93,7 @@ func (a *MockAuditor) Contains(t testing.TB, expected database.AuditLog) bool {
 			t.Logf("audit log %d: expected UserID %s, got %s", idx+1, expected.UserID, al.UserID)
 			continue
 		}
-		if expected.OrganizationID != uuid.Nil && al.UserID != expected.UserID {
+		if expected.OrganizationID != uuid.Nil && al.OrganizationID != expected.OrganizationID {
 			t.Logf("audit log %d: expected OrganizationID %s, got %s", idx+1, expected.OrganizationID, al.OrganizationID)
 			continue
 		}

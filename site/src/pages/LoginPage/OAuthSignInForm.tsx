@@ -4,7 +4,7 @@ import Button from "@mui/material/Button";
 import { visuallyHidden } from "@mui/utils";
 import type { AuthMethods } from "api/typesGenerated";
 import { type FC, useId } from "react";
-import { Language } from "./SignInForm";
+import { Language } from "./Language";
 
 const iconStyles = {
 	width: 16,

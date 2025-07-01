@@ -16,7 +16,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/terraform-provider-coder/provider"
+	"github.com/coder/terraform-provider-coder/v2/provider"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -78,7 +78,7 @@ func (s *server) Plan(
 
 	e := s.executor(sess.WorkDirectory, database.ProvisionerJobTimingStagePlan)
 	if err := e.checkMinVersion(ctx); err != nil {
-		return provisionersdk.PlanErrorf(err.Error())
+		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
 	logTerraformEnvVars(sess)
 
@@ -113,7 +113,6 @@ func (s *server) Plan(
 	initTimings.ingest(createInitTimingsEvent(timingInitStart))
 
 	err = e.init(ctx, killCtx, sess)
-
 	if err != nil {
 		initTimings.ingest(createInitTimingsEvent(timingInitErrored))
 
@@ -153,22 +152,20 @@ func (s *server) Plan(
 
 	s.logger.Debug(ctx, "ran initialization")
 
-	env, err := provisionEnv(sess.Config, request.Metadata, request.RichParameterValues, request.ExternalAuthProviders)
+	env, err := provisionEnv(sess.Config, request.Metadata, request.PreviousParameterValues, request.RichParameterValues, request.ExternalAuthProviders)
 	if err != nil {
 		return provisionersdk.PlanErrorf("setup env: %s", err)
 	}
+	env = otelEnvInject(ctx, env)
 
 	vars, err := planVars(request)
 	if err != nil {
 		return provisionersdk.PlanErrorf("plan vars: %s", err)
 	}
 
-	resp, err := e.plan(
-		ctx, killCtx, env, vars, sess,
-		request.Metadata.GetWorkspaceTransition() == proto.WorkspaceTransition_DESTROY,
-	)
+	resp, err := e.plan(ctx, killCtx, env, vars, sess, request)
 	if err != nil {
-		return provisionersdk.PlanErrorf(err.Error())
+		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
 
 	// Prepend init timings since they occur prior to plan timings.
@@ -189,7 +186,7 @@ func (s *server) Apply(
 
 	e := s.executor(sess.WorkDirectory, database.ProvisionerJobTimingStageApply)
 	if err := e.checkMinVersion(ctx); err != nil {
-		return provisionersdk.ApplyErrorf(err.Error())
+		return provisionersdk.ApplyErrorf("%s", err.Error())
 	}
 	logTerraformEnvVars(sess)
 
@@ -205,10 +202,11 @@ func (s *server) Apply(
 
 	// Earlier in the session, Plan() will have written the state file and the plan file.
 	statefilePath := getStateFilePath(sess.WorkDirectory)
-	env, err := provisionEnv(sess.Config, request.Metadata, nil, nil)
+	env, err := provisionEnv(sess.Config, request.Metadata, nil, nil, nil)
 	if err != nil {
 		return provisionersdk.ApplyErrorf("provision env: %s", err)
 	}
+	env = otelEnvInject(ctx, env)
 	resp, err := e.apply(
 		ctx, killCtx, env, sess,
 	)
@@ -235,12 +233,17 @@ func planVars(plan *proto.PlanRequest) ([]string, error) {
 
 func provisionEnv(
 	config *proto.Config, metadata *proto.Metadata,
-	richParams []*proto.RichParameterValue, externalAuth []*proto.ExternalAuthProvider,
+	previousParams, richParams []*proto.RichParameterValue, externalAuth []*proto.ExternalAuthProvider,
 ) ([]string, error) {
 	env := safeEnviron()
 	ownerGroups, err := json.Marshal(metadata.GetWorkspaceOwnerGroups())
 	if err != nil {
 		return nil, xerrors.Errorf("marshal owner groups: %w", err)
+	}
+
+	ownerRbacRoles, err := json.Marshal(metadata.GetWorkspaceOwnerRbacRoles())
+	if err != nil {
+		return nil, xerrors.Errorf("marshal owner rbac roles: %w", err)
 	}
 
 	env = append(env,
@@ -255,6 +258,7 @@ func provisionEnv(
 		"CODER_WORKSPACE_OWNER_SSH_PUBLIC_KEY="+metadata.GetWorkspaceOwnerSshPublicKey(),
 		"CODER_WORKSPACE_OWNER_SSH_PRIVATE_KEY="+metadata.GetWorkspaceOwnerSshPrivateKey(),
 		"CODER_WORKSPACE_OWNER_LOGIN_TYPE="+metadata.GetWorkspaceOwnerLoginType(),
+		"CODER_WORKSPACE_OWNER_RBAC_ROLES="+string(ownerRbacRoles),
 		"CODER_WORKSPACE_ID="+metadata.GetWorkspaceId(),
 		"CODER_WORKSPACE_OWNER_ID="+metadata.GetWorkspaceOwnerId(),
 		"CODER_WORKSPACE_OWNER_SESSION_TOKEN="+metadata.GetWorkspaceOwnerSessionToken(),
@@ -263,14 +267,35 @@ func provisionEnv(
 		"CODER_WORKSPACE_TEMPLATE_VERSION="+metadata.GetTemplateVersion(),
 		"CODER_WORKSPACE_BUILD_ID="+metadata.GetWorkspaceBuildId(),
 	)
+	if metadata.GetPrebuiltWorkspaceBuildStage().IsPrebuild() {
+		env = append(env, provider.IsPrebuildEnvironmentVariable()+"=true")
+	}
+	tokens := metadata.GetRunningAgentAuthTokens()
+	if len(tokens) == 1 {
+		env = append(env, provider.RunningAgentTokenEnvironmentVariable("")+"="+tokens[0].Token)
+	} else {
+		// Not currently supported, but added for forward-compatibility
+		for _, t := range tokens {
+			// If there are multiple agents, provide all the tokens to terraform so that it can
+			// choose the correct one for each agent ID.
+			env = append(env, provider.RunningAgentTokenEnvironmentVariable(t.AgentId)+"="+t.Token)
+		}
+	}
+	if metadata.GetPrebuiltWorkspaceBuildStage().IsPrebuiltWorkspaceClaim() {
+		env = append(env, provider.IsPrebuildClaimEnvironmentVariable()+"=true")
+	}
+
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
+	}
+	for _, param := range previousParams {
+		env = append(env, provider.ParameterEnvironmentVariablePrevious(param.Name)+"="+param.Value)
 	}
 	for _, param := range richParams {
 		env = append(env, provider.ParameterEnvironmentVariable(param.Name)+"="+param.Value)
 	}
 	for _, extAuth := range externalAuth {
-		env = append(env, provider.GitAuthAccessTokenEnvironmentVariable(extAuth.Id)+"="+extAuth.AccessToken)
+		env = append(env, gitAuthAccessTokenEnvironmentVariable(extAuth.Id)+"="+extAuth.AccessToken)
 		env = append(env, provider.ExternalAuthAccessTokenEnvironmentVariable(extAuth.Id)+"="+extAuth.AccessToken)
 	}
 
@@ -350,4 +375,13 @@ func tryGettingCoderProviderStacktrace(sess *provisionersdk.Session) string {
 		sess.Logger.Error(sess.Context(), "could not read stack traces", slog.Error(err))
 	}
 	return string(stacktraces)
+}
+
+// gitAuthAccessTokenEnvironmentVariable is copied from
+// github.com/coder/terraform-provider-coder/provider.GitAuthAccessTokenEnvironmentVariable@v1.0.4.
+// While removed in v2 of the provider, we keep this to support customers using older templates that
+// depend on this environment variable. Once we are certain that no customers are still using v1 of
+// the provider, we can remove this function.
+func gitAuthAccessTokenEnvironmentVariable(id string) string {
+	return fmt.Sprintf("CODER_GIT_AUTH_ACCESS_TOKEN_%s", id)
 }

@@ -1,0 +1,17 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder schedule extend <workspace-name> <duration from now>
+
+  Extend the stop time of a currently running workspace instance.
+
+  Aliases: override-stop
+
+      * The new stop time is calculated from *now*.
+    * The new stop time must be at least 30 minutes in the future.
+    * The workspace template may restrict the maximum workspace runtime.
+  
+   $ coder schedule extend my-workspace 90m
+
+———
+Run `coder --help` for a list of global options.

@@ -47,7 +47,6 @@ func TestValidate(t *testing.T) {
 		vmID:    "960a4b4a-dab2-44ef-9b73-7753043b4f16",
 		date:    mustTime(time.RFC3339, "2024-04-22T17:32:44Z"),
 	}} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			vm, err := azureidentity.Validate(context.Background(), tc.payload, azureidentity.Options{

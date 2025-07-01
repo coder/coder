@@ -26,7 +26,7 @@ import (
 // @Router /users/roles [get]
 func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	actorRoles := httpmw.UserAuthorization(r)
+	actorRoles := httpmw.UserAuthorization(r.Context())
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceAssignRole) {
 		httpapi.Forbidden(rw)
 		return
@@ -43,7 +43,7 @@ func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, rbac.SiteRoles(), dbCustomRoles))
+	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, rbac.SiteBuiltInRoles(), dbCustomRoles))
 }
 
 // assignableOrgRoles returns all org wide roles that can be assigned.
@@ -59,7 +59,7 @@ func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
-	actorRoles := httpmw.UserAuthorization(r)
+	actorRoles := httpmw.UserAuthorization(r.Context())
 
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceAssignOrgRole.InOrg(organization.ID)) {
 		httpapi.ResourceNotFound(rw)

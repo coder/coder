@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -30,8 +30,8 @@ func New() *Set {
 		// These will be updated when coderd is initialized.
 		entitlements: codersdk.Entitlements{
 			Features:         map[codersdk.FeatureName]codersdk.Feature{},
-			Warnings:         nil,
-			Errors:           nil,
+			Warnings:         []string{},
+			Errors:           []string{},
 			HasLicense:       false,
 			Trial:            false,
 			RequireTelemetry: false,
@@ -39,13 +39,21 @@ func New() *Set {
 		},
 		right2Update: make(chan struct{}, 1),
 	}
+	// Ensure all features are present in the entitlements. Our frontend
+	// expects this.
+	for _, featureName := range codersdk.FeatureNames {
+		s.entitlements.AddFeature(featureName, codersdk.Feature{
+			Entitlement: codersdk.EntitlementNotEntitled,
+			Enabled:     false,
+		})
+	}
 	s.right2Update <- struct{}{} // one token, serialized updates
 	return s
 }
 
 // ErrLicenseRequiresTelemetry is an error returned by a fetch passed to Update to indicate that the
 // fetched license cannot be used because it requires telemetry.
-var ErrLicenseRequiresTelemetry = xerrors.New("License requires telemetry but telemetry is disabled")
+var ErrLicenseRequiresTelemetry = xerrors.New(codersdk.LicenseTelemetryRequiredErrorText)
 
 func (l *Set) Update(ctx context.Context, fetch func(context.Context) (codersdk.Entitlements, error)) error {
 	select {

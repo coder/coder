@@ -1,8 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import CopyIcon from "@mui/icons-material/FileCopyOutlined";
-import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
-import LoadingButton from "@mui/lab/LoadingButton";
-import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -13,20 +9,28 @@ import TableRow from "@mui/material/TableRow";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Loader } from "components/Loader/Loader";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "components/SettingsHeader/SettingsHeader";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
+import { CopyIcon } from "lucide-react";
+import { ChevronLeftIcon } from "lucide-react";
 import { type FC, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
-export type MutatingResource = {
+type MutatingResource = {
 	updateApp: boolean;
 	createSecret: boolean;
 	deleteApp: boolean;
@@ -75,16 +79,18 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 				direction="row"
 				justifyContent="space-between"
 			>
-				<SettingsHeader
-					title="Edit OAuth2 application"
-					description="Configure an application to use Coder as an OAuth2 provider."
-				/>
-				<Button
-					component={Link}
-					startIcon={<KeyboardArrowLeft />}
-					to="/deployment/oauth2-provider/apps"
-				>
-					All OAuth2 Applications
+				<SettingsHeader>
+					<SettingsHeaderTitle>Edit OAuth2 application</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Configure an application to use Coder as an OAuth2 provider.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
+
+				<Button variant="outline" asChild>
+					<RouterLink to="/deployment/oauth2-provider/apps">
+						<ChevronLeftIcon />
+						All OAuth2 Applications
+					</RouterLink>
 				</Button>
 			</Stack>
 
@@ -143,21 +149,20 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 							<dt>Client ID</dt>
 							<dd>
 								<CopyableValue value={app.id}>
-									{app.id} <CopyIcon css={{ width: 16, height: 16 }} />
+									{app.id} <CopyIcon className="size-icon-xs" />
 								</CopyableValue>
 							</dd>
 							<dt>Authorization URL</dt>
 							<dd>
 								<CopyableValue value={app.endpoints.authorization}>
 									{app.endpoints.authorization}{" "}
-									<CopyIcon css={{ width: 16, height: 16 }} />
+									<CopyIcon className="size-icon-xs" />
 								</CopyableValue>
 							</dd>
 							<dt>Token URL</dt>
 							<dd>
 								<CopyableValue value={app.endpoints.token}>
-									{app.endpoints.token}{" "}
-									<CopyIcon css={{ width: 16, height: 16 }} />
+									{app.endpoints.token} <CopyIcon className="size-icon-xs" />
 								</CopyableValue>
 							</dd>
 						</dl>
@@ -171,9 +176,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 							error={error}
 							actions={
 								<Button
-									variant="outlined"
-									type="button"
-									color="error"
+									variant="destructive"
 									onClick={() => setShowDelete(true)}
 								>
 									Delete&hellip;
@@ -220,14 +223,14 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
 				justifyContent="space-between"
 			>
 				<h2>Client secrets</h2>
-				<LoadingButton
-					loading={mutatingResource.createSecret}
+				<Button
+					disabled={mutatingResource.createSecret}
 					type="submit"
-					variant="contained"
 					onClick={generateAppSecret}
 				>
+					<Spinner loading={mutatingResource.createSecret} />
 					Generate secret
-				</LoadingButton>
+				</Button>
 			</Stack>
 
 			<TableContainer>
@@ -303,12 +306,7 @@ const OAuth2SecretRow: FC<OAuth2SecretRowProps> = ({
 						</>
 					}
 				/>
-				<Button
-					variant="outlined"
-					type="button"
-					color="error"
-					onClick={() => setShowDelete(true)}
-				>
+				<Button variant="destructive" onClick={() => setShowDelete(true)}>
 					Delete&hellip;
 				</Button>
 			</TableCell>

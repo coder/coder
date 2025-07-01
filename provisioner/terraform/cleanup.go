@@ -130,7 +130,7 @@ func CleanStaleTerraformPlugins(ctx context.Context, cachePath string, fs afero.
 // the last created/modified file.
 func latestModTime(fs afero.Fs, pluginPath string) (time.Time, error) {
 	var latest time.Time
-	err := afero.Walk(fs, pluginPath, func(path string, info os.FileInfo, err error) error {
+	err := afero.Walk(fs, pluginPath, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}

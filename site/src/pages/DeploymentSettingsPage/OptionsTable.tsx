@@ -49,13 +49,6 @@ const OptionsTable: FC<OptionsTableProps> = ({ options, additionalValues }) => {
 				</TableHead>
 				<TableBody>
 					{Object.values(options).map((option) => {
-						if (
-							option.value === null ||
-							option.value === "" ||
-							option.value === undefined
-						) {
-							return null;
-						}
 						return (
 							<TableRow key={option.flag} className={`option-${option.flag}`}>
 								<TableCell>

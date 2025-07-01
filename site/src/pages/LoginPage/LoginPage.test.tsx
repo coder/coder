@@ -8,8 +8,8 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import { LoginPage } from "./LoginPage";
-import { Language } from "./SignInForm";
+import { Language } from "./Language";
+import LoginPage from "./LoginPage";
 
 describe("LoginPage", () => {
 	beforeEach(() => {

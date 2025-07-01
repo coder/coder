@@ -15,7 +15,7 @@ import (
 func TestRecover(t *testing.T) {
 	t.Parallel()
 
-	handler := func(isPanic, hijack bool) http.Handler {
+	handler := func(isPanic, _ bool) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if isPanic {
 				panic("Oh no!")
@@ -52,8 +52,6 @@ func TestRecover(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
-
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 

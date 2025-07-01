@@ -1,7 +1,9 @@
 package runner
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -551,9 +553,10 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		CreatedAt: time.Now().UnixMilli(),
 	})
 	startProvision, err := r.runTemplateImportProvision(ctx, updateResponse.VariableValues, &sdkproto.Metadata{
-		CoderUrl:            r.job.GetTemplateImport().Metadata.CoderUrl,
-		WorkspaceTransition: sdkproto.WorkspaceTransition_START,
-	})
+		CoderUrl:             r.job.GetTemplateImport().Metadata.CoderUrl,
+		WorkspaceOwnerGroups: r.job.GetTemplateImport().Metadata.WorkspaceOwnerGroups,
+		WorkspaceTransition:  sdkproto.WorkspaceTransition_START,
+	}, false)
 	if err != nil {
 		return nil, r.failedJobf("template import provision for start: %s", err)
 	}
@@ -566,9 +569,11 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		CreatedAt: time.Now().UnixMilli(),
 	})
 	stopProvision, err := r.runTemplateImportProvision(ctx, updateResponse.VariableValues, &sdkproto.Metadata{
-		CoderUrl:            r.job.GetTemplateImport().Metadata.CoderUrl,
-		WorkspaceTransition: sdkproto.WorkspaceTransition_STOP,
-	})
+		CoderUrl:             r.job.GetTemplateImport().Metadata.CoderUrl,
+		WorkspaceOwnerGroups: r.job.GetTemplateImport().Metadata.WorkspaceOwnerGroups,
+		WorkspaceTransition:  sdkproto.WorkspaceTransition_STOP,
+	}, true, // Modules downloaded on the start provision
+	)
 	if err != nil {
 		return nil, r.failedJobf("template import provision for stop: %s", err)
 	}
@@ -590,6 +595,13 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				ExternalAuthProviders:      startProvision.ExternalAuthProviders,
 				StartModules:               startProvision.Modules,
 				StopModules:                stopProvision.Modules,
+				Presets:                    startProvision.Presets,
+				Plan:                       startProvision.Plan,
+				// ModuleFiles are not on the stopProvision. So grab from the startProvision.
+				ModuleFiles: startProvision.ModuleFiles,
+				// ModuleFileHash will be populated if the file is uploaded async
+				ModuleFilesHash: []byte{},
+				HasAiTasks:      startProvision.HasAITasks,
 			},
 		},
 	}, nil
@@ -613,7 +625,7 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) (
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Response_Log:
-			r.logger.Debug(context.Background(), "parse job logged",
+			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "parse job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 			)
@@ -650,13 +662,17 @@ type templateImportProvision struct {
 	Parameters            []*sdkproto.RichParameter
 	ExternalAuthProviders []*sdkproto.ExternalAuthProviderResource
 	Modules               []*sdkproto.Module
+	Presets               []*sdkproto.Preset
+	Plan                  json.RawMessage
+	ModuleFiles           []byte
+	HasAITasks            bool
 }
 
 // Performs a dry-run provision when importing a template.
 // This is used to detect resources that would be provisioned for a workspace in various states.
 // It doesn't define values for rich parameters as they're unknown during template import.
-func (r *Runner) runTemplateImportProvision(ctx context.Context, variableValues []*sdkproto.VariableValue, metadata *sdkproto.Metadata) (*templateImportProvision, error) {
-	return r.runTemplateImportProvisionWithRichParameters(ctx, variableValues, nil, metadata)
+func (r *Runner) runTemplateImportProvision(ctx context.Context, variableValues []*sdkproto.VariableValue, metadata *sdkproto.Metadata, omitModules bool) (*templateImportProvision, error) {
+	return r.runTemplateImportProvisionWithRichParameters(ctx, variableValues, nil, metadata, omitModules)
 }
 
 // Performs a dry-run provision with provided rich parameters.
@@ -666,6 +682,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 	variableValues []*sdkproto.VariableValue,
 	richParameterValues []*sdkproto.RichParameterValue,
 	metadata *sdkproto.Metadata,
+	omitModules bool,
 ) (*templateImportProvision, error) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
@@ -682,7 +699,10 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 	err := r.session.Send(&sdkproto.Request{Type: &sdkproto.Request_Plan{Plan: &sdkproto.PlanRequest{
 		Metadata:            metadata,
 		RichParameterValues: richParameterValues,
-		VariableValues:      variableValues,
+		// Template import has no previous values
+		PreviousParameterValues: make([]*sdkproto.RichParameterValue, 0),
+		VariableValues:          variableValues,
+		OmitModuleFiles:         omitModules,
 	}}})
 	if err != nil {
 		return nil, xerrors.Errorf("start provision: %w", err)
@@ -704,14 +724,16 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 		}
 	}()
 
+	var moduleFilesUpload *sdkproto.DataBuilder
 	for {
 		msg, err := r.session.Recv()
 		if err != nil {
 			return nil, xerrors.Errorf("recv import provision: %w", err)
 		}
+
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Response_Log:
-			r.logger.Debug(context.Background(), "template import provision job logged",
+			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "template import provision job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 			)
@@ -722,6 +744,30 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 				Output:    msgType.Log.Output,
 				Stage:     stage,
 			})
+		case *sdkproto.Response_DataUpload:
+			c := msgType.DataUpload
+			if c.UploadType != sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES {
+				return nil, xerrors.Errorf("invalid data upload type: %q", c.UploadType)
+			}
+
+			if moduleFilesUpload != nil {
+				return nil, xerrors.New("multiple module data uploads received, only expect 1")
+			}
+
+			moduleFilesUpload, err = sdkproto.NewDataBuilder(c)
+			if err != nil {
+				return nil, xerrors.Errorf("create data builder: %w", err)
+			}
+		case *sdkproto.Response_ChunkPiece:
+			c := msgType.ChunkPiece
+			if moduleFilesUpload == nil {
+				return nil, xerrors.New("received chunk piece before module files data upload")
+			}
+
+			_, err := moduleFilesUpload.Add(c)
+			if err != nil {
+				return nil, xerrors.Errorf("module files, add chunk piece: %w", err)
+			}
 		case *sdkproto.Response_Plan:
 			c := msgType.Plan
 			if c.Error != "" {
@@ -732,16 +778,35 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 				return nil, xerrors.New(c.Error)
 			}
 
+			if moduleFilesUpload != nil && len(c.ModuleFiles) > 0 {
+				return nil, xerrors.New("module files were uploaded and module files were returned in the plan response. Only one of these should be set")
+			}
+
 			r.logger.Info(context.Background(), "parse dry-run provision successful",
 				slog.F("resource_count", len(c.Resources)),
 				slog.F("resources", resourceNames(c.Resources)),
 			)
 
+			moduleFilesData := c.ModuleFiles
+			if moduleFilesUpload != nil {
+				uploadData, err := moduleFilesUpload.Complete()
+				if err != nil {
+					return nil, xerrors.Errorf("module files, complete upload: %w", err)
+				}
+				moduleFilesData = uploadData
+				if !bytes.Equal(c.ModuleFilesHash, moduleFilesUpload.Hash) {
+					return nil, xerrors.Errorf("module files hash mismatch, uploaded: %x, expected: %x", moduleFilesUpload.Hash, c.ModuleFilesHash)
+				}
+			}
 			return &templateImportProvision{
 				Resources:             c.Resources,
 				Parameters:            c.Parameters,
 				ExternalAuthProviders: c.ExternalAuthProviders,
 				Modules:               c.Modules,
+				Presets:               c.Presets,
+				Plan:                  c.Plan,
+				ModuleFiles:           moduleFilesData,
+				HasAITasks:            c.HasAiTasks,
 			}, nil
 		default:
 			return nil, xerrors.Errorf("invalid message type %q received from provisioner",
@@ -794,6 +859,7 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 		r.job.GetTemplateDryRun().GetVariableValues(),
 		r.job.GetTemplateDryRun().GetRichParameterValues(),
 		metadata,
+		false,
 	)
 	if err != nil {
 		return nil, r.failedJobf("run dry-run provision job: %s", err)
@@ -856,6 +922,10 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 				Output:    msgType.Log.Output,
 				Stage:     stage,
 			})
+		case *sdkproto.Response_DataUpload:
+			continue // Only for template imports
+		case *sdkproto.Response_ChunkPiece:
+			continue // Only for template imports
 		default:
 			// Stop looping!
 			return msg, nil
@@ -876,7 +946,8 @@ func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource
 	const stage = "Commit quota"
 
 	resp, err := r.quotaCommitter.CommitQuota(ctx, &proto.CommitQuotaRequest{
-		JobId:     r.job.JobId,
+		JobId: r.job.JobId,
+		// #nosec G115 - Safe conversion as cost is expected to be within int32 range for provisioning costs
 		DailyCost: int32(cost),
 	})
 	if err != nil {
@@ -947,10 +1018,12 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	resp, failed := r.buildWorkspace(ctx, "Planning infrastructure", &sdkproto.Request{
 		Type: &sdkproto.Request_Plan{
 			Plan: &sdkproto.PlanRequest{
-				Metadata:              r.job.GetWorkspaceBuild().Metadata,
-				RichParameterValues:   r.job.GetWorkspaceBuild().RichParameterValues,
-				VariableValues:        r.job.GetWorkspaceBuild().VariableValues,
-				ExternalAuthProviders: r.job.GetWorkspaceBuild().ExternalAuthProviders,
+				OmitModuleFiles:         true, // Only useful for template imports
+				Metadata:                r.job.GetWorkspaceBuild().Metadata,
+				RichParameterValues:     r.job.GetWorkspaceBuild().RichParameterValues,
+				PreviousParameterValues: r.job.GetWorkspaceBuild().PreviousParameterValues,
+				VariableValues:          r.job.GetWorkspaceBuild().VariableValues,
+				ExternalAuthProviders:   r.job.GetWorkspaceBuild().ExternalAuthProviders,
 			},
 		},
 	})
@@ -973,6 +1046,9 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{},
 			},
 		}
+	}
+	if len(planComplete.AiTasks) > 1 {
+		return nil, r.failedWorkspaceBuildf("only one 'coder_ai_task' resource can be provisioned per template")
 	}
 
 	r.logger.Info(context.Background(), "plan request successful",
@@ -1049,6 +1125,9 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 				// called by `plan`. `apply` does not modify them, so we can use the
 				// modules from the plan response.
 				Modules: planComplete.Modules,
+				// Resource replacements are discovered at plan time, only.
+				ResourceReplacements: planComplete.ResourceReplacements,
+				AiTasks:              applyComplete.AiTasks,
 			},
 		},
 	}, nil

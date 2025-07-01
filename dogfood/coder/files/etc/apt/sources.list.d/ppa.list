@@ -1,0 +1,9 @@
+deb [signed-by=/usr/share/keyrings/ansible.gpg] https://ppa.launchpadcontent.net/ansible/ansible/ubuntu jammy main
+
+deb [signed-by=/usr/share/keyrings/fish-shell.gpg] https://ppa.launchpadcontent.net/fish-shell/release-4/ubuntu/ jammy main
+
+deb [signed-by=/usr/share/keyrings/git-core.gpg] https://ppa.launchpadcontent.net/git-core/ppa/ubuntu jammy main
+
+deb [signed-by=/usr/share/keyrings/helix.gpg] https://ppa.launchpadcontent.net/maveonair/helix-editor/ubuntu/ jammy main
+
+deb [signed-by=/usr/share/keyrings/neovim.gpg] https://ppa.launchpadcontent.net/neovim-ppa/stable/ubuntu jammy main

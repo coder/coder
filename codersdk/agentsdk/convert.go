@@ -15,6 +15,14 @@ import (
 )
 
 func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
+	parentID := uuid.Nil
+	if pid := manifest.GetParentId(); pid != nil {
+		var err error
+		parentID, err = uuid.FromBytes(pid)
+		if err != nil {
+			return Manifest{}, xerrors.Errorf("error converting workspace agent parent ID: %w", err)
+		}
+	}
 	apps, err := AppsFromProto(manifest.Apps)
 	if err != nil {
 		return Manifest{}, xerrors.Errorf("error converting workspace agent apps: %w", err)
@@ -31,7 +39,12 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, xerrors.Errorf("error converting workspace ID: %w", err)
 	}
+	devcontainers, err := DevcontainersFromProto(manifest.Devcontainers)
+	if err != nil {
+		return Manifest{}, xerrors.Errorf("error converting workspace agent devcontainers: %w", err)
+	}
 	return Manifest{
+		ParentID:                 parentID,
 		AgentID:                  agentID,
 		AgentName:                manifest.AgentName,
 		OwnerName:                manifest.OwnerUsername,
@@ -48,6 +61,7 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 		MOTDFile:                 manifest.MotdPath,
 		DisableDirectConnections: manifest.DisableDirectConnections,
 		Metadata:                 MetadataDescriptionsFromProto(manifest.Metadata),
+		Devcontainers:            devcontainers,
 	}, nil
 }
 
@@ -57,11 +71,13 @@ func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 		return nil, xerrors.Errorf("convert workspace apps: %w", err)
 	}
 	return &proto.Manifest{
-		AgentId:                  manifest.AgentID[:],
-		AgentName:                manifest.AgentName,
-		OwnerUsername:            manifest.OwnerName,
-		WorkspaceId:              manifest.WorkspaceID[:],
-		WorkspaceName:            manifest.WorkspaceName,
+		ParentId:      manifest.ParentID[:],
+		AgentId:       manifest.AgentID[:],
+		AgentName:     manifest.AgentName,
+		OwnerUsername: manifest.OwnerName,
+		WorkspaceId:   manifest.WorkspaceID[:],
+		WorkspaceName: manifest.WorkspaceName,
+		// #nosec G115 - Safe conversion for GitAuthConfigs which is expected to be small and positive
 		GitAuthConfigs:           uint32(manifest.GitAuthConfigs),
 		EnvironmentVariables:     manifest.EnvironmentVariables,
 		Directory:                manifest.Directory,
@@ -73,6 +89,7 @@ func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 		Scripts:                  ProtoFromScripts(manifest.Scripts),
 		Apps:                     apps,
 		Metadata:                 ProtoFromMetadataDescriptions(manifest.Metadata),
+		Devcontainers:            ProtoFromDevcontainers(manifest.Devcontainers),
 	}, nil
 }
 
@@ -389,4 +406,80 @@ func ProtoFromLifecycleState(s codersdk.WorkspaceAgentLifecycle) (proto.Lifecycl
 		return 0, xerrors.Errorf("unknown lifecycle state: %s", s)
 	}
 	return proto.Lifecycle_State(caps), nil
+}
+
+func ConnectionTypeFromProto(typ proto.Connection_Type) (ConnectionType, error) {
+	switch typ {
+	case proto.Connection_TYPE_UNSPECIFIED:
+		return ConnectionTypeUnspecified, nil
+	case proto.Connection_SSH:
+		return ConnectionTypeSSH, nil
+	case proto.Connection_VSCODE:
+		return ConnectionTypeVSCode, nil
+	case proto.Connection_JETBRAINS:
+		return ConnectionTypeJetBrains, nil
+	case proto.Connection_RECONNECTING_PTY:
+		return ConnectionTypeReconnectingPTY, nil
+	default:
+		return "", xerrors.Errorf("unknown connection type %q", typ)
+	}
+}
+
+func ProtoFromConnectionType(typ ConnectionType) (proto.Connection_Type, error) {
+	switch typ {
+	case ConnectionTypeUnspecified:
+		return proto.Connection_TYPE_UNSPECIFIED, nil
+	case ConnectionTypeSSH:
+		return proto.Connection_SSH, nil
+	case ConnectionTypeVSCode:
+		return proto.Connection_VSCODE, nil
+	case ConnectionTypeJetBrains:
+		return proto.Connection_JETBRAINS, nil
+	case ConnectionTypeReconnectingPTY:
+		return proto.Connection_RECONNECTING_PTY, nil
+	default:
+		return 0, xerrors.Errorf("unknown connection type %q", typ)
+	}
+}
+
+func DevcontainersFromProto(pdcs []*proto.WorkspaceAgentDevcontainer) ([]codersdk.WorkspaceAgentDevcontainer, error) {
+	ret := make([]codersdk.WorkspaceAgentDevcontainer, len(pdcs))
+	for i, pdc := range pdcs {
+		dc, err := DevcontainerFromProto(pdc)
+		if err != nil {
+			return nil, xerrors.Errorf("parse devcontainer %v: %w", i, err)
+		}
+		ret[i] = dc
+	}
+	return ret, nil
+}
+
+func DevcontainerFromProto(pdc *proto.WorkspaceAgentDevcontainer) (codersdk.WorkspaceAgentDevcontainer, error) {
+	id, err := uuid.FromBytes(pdc.Id)
+	if err != nil {
+		return codersdk.WorkspaceAgentDevcontainer{}, xerrors.Errorf("parse id: %w", err)
+	}
+	return codersdk.WorkspaceAgentDevcontainer{
+		ID:              id,
+		Name:            pdc.Name,
+		WorkspaceFolder: pdc.WorkspaceFolder,
+		ConfigPath:      pdc.ConfigPath,
+	}, nil
+}
+
+func ProtoFromDevcontainers(dcs []codersdk.WorkspaceAgentDevcontainer) []*proto.WorkspaceAgentDevcontainer {
+	ret := make([]*proto.WorkspaceAgentDevcontainer, len(dcs))
+	for i, dc := range dcs {
+		ret[i] = ProtoFromDevcontainer(dc)
+	}
+	return ret
+}
+
+func ProtoFromDevcontainer(dc codersdk.WorkspaceAgentDevcontainer) *proto.WorkspaceAgentDevcontainer {
+	return &proto.WorkspaceAgentDevcontainer{
+		Id:              dc.ID[:],
+		Name:            dc.Name,
+		WorkspaceFolder: dc.WorkspaceFolder,
+		ConfigPath:      dc.ConfigPath,
+	}
 }

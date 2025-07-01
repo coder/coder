@@ -37,6 +37,7 @@ const (
 	numHandshakerWorkers   = 5
 	dbMaxBackoff           = 10 * time.Second
 	cleanupPeriod          = time.Hour
+	CloseErrUnhealthy      = "coordinator unhealthy"
 )
 
 // pgCoord is a postgres-backed coordinator
@@ -235,6 +236,7 @@ func (c *pgCoord) Coordinate(
 		c.logger.Info(ctx, "closed incoming coordinate call while unhealthy",
 			slog.F("peer_id", id),
 		)
+		resps <- &proto.CoordinateResponse{Error: CloseErrUnhealthy}
 		close(resps)
 		return reqs, resps
 	}
@@ -882,6 +884,7 @@ func (q *querier) newConn(c *connIO) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	if !q.healthy {
+		_ = c.Enqueue(&proto.CoordinateResponse{Error: CloseErrUnhealthy})
 		err := c.Close()
 		// This can only happen during a narrow window where we were healthy
 		// when pgCoord checked before accepting the connection, but now are
@@ -1271,6 +1274,7 @@ func (q *querier) unhealthyCloseAll() {
 	for _, mpr := range q.mappers {
 		// close connections async so that we don't block the querier routine that responds to updates
 		go func(c *connIO) {
+			_ = c.Enqueue(&proto.CoordinateResponse{Error: CloseErrUnhealthy})
 			err := c.Close()
 			if err != nil {
 				q.logger.Debug(q.ctx, "error closing conn while unhealthy", slog.Error(err))

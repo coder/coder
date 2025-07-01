@@ -8,7 +8,7 @@ import {
 	MockTemplateVersionParameter1,
 	MockTemplateVersionParameter2,
 	MockTemplateVersionParameter3,
-	MockUser,
+	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceQuota,
 	MockWorkspaceRequest,
@@ -22,7 +22,7 @@ import CreateWorkspacePage from "./CreateWorkspacePage";
 import { Language } from "./CreateWorkspacePageView";
 
 const nameLabelText = "Workspace Name";
-const createWorkspaceText = "Create Workspace";
+const createWorkspaceText = "Create workspace";
 const validationNumberNotInRangeText = "Value must be between 1 and 3.";
 
 const renderCreateWorkspacePage = () => {
@@ -36,7 +36,7 @@ describe("CreateWorkspacePage", () => {
 	it("succeeds with default owner", async () => {
 		jest
 			.spyOn(API, "getUsers")
-			.mockResolvedValueOnce({ users: [MockUser], count: 1 });
+			.mockResolvedValueOnce({ users: [MockUserOwner], count: 1 });
 		jest
 			.spyOn(API, "getWorkspaceQuota")
 			.mockResolvedValueOnce(MockWorkspaceQuota);
@@ -59,7 +59,7 @@ describe("CreateWorkspacePage", () => {
 
 		await waitFor(() =>
 			expect(API.createWorkspace).toBeCalledWith(
-				MockUser.id,
+				MockUserOwner.id,
 				expect.objectContaining({
 					...MockWorkspaceRichParametersRequest,
 				}),
@@ -93,7 +93,7 @@ describe("CreateWorkspacePage", () => {
 		renderCreateWorkspacePage();
 		await waitForLoaderToBeRemoved();
 
-		const element = await screen.findByText("Create Workspace");
+		const element = await screen.findByText(createWorkspaceText);
 		expect(element).toBeDefined();
 		const secondParameter = await screen.findByText(
 			MockTemplateVersionParameter2.description,
@@ -186,7 +186,7 @@ describe("CreateWorkspacePage", () => {
 			.mockResolvedValueOnce(MockWorkspaceQuota);
 		jest
 			.spyOn(API, "getUsers")
-			.mockResolvedValueOnce({ users: [MockUser], count: 1 });
+			.mockResolvedValueOnce({ users: [MockUserOwner], count: 1 });
 		jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
 		jest
 			.spyOn(API, "getTemplateVersionExternalAuth")
@@ -209,7 +209,7 @@ describe("CreateWorkspacePage", () => {
 			.mockResolvedValue([MockTemplateVersionExternalAuthGithubAuthenticated]);
 
 		await screen.findByText(
-			"Authenticated with GitHub",
+			"Authenticated",
 			{},
 			{ interval: 500, timeout: 5000 },
 		);
@@ -219,7 +219,7 @@ describe("CreateWorkspacePage", () => {
 
 		await waitFor(() =>
 			expect(API.createWorkspace).toBeCalledWith(
-				MockUser.id,
+				MockUserOwner.id,
 				expect.objectContaining({
 					...MockWorkspaceRequest,
 				}),
@@ -233,7 +233,7 @@ describe("CreateWorkspacePage", () => {
 			.mockResolvedValueOnce(MockWorkspaceQuota);
 		jest
 			.spyOn(API, "getUsers")
-			.mockResolvedValueOnce({ users: [MockUser], count: 1 });
+			.mockResolvedValueOnce({ users: [MockUserOwner], count: 1 });
 		jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
 		jest
 			.spyOn(API, "getTemplateVersionExternalAuth")
@@ -258,7 +258,7 @@ describe("CreateWorkspacePage", () => {
 
 		await waitFor(() =>
 			expect(API.createWorkspace).toBeCalledWith(
-				MockUser.id,
+				MockUserOwner.id,
 				expect.objectContaining({
 					...MockWorkspaceRequest,
 				}),

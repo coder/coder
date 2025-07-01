@@ -7,10 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -84,13 +84,15 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 		defer cancel()
 
 		report := api.HealthcheckFunc(ctx, apiKey)
-		api.healthCheckCache.Store(report)
+		if report != nil { // Only store non-nil reports.
+			api.healthCheckCache.Store(report)
+		}
 		return report, nil
 	})
 
 	select {
 	case <-ctx.Done():
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusServiceUnavailable, codersdk.Response{
 			Message: "Healthcheck is in progress and did not complete in time. Try again in a few seconds.",
 		})
 		return

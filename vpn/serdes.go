@@ -81,6 +81,7 @@ func (s *serdes[S, _, _]) sendLoop() {
 				s.logger.Critical(s.ctx, "failed to marshal message", slog.Error(err))
 				return
 			}
+			// #nosec G115 - Safe conversion as protobuf message length is expected to be within uint32 range
 			if err := binary.Write(s.conn, binary.BigEndian, uint32(len(mb))); err != nil {
 				s.logger.Debug(s.ctx, "failed to write length", slog.Error(err))
 				return

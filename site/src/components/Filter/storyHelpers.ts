@@ -17,17 +17,19 @@ export const getDefaultFilterProps = <TFilterProps>({
 	query = "",
 	values,
 	menus,
+	used = false,
 }: {
 	query?: string;
 	values: Record<string, string | undefined>;
 	menus: Record<string, UseFilterMenuResult>;
+	used?: boolean;
 }) =>
 	({
 		filter: {
 			query,
 			update: () => action("update"),
 			debounceUpdate: action("debounce") as UseFilterResult["debounceUpdate"],
-			used: false,
+			used: used,
 			values,
 		},
 		menus,

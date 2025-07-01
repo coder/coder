@@ -13,7 +13,7 @@ export const SensitiveVariableHelperText: FC = () => {
 	);
 };
 
-export interface TemplateVariableFieldProps {
+interface TemplateVariableFieldProps {
 	templateVersionVariable: TemplateVersionVariable;
 	initialValue: string;
 	disabled: boolean;

@@ -94,7 +94,8 @@ directory. When you next run
 [`coder templates push`](../../../reference/cli/templates_push.md), the lock
 file will be stored alongside with the other template source code.
 
-> Note: Terraform best practices also recommend checking in your
+> [!NOTE]
+> Terraform best practices also recommend checking in your
 > `.terraform.lock.hcl` into Git or other VCS.
 
 The next time a workspace is built from that template, Coder will make sure to

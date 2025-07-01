@@ -19,16 +19,33 @@ func (r *RootCmd) userList() *serpent.Command {
 		cliui.JSONFormat(),
 	)
 	client := new(codersdk.Client)
+	var githubUserID int64
 
 	cmd := &serpent.Command{
 		Use:     "list",
+		Short:   "Prints the list of users.",
 		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
 			r.InitClient(client),
 		),
+		Options: serpent.OptionSet{
+			{
+				Name:        "github-user-id",
+				Description: "Filter users by their GitHub user ID.",
+				Default:     "",
+				Flag:        "github-user-id",
+				Required:    false,
+				Value:       serpent.Int64Of(&githubUserID),
+			},
+		},
 		Handler: func(inv *serpent.Invocation) error {
-			res, err := client.Users(inv.Context(), codersdk.UsersRequest{})
+			req := codersdk.UsersRequest{}
+			if githubUserID != 0 {
+				req.Search = fmt.Sprintf("github_com_user_id:%d", githubUserID)
+			}
+
+			res, err := client.Users(inv.Context(), req)
 			if err != nil {
 				return err
 			}

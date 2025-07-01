@@ -321,9 +321,11 @@ resource "coder_metadata" "info" {
   }
 }
 
+# See https://registry.coder.com/modules/coder/code-server
 module "code-server" {
-  count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/modules/code-server/coder"
-  version  = "1.0.18"
+  count  = data.coder_workspace.me.start_count
+  source = "registry.coder.com/coder/code-server/coder"
+  # This ensures that the latest non-breaking version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version  = "~> 1.0"
   agent_id = coder_agent.dev[0].id
 }

@@ -152,7 +152,7 @@ func (k *rotator) rotateKeys(ctx context.Context) error {
 					}
 				}
 				if validKeys == 0 {
-					k.logger.Info(ctx, "no valid keys detected, inserting new key",
+					k.logger.Debug(ctx, "no valid keys detected, inserting new key",
 						slog.F("feature", feature),
 					)
 					_, err := k.insertNewKey(ctx, tx, feature, now)
@@ -194,7 +194,7 @@ func (k *rotator) insertNewKey(ctx context.Context, tx database.Store, feature d
 		return database.CryptoKey{}, xerrors.Errorf("inserting new key: %w", err)
 	}
 
-	k.logger.Info(ctx, "inserted new key for feature", slog.F("feature", feature))
+	k.logger.Debug(ctx, "inserted new key for feature", slog.F("feature", feature))
 	return newKey, nil
 }
 

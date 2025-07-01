@@ -2,7 +2,6 @@ package schedule
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -78,6 +77,7 @@ func (r TemplateAutostopRequirement) DaysMap() map[time.Weekday]bool {
 func daysMap(daysOfWeek uint8) map[time.Weekday]bool {
 	days := make(map[time.Weekday]bool)
 	for i, day := range DaysOfWeek {
+		// #nosec G115 - Safe conversion, i ranges from 0-6 for days of the week
 		days[day] = daysOfWeek&(1<<uint(i)) != 0
 	}
 	return days
@@ -89,6 +89,7 @@ func VerifyTemplateAutostopRequirement(days uint8, weeks int64) error {
 	if days&0b10000000 != 0 {
 		return xerrors.New("invalid autostop requirement days, last bit is set")
 	}
+	//nolint:staticcheck
 	if days > 0b11111111 {
 		return xerrors.New("invalid autostop requirement days, too large")
 	}
@@ -107,6 +108,7 @@ func VerifyTemplateAutostartRequirement(days uint8) error {
 	if days&0b10000000 != 0 {
 		return xerrors.New("invalid autostart requirement days, last bit is set")
 	}
+	//nolint:staticcheck
 	if days > 0b11111111 {
 		return xerrors.New("invalid autostart requirement days, too large")
 	}
@@ -227,23 +229,6 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 		})
 		if err != nil {
 			return xerrors.Errorf("update template schedule: %w", err)
-		}
-
-		// Users running the AGPL version are unable to customize their workspaces
-		// autostop, so we want to keep their workspaces in track with any template
-		// TTL changes.
-		if tpl.DefaultTTL != int64(opts.DefaultTTL) {
-			var ttl sql.NullInt64
-			if opts.DefaultTTL != 0 {
-				ttl = sql.NullInt64{Valid: true, Int64: int64(opts.DefaultTTL)}
-			}
-
-			if err = db.UpdateWorkspacesTTLByTemplateID(ctx, database.UpdateWorkspacesTTLByTemplateIDParams{
-				TemplateID: tpl.ID,
-				Ttl:        ttl,
-			}); err != nil {
-				return xerrors.Errorf("update workspace ttl by template id %q: %w", tpl.ID, err)
-			}
 		}
 
 		template, err = db.GetTemplateByID(ctx, tpl.ID)

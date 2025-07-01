@@ -1,50 +1,47 @@
 import { expect, test } from "@playwright/test";
 import { setupApiCalls } from "../api";
-import { expectUrl } from "../expectUrl";
-import { createUser, randomName, requiresLicense } from "../helpers";
+import {
+	addUserToOrganization,
+	createOrganization,
+	createUser,
+	login,
+	requiresLicense,
+} from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
 test.beforeEach(async ({ page }) => {
-	await beforeCoderTest(page);
+	beforeCoderTest(page);
+	await login(page);
 	await setupApiCalls(page);
 });
 
 test("add and remove organization member", async ({ page }) => {
 	requiresLicense();
 
-	// Create a new organization to test
-	await page.goto("/organizations/new", { waitUntil: "domcontentloaded" });
-	const name = randomName();
-	await page.getByLabel("Slug").fill(name);
-	await page.getByLabel("Display name").fill(`Org ${name}`);
-	await page.getByLabel("Description").fill(`Org description ${name}`);
-	await page.getByLabel("Icon", { exact: true }).fill("/emojis/1f957.png");
-	await page.getByRole("button", { name: "Submit" }).click();
+	// Create a new organization
+	const { name: orgName, displayName } = await createOrganization(page);
 
 	// Navigate to members page
-	await expectUrl(page).toHavePathName(`/organizations/${name}`);
-	await expect(page.getByText("Organization created.")).toBeVisible();
-	await page.getByText("Members").click();
+	await page.getByRole("link", { name: "Members" }).click();
+	await expect(page).toHaveTitle(`Members - ${displayName} - Coder`);
 
 	// Add a user to the org
 	const personToAdd = await createUser(page);
-	await page.getByPlaceholder("User email or username").fill(personToAdd.email);
-	await page.getByRole("option", { name: personToAdd.email }).click();
-	await page.getByRole("button", { name: "Add user" }).click();
-	const addedRow = page.locator("tr", { hasText: personToAdd.email });
-	await expect(addedRow).toBeVisible();
+	// This must be done as an admin, because you can't assign a role that has more
+	// permissions than you, even if you have the ability to assign roles.
+	await addUserToOrganization(page, orgName, personToAdd.email, [
+		"Organization User Admin",
+		"Organization Template Admin",
+	]);
 
-	// Give them a role
-	await addedRow.getByLabel("Edit user roles").click();
-	await page.getByText("Organization User Admin").click();
-	await page.getByText("Organization Template Admin").click();
-	await page.mouse.click(10, 10); // close the popover by clicking outside of it
+	const addedRow = page.locator("tr", { hasText: personToAdd.email });
 	await expect(addedRow.getByText("Organization User Admin")).toBeVisible();
 	await expect(addedRow.getByText("+1 more")).toBeVisible();
 
 	// Remove them from the org
-	await addedRow.getByLabel("More options").click();
-	await page.getByText("Remove").click(); // Click the "Remove" option
+	await addedRow.getByRole("button", { name: "Open menu" }).click();
+	const menu = page.getByRole("menu");
+	await menu.getByText("Remove").click();
 	await page.getByRole("button", { name: "Remove" }).click(); // Click "Remove" in the confirmation dialog
 	await expect(addedRow).not.toBeVisible();
 });

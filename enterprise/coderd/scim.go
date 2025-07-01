@@ -69,7 +69,7 @@ func (api *API) scimServiceProviderConfig(rw http.ResponseWriter, _ *http.Reques
 	enc.SetEscapeHTML(true)
 	_ = enc.Encode(scim.ServiceProviderConfig{
 		Schemas: []string{"urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"},
-		DocURI:  "https://coder.com/docs/admin/users/oidc-auth#scim-enterprise-premium",
+		DocURI:  "https://coder.com/docs/admin/users/oidc-auth#scim",
 		Patch: scim.Supported{
 			Supported: true,
 		},
@@ -93,7 +93,7 @@ func (api *API) scimServiceProviderConfig(rw http.ResponseWriter, _ *http.Reques
 				Type:        "oauthbearertoken",
 				Name:        "HTTP Header Authentication",
 				Description: "Authentication scheme using the Authorization header with the shared token",
-				DocURI:      "https://coder.com/docs/admin/users/oidc-auth#scim-enterprise-premium",
+				DocURI:      "https://coder.com/docs/admin/users/oidc-auth#scim",
 			},
 		},
 		Meta: scim.ServiceProviderMeta{
@@ -508,13 +508,13 @@ func (api *API) scimPutUser(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, sUser)
 }
 
-func immutabilityViolation[T comparable](old, new T) bool {
+func immutabilityViolation[T comparable](old, newVal T) bool {
 	var empty T
-	if new == empty {
+	if newVal == empty {
 		// No change
 		return false
 	}
-	return old != new
+	return old != newVal
 }
 
 //nolint:revive // active is not a control flag

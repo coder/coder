@@ -7,7 +7,6 @@ import {
 } from "api/queries/templates";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router-dom";
@@ -61,7 +60,7 @@ export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
 						uploadFileMutation.reset();
 					}
 				},
-				isUploading: uploadFileMutation.isLoading,
+				isUploading: uploadFileMutation.isPending,
 				onRemove: uploadFileMutation.reset,
 				file: uploadFileMutation.variables,
 			}}
@@ -73,6 +72,7 @@ export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
 						uploadedFile!.hash,
 						formData.user_variable_values,
 						formData.provisioner_type,
+						formData.tags,
 					),
 					template: newTemplate(formData),
 				});

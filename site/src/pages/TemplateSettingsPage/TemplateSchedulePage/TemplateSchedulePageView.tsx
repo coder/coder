@@ -3,7 +3,7 @@ import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import type { ComponentProps, FC } from "react";
 import { TemplateScheduleForm } from "./TemplateScheduleForm";
 
-export interface TemplateSchedulePageViewProps {
+interface TemplateSchedulePageViewProps {
 	template: Template;
 	onSubmit: (data: UpdateTemplateMeta) => void;
 	onCancel: () => void;

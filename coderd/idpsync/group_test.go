@@ -4,12 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -65,13 +65,9 @@ func TestParseGroupClaims(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest, tparallel
 func TestGroupSyncTable(t *testing.T) {
 	t.Parallel()
-
-	// Last checked, takes 30s with postgres on a fast machine.
-	if dbtestutil.WillUsePostgres() {
-		t.Skip("Skipping test because it populates a lot of db entries, which is slow on postgres.")
-	}
 
 	userClaims := jwt.MapClaims{
 		"groups": []string{
@@ -247,10 +243,11 @@ func TestGroupSyncTable(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
+		// The final test, "AllTogether", cannot run in parallel.
+		// These tests are nearly instant using the memory db, so
+		// this is still fast without being in parallel.
+		//nolint:paralleltest, tparallel
 		t.Run(tc.Name, func(t *testing.T) {
-			t.Parallel()
-
 			db, _ := dbtestutil.NewDB(t)
 			manager := runtimeconfig.NewManager()
 			s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
@@ -289,9 +286,8 @@ func TestGroupSyncTable(t *testing.T) {
 	// deployment. This tests all organizations being synced together.
 	// The reason we do them individually, is that it is much easier to
 	// debug a single test case.
+	//nolint:paralleltest, tparallel // This should run after all the individual tests
 	t.Run("AllTogether", func(t *testing.T) {
-		t.Parallel()
-
 		db, _ := dbtestutil.NewDB(t)
 		manager := runtimeconfig.NewManager()
 		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
@@ -344,8 +340,6 @@ func TestGroupSyncTable(t *testing.T) {
 		})
 
 		for _, tc := range testCases {
-			tc := tc
-
 			orgID := uuid.New()
 			SetupOrganization(t, s, db, user, orgID, tc)
 			asserts = append(asserts, func(t *testing.T) {
@@ -376,10 +370,6 @@ func TestGroupSyncTable(t *testing.T) {
 
 func TestSyncDisabled(t *testing.T) {
 	t.Parallel()
-
-	if dbtestutil.WillUsePostgres() {
-		t.Skip("Skipping test because it populates a lot of db entries, which is slow on postgres.")
-	}
 
 	db, _ := dbtestutil.NewDB(t)
 	manager := runtimeconfig.NewManager()
@@ -530,7 +520,6 @@ func TestApplyGroupDifference(t *testing.T) {
 	}
 
 	for _, tc := range testCase {
-		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -720,7 +709,6 @@ func TestExpectedGroupEqual(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -872,7 +860,7 @@ func (o orgSetupDefinition) Assert(t *testing.T, orgID uuid.UUID, db database.St
 	}
 }
 
-func (o orgGroupAssert) Assert(t *testing.T, orgID uuid.UUID, db database.Store, user database.User) {
+func (o *orgGroupAssert) Assert(t *testing.T, orgID uuid.UUID, db database.Store, user database.User) {
 	t.Helper()
 
 	ctx := context.Background()

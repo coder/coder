@@ -29,7 +29,7 @@ func TestExternalAuth(t *testing.T) {
 		inv.Stdout = pty.Output()
 		waiter := clitest.StartWithWaiter(t, inv)
 		pty.ExpectMatch("https://github.com")
-		waiter.RequireIs(cliui.Canceled)
+		waiter.RequireIs(cliui.ErrCanceled)
 	})
 	t.Run("SuccessWithToken", func(t *testing.T) {
 		t.Parallel()

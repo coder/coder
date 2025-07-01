@@ -1,10 +1,6 @@
-import AddIcon from "@mui/icons-material/AddOutlined";
-import DeleteIcon from "@mui/icons-material/DeleteOutlined";
 import EditIcon from "@mui/icons-material/EditOutlined";
-import CopyIcon from "@mui/icons-material/FileCopyOutlined";
-import SettingsIcon from "@mui/icons-material/SettingsOutlined";
 import Button from "@mui/material/Button";
-import Divider from "@mui/material/Divider";
+import { API } from "api/api";
 import { workspaces } from "api/queries/workspaces";
 import type {
 	AuthorizationResponse,
@@ -12,17 +8,18 @@ import type {
 	TemplateVersion,
 } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
+import { Button as ShadcnButton } from "components/Button/Button";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
 import { Margins } from "components/Margins/Margins";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
-import {
-	MoreMenu,
-	MoreMenuContent,
-	MoreMenuItem,
-	MoreMenuTrigger,
-	ThreeDotsButton,
-} from "components/MoreMenu/MoreMenu";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
@@ -30,10 +27,19 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
+import { CopyIcon, DownloadIcon } from "lucide-react";
+import {
+	EllipsisVertical,
+	PlusIcon,
+	SettingsIcon,
+	TrashIcon,
+} from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
+import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { TemplateStats } from "./TemplateStats";
 import { useDeletionDialogState } from "./useDeletionDialogState";
 
 type TemplateMenuProps = {
@@ -41,6 +47,7 @@ type TemplateMenuProps = {
 	templateName: string;
 	templateVersion: string;
 	templateId: string;
+	fileId: string;
 	onDelete: () => void;
 };
 
@@ -49,6 +56,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 	templateName,
 	templateVersion,
 	templateId,
+	fileId,
 	onDelete,
 }) => {
 	const dialogState = useDeletionDialogState(templateId, onDelete);
@@ -63,46 +71,78 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 
 	const templateLink = getLink(linkToTemplate(organizationName, templateName));
 
+	const handleExport = async (format?: "zip") => {
+		try {
+			const blob = await API.downloadTemplateVersion(fileId, format);
+			const url = window.URL.createObjectURL(blob);
+			const link = document.createElement("a");
+			link.href = url;
+			const extension = format === "zip" ? "zip" : "tar";
+			link.download = `${templateName}-${templateVersion}.${extension}`;
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+			window.URL.revokeObjectURL(url);
+		} catch (error) {
+			console.error("Failed to export template:", error);
+			// TODO: Show user-friendly error message
+		}
+	};
+
 	return (
 		<>
-			<MoreMenu>
-				<MoreMenuTrigger>
-					<ThreeDotsButton />
-				</MoreMenuTrigger>
-				<MoreMenuContent>
-					<MoreMenuItem
-						onClick={() => {
-							navigate(`${templateLink}/settings`);
-						}}
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<ShadcnButton size="icon-lg" variant="subtle" aria-label="Open menu">
+						<EllipsisVertical aria-hidden="true" />
+						<span className="sr-only">Open menu</span>
+					</ShadcnButton>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="end">
+					<DropdownMenuItem
+						onClick={() => navigate(`${templateLink}/settings`)}
 					>
-						<SettingsIcon />
+						<SettingsIcon className="size-icon-sm" />
 						Settings
-					</MoreMenuItem>
+					</DropdownMenuItem>
 
-					<MoreMenuItem
-						onClick={() => {
-							navigate(`${templateLink}/versions/${templateVersion}/edit`);
-						}}
+					<DropdownMenuItem
+						onClick={() =>
+							navigate(`${templateLink}/versions/${templateVersion}/edit`)
+						}
 					>
 						<EditIcon />
 						Edit files
-					</MoreMenuItem>
+					</DropdownMenuItem>
 
-					<MoreMenuItem
-						onClick={() => {
-							navigate(`/templates/new?fromTemplate=${templateId}`);
-						}}
+					<DropdownMenuItem
+						onClick={() =>
+							navigate(`/templates/new?fromTemplate=${templateId}`)
+						}
 					>
-						<CopyIcon />
+						<CopyIcon className="size-icon-sm" />
 						Duplicate&hellip;
-					</MoreMenuItem>
-					<Divider />
-					<MoreMenuItem onClick={dialogState.openDeleteConfirmation} danger>
-						<DeleteIcon />
+					</DropdownMenuItem>
+
+					<DropdownMenuItem onClick={() => handleExport()}>
+						<DownloadIcon className="size-icon-sm" />
+						Export as TAR
+					</DropdownMenuItem>
+
+					<DropdownMenuItem onClick={() => handleExport("zip")}>
+						<DownloadIcon className="size-icon-sm" />
+						Export as ZIP
+					</DropdownMenuItem>
+					<DropdownMenuSeparator />
+					<DropdownMenuItem
+						className="text-content-destructive focus:text-content-destructive"
+						onClick={dialogState.openDeleteConfirmation}
+					>
+						<TrashIcon />
 						Delete&hellip;
-					</MoreMenuItem>
-				</MoreMenuContent>
-			</MoreMenu>
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
 
 			{safeToDeleteTemplate ? (
 				<DeleteDialog
@@ -154,10 +194,11 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 	);
 };
 
-export type TemplatePageHeaderProps = {
+type TemplatePageHeaderProps = {
 	template: Template;
 	activeVersion: TemplateVersion;
 	permissions: AuthorizationResponse;
+	workspacePermissions: WorkspacePermissions;
 	onDeleteTemplate: () => void;
 };
 
@@ -165,10 +206,10 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 	template,
 	activeVersion,
 	permissions,
+	workspacePermissions,
 	onDeleteTemplate,
 }) => {
 	const getLink = useLinks();
-	const hasIcon = template.icon && template.icon !== "";
 	const templateLink = getLink(
 		linkToTemplate(template.organization_name, template.name),
 	);
@@ -178,16 +219,17 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 			<PageHeader
 				actions={
 					<>
-						{!template.deprecated && (
-							<Button
-								variant="contained"
-								startIcon={<AddIcon />}
-								component={RouterLink}
-								to={`${templateLink}/workspace`}
-							>
-								Create Workspace
-							</Button>
-						)}
+						{!template.deprecated &&
+							workspacePermissions.createWorkspaceForUserID && (
+								<Button
+									variant="contained"
+									startIcon={<PlusIcon className="size-icon-sm" />}
+									component={RouterLink}
+									to={`${templateLink}/workspace`}
+								>
+									Create Workspace
+								</Button>
+							)}
 
 						{permissions.canUpdateTemplate && (
 							<TemplateMenu
@@ -195,18 +237,20 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 								templateId={template.id}
 								templateName={template.name}
 								templateVersion={activeVersion.name}
+								fileId={activeVersion.job.file_id}
 								onDelete={onDeleteTemplate}
 							/>
 						)}
 					</>
 				}
 			>
-				<Stack direction="row" spacing={3} alignItems="center">
-					{hasIcon ? (
-						<Avatar size="xl" src={template.icon} variant="square" fitImage />
-					) : (
-						<Avatar size="xl">{template.name}</Avatar>
-					)}
+				<Stack direction="row">
+					<Avatar
+						size="lg"
+						variant="icon"
+						src={template.icon}
+						fallback={template.name}
+					/>
 
 					<div>
 						<Stack direction="row" alignItems="center" spacing={1}>
@@ -234,6 +278,9 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 					</div>
 				</Stack>
 			</PageHeader>
+			<div className="pb-8">
+				<TemplateStats template={template} activeVersion={activeVersion} />
+			</div>
 		</Margins>
 	);
 };

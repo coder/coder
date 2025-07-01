@@ -1,0 +1,37 @@
+alertmanager:
+  enabled: false
+grafana:
+  enabled: false
+prometheusOperator:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: "cloud.google.com/gke-nodepool"
+            operator: "In"
+            values: ["${nodepool}"]
+prometheus:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: "cloud.google.com/gke-nodepool"
+            operator: "In"
+            values: ["${nodepool}"]
+  prometheusSpec:
+    externalLabels:
+      cluster: "${cluster}"
+    podMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    remoteWrite:
+      - url: "${prometheus_remote_write_url}"
+        tlsConfig:
+          insecureSkipVerify: true
+        writeRelabelConfigs:
+          - sourceLabels: [__name__]
+            regex: "${prometheus_remote_write_metrics_regex}"
+            action: keep
+        metadataConfig:
+          sendInterval: "${prometheus_remote_write_send_interval}"

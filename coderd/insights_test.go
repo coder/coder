@@ -23,12 +23,12 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
@@ -48,16 +48,27 @@ func TestDeploymentInsights(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 	logger := testutil.Logger(t)
 	rollupEvents := make(chan dbrollup.Event)
+	statsInterval := 500 * time.Millisecond
+	// Speed up the test by controlling batch size and interval.
+	batcher, closeBatcher, err := workspacestats.NewBatcher(context.Background(),
+		workspacestats.BatcherWithLogger(logger.Named("batcher").Leveled(slog.LevelDebug)),
+		workspacestats.BatcherWithStore(db),
+		workspacestats.BatcherWithBatchSize(1),
+		workspacestats.BatcherWithInterval(statsInterval),
+	)
+	require.NoError(t, err)
+	defer closeBatcher()
 	client := coderdtest.New(t, &coderdtest.Options{
 		Database:                  db,
 		Pubsub:                    ps,
 		Logger:                    &logger,
 		IncludeProvisionerDaemon:  true,
-		AgentStatsRefreshInterval: time.Millisecond * 100,
+		AgentStatsRefreshInterval: statsInterval,
+		StatsBatcher:              batcher,
 		DatabaseRolluper: dbrollup.New(
 			logger.Named("dbrollup").Leveled(slog.LevelDebug),
 			db,
-			dbrollup.WithInterval(time.Millisecond*100),
+			dbrollup.WithInterval(statsInterval/2),
 			dbrollup.WithEventChannel(rollupEvents),
 		),
 	})
@@ -76,7 +87,7 @@ func TestDeploymentInsights(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 	// Pre-check, no  permission issues.
 	daus, err := client.DeploymentDAUs(ctx, codersdk.TimezoneOffsetHour(clientTz))
@@ -108,6 +119,13 @@ func TestDeploymentInsights(t *testing.T) {
 	err = sess.Start("cat")
 	require.NoError(t, err)
 
+	select {
+	case <-ctx.Done():
+		require.Fail(t, "timed out waiting for initial rollup event", ctx.Err())
+	case ev := <-rollupEvents:
+		require.True(t, ev.Init, "want init event")
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -120,6 +138,7 @@ func TestDeploymentInsights(t *testing.T) {
 		if len(daus.Entries) > 0 && daus.Entries[len(daus.Entries)-1].Amount > 0 {
 			break
 		}
+		t.Logf("waiting for deployment daus to update: %+v", daus)
 	}
 }
 
@@ -531,8 +550,6 @@ func TestTemplateInsights_Golden(t *testing.T) {
 
 		// Prepare all the templates.
 		for _, template := range templates {
-			template := template
-
 			var parameters []*proto.RichParameter
 			for _, parameter := range template.parameters {
 				var options []*proto.RichParameterOption
@@ -563,10 +580,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			)
 			var resources []*proto.Resource
 			for _, user := range users {
-				user := user
 				for _, workspace := range user.workspaces {
-					workspace := workspace
-
 					if workspace.template != template {
 						continue
 					}
@@ -590,8 +604,8 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						Name: "example",
 						Type: "aws_instance",
 						Agents: []*proto.Agent{{
-							Id:   uuid.NewString(), // Doesn't matter, not used in DB.
-							Name: "dev",
+							Id:   uuid.NewString(),                      // Doesn't matter, not used in DB.
+							Name: fmt.Sprintf("dev-%d", len(resources)), // Ensure unique name per agent
 							Auth: &proto.Agent_Token{
 								Token: authToken.String(),
 							},
@@ -656,7 +670,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 				OrganizationID:  firstUser.OrganizationID,
 				CreatedBy:       firstUser.UserID,
 				GroupACL: database.TemplateACL{
-					firstUser.OrganizationID.String(): []policy.Action{policy.ActionRead},
+					firstUser.OrganizationID.String(): db2sdk.TemplateRoleActions(codersdk.TemplateRoleUse),
 				},
 			})
 			err := db.UpdateTemplateVersionByID(context.Background(), database.UpdateTemplateVersionByIDParams{
@@ -1227,7 +1241,6 @@ func TestTemplateInsights_Golden(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1242,7 +1255,6 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			_, _ = <-events, <-events
 
 			for _, req := range tt.requests {
-				req := req
 				t.Run(req.name, func(t *testing.T) {
 					t.Parallel()
 
@@ -1276,7 +1288,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					}
 
 					f, err := os.Open(goldenFile)
-					require.NoError(t, err, "open golden file, run \"make update-golden-files\" and commit the changes")
+					require.NoError(t, err, "open golden file, run \"make gen/golden-files\" and commit the changes")
 					defer f.Close()
 					var want codersdk.TemplateInsightsResponse
 					err = json.NewDecoder(f).Decode(&want)
@@ -1292,7 +1304,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						}),
 					}
 					// Use cmp.Diff here because it produces more readable diffs.
-					assert.Empty(t, cmp.Diff(want, report, cmpOpts...), "golden file mismatch (-want +got): %s, run \"make update-golden-files\", verify and commit the changes", goldenFile)
+					assert.Empty(t, cmp.Diff(want, report, cmpOpts...), "golden file mismatch (-want +got): %s, run \"make gen/golden-files\", verify and commit the changes", goldenFile)
 				})
 			}
 		})
@@ -1470,8 +1482,6 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 
 		// Prepare all the templates.
 		for _, template := range templates {
-			template := template
-
 			// Prepare all workspace resources (agents and apps).
 			var (
 				createWorkspaces []func(uuid.UUID)
@@ -1479,10 +1489,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			)
 			var resources []*proto.Resource
 			for _, user := range users {
-				user := user
 				for _, workspace := range user.workspaces {
-					workspace := workspace
-
 					if workspace.template != template {
 						continue
 					}
@@ -1506,8 +1513,8 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 						Name: "example",
 						Type: "aws_instance",
 						Agents: []*proto.Agent{{
-							Id:   uuid.NewString(), // Doesn't matter, not used in DB.
-							Name: "dev",
+							Id:   uuid.NewString(),                      // Doesn't matter, not used in DB.
+							Name: fmt.Sprintf("dev-%d", len(resources)), // Ensure unique name per agent
 							Auth: &proto.Agent_Token{
 								Token: authToken.String(),
 							},
@@ -1554,7 +1561,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 				OrganizationID:  firstUser.OrganizationID,
 				CreatedBy:       firstUser.UserID,
 				GroupACL: database.TemplateACL{
-					firstUser.OrganizationID.String(): []policy.Action{policy.ActionRead},
+					firstUser.OrganizationID.String(): db2sdk.TemplateRoleActions(codersdk.TemplateRoleUse),
 				},
 			})
 			err := db.UpdateTemplateVersionByID(context.Background(), database.UpdateTemplateVersionByIDParams{
@@ -2012,7 +2019,6 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -2027,7 +2033,6 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			_, _ = <-events, <-events
 
 			for _, req := range tt.requests {
-				req := req
 				t.Run(req.name, func(t *testing.T) {
 					t.Parallel()
 
@@ -2057,7 +2062,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 					}
 
 					f, err := os.Open(goldenFile)
-					require.NoError(t, err, "open golden file, run \"make update-golden-files\" and commit the changes")
+					require.NoError(t, err, "open golden file, run \"make gen/golden-files\" and commit the changes")
 					defer f.Close()
 					var want codersdk.UserActivityInsightsResponse
 					err = json.NewDecoder(f).Decode(&want)
@@ -2073,7 +2078,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 						}),
 					}
 					// Use cmp.Diff here because it produces more readable diffs.
-					assert.Empty(t, cmp.Diff(want, report, cmpOpts...), "golden file mismatch (-want +got): %s, run \"make update-golden-files\", verify and commit the changes", goldenFile)
+					assert.Empty(t, cmp.Diff(want, report, cmpOpts...), "golden file mismatch (-want +got): %s, run \"make gen/golden-files\", verify and commit the changes", goldenFile)
 				})
 			}
 		})
@@ -2140,8 +2145,6 @@ func TestTemplateInsights_RBAC(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
-
 		t.Run(fmt.Sprintf("with interval=%q", tt.interval), func(t *testing.T) {
 			t.Parallel()
 
@@ -2260,9 +2263,6 @@ func TestGenericInsights_RBAC(t *testing.T) {
 	}
 
 	for endpointName, endpoint := range endpoints {
-		endpointName := endpointName
-		endpoint := endpoint
-
 		t.Run(fmt.Sprintf("With%sEndpoint", endpointName), func(t *testing.T) {
 			t.Parallel()
 
@@ -2272,8 +2272,6 @@ func TestGenericInsights_RBAC(t *testing.T) {
 			}
 
 			for _, tt := range tests {
-				tt := tt
-
 				t.Run("AsOwner", func(t *testing.T) {
 					t.Parallel()
 

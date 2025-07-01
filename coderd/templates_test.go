@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"sync/atomic"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
@@ -441,6 +443,250 @@ func TestPostTemplateByOrganization(t *testing.T) {
 	})
 }
 
+func TestTemplates(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ListEmpty", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		templates, err := client.Templates(ctx, codersdk.TemplateFilter{})
+		require.NoError(t, err)
+		require.NotNil(t, templates)
+		require.Len(t, templates, 0)
+	})
+
+	// Should return only non-deprecated templates by default
+	t.Run("ListMultiple non-deprecated", func(t *testing.T) {
+		t.Parallel()
+
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: false})
+		user := coderdtest.CreateFirstUser(t, owner)
+		client, tplAdmin := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		foo := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "foo"
+		})
+		bar := coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "bar"
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Deprecate bar template
+		deprecationMessage := "Some deprecated message"
+		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+			ID:                   bar.ID,
+			RequireActiveVersion: false,
+			Deprecated:           deprecationMessage,
+		})
+		require.NoError(t, err)
+
+		updatedBar, err := client.Template(ctx, bar.ID)
+		require.NoError(t, err)
+		require.True(t, updatedBar.Deprecated)
+		require.Equal(t, deprecationMessage, updatedBar.DeprecationMessage)
+
+		// Should return only the non-deprecated template (foo)
+		templates, err := client.Templates(ctx, codersdk.TemplateFilter{})
+		require.NoError(t, err)
+		require.Len(t, templates, 1)
+
+		require.Equal(t, foo.ID, templates[0].ID)
+		require.False(t, templates[0].Deprecated)
+		require.Empty(t, templates[0].DeprecationMessage)
+	})
+
+	// Should return only deprecated templates when filtering by deprecated:true
+	t.Run("ListMultiple deprecated:true", func(t *testing.T) {
+		t.Parallel()
+
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: false})
+		user := coderdtest.CreateFirstUser(t, owner)
+		client, tplAdmin := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		foo := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "foo"
+		})
+		bar := coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "bar"
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Deprecate foo and bar templates
+		deprecationMessage := "Some deprecated message"
+		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+			ID:                   foo.ID,
+			RequireActiveVersion: false,
+			Deprecated:           deprecationMessage,
+		})
+		require.NoError(t, err)
+		err = db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+			ID:                   bar.ID,
+			RequireActiveVersion: false,
+			Deprecated:           deprecationMessage,
+		})
+		require.NoError(t, err)
+
+		// Should have deprecation message set
+		updatedFoo, err := client.Template(ctx, foo.ID)
+		require.NoError(t, err)
+		require.True(t, updatedFoo.Deprecated)
+		require.Equal(t, deprecationMessage, updatedFoo.DeprecationMessage)
+
+		updatedBar, err := client.Template(ctx, bar.ID)
+		require.NoError(t, err)
+		require.True(t, updatedBar.Deprecated)
+		require.Equal(t, deprecationMessage, updatedBar.DeprecationMessage)
+
+		// Should return only the deprecated templates (foo and bar)
+		templates, err := client.Templates(ctx, codersdk.TemplateFilter{
+			SearchQuery: "deprecated:true",
+		})
+		require.NoError(t, err)
+		require.Len(t, templates, 2)
+
+		// Make sure all the deprecated templates are returned
+		expectedTemplates := map[uuid.UUID]codersdk.Template{
+			updatedFoo.ID: updatedFoo,
+			updatedBar.ID: updatedBar,
+		}
+		actualTemplates := map[uuid.UUID]codersdk.Template{}
+		for _, template := range templates {
+			actualTemplates[template.ID] = template
+		}
+
+		require.Equal(t, len(expectedTemplates), len(actualTemplates))
+		for id, expectedTemplate := range expectedTemplates {
+			actualTemplate, ok := actualTemplates[id]
+			require.True(t, ok)
+			require.Equal(t, expectedTemplate.ID, actualTemplate.ID)
+			require.Equal(t, true, actualTemplate.Deprecated)
+			require.Equal(t, expectedTemplate.DeprecationMessage, actualTemplate.DeprecationMessage)
+		}
+	})
+
+	// Should return only non-deprecated templates when filtering by deprecated:false
+	t.Run("ListMultiple deprecated:false", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		foo := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "foo"
+		})
+		bar := coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "bar"
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Should return only the non-deprecated templates
+		templates, err := client.Templates(ctx, codersdk.TemplateFilter{
+			SearchQuery: "deprecated:false",
+		})
+		require.NoError(t, err)
+		require.Len(t, templates, 2)
+
+		// Make sure all the non-deprecated templates are returned
+		expectedTemplates := map[uuid.UUID]codersdk.Template{
+			foo.ID: foo,
+			bar.ID: bar,
+		}
+		actualTemplates := map[uuid.UUID]codersdk.Template{}
+		for _, template := range templates {
+			actualTemplates[template.ID] = template
+		}
+
+		require.Equal(t, len(expectedTemplates), len(actualTemplates))
+		for id, expectedTemplate := range expectedTemplates {
+			actualTemplate, ok := actualTemplates[id]
+			require.True(t, ok)
+			require.Equal(t, expectedTemplate.ID, actualTemplate.ID)
+			require.Equal(t, false, actualTemplate.Deprecated)
+			require.Equal(t, expectedTemplate.DeprecationMessage, actualTemplate.DeprecationMessage)
+		}
+	})
+
+	// Should return a re-enabled template in the default (non-deprecated) list
+	t.Run("ListMultiple re-enabled template", func(t *testing.T) {
+		t.Parallel()
+
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: false})
+		user := coderdtest.CreateFirstUser(t, owner)
+		client, tplAdmin := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		foo := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "foo"
+		})
+		bar := coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "bar"
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Deprecate bar template
+		deprecationMessage := "Some deprecated message"
+		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+			ID:                   bar.ID,
+			RequireActiveVersion: false,
+			Deprecated:           deprecationMessage,
+		})
+		require.NoError(t, err)
+
+		updatedBar, err := client.Template(ctx, bar.ID)
+		require.NoError(t, err)
+		require.True(t, updatedBar.Deprecated)
+		require.Equal(t, deprecationMessage, updatedBar.DeprecationMessage)
+
+		// Re-enable bar template
+		err = db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+			ID:                   bar.ID,
+			RequireActiveVersion: false,
+			Deprecated:           "",
+		})
+		require.NoError(t, err)
+
+		reEnabledBar, err := client.Template(ctx, bar.ID)
+		require.NoError(t, err)
+		require.False(t, reEnabledBar.Deprecated)
+		require.Empty(t, reEnabledBar.DeprecationMessage)
+
+		// Should return only the non-deprecated templates (foo and bar)
+		templates, err := client.Templates(ctx, codersdk.TemplateFilter{})
+		require.NoError(t, err)
+		require.Len(t, templates, 2)
+
+		// Make sure all the non-deprecated templates are returned
+		expectedTemplates := map[uuid.UUID]codersdk.Template{
+			foo.ID: foo,
+			bar.ID: bar,
+		}
+		actualTemplates := map[uuid.UUID]codersdk.Template{}
+		for _, template := range templates {
+			actualTemplates[template.ID] = template
+		}
+
+		require.Equal(t, len(expectedTemplates), len(actualTemplates))
+		for id, expectedTemplate := range expectedTemplates {
+			actualTemplate, ok := actualTemplates[id]
+			require.True(t, ok)
+			require.Equal(t, expectedTemplate.ID, actualTemplate.ID)
+			require.Equal(t, false, actualTemplate.Deprecated)
+			require.Equal(t, expectedTemplate.DeprecationMessage, actualTemplate.DeprecationMessage)
+		}
+	})
+}
+
 func TestTemplatesByOrganization(t *testing.T) {
 	t.Parallel()
 	t.Run("ListEmpty", func(t *testing.T) {
@@ -524,6 +770,48 @@ func TestTemplatesByOrganization(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, templates, 1)
 		require.Equal(t, bar.ID, templates[0].ID)
+	})
+
+	// Should return only non-deprecated templates by default
+	t.Run("ListMultiple non-deprecated", func(t *testing.T) {
+		t.Parallel()
+
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: false})
+		user := coderdtest.CreateFirstUser(t, owner)
+		client, tplAdmin := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		foo := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "foo"
+		})
+		bar := coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "bar"
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Deprecate bar template
+		deprecationMessage := "Some deprecated message"
+		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+			ID:                   bar.ID,
+			RequireActiveVersion: false,
+			Deprecated:           deprecationMessage,
+		})
+		require.NoError(t, err)
+
+		updatedBar, err := client.Template(ctx, bar.ID)
+		require.NoError(t, err)
+		require.True(t, updatedBar.Deprecated)
+		require.Equal(t, deprecationMessage, updatedBar.DeprecationMessage)
+
+		// Should return only the non-deprecated template (foo)
+		templates, err := client.TemplatesByOrganization(ctx, user.OrganizationID)
+		require.NoError(t, err)
+		require.Len(t, templates, 1)
+
+		require.Equal(t, foo.ID, templates[0].ID)
+		require.False(t, templates[0].Deprecated)
+		require.Empty(t, templates[0].DeprecationMessage)
 	})
 }
 
@@ -1254,6 +1542,41 @@ func TestPatchTemplateMeta(t *testing.T) {
 			require.False(t, template.Deprecated)
 		})
 	})
+
+	t.Run("ClassicParameterFlow", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.True(t, template.UseClassicParameterFlow, "default is true")
+
+		bTrue := true
+		bFalse := false
+		req := codersdk.UpdateTemplateMeta{
+			UseClassicParameterFlow: &bTrue,
+		}
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// set to true
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.True(t, updated.UseClassicParameterFlow, "expected true")
+
+		// noop
+		req.UseClassicParameterFlow = nil
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.True(t, updated.UseClassicParameterFlow, "expected true")
+
+		// back to false
+		req.UseClassicParameterFlow = &bFalse
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.False(t, updated.UseClassicParameterFlow, "expected false")
+	})
 }
 
 func TestDeleteTemplate(t *testing.T) {
@@ -1487,4 +1810,67 @@ func TestTemplateNotifications(t *testing.T) {
 			}
 		})
 	})
+}
+
+func TestTemplateFilterHasAITask(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:                 db,
+		Pubsub:                   pubsub,
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	jobWithAITask := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+		OrganizationID: user.OrganizationID,
+		InitiatorID:    user.UserID,
+		Tags:           database.StringMap{},
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	jobWithoutAITask := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+		OrganizationID: user.OrganizationID,
+		InitiatorID:    user.UserID,
+		Tags:           database.StringMap{},
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	versionWithAITask := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: user.OrganizationID,
+		CreatedBy:      user.UserID,
+		HasAITask:      sql.NullBool{Bool: true, Valid: true},
+		JobID:          jobWithAITask.ID,
+	})
+	versionWithoutAITask := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: user.OrganizationID,
+		CreatedBy:      user.UserID,
+		HasAITask:      sql.NullBool{Bool: false, Valid: true},
+		JobID:          jobWithoutAITask.ID,
+	})
+	templateWithAITask := coderdtest.CreateTemplate(t, client, user.OrganizationID, versionWithAITask.ID)
+	templateWithoutAITask := coderdtest.CreateTemplate(t, client, user.OrganizationID, versionWithoutAITask.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Test filtering
+	templates, err := client.Templates(ctx, codersdk.TemplateFilter{
+		SearchQuery: "has-ai-task:true",
+	})
+	require.NoError(t, err)
+	require.Len(t, templates, 1)
+	require.Equal(t, templateWithAITask.ID, templates[0].ID)
+
+	templates, err = client.Templates(ctx, codersdk.TemplateFilter{
+		SearchQuery: "has-ai-task:false",
+	})
+	require.NoError(t, err)
+	require.Len(t, templates, 1)
+	require.Equal(t, templateWithoutAITask.ID, templates[0].ID)
+
+	templates, err = client.Templates(ctx, codersdk.TemplateFilter{})
+	require.NoError(t, err)
+	require.Len(t, templates, 2)
+	require.Contains(t, templates, templateWithAITask)
+	require.Contains(t, templates, templateWithoutAITask)
 }

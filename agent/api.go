@@ -35,9 +35,23 @@ func (a *agent) apiHandler() http.Handler {
 		ignorePorts:   cpy,
 		cacheDuration: cacheDuration,
 	}
+
+	if a.containerAPI != nil {
+		r.Mount("/api/v0/containers", a.containerAPI.Routes())
+	} else {
+		r.HandleFunc("/api/v0/containers", func(w http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), w, http.StatusForbidden, codersdk.Response{
+				Message: "The agent dev containers feature is experimental and not enabled by default.",
+				Detail:  "To enable this feature, set CODER_AGENT_DEVCONTAINERS_ENABLE=true in your template.",
+			})
+		})
+	}
+
 	promHandler := PrometheusMetricsHandler(a.prometheusRegistry, a.logger)
+
 	r.Get("/api/v0/listening-ports", lp.handler)
 	r.Get("/api/v0/netcheck", a.HandleNetcheck)
+	r.Post("/api/v0/list-directory", a.HandleLS)
 	r.Get("/debug/logs", a.HandleHTTPDebugLogs)
 	r.Get("/debug/magicsock", a.HandleHTTPDebugMagicsock)
 	r.Get("/debug/magicsock/debug-logging/{state}", a.HandleHTTPMagicsockDebugLoggingState)

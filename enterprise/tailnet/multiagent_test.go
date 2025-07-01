@@ -10,6 +10,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/enterprise/tailnet"
+	agpl "github.com/coder/coder/v2/tailnet"
 	agpltest "github.com/coder/coder/v2/tailnet/test"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -77,7 +78,7 @@ func TestPGCoordinator_MultiAgent_CoordClose(t *testing.T) {
 	err = coord1.Close()
 	require.NoError(t, err)
 
-	ma1.AssertEventuallyResponsesClosed()
+	ma1.AssertEventuallyResponsesClosed(agpl.CloseErrCoordinatorClose)
 }
 
 // TestPGCoordinator_MultiAgent_UnsubscribeRace tests a single coordinator with

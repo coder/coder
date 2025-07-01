@@ -78,7 +78,7 @@ func TestUpdate(t *testing.T) {
 		})
 		errCh <- err
 	}()
-	testutil.RequireRecvCtx(ctx, t, fetchStarted)
+	testutil.TryReceive(ctx, t, fetchStarted)
 	require.False(t, set.Enabled(codersdk.FeatureMultipleOrganizations))
 	// start a second update while the first one is in progress
 	go func() {
@@ -97,9 +97,9 @@ func TestUpdate(t *testing.T) {
 		errCh <- err
 	}()
 	close(firstDone)
-	err := testutil.RequireRecvCtx(ctx, t, errCh)
+	err := testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
-	err = testutil.RequireRecvCtx(ctx, t, errCh)
+	err = testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	require.True(t, set.Enabled(codersdk.FeatureMultipleOrganizations))
 	require.True(t, set.Enabled(codersdk.FeatureAppearance))

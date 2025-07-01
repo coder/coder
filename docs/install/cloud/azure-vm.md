@@ -12,7 +12,7 @@ This guide assumes you have full administrator privileges on Azure.
 From the Azure Portal, navigate to the Virtual Machines Dashboard. Click Create,
 and select creating a new Azure Virtual machine .
 
-<img src="../../images/platforms/azure/azure1.jpg">
+<img src="../../images/platforms/azure/azure1.jpg" alt="Azure VM creation page">
 
 This will bring you to the `Create a virtual machine` page. Select the
 subscription group of your choice, or create one if necessary.
@@ -22,14 +22,14 @@ of your choice. Change the region to something more appropriate for your current
 location. For this tutorial, we will use the base selection of the Ubuntu Gen2
 Image and keep the rest of the base settings for this image the same.
 
-<img src="../../images/platforms/azure/azure2.png">
+<img src="../../images/platforms/azure/azure2.png" alt="Azure VM instance details">
 
-<img src="../../images/platforms/azure/azure3.png">
+<img src="../../images/platforms/azure/azure3.png" alt="Azure VM size selection">
 
 Up next, under `Inbound port rules` modify the Select `inbound ports` to also
 take in `HTTPS` and `HTTP`.
 
-<img src="../../images/platforms/azure/azure4.png">
+<img src="../../images/platforms/azure/azure4.png" alt="Azure VM inbound port rules">
 
 The set up for the image is complete at this stage. Click `Review and Create` -
 review the information and click `Create`. A popup will appear asking you to
@@ -37,11 +37,11 @@ download the key pair for the server. Click
 `Download private key and create resource` and place it into a folder of your
 choice on your local system.
 
-<img src="../../images/platforms/azure/azure5.png">
+<img src="../../images/platforms/azure/azure5.png" alt="Azure VM key pair generation">
 
 Click `Return to create a virtual machine`. Your VM will start up!
 
-<img src="../../images/platforms/azure/azure6.png">
+<img src="../../images/platforms/azure/azure6.png" alt="Azure VM deployment complete">
 
 Click `Go to resource` in the virtual machine and copy the public IP address.
 You will need it to SSH into the virtual machine via your local machine.
@@ -100,12 +100,12 @@ First, run `coder template init` to create your first template. You’ll be give
 a list of possible templates to use. This tutorial will show you how to set up
 your Coder instance to create a Linux based machine on Azure.
 
-<img src="../../images/platforms/azure/azure9.png">
+<img src="../../images/platforms/azure/azure9.png" alt="Coder CLI template init">
 
 Press `enter` to select `Develop in Linux on Azure` template. This will return
 the following:
 
-<img src="../../images/platforms/azure/azure10.png">
+<img src="../../images/platforms/azure/azure10.png" alt="Coder CLI template init">
 
 To get started using the Azure template, install the Azure CLI by following the
 instructions

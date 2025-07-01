@@ -20,19 +20,19 @@ func main() {
 	defer l.Close()
 	tcpAddr, valid := l.Addr().(*net.TCPAddr)
 	if !valid {
-		log.Fatal("address is not valid")
+		log.Panic("address is not valid")
 	}
 
 	remotePort := tcpAddr.Port
 	_, err = fmt.Println(remotePort)
 	if err != nil {
-		log.Fatalf("print error: err=%s", err)
+		log.Panicf("print error: err=%s", err)
 	}
 
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			log.Fatalf("accept error, err=%s", err)
+			log.Panicf("accept error, err=%s", err)
 			return
 		}
 
@@ -43,7 +43,7 @@ func main() {
 			if errors.Is(err, io.EOF) {
 				return
 			} else if err != nil {
-				log.Fatalf("copy error, err=%s", err)
+				log.Panicf("copy error, err=%s", err)
 			}
 		}()
 	}

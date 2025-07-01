@@ -1,14 +1,14 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { MockUser, MockWorkspace } from "testHelpers/entities";
+import { MockUserOwner, MockWorkspace } from "testHelpers/entities";
 import { renderWithWorkspaceSettingsLayout } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import {
 	Language as FormLanguage,
 	type WorkspaceScheduleFormValues,
 } from "./WorkspaceScheduleForm";
-import { WorkspaceSchedulePage } from "./WorkspaceSchedulePage";
+import WorkspaceSchedulePage from "./WorkspaceSchedulePage";
 import {
 	formValuesToAutostartRequest,
 	formValuesToTTLRequest,
@@ -258,7 +258,7 @@ describe("WorkspaceSchedulePage", () => {
 				}),
 			);
 			renderWithWorkspaceSettingsLayout(<WorkspaceSchedulePage />, {
-				route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
+				route: `/@${MockUserOwner.username}/${MockWorkspace.name}/schedule`,
 				path: "/:username/:workspace/schedule",
 			});
 			const user = userEvent.setup();
@@ -279,7 +279,7 @@ describe("WorkspaceSchedulePage", () => {
 	describe("autostop change dialog", () => {
 		it("shows if autostop is changed", async () => {
 			renderWithWorkspaceSettingsLayout(<WorkspaceSchedulePage />, {
-				route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
+				route: `/@${MockUserOwner.username}/${MockWorkspace.name}/schedule`,
 				path: "/:username/:workspace/schedule",
 			});
 			const user = userEvent.setup();
@@ -288,16 +288,22 @@ describe("WorkspaceSchedulePage", () => {
 			);
 			await user.click(autostopToggle);
 			const submitButton = await screen.findByRole("button", {
-				name: /submit/i,
+				name: /save/i,
 			});
 			await user.click(submitButton);
+
+			const notification = await screen.findByText(
+				"Workspace schedule updated",
+			);
+			expect(notification).toBeInTheDocument();
+
 			const dialog = await screen.findByText("Restart workspace?");
 			expect(dialog).toBeInTheDocument();
 		});
 
 		it("doesn't show if autostop is not changed", async () => {
 			renderWithWorkspaceSettingsLayout(<WorkspaceSchedulePage />, {
-				route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
+				route: `/@${MockUserOwner.username}/${MockWorkspace.name}/schedule`,
 				path: "/:username/:workspace/schedule",
 				extraRoutes: [
 					{ path: "/:username/:workspace", element: <div>Workspace</div> },
@@ -309,9 +315,15 @@ describe("WorkspaceSchedulePage", () => {
 			);
 			await user.click(autostartToggle);
 			const submitButton = await screen.findByRole("button", {
-				name: /submit/i,
+				name: /save/i,
 			});
 			await user.click(submitButton);
+
+			const notification = await screen.findByText(
+				"Workspace schedule updated",
+			);
+			expect(notification).toBeInTheDocument();
+
 			const dialog = screen.queryByText("Restart workspace?");
 			expect(dialog).not.toBeInTheDocument();
 		});

@@ -8,18 +8,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/util/ptr"
-	"github.com/coder/coder/v2/coderd/wspubsub"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/websocket"
 )
 
 func TestAgentConnectionMonitor_ContextCancel(t *testing.T) {
@@ -91,7 +90,7 @@ func TestAgentConnectionMonitor_ContextCancel(t *testing.T) {
 	fConn.requireEventuallyClosed(t, websocket.StatusGoingAway, "canceled")
 
 	// make sure we got at least one additional update on close
-	_ = testutil.RequireRecvCtx(ctx, t, done)
+	_ = testutil.TryReceive(ctx, t, done)
 	m := fUpdater.getUpdates()
 	require.Greater(t, m, n)
 }
@@ -294,7 +293,7 @@ func TestAgentConnectionMonitor_StartClose(t *testing.T) {
 		uut.close()
 		close(closed)
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, closed)
+	_ = testutil.TryReceive(ctx, t, closed)
 }
 
 type fakePingerCloser struct {

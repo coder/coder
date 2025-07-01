@@ -33,9 +33,9 @@ export const createOrganizationRole = (
 		mutationFn: (request: Role) =>
 			API.createOrganizationRole(organization, request),
 		onSuccess: async (updatedRole: Role) =>
-			await queryClient.invalidateQueries(
-				getRoleQueryKey(organization, updatedRole.name),
-			),
+			await queryClient.invalidateQueries({
+				queryKey: getRoleQueryKey(organization, updatedRole.name),
+			}),
 	};
 };
 
@@ -47,9 +47,9 @@ export const updateOrganizationRole = (
 		mutationFn: (request: Role) =>
 			API.updateOrganizationRole(organization, request),
 		onSuccess: async (updatedRole: Role) =>
-			await queryClient.invalidateQueries(
-				getRoleQueryKey(organization, updatedRole.name),
-			),
+			await queryClient.invalidateQueries({
+				queryKey: getRoleQueryKey(organization, updatedRole.name),
+			}),
 	};
 };
 
@@ -61,8 +61,8 @@ export const deleteOrganizationRole = (
 		mutationFn: (roleName: string) =>
 			API.deleteOrganizationRole(organization, roleName),
 		onSuccess: async (_: unknown, roleName: string) =>
-			await queryClient.invalidateQueries(
-				getRoleQueryKey(organization, roleName),
-			),
+			await queryClient.invalidateQueries({
+				queryKey: getRoleQueryKey(organization, roleName),
+			}),
 	};
 };

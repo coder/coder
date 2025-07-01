@@ -6,14 +6,20 @@ import {
 	getCurrentOrgId,
 	setupApiCalls,
 } from "../../api";
-import { requiresLicense } from "../../helpers";
+import { defaultOrganizationName, users } from "../../constants";
+import { login, requiresLicense } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 
-test.beforeEach(async ({ page }) => await beforeCoderTest(page));
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page, users.userAdmin);
+	await setupApiCalls(page);
+});
 
 test("remove member", async ({ page, baseURL }) => {
 	requiresLicense();
-	await setupApiCalls(page);
+
+	const orgName = defaultOrganizationName;
 	const orgId = await getCurrentOrgId();
 	const [group, member] = await Promise.all([
 		createGroup(orgId),
@@ -21,15 +27,14 @@ test("remove member", async ({ page, baseURL }) => {
 	]);
 	await API.addMember(group.id, member.id);
 
-	await page.goto(`${baseURL}/groups/${group.name}`, {
+	await page.goto(`${baseURL}/organizations/${orgName}/groups/${group.name}`, {
 		waitUntil: "domcontentloaded",
 	});
 	await expect(page).toHaveTitle(`${group.display_name} - Coder`);
 
 	const userRow = page.getByRole("row", { name: member.username });
-	await userRow.getByRole("button", { name: "More options" }).click();
-
-	const menu = page.locator("#more-options");
+	await userRow.getByRole("button", { name: "Open menu" }).click();
+	const menu = page.getByRole("menu");
 	await menu.getByText("Remove").click({ timeout: 1_000 });
 
 	await expect(page.getByText("Member removed successfully.")).toBeVisible();

@@ -41,3 +41,18 @@ FROM (
 ) q1
 ORDER BY created_at DESC, name
 LIMIT 100;
+
+-- name: GetWorkspaceBuildParametersByBuildIDs :many
+SELECT
+    workspace_build_parameters.*
+FROM
+    workspace_build_parameters
+JOIN
+    workspace_builds ON workspace_builds.id = workspace_build_parameters.workspace_build_id
+JOIN
+    workspaces ON workspaces.id = workspace_builds.workspace_id
+WHERE
+    workspace_build_parameters.workspace_build_id = ANY(@workspace_build_ids :: uuid[])
+    -- Authorize Filter clause will be injected below in GetAuthorizedWorkspaceBuildParametersByBuildIDs
+    -- @authorize_filter
+;

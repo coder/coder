@@ -116,7 +116,6 @@ func (r *RootCmd) setOrganizationSettings(orgContext *OrganizationContext, setti
 	}
 
 	for _, set := range settings {
-		set := set
 		patch := set.Patch
 		cmd.Children = append(cmd.Children, &serpent.Command{
 			Use:     set.Name,
@@ -192,7 +191,6 @@ func (r *RootCmd) printOrganizationSetting(orgContext *OrganizationContext, sett
 	}
 
 	for _, set := range settings {
-		set := set
 		fetch := set.Fetch
 		cmd.Children = append(cmd.Children, &serpent.Command{
 			Use:     set.Name,

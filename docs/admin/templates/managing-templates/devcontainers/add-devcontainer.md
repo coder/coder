@@ -121,7 +121,7 @@ their development environments:
 ## Example templates
 
 | Template                                                                                                            | Description                                                                                                                                                         |
-| ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|---------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [Docker dev containers](https://github.com/coder/coder/tree/main/examples/templates/docker-devcontainer)            | Docker provisions a development container.                                                                                                                          |
 | [Kubernetes dev containers](https://github.com/coder/coder/tree/main/examples/templates/kubernetes-devcontainer)    | Provisions a development container on the Kubernetes cluster.                                                                                                       |
 | [Google Compute Engine dev container](https://github.com/coder/coder/tree/main/examples/templates/gcp-devcontainer) | Runs a development container inside a single GCP instance. It also mounts the Docker socket from the VM inside the container to enable Docker inside the workspace. |
@@ -144,7 +144,3 @@ Lifecycle scripts are managed by project developers.
 ## Next steps
 
 - [Dev container security and caching](./devcontainer-security-caching.md)
-
-```
-
-```

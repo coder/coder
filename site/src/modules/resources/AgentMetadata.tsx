@@ -3,9 +3,11 @@ import Skeleton from "@mui/material/Skeleton";
 import Tooltip from "@mui/material/Tooltip";
 import { watchAgentMetadata } from "api/api";
 import type {
+	ServerSentEvent,
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import {
@@ -17,10 +19,11 @@ import {
 	useState,
 } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 
 type ItemStatus = "stale" | "valid" | "loading";
 
-export interface AgentMetadataViewProps {
+interface AgentMetadataViewProps {
 	metadata: WorkspaceAgentMetadata[];
 }
 
@@ -39,53 +42,85 @@ export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
 
 interface AgentMetadataProps {
 	agent: WorkspaceAgent;
-	storybookMetadata?: WorkspaceAgentMetadata[];
+	initialMetadata?: WorkspaceAgentMetadata[];
 }
+
+const maxSocketErrorRetryCount = 3;
 
 export const AgentMetadata: FC<AgentMetadataProps> = ({
 	agent,
-	storybookMetadata,
+	initialMetadata,
 }) => {
-	const [metadata, setMetadata] = useState<
-		WorkspaceAgentMetadata[] | undefined
-	>(undefined);
-
+	const [activeMetadata, setActiveMetadata] = useState(initialMetadata);
 	useEffect(() => {
-		if (storybookMetadata !== undefined) {
-			setMetadata(storybookMetadata);
+		// This is an unfortunate pitfall with this component's testing setup,
+		// but even though we use the value of initialMetadata as the initial
+		// value of the activeMetadata, we cannot put activeMetadata itself into
+		// the dependency array. If we did, we would destroy and rebuild each
+		// connection every single time a new message comes in from the socket,
+		// because the socket has to be wired up to the state setter
+		if (initialMetadata !== undefined) {
 			return;
 		}
 
-		let timeout: ReturnType<typeof setTimeout> | undefined = undefined;
+		let timeoutId: number | undefined = undefined;
+		let activeSocket: OneWayWebSocket<ServerSentEvent> | null = null;
+		let retries = 0;
 
-		const connect = (): (() => void) => {
-			const source = watchAgentMetadata(agent.id);
+		const createNewConnection = () => {
+			const socket = watchAgentMetadata(agent.id);
+			activeSocket = socket;
 
-			source.onerror = (e) => {
-				console.error("received error in watch stream", e);
-				setMetadata(undefined);
-				source.close();
+			socket.addEventListener("error", () => {
+				setActiveMetadata(undefined);
+				window.clearTimeout(timeoutId);
 
-				timeout = setTimeout(() => {
-					connect();
-				}, 3000);
-			};
+				// The error event is supposed to fire when an error happens
+				// with the connection itself, which implies that the connection
+				// would auto-close. Couldn't find a definitive answer on MDN,
+				// though, so closing it manually just to be safe
+				socket.close();
+				activeSocket = null;
 
-			source.addEventListener("data", (e) => {
-				const data = JSON.parse(e.data);
-				setMetadata(data);
-			});
-			return () => {
-				if (timeout !== undefined) {
-					clearTimeout(timeout);
+				retries++;
+				if (retries >= maxSocketErrorRetryCount) {
+					displayError(
+						"Unexpected disconnect while watching Metadata changes. Please try refreshing the page.",
+					);
+					return;
 				}
-				source.close();
-			};
-		};
-		return connect();
-	}, [agent.id, storybookMetadata]);
 
-	if (metadata === undefined) {
+				displayError(
+					"Unexpected disconnect while watching Metadata changes. Creating new connection...",
+				);
+				timeoutId = window.setTimeout(() => {
+					createNewConnection();
+				}, 3_000);
+			});
+
+			socket.addEventListener("message", (e) => {
+				if (e.parseError) {
+					displayError(
+						"Unable to process newest response from server. Please try refreshing the page.",
+					);
+					return;
+				}
+
+				const msg = e.parsedMessage;
+				if (msg.type === "data") {
+					setActiveMetadata(msg.data as WorkspaceAgentMetadata[]);
+				}
+			});
+		};
+
+		createNewConnection();
+		return () => {
+			window.clearTimeout(timeoutId);
+			activeSocket?.close();
+		};
+	}, [agent.id, initialMetadata]);
+
+	if (activeMetadata === undefined) {
 		return (
 			<section css={styles.root}>
 				<AgentMetadataSkeleton />
@@ -93,10 +128,10 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 		);
 	}
 
-	return <AgentMetadataView metadata={metadata} />;
+	return <AgentMetadataView metadata={activeMetadata} />;
 };
 
-export const AgentMetadataSkeleton: FC = () => {
+const AgentMetadataSkeleton: FC = () => {
 	return (
 		<Stack alignItems="baseline" direction="row" spacing={6}>
 			<div css={styles.metadata}>

@@ -126,7 +126,7 @@ func main() {
 
 	err = cmd.Invoke().WithOS().Run()
 	if err != nil {
-		if errors.Is(err, cliui.Canceled) {
+		if errors.Is(err, cliui.ErrCanceled) {
 			os.Exit(1)
 		}
 		r.logger.Error(context.Background(), "release command failed", "err", err)

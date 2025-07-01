@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -102,6 +103,11 @@ const (
 	failedWorkspaceBuildsReportFrequencyLabel = "week"
 )
 
+type adminReport struct {
+	stats        database.GetWorkspaceBuildStatsByTemplatesRow
+	failedBuilds []database.GetFailedWorkspaceBuildsByTemplateIDRow
+}
+
 func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db database.Store, enqueuer notifications.Enqueuer, clk quartz.Clock) error {
 	now := clk.Now()
 	since := now.Add(-failedWorkspaceBuildsReportFrequency)
@@ -136,6 +142,8 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		return xerrors.Errorf("unable to fetch failed workspace builds: %w", err)
 	}
 
+	reports := make(map[uuid.UUID][]adminReport)
+
 	for _, stats := range templateStatsRows {
 		select {
 		case <-ctx.Done():
@@ -165,33 +173,40 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 			logger.Error(ctx, "unable to fetch failed workspace builds", slog.F("template_id", stats.TemplateID), slog.Error(err))
 			continue
 		}
-		reportData := buildDataForReportFailedWorkspaceBuilds(stats, failedBuilds)
-
-		// Send reports to template admins
-		templateDisplayName := stats.TemplateDisplayName
-		if templateDisplayName == "" {
-			templateDisplayName = stats.TemplateName
-		}
 
 		for _, templateAdmin := range templateAdmins {
-			select {
-			case <-ctx.Done():
-				logger.Debug(ctx, "context is canceled, quitting", slog.Error(ctx.Err()))
-				break
-			default:
-			}
+			adminReports := reports[templateAdmin.ID]
+			adminReports = append(adminReports, adminReport{
+				failedBuilds: failedBuilds,
+				stats:        stats,
+			})
 
-			if _, err := enqueuer.EnqueueWithData(ctx, templateAdmin.ID, notifications.TemplateWorkspaceBuildsFailedReport,
-				map[string]string{
-					"template_name":         stats.TemplateName,
-					"template_display_name": templateDisplayName,
-				},
-				reportData,
-				"report_generator",
-				stats.TemplateID, stats.TemplateOrganizationID,
-			); err != nil {
-				logger.Warn(ctx, "failed to send a report with failed workspace builds", slog.Error(err))
-			}
+			reports[templateAdmin.ID] = adminReports
+		}
+	}
+
+	for templateAdmin, reports := range reports {
+		select {
+		case <-ctx.Done():
+			logger.Debug(ctx, "context is canceled, quitting", slog.Error(ctx.Err()))
+			break
+		default:
+		}
+
+		reportData := buildDataForReportFailedWorkspaceBuilds(reports)
+
+		targets := []uuid.UUID{}
+		for _, report := range reports {
+			targets = append(targets, report.stats.TemplateID, report.stats.TemplateOrganizationID)
+		}
+
+		if _, err := enqueuer.EnqueueWithData(ctx, templateAdmin, notifications.TemplateWorkspaceBuildsFailedReport,
+			map[string]string{},
+			reportData,
+			"report_generator",
+			slice.Unique(targets)...,
+		); err != nil {
+			logger.Warn(ctx, "failed to send a report with failed workspace builds", slog.Error(err))
 		}
 	}
 
@@ -213,54 +228,71 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 
 const workspaceBuildsLimitPerTemplateVersion = 10
 
-func buildDataForReportFailedWorkspaceBuilds(stats database.GetWorkspaceBuildStatsByTemplatesRow, failedBuilds []database.GetFailedWorkspaceBuildsByTemplateIDRow) map[string]any {
-	// Build notification model for template versions and failed workspace builds.
-	//
-	// Failed builds are sorted by template version ascending, workspace build number descending.
-	// Review builds, group them by template versions, and assign to builds to template versions.
-	// The map requires `[]map[string]any{}` to be compatible with data passed to `NotificationEnqueuer`.
-	templateVersions := []map[string]any{}
-	for _, failedBuild := range failedBuilds {
-		c := len(templateVersions)
+func buildDataForReportFailedWorkspaceBuilds(reports []adminReport) map[string]any {
+	templates := []map[string]any{}
 
-		if c == 0 || templateVersions[c-1]["template_version_name"] != failedBuild.TemplateVersionName {
-			templateVersions = append(templateVersions, map[string]any{
-				"template_version_name": failedBuild.TemplateVersionName,
-				"failed_count":          1,
-				"failed_builds": []map[string]any{
-					{
-						"workspace_owner_username": failedBuild.WorkspaceOwnerUsername,
-						"workspace_name":           failedBuild.WorkspaceName,
-						"build_number":             failedBuild.WorkspaceBuildNumber,
+	for _, report := range reports {
+		// Build notification model for template versions and failed workspace builds.
+		//
+		// Failed builds are sorted by template version ascending, workspace build number descending.
+		// Review builds, group them by template versions, and assign to builds to template versions.
+		// The map requires `[]map[string]any{}` to be compatible with data passed to `NotificationEnqueuer`.
+		templateVersions := []map[string]any{}
+		for _, failedBuild := range report.failedBuilds {
+			c := len(templateVersions)
+
+			if c == 0 || templateVersions[c-1]["template_version_name"] != failedBuild.TemplateVersionName {
+				templateVersions = append(templateVersions, map[string]any{
+					"template_version_name": failedBuild.TemplateVersionName,
+					"failed_count":          1,
+					"failed_builds": []map[string]any{
+						{
+							"workspace_owner_username": failedBuild.WorkspaceOwnerUsername,
+							"workspace_name":           failedBuild.WorkspaceName,
+							"workspace_id":             failedBuild.WorkspaceID,
+							"build_number":             failedBuild.WorkspaceBuildNumber,
+						},
 					},
-				},
-			})
-			continue
+				})
+				continue
+			}
+
+			tv := templateVersions[c-1]
+			//nolint:errorlint,forcetypeassert // only this function prepares the notification model
+			tv["failed_count"] = tv["failed_count"].(int) + 1
+
+			//nolint:errorlint,forcetypeassert // only this function prepares the notification model
+			builds := tv["failed_builds"].([]map[string]any)
+			if len(builds) < workspaceBuildsLimitPerTemplateVersion {
+				// return N last builds to prevent long email reports
+				builds = append(builds, map[string]any{
+					"workspace_owner_username": failedBuild.WorkspaceOwnerUsername,
+					"workspace_name":           failedBuild.WorkspaceName,
+					"workspace_id":             failedBuild.WorkspaceID,
+					"build_number":             failedBuild.WorkspaceBuildNumber,
+				})
+				tv["failed_builds"] = builds
+			}
+			templateVersions[c-1] = tv
 		}
 
-		tv := templateVersions[c-1]
-		//nolint:errorlint,forcetypeassert // only this function prepares the notification model
-		tv["failed_count"] = tv["failed_count"].(int) + 1
-
-		//nolint:errorlint,forcetypeassert // only this function prepares the notification model
-		builds := tv["failed_builds"].([]map[string]any)
-		if len(builds) < workspaceBuildsLimitPerTemplateVersion {
-			// return N last builds to prevent long email reports
-			builds = append(builds, map[string]any{
-				"workspace_owner_username": failedBuild.WorkspaceOwnerUsername,
-				"workspace_name":           failedBuild.WorkspaceName,
-				"build_number":             failedBuild.WorkspaceBuildNumber,
-			})
-			tv["failed_builds"] = builds
+		templateDisplayName := report.stats.TemplateDisplayName
+		if templateDisplayName == "" {
+			templateDisplayName = report.stats.TemplateName
 		}
-		templateVersions[c-1] = tv
+
+		templates = append(templates, map[string]any{
+			"failed_builds": report.stats.FailedBuilds,
+			"total_builds":  report.stats.TotalBuilds,
+			"versions":      templateVersions,
+			"name":          report.stats.TemplateName,
+			"display_name":  templateDisplayName,
+		})
 	}
 
 	return map[string]any{
-		"failed_builds":     stats.FailedBuilds,
-		"total_builds":      stats.TotalBuilds,
-		"report_frequency":  failedWorkspaceBuildsReportFrequencyLabel,
-		"template_versions": templateVersions,
+		"report_frequency": failedWorkspaceBuildsReportFrequencyLabel,
+		"templates":        templates,
 	}
 }
 

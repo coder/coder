@@ -11,7 +11,7 @@ list_migrations() {
 main() {
 	cd "${SCRIPT_DIR}"
 
-	origin=$(git remote -v | grep "github.com[:/]coder/coder.*(fetch)" | cut -f1)
+	origin=$(git remote -v | grep "github.com[:/]*coder/coder.*(fetch)" | cut -f1)
 
 	echo "Fetching ${origin}/main..."
 	git fetch -u "${origin}" main

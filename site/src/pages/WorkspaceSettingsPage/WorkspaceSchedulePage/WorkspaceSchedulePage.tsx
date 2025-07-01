@@ -6,6 +6,7 @@ import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import dayjs from "dayjs";
@@ -38,7 +39,7 @@ const permissionsToCheck = (workspace: TypesGen.Workspace) =>
 		},
 	}) as const;
 
-export const WorkspaceSchedulePage: FC = () => {
+const WorkspaceSchedulePage: FC = () => {
 	const params = useParams() as { username: string; workspace: string };
 	const navigate = useNavigate();
 	const username = params.username.replace("@", "");
@@ -54,13 +55,15 @@ export const WorkspaceSchedulePage: FC = () => {
 	const submitScheduleMutation = useMutation({
 		mutationFn: submitSchedule,
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(
-				workspaceByOwnerAndNameKey(
+			await queryClient.invalidateQueries({
+				queryKey: workspaceByOwnerAndNameKey(
 					params.username.replace(/^@/, ""),
 					params.workspace,
 				),
-			);
+			});
+			displaySuccess("Workspace schedule updated");
 		},
+		onError: () => displayError("Failed to update workspace schedule"),
 	});
 	const error = checkPermissionsError || getTemplateError;
 	const isLoading = !template || !permissions;
@@ -99,7 +102,7 @@ export const WorkspaceSchedulePage: FC = () => {
 						...getAutostart(workspace),
 						...getAutostop(workspace),
 					}}
-					isLoading={submitScheduleMutation.isLoading}
+					isLoading={submitScheduleMutation.isPending}
 					defaultTTL={dayjs.duration(template.default_ttl_ms, "ms").asHours()}
 					onCancel={() => {
 						navigate(`/@${username}/${workspaceName}`);
@@ -118,7 +121,10 @@ export const WorkspaceSchedulePage: FC = () => {
 
 						await submitScheduleMutation.mutateAsync(data);
 
-						if (data.autostopChanged) {
+						if (
+							data.autostopChanged &&
+							getAutostop(workspace).autostopEnabled
+						) {
 							setIsConfirmingApply(true);
 						}
 					}}

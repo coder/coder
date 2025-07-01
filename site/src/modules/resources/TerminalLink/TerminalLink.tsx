@@ -1,19 +1,14 @@
-import Link from "@mui/material/Link";
-import type * as TypesGen from "api/typesGenerated";
 import { TerminalIcon } from "components/Icons/TerminalIcon";
+import { getTerminalHref, openAppInNewWindow } from "modules/apps/apps";
 import type { FC, MouseEvent } from "react";
-import { generateRandomString } from "utils/random";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
-export const Language = {
-	terminalTitle: (identifier: string): string => `Terminal - ${identifier}`,
-};
-
-export interface TerminalLinkProps {
-	agentName?: TypesGen.WorkspaceAgent["name"];
-	userName?: TypesGen.User["username"];
-	workspaceName: TypesGen.Workspace["name"];
+interface TerminalLinkProps {
+	workspaceName: string;
+	agentName?: string;
+	userName?: string;
+	containerName?: string;
 }
 
 /**
@@ -27,30 +22,27 @@ export const TerminalLink: FC<TerminalLinkProps> = ({
 	agentName,
 	userName = "me",
 	workspaceName,
+	containerName,
 }) => {
-	// Always use the primary for the terminal link. This is a relative link.
-	const href = `/@${userName}/${workspaceName}${
-		agentName ? `.${agentName}` : ""
-	}/terminal`;
+	const href = getTerminalHref({
+		username: userName,
+		workspace: workspaceName,
+		agent: agentName,
+		container: containerName,
+	});
 
 	return (
-		<Link
-			underline="none"
-			color="inherit"
-			component={AgentButton}
-			startIcon={<TerminalIcon />}
-			href={href}
-			onClick={(event: MouseEvent<HTMLElement>) => {
-				event.preventDefault();
-				window.open(
-					href,
-					Language.terminalTitle(generateRandomString(12)),
-					"width=900,height=600",
-				);
-			}}
-			data-testid="terminal"
-		>
-			{DisplayAppNameMap.web_terminal}
-		</Link>
+		<AgentButton asChild>
+			<a
+				href={href}
+				onClick={(event: MouseEvent<HTMLElement>) => {
+					event.preventDefault();
+					openAppInNewWindow(href);
+				}}
+			>
+				<TerminalIcon />
+				{DisplayAppNameMap.web_terminal}
+			</a>
+		</AgentButton>
 	);
 };

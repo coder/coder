@@ -184,18 +184,70 @@ func TestTar(t *testing.T) {
 
 func TestUntar(t *testing.T) {
 	t.Parallel()
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-	dir := t.TempDir()
-	file, err := os.CreateTemp(dir, "*.tf")
-	require.NoError(t, err)
-	_ = file.Close()
-	archive := new(bytes.Buffer)
-	err = provisionersdk.Tar(archive, log, dir, 1024)
-	require.NoError(t, err)
-	dir = t.TempDir()
-	err = provisionersdk.Untar(dir, archive)
-	require.NoError(t, err)
-	_, err = os.Stat(filepath.Join(dir, filepath.Base(file.Name())))
-	require.NoError(t, err)
+	t.Run("Basic", func(t *testing.T) {
+		t.Parallel()
+
+		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		dir := t.TempDir()
+		file, err := os.CreateTemp(dir, "*.tf")
+		require.NoError(t, err)
+		_ = file.Close()
+
+		archive := new(bytes.Buffer)
+		err = provisionersdk.Tar(archive, log, dir, 1024)
+		require.NoError(t, err)
+
+		dir = t.TempDir()
+		err = provisionersdk.Untar(dir, archive)
+		require.NoError(t, err)
+
+		_, err = os.Stat(filepath.Join(dir, filepath.Base(file.Name())))
+		require.NoError(t, err)
+	})
+
+	t.Run("Overwrite", func(t *testing.T) {
+		t.Parallel()
+
+		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		dir1 := t.TempDir()
+		dir2 := t.TempDir()
+
+		// 1. Create directory with .tf file.
+		file, err := os.CreateTemp(dir1, "*.tf")
+		require.NoError(t, err)
+		_ = file.Close()
+
+		err = os.WriteFile(file.Name(), []byte("# ab"), 0o600)
+		require.NoError(t, err)
+
+		archive := new(bytes.Buffer)
+
+		// 2. Build tar archive.
+		err = provisionersdk.Tar(archive, log, dir1, 4096)
+		require.NoError(t, err)
+
+		// 3. Untar to the second location.
+		err = provisionersdk.Untar(dir2, archive)
+		require.NoError(t, err)
+
+		// 4. Modify the .tf file
+		err = os.WriteFile(file.Name(), []byte("# c"), 0o600)
+		require.NoError(t, err)
+
+		// 5. Build tar archive with modified .tf file
+		err = provisionersdk.Tar(archive, log, dir1, 4096)
+		require.NoError(t, err)
+
+		// 6. Untar to a second location.
+		err = provisionersdk.Untar(dir2, archive)
+		require.NoError(t, err)
+
+		// Verify if the file has been fully overwritten
+		content, err := os.ReadFile(filepath.Join(dir2, filepath.Base(file.Name())))
+		require.NoError(t, err)
+		require.Equal(t, "# c", string(content))
+	})
 }

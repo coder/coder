@@ -42,7 +42,7 @@ func TimezoneIANA() (*time.Location, error) {
 		return nil, xerrors.Errorf("read location of %s: %w", zoneInfoPath, err)
 	}
 
-	stripped := strings.Replace(lp, realZoneInfoPath, "", -1)
+	stripped := strings.ReplaceAll(lp, realZoneInfoPath, "")
 	stripped = strings.TrimPrefix(stripped, string(filepath.Separator))
 	loc, err = time.LoadLocation(stripped)
 	if err != nil {

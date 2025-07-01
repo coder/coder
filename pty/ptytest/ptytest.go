@@ -8,6 +8,7 @@ import (
 	"io"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -16,7 +17,6 @@ import (
 
 	"github.com/acarl005/stripansi"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/pty"
@@ -164,9 +164,7 @@ func (e *outExpecter) expectMatchContextFunc(str string, fn func(ctx context.Con
 
 // TODO(mafredri): Rename this to ExpectMatch when refactoring.
 func (e *outExpecter) ExpectMatchContext(ctx context.Context, str string) string {
-	return e.expectMatcherFunc(ctx, str, func(src, pattern string) bool {
-		return strings.Contains(src, pattern)
-	})
+	return e.expectMatcherFunc(ctx, str, strings.Contains)
 }
 
 func (e *outExpecter) ExpectRegexMatchContext(ctx context.Context, str string) string {
@@ -252,6 +250,7 @@ func (e *outExpecter) Peek(ctx context.Context, n int) []byte {
 	return slices.Clone(out)
 }
 
+//nolint:govet // We don't care about conforming to ReadRune() (rune, int, error).
 func (e *outExpecter) ReadRune(ctx context.Context) rune {
 	e.t.Helper()
 
@@ -316,6 +315,11 @@ func (e *outExpecter) ReadLine(ctx context.Context) string {
 	}
 	e.logf("matched newline = %q", buffer.String())
 	return buffer.String()
+}
+
+func (e *outExpecter) ReadAll() []byte {
+	e.t.Helper()
+	return e.out.ReadAll()
 }
 
 func (e *outExpecter) doMatchWithDeadline(ctx context.Context, name string, fn func(*bufio.Reader) error) error {
@@ -457,6 +461,18 @@ type stdbuf struct {
 
 func newStdbuf() *stdbuf {
 	return &stdbuf{more: make(chan struct{}, 1)}
+}
+
+func (b *stdbuf) ReadAll() []byte {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.err != nil {
+		return nil
+	}
+	p := append([]byte(nil), b.b...)
+	b.b = b.b[len(b.b):]
+	return p
 }
 
 func (b *stdbuf) Read(p []byte) (int, error) {

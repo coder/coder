@@ -1,28 +1,22 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import type { Template, TemplateExample } from "api/typesGenerated";
-import { ExternalAvatar } from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
 
-export interface SelectedTemplateProps {
+interface SelectedTemplateProps {
 	template: Template | TemplateExample;
 }
 
 export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
 	return (
-		<Stack
-			direction="row"
-			spacing={3}
-			css={styles.template}
-			alignItems="center"
-		>
-			<ExternalAvatar
-				variant={template.icon ? "square" : undefined}
-				fitImage={Boolean(template.icon)}
+		<Stack direction="row" css={styles.template}>
+			<Avatar
+				variant="icon"
+				size="lg"
 				src={template.icon}
-			>
-				{template.name}
-			</ExternalAvatar>
+				fallback={template.name}
+			/>
 
 			<Stack direction="column" spacing={0}>
 				<span css={styles.templateName}>

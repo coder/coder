@@ -32,6 +32,8 @@ type Options struct {
 	Timeout time.Duration
 	// Metrics tracks various error counters.
 	Metrics *prometheus.CounterVec
+	// BackendType specifies the ReconnectingPTY backend to use.
+	BackendType string
 }
 
 // ReconnectingPTY is a pty that can be reconnected within a timeout and to
@@ -64,12 +66,19 @@ func New(ctx context.Context, logger slog.Logger, execer agentexec.Execer, cmd *
 	// runs) but in CI screen often incorrectly claims the session name does not
 	// exist even though screen -list shows it.  For now, restrict screen to
 	// Linux.
-	backendType := "buffered"
+	autoBackendType := "buffered"
 	if runtime.GOOS == "linux" {
 		_, err := exec.LookPath("screen")
 		if err == nil {
-			backendType = "screen"
+			autoBackendType = "screen"
 		}
+	}
+	var backendType string
+	switch options.BackendType {
+	case "":
+		backendType = autoBackendType
+	default:
+		backendType = options.BackendType
 	}
 
 	logger.Info(ctx, "start reconnecting pty", slog.F("backend_type", backendType))

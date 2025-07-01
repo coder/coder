@@ -1,7 +1,5 @@
 # Organizations - best practices
 
-December 9, 2024
-
 ---
 
 Coder [Organizations](../../admin/users/organizations.md) allow administrators
@@ -47,8 +45,8 @@ deployed with Coder and has 1000 users in production. Today, MegaCo has a single
 (default) organization and a central platform team but is evaluating whether to
 use organizations for several use cases.
 
-| **Use Case**                                                                         | **Description**                                                                                                                                                                                                                                                                                                                                                                 | **Good fit for organizations?**                                                                         |
-| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Use Case**                                                                         | **Description**                                                                                                                                                                                                                                                                                                                                                                 | **Good fit for organizations?**                                                                        |
+|--------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
 | Mergers and acquisitions                                                             | Raptix, a 180-person startup recently acquired by MegaCo, has an independent cloud account, platform team, and Terraform modules and pipelines for deploying their code. They want to use Coder.                                                                                                                                                                                | ✅ Organizations                                                                                        |
 | Independent cloud-native teams that manage their namespaces, images, and/or clusters | MegaCo has six teams responsible for their own dev, staging, and production Kubernetes clusters and frequently deploy & test their work with `kubectl` and `helm`.</br></br>They wish to hook up Coder to their cluster so they can write and manage IDE templates for connecting to the cluster with their IDE                                                                 | ✅ Organizations                                                                                        |
 | Java monolith                                                                        | MegaCo has identified that anyone developing the Java monolith is best served with a VM instead of a container/cloud-native environment.</br></br>However, the Java team is supported by MegaCo's central platform team.                                                                                                                                                        | ❌ Use instead:</br>A separate template and/or groups                                                   |
@@ -80,10 +78,8 @@ cannot access. Instead, the control plane sends simple "provisioner jobs" to the
 provisioner and the provisioner is responsible for executing the Terraform.
 
 There are planned improvements to the troubleshooting provisioners process.
-Follow these GitHub issues for more details:
+Follow this GitHub issue for more details:
 
-- [coder/coder#15048](https://github.com/coder/coder/issues/15048)
-- [coder/coder#15087](https://github.com/coder/coder/issues/15087)
 - [coder/coder#15192](https://github.com/coder/coder/issues/15192)
 
 ## Identity Provider (SSO) Sync
@@ -93,17 +89,6 @@ this is discouraged. Instead, we recommend syncing the state from your identity
 provider such as Okta. A single claim from the identity provider (like
 `memberOf`) can be used to sync site-wide roles, organizations, groups, and
 organization roles.
-
-### Planned enhancements
-
-Site-wide role sync is managed via server flags. We plan on changing this to
-runtime configuration so Coder does not need a re-deploy:
-
-- Issue [coder/internal#86](https://github.com/coder/internal/issues/86)
-
-Make all sync configurable via the dashboard UI:
-
-- [coder/coder#15290](https://github.com/coder/coder/issues/15290)
 
 Regex filters and mapping can be configured to ensure the proper resources are
 allocated in Coder. Learn more about [IDP sync](../../admin/users/idp-sync.md).
@@ -115,18 +100,18 @@ within an organization. Custom roles can be applied to the default organization.
 
 Some examples of custom roles that can be created:
 
-**Provisioner Admin**
+### Provisioner Admin
 
 - The user can deploy provisioners but not manage templates. This may be useful
   if automation is used to create and update templates in the organization.
 
-**Template Editor**
+### Template Editor
 
 - Inverse of provisioner admin: User can manage templates but not deploy
   provisioners. This may be useful if the provisioner and template are deployed
   via automation and users are allowed to edit them.
 
-**Template Pusher**
+### Template Pusher
 
 - A system account that can push new templates from a git repo but cannot manage
   users or delete templates.

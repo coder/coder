@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -23,6 +24,11 @@ func IgnoreLoggedError(entry slog.SinkEntry) bool {
 	err, ok := slogtest.FindFirstError(entry)
 	if !ok {
 		return false
+	}
+	// Yamux sessions get shut down when we are shutting down tests, so ignoring
+	// them should reduce flakiness.
+	if xerrors.Is(err, yamux.ErrSessionShutdown) {
+		return true
 	}
 	// Canceled queries usually happen when we're shutting down tests, and so
 	// ignoring them should reduce flakiness.  This also includes

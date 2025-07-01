@@ -1,7 +1,7 @@
 # Monitoring Coder
 
-Learn about our the tools, techniques, and best practices to monitor Coder your
-Coder deployment.
+Learn about our the tools, techniques, and best practices to monitor your Coder
+deployment.
 
 ## Quick Start: Observability Helm Chart
 

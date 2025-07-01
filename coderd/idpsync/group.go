@@ -30,7 +30,7 @@ func (AGPLIDPSync) GroupSyncEntitled() bool {
 	return false
 }
 
-func (s AGPLIDPSync) UpdateGroupSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings GroupSyncSettings) error {
+func (s AGPLIDPSync) UpdateGroupSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings GroupSyncSettings) error {
 	orgResolver := s.Manager.OrganizationResolver(db, orgID)
 	err := s.SyncSettings.Group.SetRuntimeValue(ctx, orgResolver, &settings)
 	if err != nil {
@@ -99,7 +99,6 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 		// membership via the groups the user is in.
 		userOrgs := make(map[uuid.UUID][]database.GetGroupsRow)
 		for _, g := range userGroups {
-			g := g
 			userOrgs[g.Group.OrganizationID] = append(userOrgs[g.Group.OrganizationID], g)
 		}
 
@@ -268,7 +267,21 @@ func (s *GroupSyncSettings) Set(v string) error {
 }
 
 func (s *GroupSyncSettings) String() string {
+	if s.Mapping == nil {
+		s.Mapping = make(map[string][]uuid.UUID)
+	}
 	return runtimeconfig.JSONString(s)
+}
+
+func (s *GroupSyncSettings) MarshalJSON() ([]byte, error) {
+	if s.Mapping == nil {
+		s.Mapping = make(map[string][]uuid.UUID)
+	}
+
+	// Aliasing the struct to avoid infinite recursion when calling json.Marshal
+	// on the struct itself.
+	type Alias GroupSyncSettings
+	return json.Marshal(&struct{ *Alias }{Alias: (*Alias)(s)})
 }
 
 type ExpectedGroup struct {
@@ -323,8 +336,6 @@ func (s GroupSyncSettings) ParseClaims(orgID uuid.UUID, mergedClaims jwt.MapClai
 
 	groups := make([]ExpectedGroup, 0)
 	for _, group := range parsedGroups {
-		group := group
-
 		// Legacy group mappings happen before the regex filter.
 		mappedGroupName, ok := s.LegacyNameMapping[group]
 		if ok {
@@ -341,7 +352,6 @@ func (s GroupSyncSettings) ParseClaims(orgID uuid.UUID, mergedClaims jwt.MapClai
 		mappedGroupIDs, ok := s.Mapping[group]
 		if ok {
 			for _, gid := range mappedGroupIDs {
-				gid := gid
 				groups = append(groups, ExpectedGroup{OrganizationID: orgID, GroupID: &gid})
 			}
 			continue

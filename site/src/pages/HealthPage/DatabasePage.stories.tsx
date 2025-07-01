@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { DatabasePage } from "./DatabasePage";
+import DatabasePage from "./DatabasePage";
 import { generateMeta } from "./storybook";
 
 const meta: Meta = {

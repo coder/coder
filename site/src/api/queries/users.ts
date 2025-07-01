@@ -8,8 +8,8 @@ import type {
 	UpdateUserPasswordRequest,
 	UpdateUserProfileRequest,
 	User,
+	UserAppearanceSettings,
 	UsersRequest,
-	ValidateUserPasswordRequest,
 } from "api/typesGenerated";
 import {
 	type MetadataState,
@@ -51,7 +51,7 @@ export const users = (req: UsersRequest): UseQueryOptions<GetUsersResponse> => {
 	return {
 		queryKey: usersKey(req),
 		queryFn: ({ signal }) => API.getUsers(req, signal),
-		cacheTime: 5 * 1000 * 60,
+		gcTime: 5 * 1000 * 60,
 	};
 };
 
@@ -69,7 +69,7 @@ export const createUser = (queryClient: QueryClient) => {
 	return {
 		mutationFn: API.createUser,
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(["users"]);
+			await queryClient.invalidateQueries({ queryKey: ["users"] });
 		},
 	};
 };
@@ -84,7 +84,7 @@ export const suspendUser = (queryClient: QueryClient) => {
 	return {
 		mutationFn: API.suspendUser,
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(["users"]);
+			await queryClient.invalidateQueries({ queryKey: ["users"] });
 		},
 	};
 };
@@ -93,7 +93,7 @@ export const activateUser = (queryClient: QueryClient) => {
 	return {
 		mutationFn: API.activateUser,
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(["users"]);
+			await queryClient.invalidateQueries({ queryKey: ["users"] });
 		},
 	};
 };
@@ -102,7 +102,7 @@ export const deleteUser = (queryClient: QueryClient) => {
 	return {
 		mutationFn: API.deleteUser,
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(["users"]);
+			await queryClient.invalidateQueries({ queryKey: ["users"] });
 		},
 	};
 };
@@ -112,7 +112,7 @@ export const updateRoles = (queryClient: QueryClient) => {
 		mutationFn: ({ userId, roles }: { userId: string; roles: string[] }) =>
 			API.updateUserRoles(roles, userId),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(["users"]);
+			await queryClient.invalidateQueries({ queryKey: ["users"] });
 		},
 	};
 };
@@ -224,35 +224,42 @@ export const updateProfile = (userId: string) => {
 	};
 };
 
+const myAppearanceKey = ["me", "appearance"];
+
+export const appearanceSettings = (
+	metadata: MetadataState<UserAppearanceSettings>,
+) => {
+	return cachedQuery({
+		metadata,
+		queryKey: myAppearanceKey,
+		queryFn: API.getAppearanceSettings,
+	});
+};
+
 export const updateAppearanceSettings = (
-	userId: string,
 	queryClient: QueryClient,
 ): UseMutationOptions<
-	User,
+	UserAppearanceSettings,
 	unknown,
 	UpdateUserAppearanceSettingsRequest,
 	unknown
 > => {
 	return {
-		mutationFn: (req) => API.updateAppearanceSettings(userId, req),
+		mutationFn: (req) => API.updateAppearanceSettings(req),
 		onMutate: async (patch) => {
 			// Mutate the `queryClient` optimistically to make the theme switcher
 			// more responsive.
-			const me: User | undefined = queryClient.getQueryData(meKey);
-			if (userId === "me" && me) {
-				queryClient.setQueryData(meKey, {
-					...me,
-					theme_preference: patch.theme_preference,
-				});
-			}
+			queryClient.setQueryData(myAppearanceKey, {
+				theme_preference: patch.theme_preference,
+				terminal_font: patch.terminal_font,
+			});
 		},
-		onSuccess: async () => {
+		onSuccess: async () =>
 			// Could technically invalidate more, but we only ever care about the
 			// `theme_preference` for the `me` query.
-			if (userId === "me") {
-				await queryClient.invalidateQueries(meKey);
-			}
-		},
+			await queryClient.invalidateQueries({
+				queryKey: myAppearanceKey,
+			}),
 	};
 };
 

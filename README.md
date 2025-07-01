@@ -1,9 +1,10 @@
+<!-- markdownlint-disable MD041 -->
 <div align="center">
   <a href="https://coder.com#gh-light-mode-only">
-    <img src="./docs/images/logo-black.png" style="width: 128px">
+    <img src="./docs/images/logo-black.png" alt="Coder Logo Light" style="width: 128px">
   </a>
   <a href="https://coder.com#gh-dark-mode-only">
-    <img src="./docs/images/logo-white.png" style="width: 128px">
+    <img src="./docs/images/logo-white.png" alt="Coder Logo Dark" style="width: 128px">
   </a>
 
   <h1>
@@ -11,10 +12,10 @@
   </h1>
 
   <a href="https://coder.com#gh-light-mode-only">
-    <img src="./docs/images/banner-black.png" style="width: 650px">
+    <img src="./docs/images/banner-black.png" alt="Coder Banner Light" style="width: 650px">
   </a>
   <a href="https://coder.com#gh-dark-mode-only">
-    <img src="./docs/images/banner-white.png" style="width: 650px">
+    <img src="./docs/images/banner-white.png" alt="Coder Banner Dark" style="width: 650px">
   </a>
 
   <br>
@@ -40,14 +41,14 @@
 - Onboard developers in seconds instead of days
 
 <p align="center">
-  <img src="./docs/images/hero-image.png">
+  <img src="./docs/images/hero-image.png" alt="Coder Hero Image">
 </p>
 
 ## Quickstart
 
 The most convenient way to try Coder is to install it on your local machine and experiment with provisioning cloud development environments using Docker (works on Linux, macOS, and Windows).
 
-```
+```shell
 # First, install Coder
 curl -L https://coder.com/install.sh | sh
 
@@ -65,7 +66,7 @@ The easiest way to install Coder is to use our
 and macOS. For Windows, use the latest `..._installer.exe` file from GitHub
 Releases.
 
-```bash
+```shell
 curl -L https://coder.com/install.sh | sh
 ```
 
@@ -108,9 +109,10 @@ We are always working on new integrations. Please feel free to open an issue and
 ### Official
 
 - [**VS Code Extension**](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote): Open any Coder workspace in VS Code with a single click
-- [**JetBrains Gateway Extension**](https://plugins.jetbrains.com/plugin/19620-coder): Open any Coder workspace in JetBrains Gateway with a single click
+- [**JetBrains Toolbox Plugin**](https://plugins.jetbrains.com/plugin/26968-coder): Open any Coder workspace from JetBrains Toolbox with a single click
+- [**JetBrains Gateway Plugin**](https://plugins.jetbrains.com/plugin/19620-coder): Open any Coder workspace in JetBrains Gateway with a single click
 - [**Dev Container Builder**](https://github.com/coder/envbuilder): Build development environments using `devcontainer.json` on Docker, Kubernetes, and OpenShift
-- [**Module Registry**](https://registry.coder.com): Extend development environments with common use-cases
+- [**Coder Registry**](https://registry.coder.com): Build and extend development environments with common use-cases
 - [**Kubernetes Log Stream**](https://github.com/coder/coder-logstream-kube): Stream Kubernetes Pod events to the Coder startup logs
 - [**Self-Hosted VS Code Extension Marketplace**](https://github.com/coder/code-marketplace): A private extension marketplace that works in restricted or airgapped networks integrating with [code-server](https://github.com/coder/code-server).
 - [**Setup Coder**](https://github.com/marketplace/actions/setup-coder): An action to setup coder CLI in GitHub workflows.

@@ -262,8 +262,6 @@ func TestTemplatePull_ToDir(t *testing.T) {
 
 	// nolint: paralleltest // These tests change the current working dir, and is therefore unsuitable for parallelisation.
 	for _, tc := range tests {
-		tc := tc
-
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 

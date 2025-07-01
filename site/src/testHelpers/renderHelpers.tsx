@@ -5,11 +5,11 @@ import {
 } from "@testing-library/react";
 import { AppProviders } from "App";
 import type { ProxyProvider } from "contexts/ProxyContext";
-import { ThemeProvider } from "contexts/ThemeProvider";
+import { ThemeOverride } from "contexts/ThemeProvider";
 import { RequireAuth } from "contexts/auth/RequireAuth";
 import { DashboardLayout } from "modules/dashboard/DashboardLayout";
 import type { DashboardProvider } from "modules/dashboard/DashboardProvider";
-import ManagementSettingsLayout from "modules/management/ManagementSettingsLayout";
+import OrganizationSettingsLayout from "modules/management/OrganizationSettingsLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import type { ReactNode } from "react";
@@ -19,24 +19,17 @@ import {
 	RouterProvider,
 	createMemoryRouter,
 } from "react-router-dom";
-import { MockUser } from "./entities";
+import themes, { DEFAULT_THEME } from "theme";
+import { MockUserOwner } from "./entities";
 
+// Creates one query client for each test case, to make sure that tests are
+// isolated and can't affect each other
 export function createTestQueryClient() {
-	// Helps create one query client for each test case, to make sure that tests
-	// are isolated and can't affect each other
 	return new QueryClient({
-		logger: {
-			...console,
-			// Some tests are designed to throw errors as part of their functionality.
-			// To avoid unnecessary noise from these expected errors, the code is
-			// structured to suppress them. If this suppression becomes problematic,
-			// the code can be refactored to handle query errors on a per-test basis.
-			error: () => {},
-		},
 		defaultOptions: {
 			queries: {
 				retry: false,
-				cacheTime: 0,
+				gcTime: 0,
 				refetchOnWindowFocus: false,
 				networkMode: "offlineFirst",
 			},
@@ -117,7 +110,7 @@ export function renderWithAuth(
 
 	return {
 		...renderResult,
-		user: MockUser,
+		user: MockUserOwner,
 	};
 }
 
@@ -153,7 +146,7 @@ export function renderWithTemplateSettingsLayout(
 	);
 
 	return {
-		user: MockUser,
+		user: MockUserOwner,
 		...renderResult,
 	};
 }
@@ -190,12 +183,12 @@ export function renderWithWorkspaceSettingsLayout(
 	);
 
 	return {
-		user: MockUser,
+		user: MockUserOwner,
 		...renderResult,
 	};
 }
 
-export function renderWithManagementSettingsLayout(
+export function renderWithOrganizationSettingsLayout(
 	element: JSX.Element,
 	{
 		path = "/",
@@ -212,7 +205,7 @@ export function renderWithManagementSettingsLayout(
 					element: <DashboardLayout />,
 					children: [
 						{
-							element: <ManagementSettingsLayout />,
+							element: <OrganizationSettingsLayout />,
 							children: [{ element, path }, ...extraRoutes],
 						},
 					],
@@ -227,7 +220,7 @@ export function renderWithManagementSettingsLayout(
 	);
 
 	return {
-		user: MockUser,
+		user: MockUserOwner,
 		...renderResult,
 	};
 }
@@ -245,6 +238,8 @@ export const waitForLoaderToBeRemoved = async (): Promise<void> => {
 
 export const renderComponent = (component: React.ReactElement) => {
 	return testingLibraryRender(component, {
-		wrapper: ({ children }) => <ThemeProvider>{children}</ThemeProvider>,
+		wrapper: ({ children }) => (
+			<ThemeOverride theme={themes[DEFAULT_THEME]}>{children}</ThemeOverride>
+		),
 	});
 };

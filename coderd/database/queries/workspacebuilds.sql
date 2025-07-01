@@ -120,10 +120,11 @@ INSERT INTO
 		provisioner_state,
 		deadline,
 		max_deadline,
-		reason
+		reason,
+		template_version_preset_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
 
 -- name: UpdateWorkspaceBuildCostByID :exec
 UPDATE
@@ -147,6 +148,15 @@ UPDATE
 	workspace_builds
 SET
 	provisioner_state = @provisioner_state::bytea,
+	updated_at = @updated_at::timestamptz
+WHERE id = @id::uuid;
+
+-- name: UpdateWorkspaceBuildAITaskByID :exec
+UPDATE
+	workspace_builds
+SET
+	has_ai_task = @has_ai_task,
+	ai_task_sidebar_app_id = @sidebar_app_id,
 	updated_at = @updated_at::timestamptz
 WHERE id = @id::uuid;
 
@@ -212,6 +222,7 @@ SELECT
 	tv.name AS template_version_name,
 	u.username AS workspace_owner_username,
 	w.name AS workspace_name,
+	w.id AS workspace_id,
 	wb.build_number AS workspace_build_number
 FROM
 	workspace_build_with_user AS wb

@@ -11,7 +11,7 @@ import {
 } from "react";
 import type { ThemeRole } from "theme/roles";
 
-export type PillProps = HTMLAttributes<HTMLDivElement> & {
+type PillProps = HTMLAttributes<HTMLDivElement> & {
 	icon?: ReactNode;
 	type?: ThemeRole;
 	size?: "md" | "lg";

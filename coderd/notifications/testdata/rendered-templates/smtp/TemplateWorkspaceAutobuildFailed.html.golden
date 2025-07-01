@@ -48,9 +48,8 @@ argin: 8px 0 32px; line-height: 1.5;">
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
-
-<p>Automatic build of your workspace <strong>bobby-workspace</strong> faile=
-d.</p>
+        <p>Automatic build of your workspace <strong>bobby-workspace</stron=
+g> failed.</p>
 
 <p>The specified reason was &ldquo;<strong>autostart</strong>&rdquo;.</p>
       </div>

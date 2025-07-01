@@ -45,14 +45,14 @@ func (r *RootCmd) publickey() *serpent.Command {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			cliui.Infof(inv.Stdout,
+			cliui.Info(inv.Stdout,
 				"This is your public key for using "+pretty.Sprint(cliui.DefaultStyles.Field, "git")+" in "+
 					"Coder. All clones with SSH will be authenticated automatically 🪄.",
 			)
-			cliui.Infof(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Code, strings.TrimSpace(key.PublicKey))+"\n")
-			cliui.Infof(inv.Stdout, "Add to GitHub and GitLab:")
-			cliui.Infof(inv.Stdout, "> https://github.com/settings/ssh/new")
-			cliui.Infof(inv.Stdout, "> https://gitlab.com/-/profile/keys")
+			cliui.Info(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Code, strings.TrimSpace(key.PublicKey))+"\n")
+			cliui.Info(inv.Stdout, "Add to GitHub and GitLab:")
+			cliui.Info(inv.Stdout, "> https://github.com/settings/ssh/new")
+			cliui.Info(inv.Stdout, "> https://gitlab.com/-/profile/keys")
 
 			return nil
 		},

@@ -107,7 +107,6 @@ func TestExtractUserRoles(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -125,7 +124,7 @@ func TestExtractUserRoles(t *testing.T) {
 				}),
 			)
 			rtr.Get("/", func(_ http.ResponseWriter, r *http.Request) {
-				roles := httpmw.UserAuthorization(r)
+				roles := httpmw.UserAuthorization(r.Context())
 				require.Equal(t, user.ID.String(), roles.ID)
 				require.ElementsMatch(t, expRoles, roles.Roles.Names())
 			})

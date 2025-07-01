@@ -105,6 +105,7 @@ func applyTerminalModesToFd(logger *log.Logger, fd uintptr, req ssh.Pty) error {
 			continue
 		}
 		if _, ok := tios.CC[k]; ok {
+			// #nosec G115 - Safe conversion for terminal control characters which are all in the uint8 range
 			tios.CC[k] = uint8(v)
 			continue
 		}

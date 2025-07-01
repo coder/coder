@@ -1,14 +1,13 @@
-import InfoOutlined from "@mui/icons-material/InfoOutlined";
-import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Snackbar from "@mui/material/Snackbar";
+import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
+import { InfoIcon } from "lucide-react";
 import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/AnnouncementBanners";
 import { LicenseBanner } from "modules/dashboard/LicenseBanner/LicenseBanner";
 import { type FC, type HTMLAttributes, Suspense } from "react";
 import { Outlet } from "react-router-dom";
-import { dashboardContentBottomPadding } from "theme/constants";
 import { docs } from "utils/docs";
 import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
 import { Navbar } from "./Navbar/Navbar";
@@ -16,31 +15,18 @@ import { useUpdateCheck } from "./useUpdateCheck";
 
 export const DashboardLayout: FC = () => {
 	const { permissions } = useAuthenticated();
-	const updateCheck = useUpdateCheck(permissions.viewUpdateCheck);
-	const canViewDeployment = Boolean(permissions.viewDeploymentValues);
+	const updateCheck = useUpdateCheck(permissions.viewDeploymentConfig);
+	const canViewDeployment = Boolean(permissions.viewDeploymentConfig);
 
 	return (
 		<>
 			{canViewDeployment && <LicenseBanner />}
 			<AnnouncementBanners />
 
-			<div
-				css={{
-					display: "flex",
-					minHeight: "100%",
-					flexDirection: "column",
-				}}
-			>
+			<div className="flex flex-col min-h-full">
 				<Navbar />
 
-				<div
-					css={{
-						flex: 1,
-						paddingBottom: dashboardContentBottomPadding, // Add bottom space since we don't use a footer
-						display: "flex",
-						flexDirection: "column",
-					}}
-				>
+				<div className="flex flex-col flex-1 pb-12">
 					<Suspense fallback={<Loader />}>
 						<Outlet />
 					</Suspense>
@@ -74,7 +60,8 @@ export const DashboardLayout: FC = () => {
 					}}
 					message={
 						<div css={{ display: "flex", gap: 16 }}>
-							<InfoOutlined
+							<InfoIcon
+								className="size-icon-xs"
 								css={(theme) => ({
 									fontSize: 16,
 									height: 20, // 20 is the height of the text line so we can align them
@@ -92,7 +79,7 @@ export const DashboardLayout: FC = () => {
 						</div>
 					}
 					action={
-						<Button variant="text" size="small" onClick={updateCheck.dismiss}>
+						<Button variant="subtle" size="sm" onClick={updateCheck.dismiss}>
 							Dismiss
 						</Button>
 					}
@@ -110,7 +97,6 @@ export const DashboardFullPage: FC<HTMLAttributes<HTMLDivElement>> = ({
 		<div
 			{...attrs}
 			css={{
-				marginBottom: `-${dashboardContentBottomPadding}px`,
 				flex: 1,
 				display: "flex",
 				flexDirection: "column",

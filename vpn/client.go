@@ -5,10 +5,14 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"time"
 
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
+
+	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/dns"
+	"tailscale.com/net/netmon"
+	"tailscale.com/tailcfg"
 	"tailscale.com/wgengine/router"
 
 	"github.com/google/uuid"
@@ -20,11 +24,15 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
+	"github.com/coder/websocket"
 )
 
 type Conn interface {
 	CurrentWorkspaceState() (tailnet.WorkspaceUpdate, error)
 	GetPeerDiagnostics(peerID uuid.UUID) tailnet.PeerDiagnostics
+	Ping(ctx context.Context, agentID uuid.UUID) (time.Duration, bool, *ipnstate.PingResult, error)
+	Node() *tailnet.Node
+	DERPMap() *tailcfg.DERPMap
 	Close() error
 }
 
@@ -34,6 +42,10 @@ type vpnConn struct {
 	cancelFn    func()
 	controller  *tailnet.Controller
 	updatesCtrl *tailnet.TunnelAllWorkspaceUpdatesController
+}
+
+func (c *vpnConn) Ping(ctx context.Context, agentID uuid.UUID) (time.Duration, bool, *ipnstate.PingResult, error) {
+	return c.Conn.Ping(ctx, tailnet.TailscaleServicePrefix.AddrFromUUID(agentID))
 }
 
 func (c *vpnConn) CurrentWorkspaceState() (tailnet.WorkspaceUpdate, error) {
@@ -57,12 +69,13 @@ func NewClient() Client {
 }
 
 type Options struct {
-	Headers           http.Header
-	Logger            slog.Logger
-	DNSConfigurator   dns.OSConfigurator
-	Router            router.Router
-	TUNFileDescriptor *int
-	UpdateHandler     tailnet.UpdatesHandler
+	Headers          http.Header
+	Logger           slog.Logger
+	DNSConfigurator  dns.OSConfigurator
+	Router           router.Router
+	TUNDevice        tun.Device
+	WireguardMonitor *netmon.Monitor
+	UpdateHandler    tailnet.UpdatesHandler
 }
 
 func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string, options *Options) (vpnC Conn, err error) {
@@ -74,21 +87,12 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 		options.Headers = http.Header{}
 	}
 
-	var dev tun.Device
-	if options.TUNFileDescriptor != nil {
-		// No-op on non-Darwin platforms.
-		dev, err = makeTUN(*options.TUNFileDescriptor)
-		if err != nil {
-			return nil, xerrors.Errorf("make TUN: %w", err)
-		}
-	}
-
 	headers := options.Headers
 	sdk := codersdk.New(serverURL)
 	sdk.SetSessionToken(token)
 	sdk.HTTPClient.Transport = &codersdk.HeaderTransport{
 		Transport: http.DefaultTransport,
-		Header:    headers,
+		Header:    headers.Clone(),
 	}
 
 	// New context, separate from initCtx. We don't want to cancel the
@@ -114,27 +118,37 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 	if err != nil {
 		return nil, xerrors.Errorf("get connection info: %w", err)
 	}
+	// default to DNS suffix of "coder" if the server hasn't set it (might be too old).
+	dnsNameOptions := tailnet.DNSNameOptions{Suffix: tailnet.CoderDNSSuffix}
+	dnsMatch := tailnet.CoderDNSSuffix
+	if connInfo.HostnameSuffix != "" {
+		dnsNameOptions.Suffix = connInfo.HostnameSuffix
+		dnsMatch = connInfo.HostnameSuffix
+	}
 
 	headers.Set(codersdk.SessionTokenHeader, token)
 	dialer := workspacesdk.NewWebsocketDialer(options.Logger, rpcURL, &websocket.DialOptions{
 		HTTPClient:      sdk.HTTPClient,
-		HTTPHeader:      headers,
+		HTTPHeader:      headers.Clone(),
 		CompressionMode: websocket.CompressionDisabled,
 	}, workspacesdk.WithWorkspaceUpdates(&proto.WorkspaceUpdatesRequest{
 		WorkspaceOwnerId: tailnet.UUIDToByteSlice(me.ID),
 	}))
 
+	clonedHeaders := headers.Clone()
 	ip := tailnet.CoderServicePrefix.RandomAddr()
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:             connInfo.DERPMap,
-		DERPHeader:          &headers,
+		DERPHeader:          &clonedHeaders,
 		DERPForceWebSockets: connInfo.DERPForceWebSockets,
 		Logger:              options.Logger,
 		BlockEndpoints:      connInfo.DisableDirectConnections,
 		DNSConfigurator:     options.DNSConfigurator,
 		Router:              options.Router,
-		TUNDev:              dev,
+		TUNDev:              options.TUNDevice,
+		WireguardMonitor:    options.WireguardMonitor,
+		DNSMatchDomain:      dnsMatch,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
@@ -154,7 +168,7 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 	updatesCtrl := tailnet.NewTunnelAllWorkspaceUpdatesController(
 		options.Logger,
 		coordCtrl,
-		tailnet.WithDNS(conn, me.Name),
+		tailnet.WithDNS(conn, me.Username, dnsNameOptions),
 		tailnet.WithHandler(options.UpdateHandler),
 	)
 	controller.WorkspaceUpdatesCtrl = updatesCtrl

@@ -1,7 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import type { TemplateExample } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
@@ -38,12 +38,18 @@ const findFeaturedExamples = (examples: TemplateExample[]) => {
 interface EmptyTemplatesProps {
 	canCreateTemplates: boolean;
 	examples: TemplateExample[];
+	isUsingFilter: boolean;
 }
 
 export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 	canCreateTemplates,
 	examples,
+	isUsingFilter,
 }) => {
+	if (isUsingFilter) {
+		return <TableEmpty message="No results matched your search" />;
+	}
+
 	const featuredExamples = findFeaturedExamples(examples);
 
 	if (canCreateTemplates) {
@@ -72,13 +78,10 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 							))}
 						</div>
 
-						<Button
-							size="small"
-							component={RouterLink}
-							to="/starter-templates"
-							css={{ borderRadius: 9999 }}
-						>
-							View all starter templates
+						<Button size="sm" asChild css={{ borderRadius: 9999 }}>
+							<RouterLink to="/starter-templates">
+								View all starter templates
+							</RouterLink>
 						</Button>
 					</Stack>
 				}

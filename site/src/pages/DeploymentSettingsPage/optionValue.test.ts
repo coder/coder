@@ -123,6 +123,15 @@ describe("optionValue", () => {
 		{
 			option: {
 				...defaultOption,
+				name: "Experiments",
+				value: null,
+			},
+			additionalValues: ["single_tailnet"],
+			expected: "",
+		},
+		{
+			option: {
+				...defaultOption,
 				name: "Some Go Duration We Want To Show As A String",
 				value: 30 * 1e9,
 				annotations: { format_duration: "true" },

@@ -134,6 +134,42 @@ func databaseImport(m dsl.Matcher) {
 		Where(m.File().PkgPath.Matches("github.com/coder/coder/v2/codersdk"))
 }
 
+// publishInTransaction detects calls to Publish inside database transactions
+// which can lead to connection starvation.
+//
+//nolint:unused,deadcode,varnamelen
+func publishInTransaction(m dsl.Matcher) {
+	m.Import("github.com/coder/coder/v2/coderd/database/pubsub")
+
+	// Match direct calls to the Publish method of a pubsub instance inside InTx
+	m.Match(`
+		$_.InTx(func($x) error {
+			$*_
+			$_ = $ps.Publish($evt, $msg)
+			$*_
+		}, $*_)
+	`,
+		// Alternative with short variable declaration
+		`
+		$_.InTx(func($x) error {
+			$*_
+			$_ := $ps.Publish($evt, $msg)
+			$*_
+		}, $*_)
+	`,
+		// Without catching error return
+		`
+		$_.InTx(func($x) error {
+			$*_
+			$ps.Publish($evt, $msg)
+			$*_
+		}, $*_)
+	`).
+		Where(m["ps"].Type.Is("pubsub.Pubsub")).
+		At(m["ps"]).
+		Report("Avoid calling pubsub.Publish() inside database transactions as this may lead to connection deadlocks. Move the Publish() call outside the transaction.")
+}
+
 // doNotCallTFailNowInsideGoroutine enforces not calling t.FailNow or
 // functions that may themselves call t.FailNow in goroutines outside
 // the main test goroutine. See testing.go:834 for why.

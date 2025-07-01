@@ -72,7 +72,7 @@ func TestRotator(t *testing.T) {
 		require.Len(t, dbkeys, initialKeyLen)
 		requireContainsAllFeatures(t, dbkeys)
 
-		trap.MustWait(ctx).Release()
+		trap.MustWait(ctx).MustRelease(ctx)
 		_, wait := clock.AdvanceNext()
 		wait.MustWait(ctx)
 

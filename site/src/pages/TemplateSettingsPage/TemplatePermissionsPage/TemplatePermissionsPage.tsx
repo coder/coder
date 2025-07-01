@@ -10,7 +10,7 @@ import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 
-export const TemplatePermissionsPage: FC = () => {
+const TemplatePermissionsPage: FC = () => {
 	const { template, permissions } = useTemplateSettings();
 	const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
 	const templateACLQuery = useQuery(templateACL(template.id));
@@ -48,7 +48,7 @@ export const TemplatePermissionsPage: FC = () => {
 						});
 						reset();
 					}}
-					isAddingUser={addUserMutation.isLoading}
+					isAddingUser={addUserMutation.isPending}
 					onUpdateUser={async (user, role) => {
 						await updateUserMutation.mutateAsync({
 							templateId: template.id,
@@ -58,7 +58,7 @@ export const TemplatePermissionsPage: FC = () => {
 						displaySuccess("User role updated successfully!");
 					}}
 					updatingUserId={
-						updateUserMutation.isLoading
+						updateUserMutation.isPending
 							? updateUserMutation.variables?.userId
 							: undefined
 					}
@@ -78,7 +78,7 @@ export const TemplatePermissionsPage: FC = () => {
 						});
 						reset();
 					}}
-					isAddingGroup={addGroupMutation.isLoading}
+					isAddingGroup={addGroupMutation.isPending}
 					onUpdateGroup={async (group, role) => {
 						await updateGroupMutation.mutateAsync({
 							templateId: template.id,
@@ -88,7 +88,7 @@ export const TemplatePermissionsPage: FC = () => {
 						displaySuccess("Group role updated successfully!");
 					}}
 					updatingGroupId={
-						updateGroupMutation.isLoading
+						updateGroupMutation.isPending
 							? updateGroupMutation.variables?.groupId
 							: undefined
 					}

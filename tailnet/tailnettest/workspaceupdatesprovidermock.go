@@ -22,6 +22,7 @@ import (
 type MockWorkspaceUpdatesProvider struct {
 	ctrl     *gomock.Controller
 	recorder *MockWorkspaceUpdatesProviderMockRecorder
+	isgomock struct{}
 }
 
 // MockWorkspaceUpdatesProviderMockRecorder is the mock recorder for MockWorkspaceUpdatesProvider.
@@ -56,16 +57,16 @@ func (mr *MockWorkspaceUpdatesProviderMockRecorder) Close() *gomock.Call {
 }
 
 // Subscribe mocks base method.
-func (m *MockWorkspaceUpdatesProvider) Subscribe(arg0 context.Context, arg1 uuid.UUID) (tailnet.Subscription, error) {
+func (m *MockWorkspaceUpdatesProvider) Subscribe(ctx context.Context, userID uuid.UUID) (tailnet.Subscription, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Subscribe", arg0, arg1)
+	ret := m.ctrl.Call(m, "Subscribe", ctx, userID)
 	ret0, _ := ret[0].(tailnet.Subscription)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Subscribe indicates an expected call of Subscribe.
-func (mr *MockWorkspaceUpdatesProviderMockRecorder) Subscribe(arg0, arg1 any) *gomock.Call {
+func (mr *MockWorkspaceUpdatesProviderMockRecorder) Subscribe(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockWorkspaceUpdatesProvider)(nil).Subscribe), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockWorkspaceUpdatesProvider)(nil).Subscribe), ctx, userID)
 }

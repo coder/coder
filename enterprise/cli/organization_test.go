@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -17,7 +20,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestEditOrganizationRoles(t *testing.T) {
+func TestCreateOrganizationRoles(t *testing.T) {
 	t.Parallel()
 
 	// Unit test uses --stdin and json as the role input. The interactive cli would
@@ -34,7 +37,7 @@ func TestEditOrganizationRoles(t *testing.T) {
 		})
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		inv, root := clitest.New(t, "organization", "roles", "edit", "--stdin")
+		inv, root := clitest.New(t, "organization", "roles", "create", "--stdin")
 		inv.Stdin = bytes.NewBufferString(fmt.Sprintf(`{
     "name": "new-role",
     "organization_id": "%s",
@@ -72,7 +75,7 @@ func TestEditOrganizationRoles(t *testing.T) {
 		})
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		inv, root := clitest.New(t, "organization", "roles", "edit", "--stdin")
+		inv, root := clitest.New(t, "organization", "roles", "create", "--stdin")
 		inv.Stdin = bytes.NewBufferString(fmt.Sprintf(`{
     "name": "new-role",
     "organization_id": "%s",
@@ -183,5 +186,106 @@ func TestShowOrganizations(t *testing.T) {
 		}()
 		require.NoError(t, <-errC)
 		pty.ExpectMatch(orgs["bar"].ID.String())
+	})
+}
+
+func TestUpdateOrganizationRoles(t *testing.T) {
+	t.Parallel()
+
+	t.Run("JSON", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleOwner())
+
+		// Create a role in the DB with no permissions
+		const expectedRole = "test-role"
+		dbgen.CustomRole(t, db, database.CustomRole{
+			Name:            expectedRole,
+			DisplayName:     "Expected",
+			SitePermissions: nil,
+			OrgPermissions:  nil,
+			UserPermissions: nil,
+			OrganizationID: uuid.NullUUID{
+				UUID:  owner.OrganizationID,
+				Valid: true,
+			},
+		})
+
+		// Update the new role via JSON
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv, root := clitest.New(t, "organization", "roles", "update", "--stdin")
+		inv.Stdin = bytes.NewBufferString(fmt.Sprintf(`{
+    "name": "test-role",
+    "organization_id": "%s",
+    "display_name": "",
+    "site_permissions": [],
+    "organization_permissions": [
+		{
+		  "resource_type": "workspace",
+		  "action": "read"
+		}
+    ],
+    "user_permissions": [],
+    "assignable": false,
+    "built_in": false
+  }`, owner.OrganizationID.String()))
+
+		//nolint:gocritic // only owners can edit roles
+		clitest.SetupConfig(t, client, root)
+
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "test-role")
+		require.Contains(t, buf.String(), "1 permissions")
+	})
+
+	t.Run("InvalidRole", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient, _, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleOwner())
+
+		// Update the new role via JSON
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv, root := clitest.New(t, "organization", "roles", "update", "--stdin")
+		inv.Stdin = bytes.NewBufferString(fmt.Sprintf(`{
+    "name": "test-role",
+    "organization_id": "%s",
+    "display_name": "",
+    "site_permissions": [],
+    "organization_permissions": [
+		{
+		  "resource_type": "workspace",
+		  "action": "read"
+		}
+    ],
+    "user_permissions": [],
+    "assignable": false,
+    "built_in": false
+  }`, owner.OrganizationID.String()))
+
+		//nolint:gocritic // only owners can edit roles
+		clitest.SetupConfig(t, client, root)
+
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "The role test-role does not exist.")
 	})
 }

@@ -119,8 +119,6 @@ func TestProvisionerJobStatus(t *testing.T) {
 	org := dbgen.Organization(t, db, database.Organization{})
 
 	for i, tc := range cases {
-		tc := tc
-		i := i
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			// Populate standard fields

@@ -10,6 +10,8 @@ import {
 	WorkspaceAppSharingLevels,
 } from "api/typesGenerated";
 import { PremiumBadge } from "components/Badges/Badges";
+import { Button } from "components/Button/Button";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	FormFields,
 	FormFooter,
@@ -17,6 +19,8 @@ import {
 	HorizontalForm,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
+import { Link } from "components/Link/Link";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import {
 	StackLabel,
@@ -24,6 +28,7 @@ import {
 } from "components/StackLabel/StackLabel";
 import { type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
+import { docs } from "utils/docs";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -46,6 +51,7 @@ export const validationSchema = Yup.object({
 	allow_user_cancel_workspace_jobs: Yup.boolean(),
 	icon: iconValidator,
 	require_active_version: Yup.boolean(),
+	use_classic_parameter_flow: Yup.boolean(),
 	deprecation_message: Yup.string(),
 	max_port_sharing_level: Yup.string().oneOf(WorkspaceAppSharingLevels),
 	cors_behavior: Yup.string().oneOf(Object.values(AppCORSBehaviors)),
@@ -90,6 +96,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 			disable_everyone_group_access: false,
 			max_port_share_level: template.max_port_share_level,
 			cors_behavior: template.cors_behavior,
+			use_classic_parameter_flow: template.use_classic_parameter_flow,
 		},
 		validationSchema,
 		onSubmit,
@@ -223,6 +230,47 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 							</StackLabel>
 						}
 					/>
+					<FormControlLabel
+						control={
+							<Checkbox
+								size="small"
+								id="use_classic_parameter_flow"
+								name="use_classic_parameter_flow"
+								checked={!form.values.use_classic_parameter_flow}
+								onChange={(event) =>
+									form.setFieldValue(
+										"use_classic_parameter_flow",
+										!event.currentTarget.checked,
+									)
+								}
+								disabled={false}
+							/>
+						}
+						label={
+							<StackLabel>
+								<span className="flex flex-row gap-2">
+									Enable dynamic parameters for workspace creation
+									<FeatureStageBadge contentType={"beta"} size="sm" />
+								</span>
+								<StackLabelHelperText>
+									<div>
+										The new workspace form allows you to design your template
+										with new form types and identity-aware conditional
+										parameters. The form will only present options that are
+										compatible and available.
+									</div>
+									<Link
+										className="text-xs"
+										href={docs(
+											"/admin/templates/extending-templates/parameters#dynamic-parameters-beta",
+										)}
+									>
+										Learn more
+									</Link>
+								</StackLabelHelperText>
+							</StackLabel>
+						}
+					/>
 				</FormFields>
 			</FormSection>
 
@@ -279,6 +327,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						label="Maximum Port Sharing Level"
 					>
 						<MenuItem value="owner">Owner</MenuItem>
+						<MenuItem value="organization">Organization</MenuItem>
 						<MenuItem value="authenticated">Authenticated</MenuItem>
 						<MenuItem value="public">Public</MenuItem>
 					</TextField>
@@ -315,7 +364,16 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 				</FormFields>
 			</FormSection>
 
-			<FormFooter onCancel={onCancel} isLoading={isSubmitting} />
+			<FormFooter>
+				<Button onClick={onCancel} variant="outline">
+					Cancel
+				</Button>
+
+				<Button type="submit" disabled={isSubmitting}>
+					<Spinner loading={isSubmitting} />
+					Save
+				</Button>
+			</FormFooter>
 		</HorizontalForm>
 	);
 };

@@ -1,19 +1,20 @@
 import AppearanceIcon from "@mui/icons-material/Brush";
-import ScheduleIcon from "@mui/icons-material/EditCalendarOutlined";
-import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined";
-import SecurityIcon from "@mui/icons-material/LockOutlined";
 import NotificationsIcon from "@mui/icons-material/NotificationsNoneOutlined";
-import AccountIcon from "@mui/icons-material/Person";
-import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
 import type { User } from "api/typesGenerated";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
+import { Avatar } from "components/Avatar/Avatar";
 import { GitIcon } from "components/Icons/GitIcon";
 import {
 	Sidebar as BaseSidebar,
 	SidebarHeader,
 	SidebarNavItem,
 } from "components/Sidebar/Sidebar";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import {
+	CalendarCogIcon,
+	FingerprintIcon,
+	KeyIcon,
+	LockIcon,
+	UserIcon,
+} from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 
@@ -22,20 +23,18 @@ interface SidebarProps {
 }
 
 export const Sidebar: FC<SidebarProps> = ({ user }) => {
-	const { entitlements, experiments } = useDashboard();
+	const { entitlements } = useDashboard();
 	const showSchedulePage =
 		entitlements.features.advanced_template_scheduling.enabled;
 
 	return (
 		<BaseSidebar>
 			<SidebarHeader
-				avatar={
-					<UserAvatar username={user.username} avatarURL={user.avatar_url} />
-				}
+				avatar={<Avatar fallback={user.username} src={user.avatar_url} />}
 				title={user.username}
 				subtitle={user.email}
 			/>
-			<SidebarNavItem href="account" icon={AccountIcon}>
+			<SidebarNavItem href="account" icon={UserIcon}>
 				Account
 			</SidebarNavItem>
 			<SidebarNavItem href="appearance" icon={AppearanceIcon}>
@@ -45,21 +44,21 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 				External Authentication
 			</SidebarNavItem>
 			{showSchedulePage && (
-				<SidebarNavItem href="schedule" icon={ScheduleIcon}>
+				<SidebarNavItem href="schedule" icon={CalendarCogIcon}>
 					Schedule
 				</SidebarNavItem>
 			)}
-			<SidebarNavItem href="security" icon={SecurityIcon}>
+			<SidebarNavItem href="security" icon={LockIcon}>
 				Security
 			</SidebarNavItem>
-			<SidebarNavItem href="ssh-keys" icon={FingerprintOutlinedIcon}>
+			<SidebarNavItem href="ssh-keys" icon={FingerprintIcon}>
 				SSH Keys
 			</SidebarNavItem>
-			<SidebarNavItem href="tokens" icon={VpnKeyOutlined}>
+			<SidebarNavItem href="tokens" icon={KeyIcon}>
 				Tokens
 			</SidebarNavItem>
 			<SidebarNavItem href="notifications" icon={NotificationsIcon}>
-				Notifications <FeatureStageBadge contentType="beta" size="sm" />
+				Notifications
 			</SidebarNavItem>
 		</BaseSidebar>
 	);

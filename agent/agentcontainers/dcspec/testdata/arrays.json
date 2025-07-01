@@ -1,0 +1,5 @@
+{
+	"image": "test-image",
+	"runArgs": ["--network=host", "--privileged"],
+	"forwardPorts": [8080, "3000:3000"]
+}

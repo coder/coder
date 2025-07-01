@@ -10,7 +10,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -89,7 +88,6 @@ type Runner struct {
 	closed          chan struct{}
 	closeMutex      sync.Mutex
 	cron            *cron.Cron
-	initialized     atomic.Bool
 	scripts         []codersdk.WorkspaceAgentScript
 	dataDir         string
 	scriptCompleted ScriptCompletedFunc
@@ -98,6 +96,9 @@ type Runner struct {
 	// execute startup scripts, and scripts on a cron schedule. Both will increment
 	// this counter.
 	scriptsExecuted *prometheus.CounterVec
+
+	initMutex   sync.Mutex
+	initialized bool
 }
 
 // DataDir returns the directory where scripts data is stored.
@@ -119,16 +120,24 @@ func (r *Runner) RegisterMetrics(reg prometheus.Registerer) {
 	reg.MustRegister(r.scriptsExecuted)
 }
 
+// InitOption describes an option for the runner initialization.
+type InitOption func(*Runner)
+
 // Init initializes the runner with the provided scripts.
 // It also schedules any scripts that have a schedule.
 // This function must be called before Execute.
-func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript, scriptCompleted ScriptCompletedFunc) error {
-	if r.initialized.Load() {
+func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript, scriptCompleted ScriptCompletedFunc, opts ...InitOption) error {
+	r.initMutex.Lock()
+	defer r.initMutex.Unlock()
+	if r.initialized {
 		return xerrors.New("init: already initialized")
 	}
-	r.initialized.Store(true)
+	r.initialized = true
 	r.scripts = scripts
 	r.scriptCompleted = scriptCompleted
+	for _, opt := range opts {
+		opt(r)
+	}
 	r.Logger.Info(r.cronCtx, "initializing agent scripts", slog.F("script_count", len(scripts)), slog.F("log_dir", r.LogDir))
 
 	err := r.Filesystem.MkdirAll(r.ScriptBinDir(), 0o700)
@@ -136,11 +145,10 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript, scriptCompleted S
 		return xerrors.Errorf("create script bin dir: %w", err)
 	}
 
-	for _, script := range scripts {
+	for _, script := range r.scripts {
 		if script.Cron == "" {
 			continue
 		}
-		script := script
 		_, err := r.cron.AddFunc(script.Cron, func() {
 			err := r.trackRun(r.cronCtx, script, ExecuteCronScripts)
 			if err != nil {
@@ -192,6 +200,18 @@ const (
 
 // Execute runs a set of scripts according to a filter.
 func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
+	initErr := func() error {
+		r.initMutex.Lock()
+		defer r.initMutex.Unlock()
+		if !r.initialized {
+			return xerrors.New("execute: not initialized")
+		}
+		return nil
+	}()
+	if initErr != nil {
+		return initErr
+	}
+
 	var eg errgroup.Group
 	for _, script := range r.scripts {
 		runScript := (option == ExecuteStartScripts && script.RunOnStart) ||
@@ -203,7 +223,6 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 			continue
 		}
 
-		script := script
 		eg.Go(func() error {
 			err := r.trackRun(ctx, script, option)
 			if err != nil {
@@ -283,14 +302,14 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 		cmdCtx, ctxCancel = context.WithTimeout(ctx, script.Timeout)
 		defer ctxCancel()
 	}
-	cmdPty, err := r.SSHServer.CreateCommand(cmdCtx, script.Script, nil)
+	cmdPty, err := r.SSHServer.CreateCommand(cmdCtx, script.Script, nil, nil)
 	if err != nil {
 		return xerrors.Errorf("%s script: create command: %w", logPath, err)
 	}
 	cmd = cmdPty.AsExec()
 	cmd.SysProcAttr = cmdSysProcAttr()
 	cmd.WaitDelay = 10 * time.Second
-	cmd.Cancel = cmdCancel(cmd)
+	cmd.Cancel = cmdCancel(ctx, logger, cmd)
 
 	// Expose env vars that can be used in the script for storing data
 	// and binaries. In the future, we may want to expose more env vars

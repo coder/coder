@@ -3,7 +3,6 @@
 <div>
   <a href="https://github.com/matifali" style="text-decoration: none; color: inherit;">
     <span style="vertical-align:middle;">Muhammad Atif Ali</span>
-    <img src="https://github.com/matifali.png" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
   </a>
 </div>
 November 15, 2024
@@ -102,7 +101,6 @@ jobs:
       - name: Create a test workspace and run some example commands
         run: |
           coder create -t $TEMPLATE_NAME --template-version ${{ steps.name.outputs.version_name }} test-${{ steps.name.outputs.version_name }} --yes
-          coder config-ssh --yes
           # run some example commands
           coder ssh test-${{ steps.name.outputs.version_name }} -- make build
 

@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import IconButton from "@mui/material/IconButton";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -15,6 +14,7 @@ import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { TrashIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 
 dayjs.extend(relativeTime);
@@ -25,7 +25,7 @@ const lastUsedOrNever = (lastUsed: string) => {
 	return now.isBefore(t.add(100, "year")) ? t.fromNow() : "Never";
 };
 
-export interface TokensPageViewProps {
+interface TokensPageViewProps {
 	tokens?: APIKeyWithOwner[];
 	getTokensError?: unknown;
 	isLoading: boolean;
@@ -58,7 +58,7 @@ export const TokensPageView: FC<TokensPageViewProps> = ({
 							<TableCell width="20%">Last Used</TableCell>
 							<TableCell width="20%">Expires At</TableCell>
 							<TableCell width="20%">Created At</TableCell>
-							<TableCell width="0%"></TableCell>
+							<TableCell width="0%" />
 						</TableRow>
 					</TableHead>
 					<TableBody>
@@ -115,7 +115,7 @@ export const TokensPageView: FC<TokensPageViewProps> = ({
 														size="medium"
 														aria-label="Delete token"
 													>
-														<DeleteOutlineIcon />
+														<TrashIcon className="size-icon-sm" />
 													</IconButton>
 												</span>
 											</TableCell>

@@ -3,7 +3,6 @@
 <div>
   <a href="https://github.com/ericpaulsen" style="text-decoration: none; color: inherit;">
     <span style="vertical-align:middle;">Eric Paulsen</span>
-    <img src="https://github.com/ericpaulsen.png" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
   </a>
 </div>
 January 12, 2024
@@ -23,12 +22,12 @@ actual Docker registry URL, username, and password.
 
 ```json
 {
-	"auths": {
-		"<your-registry>": {
-			"username": "<your-username>",
-			"password": "<your-password>"
-		}
-	}
+    "auths": {
+        "<your-registry>": {
+            "username": "<your-username>",
+            "password": "<your-password>"
+        }
+    }
 }
 ```
 
@@ -54,13 +53,13 @@ The output should look similar to this:
 
 ```json
 {
-	"auths": {
-		"your.private.registry.com": {
-			"username": "ericpaulsen",
-			"password": "xxxx",
-			"auth": "c3R...zE2"
-		}
-	}
+    "auths": {
+        "your.private.registry.com": {
+            "username": "ericpaulsen",
+            "password": "xxxx",
+            "auth": "c3R...zE2"
+        }
+    }
 }
 ```
 

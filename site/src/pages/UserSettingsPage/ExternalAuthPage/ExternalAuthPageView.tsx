@@ -1,8 +1,5 @@
 import { useTheme } from "@emotion/react";
 import AutorenewIcon from "@mui/icons-material/Autorenew";
-import LoadingButton from "@mui/lab/LoadingButton";
-import Badge from "@mui/material/Badge";
-import Divider from "@mui/material/Divider";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -10,8 +7,6 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Tooltip from "@mui/material/Tooltip";
-// biome-ignore lint/nursery/noRestrictedImports: styled
-import { styled } from "@mui/material/styles";
 import visuallyHidden from "@mui/utils/visuallyHidden";
 import { externalAuthProvider } from "api/queries/externalAuth";
 import type {
@@ -20,22 +15,24 @@ import type {
 	ListUserExternalAuthResponse,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar, ExternalAvatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/AvatarData/AvatarData";
-import { Loader } from "components/Loader/Loader";
+import { Avatar } from "components/Avatar/Avatar";
+import { Button } from "components/Button/Button";
 import {
-	MoreMenu,
-	MoreMenuContent,
-	MoreMenuItem,
-	MoreMenuTrigger,
-	ThreeDotsButton,
-} from "components/MoreMenu/MoreMenu";
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
+import { Loader } from "components/Loader/Loader";
+import { Spinner } from "components/Spinner/Spinner";
+import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import type { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
+import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
+import { EllipsisVertical } from "lucide-react";
 import { type FC, useCallback, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 
-export type ExternalAuthPageViewProps = {
+type ExternalAuthPageViewProps = {
 	isLoading: boolean;
 	getAuthsError?: unknown;
 	unlinked: number;
@@ -110,25 +107,6 @@ interface ExternalAuthRowProps {
 	onValidateExternalAuth: () => void;
 }
 
-const StyledBadge = styled(Badge)(({ theme }) => ({
-	"& .MuiBadge-badge": {
-		// Make a circular background for the icon. Background provides contrast, with a thin
-		// border to separate it from the avatar image.
-		backgroundColor: `${theme.palette.background.paper}`,
-		borderStyle: "solid",
-		borderColor: `${theme.palette.secondary.main}`,
-		borderWidth: "thin",
-
-		// Override the default minimum sizes, as they are larger than what we want.
-		minHeight: "0px",
-		minWidth: "0px",
-		// Override the default "height", which is usually set to some constant value.
-		height: "auto",
-		// Padding adds some room for the icon to live in.
-		padding: "0.1em",
-	},
-}));
-
 const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 	app,
 	unlinked,
@@ -151,81 +129,63 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 		? externalAuth.authenticated
 		: (link?.authenticated ?? false);
 
-	let avatar = app.display_icon ? (
-		<ExternalAvatar
-			src={app.display_icon}
-			size="sm"
-			variant="square"
-			fitImage
-		/>
-	) : (
-		<Avatar>{name}</Avatar>
-	);
-
-	// If the link is authenticated and has a refresh token, show that it will automatically
-	// attempt to authenticate when the token expires.
-	if (link?.has_refresh_token && authenticated) {
-		avatar = (
-			<StyledBadge
-				anchorOrigin={{
-					vertical: "bottom",
-					horizontal: "right",
-				}}
-				color="default"
-				overlap="circular"
-				badgeContent={
-					<Tooltip
-						title="Authentication token will automatically refresh when expired."
-						placement="right"
-					>
-						<AutorenewIcon
-							sx={{
-								fontSize: "1em",
-							}}
-						/>
-					</Tooltip>
-				}
-			>
-				{avatar}
-			</StyledBadge>
-		);
-	}
-
 	return (
 		<TableRow key={app.id}>
 			<TableCell>
-				<AvatarData title={name} avatar={avatar} />
-				{link?.validate_error && (
-					<>
-						<span
-							css={{ paddingLeft: "1em", color: theme.palette.error.light }}
+				<Stack direction="row" alignItems="center" spacing={1}>
+					<Avatar variant="icon" src={app.display_icon} fallback={name} />
+					<span className="font-semibold">{name}</span>
+					{/*
+					 * If the link is authenticated and has a refresh token, show that it will automatically
+					 * attempt to authenticate when the token expires.
+					 */}
+					{link?.has_refresh_token && authenticated && (
+						<Tooltip
+							title="Authentication token will automatically refresh when expired."
+							placement="right"
 						>
-							Error:{" "}
+							<AutorenewIcon
+								sx={{
+									fontSize: "0.75rem",
+								}}
+							/>
+						</Tooltip>
+					)}
+
+					{link?.validate_error && (
+						<span>
+							<span
+								css={{ paddingLeft: "1em", color: theme.palette.error.light }}
+							>
+								Error:{" "}
+							</span>
+							{link?.validate_error}
 						</span>
-						{link?.validate_error}
-					</>
-				)}
+					)}
+				</Stack>
 			</TableCell>
 			<TableCell css={{ textAlign: "right" }}>
-				<LoadingButton
-					disabled={authenticated}
-					variant="contained"
-					loading={externalAuthPollingState === "polling"}
+				<Button
+					disabled={authenticated || externalAuthPollingState === "polling"}
 					onClick={() => {
 						window.open(authURL, "_blank", "width=900,height=600");
 						startPollingExternalAuth();
 					}}
 				>
+					<Spinner loading={externalAuthPollingState === "polling"} />
 					{authenticated ? "Authenticated" : "Click to Login"}
-				</LoadingButton>
+				</Button>
 			</TableCell>
 			<TableCell>
-				<MoreMenu>
-					<MoreMenuTrigger>
-						<ThreeDotsButton size="small" disabled={!authenticated} />
-					</MoreMenuTrigger>
-					<MoreMenuContent>
-						<MoreMenuItem
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button size="icon-lg" variant="subtle" aria-label="Open menu">
+							<EllipsisVertical aria-hidden="true" />
+							<span className="sr-only">Open menu</span>
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuItem
 							onClick={async () => {
 								onValidateExternalAuth();
 								// This is kinda jank. It does a refetch of the thing
@@ -236,19 +196,18 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 							}}
 						>
 							Test Validate&hellip;
-						</MoreMenuItem>
-						<Divider />
-						<MoreMenuItem
-							danger
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							className="text-content-destructive focus:text-content-destructive"
 							onClick={async () => {
 								onUnlinkExternalAuth();
 								await refetch();
 							}}
 						>
 							Unlink&hellip;
-						</MoreMenuItem>
-					</MoreMenuContent>
-				</MoreMenu>
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
 			</TableCell>
 		</TableRow>
 	);

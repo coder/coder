@@ -3,7 +3,7 @@ import { AgentRowPreview } from "modules/resources/AgentRowPreview";
 import { Resources } from "modules/resources/Resources";
 import type { FC } from "react";
 
-export interface TemplateResourcesProps {
+interface TemplateResourcesProps {
 	resources: WorkspaceResource[];
 }
 

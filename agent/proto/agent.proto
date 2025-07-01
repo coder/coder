@@ -6,6 +6,7 @@ package coder.agent.v2;
 import "tailnet/proto/tailnet.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
 
 message WorkspaceApp {
 	bytes id = 1;
@@ -23,6 +24,7 @@ message WorkspaceApp {
 		OWNER = 1;
 		AUTHENTICATED = 2;
 		PUBLIC = 3;
+		ORGANIZATION = 4;
 	}
 	SharingLevel sharing_level = 10;
 
@@ -89,11 +91,20 @@ message Manifest {
 	string motd_path = 6;
 	bool disable_direct_connections = 7;
 	bool derp_force_websockets = 8;
+	optional bytes parent_id = 18;
 
 	coder.tailnet.v2.DERPMap derp_map = 9;
 	repeated WorkspaceAgentScript scripts = 10;
 	repeated WorkspaceApp apps = 11;
 	repeated WorkspaceAgentMetadata.Description metadata = 12;
+	repeated WorkspaceAgentDevcontainer devcontainers = 17;
+}
+
+message WorkspaceAgentDevcontainer {
+	bytes id = 1;
+	string workspace_folder = 2;
+	string config_path = 3;
+	string name = 4;
 }
 
 message GetManifestRequest {}
@@ -295,6 +306,160 @@ message Timing {
     Status status = 6;
 }
 
+message GetResourcesMonitoringConfigurationRequest {
+}
+
+message GetResourcesMonitoringConfigurationResponse {
+	message Config {
+		int32 num_datapoints = 1;
+		int32 collection_interval_seconds = 2;
+	}
+	Config config = 1;
+
+	message Memory {
+		bool enabled = 1;
+	}
+	optional Memory memory = 2;
+
+	message Volume {
+		bool enabled = 1;
+		string path = 2;
+	}
+	repeated Volume volumes = 3;
+}
+
+message PushResourcesMonitoringUsageRequest {
+	message Datapoint {
+		message MemoryUsage {
+			int64 used = 1;
+			int64 total = 2;
+		}
+		message VolumeUsage {
+			string volume = 1;
+			int64 used = 2;
+			int64 total = 3;
+		}
+
+		google.protobuf.Timestamp collected_at = 1;
+		optional MemoryUsage memory = 2;
+		repeated VolumeUsage volumes = 3;
+
+	}
+	repeated Datapoint datapoints = 1;
+}
+
+message PushResourcesMonitoringUsageResponse {
+}
+
+message Connection {
+	enum Action {
+		ACTION_UNSPECIFIED = 0;
+		CONNECT = 1;
+		DISCONNECT = 2;
+	}
+	enum Type {
+		TYPE_UNSPECIFIED = 0;
+		SSH = 1;
+		VSCODE = 2;
+		JETBRAINS = 3;
+		RECONNECTING_PTY = 4;
+	}
+
+	bytes id = 1;
+	Action action = 2;
+	Type type = 3;
+	google.protobuf.Timestamp timestamp = 4;
+	string ip = 5;
+	int32 status_code = 6;
+	optional string reason = 7;
+}
+
+message ReportConnectionRequest {
+	Connection connection = 1;
+}
+
+message SubAgent {
+	string name = 1;
+	bytes id = 2;
+	bytes auth_token = 3;
+}
+
+message CreateSubAgentRequest {
+	string name = 1;
+	string directory = 2;
+	string architecture = 3;
+	string operating_system = 4;
+
+	message App {
+		message Healthcheck {
+			int32 interval = 1;
+			int32 threshold = 2;
+			string url = 3;
+		}
+
+		enum OpenIn {
+			SLIM_WINDOW = 0;
+			TAB = 1;
+		}
+
+		enum SharingLevel {
+			OWNER = 0;
+			AUTHENTICATED = 1;
+			PUBLIC = 2;
+			ORGANIZATION = 3;
+		}
+
+		string slug = 1;
+		optional string command = 2;
+		optional string display_name = 3;
+		optional bool external = 4;
+		optional string group = 5;
+		optional Healthcheck healthcheck = 6;
+		optional bool hidden = 7;
+		optional string icon = 8;
+		optional OpenIn open_in = 9;
+		optional int32 order = 10;
+		optional SharingLevel share = 11;
+		optional bool subdomain = 12;
+		optional string url = 13;
+	}
+
+	repeated App apps = 5;
+
+	enum DisplayApp {
+		VSCODE = 0;
+		VSCODE_INSIDERS = 1;
+		WEB_TERMINAL = 2;
+		SSH_HELPER = 3;
+		PORT_FORWARDING_HELPER = 4;
+	}
+
+	repeated DisplayApp display_apps = 6;
+}
+
+message CreateSubAgentResponse {
+	message AppCreationError {
+		int32 index = 1;
+		optional string field = 2;
+		string error = 3;
+	}
+
+	SubAgent agent = 1;
+	repeated AppCreationError app_creation_errors = 2;
+}
+
+message DeleteSubAgentRequest {
+	bytes id = 1;
+}
+
+message DeleteSubAgentResponse {}
+
+message ListSubAgentsRequest {}
+
+message ListSubAgentsResponse {
+	repeated SubAgent agents = 1;
+}
+
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
 	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
@@ -306,4 +471,10 @@ service Agent {
 	rpc BatchCreateLogs(BatchCreateLogsRequest) returns (BatchCreateLogsResponse);
 	rpc GetAnnouncementBanners(GetAnnouncementBannersRequest) returns (GetAnnouncementBannersResponse);
 	rpc ScriptCompleted(WorkspaceAgentScriptCompletedRequest) returns (WorkspaceAgentScriptCompletedResponse);
+	rpc GetResourcesMonitoringConfiguration(GetResourcesMonitoringConfigurationRequest) returns (GetResourcesMonitoringConfigurationResponse);
+	rpc PushResourcesMonitoringUsage(PushResourcesMonitoringUsageRequest) returns (PushResourcesMonitoringUsageResponse);
+	rpc ReportConnection(ReportConnectionRequest) returns (google.protobuf.Empty);
+	rpc CreateSubAgent(CreateSubAgentRequest) returns (CreateSubAgentResponse);
+	rpc DeleteSubAgent(DeleteSubAgentRequest) returns (DeleteSubAgentResponse);
+	rpc ListSubAgents(ListSubAgentsRequest) returns (ListSubAgentsResponse);
 }

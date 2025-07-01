@@ -18,7 +18,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestCryptoKeyCache(t *testing.T) {
@@ -423,7 +423,7 @@ func TestCryptoKeyCache(t *testing.T) {
 		require.Equal(t, 2, ff.called)
 		require.Equal(t, decodedSecret(t, newKey), key)
 
-		trapped.Release()
+		trapped.MustRelease(ctx)
 		wait.MustWait(ctx)
 		require.Equal(t, 2, ff.called)
 		trap.Close()

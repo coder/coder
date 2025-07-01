@@ -16,13 +16,13 @@ export function useLinks() {
 	return get;
 }
 
-export function withFilter(path: string, filter: string) {
+function withFilter(path: string, filter: string) {
 	return path + (filter ? `?filter=${encodeURIComponent(filter)}` : "");
 }
 
 export const linkToAuditing = "/audit";
 
-export const linkToUsers = withFilter("/deployment/users", "status:active");
+const linkToUsers = withFilter("/deployment/users", "status:active");
 
 export const linkToTemplate =
 	(organizationName: string, templateName: string): LinkThunk =>

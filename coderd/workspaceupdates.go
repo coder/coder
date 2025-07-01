@@ -70,10 +70,9 @@ func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent, er
 	default:
 		if err == nil {
 			return
-		} else {
-			// Always attempt an update if the pubsub lost connection
-			s.logger.Warn(ctx, "failed to handle workspace event", slog.Error(err))
 		}
+		// Always attempt an update if the pubsub lost connection
+		s.logger.Warn(ctx, "failed to handle workspace event", slog.Error(err))
 	}
 
 	// Use context containing actor
@@ -199,7 +198,7 @@ func (u *updatesProvider) Subscribe(ctx context.Context, userID uuid.UUID) (tail
 	return sub, nil
 }
 
-func produceUpdate(old, new workspacesByID) (out *proto.WorkspaceUpdate, updated bool) {
+func produceUpdate(oldWS, newWS workspacesByID) (out *proto.WorkspaceUpdate, updated bool) {
 	out = &proto.WorkspaceUpdate{
 		UpsertedWorkspaces: []*proto.Workspace{},
 		UpsertedAgents:     []*proto.Agent{},
@@ -207,8 +206,8 @@ func produceUpdate(old, new workspacesByID) (out *proto.WorkspaceUpdate, updated
 		DeletedAgents:      []*proto.Agent{},
 	}
 
-	for wsID, newWorkspace := range new {
-		oldWorkspace, exists := old[wsID]
+	for wsID, newWorkspace := range newWS {
+		oldWorkspace, exists := oldWS[wsID]
 		// Upsert both workspace and agents if the workspace is new
 		if !exists {
 			out.UpsertedWorkspaces = append(out.UpsertedWorkspaces, &proto.Workspace{
@@ -256,8 +255,8 @@ func produceUpdate(old, new workspacesByID) (out *proto.WorkspaceUpdate, updated
 	}
 
 	// Delete workspace and agents if the workspace is deleted
-	for wsID, oldWorkspace := range old {
-		if _, exists := new[wsID]; !exists {
+	for wsID, oldWorkspace := range oldWS {
+		if _, exists := newWS[wsID]; !exists {
 			out.DeletedWorkspaces = append(out.DeletedWorkspaces, &proto.Workspace{
 				Id:     tailnet.UUIDToByteSlice(wsID),
 				Name:   oldWorkspace.WorkspaceName,

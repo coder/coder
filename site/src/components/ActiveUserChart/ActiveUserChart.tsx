@@ -1,19 +1,9 @@
-import "chartjs-adapter-date-fns";
-import { useTheme } from "@emotion/react";
 import {
-	CategoryScale,
-	Chart as ChartJS,
-	type ChartOptions,
-	Filler,
-	Legend,
-	LineElement,
-	LinearScale,
-	PointElement,
-	TimeScale,
-	Title,
-	Tooltip,
-	defaults,
-} from "chart.js";
+	type ChartConfig,
+	ChartContainer,
+	ChartTooltip,
+	ChartTooltipContent,
+} from "components/Chart/Chart";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -21,95 +11,99 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import dayjs from "dayjs";
 import type { FC } from "react";
-import { Line } from "react-chartjs-2";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
-ChartJS.register(
-	CategoryScale,
-	LinearScale,
-	TimeScale,
-	LineElement,
-	PointElement,
-	Filler,
-	Title,
-	Tooltip,
-	Legend,
-);
-
-export interface ActiveUserChartProps {
-	data: readonly { date: string; amount: number }[];
-	interval: "day" | "week";
+const chartConfig = {
+	amount: {
+		label: "Active Users",
+		color: "hsl(var(--highlight-purple))",
+	},
+} satisfies ChartConfig;
+interface ActiveUserChartProps {
+	data: { date: string; amount: number }[];
 }
 
-export const ActiveUserChart: FC<ActiveUserChartProps> = ({
-	data,
-	interval,
-}) => {
-	const theme = useTheme();
-
-	const labels = data.map((val) => dayjs(val.date).format("YYYY-MM-DD"));
-	const chartData = data.map((val) => val.amount);
-
-	defaults.font.family = theme.typography.fontFamily as string;
-	defaults.color = theme.palette.text.secondary;
-
-	const options: ChartOptions<"line"> = {
-		responsive: true,
-		animation: false,
-		plugins: {
-			legend: {
-				display: false,
-			},
-			tooltip: {
-				displayColors: false,
-				callbacks: {
-					title: (context) => {
-						const date = new Date(context[0].parsed.x);
-						return date.toLocaleDateString();
-					},
-				},
-			},
-		},
-		scales: {
-			y: {
-				grid: { color: theme.palette.divider },
-				suggestedMin: 0,
-				ticks: {
-					precision: 0,
-				},
-			},
-			x: {
-				grid: { color: theme.palette.divider },
-				ticks: {
-					stepSize: data.length > 10 ? 2 : undefined,
-				},
-				type: "time",
-				time: {
-					unit: interval,
-				},
-			},
-		},
-		maintainAspectRatio: false,
-	};
-
+export const ActiveUserChart: FC<ActiveUserChartProps> = ({ data }) => {
 	return (
-		<Line
-			data-chromatic="ignore"
-			data={{
-				labels: labels,
-				datasets: [
-					{
-						label: `${interval === "day" ? "Daily" : "Weekly"} Active Users`,
-						data: chartData,
-						pointBackgroundColor: theme.roles.active.outline,
-						pointBorderColor: theme.roles.active.outline,
-						borderColor: theme.roles.active.outline,
-					},
-				],
-			}}
-			options={options}
-		/>
+		<ChartContainer config={chartConfig} className="aspect-auto h-full">
+			<AreaChart
+				accessibilityLayer
+				data={data}
+				margin={{
+					top: 10,
+					left: 0,
+					right: 0,
+				}}
+			>
+				<CartesianGrid vertical={false} />
+				<XAxis
+					dataKey="date"
+					tickLine={false}
+					tickMargin={12}
+					minTickGap={24}
+					tickFormatter={(value: string) =>
+						new Date(value).toLocaleDateString(undefined, {
+							month: "short",
+							day: "numeric",
+						})
+					}
+				/>
+				<YAxis
+					dataKey="amount"
+					tickLine={false}
+					axisLine={false}
+					tickMargin={12}
+					tickFormatter={(value: number) => {
+						return value === 0 ? "" : value.toLocaleString();
+					}}
+				/>
+				<ChartTooltip
+					cursor={false}
+					content={
+						<ChartTooltipContent
+							className="font-medium text-content-secondary"
+							labelClassName="text-content-primary"
+							labelFormatter={(_, p) => {
+								const item = p[0];
+								return `${item.value} active users`;
+							}}
+							formatter={(v, n, item) => {
+								const date = new Date(item.payload.date);
+								return date.toLocaleString(undefined, {
+									month: "long",
+									day: "2-digit",
+								});
+							}}
+						/>
+					}
+				/>
+				<defs>
+					<linearGradient id="fillAmount" x1="0" y1="0" x2="0" y2="1">
+						<stop
+							offset="5%"
+							stopColor="var(--color-amount)"
+							stopOpacity={0.8}
+						/>
+						<stop
+							offset="95%"
+							stopColor="var(--color-amount)"
+							stopOpacity={0.1}
+						/>
+					</linearGradient>
+				</defs>
+
+				<Area
+					isAnimationActive={false}
+					dataKey="amount"
+					type="linear"
+					fill="url(#fillAmount)"
+					fillOpacity={0.4}
+					stroke="var(--color-amount)"
+					stackId="a"
+				/>
+			</AreaChart>
+		</ChartContainer>
 	);
 };
 

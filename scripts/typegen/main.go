@@ -243,7 +243,6 @@ func generateRbacObjects(templateSource string) ([]byte, error) {
 	var out bytes.Buffer
 	list := make([]Definition, 0)
 	for t, v := range policy.RBACPermissions {
-		v := v
 		list = append(list, Definition{
 			PermissionDefinition: v,
 			Type:                 t,

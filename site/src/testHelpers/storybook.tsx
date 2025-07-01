@@ -1,15 +1,19 @@
 import type { StoryContext } from "@storybook/react";
 import { withDefaultFeatures } from "api/api";
 import { getAuthorizationKey } from "api/queries/authCheck";
-import { getProvisionerDaemonsKey } from "api/queries/organizations";
 import { hasFirstUserKey, meKey } from "api/queries/users";
 import type { Entitlements } from "api/typesGenerated";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
+import {
+	ProxyContext,
+	type ProxyContextValue,
+	getPreferredProxy,
+} from "contexts/ProxyContext";
 import { AuthProvider } from "contexts/auth/AuthProvider";
-import { permissionsToCheck } from "contexts/auth/permissions";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
-import { DeploymentSettingsContext } from "modules/management/DeploymentSettingsProvider";
-import { ManagementSettingsContext } from "modules/management/ManagementSettingsLayout";
+import { DeploymentConfigContext } from "modules/management/DeploymentConfigProvider";
+import { OrganizationSettingsContext } from "modules/management/OrganizationSettingsLayout";
+import { permissionChecks } from "modules/permissions";
 import type { FC } from "react";
 import { useQueryClient } from "react-query";
 import {
@@ -17,6 +21,8 @@ import {
 	MockDefaultOrganization,
 	MockDeploymentConfig,
 	MockEntitlements,
+	MockOrganizationPermissions,
+	MockProxyLatencies,
 } from "./entities";
 
 export const withDashboardProvider = (
@@ -28,6 +34,7 @@ export const withDashboardProvider = (
 		experiments = [],
 		showOrganizations = false,
 		organizations = [MockDefaultOrganization],
+		canViewOrganizationSettings = false,
 	} = parameters;
 
 	const entitlements: Entitlements = {
@@ -48,9 +55,10 @@ export const withDashboardProvider = (
 			value={{
 				entitlements,
 				experiments,
+				appearance: MockAppearanceConfig,
 				organizations,
 				showOrganizations,
-				appearance: MockAppearanceConfig,
+				canViewOrganizationSettings,
 			}}
 		>
 			<Story />
@@ -73,6 +81,8 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 	let callEventsDelay: number;
 
 	window.WebSocket = class WebSocket {
+		public readyState = 1;
+
 		addEventListener(type: string, callback: CallbackFn) {
 			listeners.set(type, callback);
 
@@ -90,6 +100,8 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 				}
 			}, 0);
 		}
+
+		removeEventListener(type: string, callback: CallbackFn) {}
 
 		close() {}
 	} as unknown as typeof window.WebSocket;
@@ -111,7 +123,7 @@ export const withAuthProvider = (Story: FC, { parameters }: StoryContext) => {
 	queryClient.setQueryData(meKey, parameters.user);
 	queryClient.setQueryData(hasFirstUserKey, true);
 	queryClient.setQueryData(
-		getAuthorizationKey({ checks: permissionsToCheck }),
+		getAuthorizationKey({ checks: permissionChecks }),
 		parameters.permissions ?? {},
 	);
 
@@ -122,30 +134,6 @@ export const withAuthProvider = (Story: FC, { parameters }: StoryContext) => {
 	);
 };
 
-export const withProvisioners = (Story: FC, { parameters }: StoryContext) => {
-	if (!parameters.organization_id) {
-		throw new Error(
-			"You forgot to add `parameters.organization_id` to your story",
-		);
-	}
-	if (!parameters.provisioners) {
-		throw new Error(
-			"You forgot to add `parameters.provisioners` to your story",
-		);
-	}
-	if (!parameters.tags) {
-		throw new Error("You forgot to add `parameters.tags` to your story");
-	}
-
-	const queryClient = useQueryClient();
-	queryClient.setQueryData(
-		getProvisionerDaemonsKey(parameters.organization_id, parameters.tags),
-		parameters.provisioners,
-	);
-
-	return <Story />;
-};
-
 export const withGlobalSnackbar = (Story: FC) => (
 	<>
 		<Story />
@@ -153,19 +141,51 @@ export const withGlobalSnackbar = (Story: FC) => (
 	</>
 );
 
-export const withManagementSettingsProvider = (Story: FC) => {
+export const withOrganizationSettingsProvider = (Story: FC) => {
 	return (
-		<ManagementSettingsContext.Provider
+		<OrganizationSettingsContext.Provider
 			value={{
 				organizations: [MockDefaultOrganization],
+				organizationPermissionsByOrganizationId: {
+					[MockDefaultOrganization.id]: MockOrganizationPermissions,
+				},
 				organization: MockDefaultOrganization,
+				organizationPermissions: MockOrganizationPermissions,
 			}}
 		>
-			<DeploymentSettingsContext.Provider
+			<DeploymentConfigContext.Provider
 				value={{ deploymentConfig: MockDeploymentConfig }}
 			>
 				<Story />
-			</DeploymentSettingsContext.Provider>
-		</ManagementSettingsContext.Provider>
+			</DeploymentConfigContext.Provider>
+		</OrganizationSettingsContext.Provider>
 	);
 };
+
+export const withProxyProvider =
+	(value?: Partial<ProxyContextValue>) => (Story: FC) => {
+		return (
+			<ProxyContext.Provider
+				value={{
+					latenciesLoaded: true,
+					proxyLatencies: MockProxyLatencies,
+					proxy: getPreferredProxy([], undefined),
+					proxies: [],
+					isLoading: false,
+					isFetched: true,
+					setProxy: () => {
+						return;
+					},
+					clearProxy: () => {
+						return;
+					},
+					refetchProxyLatencies: (): Date => {
+						return new Date();
+					},
+					...value,
+				}}
+			>
+				<Story />
+			</ProxyContext.Provider>
+		);
+	};

@@ -3,7 +3,7 @@ import { InlineMarkdown } from "components/Markdown/Markdown";
 import type { FC } from "react";
 import { readableForegroundColor } from "utils/colors";
 
-export interface AnnouncementBannerViewProps {
+interface AnnouncementBannerViewProps {
 	message?: string;
 	backgroundColor?: string;
 }

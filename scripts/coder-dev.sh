@@ -39,7 +39,13 @@ case $BINARY_TYPE in
 coder-slim)
 	# Ensure the coder slim binary is always up-to-date with local
 	# changes, this simplifies usage of this script for development.
-	make -j "${RELATIVE_BINARY_PATH}"
+	# NOTE: we send all output of `make` to /dev/null so that we do not break
+	# scripts that read the output of this command.
+	if [[ -t 1 ]]; then
+		make -j "${RELATIVE_BINARY_PATH}"
+	else
+		make -j "${RELATIVE_BINARY_PATH}" >/dev/null 2>&1
+	fi
 	;;
 coder)
 	if [[ ! -x "${CODER_DEV_BIN}" ]]; then

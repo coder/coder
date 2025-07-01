@@ -89,7 +89,7 @@ func main() {
 					return nil
 				},
 			})
-			if errors.Is(err, cliui.Canceled) {
+			if errors.Is(err, cliui.ErrCanceled) {
 				return nil
 			}
 			if err != nil {
@@ -100,7 +100,7 @@ func main() {
 				Default:   cliui.ConfirmYes,
 				IsConfirm: true,
 			})
-			if errors.Is(err, cliui.Canceled) {
+			if errors.Is(err, cliui.ErrCanceled) {
 				return nil
 			}
 			if err != nil {
@@ -371,7 +371,7 @@ func main() {
 				gitlabAuthed.Store(true)
 			}()
 			return cliui.ExternalAuth(inv.Context(), inv.Stdout, cliui.ExternalAuthOptions{
-				Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionExternalAuth, error) {
+				Fetch: func(_ context.Context) ([]codersdk.TemplateVersionExternalAuth, error) {
 					count.Add(1)
 					return []codersdk.TemplateVersionExternalAuth{{
 						ID:              "github",

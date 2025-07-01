@@ -1,5 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import MoreHorizOutlined from "@mui/icons-material/MoreHorizOutlined";
+import { EllipsisIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 
 const spaceBetweenBlocks = 4;
@@ -37,7 +37,7 @@ export const Blocks: FC<BlocksProps> = ({ count }) => {
 			))}
 			{!hasSpacing && (
 				<div css={styles.more}>
-					<MoreHorizOutlined />
+					<EllipsisIcon className="size-icon-sm" />
 				</div>
 			)}
 		</div>

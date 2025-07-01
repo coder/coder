@@ -10,14 +10,14 @@ import { Timeline } from "components/Timeline/Timeline";
 import type { FC } from "react";
 import { VersionRow } from "./VersionRow";
 
-export const Language = {
+const Language = {
 	emptyMessage: "No versions found",
 	nameLabel: "Version name",
 	createdAtLabel: "Created at",
 	createdByLabel: "Created by",
 };
 
-export interface VersionsTableProps {
+interface VersionsTableProps {
 	activeVersionId: string;
 	versions?: TypesGen.TemplateVersion[];
 	onPromoteClick?: (templateVersionId: string) => void;

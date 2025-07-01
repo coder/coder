@@ -7,7 +7,7 @@ enforces MFA correctly.
 
 ## Configuring SSO
 
-- [OpenID Connect](./oidc-auth.md) (e.g. Okta, KeyCloak, PingFederate, Azure AD)
+- [OpenID Connect](./oidc-auth/index.md) (e.g. Okta, KeyCloak, PingFederate, Azure AD)
 - [GitHub](./github-auth.md) (or GitHub Enterprise)
 
 ## Groups
@@ -166,6 +166,7 @@ You can also reset a password via the CLI:
 coder reset-password <username>
 ```
 
+> [!NOTE]
 > Resetting a user's password, e.g., the initial `owner` role-based user, only
 > works when run on the host running the Coder control plane.
 
@@ -185,8 +186,12 @@ to use the Coder's filter query:
 
 - To find active users, use the filter `status:active`.
 - To find admin users, use the filter `role:admin`.
-- To find users have not been active since July 2023:
+- To find users who have not been active since July 2023:
   `status:active last_seen_before:"2023-07-01T00:00:00Z"`
+- To find users who were created between January 1 and January 18, 2023:
+  `created_before:"2023-01-18T00:00:00Z" created_after:"2023-01-01T23:59:59Z"`
+- To find users who login using Github:
+  `login_type:github`
 
 The following filters are supported:
 
@@ -195,6 +200,48 @@ The following filters are supported:
 - `role` - Represents the role of the user. You can refer to the
   [TemplateRole documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#TemplateRole)
   for a list of supported user roles.
-- `last_seen_before` and `last_seen_after` - The last time a used has used the
+- `last_seen_before` and `last_seen_after` - The last time a user has used the
   platform (e.g. logging in, any API requests, connecting to workspaces). Uses
   the RFC3339Nano format.
+- `created_before` and `created_after` - The time a user was created. Uses the
+  RFC3339Nano format.
+- `login_type` - Represents the login type of the user. Refer to the [LoginType documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#LoginType) for a list of supported values
+
+## Retrieve your list of Coder users
+
+<div class="tabs">
+
+You can use the Coder CLI or API to retrieve your list of users.
+
+### CLI
+
+Use `users list` to export the list of users to a CSV file:
+
+```shell
+coder users list > users.csv
+```
+
+Visit the [users list](../../reference/cli/users_list.md) documentation for more options.
+
+### API
+
+Use [get users](../../reference/api/users.md#get-users):
+
+```shell
+curl -X GET http://coder-server:8080/api/v2/users \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+To export the results to a CSV file, you can use [`jq`](https://jqlang.org/) to process the JSON response:
+
+```shell
+curl -X GET http://coder-server:8080/api/v2/users \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY' | \
+  jq -r '.users | (map(keys) | add | unique) as $cols | $cols, (.[] | [.[$cols[]]] | @csv)' > users.csv
+```
+
+Visit the [get users](../../reference/api/users.md#get-users) documentation for more options.
+
+</div>

@@ -1,13 +1,7 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import CreateIcon from "@mui/icons-material/AddOutlined";
-import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import CloseOutlined from "@mui/icons-material/CloseOutlined";
-import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
-import WarningOutlined from "@mui/icons-material/WarningOutlined";
-import Button from "@mui/material/Button";
-import ButtonGroup from "@mui/material/ButtonGroup";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import type {
 	ProvisionerJobLog,
 	Template,
@@ -17,6 +11,7 @@ import type {
 	WorkspaceResource,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { Button } from "components/Button/Button";
 import { Sidebar } from "components/FullPageLayout/Sidebar";
 import {
 	Topbar,
@@ -26,7 +21,11 @@ import {
 	TopbarDivider,
 	TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
+import { TriangleAlertIcon } from "lucide-react";
+import { ChevronLeftIcon } from "lucide-react";
+import { ExternalLinkIcon, PlayIcon, PlusIcon, XIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
 import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
@@ -65,7 +64,7 @@ import { TemplateVersionStatusBadge } from "./TemplateVersionStatusBadge";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
-export interface TemplateVersionEditorProps {
+interface TemplateVersionEditorProps {
 	template: Template;
 	templateVersion: TemplateVersion;
 	defaultFileTree: FileTree;
@@ -132,8 +131,15 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	const availableProvisioners = templateVersion.matched_provisioners?.available;
 
 	const triggerPreview = useCallback(async () => {
-		await onPreview(fileTree);
-		setSelectedTab("logs");
+		try {
+			await onPreview(fileTree);
+			setSelectedTab("logs");
+		} catch (error) {
+			displayError(
+				getErrorMessage(error, "Error on previewing the template"),
+				getErrorDetail(error),
+			);
+		}
 	}, [fileTree, onPreview]);
 
 	// Stop ctrl+s from saving files and make ctrl+enter trigger a preview.
@@ -211,13 +217,16 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 					<div>
 						<Tooltip title="Back to the template">
 							<TopbarIconButton component={RouterLink} to={templateLink}>
-								<ArrowBackOutlined />
+								<ChevronLeftIcon className="size-icon-sm" />
 							</TopbarIconButton>
 						</Tooltip>
 					</div>
 
 					<TopbarData>
-						<TopbarAvatar src={template.icon} />
+						<TopbarAvatar
+							src={template.icon}
+							fallback={template.display_name || template.name}
+						/>
 						<RouterLink
 							to={templateLink}
 							css={{
@@ -246,50 +255,41 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							paddingRight: 16,
 						}}
 					>
+						<span className="mr-2">
+							<Button asChild size="sm" variant="outline">
+								<a
+									href="https://registry.coder.com"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="flex items-center"
+								>
+									Browse the Coder Registry
+									<ExternalLinkIcon className="size-icon-sm ml-1" />
+								</a>
+							</Button>
+						</span>
+
 						<TemplateVersionStatusBadge version={templateVersion} />
 
-						<ButtonGroup
-							variant="outlined"
-							css={{
-								// Workaround to make the border transitions smoothly on button groups
-								"& > button:hover + button": {
-									borderLeft: "1px solid #FFF",
-								},
-							}}
-							disabled={!canBuild}
-						>
+						<div className="flex gap-1 items-center">
 							<TopbarButton
-								startIcon={
-									<PlayArrowOutlined
-										css={{ color: theme.palette.success.light }}
-									/>
-								}
 								title="Build template (Ctrl + Enter)"
 								disabled={!canBuild}
 								onClick={async () => {
 									await triggerPreview();
 								}}
 							>
+								<PlayIcon />
 								Build
 							</TopbarButton>
 							<ProvisionerTagsPopover
 								tags={provisionerTags}
-								onSubmit={({ key, value }) => {
-									onUpdateProvisionerTags({
-										...provisionerTags,
-										[key]: value,
-									});
-								}}
-								onDelete={(key) => {
-									const newTags = { ...provisionerTags };
-									delete newTags[key];
-									onUpdateProvisionerTags(newTags);
-								}}
+								onTagsChange={onUpdateProvisionerTags}
 							/>
-						</ButtonGroup>
+						</div>
 
 						<TopbarButton
-							variant="contained"
+							variant="default"
 							disabled={dirty || !canPublish}
 							onClick={onPublish}
 						>
@@ -326,8 +326,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 								dismissible
 								actions={
 									<Button
-										variant="text"
-										size="small"
+										variant="subtle"
+										size="sm"
 										onClick={onCreateWorkspace}
 									>
 										Create a workspace
@@ -373,7 +373,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 											event.currentTarget.blur();
 										}}
 									>
-										<CreateIcon css={{ width: 16, height: 16 }} />
+										<PlusIcon className="size-icon-xs" />
 									</IconButton>
 								</Tooltip>
 							</div>
@@ -475,11 +475,11 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 												textAlign: "center",
 											}}
 										>
-											<WarningOutlined
+											<TriangleAlertIcon
 												css={{
-													fontSize: 48,
 													color: theme.roles.warning.fill.outline,
 												}}
+												className="size-icon-lg"
 											/>
 											<p
 												css={{
@@ -543,6 +543,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									}}
 								>
 									<button
+										type="button"
 										disabled={!buildLogs}
 										css={styles.tab}
 										className={selectedTab === "logs" ? "active" : ""}
@@ -554,6 +555,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									</button>
 
 									<button
+										type="button"
 										disabled={!canPublish}
 										css={styles.tab}
 										className={selectedTab === "resources" ? "active" : ""}
@@ -577,7 +579,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 											borderRadius: 0,
 										}}
 									>
-										<CloseOutlined css={{ width: 16, height: 16 }} />
+										<XIcon className="size-icon-xs" />
 									</IconButton>
 								)}
 							</div>

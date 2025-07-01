@@ -3,7 +3,7 @@ import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import type { ComponentProps, FC } from "react";
 import { TemplateSettingsForm } from "./TemplateSettingsForm";
 
-export interface TemplateSettingsPageViewProps {
+interface TemplateSettingsPageViewProps {
 	template: Template;
 	onSubmit: (data: UpdateTemplateMeta) => void;
 	onCancel: () => void;

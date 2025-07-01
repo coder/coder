@@ -93,7 +93,7 @@ func TestTokens(t *testing.T) {
 	require.Contains(t, res, secondTokenID)
 
 	// Test creating a token for third user from second user's (non-admin) session
-	inv, root = clitest.New(t, "tokens", "create", "--name", "token-two", "--user", thirdUser.ID.String())
+	inv, root = clitest.New(t, "tokens", "create", "--name", "failed-token", "--user", thirdUser.ID.String())
 	clitest.SetupConfig(t, secondUserClient, root)
 	buf = new(bytes.Buffer)
 	inv.Stdout = buf
@@ -113,7 +113,41 @@ func TestTokens(t *testing.T) {
 	require.Len(t, tokens, 1)
 	require.Equal(t, id, tokens[0].ID)
 
+	// Delete by name
 	inv, root = clitest.New(t, "tokens", "rm", "token-one")
+	clitest.SetupConfig(t, client, root)
+	buf = new(bytes.Buffer)
+	inv.Stdout = buf
+	err = inv.WithContext(ctx).Run()
+	require.NoError(t, err)
+	res = buf.String()
+	require.NotEmpty(t, res)
+	require.Contains(t, res, "deleted")
+
+	// Delete by ID
+	inv, root = clitest.New(t, "tokens", "rm", secondTokenID)
+	clitest.SetupConfig(t, client, root)
+	buf = new(bytes.Buffer)
+	inv.Stdout = buf
+	err = inv.WithContext(ctx).Run()
+	require.NoError(t, err)
+	res = buf.String()
+	require.NotEmpty(t, res)
+	require.Contains(t, res, "deleted")
+
+	// Create third token
+	inv, root = clitest.New(t, "tokens", "create", "--name", "token-three")
+	clitest.SetupConfig(t, client, root)
+	buf = new(bytes.Buffer)
+	inv.Stdout = buf
+	err = inv.WithContext(ctx).Run()
+	require.NoError(t, err)
+	res = buf.String()
+	require.NotEmpty(t, res)
+	fourthToken := res
+
+	// Delete by token
+	inv, root = clitest.New(t, "tokens", "rm", fourthToken)
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	inv.Stdout = buf

@@ -196,7 +196,6 @@ func TestSSHConfig_ParseOptions(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		tt := tt
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
 			c := codersdk.SSHConfig{
@@ -277,7 +276,6 @@ func TestTimezoneOffsets(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -309,8 +307,8 @@ func TestDeploymentValues_DurationFormatNanoseconds(t *testing.T) {
 			continue
 		}
 		t.Logf("Option %q is a duration but does not have the format_duration annotation.", s.Name)
-		t.Logf("To fix this, add the following to the option declaration:")
-		t.Logf(`Annotations: serpent.Annotations{}.Mark(annotationFormatDurationNS, "true"),`)
+		t.Log("To fix this, add the following to the option declaration:")
+		t.Log(`Annotations: serpent.Annotations{}.Mark(annotationFormatDurationNS, "true"),`)
 		t.FailNow()
 	}
 }
@@ -524,8 +522,6 @@ func TestFeatureComparison(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
-
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -619,8 +615,6 @@ func TestNotificationsCanBeDisabled(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

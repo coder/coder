@@ -26,7 +26,7 @@ data "coder_workspace_tags" "custom_workspace_tags" {
 }
 ```
 
-**Legend**
+### Legend
 
 - `zone` - static tag value set to `developers`
 - `runtime` - supported by the string-type `coder_parameter` to select
@@ -55,17 +55,12 @@ raw values from the database and evaluates them using provided template
 variables and parameters. This is illustrated in the table below:
 
 | Value Type | Template Import                                    | Workspace Creation      |
-| ---------- | -------------------------------------------------- | ----------------------- |
+|------------|----------------------------------------------------|-------------------------|
 | Static     | `{"region": "us"}`                                 | `{"region": "us"}`      |
 | Variable   | `{"az": var.az}`                                   | `{"region": "us-east"}` |
 | Parameter  | `{"cluster": data.coder_parameter.cluster.value }` | `{"cluster": "dev"}`    |
 
 ## Constraints
-
-### Default Values
-
-All template variables and `coder_parameter` data sources **must** provide a
-default value. Failure to do so will result in an error.
 
 ### Tagged provisioners
 
@@ -76,7 +71,8 @@ added that can handle its combination of tags.
 Before releasing the template version with configurable workspace tags, ensure
 that every tag set is associated with at least one healthy provisioner.
 
-> [!NOTE] It may be useful to run at least one provisioner with no additional
+> [!NOTE]
+> It may be useful to run at least one provisioner with no additional
 > tag restrictions that is able to take on any job.
 
 ### Parameters types
@@ -98,7 +94,7 @@ as immutable and set only once, during workspace creation.
 You may only specify the following as inputs for `coder_workspace_tags`:
 
 |                    | Example                                       |
-| :----------------- | :-------------------------------------------- |
+|:-------------------|:----------------------------------------------|
 | Static values      | `"developers"`                                |
 | Template variables | `var.az`                                      |
 | Coder parameters   | `data.coder_parameter.runtime_selector.value` |
@@ -115,7 +111,7 @@ raw queries on-the-fly without processing the entire Terraform template. This
 evaluation is simpler but also limited in terms of available functions,
 variables, and references to other resources.
 
-**Supported syntax**
+#### Supported syntax
 
 - Static string: `foobar_tag = "foobaz"`
 - Formatted string: `foobar_tag = "foobaz ${data.coder_parameter.foobaz.value}"`
@@ -125,8 +121,8 @@ variables, and references to other resources.
 - Condition:
   `cache = data.coder_parameter.feature_cache_enabled.value == "true" ? "with-cache" : "no-cache"`
 
-**Not supported**
+#### Not supported
 
-- Function calls: `try(var.foo, "default")`
+- Function calls that reference files on disk: `abspath`, `file*`, `pathexpand`
 - Resources: `compute_instance.dev.name`
 - Data sources other than `coder_parameter`: `data.local_file.hostname.content`

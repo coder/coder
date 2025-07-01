@@ -27,6 +27,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -75,8 +76,6 @@ func TestIsConnectionErr(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
-
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -297,7 +296,6 @@ func Test_readBodyAsError(t *testing.T) {
 	}
 
 	for _, c := range tests {
-		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 

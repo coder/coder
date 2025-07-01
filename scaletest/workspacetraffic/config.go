@@ -5,6 +5,8 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type Config struct {
@@ -33,6 +35,8 @@ type Config struct {
 	Echo bool `json:"echo"`
 
 	App AppConfig `json:"app"`
+
+	WebClient *codersdk.Client
 }
 
 func (c Config) Validate() error {

@@ -17,18 +17,13 @@ import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { useFilter } from "components/Filter/Filter";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { isNonInitialPage } from "components/PaginationWidget/utils";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useAuthenticated } from "hooks";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import {
-	Navigate,
-	useLocation,
-	useNavigate,
-	useSearchParams,
-} from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { generateRandomString } from "utils/random";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
@@ -44,7 +39,6 @@ type UserPageProps = {
 const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
-	const location = useLocation();
 	const searchParamsResult = useSearchParams();
 	const { entitlements } = useDashboard();
 	const [searchParams] = searchParamsResult;
@@ -56,12 +50,12 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 	const {
 		createUser: canCreateUser,
 		updateUsers: canEditUsers,
-		viewDeploymentValues,
+		viewDeploymentConfig,
 	} = permissions;
 	const rolesQuery = useQuery(roles());
 	const { data: deploymentValues } = useQuery({
 		...deploymentConfig(),
-		enabled: viewDeploymentValues,
+		enabled: viewDeploymentConfig,
 	});
 
 	const usersQuery = usePaginatedQuery(paginatedUsers(searchParamsResult[0]));
@@ -99,7 +93,7 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 	// Indicates if oidc roles are synced from the oidc idp.
 	// Assign 'false' if unknown.
 	const oidcRoleSyncEnabled =
-		viewDeploymentValues &&
+		viewDeploymentConfig &&
 		deploymentValues?.config.oidc?.user_role_field !== "";
 
 	const isLoading =
@@ -107,10 +101,6 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 		rolesQuery.isLoading ||
 		authMethodsQuery.isLoading ||
 		groupsByUserIdQuery.isLoading;
-
-	if (location.pathname === "/users") {
-		return <Navigate to={`/deployment/users${location.search}`} replace />;
-	}
 
 	return (
 		<>
@@ -153,7 +143,7 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 						);
 					}
 				}}
-				isUpdatingUserRoles={updateRolesMutation.isLoading}
+				isUpdatingUserRoles={updateRolesMutation.isPending}
 				isLoading={isLoading}
 				canEditUsers={canEditUsers}
 				canViewActivity={entitlements.features.audit_log.enabled}
@@ -171,7 +161,7 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 			<DeleteDialog
 				key={userToDelete?.username}
 				isOpen={userToDelete !== undefined}
-				confirmLoading={deleteUserMutation.isLoading}
+				confirmLoading={deleteUserMutation.isPending}
 				name={userToDelete?.username ?? ""}
 				entity="user"
 				onCancel={() => setUserToDelete(undefined)}
@@ -193,7 +183,7 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 				type="delete"
 				hideCancel={false}
 				open={userToSuspend !== undefined}
-				confirmLoading={suspendUserMutation.isLoading}
+				confirmLoading={suspendUserMutation.isPending}
 				title="Suspend user"
 				confirmText="Suspend"
 				onClose={() => setUserToSuspend(undefined)}
@@ -221,7 +211,7 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 				type="success"
 				hideCancel={false}
 				open={userToActivate !== undefined}
-				confirmLoading={activateUserMutation.isLoading}
+				confirmLoading={activateUserMutation.isPending}
 				title="Activate user"
 				confirmText="Activate"
 				onClose={() => setUserToActivate(undefined)}
@@ -248,7 +238,7 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 			<ResetPasswordDialog
 				key={confirmResetPassword?.user.username}
 				open={confirmResetPassword !== undefined}
-				loading={updatePasswordMutation.isLoading}
+				loading={updatePasswordMutation.isPending}
 				user={confirmResetPassword?.user}
 				newPassword={confirmResetPassword?.newPassword}
 				onClose={() => {

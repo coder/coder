@@ -1,8 +1,8 @@
-import { startOfDay, subDays } from "date-fns";
+import { startOfDay, subtractTime } from "utils/time";
 
 export const lastWeeks = (numberOfWeeks: number) => {
 	const now = new Date();
-	const endDate = startOfDay(subDays(now, 1));
-	const startDate = startOfDay(subDays(endDate, 7 * numberOfWeeks));
+	const endDate = subtractTime(startOfDay(now), 1, "day");
+	const startDate = subtractTime(endDate, 7 * numberOfWeeks, "day");
 	return { startDate, endDate };
 };

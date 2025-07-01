@@ -106,7 +106,7 @@ func (w *WebhookHandler) dispatch(msgPayload types.MessagePayload, titlePlaintex
 				return true, xerrors.Errorf("non-2xx response (%d), read body: %w", resp.StatusCode, err)
 			}
 			w.log.Warn(ctx, "unsuccessful delivery", slog.F("status_code", resp.StatusCode),
-				slog.F("response", respBody[:n]), slog.F("msg_id", msgID))
+				slog.F("response", string(respBody[:n])), slog.F("msg_id", msgID))
 			return true, xerrors.Errorf("non-2xx response (%d)", resp.StatusCode)
 		}
 

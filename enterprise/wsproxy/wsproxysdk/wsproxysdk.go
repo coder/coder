@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -19,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	agpl "github.com/coder/coder/v2/tailnet"
+	"github.com/coder/websocket"
 )
 
 // Client is a HTTP client for a subset of Coder API routes that external
@@ -38,7 +38,7 @@ func New(serverURL *url.URL) *Client {
 	sdkClient.SessionTokenHeader = httpmw.WorkspaceProxyAuthTokenHeader
 
 	sdkClientIgnoreRedirects := codersdk.New(serverURL)
-	sdkClientIgnoreRedirects.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	sdkClientIgnoreRedirects.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 	sdkClientIgnoreRedirects.SessionTokenHeader = httpmw.WorkspaceProxyAuthTokenHeader

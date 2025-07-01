@@ -34,7 +34,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 			name: "single text file",
 			files: map[string]string{
 				"file.txt": `
-		hello world`,
+					hello world`,
 			},
 			expectTags:  map[string]string{},
 			expectError: "",
@@ -49,8 +49,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -71,8 +73,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -94,8 +98,13 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
-					data "base" "ours" {
-						all = true
+					variable "unrelated" {
+						type = bool
+					}
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 					  name = "az"
@@ -128,8 +137,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "${""}${"a"}"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -158,8 +169,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						type    = string
@@ -195,8 +208,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "eu"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 					  name = "az"
@@ -235,8 +250,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -251,7 +268,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						}
 					}`,
 			},
-			expectError: `provisioner tag "az" evaluated to an empty value, please set a default value`,
+			expectTags: map[string]string{"cluster": "developers", "az": "", "platform": "kubernetes", "region": "us"},
 		},
 		{
 			name: "main.tf with missing parameter default value outside workspace tags",
@@ -263,8 +280,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -300,8 +319,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 					variable "notregion" {
 						type = string
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -332,8 +353,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -368,8 +391,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -391,19 +416,60 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 			expectError: `There is no variable named "foo_bar"`,
 		},
 		{
-			name: "main.tf with functions in workspace tags",
+			name: "main.tf with allowed functions in workspace tags",
 			files: map[string]string{
 				"main.tf": `
 					provider "foo" {}
 					resource "foo_bar" "baz" {
 						name = "foobar"
 					}
+					locals {
+						some_path = pathexpand("file.txt")
+					}
+					variable "region" {
+						type    = string
+						default = "us"
+					}
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
+					}
+					data "coder_parameter" "az" {
+						name = "az"
+						type = "string"
+						default = "a"
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"platform"  = "kubernetes",
+							"cluster"   = "${"devel"}${"opers"}"
+							"region"    = try(split(".", var.region)[1], "placeholder")
+							"az"        = try(split(".", data.coder_parameter.az.value)[1], "placeholder")
+						}
+					}`,
+			},
+			expectTags: map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "placeholder", "az": "placeholder"},
+		},
+		{
+			name: "main.tf with disallowed functions in workspace tags",
+			files: map[string]string{
+				"main.tf": `
+					provider "foo" {}
+					resource "foo_bar" "baz" {
+						name = "foobar"
+					}
+					locals {
+						some_path = pathexpand("file.txt")
+					}
 					variable "region" {
 						type    = string
 						default = "region.us"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -416,14 +482,111 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 							"cluster"   = "${"devel"}${"opers"}"
 							"region"    = try(split(".", var.region)[1], "placeholder")
 							"az"        = try(split(".", data.coder_parameter.az.value)[1], "placeholder")
+							"some_path" = pathexpand("~/file.txt")
 						}
 					}`,
 			},
 			expectTags:  nil,
-			expectError: `Function calls not allowed; Functions may not be called here.`,
+			expectError: `function "pathexpand" may not be used here`,
+		},
+		{
+			name: "supported types",
+			files: map[string]string{
+				"main.tf": `
+					variable "stringvar" {
+						type    = string
+						default = "a"
+					}
+					variable "numvar" {
+						type    = number
+						default = 1
+					}
+					variable "boolvar" {
+						type    = bool
+						default = true
+					}
+					variable "listvar" {
+						type    = list(string)
+						default = ["a"]
+					}
+					variable "mapvar" {
+						type    = map(string)
+						default = {"a": "b"}
+					}
+					data "coder_parameter" "stringparam" {
+						name    = "stringparam"
+						type    = "string"
+						default = "a"
+					}
+					data "coder_parameter" "numparam" {
+						name    = "numparam"
+						type    = "number"
+						default = 1
+					}
+					data "coder_parameter" "boolparam" {
+						name    = "boolparam"
+						type    = "bool"
+						default = true
+					}
+					data "coder_parameter" "listparam" {
+						name    = "listparam"
+						type    = "list(string)"
+						default = "[\"a\", \"b\"]"
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"stringvar"   = var.stringvar
+							"numvar"      = var.numvar
+							"boolvar"     = var.boolvar
+							"listvar"     = var.listvar
+							"mapvar"      = var.mapvar
+							"stringparam" = data.coder_parameter.stringparam.value
+							"numparam"    = data.coder_parameter.numparam.value
+							"boolparam"   = data.coder_parameter.boolparam.value
+							"listparam"   = data.coder_parameter.listparam.value
+						}
+					}`,
+			},
+			expectTags: map[string]string{
+				"stringvar":   "a",
+				"numvar":      "1",
+				"boolvar":     "true",
+				"listvar":     `["a"]`,
+				"mapvar":      `{"a":"b"}`,
+				"stringparam": "a",
+				"numparam":    "1",
+				"boolparam":   "true",
+				"listparam":   `["a", "b"]`,
+			},
+			expectError: ``,
+		},
+		{
+			name: "overlapping var name",
+			files: map[string]string{
+				`main.tf`: `
+				variable "a" {
+					type = string
+					default = "1"
+				}
+				variable "unused" {
+					type = map(string)
+					default = {"a" : "b"}
+				}
+				variable "ab" {
+					description = "This is a variable of type string"
+					type        = string
+					default     = "ab"
+				}
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo": "bar",
+						"a": var.a,
+					}
+				}`,
+			},
+			expectTags: map[string]string{"foo": "bar", "a": "1"},
 		},
 	} {
-		tc := tc
 		t.Run(tc.name+"/tar", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
@@ -505,7 +668,7 @@ func BenchmarkWorkspaceTagDefaultsFromFile(b *testing.B) {
 			tfparse.WriteArchive(tarFile, "application/x-tar", tmpDir)
 			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
 			require.NoError(b, diags.Err())
-			_, err := parser.WorkspaceTags(ctx)
+			_, _, err := parser.WorkspaceTags(ctx)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -519,7 +682,7 @@ func BenchmarkWorkspaceTagDefaultsFromFile(b *testing.B) {
 			tfparse.WriteArchive(zipFile, "application/zip", tmpDir)
 			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
 			require.NoError(b, diags.Err())
-			_, err := parser.WorkspaceTags(ctx)
+			_, _, err := parser.WorkspaceTags(ctx)
 			if err != nil {
 				b.Fatal(err)
 			}

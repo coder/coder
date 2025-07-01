@@ -5,9 +5,8 @@ import {
 	css,
 	useTheme,
 } from "@emotion/react";
-import HelpIcon from "@mui/icons-material/HelpOutline";
-import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import Link from "@mui/material/Link";
+import { Stack } from "components/Stack/Stack";
 import {
 	Popover,
 	PopoverContent,
@@ -15,8 +14,9 @@ import {
 	type PopoverProps,
 	PopoverTrigger,
 	usePopover,
-} from "components/Popover/Popover";
-import { Stack } from "components/Stack/Stack";
+} from "components/deprecated/Popover/Popover";
+import { ExternalLinkIcon } from "lucide-react";
+import { CircleHelpIcon } from "lucide-react";
 import {
 	type FC,
 	type HTMLAttributes,
@@ -25,11 +25,11 @@ import {
 	forwardRef,
 } from "react";
 
-type Icon = typeof HelpIcon;
+type Icon = typeof CircleHelpIcon;
 
 type Size = "small" | "medium";
 
-export const HelpTooltipIcon = HelpIcon;
+export const HelpTooltipIcon = CircleHelpIcon;
 
 export const HelpTooltip: FC<PopoverProps> = (props) => {
 	return <Popover mode="hover" {...props} />;
@@ -84,20 +84,20 @@ export const HelpTooltipTrigger = forwardRef<
 				ref={ref}
 				css={[
 					css`
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 4px 0;
-            border: 0;
-            background: transparent;
-            cursor: pointer;
-            color: inherit;
+						display: flex;
+						align-items: center;
+						justify-content: center;
+						padding: 4px 0;
+						border: 0;
+						background: transparent;
+						cursor: pointer;
+						color: inherit;
 
-            & svg {
-              width: ${getIconSpacingFromSize(size)}px;
-              height: ${getIconSpacingFromSize(size)}px;
-            }
-          `,
+						& svg {
+							width: ${getIconSpacingFromSize(size)}px;
+							height: ${getIconSpacingFromSize(size)}px;
+						}
+					`,
 					hoverEffect ? hoverEffectStyles : null,
 				]}
 			>
@@ -137,7 +137,7 @@ interface HelpTooltipLink {
 export const HelpTooltipLink: FC<HelpTooltipLink> = ({ children, href }) => {
 	return (
 		<Link href={href} target="_blank" rel="noreferrer" css={styles.link}>
-			<OpenInNewIcon css={styles.linkIcon} />
+			<ExternalLinkIcon className="size-icon-xs" css={styles.linkIcon} />
 			{children}
 		</Link>
 	);

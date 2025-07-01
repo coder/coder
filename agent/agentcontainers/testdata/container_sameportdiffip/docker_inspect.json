@@ -1,0 +1,51 @@
+[
+	{
+		"Id": "a",
+		"Created": "2025-03-11T17:56:34.842164541Z",
+		"State": {
+			"Running": true,
+			"ExitCode": 0,
+			"Error": ""
+		},
+		"Name": "/a",
+		"Mounts": [],
+		"Config": {
+			"Image": "debian:bookworm",
+			"Labels": {}
+		},
+		"NetworkSettings": {
+			"Ports": {
+				"8001/tcp": [
+					{
+						"HostIp": "0.0.0.0",
+						"HostPort": "8000"
+					}
+				]
+			}
+		}
+	},
+	{
+		"Id": "b",
+		"Created": "2025-03-11T17:56:34.842164541Z",
+		"State": {
+			"Running": true,
+			"ExitCode": 0,
+			"Error": ""
+		},
+		"Name": "/b",
+		"Config": {
+			"Image": "debian:bookworm",
+			"Labels": {}
+		},
+		"NetworkSettings": {
+			"Ports": {
+				"8001/tcp": [
+					{
+						"HostIp": "::",
+						"HostPort": "8000"
+					}
+				]
+			}
+		}
+	}
+]

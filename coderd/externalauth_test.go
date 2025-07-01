@@ -706,4 +706,82 @@ func TestExternalAuthCallback(t *testing.T) {
 		})
 		require.NoError(t, err)
 	})
+	t.Run("AgentAPIKeyScope", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tt := range []struct {
+			apiKeyScope  string
+			expectsError bool
+		}{
+			{apiKeyScope: "all", expectsError: false},
+			{apiKeyScope: "no_user_data", expectsError: true},
+		} {
+			t.Run(tt.apiKeyScope, func(t *testing.T) {
+				t.Parallel()
+
+				client := coderdtest.New(t, &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					ExternalAuthConfigs: []*externalauth.Config{{
+						InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+						ID:                       "github",
+						Regex:                    regexp.MustCompile(`github\.com`),
+						Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+					}},
+				})
+				user := coderdtest.CreateFirstUser(t, client)
+				authToken := uuid.NewString()
+				version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+					Parse:          echo.ParseComplete,
+					ProvisionPlan:  echo.PlanComplete,
+					ProvisionApply: echo.ProvisionApplyWithAgentAndAPIKeyScope(authToken, tt.apiKeyScope),
+				})
+				template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+				coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+				coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+				agentClient := agentsdk.New(client.URL)
+				agentClient.SetSessionToken(authToken)
+
+				token, err := agentClient.ExternalAuth(t.Context(), agentsdk.ExternalAuthRequest{
+					Match: "github.com/asd/asd",
+				})
+
+				if tt.expectsError {
+					require.Error(t, err)
+					var sdkErr *codersdk.Error
+					require.ErrorAs(t, err, &sdkErr)
+					require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+					return
+				}
+
+				require.NoError(t, err)
+				require.NotEmpty(t, token.URL)
+
+				// Start waiting for the token callback...
+				tokenChan := make(chan agentsdk.ExternalAuthResponse, 1)
+				go func() {
+					token, err := agentClient.ExternalAuth(t.Context(), agentsdk.ExternalAuthRequest{
+						Match:  "github.com/asd/asd",
+						Listen: true,
+					})
+					assert.NoError(t, err)
+					tokenChan <- token
+				}()
+
+				time.Sleep(250 * time.Millisecond)
+
+				resp := coderdtest.RequestExternalAuthCallback(t, "github", client)
+				require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+				token = <-tokenChan
+				require.Equal(t, "access_token", token.Username)
+
+				token, err = agentClient.ExternalAuth(t.Context(), agentsdk.ExternalAuthRequest{
+					Match: "github.com/asd/asd",
+				})
+				require.NoError(t, err)
+			})
+		}
+	})
 }

@@ -3,7 +3,7 @@ import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/AvatarData/AvatarData";
+import { AvatarData } from "components/Avatar/AvatarData";
 import {
 	HealthyBadge,
 	NotHealthyBadge,
@@ -26,12 +26,30 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 	// All users can see healthy/unhealthy, some can see more.
 	let statusBadge = <ProxyStatus proxy={proxy} />;
 	let shouldShowMessages = false;
+	const extraWarnings: string[] = [];
+	if (latency?.nextHopProtocol) {
+		switch (latency.nextHopProtocol) {
+			case "http/0.9":
+			case "http/1.0":
+			case "http/1.1":
+				extraWarnings.push(
+					// biome-ignore lint/style/useTemplate: easier to read short lines
+					`Requests to the proxy from current browser are using "${latency.nextHopProtocol}". ` +
+						"The proxy server might not support HTTP/2. " +
+						"For usability reasons, HTTP/2 or above is recommended. " +
+						"Pages may fail to load if the web browser's concurrent " +
+						"connection limit per host is reached.",
+				);
+		}
+	}
+
 	if ("status" in proxy) {
 		const wsproxy = proxy as WorkspaceProxy;
 		statusBadge = <DetailedProxyStatus proxy={wsproxy} />;
 		shouldShowMessages = Boolean(
 			(wsproxy.status?.report?.warnings &&
 				wsproxy.status?.report?.warnings.length > 0) ||
+				extraWarnings.length > 0 ||
 				(wsproxy.status?.report?.errors &&
 					wsproxy.status?.report?.errors.length > 0),
 		);
@@ -40,31 +58,23 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 	return (
 		<>
 			<TableRow key={proxy.name} data-testid={proxy.name}>
-				<TableCell className="name">
+				<TableCell className="summary">
 					<AvatarData
-						title={
-							proxy.display_name && proxy.display_name.length > 0
-								? proxy.display_name
-								: proxy.name
-						}
+						src={proxy.icon_url}
+						title={proxy.display_name || proxy.name}
+						subtitle={proxy.path_app_url}
 						avatar={
-							proxy.icon_url !== "" && (
-								<Avatar
-									size="sm"
-									src={proxy.icon_url}
-									variant="square"
-									fitImage
-								/>
-							)
+							<Avatar
+								variant="icon"
+								src={proxy.icon_url}
+								fallback={proxy.display_name || proxy.name}
+							/>
 						}
 					/>
 				</TableCell>
 
-				<TableCell css={{ fontSize: 14 }} className="url">
-					{proxy.path_app_url}
-				</TableCell>
-				<TableCell css={{ fontSize: 14 }} className="status">
-					{statusBadge}
+				<TableCell className="status">
+					<div className="flex items-center justify-end">{statusBadge}</div>
 				</TableCell>
 				<TableCell
 					css={{
@@ -84,7 +94,10 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 						colSpan={4}
 						css={{ padding: "0 !important", borderBottom: 0 }}
 					>
-						<ProxyMessagesRow proxy={proxy as WorkspaceProxy} />
+						<ProxyMessagesRow
+							proxy={proxy as WorkspaceProxy}
+							extraWarnings={extraWarnings}
+						/>
 					</TableCell>
 				</TableRow>
 			)}
@@ -94,9 +107,13 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 
 interface ProxyMessagesRowProps {
 	proxy: WorkspaceProxy;
+	extraWarnings: string[];
 }
 
-const ProxyMessagesRow: FC<ProxyMessagesRowProps> = ({ proxy }) => {
+const ProxyMessagesRow: FC<ProxyMessagesRowProps> = ({
+	proxy,
+	extraWarnings,
+}) => {
 	const theme = useTheme();
 
 	return (
@@ -109,7 +126,7 @@ const ProxyMessagesRow: FC<ProxyMessagesRowProps> = ({ proxy }) => {
 				title={
 					<span css={{ color: theme.palette.warning.light }}>Warnings</span>
 				}
-				messages={proxy.status?.report?.warnings}
+				messages={[...(proxy.status?.report?.warnings ?? []), ...extraWarnings]}
 			/>
 		</>
 	);
@@ -132,7 +149,7 @@ const ProxyMessagesList: FC<ProxyMessagesListProps> = ({ title, messages }) => {
 			css={{
 				borderBottom: `1px solid ${theme.palette.divider}`,
 				backgroundColor: theme.palette.background.default,
-				padding: "16px 24px",
+				padding: "16px 64px",
 			}}
 		>
 			<div

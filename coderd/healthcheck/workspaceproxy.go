@@ -100,9 +100,9 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 	for _, err := range errs {
 		switch r.Severity {
 		case health.SeverityWarning, health.SeverityOK:
-			r.Warnings = append(r.Warnings, health.Messagef(health.CodeProxyUnhealthy, err))
+			r.Warnings = append(r.Warnings, health.Messagef(health.CodeProxyUnhealthy, "%s", err))
 		case health.SeverityError:
-			r.appendError(*health.Errorf(health.CodeProxyUnhealthy, err))
+			r.appendError(*health.Errorf(health.CodeProxyUnhealthy, "%s", err))
 		}
 	}
 }

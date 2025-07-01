@@ -48,17 +48,17 @@ For more examples, see `coder port-forward --help`.
 
 ## Dashboard
 
-> To enable port forwarding via the dashboard, Coder must be configured with a
-> [wildcard access URL](../../admin/setup/index.md#wildcard-access-url). If an
-> access URL is not specified, Coder will create
-> [a publicly accessible URL](../../admin/setup/index.md#tunnel) to reverse
-> proxy the deployment, and port forwarding will work.
->
-> There is a
-> [DNS limitation](https://datatracker.ietf.org/doc/html/rfc1035#section-2.3.1)
-> where each segment of hostnames must not exceed 63 characters. If your app
-> name, agent name, workspace name and username exceed 63 characters in the
-> hostname, port forwarding via the dashboard will not work.
+To enable port forwarding via the dashboard, Coder must be configured with a
+[wildcard access URL](../../admin/setup/index.md#wildcard-access-url). If an
+access URL is not specified, Coder will create
+[a publicly accessible URL](../../admin/setup/index.md#tunnel) to reverse
+proxy the deployment, and port forwarding will work.
+
+There is a
+[DNS limitation](https://datatracker.ietf.org/doc/html/rfc1035#section-2.3.1)
+where each segment of hostnames must not exceed 63 characters. If your app
+name, agent name, workspace name and username exceed 63 characters in the
+hostname, port forwarding via the dashboard will not work.
 
 ### From an coder_app resource
 
@@ -106,7 +106,7 @@ only supported on Windows and Linux workspace agents).
 We allow developers to share ports as URLs, either with other authenticated
 coder users or publicly. Using the open ports interface, developers can assign a
 sharing levels that match our `coder_app`’s share option in
-[Coder terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share).
+[Coder terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share-1).
 
 - `owner` (Default): The implicit sharing level for all listening ports, only
   visible to the workspace owner
@@ -129,7 +129,11 @@ resource uses a different method of authentication and **is not impacted by the
 template's maximum sharing level**, nor the level of a shared port that points
 to the app.
 
-### Configure maximum port sharing level (enterprise) (premium)
+### Configure maximum port sharing level
+
+> [!NOTE]
+> Configuring port sharing level is a Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Premium-licensed template admins can control the maximum port sharing level for
 workspaces under a given template in the template settings. By default, the
@@ -149,7 +153,7 @@ protocol configuration for each shared port individually.
 You can access any port on the workspace and can configure the port protocol
 manually by appending a `s` to the port in the URL.
 
-```
+```text
 # Uses HTTP
 https://33295--agent--workspace--user--apps.example.com/
 # Uses HTTPS
@@ -172,18 +176,20 @@ must include credentials (set `credentials: "include"` if using `fetch`) or the
 requests cannot be authenticated and you will see an error resembling the
 following:
 
-> Access to fetch at
-> 'https://coder.example.com/api/v2/applications/auth-redirect' from origin
-> 'https://8000--dev--user--apps.coder.example.com' has been blocked by CORS
-> policy: No 'Access-Control-Allow-Origin' header is present on the requested
-> resource. If an opaque response serves your needs, set the request's mode to
-> 'no-cors' to fetch the resource with CORS disabled.
+```text
+Access to fetch at
+'<https://coder.example.com/api/v2/applications/auth-redirect>' from origin
+'<https://8000--dev--user--apps.coder.example.com>' has been blocked by CORS
+policy: No 'Access-Control-Allow-Origin' header is present on the requested
+resource. If an opaque response serves your needs, set the request's mode to
+'no-cors' to fetch the resource with CORS disabled.
+```
 
 #### Headers
 
 Below is a list of the cross-origin headers Coder sets with example values:
 
-```
+```text
 access-control-allow-credentials: true
 access-control-allow-methods: PUT
 access-control-allow-headers: X-Custom-Header

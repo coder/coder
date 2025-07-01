@@ -160,12 +160,19 @@ func (t Template) DeepCopy() Template {
 func (t Template) AutostartAllowedDays() uint8 {
 	// Just flip the binary 0s to 1s and vice versa.
 	// There is an extra day with the 8th bit that needs to be zeroed.
+	// #nosec G115 - Safe conversion for AutostartBlockDaysOfWeek which is 7 bits
 	return ^uint8(t.AutostartBlockDaysOfWeek) & 0b01111111
 }
 
 func (TemplateVersion) RBACObject(template Template) rbac.Object {
 	// Just use the parent template resource for controlling versions
 	return template.RBACObject()
+}
+
+func (i InboxNotification) RBACObject() rbac.Object {
+	return rbac.ResourceInboxNotification.
+		WithID(i.ID).
+		WithOwner(i.UserID.String())
 }
 
 // RBACObjectNoTemplate is for orphaned template versions.
@@ -190,6 +197,13 @@ func (g GetGroupsRow) RBACObject() rbac.Object {
 
 func (gm GroupMember) RBACObject() rbac.Object {
 	return rbac.ResourceGroupMember.WithID(gm.UserID).InOrg(gm.OrganizationID).WithOwner(gm.UserID.String())
+}
+
+// PrebuiltWorkspaceResource defines the interface for types that can be identified as prebuilt workspaces
+// and converted to their corresponding prebuilt workspace RBAC object.
+type PrebuiltWorkspaceResource interface {
+	IsPrebuild() bool
+	AsPrebuild() rbac.Object
 }
 
 // WorkspaceTable converts a Workspace to it's reduced version.
@@ -222,6 +236,24 @@ func (w Workspace) RBACObject() rbac.Object {
 	return w.WorkspaceTable().RBACObject()
 }
 
+// IsPrebuild returns true if the workspace is a prebuild workspace.
+// A workspace is considered a prebuild if its owner is the prebuild system user.
+func (w Workspace) IsPrebuild() bool {
+	return w.OwnerID == PrebuildsSystemUserID
+}
+
+// AsPrebuild returns the RBAC object corresponding to the workspace type.
+// If the workspace is a prebuild, it returns a prebuilt_workspace RBAC object.
+// Otherwise, it returns a normal workspace RBAC object.
+func (w Workspace) AsPrebuild() rbac.Object {
+	if w.IsPrebuild() {
+		return rbac.ResourcePrebuiltWorkspace.WithID(w.ID).
+			InOrg(w.OrganizationID).
+			WithOwner(w.OwnerID.String())
+	}
+	return w.RBACObject()
+}
+
 func (w WorkspaceTable) RBACObject() rbac.Object {
 	if w.DormantAt.Valid {
 		return w.DormantRBAC()
@@ -239,6 +271,24 @@ func (w WorkspaceTable) DormantRBAC() rbac.Object {
 		WithOwner(w.OwnerID.String())
 }
 
+// IsPrebuild returns true if the workspace is a prebuild workspace.
+// A workspace is considered a prebuild if its owner is the prebuild system user.
+func (w WorkspaceTable) IsPrebuild() bool {
+	return w.OwnerID == PrebuildsSystemUserID
+}
+
+// AsPrebuild returns the RBAC object corresponding to the workspace type.
+// If the workspace is a prebuild, it returns a prebuilt_workspace RBAC object.
+// Otherwise, it returns a normal workspace RBAC object.
+func (w WorkspaceTable) AsPrebuild() rbac.Object {
+	if w.IsPrebuild() {
+		return rbac.ResourcePrebuiltWorkspace.WithID(w.ID).
+			InOrg(w.OrganizationID).
+			WithOwner(w.OwnerID.String())
+	}
+	return w.RBACObject()
+}
+
 func (m OrganizationMember) RBACObject() rbac.Object {
 	return rbac.ResourceOrganizationMember.
 		WithID(m.UserID).
@@ -247,6 +297,10 @@ func (m OrganizationMember) RBACObject() rbac.Object {
 }
 
 func (m OrganizationMembersRow) RBACObject() rbac.Object {
+	return m.OrganizationMember.RBACObject()
+}
+
+func (m PaginatedOrganizationMembersRow) RBACObject() rbac.Object {
 	return m.OrganizationMember.RBACObject()
 }
 
@@ -269,12 +323,18 @@ func (p ProvisionerDaemon) RBACObject() rbac.Object {
 		InOrg(p.OrganizationID)
 }
 
+func (p GetProvisionerDaemonsWithStatusByOrganizationRow) RBACObject() rbac.Object {
+	return p.ProvisionerDaemon.RBACObject()
+}
+
 func (p GetEligibleProvisionerDaemonsByProvisionerJobIDsRow) RBACObject() rbac.Object {
 	return p.ProvisionerDaemon.RBACObject()
 }
 
+// RBACObject for a provisioner key is the same as a provisioner daemon.
+// Keys == provisioners from a RBAC perspective.
 func (p ProvisionerKey) RBACObject() rbac.Object {
-	return rbac.ResourceProvisionerKeys.
+	return rbac.ResourceProvisionerDaemon.
 		WithID(p.ID).
 		InOrg(p.OrganizationID)
 }
@@ -394,20 +454,20 @@ func ConvertUserRows(rows []GetUsersRow) []User {
 	users := make([]User, len(rows))
 	for i, r := range rows {
 		users[i] = User{
-			ID:              r.ID,
-			Email:           r.Email,
-			Username:        r.Username,
-			Name:            r.Name,
-			HashedPassword:  r.HashedPassword,
-			CreatedAt:       r.CreatedAt,
-			UpdatedAt:       r.UpdatedAt,
-			Status:          r.Status,
-			RBACRoles:       r.RBACRoles,
-			LoginType:       r.LoginType,
-			AvatarURL:       r.AvatarURL,
-			Deleted:         r.Deleted,
-			LastSeenAt:      r.LastSeenAt,
-			ThemePreference: r.ThemePreference,
+			ID:             r.ID,
+			Email:          r.Email,
+			Username:       r.Username,
+			Name:           r.Name,
+			HashedPassword: r.HashedPassword,
+			CreatedAt:      r.CreatedAt,
+			UpdatedAt:      r.UpdatedAt,
+			Status:         r.Status,
+			RBACRoles:      r.RBACRoles,
+			LoginType:      r.LoginType,
+			AvatarURL:      r.AvatarURL,
+			Deleted:        r.Deleted,
+			LastSeenAt:     r.LastSeenAt,
+			IsSystem:       r.IsSystem,
 		}
 	}
 
@@ -452,6 +512,18 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 
 func (g Group) IsEveryone() bool {
 	return g.ID == g.OrganizationID
+}
+
+func (p ProvisionerJob) RBACObject() rbac.Object {
+	switch p.Type {
+	// Only acceptable for known job types at this time because template
+	// admins may not be allowed to view new types.
+	case ProvisionerJobTypeTemplateVersionImport, ProvisionerJobTypeTemplateVersionDryRun, ProvisionerJobTypeWorkspaceBuild:
+		return rbac.ResourceProvisionerJobs.InOrg(p.OrganizationID)
+
+	default:
+		panic("developer error: unknown provisioner job type " + string(p.Type))
+	}
 }
 
 func (p ProvisionerJob) Finished() bool {
@@ -506,4 +578,36 @@ func (k CryptoKey) CanVerify(now time.Time) bool {
 	hasSecret := k.Secret.Valid
 	isBeforeDeletion := !k.DeletesAt.Valid || now.Before(k.DeletesAt.Time)
 	return hasSecret && isBeforeDeletion
+}
+
+func (r GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow) RBACObject() rbac.Object {
+	return r.ProvisionerJob.RBACObject()
+}
+
+func (m WorkspaceAgentMemoryResourceMonitor) Debounce(
+	by time.Duration,
+	now time.Time,
+	oldState, newState WorkspaceAgentMonitorState,
+) (time.Time, bool) {
+	if now.After(m.DebouncedUntil) &&
+		oldState == WorkspaceAgentMonitorStateOK &&
+		newState == WorkspaceAgentMonitorStateNOK {
+		return now.Add(by), true
+	}
+
+	return m.DebouncedUntil, false
+}
+
+func (m WorkspaceAgentVolumeResourceMonitor) Debounce(
+	by time.Duration,
+	now time.Time,
+	oldState, newState WorkspaceAgentMonitorState,
+) (debouncedUntil time.Time, shouldNotify bool) {
+	if now.After(m.DebouncedUntil) &&
+		oldState == WorkspaceAgentMonitorStateOK &&
+		newState == WorkspaceAgentMonitorStateNOK {
+		return now.Add(by), true
+	}
+
+	return m.DebouncedUntil, false
 }

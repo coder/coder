@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -33,6 +34,10 @@ import (
 func TestTunnel(t *testing.T) {
 	t.Parallel()
 
+	if runtime.GOOS == "windows" {
+		t.Skip("these tests are flaky on windows and cause the tests to fail with '(unknown)' and no output, see https://github.com/coder/internal/issues/579")
+	}
+
 	cases := []struct {
 		name    string
 		version tunnelsdk.TunnelVersion
@@ -48,8 +53,6 @@ func TestTunnel(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
-
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -175,6 +178,7 @@ func newTunnelServer(t *testing.T) *tunnelServer {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if handler != nil {
 			handler.ServeHTTP(w, r)
+			return
 		}
 
 		w.WriteHeader(http.StatusBadGateway)
@@ -209,6 +213,7 @@ func newTunnelServer(t *testing.T) *tunnelServer {
 		if err == nil {
 			break
 		}
+		td = nil
 		t.Logf("failed to create tunnel server on port %d: %s", wireguardPort, err)
 	}
 	if td == nil {

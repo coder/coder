@@ -5,7 +5,7 @@ without compromising service. This process encompasses infrastructure setup,
 traffic projections, and aggressive testing to identify and mitigate potential
 bottlenecks.
 
-A dedicated Kubernetes cluster for Coder is recommended to configure, host and
+A dedicated Kubernetes cluster for Coder is recommended to configure, host, and
 manage Coder workloads. Kubernetes provides container orchestration
 capabilities, allowing Coder to efficiently deploy, scale, and manage workspaces
 across a distributed infrastructure. This ensures high availability, fault
@@ -13,39 +13,41 @@ tolerance, and scalability for Coder deployments. Coder is deployed on this
 cluster using the
 [Helm chart](../../install/kubernetes.md#4-install-coder-with-helm).
 
+For more information about scaling, see our [Coder scaling best practices](../../tutorials/best-practices/scale-coder.md).
+
 ## Methodology
 
 Our scale tests include the following stages:
 
 1. Prepare environment: create expected users and provision workspaces.
 
-2. SSH connections: establish user connections with agents, verifying their
+1. SSH connections: establish user connections with agents, verifying their
    ability to echo back received content.
 
-3. Web Terminal: verify the PTY connection used for communication with Web
+1. Web Terminal: verify the PTY connection used for communication with Web
    Terminal.
 
-4. Workspace application traffic: assess the handling of user connections with
+1. Workspace application traffic: assess the handling of user connections with
    specific workspace apps, confirming their capability to echo back received
    content effectively.
 
-5. Dashboard evaluation: verify the responsiveness and stability of Coder
+1. Dashboard evaluation: verify the responsiveness and stability of Coder
    dashboards under varying load conditions. This is achieved by simulating user
    interactions using instances of headless Chromium browsers.
 
-6. Cleanup: delete workspaces and users created in step 1.
+1. Cleanup: delete workspaces and users created in step 1.
 
 ## Infrastructure and setup requirements
 
 The scale tests runner can distribute the workload to overlap single scenarios
 based on the workflow configuration:
 
-|                      | T0  | T1  | T2  | T3  | T4  | T5  | T6  |
-| -------------------- | --- | --- | --- | --- | --- | --- | --- |
-| SSH connections      | X   | X   | X   | X   |     |     |     |
-| Web Terminal (PTY)   |     | X   | X   | X   | X   |     |     |
-| Workspace apps       |     |     | X   | X   | X   | X   |     |
-| Dashboard (headless) |     |     |     | X   | X   | X   | X   |
+|                      | T0 | T1 | T2 | T3 | T4 | T5 | T6 |
+|----------------------|----|----|----|----|----|----|----|
+| SSH connections      | X  | X  | X  | X  |    |    |    |
+| Web Terminal (PTY)   |    | X  | X  | X  | X  |    |    |
+| Workspace apps       |    |    | X  | X  | X  | X  |    |
+| Dashboard (headless) |    |    |    | X  | X  | X  | X  |
 
 This pattern closely reflects how our customers naturally use the system. SSH
 connections are heavily utilized because they're the primary communication
@@ -54,13 +56,16 @@ channel for IDEs with VS Code and JetBrains plugins.
 The basic setup of scale tests environment involves:
 
 1. Scale tests runner (32 vCPU, 128 GB RAM)
-2. Coder: 2 replicas (4 vCPU, 16 GB RAM)
-3. Database: 1 instance (2 vCPU, 32 GB RAM)
-4. Provisioner: 50 instances (0.5 vCPU, 512 MB RAM)
+1. Coder: 2 replicas (4 vCPU, 16 GB RAM)
+1. Database: 1 instance (2 vCPU, 32 GB RAM)
+1. Provisioner: 50 instances (0.5 vCPU, 512 MB RAM)
 
-The test is deemed successful if users did not experience interruptions in their
-workflows, `coderd` did not crash or require restarts, and no other internal
-errors were observed.
+The test is deemed successful if:
+
+- Users did not experience interruptions in their
+workflows,
+- `coderd` did not crash or require restarts, and
+- No other internal errors were observed.
 
 ## Traffic Projections
 
@@ -90,11 +95,11 @@ Database:
 
 ## Available reference architectures
 
-[Up to 1,000 users](./validated-architectures/1k-users.md)
+- [Up to 1,000 users](./validated-architectures/1k-users.md)
 
-[Up to 2,000 users](./validated-architectures/2k-users.md)
+- [Up to 2,000 users](./validated-architectures/2k-users.md)
 
-[Up to 3,000 users](./validated-architectures/3k-users.md)
+- [Up to 3,000 users](./validated-architectures/3k-users.md)
 
 ## Hardware recommendation
 
@@ -107,7 +112,7 @@ guidance on optimal configurations. A reasonable approach involves using scaling
 formulas based on factors like CPU, memory, and the number of users.
 
 While the minimum requirements specify 1 CPU core and 2 GB of memory per
-`coderd` replica, it is recommended to allocate additional resources depending
+`coderd` replica, we recommend that you allocate additional resources depending
 on the workload size to ensure deployment stability.
 
 #### CPU and memory usage
@@ -137,7 +142,7 @@ When determining scaling requirements, consider the following factors:
   connections: For a very high number of proxied connections, more memory is
   required.
 
-**HTTP API latency**
+#### HTTP API latency
 
 For a reliable Coder deployment dealing with medium to high loads, it's
 important that API calls for workspace/template queries and workspace build
@@ -152,7 +157,7 @@ between users and the load balancer. Fortunately, the latency can be improved
 with a deployment of Coder
 [workspace proxies](../networking/workspace-proxies.md).
 
-**Node Autoscaling**
+#### Node Autoscaling
 
 We recommend disabling the autoscaling for `coderd` nodes. Autoscaling can cause
 interruptions for user connections, see
@@ -186,7 +191,7 @@ When determining scaling requirements, consider the following factors:
   provisioners are free/available, the more concurrent workspace builds can be
   performed.
 
-**Node Autoscaling**
+#### Node Autoscaling
 
 Autoscaling provisioners is not an easy problem to solve unless it can be
 predicted when a number of concurrent workspace builds increases.
@@ -219,7 +224,7 @@ When determining scaling requirements, consider the following factors:
   running Coder agent and occasional CPU and memory bursts for building
   projects.
 
-**Node Autoscaling**
+#### Node Autoscaling
 
 Workspace nodes can be set to operate in autoscaling mode to mitigate the risk
 of prolonged high resource utilization.

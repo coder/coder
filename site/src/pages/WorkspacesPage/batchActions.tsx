@@ -45,11 +45,15 @@ export function useBatchActions(options: UseBatchActionsProps) {
 	});
 
 	const updateAllMutation = useMutation({
-		mutationFn: (workspaces: readonly Workspace[]) => {
+		mutationFn: (payload: {
+			workspaces: readonly Workspace[];
+			isDynamicParametersEnabled: boolean;
+		}) => {
+			const { workspaces, isDynamicParametersEnabled } = payload;
 			return Promise.all(
 				workspaces
 					.filter((w) => w.outdated && !w.dormant_at)
-					.map((w) => API.updateWorkspace(w)),
+					.map((w) => API.updateWorkspace(w, [], isDynamicParametersEnabled)),
 			);
 		},
 		onSuccess,
@@ -94,10 +98,10 @@ export function useBatchActions(options: UseBatchActionsProps) {
 		deleteAll: deleteAllMutation.mutateAsync,
 		updateAll: updateAllMutation.mutateAsync,
 		isLoading:
-			favoriteAllMutation.isLoading ||
-			unfavoriteAllMutation.isLoading ||
-			startAllMutation.isLoading ||
-			stopAllMutation.isLoading ||
-			deleteAllMutation.isLoading,
+			favoriteAllMutation.isPending ||
+			unfavoriteAllMutation.isPending ||
+			startAllMutation.isPending ||
+			stopAllMutation.isPending ||
+			deleteAllMutation.isPending,
 	};
 }

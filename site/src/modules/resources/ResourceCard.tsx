@@ -19,7 +19,7 @@ const styles = {
 			borderBottom: 0,
 		},
 
-		"&:first-child": {
+		"&:first-of-type": {
 			borderTopLeftRadius: 8,
 			borderTopRightRadius: 8,
 		},
@@ -70,7 +70,7 @@ const styles = {
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
 
-export interface ResourceCardProps {
+interface ResourceCardProps {
 	resource: WorkspaceResource;
 	agentRow: (agent: WorkspaceAgent) => JSX.Element;
 }
@@ -99,11 +99,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 				css={styles.resourceCardHeader}
 				spacing={10}
 			>
-				<Stack
-					direction="row"
-					alignItems="center"
-					css={styles.resourceCardProfile}
-				>
+				<Stack direction="row" spacing={1} css={styles.resourceCardProfile}>
 					<div>
 						<ResourceAvatar resource={resource} />
 					</div>

@@ -68,6 +68,7 @@ func (r *Reporter) ReportAppStats(ctx context.Context, stats []workspaceapps.Sta
 			batch.SessionID = append(batch.SessionID, stat.SessionID)
 			batch.SessionStartedAt = append(batch.SessionStartedAt, stat.SessionStartedAt)
 			batch.SessionEndedAt = append(batch.SessionEndedAt, stat.SessionEndedAt)
+			// #nosec G115 - Safe conversion as request count is expected to be within int32 range
 			batch.Requests = append(batch.Requests, int32(stat.Requests))
 
 			if len(batch.UserID) >= r.opts.AppStatBatchSize {
@@ -154,16 +155,17 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 		templateSchedule, err := (*(r.opts.TemplateScheduleStore.Load())).Get(ctx, r.opts.Database, workspace.TemplateID)
 		// If the template schedule fails to load, just default to bumping
 		// without the next transition and log it.
-		if err == nil {
+		switch {
+		case err == nil:
 			next, allowed := schedule.NextAutostart(now, workspace.AutostartSchedule.String, templateSchedule)
 			if allowed {
 				nextAutostart = next
 			}
-		} else if database.IsQueryCanceledError(err) {
+		case database.IsQueryCanceledError(err):
 			r.opts.Logger.Debug(ctx, "query canceled while loading template schedule",
 				slog.F("workspace_id", workspace.ID),
 				slog.F("template_id", workspace.TemplateID))
-		} else {
+		default:
 			r.opts.Logger.Error(ctx, "failed to load template schedule bumping activity, defaulting to bumping by 60min",
 				slog.F("workspace_id", workspace.ID),
 				slog.F("template_id", workspace.TemplateID),

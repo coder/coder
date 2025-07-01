@@ -1,16 +1,15 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # tokens remove
 
 Delete a token
 
 Aliases:
 
-- delete
-- rm
+* delete
+* rm
 
 ## Usage
 
 ```console
-coder tokens remove <name>
+coder tokens remove <name|id|token>
 ```

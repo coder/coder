@@ -60,7 +60,7 @@ func TestPGPubsub_Metrics(t *testing.T) {
 		err := uut.Publish(event, []byte(data))
 		assert.NoError(t, err)
 	}()
-	_ = testutil.RequireRecvCtx(ctx, t, messageChannel)
+	_ = testutil.TryReceive(ctx, t, messageChannel)
 
 	require.Eventually(t, func() bool {
 		latencyBytes := gatherCount * pubsub.LatencyMessageLength
@@ -96,8 +96,8 @@ func TestPGPubsub_Metrics(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 	// should get 2 messages because we have 2 subs
-	_ = testutil.RequireRecvCtx(ctx, t, messageChannel)
-	_ = testutil.RequireRecvCtx(ctx, t, messageChannel)
+	_ = testutil.TryReceive(ctx, t, messageChannel)
+	_ = testutil.TryReceive(ctx, t, messageChannel)
 
 	require.Eventually(t, func() bool {
 		latencyBytes := gatherCount * pubsub.LatencyMessageLength
@@ -137,6 +137,7 @@ func TestPGPubsubDriver(t *testing.T) {
 	// use a separate subber and pubber so we can keep track of listener connections
 	db, err := sql.Open("postgres", connectionURL)
 	require.NoError(t, err)
+	defer db.Close()
 	pubber, err := pubsub.New(ctx, logger, db, connectionURL)
 	require.NoError(t, err)
 	defer pubber.Close()
@@ -147,6 +148,7 @@ func TestPGPubsubDriver(t *testing.T) {
 	tconn, err := subDriver.Connector(connectionURL)
 	require.NoError(t, err)
 	tcdb := sql.OpenDB(tconn)
+	defer tcdb.Close()
 	subber, err := pubsub.New(ctx, logger, tcdb, connectionURL)
 	require.NoError(t, err)
 	defer subber.Close()
@@ -165,10 +167,10 @@ func TestPGPubsubDriver(t *testing.T) {
 	require.NoError(t, err)
 
 	// wait for the message
-	_ = testutil.RequireRecvCtx(ctx, t, gotChan)
+	_ = testutil.TryReceive(ctx, t, gotChan)
 
 	// read out first connection
-	firstConn := testutil.RequireRecvCtx(ctx, t, subDriver.Connections)
+	firstConn := testutil.TryReceive(ctx, t, subDriver.Connections)
 
 	// drop the underlying connection being used by the pubsub
 	// the pq.Listener should reconnect and repopulate it's listeners
@@ -177,7 +179,7 @@ func TestPGPubsubDriver(t *testing.T) {
 	require.NoError(t, err)
 
 	// wait for the reconnect
-	_ = testutil.RequireRecvCtx(ctx, t, subDriver.Connections)
+	_ = testutil.TryReceive(ctx, t, subDriver.Connections)
 	// we need to sleep because the raw connection notification
 	// is sent before the pq.Listener can reestablish it's listeners
 	time.Sleep(1 * time.Second)
@@ -187,5 +189,5 @@ func TestPGPubsubDriver(t *testing.T) {
 	require.NoError(t, err)
 
 	// wait for the message on the old subscription
-	_ = testutil.RequireRecvCtx(ctx, t, gotChan)
+	_ = testutil.TryReceive(ctx, t, gotChan)
 }

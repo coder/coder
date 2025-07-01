@@ -3,7 +3,7 @@ import { Activity, Coins, Expand, SquareArrowOutUpRight } from "lucide-react";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
-export type PremiumPageViewProps = { isEnterprise: boolean };
+type PremiumPageViewProps = { isEnterprise: boolean };
 
 export const PremiumPageView: FC<PremiumPageViewProps> = ({ isEnterprise }) => {
 	return isEnterprise ? <EnterpriseVersion /> : <OSSVersion />;

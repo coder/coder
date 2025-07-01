@@ -12,7 +12,18 @@ import (
 // implementation of the VPN RPC protocol.
 var CurrentSupportedVersions = RPCVersionList{
 	Versions: []RPCVersion{
-		{Major: 1, Minor: 0},
+		// 1.1 adds telemetry fields to StartRequest:
+		// - device_id: Coder Desktop device ID
+		// - device_os: Coder Desktop OS information
+		// - coder_desktop_version: Coder Desktop version
+		// 1.2 adds network related information to Agent:
+		// - last_ping:
+		//   - latency: RTT of the most recently sent ping
+		//   - did_p2p: Whether the last ping was sent over P2P
+		//   - preferred_derp: The server that DERP relayed connections are
+		//                     using, if they're not using P2P.
+		//   - preferred_derp_latency: The latency to the preferred DERP
+		{Major: 1, Minor: 2},
 	},
 }
 

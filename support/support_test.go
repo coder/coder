@@ -30,7 +30,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestRun(t *testing.T) {
@@ -62,6 +62,7 @@ func TestRun(t *testing.T) {
 		assertSanitizedDeploymentConfig(t, bun.Deployment.Config)
 		assertNotNilNotEmpty(t, bun.Deployment.HealthReport, "deployment health report should be present")
 		assertNotNilNotEmpty(t, bun.Deployment.Experiments, "deployment experiments should be present")
+		require.NotNil(t, bun.Deployment.Licenses, "license status should be present")
 		assertNotNilNotEmpty(t, bun.Network.ConnectionInfo, "agent connection info should be present")
 		assertNotNilNotEmpty(t, bun.Network.CoordinatorDebug, "network coordinator debug should be present")
 		assertNotNilNotEmpty(t, bun.Network.Netcheck, "network netcheck should be present")

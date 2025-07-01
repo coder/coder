@@ -1,14 +1,14 @@
-import VariablesIcon from "@mui/icons-material/CodeOutlined";
-import SecurityIcon from "@mui/icons-material/LockOutlined";
-import GeneralIcon from "@mui/icons-material/SettingsOutlined";
-import ScheduleIcon from "@mui/icons-material/TimerOutlined";
 import type { Template } from "api/typesGenerated";
-import { ExternalAvatar } from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import {
 	Sidebar as BaseSidebar,
 	SidebarHeader,
 	SidebarNavItem,
 } from "components/Sidebar/Sidebar";
+import { CodeIcon as VariablesIcon } from "lucide-react";
+import { TimerIcon as ScheduleIcon } from "lucide-react";
+import { SettingsIcon } from "lucide-react";
+import { LockIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 
@@ -23,7 +23,7 @@ export const Sidebar: FC<SidebarProps> = ({ template }) => {
 		<BaseSidebar>
 			<SidebarHeader
 				avatar={
-					<ExternalAvatar src={template.icon} variant="square" fitImage />
+					<Avatar variant="icon" src={template.icon} fallback={template.name} />
 				}
 				title={template.display_name || template.name}
 				linkTo={getLink(
@@ -32,10 +32,10 @@ export const Sidebar: FC<SidebarProps> = ({ template }) => {
 				subtitle={template.name}
 			/>
 
-			<SidebarNavItem href="" icon={GeneralIcon}>
+			<SidebarNavItem href="" icon={SettingsIcon}>
 				General
 			</SidebarNavItem>
-			<SidebarNavItem href="permissions" icon={SecurityIcon}>
+			<SidebarNavItem href="permissions" icon={LockIcon}>
 				Permissions
 			</SidebarNavItem>
 			<SidebarNavItem href="variables" icon={VariablesIcon}>

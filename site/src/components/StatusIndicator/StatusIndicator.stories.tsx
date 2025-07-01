@@ -1,10 +1,17 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { StatusIndicator } from "./StatusIndicator";
+import { StatusIndicator, StatusIndicatorDot } from "./StatusIndicator";
 
 const meta: Meta<typeof StatusIndicator> = {
 	title: "components/StatusIndicator",
 	component: StatusIndicator,
-	args: {},
+	args: {
+		children: (
+			<>
+				<StatusIndicatorDot />
+				Status
+			</>
+		),
+	},
 };
 
 export default meta;
@@ -12,52 +19,37 @@ type Story = StoryObj<typeof StatusIndicator>;
 
 export const Success: Story = {
 	args: {
-		color: "success",
+		variant: "success",
 	},
 };
 
-export const SuccessOutline: Story = {
+export const Failed: Story = {
 	args: {
-		color: "success",
-		variant: "outlined",
-	},
-};
-
-export const Warning: Story = {
-	args: {
-		color: "warning",
-	},
-};
-
-export const WarningOutline: Story = {
-	args: {
-		color: "warning",
-		variant: "outlined",
-	},
-};
-
-export const Danger: Story = {
-	args: {
-		color: "danger",
-	},
-};
-
-export const DangerOutline: Story = {
-	args: {
-		color: "danger",
-		variant: "outlined",
+		variant: "failed",
 	},
 };
 
 export const Inactive: Story = {
 	args: {
-		color: "inactive",
+		variant: "inactive",
 	},
 };
 
-export const InactiveOutline: Story = {
+export const Warning: Story = {
 	args: {
-		color: "inactive",
-		variant: "outlined",
+		variant: "warning",
+	},
+};
+
+export const Pending: Story = {
+	args: {
+		variant: "pending",
+	},
+};
+
+export const Small: Story = {
+	args: {
+		variant: "success",
+		size: "sm",
 	},
 };

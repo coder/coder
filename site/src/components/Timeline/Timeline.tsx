@@ -22,7 +22,7 @@ const groupByDate = <TData,>(
 	return itemsByDate;
 };
 
-export interface TimelineProps<TData> {
+interface TimelineProps<TData> {
 	items: readonly TData[];
 	getDate: GetDateFn<TData>;
 	row: (item: TData) => JSX.Element;

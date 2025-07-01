@@ -4,13 +4,14 @@ import { Stack } from "components/Stack/Stack";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import type { ElementType, FC, ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
+import { cn } from "utils/cn";
 
 interface SidebarProps {
 	children?: ReactNode;
 }
 
 export const Sidebar: FC<SidebarProps> = ({ children }) => {
-	return <nav css={styles.sidebar}>{children}</nav>;
+	return <nav className="w-60 flex-shrink-0">{children}</nav>;
 };
 
 interface SidebarHeaderProps {
@@ -27,7 +28,7 @@ export const SidebarHeader: FC<SidebarHeaderProps> = ({
 	linkTo,
 }) => {
 	return (
-		<Stack direction="row" alignItems="center" css={styles.info}>
+		<Stack direction="row" spacing={1} css={styles.info}>
 			{avatar}
 			<div
 				css={{
@@ -46,6 +47,33 @@ export const SidebarHeader: FC<SidebarHeaderProps> = ({
 				<span css={styles.subtitle}>{subtitle}</span>
 			</div>
 		</Stack>
+	);
+};
+
+interface SettingsSidebarNavItemProps {
+	children?: ReactNode;
+	href: string;
+	end?: boolean;
+}
+
+export const SettingsSidebarNavItem: FC<SettingsSidebarNavItemProps> = ({
+	children,
+	href,
+	end,
+}) => {
+	return (
+		<NavLink
+			end={end}
+			to={href}
+			className={({ isActive }) =>
+				cn(
+					"relative text-sm text-content-secondary no-underline font-medium py-2 px-3 hover:bg-surface-secondary rounded-md transition ease-in-out duration-150",
+					isActive && "font-semibold text-content-primary",
+				)
+			}
+		>
+			{children}
+		</NavLink>
 	);
 };
 
@@ -78,10 +106,6 @@ export const SidebarNavItem: FC<SidebarNavItemProps> = ({
 };
 
 const styles = {
-	sidebar: {
-		width: 245,
-		flexShrink: 0,
-	},
 	info: (theme) => ({
 		...(theme.typography.body2 as CSSObject),
 		marginBottom: 16,

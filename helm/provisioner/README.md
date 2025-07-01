@@ -3,7 +3,7 @@
 This directory contains the Helm chart used to deploy Coder provisioner daemons onto a Kubernetes
 cluster.
 
-External provisioner daemons are an Enterprise feature. Contact sales@coder.com.
+External provisioner daemons are a Premium feature. Contact sales@coder.com.
 
 ## Getting Started
 
@@ -135,7 +135,7 @@ provisionerDaemon:
 nameOverride: "other-coder-provisioner"
 ```
 
-# Testing
+## Testing
 
 The test suite for this chart lives in `./tests/chart_test.go`.
 

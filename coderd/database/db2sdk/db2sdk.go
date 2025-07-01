@@ -5,19 +5,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/exp/slices"
+	"github.com/hashicorp/hcl/v2"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
+	previewtypes "github.com/coder/preview/types"
+
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -41,14 +47,6 @@ func ListLazy[F any, T any](convert func(F) T) func(list []F) []T {
 		}
 		return into
 	}
-}
-
-func Map[K comparable, F any, T any](params map[K]F, convert func(F) T) map[K]T {
-	into := make(map[K]T)
-	for k, item := range params {
-		into[k] = convert(item)
-	}
-	return into
 }
 
 type ExternalAuthMeta struct {
@@ -88,16 +86,59 @@ func WorkspaceBuildParameters(params []database.WorkspaceBuildParameter) []coder
 }
 
 func TemplateVersionParameters(params []database.TemplateVersionParameter) ([]codersdk.TemplateVersionParameter, error) {
-	out := make([]codersdk.TemplateVersionParameter, len(params))
-	var err error
-	for i, p := range params {
-		out[i], err = TemplateVersionParameter(p)
+	out := make([]codersdk.TemplateVersionParameter, 0, len(params))
+	for _, p := range params {
+		np, err := TemplateVersionParameter(p)
 		if err != nil {
 			return nil, xerrors.Errorf("convert template version parameter %q: %w", p.Name, err)
 		}
+		out = append(out, np)
 	}
 
 	return out, nil
+}
+
+func TemplateVersionParameterFromPreview(param previewtypes.Parameter) (codersdk.TemplateVersionParameter, error) {
+	descriptionPlaintext, err := render.PlaintextFromMarkdown(param.Description)
+	if err != nil {
+		return codersdk.TemplateVersionParameter{}, err
+	}
+
+	sdkParam := codersdk.TemplateVersionParameter{
+		Name:                 param.Name,
+		DisplayName:          param.DisplayName,
+		Description:          param.Description,
+		DescriptionPlaintext: descriptionPlaintext,
+		Type:                 string(param.Type),
+		FormType:             string(param.FormType),
+		Mutable:              param.Mutable,
+		DefaultValue:         param.DefaultValue.AsString(),
+		Icon:                 param.Icon,
+		Required:             param.Required,
+		Ephemeral:            param.Ephemeral,
+		Options:              List(param.Options, TemplateVersionParameterOptionFromPreview),
+		// Validation set after
+	}
+	if len(param.Validations) > 0 {
+		validation := param.Validations[0]
+		sdkParam.ValidationError = validation.Error
+		if validation.Monotonic != nil {
+			sdkParam.ValidationMonotonic = codersdk.ValidationMonotonicOrder(*validation.Monotonic)
+		}
+		if validation.Regex != nil {
+			sdkParam.ValidationRegex = *validation.Regex
+		}
+		if validation.Min != nil {
+			//nolint:gosec // No other choice
+			sdkParam.ValidationMin = ptr.Ref(int32(*validation.Min))
+		}
+		if validation.Max != nil {
+			//nolint:gosec // No other choice
+			sdkParam.ValidationMax = ptr.Ref(int32(*validation.Max))
+		}
+	}
+
+	return sdkParam, nil
 }
 
 func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk.TemplateVersionParameter, error) {
@@ -127,6 +168,7 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 		Description:          param.Description,
 		DescriptionPlaintext: descriptionPlaintext,
 		Type:                 param.Type,
+		FormType:             string(param.FormType),
 		Mutable:              param.Mutable,
 		DefaultValue:         param.DefaultValue,
 		Icon:                 param.Icon,
@@ -148,14 +190,13 @@ func ReducedUser(user database.User) codersdk.ReducedUser {
 			Username:  user.Username,
 			AvatarURL: user.AvatarURL,
 		},
-		Email:           user.Email,
-		Name:            user.Name,
-		CreatedAt:       user.CreatedAt,
-		UpdatedAt:       user.UpdatedAt,
-		LastSeenAt:      user.LastSeenAt,
-		Status:          codersdk.UserStatus(user.Status),
-		LoginType:       codersdk.LoginType(user.LoginType),
-		ThemePreference: user.ThemePreference,
+		Email:      user.Email,
+		Name:       user.Name,
+		CreatedAt:  user.CreatedAt,
+		UpdatedAt:  user.UpdatedAt,
+		LastSeenAt: user.LastSeenAt,
+		Status:     codersdk.UserStatus(user.Status),
+		LoginType:  codersdk.LoginType(user.LoginType),
 	}
 }
 
@@ -174,7 +215,6 @@ func UserFromGroupMember(member database.GroupMember) database.User {
 		Deleted:            member.UserDeleted,
 		LastSeenAt:         member.UserLastSeenAt,
 		QuietHoursSchedule: member.UserQuietHoursSchedule,
-		ThemePreference:    member.UserThemePreference,
 		Name:               member.UserName,
 		GithubComUserID:    member.UserGithubComUserID,
 	}
@@ -291,7 +331,8 @@ func templateVersionParameterOptions(rawOptions json.RawMessage) ([]codersdk.Tem
 	if err != nil {
 		return nil, err
 	}
-	var options []codersdk.TemplateVersionParameterOption
+
+	options := make([]codersdk.TemplateVersionParameterOption, 0)
 	for _, option := range protoOptions {
 		options = append(options, codersdk.TemplateVersionParameterOption{
 			Name:        option.Name,
@@ -301,6 +342,15 @@ func templateVersionParameterOptions(rawOptions json.RawMessage) ([]codersdk.Tem
 		})
 	}
 	return options, nil
+}
+
+func TemplateVersionParameterOptionFromPreview(option *previewtypes.ParameterOption) codersdk.TemplateVersionParameterOption {
+	return codersdk.TemplateVersionParameterOption{
+		Name:        option.Name,
+		Description: option.Description,
+		Value:       option.Value.AsString(),
+		Icon:        option.Icon,
+	}
 }
 
 func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
@@ -382,6 +432,7 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 
 	workspaceAgent := codersdk.WorkspaceAgent{
 		ID:                       dbAgent.ID,
+		ParentID:                 dbAgent.ParentID,
 		CreatedAt:                dbAgent.CreatedAt,
 		UpdatedAt:                dbAgent.UpdatedAt,
 		ResourceID:               dbAgent.ResourceID,
@@ -487,7 +538,7 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 	}.String()
 }
 
-func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) []codersdk.WorkspaceApp {
+func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) []codersdk.WorkspaceApp {
 	sort.Slice(dbApps, func(i, j int) bool {
 		if dbApps[i].DisplayOrder != dbApps[j].DisplayOrder {
 			return dbApps[i].DisplayOrder < dbApps[j].DisplayOrder
@@ -498,8 +549,14 @@ func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerNa
 		return dbApps[i].Slug < dbApps[j].Slug
 	})
 
+	statusesByAppID := map[uuid.UUID][]database.WorkspaceAppStatus{}
+	for _, status := range statuses {
+		statusesByAppID[status.AppID] = append(statusesByAppID[status.AppID], status)
+	}
+
 	apps := make([]codersdk.WorkspaceApp, 0)
 	for _, dbApp := range dbApps {
+		statuses := statusesByAppID[dbApp.ID]
 		apps = append(apps, codersdk.WorkspaceApp{
 			ID:            dbApp.ID,
 			URL:           dbApp.Url.String,
@@ -516,11 +573,31 @@ func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerNa
 				Interval:  dbApp.HealthcheckInterval,
 				Threshold: dbApp.HealthcheckThreshold,
 			},
-			Health: codersdk.WorkspaceAppHealth(dbApp.Health),
-			Hidden: dbApp.Hidden,
+			Health:   codersdk.WorkspaceAppHealth(dbApp.Health),
+			Group:    dbApp.DisplayGroup.String,
+			Hidden:   dbApp.Hidden,
+			OpenIn:   codersdk.WorkspaceAppOpenIn(dbApp.OpenIn),
+			Statuses: WorkspaceAppStatuses(statuses),
 		})
 	}
 	return apps
+}
+
+func WorkspaceAppStatuses(statuses []database.WorkspaceAppStatus) []codersdk.WorkspaceAppStatus {
+	return List(statuses, WorkspaceAppStatus)
+}
+
+func WorkspaceAppStatus(status database.WorkspaceAppStatus) codersdk.WorkspaceAppStatus {
+	return codersdk.WorkspaceAppStatus{
+		ID:          status.ID,
+		CreatedAt:   status.CreatedAt,
+		WorkspaceID: status.WorkspaceID,
+		AgentID:     status.AgentID,
+		AppID:       status.AppID,
+		URI:         status.Uri.String,
+		Message:     status.Message,
+		State:       codersdk.WorkspaceAppStatusState(status.State),
+	}
 }
 
 func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
@@ -692,4 +769,117 @@ func MatchedProvisioners(provisionerDaemons []database.ProvisionerDaemon, now ti
 		}
 	}
 	return matched
+}
+
+func TemplateRoleActions(role codersdk.TemplateRole) []policy.Action {
+	switch role {
+	case codersdk.TemplateRoleAdmin:
+		return []policy.Action{policy.WildcardSymbol}
+	case codersdk.TemplateRoleUse:
+		return []policy.Action{policy.ActionRead, policy.ActionUse}
+	}
+	return []policy.Action{}
+}
+
+func AuditActionFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.AuditAction, error) {
+	switch action {
+	case agentproto.Connection_CONNECT:
+		return database.AuditActionConnect, nil
+	case agentproto.Connection_DISCONNECT:
+		return database.AuditActionDisconnect, nil
+	default:
+		// Also Connection_ACTION_UNSPECIFIED, no mapping.
+		return "", xerrors.Errorf("unknown agent connection action %q", action)
+	}
+}
+
+func AgentProtoConnectionActionToAuditAction(action database.AuditAction) (agentproto.Connection_Action, error) {
+	switch action {
+	case database.AuditActionConnect:
+		return agentproto.Connection_CONNECT, nil
+	case database.AuditActionDisconnect:
+		return agentproto.Connection_DISCONNECT, nil
+	default:
+		return agentproto.Connection_ACTION_UNSPECIFIED, xerrors.Errorf("unknown agent connection action %q", action)
+	}
+}
+
+func PreviewParameter(param previewtypes.Parameter) codersdk.PreviewParameter {
+	return codersdk.PreviewParameter{
+		PreviewParameterData: codersdk.PreviewParameterData{
+			Name:        param.Name,
+			DisplayName: param.DisplayName,
+			Description: param.Description,
+			Type:        codersdk.OptionType(param.Type),
+			FormType:    codersdk.ParameterFormType(param.FormType),
+			Styling: codersdk.PreviewParameterStyling{
+				Placeholder: param.Styling.Placeholder,
+				Disabled:    param.Styling.Disabled,
+				Label:       param.Styling.Label,
+			},
+			Mutable:      param.Mutable,
+			DefaultValue: PreviewHCLString(param.DefaultValue),
+			Icon:         param.Icon,
+			Options:      List(param.Options, PreviewParameterOption),
+			Validations:  List(param.Validations, PreviewParameterValidation),
+			Required:     param.Required,
+			Order:        param.Order,
+			Ephemeral:    param.Ephemeral,
+		},
+		Value:       PreviewHCLString(param.Value),
+		Diagnostics: PreviewDiagnostics(param.Diagnostics),
+	}
+}
+
+func HCLDiagnostics(d hcl.Diagnostics) []codersdk.FriendlyDiagnostic {
+	return PreviewDiagnostics(previewtypes.Diagnostics(d))
+}
+
+func PreviewDiagnostics(d previewtypes.Diagnostics) []codersdk.FriendlyDiagnostic {
+	f := d.FriendlyDiagnostics()
+	return List(f, func(f previewtypes.FriendlyDiagnostic) codersdk.FriendlyDiagnostic {
+		return codersdk.FriendlyDiagnostic{
+			Severity: codersdk.DiagnosticSeverityString(f.Severity),
+			Summary:  f.Summary,
+			Detail:   f.Detail,
+			Extra: codersdk.DiagnosticExtra{
+				Code: f.Extra.Code,
+			},
+		}
+	})
+}
+
+func PreviewHCLString(h previewtypes.HCLString) codersdk.NullHCLString {
+	n := h.NullHCLString()
+	return codersdk.NullHCLString{
+		Value: n.Value,
+		Valid: n.Valid,
+	}
+}
+
+func PreviewParameterOption(o *previewtypes.ParameterOption) codersdk.PreviewParameterOption {
+	if o == nil {
+		// This should never be sent
+		return codersdk.PreviewParameterOption{}
+	}
+	return codersdk.PreviewParameterOption{
+		Name:        o.Name,
+		Description: o.Description,
+		Value:       PreviewHCLString(o.Value),
+		Icon:        o.Icon,
+	}
+}
+
+func PreviewParameterValidation(v *previewtypes.ParameterValidation) codersdk.PreviewParameterValidation {
+	if v == nil {
+		// This should never be sent
+		return codersdk.PreviewParameterValidation{}
+	}
+	return codersdk.PreviewParameterValidation{
+		Error:     v.Error,
+		Regex:     v.Regex,
+		Min:       v.Min,
+		Max:       v.Max,
+		Monotonic: v.Monotonic,
+	}
 }

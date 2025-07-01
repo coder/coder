@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -391,7 +392,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if !createTemplate.DisableEveryoneGroupAccess {
 		// The organization ID is used as the group ID for the everyone group
 		// in this organization.
-		defaultsGroups[organization.ID.String()] = []policy.Action{policy.ActionRead}
+		defaultsGroups[organization.ID.String()] = db2sdk.TemplateRoleActions(codersdk.TemplateRoleUse)
 	}
 	err = api.Database.InTx(func(tx database.Store) error {
 		now := dbtime.Now()
@@ -496,6 +497,9 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 }
 
 // @Summary Get templates by organization
+// @Description Returns a list of templates for the specified organization.
+// @Description By default, only non-deprecated templates are returned.
+// @Description To include deprecated templates, specify `deprecated:true` in the search query.
 // @ID get-templates-by-organization
 // @Security CoderSessionToken
 // @Produce json
@@ -515,6 +519,9 @@ func (api *API) templatesByOrganization() http.HandlerFunc {
 }
 
 // @Summary Get all templates
+// @Description Returns a list of templates.
+// @Description By default, only non-deprecated templates are returned.
+// @Description To include deprecated templates, specify `deprecated:true` in the search query.
 // @ID get-all-templates
 // @Security CoderSessionToken
 // @Produce json
@@ -547,6 +554,14 @@ func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTem
 		args := filter
 		if mutate != nil {
 			mutate(r, &args)
+		}
+
+		// By default, deprecated templates are excluded unless explicitly requested
+		if !args.Deprecated.Valid {
+			args.Deprecated = sql.NullBool{
+				Bool:  false,
+				Valid: true,
+			}
 		}
 
 		// Filter templates based on rbac permissions
@@ -733,6 +748,12 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Defaults to the existing.
+	classicTemplateFlow := template.UseClassicParameterFlow
+	if req.UseClassicParameterFlow != nil {
+		classicTemplateFlow = *req.UseClassicParameterFlow
+	}
+
 	var updated database.Template
 	err = api.Database.InTx(func(tx database.Store) error {
 		if req.Name == template.Name &&
@@ -752,8 +773,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.TimeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() &&
 			req.RequireActiveVersion == template.RequireActiveVersion &&
 			(deprecationMessage == template.Deprecated) &&
-			maxPortShareLevel == template.MaxPortSharingLevel &&
-			corsBehavior == template.CORSBehavior {
+			(classicTemplateFlow == template.UseClassicParameterFlow) &&
+			corsBehavior == template.CORSBehavior &&
+			maxPortShareLevel == template.MaxPortSharingLevel {
 			return nil
 		}
 
@@ -795,6 +817,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			GroupACL:                     groupACL,
 			MaxPortSharingLevel:          maxPortShareLevel,
 			CORSBehavior:                 corsBehavior,
+			UseClassicParameterFlow:      classicTemplateFlow,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
@@ -1066,18 +1089,19 @@ func (api *API) convertTemplate(
 		TimeTilDormantMillis:           time.Duration(template.TimeTilDormant).Milliseconds(),
 		TimeTilDormantAutoDeleteMillis: time.Duration(template.TimeTilDormantAutoDelete).Milliseconds(),
 		AutostopRequirement: codersdk.TemplateAutostopRequirement{
-			DaysOfWeek: codersdk.BitmapToWeekdays(uint8(template.AutostopRequirementDaysOfWeek)),
+			DaysOfWeek: codersdk.BitmapToWeekdays(uint8(template.AutostopRequirementDaysOfWeek)), // #nosec G115 - Safe conversion as AutostopRequirementDaysOfWeek is a 7-bit bitmap
 			Weeks:      autostopRequirementWeeks,
 		},
 		AutostartRequirement: codersdk.TemplateAutostartRequirement{
 			DaysOfWeek: codersdk.BitmapToWeekdays(template.AutostartAllowedDays()),
 		},
 		// These values depend on entitlements and come from the templateAccessControl
-		RequireActiveVersion: templateAccessControl.RequireActiveVersion,
-		Deprecated:           templateAccessControl.IsDeprecated(),
-		DeprecationMessage:   templateAccessControl.Deprecated,
-		MaxPortShareLevel:    maxPortShareLevel,
-		CORSBehavior:         codersdk.AppCORSBehavior(template.CORSBehavior),
+		RequireActiveVersion:    templateAccessControl.RequireActiveVersion,
+		Deprecated:              templateAccessControl.IsDeprecated(),
+		DeprecationMessage:      templateAccessControl.Deprecated,
+		MaxPortShareLevel:       maxPortShareLevel,
+		CORSBehavior:            codersdk.AppCORSBehavior(template.CORSBehavior),
+		UseClassicParameterFlow: template.UseClassicParameterFlow,
 	}
 }
 

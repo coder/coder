@@ -417,7 +417,6 @@ func runDiffTests(t *testing.T, tests []diffTest) {
 	t.Helper()
 
 	for _, test := range tests {
-		test := test
 		typName := reflect.TypeOf(test.left).Name()
 		t.Run(typName+"/"+test.name, func(t *testing.T) {
 			t.Parallel()

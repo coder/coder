@@ -5,7 +5,6 @@ import type { GetLicensesResponse } from "api/api";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
-import { compareAsc } from "date-fns";
 import dayjs from "dayjs";
 import { type FC, useState } from "react";
 
@@ -92,10 +91,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 						alignItems="center"
 						width="134px" // standardize width of date column
 					>
-						{compareAsc(
-							new Date(license.claims.license_expires * 1000),
-							new Date(),
-						) < 1 ? (
+						{dayjs(license.claims.license_expires * 1000).isBefore(dayjs()) ? (
 							<Pill css={styles.expiredBadge} type="error">
 								Expired
 							</Pill>

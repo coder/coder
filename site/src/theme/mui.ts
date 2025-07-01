@@ -12,7 +12,7 @@ import {
 } from "./constants";
 import tw from "./tailwindColors";
 
-export type PaletteIndex =
+type PaletteIndex =
 	| "primary"
 	| "secondary"
 	| "background"

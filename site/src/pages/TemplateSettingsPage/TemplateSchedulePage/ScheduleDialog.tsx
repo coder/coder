@@ -6,7 +6,7 @@ import type { ConfirmDialogProps } from "components/Dialogs/ConfirmDialog/Confir
 import { Dialog, DialogActionButtons } from "components/Dialogs/Dialog";
 import type { FC } from "react";
 
-export interface ScheduleDialogProps extends ConfirmDialogProps {
+interface ScheduleDialogProps extends ConfirmDialogProps {
 	readonly inactiveWorkspacesToGoDormant: number;
 	readonly inactiveWorkspacesToGoDormantInWeek: number;
 	readonly dormantWorkspacesToBeDeleted: number;

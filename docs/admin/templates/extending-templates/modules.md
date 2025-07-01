@@ -54,14 +54,14 @@ For a full list of available modules please check
 
 ## Offline installations
 
-In offline and restricted deploymnets, there are 2 ways to fetch modules.
+In offline and restricted deployments, there are two ways to fetch modules.
 
 1. Artifactory
 2. Private git repository
 
 ### Artifactory
 
-Air gapped users can clone the [coder/modules](https://github.com/coder/modules)
+Air gapped users can clone the [coder/registry](https://github.com/coder/registry/)
 repo and publish a
 [local terraform module repository](https://jfrog.com/help/r/jfrog-artifactory-documentation/set-up-a-terraform-module/provider-registry)
 to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
@@ -71,8 +71,8 @@ to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
 3. Follow the below instructions to publish coder modules to Artifactory
 
    ```shell
-   git clone https://github.com/coder/modules
-   cd modules
+   git clone https://github.com/coder/registry
+   cd registry/coder/modules
    jf tfc
    jf tf p --namespace="coder" --provider="coder" --tag="1.0.0"
    ```
@@ -93,7 +93,7 @@ to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
    }
    ```
 
-6. Update module source as,
+6. Update module source as:
 
    ```tf
    module "module-name" {
@@ -104,7 +104,7 @@ to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
    }
    ```
 
-> Do not forget to replace example.jfrog.io with your Artifactory URL
+   Replace `example.jfrog.io` with your Artifactory URL
 
 Based on the instructions
 [here](https://jfrog.com/blog/tour-terraform-registries-in-artifactory/).
@@ -120,7 +120,7 @@ template as the underlying module.
 ### Private git repository
 
 If you are importing a module from a private git repository, the Coder server or
-[provisioner](../../provisioners.md) needs git credentials. Since this token
+[provisioner](../../provisioners/index.md) needs git credentials. Since this token
 will only be used for cloning your repositories with modules, it is best to
 create a token with access limited to the repository and no extra permissions.
 In GitHub, you can generate a

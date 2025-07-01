@@ -1,13 +1,12 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import TaskAltIcon from "@mui/icons-material/TaskAlt";
-import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import { PremiumBadge } from "components/Badges/Badges";
+import { Button } from "components/Button/Button";
 import { Stack } from "components/Stack/Stack";
+import { CircleCheckBigIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
-import { docs } from "utils/docs";
 
-export interface PopoverPaywallProps {
+interface PopoverPaywallProps {
 	message: string;
 	description?: ReactNode;
 	documentationLink?: string;
@@ -61,15 +60,14 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 					</li>
 				</ul>
 				<div css={styles.learnButton}>
-					<Button
-						href={docs("/licensing")}
-						target="_blank"
-						rel="noreferrer"
-						startIcon={<span css={{ fontSize: 22 }}>&rarr;</span>}
-						variant="outlined"
-						color="neutral"
-					>
-						Learn about Premium
+					<Button asChild>
+						<a
+							href="https://coder.com/pricing#compare-plans"
+							target="_blank"
+							rel="noreferrer"
+						>
+							Learn about Premium
+						</a>
 					</Button>
 				</div>
 			</Stack>
@@ -79,7 +77,9 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 
 const FeatureIcon: FC = () => {
 	return (
-		<TaskAltIcon
+		<CircleCheckBigIcon
+			aria-hidden="true"
+			className="size-icon-sm"
 			css={[
 				(theme) => ({
 					color: theme.branding.premium.border,
@@ -90,7 +90,7 @@ const FeatureIcon: FC = () => {
 };
 
 const styles = {
-	root: (theme) => ({
+	root: {
 		display: "flex",
 		flexDirection: "row",
 		alignItems: "center",
@@ -98,7 +98,7 @@ const styles = {
 		padding: "24px 36px",
 		borderRadius: 8,
 		gap: 18,
-	}),
+	},
 	title: {
 		fontWeight: 600,
 		fontFamily: "inherit",

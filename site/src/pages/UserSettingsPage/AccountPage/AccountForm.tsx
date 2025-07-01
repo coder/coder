@@ -1,8 +1,9 @@
-import LoadingButton from "@mui/lab/LoadingButton";
 import TextField from "@mui/material/TextField";
 import type { UpdateUserProfileRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { Form, FormFields } from "components/Form/Form";
+import { Spinner } from "components/Spinner/Spinner";
 import { type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
 import {
@@ -24,7 +25,7 @@ const validationSchema = Yup.object({
 	name: Yup.string(),
 });
 
-export interface AccountFormProps {
+interface AccountFormProps {
 	editable: boolean;
 	email: string;
 	isLoading: boolean;
@@ -86,9 +87,10 @@ export const AccountForm: FC<AccountFormProps> = ({
 				/>
 
 				<div>
-					<LoadingButton loading={isLoading} type="submit" variant="contained">
+					<Button disabled={isLoading} type="submit">
+						<Spinner loading={isLoading} />
 						{Language.updateSettings}
-					</LoadingButton>
+					</Button>
 				</div>
 			</FormFields>
 		</Form>

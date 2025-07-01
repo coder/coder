@@ -14,7 +14,7 @@ import {
 } from "./Content";
 import { DismissWarningButton } from "./DismissWarningButton";
 
-export const ProvisionerDaemonsPage: FC = () => {
+const ProvisionerDaemonsPage: FC = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();
 	const { provisioner_daemons: daemons } = healthStatus;
 

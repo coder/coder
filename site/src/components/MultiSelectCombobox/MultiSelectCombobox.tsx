@@ -3,6 +3,7 @@
  * @see {@link https://shadcnui-expansions.typeart.cc/docs/multiple-selector}
  */
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
+import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
 import {
 	Command,
@@ -30,6 +31,7 @@ import { cn } from "utils/cn";
 export interface Option {
 	value: string;
 	label: string;
+	icon?: string;
 	disable?: boolean;
 	/** fixed option that can't be removed. */
 	fixed?: boolean;
@@ -97,7 +99,7 @@ interface MultiSelectComboboxProps {
 	hideClearAllButton?: boolean;
 }
 
-export interface MultiSelectComboboxRef {
+interface MultiSelectComboboxRef {
 	selectedValue: Option[];
 	input: HTMLInputElement;
 	focus: () => void;
@@ -203,9 +205,11 @@ export const MultiSelectCombobox = forwardRef<
 		const [open, setOpen] = useState(false);
 		const [onScrollbar, setOnScrollbar] = useState(false);
 		const [isLoading, setIsLoading] = useState(false);
-		const dropdownRef = useRef<HTMLDivElement>(null); // Added this
+		const dropdownRef = useRef<HTMLDivElement>(null);
 
-		const [selected, setSelected] = useState<Option[]>(value || []);
+		const [selected, setSelected] = useState<Option[]>(
+			arrayDefaultOptions ?? [],
+		);
 		const [options, setOptions] = useState<GroupOption>(
 			transitionToGroupOption(arrayDefaultOptions, groupBy),
 		);
@@ -351,7 +355,9 @@ export const MultiSelectCombobox = forwardRef<
 		}, [debouncedSearchTerm, groupBy, open, triggerSearchOnFocus, onSearch]);
 
 		const CreatableItem = () => {
-			if (!creatable) return undefined;
+			if (!creatable) {
+				return undefined;
+			}
 			if (
 				isOptionsExist(options, [{ value: inputValue, label: inputValue }]) ||
 				selected.find((s) => s.value === inputValue)
@@ -430,7 +436,12 @@ export const MultiSelectCombobox = forwardRef<
 			return undefined;
 		};
 
+		if (inputRef.current && inputProps?.id) {
+			inputRef.current.id = inputProps?.id;
+		}
+
 		const fixedOptions = selected.filter((s) => s.fixed);
+		const showIcons = arrayOptions?.some((it) => it.icon);
 
 		return (
 			<Command
@@ -454,7 +465,7 @@ export const MultiSelectCombobox = forwardRef<
 				{/* biome-ignore lint/a11y/useKeyWithClickEvents: onKeyDown is not needed here */}
 				<div
 					className={cn(
-						`*:min-h-9 rounded-md border border-solid border-border text-sm pr-3
+						`min-h-10 rounded-md border border-solid border-border text-sm pr-3
 						focus-within:ring-2 focus-within:ring-content-link`,
 						{
 							"pl-3 py-1": selected.length !== 0,
@@ -481,7 +492,16 @@ export const MultiSelectCombobox = forwardRef<
 										data-fixed={option.fixed}
 										data-disabled={disabled || undefined}
 									>
-										{option.label}
+										<div className="flex items-center gap-1">
+											{option.icon && (
+												<Avatar
+													size="sm"
+													src={option.icon}
+													fallback={option.label}
+												/>
+											)}
+											{option.label}
+										</div>
 										<button
 											type="button"
 											data-testid="clear-option-button"
@@ -568,7 +588,7 @@ export const MultiSelectCombobox = forwardRef<
 							>
 								<X className="h-5 w-5" />
 							</button>
-							<ChevronDown className="h-6 w-6 cursor-pointer text-content-secondary hover:text-content-primary" />
+							<ChevronDown className="size-icon-sm cursor-pointer text-content-secondary hover:text-content-primary" />
 						</div>
 					</div>
 				</div>
@@ -633,7 +653,16 @@ export const MultiSelectCombobox = forwardRef<
 																	"cursor-default text-content-disabled",
 															)}
 														>
-															{option.label}
+															<div className="flex items-center gap-2">
+																{showIcons && (
+																	<Avatar
+																		size="sm"
+																		src={option.icon}
+																		fallback={option.label}
+																	/>
+																)}
+																{option.label}
+															</div>
 														</CommandItem>
 													);
 												})}

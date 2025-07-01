@@ -36,7 +36,10 @@ const lostTimeout = 15 * time.Minute
 
 // CoderDNSSuffix is the default DNS suffix that we append to Coder DNS
 // records.
-const CoderDNSSuffix = "coder."
+const (
+	CoderDNSSuffix     = "coder"
+	CoderDNSSuffixFQDN = dnsname.FQDN(CoderDNSSuffix + ".")
+)
 
 // engineConfigurable is the subset of wgengine.Engine that we use for configuration.
 //
@@ -69,20 +72,26 @@ type configMaps struct {
 	filterDirty  bool
 	closing      bool
 
-	engine         engineConfigurable
-	static         netmap.NetworkMap
+	engine engineConfigurable
+	static netmap.NetworkMap
+
 	hosts          map[dnsname.FQDN][]netip.Addr
 	peers          map[uuid.UUID]*peerLifecycle
 	addresses      []netip.Prefix
 	derpMap        *tailcfg.DERPMap
 	logger         slog.Logger
 	blockEndpoints bool
+	matchDomain    dnsname.FQDN
 
 	// for testing
 	clock quartz.Clock
 }
 
-func newConfigMaps(logger slog.Logger, engine engineConfigurable, nodeID tailcfg.NodeID, nodeKey key.NodePrivate, discoKey key.DiscoPublic) *configMaps {
+func newConfigMaps(
+	logger slog.Logger, engine engineConfigurable,
+	nodeID tailcfg.NodeID, nodeKey key.NodePrivate, discoKey key.DiscoPublic,
+	matchDomain dnsname.FQDN,
+) *configMaps {
 	pubKey := nodeKey.Public()
 	c := &configMaps{
 		phased: phased{Cond: *(sync.NewCond(&sync.Mutex{}))},
@@ -125,8 +134,9 @@ func newConfigMaps(logger slog.Logger, engine engineConfigurable, nodeID tailcfg
 				Caps: []filter.CapMatch{},
 			}},
 		},
-		peers: make(map[uuid.UUID]*peerLifecycle),
-		clock: quartz.NewReal(),
+		peers:       make(map[uuid.UUID]*peerLifecycle),
+		matchDomain: matchDomain,
+		clock:       quartz.NewReal(),
 	}
 	go c.configLoop()
 	return c
@@ -338,7 +348,7 @@ func (c *configMaps) reconfig(nm *netmap.NetworkMap, hosts map[dnsname.FQDN][]ne
 		dnsCfg.Hosts = hosts
 		dnsCfg.OnlyIPv6 = true
 		dnsCfg.Routes = map[dnsname.FQDN][]*dnstype.Resolver{
-			CoderDNSSuffix: nil,
+			c.matchDomain: nil,
 		}
 	}
 	cfg, err := nmcfg.WGCfg(nm, Logger(c.logger.Named("net.wgconfig")), netmap.AllowSingleHosts, "")

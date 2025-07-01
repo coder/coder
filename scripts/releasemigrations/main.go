@@ -230,7 +230,6 @@ func hasMigrationDiff(dir string, a, b string) ([]string, error) {
 	migrations := strings.Split(strings.TrimSpace(string(output)), "\n")
 	filtered := make([]string, 0, len(migrations))
 	for _, migration := range migrations {
-		migration := migration
 		if strings.Contains(migration, "fixtures") {
 			continue
 		}

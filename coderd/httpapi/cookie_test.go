@@ -26,7 +26,6 @@ func TestStripCoderCookies(t *testing.T) {
 		"coder_session_token=ok; oauth_state=wow; oauth_redirect=/",
 		"",
 	}} {
-		tc := tc
 		t.Run(tc.Input, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tc.Output, httpapi.StripCoderCookies(tc.Input))

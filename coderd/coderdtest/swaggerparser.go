@@ -151,7 +151,7 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 	assertUniqueRoutes(t, swaggerComments)
 	assertSingleAnnotations(t, swaggerComments)
 
-	err := chi.Walk(router, func(method, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+	err := chi.Walk(router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
 		method = strings.ToLower(method)
 		if route != "/" && strings.HasSuffix(route, "/") {
 			route = route[:len(route)-1]

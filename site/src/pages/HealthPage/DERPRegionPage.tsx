@@ -1,7 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import CodeOutlined from "@mui/icons-material/CodeOutlined";
-import TagOutlined from "@mui/icons-material/TagOutlined";
 import Tooltip from "@mui/material/Tooltip";
 import type {
 	DERPNodeReport,
@@ -11,6 +8,7 @@ import type {
 	HealthcheckReport,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { ChevronLeftIcon, CodeIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link, useOutletContext, useParams } from "react-router-dom";
@@ -27,7 +25,7 @@ import {
 	Pill,
 } from "./Content";
 
-export const DERPRegionPage: FC = () => {
+const DERPRegionPage: FC = () => {
 	const theme = useTheme();
 	const healthStatus = useOutletContext<HealthcheckReport>();
 	const params = useParams() as { regionId: string };
@@ -42,7 +40,7 @@ export const DERPRegionPage: FC = () => {
 	return (
 		<>
 			<Helmet>
-				<title>{pageTitle(region.RegionName, "Health")}</title>
+				<title>{pageTitle(region!.RegionName, "Health")}</title>
 			</Helmet>
 
 			<Header>
@@ -63,14 +61,15 @@ export const DERPRegionPage: FC = () => {
 						}}
 						to="/health/derp"
 					>
-						<ArrowBackOutlined
-							css={{ fontSize: 12, verticalAlign: "middle", marginRight: 8 }}
+						<ChevronLeftIcon
+							className="size-icon-xs"
+							css={{ verticalAlign: "middle", marginRight: 8 }}
 						/>
 						Back to DERP
 					</Link>
 					<HeaderTitle>
 						<HealthyDot severity={severity as HealthSeverity} />
-						{region.RegionName}
+						{region!.RegionName}
 					</HeaderTitle>
 				</hgroup>
 			</Header>
@@ -91,12 +90,16 @@ export const DERPRegionPage: FC = () => {
 				<section>
 					<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
 						<Tooltip title="Region ID">
-							<Pill icon={<TagOutlined />}>{region.RegionID}</Pill>
+							<Pill icon={<HashIcon className="size-icon-sm" />}>
+								{region!.RegionID}
+							</Pill>
 						</Tooltip>
 						<Tooltip title="Region Code">
-							<Pill icon={<CodeOutlined />}>{region.RegionCode}</Pill>
+							<Pill icon={<CodeIcon className="size-icon-sm" />}>
+								{region!.RegionCode}
+							</Pill>
 						</Tooltip>
-						<BooleanPill value={region.EmbeddedRelay}>
+						<BooleanPill value={region!.EmbeddedRelay}>
 							Embedded Relay
 						</BooleanPill>
 					</div>
@@ -111,7 +114,7 @@ export const DERPRegionPage: FC = () => {
 					);
 					return (
 						<section
-							key={node.HostName}
+							key={node!.HostName}
 							css={{
 								border: `1px solid ${theme.palette.divider}`,
 								borderRadius: 8,
@@ -120,10 +123,10 @@ export const DERPRegionPage: FC = () => {
 						>
 							<header css={reportStyles.header}>
 								<div>
-									<h4 css={reportStyles.title}>{node.HostName}</h4>
+									<h4 css={reportStyles.title}>{node!.HostName}</h4>
 									<div css={reportStyles.ports}>
-										<span>DERP Port: {node.DERPPort ?? "None"}</span>
-										<span>STUN Port: {node.STUNPort ?? "None"}</span>
+										<span>DERP Port: {node!.DERPPort ?? "None"}</span>
+										<span>STUN Port: {node!.STUNPort ?? "None"}</span>
 									</div>
 								</div>
 

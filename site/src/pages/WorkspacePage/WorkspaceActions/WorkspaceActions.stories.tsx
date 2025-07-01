@@ -1,8 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, within } from "@storybook/test";
+import { deploymentConfigQueryKey } from "api/queries/deployment";
 import { agentLogsKey, buildLogsKey } from "api/queries/workspaces";
 import * as Mocks from "testHelpers/entities";
 import {
+	withAuthProvider,
 	withDashboardProvider,
 	withDesktopViewport,
 } from "testHelpers/storybook";
@@ -13,8 +15,24 @@ const meta: Meta<typeof WorkspaceActions> = {
 	component: WorkspaceActions,
 	args: {
 		isUpdating: false,
+		permissions: {
+			deleteFailedWorkspace: true,
+			deploymentConfig: true,
+			readWorkspace: true,
+			updateWorkspace: true,
+			updateWorkspaceVersion: true,
+		},
 	},
-	decorators: [withDashboardProvider, withDesktopViewport],
+	decorators: [withDashboardProvider, withDesktopViewport, withAuthProvider],
+	parameters: {
+		user: Mocks.MockUserOwner,
+		queries: [
+			{
+				key: deploymentConfigQueryKey,
+				data: Mocks.MockDeploymentConfig,
+			},
+		],
+	},
 };
 
 export default meta;
@@ -153,7 +171,13 @@ export const Failed: Story = {
 export const FailedWithDebug: Story = {
 	args: {
 		workspace: Mocks.MockFailedWorkspace,
-		canDebug: true,
+		permissions: {
+			deploymentConfig: true,
+			deleteFailedWorkspace: true,
+			readWorkspace: true,
+			updateWorkspace: true,
+			updateWorkspaceVersion: true,
+		},
 	},
 };
 
@@ -163,14 +187,15 @@ export const CancelShownForOwner: Story = {
 			...Mocks.MockStartingWorkspace,
 			template_allow_user_cancel_workspace_jobs: false,
 		},
-		isOwner: true,
 	},
 };
 
 export const CancelShownForUser: Story = {
 	args: {
 		workspace: Mocks.MockStartingWorkspace,
-		isOwner: false,
+	},
+	parameters: {
+		user: Mocks.MockUserMember,
 	},
 };
 
@@ -180,7 +205,9 @@ export const CancelHiddenForUser: Story = {
 			...Mocks.MockStartingWorkspace,
 			template_allow_user_cancel_workspace_jobs: false,
 		},
-		isOwner: false,
+	},
+	parameters: {
+		user: Mocks.MockUserMember,
 	},
 };
 
@@ -195,16 +222,18 @@ export const OpenDownloadLogs: Story = {
 				data: generateLogs(200),
 			},
 			{
-				key: agentLogsKey(Mocks.MockWorkspace.id, Mocks.MockWorkspaceAgent.id),
+				key: agentLogsKey(Mocks.MockWorkspaceAgent.id),
 				data: generateLogs(400),
 			},
 		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		await userEvent.click(canvas.getByText("Download logs", { exact: false }));
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Workspace actions" }),
+		);
 		const screen = within(document.body);
+		await userEvent.click(screen.getByText("Download logs…"));
 		await expect(screen.getByTestId("dialog")).toBeInTheDocument();
 	},
 };
@@ -215,8 +244,11 @@ export const CanDeleteDormantWorkspace: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		const deleteButton = canvas.getByText("Delete…");
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Workspace actions" }),
+		);
+		const screen = within(document.body);
+		const deleteButton = screen.getByText("Delete…");
 		await expect(deleteButton).toBeEnabled();
 	},
 };

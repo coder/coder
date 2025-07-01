@@ -9,9 +9,10 @@ import (
 	"slices"
 
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
+	"github.com/coder/websocket"
+
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
@@ -19,9 +20,10 @@ import (
 )
 
 var permanentErrorStatuses = []int{
-	http.StatusConflict,   // returned if client/agent connections disabled (browser only)
-	http.StatusBadRequest, // returned if API mismatch
-	http.StatusNotFound,   // returned if user doesn't have permission or agent doesn't exist
+	http.StatusConflict,            // returned if client/agent connections disabled (browser only)
+	http.StatusBadRequest,          // returned if API mismatch
+	http.StatusNotFound,            // returned if user doesn't have permission or agent doesn't exist
+	http.StatusInternalServerError, // returned if database is not reachable,
 }
 
 type WebsocketDialer struct {
@@ -88,6 +90,11 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 					sdkErr.Helper = fmt.Sprintf(
 						"Ensure your client release version (%s, different than the API version) matches the server release version",
 						buildinfo.Version())
+				}
+
+				if sdkErr.Message == codersdk.DatabaseNotReachable &&
+					sdkErr.StatusCode() == http.StatusInternalServerError {
+					err = xerrors.Errorf("%w: %v", codersdk.ErrDatabaseNotReachable, err)
 				}
 			}
 			w.connected <- err

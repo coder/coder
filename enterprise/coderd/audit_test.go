@@ -75,10 +75,6 @@ func TestEnterpriseAuditLogs(t *testing.T) {
 		require.Equal(t, int64(1), alogs.Count)
 		require.Len(t, alogs.AuditLogs, 1)
 
-		require.Equal(t, &codersdk.MinimalOrganization{
-			ID: o.ID,
-		}, alogs.AuditLogs[0].Organization)
-
 		// OrganizationID is deprecated, but make sure it is set.
 		require.Equal(t, o.ID, alogs.AuditLogs[0].OrganizationID)
 

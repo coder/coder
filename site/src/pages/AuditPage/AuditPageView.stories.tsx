@@ -14,7 +14,7 @@ import {
 	MockAuditLog,
 	MockAuditLog2,
 	MockAuditLog3,
-	MockUser,
+	MockUserOwner,
 } from "testHelpers/entities";
 import { AuditPageView } from "./AuditPageView";
 
@@ -23,7 +23,7 @@ type FilterProps = ComponentProps<typeof AuditPageView>["filterProps"];
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 	query: "owner:me",
 	values: {
-		username: MockUser.username,
+		username: MockUserOwner.username,
 		action: undefined,
 		resource_type: undefined,
 		organization: undefined,

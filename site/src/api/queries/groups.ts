@@ -10,7 +10,7 @@ type GroupSortOrder = "asc" | "desc";
 
 export const groupsQueryKey = ["groups"];
 
-export const groups = () => {
+const groups = () => {
 	return {
 		queryKey: groupsQueryKey,
 		queryFn: () => API.getGroups(),
@@ -60,7 +60,7 @@ export function groupsByUserIdInOrganization(organization: string) {
 	} satisfies UseQueryOptions<Group[], unknown, GroupsByUserId>;
 }
 
-export function selectGroupsByUserId(groups: Group[]): GroupsByUserId {
+function selectGroupsByUserId(groups: Group[]): GroupsByUserId {
 	// Sorting here means that nothing has to be sorted for the individual
 	// user arrays later
 	const sorted = sortGroupsByName(groups, "asc");
@@ -117,10 +117,12 @@ export const createGroup = (queryClient: QueryClient, organization: string) => {
 		mutationFn: (request: CreateGroupRequest) =>
 			API.createGroup(organization, request),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(groupsQueryKey);
-			await queryClient.invalidateQueries(
-				getGroupsByOrganizationQueryKey(organization),
-			);
+			await queryClient.invalidateQueries({
+				queryKey: groupsQueryKey,
+			});
+			await queryClient.invalidateQueries({
+				queryKey: getGroupsByOrganizationQueryKey(organization),
+			});
 		},
 	};
 };
@@ -163,20 +165,22 @@ export const removeMember = (queryClient: QueryClient) => {
 	};
 };
 
-export const invalidateGroup = (
+const invalidateGroup = (
 	queryClient: QueryClient,
 	organization: string,
 	groupId: string,
 ) =>
 	Promise.all([
-		queryClient.invalidateQueries(groupsQueryKey),
-		queryClient.invalidateQueries(
-			getGroupsByOrganizationQueryKey(organization),
-		),
-		queryClient.invalidateQueries(getGroupQueryKey(organization, groupId)),
+		queryClient.invalidateQueries({ queryKey: groupsQueryKey }),
+		queryClient.invalidateQueries({
+			queryKey: getGroupsByOrganizationQueryKey(organization),
+		}),
+		queryClient.invalidateQueries({
+			queryKey: getGroupQueryKey(organization, groupId),
+		}),
 	]);
 
-export function sortGroupsByName<T extends Group>(
+function sortGroupsByName<T extends Group>(
 	groups: readonly T[],
 	order: GroupSortOrder,
 ) {

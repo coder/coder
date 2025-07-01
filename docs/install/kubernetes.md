@@ -49,7 +49,7 @@ helm install coder-db bitnami/postgresql \
     --set auth.username=coder \
     --set auth.password=coder \
     --set auth.database=coder \
-    --set persistence.size=10Gi
+    --set primary.persistence.size=10Gi
 ```
 
 The cluster-internal DB URL for the above database is:
@@ -101,25 +101,29 @@ coder:
           # postgres://coder:password@postgres:5432/coder?sslmode=disable
           name: coder-db-url
           key: url
+    # For production deployments, we recommend configuring your own GitHub
+    # OAuth2 provider and disabling the default one.
+    - name: CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE
+      value: "false"
 
     # (Optional) For production deployments the access URL should be set.
     # If you're just trying Coder, access the dashboard via the service IP.
-    - name: CODER_ACCESS_URL
-      value: "https://coder.example.com"
+    # - name: CODER_ACCESS_URL
+    #   value: "https://coder.example.com"
 
   #tls:
   #  secretNames:
   #    - my-tls-secret-name
 ```
 
-> You can view our
-> [Helm README](https://github.com/coder/coder/blob/main/helm#readme) for
-> details on the values that are available, or you can view the
-> [values.yaml](https://github.com/coder/coder/blob/main/helm/coder/values.yaml)
-> file directly.
+You can view our
+[Helm README](https://github.com/coder/coder/blob/main/helm#readme) for
+details on the values that are available, or you can view the
+[values.yaml](https://github.com/coder/coder/blob/main/helm/coder/values.yaml)
+file directly.
 
 We support two release channels: mainline and stable - read the
-[Releases](./releases.md) page to learn more about which best suits your team.
+[Releases](./releases/index.md) page to learn more about which best suits your team.
 
 - **Mainline** Coder release:
 
@@ -129,7 +133,7 @@ We support two release channels: mainline and stable - read the
   helm install coder coder-v2/coder \
       --namespace coder \
       --values values.yaml \
-      --version 2.17.2
+      --version 2.23.1
   ```
 
 - **Stable** Coder release:
@@ -140,7 +144,7 @@ We support two release channels: mainline and stable - read the
   helm install coder coder-v2/coder \
       --namespace coder \
       --values values.yaml \
-      --version 2.16.1
+      --version 2.22.1
   ```
 
 You can watch Coder start up by running `kubectl get pods -n coder`. Once Coder
@@ -280,12 +284,16 @@ coder:
 
 ### Azure
 
-In certain enterprise environments, the
-[Azure Application Gateway](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview)
-was needed. The Application Gateway supports:
+Certain enterprise environments require the
+[Azure Application Gateway](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview).
+The Application Gateway supports:
 
 - Websocket traffic (required for workspace connections)
 - TLS termination
+
+Follow our doc on
+[how to deploy Coder on Azure with an Application Gateway](./kubernetes/kubernetes-azure-app-gateway.md)
+for an example.
 
 ## Troubleshooting
 

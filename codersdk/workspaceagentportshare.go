@@ -7,11 +7,13 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 )
 
 const (
 	WorkspaceAgentPortShareLevelOwner         WorkspaceAgentPortShareLevel = "owner"
 	WorkspaceAgentPortShareLevelAuthenticated WorkspaceAgentPortShareLevel = "authenticated"
+	WorkspaceAgentPortShareLevelOrganization  WorkspaceAgentPortShareLevel = "organization"
 	WorkspaceAgentPortShareLevelPublic        WorkspaceAgentPortShareLevel = "public"
 
 	WorkspaceAgentPortShareProtocolHTTP  WorkspaceAgentPortShareProtocol = "http"
@@ -24,7 +26,7 @@ type (
 	UpsertWorkspaceAgentPortShareRequest struct {
 		AgentName  string                          `json:"agent_name"`
 		Port       int32                           `json:"port"`
-		ShareLevel WorkspaceAgentPortShareLevel    `json:"share_level" enums:"owner,authenticated,public"`
+		ShareLevel WorkspaceAgentPortShareLevel    `json:"share_level" enums:"owner,authenticated,organization,public"`
 		Protocol   WorkspaceAgentPortShareProtocol `json:"protocol" enums:"http,https"`
 	}
 	WorkspaceAgentPortShares struct {
@@ -34,7 +36,7 @@ type (
 		WorkspaceID uuid.UUID                       `json:"workspace_id" format:"uuid"`
 		AgentName   string                          `json:"agent_name"`
 		Port        int32                           `json:"port"`
-		ShareLevel  WorkspaceAgentPortShareLevel    `json:"share_level" enums:"owner,authenticated,public"`
+		ShareLevel  WorkspaceAgentPortShareLevel    `json:"share_level" enums:"owner,authenticated,organization,public"`
 		Protocol    WorkspaceAgentPortShareProtocol `json:"protocol" enums:"http,https"`
 	}
 	DeleteWorkspaceAgentPortShareRequest struct {
@@ -46,12 +48,58 @@ type (
 func (l WorkspaceAgentPortShareLevel) ValidMaxLevel() bool {
 	return l == WorkspaceAgentPortShareLevelOwner ||
 		l == WorkspaceAgentPortShareLevelAuthenticated ||
+		l == WorkspaceAgentPortShareLevelOrganization ||
 		l == WorkspaceAgentPortShareLevelPublic
 }
 
 func (l WorkspaceAgentPortShareLevel) ValidPortShareLevel() bool {
 	return l == WorkspaceAgentPortShareLevelAuthenticated ||
+		l == WorkspaceAgentPortShareLevelOrganization ||
 		l == WorkspaceAgentPortShareLevelPublic
+}
+
+// IsCompatibleWithMaxLevel determines whether the sharing level is valid under
+// the specified maxLevel. The values are fully ordered, from "highest" to
+// "lowest" as
+// 1. Public
+// 2. Authenticated
+// 3. Organization
+// 4. Owner
+// Returns an error if either level is invalid.
+func (l WorkspaceAgentPortShareLevel) IsCompatibleWithMaxLevel(maxLevel WorkspaceAgentPortShareLevel) error {
+	// Owner is always allowed.
+	if l == WorkspaceAgentPortShareLevelOwner {
+		return nil
+	}
+	// If public is allowed, anything is allowed.
+	if maxLevel == WorkspaceAgentPortShareLevelPublic {
+		return nil
+	}
+	// Public is not allowed.
+	if l == WorkspaceAgentPortShareLevelPublic {
+		return xerrors.Errorf("%q sharing level is not allowed under max level %q", l, maxLevel)
+	}
+	// If authenticated is allowed, public has already been filtered out so
+	// anything is allowed.
+	if maxLevel == WorkspaceAgentPortShareLevelAuthenticated {
+		return nil
+	}
+	// Authenticated is not allowed.
+	if l == WorkspaceAgentPortShareLevelAuthenticated {
+		return xerrors.Errorf("%q sharing level is not allowed under max level %q", l, maxLevel)
+	}
+	// If organization is allowed, public and authenticated have already been
+	// filtered out so anything is allowed.
+	if maxLevel == WorkspaceAgentPortShareLevelOrganization {
+		return nil
+	}
+	// Organization is not allowed.
+	if l == WorkspaceAgentPortShareLevelOrganization {
+		return xerrors.Errorf("%q sharing level is not allowed under max level %q", l, maxLevel)
+	}
+
+	// An invalid value was provided.
+	return xerrors.New("port sharing level is invalid.")
 }
 
 func (p WorkspaceAgentPortShareProtocol) ValidPortProtocol() bool {

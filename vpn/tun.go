@@ -1,10 +1,10 @@
-//go:build !darwin
+//go:build !darwin && !windows
 
 package vpn
 
-import "github.com/tailscale/wireguard-go/tun"
+import "cdr.dev/slog"
 
-// This is a no-op on non-Darwin platforms.
-func makeTUN(int) (tun.Device, error) {
-	return nil, nil
+// This is a no-op on every platform except Darwin and Windows.
+func GetNetworkingStack(_ *Tunnel, _ *StartRequest, _ slog.Logger) (NetworkStack, error) {
+	return NetworkStack{}, nil
 }

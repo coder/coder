@@ -822,7 +822,7 @@ resource "kubernetes_pod" "main" {
 
     container {
       name              = "dev"
-      image             = "gcr.io/coder-dev-1/scaletest-runner:latest"
+      image             = "us-docker.pkg.dev/coder-v2-images-public/public/scaletest-runner:latest"
       image_pull_policy = "Always"
       command           = ["sh", "-c", coder_agent.main.init_script]
       security_context {

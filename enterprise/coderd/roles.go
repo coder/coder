@@ -127,8 +127,7 @@ func (api *API) putOrgRoles(rw http.ResponseWriter, r *http.Request) {
 			},
 		},
 		ExcludeOrgRoles: false,
-		// Linter requires all fields to be set. This field is not actually required.
-		OrganizationID: organization.ID,
+		OrganizationID:  organization.ID,
 	})
 	// If it is a 404 (not found) error, ignore it.
 	if err != nil && !httpapi.Is404Error(err) {
@@ -147,9 +146,13 @@ func (api *API) putOrgRoles(rw http.ResponseWriter, r *http.Request) {
 			UUID:  organization.ID,
 			Valid: true,
 		},
-		SitePermissions: db2sdk.List(req.SitePermissions, sdkPermissionToDB),
-		OrgPermissions:  db2sdk.List(req.OrganizationPermissions, sdkPermissionToDB),
-		UserPermissions: db2sdk.List(req.UserPermissions, sdkPermissionToDB),
+		// Invalid permissions are filtered out. If this is changed
+		// to throw an error, then the story of a previously valid role
+		// now being invalid has to be addressed. Coder can change permissions,
+		// objects, and actions at any time.
+		SitePermissions: db2sdk.List(filterInvalidPermissions(req.SitePermissions), sdkPermissionToDB),
+		OrgPermissions:  db2sdk.List(filterInvalidPermissions(req.OrganizationPermissions), sdkPermissionToDB),
+		UserPermissions: db2sdk.List(filterInvalidPermissions(req.UserPermissions), sdkPermissionToDB),
 	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
@@ -245,6 +248,23 @@ func (api *API) deleteOrgRole(rw http.ResponseWriter, r *http.Request) {
 	aReq.New = database.CustomRole{}
 
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
+func filterInvalidPermissions(permissions []codersdk.Permission) []codersdk.Permission {
+	// Filter out any invalid permissions
+	var validPermissions []codersdk.Permission
+	for _, permission := range permissions {
+		err := rbac.Permission{
+			Negate:       permission.Negate,
+			ResourceType: string(permission.ResourceType),
+			Action:       policy.Action(permission.Action),
+		}.Valid()
+		if err != nil {
+			continue
+		}
+		validPermissions = append(validPermissions, permission)
+	}
+	return validPermissions
 }
 
 func sdkPermissionToDB(p codersdk.Permission) database.CustomRolePermission {

@@ -1,8 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import InstallDesktopIcon from "@mui/icons-material/InstallDesktop";
-import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
-import ScheduleIcon from "@mui/icons-material/Schedule";
-import SettingsSuggestIcon from "@mui/icons-material/SettingsSuggest";
 import { API } from "api/api";
 import type { TemplateVersion, Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -12,6 +8,8 @@ import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { MonitorDownIcon } from "lucide-react";
+import { ClockIcon, SettingsIcon, UserIcon } from "lucide-react";
 import { type FC, type ReactNode, useEffect, useMemo, useState } from "react";
 import { useQueries } from "react-query";
 
@@ -293,7 +291,7 @@ const DormantWorkspaces: FC<DormantWorkspacesProps> = ({ workspaces }) => {
 									</span>
 								</Stack>
 								<Stack direction="row" alignItems="center" spacing={1}>
-									<ScheduleIcon css={styles.summaryIcon} />
+									<ClockIcon className="size-icon-xs" />
 									<span
 										css={{ whiteSpace: "nowrap", textOverflow: "ellipsis" }}
 									>
@@ -317,7 +315,7 @@ const DormantWorkspaces: FC<DormantWorkspacesProps> = ({ workspaces }) => {
 				</Stack>
 				{mostRecent && (
 					<Stack direction="row" alignItems="center" spacing={1}>
-						<ScheduleIcon css={styles.summaryIcon} />
+						<ClockIcon className="size-icon-xs" />
 						<span>Last used {lastUsed(mostRecent.last_used_at)}</span>
 					</Stack>
 				)}
@@ -353,12 +351,12 @@ const Updates: FC<UpdatesProps> = ({ workspaces, updates, error }) => {
 				css={styles.summary}
 			>
 				<Stack direction="row" alignItems="center" spacing={1}>
-					<InstallDesktopIcon css={styles.summaryIcon} />
+					<MonitorDownIcon className="size-icon-sm" />
 					<span>{workspaceCount}</span>
 				</Stack>
 				{updateCount && (
 					<Stack direction="row" alignItems="center" spacing={1}>
-						<SettingsSuggestIcon css={styles.summaryIcon} />
+						<SettingsIcon className="size-icon-xs" />
 						<span>{updateCount}</span>
 					</Stack>
 				)}
@@ -433,10 +431,8 @@ const lastUsed = (time: string) => {
 };
 
 const PersonIcon: FC = () => {
-	// This size doesn't match the rest of the icons because MUI is just really
-	// inconsistent. We have to make it bigger than the rest, and pull things in
-	// on the sides to compensate.
-	return <PersonOutlinedIcon css={{ width: 18, height: 18, margin: -1 }} />;
+	// Using the Lucide icon with appropriate size class
+	return <UserIcon className="size-icon-sm" css={{ margin: -1 }} />;
 };
 
 const styles = {

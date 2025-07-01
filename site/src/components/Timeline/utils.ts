@@ -1,13 +1,20 @@
-import formatRelative from "date-fns/formatRelative";
-import subDays from "date-fns/subDays";
+import dayjs from "dayjs";
+import calendar from "dayjs/plugin/calendar";
+
+dayjs.extend(calendar);
 
 export const createDisplayDate = (
 	date: Date,
 	base: Date = new Date(),
 ): string => {
-	const lastWeek = subDays(base, 7);
+	const lastWeek = dayjs(base).subtract(7, "day").toDate();
 	if (date >= lastWeek) {
-		return formatRelative(date, base).split(" at ")[0];
+		return dayjs(date).calendar(dayjs(base), {
+			sameDay: "[Today]",
+			lastDay: "[Yesterday]",
+			lastWeek: "[last] dddd",
+			sameElse: "MM/DD/YYYY",
+		});
 	}
 	return date.toLocaleDateString();
 };

@@ -69,8 +69,8 @@ func Test_Experiments(t *testing.T) {
 		experiments, err := client.Experiments(ctx)
 		require.NoError(t, err)
 		require.NotNil(t, experiments)
-		require.ElementsMatch(t, codersdk.ExperimentsAll, experiments)
-		for _, ex := range codersdk.ExperimentsAll {
+		require.ElementsMatch(t, codersdk.ExperimentsSafe, experiments)
+		for _, ex := range codersdk.ExperimentsSafe {
 			require.True(t, experiments.Enabled(ex))
 		}
 		require.False(t, experiments.Enabled("danger"))
@@ -91,8 +91,8 @@ func Test_Experiments(t *testing.T) {
 		experiments, err := client.Experiments(ctx)
 		require.NoError(t, err)
 		require.NotNil(t, experiments)
-		require.ElementsMatch(t, append(codersdk.ExperimentsAll, "danger"), experiments)
-		for _, ex := range codersdk.ExperimentsAll {
+		require.ElementsMatch(t, append(codersdk.ExperimentsSafe, "danger"), experiments)
+		for _, ex := range codersdk.ExperimentsSafe {
 			require.True(t, experiments.Enabled(ex))
 		}
 		require.True(t, experiments.Enabled("danger"))
@@ -131,6 +131,6 @@ func Test_Experiments(t *testing.T) {
 		experiments, err := client.SafeExperiments(ctx)
 		require.NoError(t, err)
 		require.NotNil(t, experiments)
-		require.ElementsMatch(t, codersdk.ExperimentsAll, experiments.Safe)
+		require.ElementsMatch(t, codersdk.ExperimentsSafe, experiments.Safe)
 	})
 }

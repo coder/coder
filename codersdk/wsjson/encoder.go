@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
+
+	"github.com/coder/websocket"
 )
 
 type Encoder[T any] struct {

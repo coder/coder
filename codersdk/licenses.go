@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	LicenseExpiryClaim = "license_expires"
+	LicenseExpiryClaim                = "license_expires"
+	LicenseTelemetryRequiredErrorText = "License requires telemetry but telemetry is disabled"
 )
 
 type AddLicenseRequest struct {

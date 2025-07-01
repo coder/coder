@@ -10,14 +10,13 @@ import (
 	"sync"
 	"time"
 
-	"nhooyr.io/websocket"
-
-	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/workspacesdk"
-
 	"github.com/google/uuid"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/websocket"
 )
 
 const (
@@ -219,6 +218,7 @@ func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID,
 					// The exit status is 255 when the command is
 					// interrupted by a signal. This is expected.
 					if exitErr.ExitStatus() != 255 {
+						// #nosec G115 - Safe conversion as SSH exit status is expected to be within int32 range (usually 0-255)
 						merr = errors.Join(merr, xerrors.Errorf("ssh session exited with unexpected status: %d", int32(exitErr.ExitStatus())))
 					}
 				} else {

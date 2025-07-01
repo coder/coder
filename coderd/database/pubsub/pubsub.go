@@ -492,7 +492,6 @@ func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 	p.connected.Set(0)
 	// Creates a new listener using pq.
 	var (
-		errCh  = make(chan error)
 		dialer = logDialer{
 			logger: p.logger,
 			// pq.defaultDialer uses a zero net.Dialer as well.
@@ -525,6 +524,10 @@ func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 		dc.Dialer(dialer)
 	}
 
+	var (
+		errCh     = make(chan error, 1)
+		sentErrCh = false
+	)
 	p.pgListener = pqListenerShim{
 		Listener: pq.NewConnectorListener(connector, connectURL, time.Second, time.Minute, func(t pq.ListenerEventType, err error) {
 			switch t {
@@ -541,25 +544,22 @@ func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 				p.logger.Error(ctx, "pubsub failed to connect to postgres", slog.Error(err))
 			}
 			// This callback gets events whenever the connection state changes.
-			// Don't send if the errChannel has already been closed.
-			select {
-			case <-errCh:
+			// Only send the first error.
+			if sentErrCh {
 				return
-			default:
-				errCh <- err
-				close(errCh)
 			}
+			errCh <- err // won't block because we are buffered.
+			sentErrCh = true
 		}),
 	}
-	select {
-	case err := <-errCh:
-		if err != nil {
-			_ = p.pgListener.Close()
-			return xerrors.Errorf("create pq listener: %w", err)
-		}
-	case <-ctx.Done():
+	// We don't respect context cancellation here. There's a bug in the pq library
+	// where if you close the listener before or while the connection is being
+	// established, the connection will be established anyway, and will not be
+	// closed.
+	// https://github.com/lib/pq/issues/1192
+	if err := <-errCh; err != nil {
 		_ = p.pgListener.Close()
-		return ctx.Err()
+		return xerrors.Errorf("create pq listener: %w", err)
 	}
 	return nil
 }

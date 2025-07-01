@@ -55,7 +55,7 @@ export const extractTimezone = (
 };
 
 /** Language used in the schedule components */
-export const Language = {
+const Language = {
 	manual: "Manual",
 	workspaceShuttingDownLabel: "Workspace is shutting down",
 	afterStart: "after start",
@@ -77,10 +77,7 @@ export const autostartDisplay = (schedule: string | undefined): string => {
 	return Language.manual;
 };
 
-export const isShuttingDown = (
-	workspace: Workspace,
-	deadline?: Dayjs,
-): boolean => {
+const isShuttingDown = (workspace: Workspace, deadline?: Dayjs): boolean => {
 	if (!deadline) {
 		if (!workspace.latest_build.deadline) {
 			return false;
@@ -148,7 +145,7 @@ export const autostopDisplay = (
 		if (template.autostop_requirement && template.allow_user_autostop) {
 			title = <HelpTooltipTitle>Autostop schedule</HelpTooltipTitle>;
 			reason = (
-				<>
+				<span data-chromatic="ignore">
 					{" "}
 					because this workspace has enabled autostop. You can disable autostop
 					from this workspace&apos;s{" "}
@@ -156,18 +153,18 @@ export const autostopDisplay = (
 						schedule settings
 					</Link>
 					.
-				</>
+				</span>
 			);
 		}
 		return {
 			message: `Stop ${deadline.fromNow()}`,
 			tooltip: (
-				<>
+				<span data-chromatic="ignore">
 					{title}
 					This workspace will be stopped on{" "}
 					{deadline.format("MMMM D [at] h:mm A")}
 					{reason}
-				</>
+				</span>
 			),
 			danger: isShutdownSoon(workspace),
 		};
@@ -256,6 +253,7 @@ export const timeToCron = (time: string, tz?: string) => {
 };
 
 export const quietHoursDisplay = (
+	browserLocale: string,
 	time: string,
 	tz: string,
 	now: Date | undefined,
@@ -276,7 +274,14 @@ export const quietHoursDisplay = (
 
 	const today = dayjs(now).tz(tz);
 	const day = dayjs(parsed.next().toDate()).tz(tz);
-	let display = day.format("h:mmA");
+
+	const formattedTime = new Intl.DateTimeFormat(browserLocale, {
+		hour: "numeric",
+		minute: "numeric",
+		timeZone: tz,
+	}).format(day.toDate());
+
+	let display = formattedTime;
 
 	if (day.isSame(today, "day")) {
 		display += " today";

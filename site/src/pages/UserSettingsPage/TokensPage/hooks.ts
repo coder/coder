@@ -29,7 +29,9 @@ export const useDeleteToken = (queryKey: QueryKey) => {
 		mutationFn: API.deleteToken,
 		onSuccess: () => {
 			// Invalidate and refetch
-			void queryClient.invalidateQueries(queryKey);
+			void queryClient.invalidateQueries({
+				queryKey,
+			});
 		},
 	});
 };

@@ -12,9 +12,10 @@ const AddNewLicensePage: FC = () => {
 
 	const {
 		mutate: saveLicenseKeyApi,
-		isLoading: isCreating,
+		isPending: isCreating,
 		error: savingLicenseError,
-	} = useMutation(API.createLicense, {
+	} = useMutation({
+		mutationFn: API.createLicense,
 		onSuccess: () => {
 			displaySuccess("You have successfully added a license");
 			navigate("/deployment/licenses?success=true");

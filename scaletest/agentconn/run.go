@@ -368,7 +368,7 @@ func agentHTTPClient(conn *workspacesdk.AgentConn) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			DisableKeepAlives: true,
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			DialContext: func(ctx context.Context, _ string, addr string) (net.Conn, error) {
 				_, port, err := net.SplitHostPort(addr)
 				if err != nil {
 					return nil, xerrors.Errorf("split host port %q: %w", addr, err)

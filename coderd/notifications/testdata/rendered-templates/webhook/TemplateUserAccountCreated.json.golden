@@ -2,7 +2,7 @@
   "_version": "1.1",
   "msg_id": "00000000-0000-0000-0000-000000000000",
   "payload": {
-    "_version": "1.1",
+    "_version": "1.2",
     "notification_name": "User account created",
     "notification_template_id": "00000000-0000-0000-0000-000000000000",
     "user_id": "00000000-0000-0000-0000-000000000000",
@@ -20,10 +20,11 @@
       "created_account_user_name": "William Tables",
       "initiator": "rob"
     },
-    "data": null
+    "data": null,
+    "targets": null
   },
   "title": "User account \"bobby\" created",
   "title_markdown": "User account \"bobby\" created",
-  "body": "Hi Bobby,\n\nNew user account bobby has been created.\n\nThis new user account was created for William Tables by rob.",
-  "body_markdown": "Hi Bobby,\n\nNew user account **bobby** has been created.\n\nThis new user account was created for **William Tables** by **rob**."
+  "body": "New user account bobby has been created.\n\nThis new user account was created for William Tables by rob.",
+  "body_markdown": "New user account **bobby** has been created.\n\nThis new user account was created for **William Tables** by **rob**."
 }

@@ -1,13 +1,13 @@
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
+import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
 
 const ObservabilitySettingsPage: FC = () => {
-	const { deploymentConfig } = useDeploymentSettings();
+	const { deploymentConfig } = useDeploymentConfig();
 	const { entitlements } = useDashboard();
 	const { multiple_organizations: hasPremiumLicense } = useFeatureVisibility();
 

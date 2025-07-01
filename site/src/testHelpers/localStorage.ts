@@ -1,4 +1,4 @@
-export const localStorageMock = (): Storage => {
+const localStorageMock = (): Storage => {
 	const store = new Map<string, string>();
 
 	return {

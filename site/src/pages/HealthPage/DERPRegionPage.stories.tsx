@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { MockHealth } from "testHelpers/entities";
-import { DERPRegionPage } from "./DERPRegionPage";
+import DERPRegionPage from "./DERPRegionPage";
 import { generateMeta } from "./storybook";
 
 const firstRegionId = Object.values(MockHealth.derp.regions)[0]!.region
@@ -11,7 +11,7 @@ const meta: Meta = {
 	...generateMeta({
 		path: "/health/derp/regions/:regionId",
 		element: <DERPRegionPage />,
-		params: { regionId: firstRegionId },
+		params: { regionId: firstRegionId?.toString() || "" },
 	}),
 };
 

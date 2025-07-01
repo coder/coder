@@ -1,21 +1,14 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import AddIcon from "@mui/icons-material/AddOutlined";
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
-import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, TemplateExample } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { ExternalAvatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/AvatarData/AvatarData";
-import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/Avatar/AvatarData";
+import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { DeprecatedBadge } from "components/Badges/Badges";
+import { Button } from "components/Button/Button";
 import type { useFilter } from "components/Filter/Filter";
 import {
 	HelpTooltip,
@@ -34,24 +27,33 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
+import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { PlusIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
+import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import type { FC } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
 import {
 	formatTemplateActiveDevelopers,
 	formatTemplateBuildTime,
 } from "utils/templates";
-import { CreateTemplateButton } from "./CreateTemplateButton";
 import { EmptyTemplates } from "./EmptyTemplates";
 import { TemplatesFilter } from "./TemplatesFilter";
 
-export const Language = {
+const Language = {
 	developerCount: (activeCount: number): string => {
 		return `${formatTemplateActiveDevelopers(activeCount)} developer${
 			activeCount !== 1 ? "s" : ""
@@ -87,17 +89,21 @@ const TemplateHelpTooltip: FC = () => {
 interface TemplateRowProps {
 	showOrganizations: boolean;
 	template: Template;
+	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
 }
 
-const TemplateRow: FC<TemplateRowProps> = ({ showOrganizations, template }) => {
+const TemplateRow: FC<TemplateRowProps> = ({
+	showOrganizations,
+	template,
+	workspacePermissions,
+}) => {
 	const getLink = useLinks();
 	const templatePageLink = getLink(
 		linkToTemplate(template.organization_name, template.name),
 	);
-	const hasIcon = template.icon && template.icon !== "";
 	const navigate = useNavigate();
 
-	const { css: clickableCss, ...clickableRow } = useClickableTableRow({
+	const clickableRow = useClickableTableRow({
 		onClick: () => navigate(templatePageLink),
 	});
 
@@ -106,20 +112,19 @@ const TemplateRow: FC<TemplateRowProps> = ({ showOrganizations, template }) => {
 			key={template.id}
 			data-testid={`template-${template.id}`}
 			{...clickableRow}
-			css={[clickableCss, styles.tableRow]}
+			css={styles.tableRow}
 		>
 			<TableCell>
 				<AvatarData
-					title={
-						template.display_name.length > 0
-							? template.display_name
-							: template.name
-					}
+					title={template.display_name || template.name}
 					subtitle={template.description}
 					avatar={
-						hasIcon && (
-							<ExternalAvatar variant="square" fitImage src={template.icon} />
-						)
+						<Avatar
+							size="lg"
+							variant="icon"
+							src={template.icon}
+							fallback={template.display_name || template.name}
+						/>
 					}
 				/>
 			</TableCell>
@@ -155,33 +160,36 @@ const TemplateRow: FC<TemplateRowProps> = ({ showOrganizations, template }) => {
 			<TableCell css={styles.actionCell}>
 				{template.deprecated ? (
 					<DeprecatedBadge />
-				) : (
+				) : workspacePermissions?.[template.organization_id]
+						?.createWorkspaceForUserID ? (
 					<Button
-						size="small"
-						css={styles.actionButton}
-						className="actionButton"
-						startIcon={<ArrowForwardOutlined />}
+						asChild
+						variant="outline"
+						size="sm"
 						title={`Create a workspace using the ${template.display_name} template`}
 						onClick={(e) => {
 							e.stopPropagation();
-							navigate(`${templatePageLink}/workspace`);
 						}}
 					>
-						Create Workspace
+						<RouterLink to={`${templatePageLink}/workspace`}>
+							<ArrowForwardOutlined />
+							Create Workspace
+						</RouterLink>
 					</Button>
-				)}
+				) : null}
 			</TableCell>
 		</TableRow>
 	);
 };
 
-export interface TemplatesPageViewProps {
+interface TemplatesPageViewProps {
 	error?: unknown;
 	filter: ReturnType<typeof useFilter>;
 	showOrganizations: boolean;
 	canCreateTemplates: boolean;
 	examples: TemplateExample[] | undefined;
 	templates: Template[] | undefined;
+	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
 }
 
 export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
@@ -191,28 +199,25 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	canCreateTemplates,
 	examples,
 	templates,
+	workspacePermissions,
 }) => {
 	const isLoading = !templates;
 	const isEmpty = templates && templates.length === 0;
-	const navigate = useNavigate();
-
-	const createTemplateAction = showOrganizations ? (
-		<Button
-			startIcon={<AddIcon />}
-			variant="contained"
-			onClick={() => {
-				navigate("/starter-templates");
-			}}
-		>
-			Create Template
-		</Button>
-	) : (
-		<CreateTemplateButton onNavigate={navigate} />
-	);
 
 	return (
 		<Margins>
-			<PageHeader actions={canCreateTemplates && createTemplateAction}>
+			<PageHeader
+				actions={
+					canCreateTemplates && (
+						<Button asChild size="lg">
+							<RouterLink to="/starter-templates">
+								<PlusIcon />
+								New template
+							</RouterLink>
+						</Button>
+					)
+				}
+			>
 				<PageHeaderTitle>
 					<Stack spacing={1} direction="row" alignItems="center">
 						Templates
@@ -230,39 +235,41 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 				<ErrorAlert error={error} />
 			)}
 
-			<TableContainer>
-				<Table>
-					<TableHead>
-						<TableRow>
-							<TableCell width="35%">{Language.nameLabel}</TableCell>
-							<TableCell width="15%">
-								{showOrganizations ? "Organization" : Language.usedByLabel}
-							</TableCell>
-							<TableCell width="10%">{Language.buildTimeLabel}</TableCell>
-							<TableCell width="15%">{Language.lastUpdatedLabel}</TableCell>
-							<TableCell width="1%" />
-						</TableRow>
-					</TableHead>
-					<TableBody>
-						{isLoading && <TableLoader />}
+			<Table>
+				<TableHeader>
+					<TableRow>
+						<TableHead className="w-[35%]">{Language.nameLabel}</TableHead>
+						<TableHead className="w-[15%]">
+							{showOrganizations ? "Organization" : Language.usedByLabel}
+						</TableHead>
+						<TableHead className="w-[10%]">{Language.buildTimeLabel}</TableHead>
+						<TableHead className="w-[15%]">
+							{Language.lastUpdatedLabel}
+						</TableHead>
+						<TableHead className="w-[1%]" />
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{isLoading && <TableLoader />}
 
-						{isEmpty ? (
-							<EmptyTemplates
-								canCreateTemplates={canCreateTemplates}
-								examples={examples ?? []}
+					{isEmpty ? (
+						<EmptyTemplates
+							canCreateTemplates={canCreateTemplates}
+							examples={examples ?? []}
+							isUsingFilter={filter.used}
+						/>
+					) : (
+						templates?.map((template) => (
+							<TemplateRow
+								key={template.id}
+								showOrganizations={showOrganizations}
+								template={template}
+								workspacePermissions={workspacePermissions}
 							/>
-						) : (
-							templates?.map((template) => (
-								<TemplateRow
-									key={template.id}
-									showOrganizations={showOrganizations}
-									template={template}
-								/>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</TableContainer>
+						))
+					)}
+				</TableBody>
+			</Table>
 		</Margins>
 	);
 };

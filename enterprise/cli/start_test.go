@@ -9,7 +9,6 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -121,11 +120,9 @@ func TestStart(t *testing.T) {
 		}
 
 		for _, cmd := range []string{"start", "restart"} {
-			cmd := cmd
 			t.Run(cmd, func(t *testing.T) {
 				t.Parallel()
 				for _, c := range cases {
-					c := c
 					t.Run(c.Name, func(t *testing.T) {
 						t.Parallel()
 
@@ -146,7 +143,7 @@ func TestStart(t *testing.T) {
 
 						if cmd == "start" {
 							// Stop the workspace so that we can start it.
-							coderdtest.MustTransitionWorkspace(t, c.Client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+							coderdtest.MustTransitionWorkspace(t, c.Client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 						}
 						// Start the workspace. Every test permutation should
 						// pass.
@@ -198,7 +195,7 @@ func TestStart(t *testing.T) {
 		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 		workspace := coderdtest.CreateWorkspace(t, memberClient, template.ID)
 		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, memberClient, workspace.LatestBuild.ID)
-		_ = coderdtest.MustTransitionWorkspace(t, memberClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		_ = coderdtest.MustTransitionWorkspace(t, memberClient, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 		err := memberClient.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
 			Dormant: true,
 		})

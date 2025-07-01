@@ -36,7 +36,7 @@ type ScriptTiming = {
 	range: TimeRange;
 };
 
-export type ScriptsChartProps = {
+type ScriptsChartProps = {
 	stage: Stage;
 	timings: ScriptTiming[];
 	onBack: () => void;

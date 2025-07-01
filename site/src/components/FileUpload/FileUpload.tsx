@@ -1,14 +1,12 @@
 import { type Interpolation, type Theme, css } from "@emotion/react";
-import UploadIcon from "@mui/icons-material/CloudUploadOutlined";
-import RemoveIcon from "@mui/icons-material/DeleteOutline";
-import FileIcon from "@mui/icons-material/FolderOutlined";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
 import { Stack } from "components/Stack/Stack";
 import { useClickable } from "hooks/useClickable";
+import { CloudUploadIcon, FolderIcon, TrashIcon } from "lucide-react";
 import { type DragEvent, type FC, type ReactNode, useRef } from "react";
 
-export interface FileUploadProps {
+interface FileUploadProps {
 	isUploading: boolean;
 	onUpload: (file: File) => void;
 	onRemove?: () => void;
@@ -44,12 +42,12 @@ export const FileUpload: FC<FileUploadProps> = ({
 				alignItems="center"
 			>
 				<Stack direction="row" alignItems="center">
-					<FileIcon />
+					<FolderIcon className="size-icon-sm" />
 					<span>{file.name}</span>
 				</Stack>
 
 				<IconButton title={removeLabel} size="small" onClick={onRemove}>
-					<RemoveIcon />
+					<TrashIcon className="size-icon-sm" />
 				</IconButton>
 			</Stack>
 		);
@@ -68,7 +66,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 						{isUploading ? (
 							<CircularProgress size={32} />
 						) : (
-							<UploadIcon css={styles.icon} />
+							<CloudUploadIcon className="size-16" />
 						)}
 					</div>
 
@@ -164,10 +162,6 @@ const styles = {
 		display: "flex",
 		alignItems: "center",
 		justifyContent: "center",
-	},
-
-	icon: {
-		fontSize: 64,
 	},
 
 	title: {

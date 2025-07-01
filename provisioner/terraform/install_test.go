@@ -40,7 +40,7 @@ func TestInstall(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				p, err := terraform.Install(ctx, log, dir, version)
+				p, err := terraform.Install(ctx, log, false, dir, version)
 				assert.NoError(t, err)
 				paths <- p
 			}()

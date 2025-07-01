@@ -1,4 +1,5 @@
 import { getErrorMessage } from "api/errors";
+import { deploymentIdpSyncFieldValues } from "api/queries/deployment";
 import {
 	organizationIdpSyncSettings,
 	patchOrganizationSyncSettings,
@@ -6,29 +7,39 @@ import {
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import { Paywall } from "components/Paywall/Paywall";
-import { SquareArrowOutUpRight } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { type FC, useEffect } from "react";
+import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { ExportPolicyButton } from "./ExportPolicyButton";
-import IdpOrgSyncPageView from "./IdpOrgSyncPageView";
+import { IdpOrgSyncPageView } from "./IdpOrgSyncPageView";
 
-export const IdpOrgSyncPage: FC = () => {
+const IdpOrgSyncPage: FC = () => {
 	const queryClient = useQueryClient();
 	// IdP sync does not have its own entitlement and is based on templace_rbac
 	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();
 	const { organizations } = useDashboard();
-	const {
-		data: orgSyncSettingsData,
-		isLoading,
-		error,
-	} = useQuery(organizationIdpSyncSettings(isIdpSyncEnabled));
+	const settingsQuery = useQuery(organizationIdpSyncSettings(isIdpSyncEnabled));
+
+	const [field, setField] = useState("");
+	useEffect(() => {
+		if (!settingsQuery.data) {
+			return;
+		}
+
+		setField(settingsQuery.data.field);
+	}, [settingsQuery.data]);
+
+	const fieldValuesQuery = useQuery({
+		...deploymentIdpSyncFieldValues(field),
+		enabled: !!field,
+	});
 
 	const patchOrganizationSyncSettingsMutation = useMutation(
 		patchOrganizationSyncSettings(queryClient),
@@ -45,7 +56,7 @@ export const IdpOrgSyncPage: FC = () => {
 		}
 	}, [patchOrganizationSyncSettingsMutation.error]);
 
-	if (isLoading) {
+	if (settingsQuery.isLoading) {
 		return <Loader />;
 	}
 
@@ -62,16 +73,12 @@ export const IdpOrgSyncPage: FC = () => {
 						<p className="flex flex-row gap-1 text-sm text-content-secondary font-medium m-0">
 							Automatically assign users to an organization based on their IdP
 							claims.
-							<a
-								href={docs("/admin/users/idp-sync")}
-								className="flex flex-row text-content-link items-center gap-1 no-underline hover:underline visited:text-content-link"
-							>
+							<Link href={docs("/admin/users/idp-sync#organization-sync")}>
 								View docs
-								<SquareArrowOutUpRight size={14} />
-							</a>
+							</Link>
 						</p>
 					</div>
-					<ExportPolicyButton syncSettings={orgSyncSettingsData} />
+					<ExportPolicyButton syncSettings={settingsQuery.data} />
 				</header>
 				<ChooseOne>
 					<Cond condition={!isIdpSyncEnabled}>
@@ -83,8 +90,10 @@ export const IdpOrgSyncPage: FC = () => {
 					</Cond>
 					<Cond>
 						<IdpOrgSyncPageView
-							organizationSyncSettings={orgSyncSettingsData}
+							organizationSyncSettings={settingsQuery.data}
+							claimFieldValues={fieldValuesQuery.data}
 							organizations={organizations}
+							onSyncFieldChange={setField}
 							onSubmit={async (data) => {
 								try {
 									await patchOrganizationSyncSettingsMutation.mutateAsync(data);
@@ -98,7 +107,7 @@ export const IdpOrgSyncPage: FC = () => {
 									);
 								}
 							}}
-							error={error || patchOrganizationSyncSettingsMutation.error}
+							error={settingsQuery.error || fieldValuesQuery.error}
 						/>
 					</Cond>
 				</ChooseOne>

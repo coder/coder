@@ -44,7 +44,7 @@ func TestAuthzRecorder(t *testing.T) {
 		require.NoError(t, rec.AllAsserted(), "all assertions should have been made")
 	})
 
-	t.Run("Authorize&Prepared", func(t *testing.T) {
+	t.Run("Authorize_Prepared", func(t *testing.T) {
 		t.Parallel()
 
 		rec := &coderdtest.RecordingAuthorizer{

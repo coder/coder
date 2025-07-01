@@ -10,7 +10,7 @@ import { Stack } from "components/Stack/Stack";
 import type { ComponentProps, FC } from "react";
 import { TemplateVariablesForm } from "./TemplateVariablesForm";
 
-export interface TemplateVariablesPageViewProps {
+interface TemplateVariablesPageViewProps {
 	templateVersion?: TemplateVersion;
 	templateVariables?: TemplateVersionVariable[];
 	onSubmit: (data: CreateTemplateVersionRequest) => void;

@@ -15,6 +15,7 @@ import (
 	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -25,9 +26,10 @@ type ServeOptions struct {
 	// Listener serves multiple connections. Cannot be combined with Conn.
 	Listener net.Listener
 	// Conn is a single connection to serve. Cannot be combined with Listener.
-	Conn          drpc.Transport
-	Logger        slog.Logger
-	WorkDirectory string
+	Conn                drpc.Transport
+	Logger              slog.Logger
+	WorkDirectory       string
+	ExternalProvisioner bool
 }
 
 type Server interface {
@@ -80,7 +82,9 @@ func Serve(ctx context.Context, server Server, options *ServeOptions) error {
 	if err != nil {
 		return xerrors.Errorf("register provisioner: %w", err)
 	}
-	srv := drpcserver.New(&tracing.DRPCHandler{Handler: mux})
+	srv := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux}, drpcserver.Options{
+		Manager: drpcsdk.DefaultDRPCOptions(nil),
+	})
 
 	if options.Listener != nil {
 		err = srv.Serve(ctx, options.Listener)

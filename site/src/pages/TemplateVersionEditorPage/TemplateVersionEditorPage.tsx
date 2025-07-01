@@ -18,15 +18,20 @@ import { linkToTemplate, useLinks } from "modules/navigation";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import {
+	keepPreviousData,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { type FileTree, traverse } from "utils/filetree";
+import { type FileTree, existsFile, traverse } from "utils/filetree";
 import { pageTitle } from "utils/page";
 import { TarReader, TarWriter } from "utils/tar";
 import { createTemplateVersionFileTree } from "utils/templateVersion";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
-export const TemplateVersionEditorPage: FC = () => {
+const TemplateVersionEditorPage: FC = () => {
 	const getLink = useLinks();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
@@ -50,9 +55,9 @@ export const TemplateVersionEditorPage: FC = () => {
 	);
 	const activeTemplateVersionQuery = useQuery({
 		...templateVersionOptions,
-		keepPreviousData: true,
-		refetchInterval(data) {
-			return data?.job.status === "pending" ? 1_000 : false;
+		placeholderData: keepPreviousData,
+		refetchInterval({ state }) {
+			return state.data?.job.status === "pending" ? 1_000 : false;
 		},
 	});
 	const { data: activeTemplateVersion } = activeTemplateVersionQuery;
@@ -79,18 +84,17 @@ export const TemplateVersionEditorPage: FC = () => {
 	const publishVersionMutation = useMutation({
 		mutationFn: publishVersion,
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(
-				templateByNameKey(organizationName, templateName),
-			);
+			await queryClient.invalidateQueries({
+				queryKey: templateByNameKey(organizationName, templateName),
+			});
 		},
 	});
 	const [lastSuccessfulPublishedVersion, setLastSuccessfulPublishedVersion] =
 		useState<TemplateVersion>();
 
 	// File navigation
-	// It can be undefined when a selected file is deleted
-	const activePath: string | undefined =
-		searchParams.get("path") ?? findInitialFile(fileTree ?? {});
+	const activePath = getActivePath(searchParams, fileTree || {});
+
 	const onActivePathChange = (path: string | undefined) => {
 		if (path) {
 			searchParams.set("path", path);
@@ -184,7 +188,7 @@ export const TemplateVersionEditorPage: FC = () => {
 						navigateToVersion(publishedVersion);
 					}}
 					isAskingPublishParameters={isPublishingDialogOpen}
-					isPublishing={publishVersionMutation.isLoading}
+					isPublishing={publishVersionMutation.isPending}
 					publishingError={publishVersionMutation.error}
 					publishedVersion={lastSuccessfulPublishedVersion}
 					onCreateWorkspace={() => {
@@ -200,8 +204,8 @@ export const TemplateVersionEditorPage: FC = () => {
 						);
 					}}
 					isBuilding={
-						createTemplateVersionMutation.isLoading ||
-						uploadFileMutation.isLoading ||
+						createTemplateVersionMutation.isPending ||
+						uploadFileMutation.isPending ||
 						activeTemplateVersion.job.status === "running" ||
 						activeTemplateVersion.job.status === "pending"
 					}
@@ -346,9 +350,9 @@ const publishVersion = async (options: {
 		publishActions.push(API.patchTemplateVersion(version.id, data));
 	}
 
-	if (isActiveVersion) {
+	if (version.template_id && isActiveVersion) {
 		publishActions.push(
-			API.updateActiveTemplateVersion(version.template_id!, {
+			API.updateActiveTemplateVersion(version.template_id, {
 				id: version.id,
 			}),
 		);
@@ -357,16 +361,50 @@ const publishVersion = async (options: {
 	return Promise.all(publishActions);
 };
 
-const findInitialFile = (fileTree: FileTree): string | undefined => {
+const defaultMainTerraformFile = "main.tf";
+
+// findEntrypointFile function locates the entrypoint file to open in the Editor.
+// It browses the filetree following these steps:
+// 1. If "main.tf" exists in root, return it.
+// 2. Traverse through sub-directories.
+// 3. If "main.tf" exists in a sub-directory, skip further browsing, and return the path.
+// 4. If "main.tf" was not found, return the last reviewed "".tf" file.
+export const findEntrypointFile = (fileTree: FileTree): string | undefined => {
 	let initialFile: string | undefined;
 
-	traverse(fileTree, (content, filename, path) => {
+	if (Object.keys(fileTree).find((key) => key === defaultMainTerraformFile)) {
+		return defaultMainTerraformFile;
+	}
+
+	let skip = false;
+	traverse(fileTree, (_, filename, path) => {
+		if (skip) {
+			return;
+		}
+
+		if (filename === defaultMainTerraformFile) {
+			initialFile = path;
+			skip = true;
+			return;
+		}
+
 		if (filename.endsWith(".tf")) {
 			initialFile = path;
 		}
 	});
 
 	return initialFile;
+};
+
+export const getActivePath = (
+	searchParams: URLSearchParams,
+	fileTree: FileTree,
+): string | undefined => {
+	const selectedPath = searchParams.get("path");
+	if (selectedPath && existsFile(selectedPath, fileTree)) {
+		return selectedPath;
+	}
+	return findEntrypointFile(fileTree);
 };
 
 export default TemplateVersionEditorPage;

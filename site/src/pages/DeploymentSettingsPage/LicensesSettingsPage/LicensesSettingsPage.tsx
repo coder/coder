@@ -1,6 +1,7 @@
 import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { entitlements, refreshEntitlements } from "api/queries/entitlements";
+import { insightsUserStatusCounts } from "api/queries/insights";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useEffect, useState } from "react";
@@ -19,6 +20,8 @@ const LicensesSettingsPage: FC = () => {
 	const { metadata } = useEmbeddedMetadata();
 	const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
 
+	const { data: userStatusCount } = useQuery(insightsUserStatusCounts());
+
 	const refreshEntitlementsMutation = useMutation(
 		refreshEntitlements(queryClient),
 	);
@@ -34,11 +37,12 @@ const LicensesSettingsPage: FC = () => {
 		}
 	}, [entitlementsQuery.error]);
 
-	const { mutate: removeLicenseApi, isLoading: isRemovingLicense } =
-		useMutation(API.removeLicense, {
+	const { mutate: removeLicenseApi, isPending: isRemovingLicense } =
+		useMutation({
+			mutationFn: API.removeLicense,
 			onSuccess: () => {
 				displaySuccess("Successfully removed license");
-				void queryClient.invalidateQueries(["licenses"]);
+				void queryClient.invalidateQueries({ queryKey: ["licenses"] });
 			},
 			onError: () => {
 				displayError("Failed to remove license");
@@ -74,12 +78,13 @@ const LicensesSettingsPage: FC = () => {
 			<LicensesSettingsPageView
 				showConfetti={confettiOn}
 				isLoading={isLoading}
-				isRefreshing={refreshEntitlementsMutation.isLoading}
+				isRefreshing={refreshEntitlementsMutation.isPending}
 				userLimitActual={entitlementsQuery.data?.features.user_limit.actual}
 				userLimitLimit={entitlementsQuery.data?.features.user_limit.limit}
 				licenses={licenses}
 				isRemovingLicense={isRemovingLicense}
 				removeLicense={(licenseId: number) => removeLicenseApi(licenseId)}
+				activeUsers={userStatusCount?.active}
 				refreshEntitlements={async () => {
 					try {
 						await refreshEntitlementsMutation.mutateAsync();

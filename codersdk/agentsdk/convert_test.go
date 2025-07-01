@@ -19,6 +19,7 @@ import (
 func TestManifest(t *testing.T) {
 	t.Parallel()
 	manifest := agentsdk.Manifest{
+		ParentID:           uuid.New(),
 		AgentID:            uuid.New(),
 		AgentName:          "test-agent",
 		OwnerName:          "test-owner",
@@ -130,11 +131,19 @@ func TestManifest(t *testing.T) {
 				DisplayName:      "bar",
 			},
 		},
+		Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+			{
+				ID:              uuid.New(),
+				WorkspaceFolder: "/home/coder/coder",
+				ConfigPath:      "/home/coder/coder/.devcontainer/devcontainer.json",
+			},
+		},
 	}
 	p, err := agentsdk.ProtoFromManifest(manifest)
 	require.NoError(t, err)
 	back, err := agentsdk.ManifestFromProto(p)
 	require.NoError(t, err)
+	require.Equal(t, manifest.ParentID, back.ParentID)
 	require.Equal(t, manifest.AgentID, back.AgentID)
 	require.Equal(t, manifest.AgentName, back.AgentName)
 	require.Equal(t, manifest.OwnerName, back.OwnerName)
@@ -152,6 +161,7 @@ func TestManifest(t *testing.T) {
 	require.Equal(t, manifest.DisableDirectConnections, back.DisableDirectConnections)
 	require.Equal(t, manifest.Metadata, back.Metadata)
 	require.Equal(t, manifest.Scripts, back.Scripts)
+	require.Equal(t, manifest.Devcontainers, back.Devcontainers)
 }
 
 func TestSubsystems(t *testing.T) {

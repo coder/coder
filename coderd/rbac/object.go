@@ -1,10 +1,14 @@
 package rbac
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	cstrings "github.com/coder/coder/v2/coderd/util/strings"
 )
 
 // ResourceUserObject is a helper function to create a user object for authz checks.
@@ -35,6 +39,25 @@ type Object struct {
 
 	ACLUserList  map[string][]policy.Action ` json:"acl_user_list"`
 	ACLGroupList map[string][]policy.Action ` json:"acl_group_list"`
+}
+
+// String is not perfect, but decent enough for human display
+func (z Object) String() string {
+	var parts []string
+	if z.OrgID != "" {
+		parts = append(parts, fmt.Sprintf("org:%s", cstrings.Truncate(z.OrgID, 4)))
+	}
+	if z.Owner != "" {
+		parts = append(parts, fmt.Sprintf("owner:%s", cstrings.Truncate(z.Owner, 4)))
+	}
+	parts = append(parts, z.Type)
+	if z.ID != "" {
+		parts = append(parts, fmt.Sprintf("id:%s", cstrings.Truncate(z.ID, 4)))
+	}
+	if len(z.ACLGroupList) > 0 || len(z.ACLUserList) > 0 {
+		parts = append(parts, fmt.Sprintf("acl:%d", len(z.ACLUserList)+len(z.ACLGroupList)))
+	}
+	return strings.Join(parts, ".")
 }
 
 // ValidAction checks if the action is valid for the given object type.

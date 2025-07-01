@@ -1,6 +1,5 @@
-import { useTheme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import Tooltip from "@mui/material/Tooltip";
+import { Button } from "components/Button/Button";
 import {
 	type ButtonHTMLAttributes,
 	type ReactNode,
@@ -32,7 +31,6 @@ function PaginationNavButtonCore({
 	disabledMessageTimeout = 3000,
 	...delegatedProps
 }: PaginationNavButtonProps) {
-	const theme = useTheme();
 	const [showDisabledMessage, setShowDisabledMessage] = useState(false);
 
 	// Inline state sync - this is safe/recommended by the React team in this case
@@ -63,25 +61,10 @@ function PaginationNavButtonCore({
 			 *   (mostly for giving direct UI feedback to those actions)
 			 */}
 			<Button
-				aria-disabled={disabled}
-				css={
-					disabled && {
-						borderColor: theme.palette.divider,
-						color: theme.palette.text.disabled,
-						cursor: "default",
-						"&:hover": {
-							backgroundColor: theme.palette.background.default,
-							borderColor: theme.palette.divider,
-						},
-					}
-				}
-				onClick={() => {
-					if (disabled) {
-						setShowDisabledMessage(true);
-					} else {
-						onClick();
-					}
-				}}
+				variant="outline"
+				size="icon"
+				disabled={disabled}
+				onClick={onClick}
 				{...delegatedProps}
 			/>
 		</Tooltip>

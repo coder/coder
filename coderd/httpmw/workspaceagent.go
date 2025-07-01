@@ -109,36 +109,25 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 				return
 			}
 
-			//nolint:gocritic // System needs to be able to get owner roles.
-			roles, err := opts.DB.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), row.WorkspaceTable.OwnerID)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error checking workspace agent authorization.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
-			roleNames, err := roles.RoleNames()
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal server error",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
-			subject := rbac.Subject{
-				ID:     row.WorkspaceTable.OwnerID.String(),
-				Roles:  rbac.RoleIdentifiers(roleNames),
-				Groups: roles.Groups,
-				Scope: rbac.WorkspaceAgentScope(rbac.WorkspaceAgentScopeParams{
-					WorkspaceID: row.WorkspaceTable.ID,
-					OwnerID:     row.WorkspaceTable.OwnerID,
-					TemplateID:  row.WorkspaceTable.TemplateID,
-					VersionID:   row.WorkspaceBuild.TemplateVersionID,
+			subject, _, err := UserRBACSubject(
+				ctx,
+				opts.DB,
+				row.WorkspaceTable.OwnerID,
+				rbac.WorkspaceAgentScope(rbac.WorkspaceAgentScopeParams{
+					WorkspaceID:   row.WorkspaceTable.ID,
+					OwnerID:       row.WorkspaceTable.OwnerID,
+					TemplateID:    row.WorkspaceTable.TemplateID,
+					VersionID:     row.WorkspaceBuild.TemplateVersionID,
+					BlockUserData: row.WorkspaceAgent.APIKeyScope == database.AgentKeyScopeEnumNoUserData,
 				}),
-			}.WithCachedASTValue()
+			)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error with workspace agent authorization context.",
+					Detail:  err.Error(),
+				})
+				return
+			}
 
 			ctx = context.WithValue(ctx, workspaceAgentContextKey{}, row.WorkspaceAgent)
 			ctx = context.WithValue(ctx, latestBuildContextKey{}, row.WorkspaceBuild)

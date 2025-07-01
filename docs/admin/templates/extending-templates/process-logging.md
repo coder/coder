@@ -3,8 +3,12 @@
 The workspace process logging feature allows you to log all system-level
 processes executing in the workspace.
 
-> **Note:** This feature is only available on Linux in Kubernetes. There are
-> additional requirements outlined further in this document.
+This feature is only available on Linux in Kubernetes. There are
+additional requirements outlined further in this document.
+
+> [!NOTE]
+> Workspace process logging is a Premium feature.
+> [Learn more](https://coder.com/pricing#compare-plans).
 
 Workspace process logging adds a sidecar container to workspace pods that will
 log all processes started in the workspace container (e.g., commands executed in
@@ -15,10 +19,6 @@ monitoring stack, such as CloudWatch, for further analysis or long-term storage.
 
 Please note that these logs are not recorded or captured by the Coder
 organization in any way, shape, or form.
-
-> This is an [Premium or Enterprise](https://coder.com/pricing) feature. To
-> learn more about Coder licensing, please
-> [contact sales](https://coder.com/contact).
 
 ## How this works
 
@@ -164,7 +164,8 @@ would like to add workspace process logging to, follow these steps:
    }
    ```
 
-   > **Note:** If you are using the `envbox` template, you will need to update
+   > [!NOTE]
+   > If you are using the `envbox` template, you will need to update
    > the third argument to be
    > `"${local.exectrace_init_script}\n\nexec /envbox docker"` instead.
 
@@ -212,7 +213,8 @@ would like to add workspace process logging to, follow these steps:
    }
    ```
 
-   > **Note:** `exectrace` requires root privileges and a privileged container
+   > [!NOTE]
+   > `exectrace` requires root privileges and a privileged container
    > to attach probes to the kernel. This is a requirement of eBPF.
 
 1. Add the following environment variable to your workspace pod:
@@ -254,28 +256,28 @@ The raw logs will look something like this:
 
 ```json
 {
-	"ts": "2022-02-28T20:29:38.038452202Z",
-	"level": "INFO",
-	"msg": "exec",
-	"fields": {
-		"labels": {
-			"user_email": "jessie@coder.com",
-			"user_id": "5e876e9a-121663f01ebd1522060d5270",
-			"username": "jessie",
-			"workspace_id": "621d2e52-a6987ef6c56210058ee2593c",
-			"workspace_name": "main"
-		},
-		"cmdline": "uname -a",
-		"event": {
-			"filename": "/usr/bin/uname",
-			"argv": ["uname", "-a"],
-			"truncated": false,
-			"pid": 920684,
-			"uid": 101000,
-			"gid": 101000,
-			"comm": "bash"
-		}
-	}
+    "ts": "2022-02-28T20:29:38.038452202Z",
+    "level": "INFO",
+    "msg": "exec",
+    "fields": {
+        "labels": {
+            "user_email": "jessie@coder.com",
+            "user_id": "5e876e9a-121663f01ebd1522060d5270",
+            "username": "jessie",
+            "workspace_id": "621d2e52-a6987ef6c56210058ee2593c",
+            "workspace_name": "main"
+        },
+        "cmdline": "uname -a",
+        "event": {
+            "filename": "/usr/bin/uname",
+            "argv": ["uname", "-a"],
+            "truncated": false,
+            "pid": 920684,
+            "uid": 101000,
+            "gid": 101000,
+            "comm": "bash"
+        }
+    }
 }
 ```
 

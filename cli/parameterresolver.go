@@ -226,7 +226,7 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 		if p != nil {
 			continue
 		}
-		// Parameter has not been resolved yet, so CLI needs to determine if user should input it.
+		// PreviewParameter has not been resolved yet, so CLI needs to determine if user should input it.
 
 		firstTimeUse := pr.isFirstTimeUse(tvp.Name)
 		promptParameterOption := pr.isLastBuildParameterInvalidOption(tvp)

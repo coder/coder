@@ -27,7 +27,7 @@ const VariableLabel: FC<VariableLabelProps> = ({ variable }) => {
 	);
 };
 
-export interface VariableInputProps {
+interface VariableInputProps {
 	disabled?: boolean;
 	variable: TemplateVersionVariable;
 	onChange: (value: string) => void;

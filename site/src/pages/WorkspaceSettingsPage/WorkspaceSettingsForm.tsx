@@ -6,12 +6,14 @@ import {
 	AutomaticUpdateses,
 	type Workspace,
 } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
 	FormSection,
 	HorizontalForm,
 } from "components/Form/Form";
+import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import upperFirst from "lodash/upperFirst";
 import type { FC } from "react";
@@ -115,7 +117,16 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 				</FormFields>
 			</FormSection>
 			{formEnabled && (
-				<FormFooter onCancel={onCancel} isLoading={form.isSubmitting} />
+				<FormFooter>
+					<Button onClick={onCancel} variant="outline">
+						Cancel
+					</Button>
+
+					<Button type="submit" disabled={form.isSubmitting}>
+						<Spinner loading={form.isSubmitting} />
+						Save
+					</Button>
+				</FormFooter>
 			)}
 		</HorizontalForm>
 	);

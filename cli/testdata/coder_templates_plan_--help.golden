@@ -1,6 +1,0 @@
-Usage: coder templates plan <directory>
-
-Plan a template push from the current directory
-
----
-Run `coder --help` for a list of global options.

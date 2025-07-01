@@ -508,7 +508,6 @@ func TestHealthcheck(t *testing.T) {
 		},
 		severity: health.SeverityError,
 	}} {
-		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 

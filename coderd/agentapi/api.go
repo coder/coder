@@ -17,18 +17,23 @@ import (
 
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/agentapi/resourcesmonitor"
 	"github.com/coder/coder/v2/coderd/appearance"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
 )
 
 // API implements the DRPC agent API interface from agent/proto. This struct is
@@ -42,8 +47,11 @@ type API struct {
 	*LifecycleAPI
 	*AppsAPI
 	*MetadataAPI
+	*ResourcesMonitoringAPI
 	*LogsAPI
 	*ScriptsAPI
+	*AuditAPI
+	*SubAgentAPI
 	*tailnet.DRPCService
 
 	mu sync.Mutex
@@ -52,14 +60,18 @@ type API struct {
 var _ agentproto.DRPCAgentServer = &API{}
 
 type Options struct {
-	AgentID     uuid.UUID
-	OwnerID     uuid.UUID
-	WorkspaceID uuid.UUID
+	AgentID        uuid.UUID
+	OwnerID        uuid.UUID
+	WorkspaceID    uuid.UUID
+	OrganizationID uuid.UUID
 
 	Ctx                               context.Context
 	Log                               slog.Logger
+	Clock                             quartz.Clock
 	Database                          database.Store
+	NotificationsEnqueuer             notifications.Enqueuer
 	Pubsub                            pubsub.Pubsub
+	Auditor                           *atomic.Pointer[audit.Auditor]
 	DerpMapFn                         func() *tailcfg.DERPMap
 	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
 	StatsReporter                     *workspacestats.Reporter
@@ -81,6 +93,10 @@ type Options struct {
 }
 
 func New(opts Options) *API {
+	if opts.Clock == nil {
+		opts.Clock = quartz.NewReal()
+	}
+
 	api := &API{
 		opts: opts,
 		mu:   sync.Mutex{},
@@ -100,6 +116,25 @@ func New(opts Options) *API {
 
 	api.AnnouncementBannerAPI = &AnnouncementBannerAPI{
 		appearanceFetcher: opts.AppearanceFetcher,
+	}
+
+	api.ResourcesMonitoringAPI = &ResourcesMonitoringAPI{
+		AgentID:               opts.AgentID,
+		WorkspaceID:           opts.WorkspaceID,
+		Clock:                 opts.Clock,
+		Database:              opts.Database,
+		NotificationsEnqueuer: opts.NotificationsEnqueuer,
+		Debounce:              30 * time.Minute,
+
+		Config: resourcesmonitor.Config{
+			NumDatapoints:      20,
+			CollectionInterval: 10 * time.Second,
+
+			Alert: resourcesmonitor.AlertConfig{
+				MinimumNOKsPercent:     20,
+				ConsecutiveNOKsPercent: 50,
+			},
+		},
 	}
 
 	api.StatsAPI = &StatsAPI{
@@ -145,12 +180,29 @@ func New(opts Options) *API {
 		Database: opts.Database,
 	}
 
+	api.AuditAPI = &AuditAPI{
+		AgentFn:  api.agent,
+		Auditor:  opts.Auditor,
+		Database: opts.Database,
+		Log:      opts.Log,
+	}
+
 	api.DRPCService = &tailnet.DRPCService{
 		CoordPtr:                opts.TailnetCoordinator,
 		Logger:                  opts.Log,
 		DerpMapUpdateFrequency:  opts.DerpMapUpdateFrequency,
 		DerpMapFn:               opts.DerpMapFn,
 		NetworkTelemetryHandler: opts.NetworkTelemetryHandler,
+	}
+
+	api.SubAgentAPI = &SubAgentAPI{
+		OwnerID:        opts.OwnerID,
+		OrganizationID: opts.OrganizationID,
+		AgentID:        opts.AgentID,
+		AgentFn:        api.agent,
+		Log:            opts.Log,
+		Clock:          opts.Clock,
+		Database:       opts.Database,
 	}
 
 	return api
@@ -170,6 +222,7 @@ func (a *API) Server(ctx context.Context) (*drpcserver.Server, error) {
 
 	return drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
+			Manager: drpcsdk.DefaultDRPCOptions(nil),
 			Log: func(err error) {
 				if xerrors.Is(err, io.EOF) {
 					return

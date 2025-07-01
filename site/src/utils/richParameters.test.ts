@@ -9,6 +9,7 @@ test("getInitialRichParameterValues return default value when default build para
 			description: "The number of CPU cores",
 			description_plaintext: "The number of CPU cores",
 			type: "string",
+			form_type: "radio",
 			mutable: true,
 			default_value: "2",
 			icon: "/icon/memory.svg",

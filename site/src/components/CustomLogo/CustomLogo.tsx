@@ -28,6 +28,6 @@ export const CustomLogo: FC<{ css?: Interpolation<Theme> }> = (props) => {
 			className="application-logo"
 		/>
 	) : (
-		<CoderIcon {...props} css={[{ fontSize: 64, fill: "white" }, props.css]} />
+		<CoderIcon {...props} className="w-12 h-12" />
 	);
 };

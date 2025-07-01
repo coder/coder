@@ -22,9 +22,13 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import type { FileTree } from "utils/filetree";
 import type { MonacoEditorProps } from "./MonacoEditor";
 import { Language } from "./PublishTemplateVersionDialog";
-import TemplateVersionEditorPage from "./TemplateVersionEditorPage";
+import TemplateVersionEditorPage, {
+	findEntrypointFile,
+	getActivePath,
+} from "./TemplateVersionEditorPage";
 
 const { API } = apiModule;
 
@@ -409,3 +413,155 @@ function renderEditorPage(queryClient: QueryClient) {
 		</AppProviders>,
 	);
 }
+
+describe("Get active path", () => {
+	it("empty path", () => {
+		const ft: FileTree = {
+			"main.tf": "foobar",
+		};
+		const searchParams = new URLSearchParams({ path: "" });
+		const activePath = getActivePath(searchParams, ft);
+		expect(activePath).toBe("main.tf");
+	});
+	it("invalid path", () => {
+		const ft: FileTree = {
+			"main.tf": "foobar",
+		};
+		const searchParams = new URLSearchParams({ path: "foobaz" });
+		const activePath = getActivePath(searchParams, ft);
+		expect(activePath).toBe("main.tf");
+	});
+	it("valid path", () => {
+		const ft: FileTree = {
+			"main.tf": "foobar",
+			"foobar.tf": "foobaz",
+		};
+		const searchParams = new URLSearchParams({ path: "foobar.tf" });
+		const activePath = getActivePath(searchParams, ft);
+		expect(activePath).toBe("foobar.tf");
+	});
+});
+
+describe("Find entrypoint", () => {
+	it("empty tree", () => {
+		const ft: FileTree = {};
+		const mainFile = findEntrypointFile(ft);
+		expect(mainFile).toBeUndefined();
+	});
+	it("flat structure, main.tf in root", () => {
+		const ft: FileTree = {
+			"aaa.tf": "hello",
+			"bbb.tf": "world",
+			"main.tf": "foobar",
+			"nnn.tf": "foobaz",
+		};
+
+		const mainFile = findEntrypointFile(ft);
+		expect(mainFile).toBe("main.tf");
+	});
+	it("flat structure, no main.tf", () => {
+		const ft: FileTree = {
+			"aaa.tf": "hello",
+			"bbb.tf": "world",
+			"ccc.tf": "foobaz",
+			"nnn.tf": "foobaz",
+		};
+
+		const mainFile = findEntrypointFile(ft);
+		expect(mainFile).toBe("nnn.tf");
+	});
+	it("with dirs, single main.tf", () => {
+		const ft: FileTree = {
+			"aaa-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+			},
+			"bbb-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+			},
+			"main.tf": "foobar",
+			"nnn.tf": "foobaz",
+		};
+
+		const mainFile = findEntrypointFile(ft);
+		expect(mainFile).toBe("main.tf");
+	});
+	it("with dirs, multiple main.tf's", () => {
+		const ft: FileTree = {
+			"aaa-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+			"bbb-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+			"ccc-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+			},
+			"main.tf": "foobar",
+			"nnn.tf": "foobaz",
+			"zzz-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+		};
+
+		const mainFile = findEntrypointFile(ft);
+		expect(mainFile).toBe("main.tf");
+	});
+	it("with dirs, multiple main.tf, no main.tf in root", () => {
+		const ft: FileTree = {
+			"aaa-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+			"bbb-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+			"ccc-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+			},
+			"nnn.tf": "foobaz",
+			"zzz-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+		};
+
+		const mainFile = findEntrypointFile(ft);
+		expect(mainFile).toBe("aaa-dir/main.tf");
+	});
+	it("with dirs, multiple main.tf, unordered file tree", () => {
+		const ft: FileTree = {
+			"ccc-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+			"aaa-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+			"zzz-dir": {
+				"aaa.tf": "hello",
+				"bbb.tf": "world",
+				"main.tf": "foobar",
+			},
+		};
+
+		const mainFile = findEntrypointFile(ft);
+		expect(mainFile).toBe("aaa-dir/main.tf");
+	});
+});
