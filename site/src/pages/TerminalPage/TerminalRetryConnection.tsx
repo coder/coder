@@ -64,7 +64,9 @@ export const TerminalRetryConnection: FC<TerminalRetryConnectionProps> = ({
 	return (
 		<div className="flex items-center gap-2">
 			{message && (
-				<span className="text-sm text-content-secondary">{message}</span>
+				<span className="text-sm text-content-secondary tabular-nums">
+					{message}
+				</span>
 			)}
 			{showRetryButton && (
 				<Button
