@@ -7,6 +7,7 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { ChevronDownIcon, LayoutGridIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import type { Task } from "modules/tasks/tasks";
@@ -57,7 +58,7 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	}
 
 	return (
-		<main className="flex-1 flex flex-col">
+		<main className="flex flex-col">
 			<div className="w-full flex items-center border-0 border-b border-border border-solid">
 				<div className="p-2 pb-0 flex gap-2 items-center">
 					{embeddedApps.map((app) => (
@@ -165,6 +166,13 @@ const TaskAppTab: FC<TaskAppTabProps> = ({ task, app, active, onClick }) => {
 			<RouterLink to={link.href} onClick={onClick}>
 				{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
 				{link.label}
+				{app.health === "unhealthy" && (
+					<InfoTooltip
+						title="This app is unhealthy."
+						message="The health check failed."
+						type="warning"
+					/>
+				)}
 			</RouterLink>
 		</Button>
 	);
