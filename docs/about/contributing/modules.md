@@ -17,7 +17,7 @@ For hands-on learning, try the [Terraform tutorials](https://developer.hashicorp
 
 Understanding how modules fit into the Coder ecosystem:
 
-![Module Architecture](../images/modules/module_chart.png)
+![Module Architecture](../../images/modules/module_chart.png)
 
 **How Modules Work in the Coder Ecosystem:**
 
