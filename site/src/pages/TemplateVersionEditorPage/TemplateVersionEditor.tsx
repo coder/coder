@@ -22,7 +22,7 @@ import {
 	TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { Link } from "components/Link/Link";
+import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { TriangleAlertIcon } from "lucide-react";
 import { ChevronLeftIcon } from "lucide-react";
@@ -256,16 +256,16 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							paddingRight: 16,
 						}}
 					>
-						<span className="mr-2 whitespace-nowrap">
-							<Link
-								href="https://registry.coder.com"
-								target="_blank"
-								rel="noopener noreferrer"
-								size="sm"
-								button
-							>
-								Browse the Coder Registry
-							</Link>
+						<span className="mr-2">
+							<Button asChild size="sm" variant="outline">
+								<a
+									href="https://registry.coder.com"
+									target="_blank"
+									rel="noopener noreferrer"
+								>
+									Browse the Coder Registry
+								</a>
+							</Button>
 						</span>
 
 						<TemplateVersionStatusBadge version={templateVersion} />

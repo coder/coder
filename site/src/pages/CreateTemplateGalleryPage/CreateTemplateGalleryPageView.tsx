@@ -6,7 +6,7 @@ import CardContent from "@mui/material/CardContent";
 import Stack from "@mui/material/Stack";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { Link } from "components/Link/Link";
+import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
@@ -28,17 +28,15 @@ export const CreateTemplateGalleryPageView: FC<
 		<Margins>
 			<PageHeader
 				actions={
-					<span className="whitespace-nowrap">
-						<Link
+					<Button asChild size="sm" variant="outline">
+						<a
 							href="https://registry.coder.com"
 							target="_blank"
 							rel="noopener noreferrer"
-							size="sm"
-							button
 						>
 							Browse the Coder Registry
-						</Link>
-					</span>
+						</a>
+					</Button>
 				}
 			>
 				<PageHeaderTitle>Create a Template</PageHeaderTitle>
