@@ -87,6 +87,7 @@ the most important.
 **⚠️ Important: We are currently migrating from Material UI (MUI) to shadcn/ui and from Emotion to TailwindCSS.**
 
 ### Current State
+
 - **~210 files** still use MUI components (`@mui/material`)
 - **~41 components** have been migrated to use TailwindCSS classes
 - **shadcn/ui components** are being added incrementally to `src/components/`
@@ -95,6 +96,7 @@ the most important.
 ### Migration Guidelines
 
 When working on existing components:
+
 1. **Prefer shadcn/ui components** over MUI when available
 2. **Use TailwindCSS classes** instead of Emotion `css` prop or `sx` prop
 3. **Check `src/components/`** for existing shadcn/ui implementations before creating new ones
@@ -102,6 +104,7 @@ When working on existing components:
 5. **Update tests** to reflect new component structure when migrating
 
 For new components:
+
 1. **Always use TailwindCSS** for styling
 2. **Use shadcn/ui components** as the foundation
 3. **Use Lucide React icons** instead of MUI icons
@@ -110,6 +113,7 @@ For new components:
 ### Semantic Color System
 
 Use the custom semantic color tokens defined in our Tailwind configuration:
+
 - **Content colors**: `content-primary`, `content-secondary`, `content-disabled`, `content-invert`, `content-success`, `content-link`, `content-destructive`, `content-warning`
 - **Surface colors**: `surface-primary`, `surface-secondary`, `surface-tertiary`, `surface-quaternary`, `surface-invert-primary`, `surface-invert-secondary`, `surface-destructive`, `surface-green`, `surface-grey`, `surface-orange`, `surface-sky`, `surface-red`, `surface-purple`
 - **Border colors**: `border-default`, `border-warning`, `border-destructive`, `border-success`, `border-hover`
@@ -259,12 +263,14 @@ business logic specific to the product.
 #### shadcn/ui Components (Preferred)
 
 We use [shadcn/ui](https://ui.shadcn.com/) components built on top of [Radix UI](https://www.radix-ui.com/) primitives. These components are:
+
 - **Accessible by default** with ARIA attributes and keyboard navigation
 - **Customizable** with TailwindCSS classes
 - **Consistent** with our design system
 - **Type-safe** with full TypeScript support
 
 Existing shadcn/ui components can be found in `src/components/`. Examples include:
+
 - `Checkbox` - Form checkbox input
 - `ScrollArea` - Custom scrollable area
 - `Table` - Data table with sorting and filtering
@@ -276,6 +282,7 @@ Existing shadcn/ui components can be found in `src/components/`. Examples includ
 #### MUI Components (Legacy)
 
 The codebase still contains MUI v5 components that are being phased out. When encountering MUI components:
+
 1. **Check if a shadcn/ui equivalent exists** in `src/components/`
 2. **Migrate to the shadcn/ui version** when making changes
 3. **Create a new shadcn/ui component** if no equivalent exists
@@ -297,6 +304,7 @@ We strive to keep our UI accessible. **shadcn/ui components are accessible by de
 #### Color Contrast
 
 Colors should come from our semantic color tokens in the Tailwind theme. These tokens are designed to meet WCAG level AA compliance (4.5:1 contrast ratio). If you need to add a custom color, ensure proper contrast using:
+
 - [WebAIM Contrast Checker](https://webaim.org/resources/contrastchecker/)
 - [Dequeue's axe DevTools](https://chrome.google.com/webstore/detail/axe-devtools-web-accessib/lhdoppojpmngadmnindnejefpokejbdd)
 
@@ -663,7 +671,8 @@ When a shadcn/ui equivalent doesn't exist:
 7. **Include accessibility features** (ARIA attributes, keyboard support)
 
 Example component structure:
-```
+
+```text
 src/components/NewComponent/
 ├── NewComponent.tsx
 ├── NewComponent.stories.tsx
