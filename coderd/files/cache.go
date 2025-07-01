@@ -5,7 +5,6 @@ import (
 	"context"
 	"io/fs"
 	"sync"
-	"sync/atomic"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -109,10 +108,12 @@ type cacheMetrics struct {
 }
 
 type cacheEntry struct {
-	refCount atomic.Int32
+	refCount int
 	value    *lazy.ValueWithError[CacheEntryValue]
 
+	// Safety: Must only be called while the Cache lock is held
 	close func()
+	// Safety: Must only be called while the Cache lock is held
 	purge func()
 }
 
@@ -133,7 +134,9 @@ type CloseFS struct {
 	close func()
 }
 
-func (f *CloseFS) Close() { f.close() }
+func (f *CloseFS) Close() {
+	f.close()
+}
 
 // Acquire will load the fs.FS for the given file. It guarantees that parallel
 // calls for the same fileID will only result in one fetch, and that parallel
@@ -149,6 +152,8 @@ func (c *Cache) Acquire(ctx context.Context, db database.Store, fileID uuid.UUID
 	e := c.prepare(db, fileID)
 	ev, err := e.value.Load()
 	if err != nil {
+		c.lock.Lock()
+		defer c.lock.Unlock()
 		e.close()
 		e.purge()
 		return nil, err
@@ -183,6 +188,8 @@ func (c *Cache) Acquire(ctx context.Context, db database.Store, fileID uuid.UUID
 			// sync.Once makes the Close() idempotent, so we can call it
 			// multiple times without worrying about double-releasing.
 			closeOnce.Do(func() {
+				c.lock.Lock()
+				defer c.lock.Unlock()
 				e.close()
 			})
 		},
@@ -214,14 +221,14 @@ func (c *Cache) prepare(db database.Store, fileID uuid.UUID) *cacheEntry {
 			}),
 
 			close: func() {
-				entry.refCount.Add(-1)
+				entry.refCount--
 				c.currentOpenFileReferences.Dec()
 				// Safety: Another thread could grab a reference to this value between
 				// this check and entering `purge`, which will grab the cache lock. This
 				// is annoying, and may lead to temporary duplication of the file in
 				// memory, but is better than the deadlocking potential of other
 				// approaches we tried to solve this.
-				if entry.refCount.Load() > 0 {
+				if entry.refCount > 0 {
 					return
 				}
 
@@ -242,16 +249,14 @@ func (c *Cache) prepare(db database.Store, fileID uuid.UUID) *cacheEntry {
 
 	c.currentOpenFileReferences.Inc()
 	c.totalOpenFileReferences.WithLabelValues(hitLabel).Inc()
-	entry.refCount.Add(1)
+	entry.refCount++
 	return entry
 }
 
 // purge immediately removes an entry from the cache, even if it has open
 // references.
+// Safety: Must only be called while the Cache lock is held
 func (c *Cache) purge(fileID uuid.UUID) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
 	entry, ok := c.data[fileID]
 	if !ok {
 		// If we land here, it's probably because of a fetch attempt that
