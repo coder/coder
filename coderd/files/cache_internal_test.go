@@ -16,7 +16,7 @@ type LeakCache struct {
 
 func (c *LeakCache) Acquire(ctx context.Context, db database.Store, fileID uuid.UUID) (*CloseFS, error) {
 	// We need to call prepare first to both 1. leak a reference and 2. prevent
-	// the behavior of immediately closing on an error (as implented in Acquire)
+	// the behavior of immediately closing on an error (as implemented in Acquire)
 	// from freeing the file.
 	c.prepare(db, fileID)
 	return c.Cache.Acquire(ctx, db, fileID)
