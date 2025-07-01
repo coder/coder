@@ -236,6 +236,7 @@ type sqlcQuerier interface {
 	GetOrganizationsByUserID(ctx context.Context, arg GetOrganizationsByUserIDParams) ([]Organization, error)
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
 	GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error)
+	GetPrebuildsSettings(ctx context.Context) (string, error)
 	GetPresetByID(ctx context.Context, presetID uuid.UUID) (GetPresetByIDRow, error)
 	GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (TemplateVersionPreset, error)
 	GetPresetParametersByPresetID(ctx context.Context, presetID uuid.UUID) ([]TemplateVersionPresetParameter, error)
@@ -651,6 +652,7 @@ type sqlcQuerier interface {
 	UpsertNotificationsSettings(ctx context.Context, value string) error
 	UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligible bool) error
 	UpsertOAuthSigningKey(ctx context.Context, value string) error
+	UpsertPrebuildsSettings(ctx context.Context, value string) error
 	UpsertProvisionerDaemon(ctx context.Context, arg UpsertProvisionerDaemonParams) (ProvisionerDaemon, error)
 	UpsertRuntimeConfig(ctx context.Context, arg UpsertRuntimeConfigParams) error
 	UpsertTailnetAgent(ctx context.Context, arg UpsertTailnetAgentParams) (TailnetAgent, error)

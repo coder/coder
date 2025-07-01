@@ -9578,6 +9578,18 @@ func (q *sqlQuerier) GetOAuthSigningKey(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getPrebuildsSettings = `-- name: GetPrebuildsSettings :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'prebuilds_settings'), '{}') :: text AS prebuilds_settings
+`
+
+func (q *sqlQuerier) GetPrebuildsSettings(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getPrebuildsSettings)
+	var prebuilds_settings string
+	err := row.Scan(&prebuilds_settings)
+	return prebuilds_settings, err
+}
+
 const getRuntimeConfig = `-- name: GetRuntimeConfig :one
 SELECT value FROM site_configs WHERE site_configs.key = $1
 `
@@ -9757,6 +9769,16 @@ ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'oauth_signi
 
 func (q *sqlQuerier) UpsertOAuthSigningKey(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertOAuthSigningKey, value)
+	return err
+}
+
+const upsertPrebuildsSettings = `-- name: UpsertPrebuildsSettings :exec
+INSERT INTO site_configs (key, value) VALUES ('prebuilds_settings', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'prebuilds_settings'
+`
+
+func (q *sqlQuerier) UpsertPrebuildsSettings(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertPrebuildsSettings, value)
 	return err
 }
 

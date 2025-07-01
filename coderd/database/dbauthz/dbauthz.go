@@ -2304,6 +2304,10 @@ func (q *querier) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuil
 	return q.db.GetPrebuildMetrics(ctx)
 }
 
+func (q *querier) GetPrebuildsSettings(ctx context.Context) (string, error) {
+	return q.db.GetPrebuildsSettings(ctx)
+}
+
 func (q *querier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
 	empty := database.GetPresetByIDRow{}
 
@@ -5099,6 +5103,13 @@ func (q *querier) UpsertOAuthSigningKey(ctx context.Context, value string) error
 		return err
 	}
 	return q.db.UpsertOAuthSigningKey(ctx, value)
+}
+
+func (q *querier) UpsertPrebuildsSettings(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertPrebuildsSettings(ctx, value)
 }
 
 func (q *querier) UpsertProvisionerDaemon(ctx context.Context, arg database.UpsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {

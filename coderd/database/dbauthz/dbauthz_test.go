@@ -5071,6 +5071,12 @@ func (s *MethodTestSuite) TestPrebuilds() {
 		check.Args().
 			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
 	}))
+	s.Run("GetPrebuildsSettings", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().Asserts()
+	}))
+	s.Run("UpsertPrebuildsSettings", s.Subtest(func(db database.Store, check *expects) {
+		check.Args("foo").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
 	s.Run("CountInProgressPrebuilds", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
 			Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead).

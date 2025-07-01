@@ -4219,6 +4219,71 @@ const docTemplate = `{
                 }
             }
         },
+        "/prebuilds/settings": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Prebuilds"
+                ],
+                "summary": "Get prebuilds settings",
+                "operationId": "get-prebuilds-settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PrebuildsSettings"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Prebuilds"
+                ],
+                "summary": "Update prebuilds settings",
+                "operationId": "update-prebuilds-settings",
+                "parameters": [
+                    {
+                        "description": "Prebuilds settings request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PrebuildsSettings"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PrebuildsSettings"
+                        }
+                    },
+                    "304": {
+                        "description": "Not Modified"
+                    }
+                }
+            }
+        },
         "/provisionerkeys/{provisionerkey}": {
             "get": {
                 "security": [
@@ -13934,6 +13999,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.PrebuildsSettings": {
+            "type": "object",
+            "properties": {
+                "reconciliation_paused": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.Preset": {
             "type": "object",
             "properties": {
@@ -14918,6 +14991,7 @@ const docTemplate = `{
                 "convert_login",
                 "health_settings",
                 "notifications_settings",
+                "prebuilds_settings",
                 "workspace_proxy",
                 "organization",
                 "oauth2_provider_app",
@@ -14944,6 +15018,7 @@ const docTemplate = `{
                 "ResourceTypeConvertLogin",
                 "ResourceTypeHealthSettings",
                 "ResourceTypeNotificationsSettings",
+                "ResourceTypePrebuildsSettings",
                 "ResourceTypeWorkspaceProxy",
                 "ResourceTypeOrganization",
                 "ResourceTypeOAuth2ProviderApp",

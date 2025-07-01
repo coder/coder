@@ -236,6 +236,10 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"id":              ActionIgnore,
 		"notifier_paused": ActionTrack,
 	},
+	&database.PrebuildsSettings{}: {
+		"id":                    ActionIgnore,
+		"reconciliation_paused": ActionTrack,
+	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012
 	&database.License{}: {

@@ -1894,6 +1894,7 @@ const (
 	ResourceTypeIdpSyncSettingsRole         ResourceType = "idp_sync_settings_role"
 	ResourceTypeWorkspaceAgent              ResourceType = "workspace_agent"
 	ResourceTypeWorkspaceApp                ResourceType = "workspace_app"
+	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1956,7 +1957,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeIdpSyncSettingsGroup,
 		ResourceTypeIdpSyncSettingsRole,
 		ResourceTypeWorkspaceAgent,
-		ResourceTypeWorkspaceApp:
+		ResourceTypeWorkspaceApp,
+		ResourceTypePrebuildsSettings:
 		return true
 	}
 	return false
@@ -1988,6 +1990,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeIdpSyncSettingsRole,
 		ResourceTypeWorkspaceAgent,
 		ResourceTypeWorkspaceApp,
+		ResourceTypePrebuildsSettings,
 	}
 }
 
