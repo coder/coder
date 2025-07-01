@@ -43,24 +43,6 @@ When a workspace with the dev containers integration starts:
 - Full SSH access directly into dev containers (`coder ssh <workspace>.<devcontainer>`).
 - Automatic port forwarding.
 
-## Personal overrides
-
-To add tools or tweaks that enhance your personal experience, create a `devcontainer.local.json` file in the same
-directory as the project’s `devcontainer.json`:
-
-```jsonc
-{
-  "extends": "./devcontainer.json",
-  "features": {
-    "ghcr.io/devcontainers/features/node": { "version": "20" }
-  },
-  "postStartCommand": "npm i -g tldr"
-}
-```
-
-Add the file name to your project's `.gitignore` or to your
-[global exclude file](https://docs.github.com/en/get-started/git-basics/ignoring-files#configuring-ignored-files-for-all-repositories-on-your-computer).
-
 ## Comparison with Envbuilder-based Dev Containers
 
 | Feature        | Dev Containers                         | Envbuilder Dev Containers                    |

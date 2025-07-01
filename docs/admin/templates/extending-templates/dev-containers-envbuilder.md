@@ -16,7 +16,6 @@ Use this page to decide which path fits your project or platform needs.
 | Multiple Dev Containers per workspace    | Yes                                      | No                                        |
 | Rebuild when `devcontainer.json` changes | Yes (auto-prompt)                        | Limited (requires full workspace rebuild) |
 | Docker required in workspace             | Yes                                      | No (works in restricted envs)             |
-| Admin vs. developer control              | Developer decides per repo               | Platform admin manages via template       |
 | Templates                                | Standard `devcontainer.json`             | Terraform + Envbuilder blocks             |
 | Suitable for CI / AI agents              | Yes. Deterministic, composable           | Less ideal. No isolated container         |
 

@@ -23,22 +23,7 @@ For the Docker-based Dev Containers integration, follow the [Configure a templat
 An administrator should construct or choose a base image and create a template
 that includes an Envbuilder container image `coder/envbuilder` before a developer team configures dev containers.
 
-## Benefits of Envbuilder
-
-Key differences compared with the [Docker-based integration](../../extending-templates/devcontainers.md):
-
-| Capability / Trait                       | Dev Containers integration (CLI-based)   | Envbuilder Dev Containers                 |
-|------------------------------------------|------------------------------------------|-------------------------------------------|
-| Build engine                             | `@devcontainers/cli` + Docker            | Envbuilder transforms the workspace image |
-| Runs separate Docker container           | Yes (parent workspace + child container) | No (modifies the parent container)        |
-| Multiple Dev Containers per workspace    | Yes                                      | No                                        |
-| Rebuild when `devcontainer.json` changes | Yes (auto-prompt)                        | Limited (requires full workspace rebuild) |
-| Docker required in workspace             | Yes                                      | No (works in restricted envs)             |
-| Admin vs. developer control              | Developer decides per repo               | Platform admin manages via template       |
-| Templates                                | Standard `devcontainer.json`             | Terraform + Envbuilder blocks             |
-| Suitable for CI / AI agents              | Yes. Deterministic, composable           | Less ideal. No isolated container         |
-
-Consult the full comparison at [Choose an approach to Dev Containers](../../extending-templates/dev-containers-envbuilder.md).
+Compare the differences between [Envbuilder and the Dev Containers integration](../../extending-templates/dev-containers-envbuilder.md).
 
 ## Dev container Features
 

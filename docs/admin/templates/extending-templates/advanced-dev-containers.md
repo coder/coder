@@ -67,24 +67,6 @@ resource "coder_devcontainer" "database" {
 Each dev container appears as a separate agent, so developers can connect to any
 component in the workspace.
 
-## Personal Overrides
-
-Let developers extend the repo’s `devcontainer.json` with an ignored (by Git) `devcontainer.local.json` file
-so they can add personal tools without changing the canonical configuration:
-
-```jsonc
-{
-  "extends": "./devcontainer.json",
-  "features": {
-    "ghcr.io/devcontainers/features/node": { "version": "20" }
-  },
-  "postStartCommand": "npm i -g tldr"
-}
-```
-
-Add the file name to your project's `.gitignore` or the user's
-[global exclude file](https://docs.github.com/en/get-started/git-basics/ignoring-files#configuring-ignored-files-for-all-repositories-on-your-computer).
-
 ## Conditional Startup
 
 Use `coder_parameter` booleans to let workspace creators choose which dev containers start automatically,
