@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import { useEffectEvent } from "./hookPolyfills";
 
 interface UseRetryOptions {
@@ -55,18 +55,89 @@ interface UseRetryReturn {
 	stopRetrying: () => void;
 }
 
+interface RetryState {
+	isRetrying: boolean;
+	currentDelay: number | null;
+	attemptCount: number;
+	timeUntilNextRetry: number | null;
+	isManualRetry: boolean;
+}
+
+type RetryAction =
+	| { type: "START_RETRY" }
+	| { type: "RETRY_SUCCESS" }
+	| { type: "RETRY_FAILURE" }
+	| { type: "SCHEDULE_RETRY"; delay: number }
+	| { type: "UPDATE_COUNTDOWN"; timeRemaining: number }
+	| { type: "CANCEL_RETRY" }
+	| { type: "RESET" }
+	| { type: "SET_MANUAL_RETRY"; isManual: boolean };
+
+const initialState: RetryState = {
+	isRetrying: false,
+	currentDelay: null,
+	attemptCount: 0,
+	timeUntilNextRetry: null,
+	isManualRetry: false,
+};
+
+function retryReducer(state: RetryState, action: RetryAction): RetryState {
+	switch (action.type) {
+		case "START_RETRY":
+			return {
+				...state,
+				isRetrying: true,
+				currentDelay: null,
+				timeUntilNextRetry: null,
+				attemptCount: state.attemptCount + 1,
+			};
+		case "RETRY_SUCCESS":
+			return {
+				...initialState,
+			};
+		case "RETRY_FAILURE":
+			return {
+				...state,
+				isRetrying: false,
+				isManualRetry: false,
+			};
+		case "SCHEDULE_RETRY":
+			return {
+				...state,
+				currentDelay: action.delay,
+				timeUntilNextRetry: action.delay,
+			};
+		case "UPDATE_COUNTDOWN":
+			return {
+				...state,
+				timeUntilNextRetry: action.timeRemaining,
+			};
+		case "CANCEL_RETRY":
+			return {
+				...state,
+				currentDelay: null,
+				timeUntilNextRetry: null,
+			};
+		case "RESET":
+			return {
+				...initialState,
+			};
+		case "SET_MANUAL_RETRY":
+			return {
+				...state,
+				isManualRetry: action.isManual,
+			};
+		default:
+			return state;
+	}
+}
+
 /**
  * Hook for handling exponential backoff retry logic
  */
 export function useRetry(options: UseRetryOptions): UseRetryReturn {
 	const { onRetry, maxAttempts, initialDelay, maxDelay, multiplier } = options;
-	const [isRetrying, setIsRetrying] = useState(false);
-	const [currentDelay, setCurrentDelay] = useState<number | null>(null);
-	const [attemptCount, setAttemptCount] = useState(0);
-	const [timeUntilNextRetry, setTimeUntilNextRetry] = useState<number | null>(
-		null,
-	);
-	const [isManualRetry, setIsManualRetry] = useState(false);
+	const [state, dispatch] = useReducer(retryReducer, initialState);
 
 	const timeoutRef = useRef<number | null>(null);
 	const countdownRef = useRef<number | null>(null);
@@ -95,23 +166,16 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 	);
 
 	const performRetry = useCallback(async () => {
-		setIsRetrying(true);
-		setTimeUntilNextRetry(null);
-		setCurrentDelay(null);
+		dispatch({ type: "START_RETRY" });
 		clearTimers();
-		// Increment attempt count when starting the retry
-		setAttemptCount((prev) => prev + 1);
 
 		try {
 			await onRetryEvent();
 			// If retry succeeds, reset everything
-			setAttemptCount(0);
-			setIsRetrying(false);
-			setIsManualRetry(false);
+			dispatch({ type: "RETRY_SUCCESS" });
 		} catch (error) {
-			// If retry fails, just update state (attemptCount already incremented)
-			setIsRetrying(false);
-			setIsManualRetry(false);
+			// If retry fails, just update state
+			dispatch({ type: "RETRY_FAILURE" });
 		}
 	}, [onRetryEvent, clearTimers]);
 
@@ -123,8 +187,7 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 
 			// Calculate delay based on attempt - 1 (so first retry gets initialDelay)
 			const delay = calculateDelay(Math.max(0, attempt - 1));
-			setCurrentDelay(delay);
-			setTimeUntilNextRetry(delay);
+			dispatch({ type: "SCHEDULE_RETRY", delay });
 			startTimeRef.current = Date.now();
 
 			// Start countdown timer
@@ -132,7 +195,7 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 				if (startTimeRef.current) {
 					const elapsed = Date.now() - startTimeRef.current;
 					const remaining = Math.max(0, delay - elapsed);
-					setTimeUntilNextRetry(remaining);
+					dispatch({ type: "UPDATE_COUNTDOWN", timeRemaining: remaining });
 
 					if (remaining <= 0) {
 						if (countdownRef.current) {
@@ -154,20 +217,25 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 	// Effect to schedule next retry after a failed attempt
 	useEffect(() => {
 		if (
-			!isRetrying &&
-			!isManualRetry &&
-			attemptCount > 0 &&
-			attemptCount < maxAttempts
+			!state.isRetrying &&
+			!state.isManualRetry &&
+			state.attemptCount > 0 &&
+			state.attemptCount < maxAttempts
 		) {
-			scheduleNextRetry(attemptCount);
+			scheduleNextRetry(state.attemptCount);
 		}
-	}, [attemptCount, isRetrying, isManualRetry, maxAttempts, scheduleNextRetry]);
+	}, [
+		state.attemptCount,
+		state.isRetrying,
+		state.isManualRetry,
+		maxAttempts,
+		scheduleNextRetry,
+	]);
 
 	const retry = useCallback(() => {
-		setIsManualRetry(true);
+		dispatch({ type: "SET_MANUAL_RETRY", isManual: true });
 		clearTimers();
-		setTimeUntilNextRetry(null);
-		setCurrentDelay(null);
+		dispatch({ type: "CANCEL_RETRY" });
 		performRetry();
 	}, [clearTimers, performRetry]);
 
@@ -178,11 +246,7 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 
 	const stopRetrying = useCallback(() => {
 		clearTimers();
-		setIsRetrying(false);
-		setCurrentDelay(null);
-		setAttemptCount(0);
-		setTimeUntilNextRetry(null);
-		setIsManualRetry(false);
+		dispatch({ type: "RESET" });
 	}, [clearTimers]);
 
 	// Cleanup on unmount
@@ -194,10 +258,10 @@ export function useRetry(options: UseRetryOptions): UseRetryReturn {
 
 	return {
 		retry,
-		isRetrying,
-		currentDelay,
-		attemptCount,
-		timeUntilNextRetry,
+		isRetrying: state.isRetrying,
+		currentDelay: state.currentDelay,
+		attemptCount: state.attemptCount,
+		timeUntilNextRetry: state.timeUntilNextRetry,
 		startRetrying,
 		stopRetrying,
 	};
