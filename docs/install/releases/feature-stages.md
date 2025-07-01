@@ -4,9 +4,9 @@ We release some Coder features or components in feature stages before we conside
 
 This gives Coder users the opportunity to use the latest Coder features and improve the open-source project.
 
-If you encounter an issue with any Coder feature, please submit a
-[GitHub issue](https://github.com/coder/coder/issues) or join the
-[Coder Discord](https://discord.gg/coder).
+If you encounter an issue with a Coder feature at any stage, please submit a
+[GitHub issue](https://github.com/coder/coder/issues) if one doesn't already exist
+or join the [Coder Discord](https://discord.gg/coder).
 
 ## Feature stages
 
@@ -14,8 +14,8 @@ If you encounter an issue with any Coder feature, please submit a
 |-------------------------------------------|--------|------------------|-----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [Experiment](#experiment-hidden)          | No     | No               | N/A                                     | For staging and testing only. Not feature-complete or stable.</br>Hidden and disabled by default.                                                                                       |
 | [Early Access](#early-access-features)    | No     | No               | Limited documentation</br>GitHub issues | For staging only. Functional, but not feature-complete or stable.</br>Disabled by default.                                                                                              |
-| [Beta](#beta)                             | No     | Not fully        | Documentation</br>Discord</br>GitHub    | Publicly available on an opt-in basis. In active development with minor bugs. Suitable for staging; optional for production. Not covered by SLA.                                        |
-| [GA](#general-availability-ga)            | Yes    | Yes              | License-based / SLA                     | Stable and tested. Enabled by default. Fully documented. Support based on license.                                                                                                      |
+| [Beta](#beta)                             | No     | Not fully        | Documentation</br>Discord</br>GitHub    | Publicly available on an opt-in basis. In active development with minor bugs. Suitable for staging; optional for production.|
+| [GA](#general-availability-ga)            | Yes    | Yes              | License-based / SLA                     | Stable and tested. Enabled by default. Fully documented.|
 | [Legacy (Deprecated)](#legacy-deprecated) | Yes*   | Yes*             | Best-effort security updates            | Legacy features continue to function, but will not be updated outside of the limits defined in a customer's license or agreement.</br>They will be removed in future versions of Coder. |
 
 ## Experiment (Hidden)
@@ -27,7 +27,7 @@ If you encounter an issue with any Coder feature, please submit a
 Experimental features are in active development and hidden by default.
 They are not ready for ongoing use and aspects might be broken or can lead to data loss.
 
-You can enable an experimental feature for testing, if you want to explore the latest Coder code, or if you'd like to contribute.
+You can enable an experimental feature for testing if you want to explore the latest Coder code or if you'd like to contribute.
 
 <details><summary>To enable an experimental feature:</summary>
 
@@ -43,16 +43,17 @@ coder server --experiments=featureName
 
 - **Stable**: No
 - **Production-ready**: No
-- **Support**: GitHub issues
+- **Support**: [Discord](https://discord.gg/coder), and [GitHub issues](https://github.com/coder/coder/issues)
 
 Early access features are neither feature-complete nor stable.
 We do not recommend using early access features in production deployments.
 
 Coder sometimes releases early access features that are available for use, but are disabled by default.
+
 You shouldn't use early access features in production because they might cause performance or stability issues.
 Early access features can be mostly feature-complete, but require further internal testing and remain in the early access stage for at least one month.
 
-Coder may make significant changes or revert features to a feature flag at any time.
+Coder may make significant changes or revert features to [Experiment](#experiment-hidden) at any time.
 
 If you plan to activate an early access feature, we suggest that you use a staging deployment.
 
@@ -102,7 +103,7 @@ Beta features are open to the public and are tagged with a `Beta` label.
 They’re in active development and subject to minor changes.
 They might contain minor bugs, but are generally ready for use.
 
-Beta features are often ready for general availability within two-three releases.
+Beta features are often ready for general availability within two or three releases.
 You should test beta features in staging environments.
 You can use beta features in production, but should set expectations and inform users that some features may be incomplete.
 
@@ -112,14 +113,15 @@ If you encounter an issue, please contact your [Coder account team](https://code
 While we will do our best to provide support with beta features, most issues will be escalated to the product team.
 Beta features are not covered within service-level agreements (SLA).
 
-Most beta features are enabled by default.
-Beta features are announced through the [Coder Changelog](https://coder.com/changelog), and more information is available in the documentation.
+Beta features are announced through the [Coder Changelog](https://coder.com/changelog), and more information is available
+in the documentation for the feature.
 
 ## General Availability (GA)
 
 - **Stable**: Yes
 - **Production-ready**: Yes
-- **Support**: Yes, [based on license](https://coder.com/pricing).
+- **Support**: [Based on license](https://coder.com/pricing), [Discord](https://discord.gg/coder), and
+  [GitHub issues](https://github.com/coder/coder/issues)
 
 All features that are not explicitly tagged as `Early access` or `Beta` are considered generally available (GA).
 They have been tested, are stable, and are enabled by default.
@@ -133,7 +135,7 @@ Customers with a valid Coder license, can submit a support request or contact yo
 We intend [Coder documentation](../../README.md) to be the [single source of truth](https://en.wikipedia.org/wiki/Single_source_of_truth)
 and all features should have some form of complete documentation that outlines how to use or implement a feature.
 If you discover an error or if you have a suggestion that could improve the documentation, please
-[submit a GitHub issue](https://github.com/coder/internal/issues/new?title=request%28docs%29%3A+request+title+here&labels=["customer-feedback","docs"]&body=please+enter+your+request+here).
+[submit a GitHub issue](https://github.com/coder/coder/issues/new?title=request%28docs%29%3A+request+title+here&labels=["customer-feedback","docs"]&body=please+enter+your+request+here).
 
 Some GA features can be disabled for air-gapped deployments.
 Consult the feature's documentation or submit a support ticket for assistance.
