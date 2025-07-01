@@ -1,4 +1,3 @@
-import { Alert, type AlertProps } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
 import { Spinner } from "components/Spinner/Spinner";
 import { type FC } from "react";
@@ -34,26 +33,6 @@ function formatCountdown(ms: number): string {
 	return `${seconds} second${seconds !== 1 ? "s" : ""}`;
 }
 
-/**
- * Terminal-specific alert component with consistent styling
- */
-const TerminalAlert: FC<AlertProps> = (props) => {
-	return (
-		<Alert
-			{...props}
-			css={(theme) => ({
-				borderRadius: 0,
-				borderWidth: 0,
-				borderBottomWidth: 1,
-				borderBottomColor: theme.palette.divider,
-				backgroundColor: theme.palette.background.paper,
-				borderLeft: `3px solid ${theme.palette[props.severity!].light}`,
-				marginBottom: 1,
-			})}
-		/>
-	);
-};
-
 export const TerminalRetryConnection: FC<TerminalRetryConnectionProps> = ({
 	isRetrying,
 	timeUntilNextRetry,
@@ -62,7 +41,7 @@ export const TerminalRetryConnection: FC<TerminalRetryConnectionProps> = ({
 	onRetryNow,
 }) => {
 	// Don't show anything if we're not in a retry state
-	if (!isRetrying && timeUntilNextRetry === null) {
+	if (!isRetrying && timeUntilNextRetry === null && attemptCount === 0) {
 		return null;
 	}
 
@@ -71,40 +50,34 @@ export const TerminalRetryConnection: FC<TerminalRetryConnectionProps> = ({
 	let showRetryButton = true;
 
 	if (isRetrying) {
-		message = "Reconnecting to terminal...";
+		message = "Reconnecting...";
 		showRetryButton = false; // Don't show button while actively retrying
 	} else if (timeUntilNextRetry !== null) {
 		const countdown = formatCountdown(timeUntilNextRetry);
-		message = `Connection lost. Retrying in ${countdown}...`;
+		message = `Retrying in ${countdown}`;
 	} else if (attemptCount >= maxAttempts) {
-		message = "Connection failed after multiple attempts.";
+		message = "Failed after multiple attempts";
 	} else {
-		message = "Connection lost.";
+		message = "";
 	}
 
 	return (
-		<TerminalAlert
-			severity="warning"
-			actions={
-				showRetryButton ? (
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={onRetryNow}
-						disabled={isRetrying}
-						css={{
-							display: "flex",
-							alignItems: "center",
-							gap: "0.5rem",
-						}}
-					>
-						{isRetrying && <Spinner size="sm" />}
-						Retry now
-					</Button>
-				) : null
-			}
-		>
-			{message}
-		</TerminalAlert>
+		<div className="flex items-center gap-2">
+			{message && (
+				<span className="text-sm text-content-secondary">{message}</span>
+			)}
+			{showRetryButton && (
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={onRetryNow}
+					disabled={isRetrying}
+					className="flex items-center gap-1"
+				>
+					{isRetrying && <Spinner size="sm" />}
+					Retry now
+				</Button>
+			)}
+		</div>
 	);
 };

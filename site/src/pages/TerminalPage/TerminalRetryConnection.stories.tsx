@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { action } from "@storybook/addon-actions";
 import { TerminalRetryConnection } from "./TerminalRetryConnection";
 
 const meta: Meta<typeof TerminalRetryConnection> = {
@@ -8,9 +9,7 @@ const meta: Meta<typeof TerminalRetryConnection> = {
 		layout: "padded",
 	},
 	args: {
-		onRetryNow: () => {
-			console.log("Retry now clicked");
-		},
+		onRetryNow: action("onRetryNow"),
 		maxAttempts: 10,
 	},
 };
@@ -27,7 +26,7 @@ export const Hidden: Story = {
 	},
 };
 
-// Currently retrying state
+// Currently retrying state - shows "Reconnecting..." with no button
 export const Retrying: Story = {
 	args: {
 		isRetrying: true,

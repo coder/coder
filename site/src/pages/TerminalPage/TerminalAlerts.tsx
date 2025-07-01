@@ -61,7 +61,7 @@ export const TerminalAlerts = ({
 	return (
 		<div ref={wrapperRef}>
 			{status === "disconnected" ? (
-				<TerminalRetryConnection
+				<DisconnectedAlert
 					isRetrying={isRetrying}
 					timeUntilNextRetry={timeUntilNextRetry}
 					attemptCount={attemptCount}
@@ -73,7 +73,7 @@ export const TerminalAlerts = ({
 			) : lifecycleState === "starting" ? (
 				<LoadingScriptsAlert />
 			) : lifecycleState === "ready" &&
-				prevLifecycleState.current === "starting" ? (
+			  prevLifecycleState.current === "starting" ? (
 				<LoadedScriptsAlert />
 			) : null}
 		</div>
@@ -188,12 +188,38 @@ const TerminalAlert: FC<AlertProps> = (props) => {
 	);
 };
 
-const DisconnectedAlert: FC<AlertProps> = (props) => {
+interface DisconnectedAlertProps extends AlertProps {
+	isRetrying?: boolean;
+	timeUntilNextRetry?: number | null;
+	attemptCount?: number;
+	maxAttempts?: number;
+	onRetryNow?: () => void;
+}
+
+const DisconnectedAlert: FC<DisconnectedAlertProps> = ({
+	isRetrying = false,
+	timeUntilNextRetry = null,
+	attemptCount = 0,
+	maxAttempts = 10,
+	onRetryNow,
+	...props
+}) => {
 	return (
 		<TerminalAlert
 			{...props}
 			severity="warning"
-			actions={<RefreshSessionButton />}
+			actions={
+				<div className="flex items-center gap-3">
+					<TerminalRetryConnection
+						isRetrying={isRetrying}
+						timeUntilNextRetry={timeUntilNextRetry}
+						attemptCount={attemptCount}
+						maxAttempts={maxAttempts}
+						onRetryNow={onRetryNow || (() => {})}
+					/>
+					<RefreshSessionButton />
+				</div>
+			}
 		>
 			Disconnected
 		</TerminalAlert>
