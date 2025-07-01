@@ -90,7 +90,7 @@ malicious workspaces accessing other workspaces owned by the same user or perfor
 If you do keep path-based apps enabled:
 
 - Path-based apps cannot be shared with other users unless you start the Coder server with `--dangerous-allow-path-app-sharing`.
-- Users with the site `owner` role cannot use their admin privileges to access path-based apps for workspace unless the
+- Users with the site `owner` role cannot use their admin privileges to access path-based apps for workspaces unless the
   server is started with `--dangerous-allow-path-app-site-owner-access`.
 
 ## PostgreSQL
