@@ -7,6 +7,8 @@ import type {
 } from "api/typesGenerated";
 import {
 	MockTemplate,
+	MockTemplateVersionExternalAuthGithub,
+	MockTemplateVersionExternalAuthGithubAuthenticated,
 	MockUserOwner,
 	MockWorkspace,
 } from "testHelpers/entities";
@@ -567,9 +569,15 @@ describe("CreateWorkspacePageExperimental", () => {
 				await userEvent.click(select);
 			});
 
-			expect(screen.getByRole("option", { name: /t3\.micro/i })).toBeInTheDocument();
-			expect(screen.getByRole("option", { name: /t3\.small/i })).toBeInTheDocument();
-			expect(screen.getByRole("option", { name: /t3\.medium/i })).toBeInTheDocument();
+			expect(
+				screen.getByRole("option", { name: /t3\.micro/i }),
+			).toBeInTheDocument();
+			expect(
+				screen.getByRole("option", { name: /t3\.small/i }),
+			).toBeInTheDocument();
+			expect(
+				screen.getByRole("option", { name: /t3\.medium/i }),
+			).toBeInTheDocument();
 		});
 
 		it("renders number parameter with slider", async () => {
@@ -680,296 +688,337 @@ describe("CreateWorkspacePageExperimental", () => {
 		// });
 	});
 
-	// describe("External Authentication", () => {
-	// 	it("displays external auth providers", async () => {
-	// 		jest
-	// 			.spyOn(API, "getTemplateVersionExternalAuth")
-	// 			.mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
+	describe("External Authentication", () => {
+		it("displays external auth providers", async () => {
+			jest
+				.spyOn(API, "getTemplateVersionExternalAuth")
+				.mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
 
-	// 		renderCreateWorkspacePageExperimental();
-	// 		await waitForLoaderToBeRemoved();
+			renderCreateWorkspacePageExperimental();
+			await waitForLoaderToBeRemoved();
 
-	// 		await waitFor(() => {
-	// 			expect(screen.getByText(/github/i)).toBeInTheDocument();
-	// 			expect(
-	// 				screen.getByRole("button", { name: /connect/i }),
-	// 			).toBeInTheDocument();
-	// 		});
-	// 	});
+			await waitFor(() => {
+				expect(screen.getByText("GitHub")).toBeInTheDocument();
+				expect(
+					screen.getByRole("button", { name: /login with github/i }),
+				).toBeInTheDocument();
+			});
+		});
 
-	// 	it("shows authenticated state for connected providers", async () => {
-	// 		jest
-	// 			.spyOn(API, "getTemplateVersionExternalAuth")
-	// 			.mockResolvedValue([
-	// 				MockTemplateVersionExternalAuthGithubAuthenticated,
-	// 			]);
+		it("shows authenticated state for connected providers", async () => {
+			jest
+				.spyOn(API, "getTemplateVersionExternalAuth")
+				.mockResolvedValue([
+					MockTemplateVersionExternalAuthGithubAuthenticated,
+				]);
 
-	// 		renderCreateWorkspacePageExperimental();
-	// 		await waitForLoaderToBeRemoved();
+			renderCreateWorkspacePageExperimental();
+			await waitForLoaderToBeRemoved();
 
-	// 		await waitFor(() => {
-	// 			expect(screen.getByText(/github/i)).toBeInTheDocument();
-	// 			expect(screen.getByText(/authenticated/i)).toBeInTheDocument();
-	// 		});
-	// 	});
+			await waitFor(() => {
+				expect(screen.getByText("GitHub")).toBeInTheDocument();
+				expect(screen.getByText(/authenticated/i)).toBeInTheDocument();
+			});
+		});
 
-	// 	it("prevents auto-creation when required external auth is missing", async () => {
-	// 		jest
-	// 			.spyOn(API, "getTemplateVersionExternalAuth")
-	// 			.mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
+		it("prevents auto-creation when required external auth is missing", async () => {
+			jest
+				.spyOn(API, "getTemplateVersionExternalAuth")
+				.mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
 
-	// 		renderCreateWorkspacePageExperimental(
-	// 			`/templates/${MockTemplate.name}/workspace?mode=auto`,
-	// 		);
+			renderCreateWorkspacePageExperimental(
+				`/templates/${MockTemplate.name}/workspace?mode=auto`,
+			);
+			await waitForLoaderToBeRemoved();
 
-	// 		await waitFor(() => {
-	// 			expect(
-	// 				screen.getByText(
-	// 					/external authentication providers that are not connected/i,
-	// 				),
-	// 			).toBeInTheDocument();
-	// 			expect(
-	// 				screen.getByText(/auto-creation has been disabled/i),
-	// 			).toBeInTheDocument();
-	// 		});
-	// 	});
-	// });
+			await waitFor(() => {
+				expect(
+					screen.getByText(
+						/external authentication providers that are not connected/i,
+					),
+				).toBeInTheDocument();
+				expect(
+					screen.getByText(/auto-creation has been disabled/i),
+				).toBeInTheDocument();
+			});
+		});
+	});
 
-	// describe("Auto-creation Mode", () => {
-	// 	it("automatically creates workspace when all requirements are met", async () => {
-	// 		jest
-	// 			.spyOn(API, "getTemplateVersionExternalAuth")
-	// 			.mockResolvedValue([
-	// 				MockTemplateVersionExternalAuthGithubAuthenticated,
-	// 			]);
+	describe("Auto-creation Mode", () => {
+		// it("auto create a workspace if uses mode=auto", async () => {
+		// 	const param = "first_parameter";
+		// 	const paramValue = "It works!";
+		// 	const createWorkspaceSpy = jest.spyOn(API, "createWorkspace");
 
-	// 		renderCreateWorkspacePageExperimental(
-	// 			`/templates/${MockTemplate.name}/workspace?mode=auto&name=test-workspace`,
-	// 		);
+		// 	renderWithAuth(<CreateWorkspacePageExperimental />, {
+		// 		route: `/templates/default/${MockTemplate.name}/workspace?param.${param}=${paramValue}&mode=auto`,
+		// 		path: "/templates/:organization/:template/workspace",
+		// 	});
 
-	// 		await waitFor(() => {
-	// 			expect(API.createWorkspace).toHaveBeenCalledWith(
-	// 				expect.objectContaining({
-	// 					name: "test-workspace",
-	// 					template_version_id: MockTemplate.active_version_id,
-	// 				}),
-	// 			);
-	// 		});
-	// 	});
+		// 	await waitForLoaderToBeRemoved();
 
-	// 	it("falls back to form mode when auto-creation fails", async () => {
-	// 		jest
-	// 			.spyOn(API, "getTemplateVersionExternalAuth")
-	// 			.mockResolvedValue([
-	// 				MockTemplateVersionExternalAuthGithubAuthenticated,
-	// 			]);
-	// 		jest
-	// 			.spyOn(API, "createWorkspace")
-	// 			.mockRejectedValue(new Error("Auto-creation failed"));
+		// 	// Wait for WebSocket parameters to load first
+		// 	await waitFor(() => {
+		// 		expect(screen.getByText("Instance Type")).toBeInTheDocument();
+		// 	});
 
-	// 		renderCreateWorkspacePageExperimental(
-	// 			`/templates/${MockTemplate.name}/workspace?mode=auto`,
-	// 		);
+		// 	// Debug what's happening
+		// 	console.log("createWorkspace spy call count:", createWorkspaceSpy.mock.calls.length);
+		// 	console.log("createWorkspace spy calls:", createWorkspaceSpy.mock.calls);
 
-	// 		await waitFor(() => {
-	// 			expect(screen.getByText("Create workspace")).toBeInTheDocument();
-	// 			expect(
-	// 				screen.getByRole("button", { name: /create workspace/i }),
-	// 			).toBeInTheDocument();
-	// 		});
-	// 	});
-	// });
+		// 	// Wait for auto-creation with extended timeout
+		// 	await waitFor(
+		// 		() => {
+		// 			expect(createWorkspaceSpy).toHaveBeenCalledWith(
+		// 				"me",
+		// 				expect.objectContaining({
+		// 					template_version_id: MockTemplate.active_version_id,
+		// 					rich_parameter_values: [
+		// 						expect.objectContaining({
+		// 							name: param,
+		// 							source: "url",
+		// 							value: paramValue,
+		// 						}),
+		// 					],
+		// 				}),
+		// 			);
+		// 		},
+		// 		{ timeout: 10000 }
+		// 	);
+		// });
 
-	// describe("Form Submission", () => {
-	// 	it("creates workspace with correct parameters", async () => {
-	// 		renderCreateWorkspacePageExperimental();
-	// 		await waitForLoaderToBeRemoved();
+		it("falls back to form mode when auto-creation fails", async () => {
+			jest
+				.spyOn(API, "getTemplateVersionExternalAuth")
+				.mockResolvedValue([
+					MockTemplateVersionExternalAuthGithubAuthenticated,
+				]);
+			jest
+				.spyOn(API, "createWorkspace")
+				.mockRejectedValue(new Error("Auto-creation failed"));
 
-	// 		// Wait for form to load
-	// 		await waitFor(() => {
-	// 			expect(screen.getByText("Instance Type")).toBeInTheDocument();
-	// 		});
+			renderCreateWorkspacePageExperimental(
+				`/templates/${MockTemplate.name}/workspace?mode=auto`,
+			);
 
-	// 		// Fill in workspace name
-	// 		const nameInput = screen.getByRole("textbox", {
-	// 			name: /workspace name/i,
-	// 		});
-	// 		await userEvent.clear(nameInput);
-	// 		await userEvent.type(nameInput, "my-test-workspace");
+			await waitForLoaderToBeRemoved();
 
-	// 		// Submit form
-	// 		const createButton = screen.getByRole("button", {
-	// 			name: /create workspace/i,
-	// 		});
-	// 		await userEvent.click(createButton);
+			// Wait for WebSocket parameters to load
+			await waitFor(() => {
+				expect(screen.getByText("Instance Type")).toBeInTheDocument();
+			});
 
-	// 		await waitFor(() => {
-	// 			expect(API.createWorkspace).toHaveBeenCalledWith(
-	// 				expect.objectContaining({
-	// 					name: "my-test-workspace",
-	// 					template_version_id: MockTemplate.active_version_id,
-	// 					user_id: MockUserOwner.id,
-	// 				}),
-	// 			);
-	// 		});
-	// 	});
+			// Wait for fallback to form mode after auto-creation fails
+			await waitFor(() => {
+				expect(screen.getByText("Create workspace")).toBeInTheDocument();
+				expect(
+					screen.getByRole("button", { name: /create workspace/i }),
+				).toBeInTheDocument();
+			});
+		});
+	});
 
-	// 	it("displays creation progress", async () => {
-	// 		jest
-	// 			.spyOn(API, "createWorkspace")
-	// 			.mockImplementation(
-	// 				() =>
-	// 					new Promise((resolve) =>
-	// 						setTimeout(() => resolve(MockWorkspace), 1000),
-	// 					),
-	// 			);
+	describe("Form Submission", () => {
+		it("creates workspace with correct parameters", async () => {
+			renderCreateWorkspacePageExperimental();
+			await waitForLoaderToBeRemoved();
 
-	// 		renderCreateWorkspacePageExperimental();
-	// 		await waitForLoaderToBeRemoved();
+			await waitFor(() => {
+				expect(screen.getByText("Instance Type")).toBeInTheDocument();
+			});
 
-	// 		const nameInput = screen.getByRole("textbox", {
-	// 			name: /workspace name/i,
-	// 		});
-	// 		await userEvent.clear(nameInput);
-	// 		await userEvent.type(nameInput, "my-test-workspace");
+			const nameInput = screen.getByRole("textbox", {
+				name: /workspace name/i,
+			});
+			await waitFor(async () => {
+				await userEvent.clear(nameInput);
+				await userEvent.type(nameInput, "my-test-workspace");
+			});
 
-	// 		// Submit form
-	// 		const createButton = screen.getByRole("button", {
-	// 			name: /create workspace/i,
-	// 		});
-	// 		await userEvent.click(createButton);
+			const createButton = screen.getByRole("button", {
+				name: /create workspace/i,
+			});
+			await waitFor(async () => {
+				await userEvent.click(createButton);
+			});
 
-	// 		// Should show loading state
-	// 		expect(screen.getByText(/creating/i)).toBeInTheDocument();
-	// 		expect(createButton).toBeDisabled();
-	// 	});
+			await waitFor(() => {
+				expect(API.createWorkspace).toHaveBeenCalledWith(
+					"test-user",
+					expect.objectContaining({
+						name: "my-test-workspace",
+						template_version_id: MockTemplate.active_version_id,
+						template_id: undefined,
+						rich_parameter_values: [
+							expect.objectContaining({ name: "instance_type", value: "" }),
+							expect.objectContaining({ name: "cpu_count", value: "2" }),
+							expect.objectContaining({
+								name: "enable_monitoring",
+								value: "true",
+							}),
+							expect.objectContaining({ name: "tags", value: "[]" }),
+						],
+					}),
+				);
+			});
+		});
 
-	// 	it("handles creation errors", async () => {
-	// 		const errorMessage = "Failed to create workspace";
-	// 		jest
-	// 			.spyOn(API, "createWorkspace")
-	// 			.mockRejectedValue(new Error(errorMessage));
+		// 	it("displays creation progress", async () => {
+		// 		jest
+		// 			.spyOn(API, "createWorkspace")
+		// 			.mockImplementation(
+		// 				() =>
+		// 					new Promise((resolve) =>
+		// 						setTimeout(() => resolve(MockWorkspace), 1000),
+		// 					),
+		// 			);
 
-	// 		renderCreateWorkspacePageExperimental();
-	// 		await waitForLoaderToBeRemoved();
+		// 		renderCreateWorkspacePageExperimental();
+		// 		await waitForLoaderToBeRemoved();
 
-	// 		const nameInput = screen.getByRole("textbox", {
-	// 			name: /workspace name/i,
-	// 		});
-	// 		await userEvent.clear(nameInput);
-	// 		await userEvent.type(nameInput, "my-test-workspace");
+		// 		const nameInput = screen.getByRole("textbox", {
+		// 			name: /workspace name/i,
+		// 		});
+		// 		await userEvent.clear(nameInput);
+		// 		await userEvent.type(nameInput, "my-test-workspace");
 
-	// 		// Submit form
-	// 		const createButton = screen.getByRole("button", {
-	// 			name: /create workspace/i,
-	// 		});
-	// 		await userEvent.click(createButton);
+		// 		// Submit form
+		// 		const createButton = screen.getByRole("button", {
+		// 			name: /create workspace/i,
+		// 		});
+		// 		await userEvent.click(createButton);
 
-	// 		await waitFor(() => {
-	// 			expect(screen.getByText(errorMessage)).toBeInTheDocument();
-	// 		});
-	// 	});
-	// });
+		// 		// Should show loading state
+		// 		expect(screen.getByText(/creating/i)).toBeInTheDocument();
+		// 		expect(createButton).toBeDisabled();
+		// 	});
 
-	// describe("URL Parameters", () => {
-	// 	it("pre-fills parameters from URL", async () => {
-	// 		renderCreateWorkspacePageExperimental(
-	// 			`/templates/${MockTemplate.name}/workspace?param.instance_type=t3.large&param.cpu_count=4`,
-	// 		);
-	// 		await waitForLoaderToBeRemoved();
+		// 	it("handles creation errors", async () => {
+		// 		const errorMessage = "Failed to create workspace";
+		// 		jest
+		// 			.spyOn(API, "createWorkspace")
+		// 			.mockRejectedValue(new Error(errorMessage));
 
-	// 		await waitFor(() => {
-	// 			// Verify parameters are pre-filled
-	// 			// This would require checking the actual form values
-	// 			expect(screen.getByText("Instance Type")).toBeInTheDocument();
-	// 			expect(screen.getByText("CPU Count")).toBeInTheDocument();
-	// 		});
-	// 	});
+		// 		renderCreateWorkspacePageExperimental();
+		// 		await waitForLoaderToBeRemoved();
 
-	// 	it("uses custom template version when specified", async () => {
-	// 		const customVersionId = "custom-version-123";
+		// 		const nameInput = screen.getByRole("textbox", {
+		// 			name: /workspace name/i,
+		// 		});
+		// 		await userEvent.clear(nameInput);
+		// 		await userEvent.type(nameInput, "my-test-workspace");
 
-	// 		renderCreateWorkspacePageExperimental(
-	// 			`/templates/${MockTemplate.name}/workspace?version=${customVersionId}`,
-	// 		);
+		// 		// Submit form
+		// 		const createButton = screen.getByRole("button", {
+		// 			name: /create workspace/i,
+		// 		});
+		// 		await userEvent.click(createButton);
 
-	// 		await waitFor(() => {
-	// 			expect(API.templateVersionDynamicParameters).toHaveBeenCalledWith(
-	// 				customVersionId,
-	// 				MockUserOwner.id,
-	// 				expect.any(Object),
-	// 			);
-	// 		});
-	// 	});
+		// 		await waitFor(() => {
+		// 			expect(screen.getByText(errorMessage)).toBeInTheDocument();
+		// 		});
+		// 	});
+		// });
 
-	// 	it("pre-fills workspace name from URL", async () => {
-	// 		const workspaceName = "my-custom-workspace";
+		// describe("URL Parameters", () => {
+		// 	it("pre-fills parameters from URL", async () => {
+		// 		renderCreateWorkspacePageExperimental(
+		// 			`/templates/${MockTemplate.name}/workspace?param.instance_type=t3.large&param.cpu_count=4`,
+		// 		);
+		// 		await waitForLoaderToBeRemoved();
 
-	// 		renderCreateWorkspacePageExperimental(
-	// 			`/templates/${MockTemplate.name}/workspace?name=${workspaceName}`,
-	// 		);
-	// 		await waitForLoaderToBeRemoved();
+		// 		await waitFor(() => {
+		// 			// Verify parameters are pre-filled
+		// 			// This would require checking the actual form values
+		// 			expect(screen.getByText("Instance Type")).toBeInTheDocument();
+		// 			expect(screen.getByText("CPU Count")).toBeInTheDocument();
+		// 		});
+		// 	});
 
-	// 		await waitFor(() => {
-	// 			const nameInput = screen.getByRole("textbox", {
-	// 				name: /workspace name/i,
-	// 			});
-	// 			expect(nameInput).toHaveValue(workspaceName);
-	// 		});
-	// 	});
-	// });
+		// 	it("uses custom template version when specified", async () => {
+		// 		const customVersionId = "custom-version-123";
 
-	// describe("Template Presets", () => {
-	// 	const mockPreset = {
-	// 		ID: "preset-1",
-	// 		Name: "Development",
-	// 		description: "Development environment preset",
-	// 		Parameters: [
-	// 			{ Name: "instance_type", Value: "t3.small" },
-	// 			{ Name: "cpu_count", Value: "2" },
-	// 		],
-	// 		Default: false,
-	// 	};
+		// 		renderCreateWorkspacePageExperimental(
+		// 			`/templates/${MockTemplate.name}/workspace?version=${customVersionId}`,
+		// 		);
 
-	// 	it("displays available presets", async () => {
-	// 		jest
-	// 			.spyOn(API, "getTemplateVersionPresets")
-	// 			.mockResolvedValue([mockPreset]);
+		// 		await waitFor(() => {
+		// 			expect(API.templateVersionDynamicParameters).toHaveBeenCalledWith(
+		// 				customVersionId,
+		// 				MockUserOwner.id,
+		// 				expect.any(Object),
+		// 			);
+		// 		});
+		// 	});
 
-	// 		renderCreateWorkspacePageExperimental();
-	// 		await waitForLoaderToBeRemoved();
+		// 	it("pre-fills workspace name from URL", async () => {
+		// 		const workspaceName = "my-custom-workspace";
 
-	// 		await waitFor(() => {
-	// 			expect(screen.getByText("Development")).toBeInTheDocument();
-	// 			expect(
-	// 				screen.getByText("Development environment preset"),
-	// 			).toBeInTheDocument();
-	// 		});
-	// 	});
+		// 		renderCreateWorkspacePageExperimental(
+		// 			`/templates/${MockTemplate.name}/workspace?name=${workspaceName}`,
+		// 		);
+		// 		await waitForLoaderToBeRemoved();
 
-	// 	it("applies preset parameters when selected", async () => {
-	// 		jest
-	// 			.spyOn(API, "getTemplateVersionPresets")
-	// 			.mockResolvedValue([mockPreset]);
+		// 		await waitFor(() => {
+		// 			const nameInput = screen.getByRole("textbox", {
+		// 				name: /workspace name/i,
+		// 			});
+		// 			expect(nameInput).toHaveValue(workspaceName);
+		// 		});
+		// 	});
+		// });
 
-	// 		renderCreateWorkspacePageExperimental();
-	// 		await waitForLoaderToBeRemoved();
+		// describe("Template Presets", () => {
+		// 	const mockPreset = {
+		// 		ID: "preset-1",
+		// 		Name: "Development",
+		// 		description: "Development environment preset",
+		// 		Parameters: [
+		// 			{ Name: "instance_type", Value: "t3.small" },
+		// 			{ Name: "cpu_count", Value: "2" },
+		// 		],
+		// 		Default: false,
+		// 	};
 
-	// 		// Select preset
-	// 		const presetButton = screen.getByRole("button", { name: /development/i });
-	// 		await userEvent.click(presetButton);
+		// 	it("displays available presets", async () => {
+		// 		jest
+		// 			.spyOn(API, "getTemplateVersionPresets")
+		// 			.mockResolvedValue([mockPreset]);
 
-	// 		// Verify parameters are sent via WebSocket
-	// 		await waitFor(() => {
-	// 			expect(mockWebSocket.send).toHaveBeenCalledWith(
-	// 				expect.stringContaining('"instance_type":"t3.small"'),
-	// 			);
-	// 			expect(mockWebSocket.send).toHaveBeenCalledWith(
-	// 				expect.stringContaining('"cpu_count":"2"'),
-	// 			);
-	// 		});
-	// 	});
-	// });
+		// 		renderCreateWorkspacePageExperimental();
+		// 		await waitForLoaderToBeRemoved();
+
+		// 		await waitFor(() => {
+		// 			expect(screen.getByText("Development")).toBeInTheDocument();
+		// 			expect(
+		// 				screen.getByText("Development environment preset"),
+		// 			).toBeInTheDocument();
+		// 		});
+		// 	});
+
+		// 	it("applies preset parameters when selected", async () => {
+		// 		jest
+		// 			.spyOn(API, "getTemplateVersionPresets")
+		// 			.mockResolvedValue([mockPreset]);
+
+		// 		renderCreateWorkspacePageExperimental();
+		// 		await waitForLoaderToBeRemoved();
+
+		// 		// Select preset
+		// 		const presetButton = screen.getByRole("button", { name: /development/i });
+		// 		await userEvent.click(presetButton);
+
+		// 		// Verify parameters are sent via WebSocket
+		// 		await waitFor(() => {
+		// 			expect(mockWebSocket.send).toHaveBeenCalledWith(
+		// 				expect.stringContaining('"instance_type":"t3.small"'),
+		// 			);
+		// 			expect(mockWebSocket.send).toHaveBeenCalledWith(
+		// 				expect.stringContaining('"cpu_count":"2"'),
+		// 			);
+		// 		});
+		// 	});
+	});
 
 	// describe("Navigation", () => {
 	// 	it("navigates back when cancel is clicked", async () => {
