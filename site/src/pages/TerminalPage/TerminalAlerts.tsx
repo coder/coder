@@ -5,17 +5,29 @@ import { Button } from "components/Button/Button";
 import { type FC, useEffect, useRef, useState } from "react";
 import { docs } from "utils/docs";
 import type { ConnectionStatus } from "./types";
+import { TerminalRetryConnection } from "./TerminalRetryConnection";
 
 type TerminalAlertsProps = {
 	agent: WorkspaceAgent | undefined;
 	status: ConnectionStatus;
 	onAlertChange: () => void;
+	// Retry connection props
+	isRetrying?: boolean;
+	timeUntilNextRetry?: number | null;
+	attemptCount?: number;
+	maxAttempts?: number;
+	onRetryNow?: () => void;
 };
 
 export const TerminalAlerts = ({
 	agent,
 	status,
 	onAlertChange,
+	isRetrying = false,
+	timeUntilNextRetry = null,
+	attemptCount = 0,
+	maxAttempts = 10,
+	onRetryNow,
 }: TerminalAlertsProps) => {
 	const lifecycleState = agent?.lifecycle_state;
 	const prevLifecycleState = useRef(lifecycleState);
@@ -49,7 +61,13 @@ export const TerminalAlerts = ({
 	return (
 		<div ref={wrapperRef}>
 			{status === "disconnected" ? (
-				<DisconnectedAlert />
+				<TerminalRetryConnection
+					isRetrying={isRetrying}
+					timeUntilNextRetry={timeUntilNextRetry}
+					attemptCount={attemptCount}
+					maxAttempts={maxAttempts}
+					onRetryNow={onRetryNow || (() => {})}
+				/>
 			) : lifecycleState === "start_error" ? (
 				<ErrorScriptAlert />
 			) : lifecycleState === "starting" ? (
