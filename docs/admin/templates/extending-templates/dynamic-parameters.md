@@ -298,7 +298,7 @@ Using these in conjunction, administrators can build intuitive, reactive forms f
 
 <div class="tabs">
 
-## Hide/show options
+### Hide/show options
 
 Using Terraform conditionals and the `count` block, we can allow a checkbox to expose or hide a subsequent parameter.
 
@@ -333,7 +333,7 @@ data "coder_parameter" "cpu_cores" {
 }
 ```
 
-## Dynamic Defaults
+### Dynamic Defaults
 
 For a given parameter, we can influence which option is selected by default based on the selection of another. This allows us to suggest an option dynamically without strict enforcement.
 
@@ -387,9 +387,57 @@ data "coder_parameter" "ide_selector" {
 }
 ```
 
-
-
 ## Dynamic Validation
+
+Parameters' validation block can also leverage inputs from other parameters.
+
+[Try dynamic validation in the Parameter Playground](https://playground.coder.app/parameters/sdbzXxagJ4).
+
+
+```terraform
+data "coder_parameter" "git_repo" {
+  name = "git_repo"
+  display_name = "Git repo"
+  description = "Select a git repo to work on."
+  order = 1
+  mutable = true
+  type = "string"
+  form_type = "dropdown"
+
+  option {
+    # A Go-heavy repository
+    name = "coder/coder"
+    value = "coder/coder"
+  }
+
+  option {
+    # A python-heavy repository
+    name = "coder/mlkit"
+    value = "coder/mlkit"
+  }
+}
+
+data "coder_parameter" "cpu_cores" {
+  # Only show this parameter if the previous box is selected.
+  count = data.coder_parameter.show_cpu_cores.value ? 1 : 0
+
+  name         = "cpu_cores"
+  display_name = "CPU Cores"
+  type         = "number"
+  form_type    = "slider"
+  order        = 2
+
+  # Dynamically set default
+  default      = try(data.coder_parameter.git_repo.value, "") == "coder/mlkit" ? 12 : 6
+
+  validation {
+    min = 1
+
+    # Dynamically set max validation
+    max = try(data.coder_parameter.git_repo.value, "") == "coder/mlkit" ? 16 : 8
+  }
+}
+```
 
 ## Daisy Chaining
 
