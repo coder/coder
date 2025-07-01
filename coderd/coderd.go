@@ -909,21 +909,31 @@ func New(options *Options) *API {
 		})
 	}
 
+	// OAuth2 metadata endpoint for RFC 8414 discovery
+	r.Get("/.well-known/oauth-authorization-server", api.oauth2AuthorizationServerMetadata)
+
 	// OAuth2 linking routes do not make sense under the /api/v2 path.  These are
 	// for an external application to use Coder as an OAuth2 provider, not for
 	// logging into Coder with an external OAuth2 provider.
 	r.Route("/oauth2", func(r chi.Router) {
 		r.Use(
 			api.oAuth2ProviderMiddleware,
-			// Fetch the app as system because in the /tokens route there will be no
-			// authenticated user.
-			httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderApp(options.Database)),
 		)
 		r.Route("/authorize", func(r chi.Router) {
-			r.Use(apiKeyMiddlewareRedirect)
+			r.Use(
+				// Fetch the app as system for the authorize endpoint
+				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
+				apiKeyMiddlewareRedirect,
+			)
+			// GET shows the consent page, POST processes the consent
 			r.Get("/", api.getOAuth2ProviderAppAuthorize())
+			r.Post("/", api.postOAuth2ProviderAppAuthorize())
 		})
 		r.Route("/tokens", func(r chi.Router) {
+			r.Use(
+				// Use OAuth2-compliant error responses for the tokens endpoint
+				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
+			)
 			r.Group(func(r chi.Router) {
 				r.Use(apiKeyMiddleware)
 				// DELETE on /tokens is not part of the OAuth2 spec.  It is our own

@@ -50,5 +50,6 @@ export const useExternalAuth = (versionId: string | undefined) => {
 		externalAuthPollingState,
 		isLoadingExternalAuth,
 		externalAuthError: error,
+		isPollingExternalAuth: externalAuthPollingState === "polling",
 	};
 };

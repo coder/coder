@@ -441,140 +441,241 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 	return err
 }
 
-const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many
-SELECT
-    audit_logs.id, audit_logs.time, audit_logs.user_id, audit_logs.organization_id, audit_logs.ip, audit_logs.user_agent, audit_logs.resource_type, audit_logs.resource_id, audit_logs.resource_target, audit_logs.action, audit_logs.diff, audit_logs.status_code, audit_logs.additional_fields, audit_logs.request_id, audit_logs.resource_icon,
-    -- sqlc.embed(users) would be nice but it does not seem to play well with
-    -- left joins.
-    users.username AS user_username,
-    users.name AS user_name,
-    users.email AS user_email,
-    users.created_at AS user_created_at,
-    users.updated_at AS user_updated_at,
-    users.last_seen_at AS user_last_seen_at,
-    users.status AS user_status,
-    users.login_type AS user_login_type,
-    users.rbac_roles AS user_roles,
-    users.avatar_url AS user_avatar_url,
-    users.deleted AS user_deleted,
-    users.quiet_hours_schedule AS user_quiet_hours_schedule,
-    COALESCE(organizations.name, '') AS organization_name,
-    COALESCE(organizations.display_name, '') AS organization_display_name,
-    COALESCE(organizations.icon, '') AS organization_icon,
-    COUNT(audit_logs.*) OVER () AS count
-FROM
-    audit_logs
-    LEFT JOIN users ON audit_logs.user_id = users.id
-    LEFT JOIN
-        -- First join on workspaces to get the initial workspace create
-        -- to workspace build 1 id. This is because the first create is
-        -- is a different audit log than subsequent starts.
-        workspaces ON
-		    audit_logs.resource_type = 'workspace' AND
-			audit_logs.resource_id = workspaces.id
-    LEFT JOIN
-	    workspace_builds ON
-            -- Get the reason from the build if the resource type
-            -- is a workspace_build
-            (
-			    audit_logs.resource_type = 'workspace_build'
-                AND audit_logs.resource_id = workspace_builds.id
-			)
-            OR
-            -- Get the reason from the build #1 if this is the first
-            -- workspace create.
-            (
-				audit_logs.resource_type = 'workspace' AND
-				audit_logs.action = 'create' AND
-				workspaces.id = workspace_builds.workspace_id AND
-				workspace_builds.build_number = 1
-			)
-		LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
+const countAuditLogs = `-- name: CountAuditLogs :one
+SELECT COUNT(*)
+FROM audit_logs
+	LEFT JOIN users ON audit_logs.user_id = users.id
+	LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
+	-- First join on workspaces to get the initial workspace create
+	-- to workspace build 1 id. This is because the first create is
+	-- is a different audit log than subsequent starts.
+	LEFT JOIN workspaces ON audit_logs.resource_type = 'workspace'
+	AND audit_logs.resource_id = workspaces.id
+	-- Get the reason from the build if the resource type
+	-- is a workspace_build
+	LEFT JOIN workspace_builds wb_build ON audit_logs.resource_type = 'workspace_build'
+	AND audit_logs.resource_id = wb_build.id
+	-- Get the reason from the build #1 if this is the first
+	-- workspace create.
+	LEFT JOIN workspace_builds wb_workspace ON audit_logs.resource_type = 'workspace'
+	AND audit_logs.action = 'create'
+	AND workspaces.id = wb_workspace.workspace_id
+	AND wb_workspace.build_number = 1
 WHERE
-    -- Filter resource_type
+	-- Filter resource_type
 	CASE
-		WHEN $1 :: text != '' THEN
-			resource_type = $1 :: resource_type
+		WHEN $1::text != '' THEN resource_type = $1::resource_type
 		ELSE true
 	END
 	-- Filter resource_id
 	AND CASE
-		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			resource_id = $2
+		WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN resource_id = $2
 		ELSE true
 	END
-  	-- Filter organization_id
-  	AND CASE
-		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			audit_logs.organization_id = $3
+	-- Filter organization_id
+	AND CASE
+		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.organization_id = $3
 		ELSE true
 	END
 	-- Filter by resource_target
 	AND CASE
-		WHEN $4 :: text != '' THEN
-			resource_target = $4
+		WHEN $4::text != '' THEN resource_target = $4
 		ELSE true
 	END
 	-- Filter action
 	AND CASE
-		WHEN $5 :: text != '' THEN
-			action = $5 :: audit_action
+		WHEN $5::text != '' THEN action = $5::audit_action
 		ELSE true
 	END
 	-- Filter by user_id
 	AND CASE
-		WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			user_id = $6
+		WHEN $6::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN user_id = $6
 		ELSE true
 	END
 	-- Filter by username
 	AND CASE
-		WHEN $7 :: text != '' THEN
-			user_id = (SELECT id FROM users WHERE lower(username) = lower($7) AND deleted = false)
+		WHEN $7::text != '' THEN user_id = (
+			SELECT id
+			FROM users
+			WHERE lower(username) = lower($7)
+				AND deleted = false
+		)
 		ELSE true
 	END
 	-- Filter by user_email
 	AND CASE
-		WHEN $8 :: text != '' THEN
-			users.email = $8
+		WHEN $8::text != '' THEN users.email = $8
 		ELSE true
 	END
 	-- Filter by date_from
 	AND CASE
-		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			"time" >= $9
+		WHEN $9::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" >= $9
 		ELSE true
 	END
 	-- Filter by date_to
 	AND CASE
-		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			"time" <= $10
+		WHEN $10::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" <= $10
 		ELSE true
 	END
-    -- Filter by build_reason
-    AND CASE
-	    WHEN $11::text != '' THEN
-            workspace_builds.reason::text = $11
-        ELSE true
-    END
+	-- Filter by build_reason
+	AND CASE
+		WHEN $11::text != '' THEN COALESCE(wb_build.reason::text, wb_workspace.reason::text) = $11
+		ELSE true
+	END
 	-- Filter request_id
 	AND CASE
-		WHEN $12 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			audit_logs.request_id = $12
+		WHEN $12::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.request_id = $12
 		ELSE true
 	END
+	-- Authorize Filter clause will be injected below in CountAuthorizedAuditLogs
+	-- @authorize_filter
+`
 
+type CountAuditLogsParams struct {
+	ResourceType   string    `db:"resource_type" json:"resource_type"`
+	ResourceID     uuid.UUID `db:"resource_id" json:"resource_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ResourceTarget string    `db:"resource_target" json:"resource_target"`
+	Action         string    `db:"action" json:"action"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	Username       string    `db:"username" json:"username"`
+	Email          string    `db:"email" json:"email"`
+	DateFrom       time.Time `db:"date_from" json:"date_from"`
+	DateTo         time.Time `db:"date_to" json:"date_to"`
+	BuildReason    string    `db:"build_reason" json:"build_reason"`
+	RequestID      uuid.UUID `db:"request_id" json:"request_id"`
+}
+
+func (q *sqlQuerier) CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAuditLogs,
+		arg.ResourceType,
+		arg.ResourceID,
+		arg.OrganizationID,
+		arg.ResourceTarget,
+		arg.Action,
+		arg.UserID,
+		arg.Username,
+		arg.Email,
+		arg.DateFrom,
+		arg.DateTo,
+		arg.BuildReason,
+		arg.RequestID,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many
+SELECT audit_logs.id, audit_logs.time, audit_logs.user_id, audit_logs.organization_id, audit_logs.ip, audit_logs.user_agent, audit_logs.resource_type, audit_logs.resource_id, audit_logs.resource_target, audit_logs.action, audit_logs.diff, audit_logs.status_code, audit_logs.additional_fields, audit_logs.request_id, audit_logs.resource_icon,
+	-- sqlc.embed(users) would be nice but it does not seem to play well with
+	-- left joins.
+	users.username AS user_username,
+	users.name AS user_name,
+	users.email AS user_email,
+	users.created_at AS user_created_at,
+	users.updated_at AS user_updated_at,
+	users.last_seen_at AS user_last_seen_at,
+	users.status AS user_status,
+	users.login_type AS user_login_type,
+	users.rbac_roles AS user_roles,
+	users.avatar_url AS user_avatar_url,
+	users.deleted AS user_deleted,
+	users.quiet_hours_schedule AS user_quiet_hours_schedule,
+	COALESCE(organizations.name, '') AS organization_name,
+	COALESCE(organizations.display_name, '') AS organization_display_name,
+	COALESCE(organizations.icon, '') AS organization_icon
+FROM audit_logs
+	LEFT JOIN users ON audit_logs.user_id = users.id
+	LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
+	-- First join on workspaces to get the initial workspace create
+	-- to workspace build 1 id. This is because the first create is
+	-- is a different audit log than subsequent starts.
+	LEFT JOIN workspaces ON audit_logs.resource_type = 'workspace'
+	AND audit_logs.resource_id = workspaces.id
+	-- Get the reason from the build if the resource type
+	-- is a workspace_build
+	LEFT JOIN workspace_builds wb_build ON audit_logs.resource_type = 'workspace_build'
+	AND audit_logs.resource_id = wb_build.id
+	-- Get the reason from the build #1 if this is the first
+	-- workspace create.
+	LEFT JOIN workspace_builds wb_workspace ON audit_logs.resource_type = 'workspace'
+	AND audit_logs.action = 'create'
+	AND workspaces.id = wb_workspace.workspace_id
+	AND wb_workspace.build_number = 1
+WHERE
+	-- Filter resource_type
+	CASE
+		WHEN $1::text != '' THEN resource_type = $1::resource_type
+		ELSE true
+	END
+	-- Filter resource_id
+	AND CASE
+		WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN resource_id = $2
+		ELSE true
+	END
+	-- Filter organization_id
+	AND CASE
+		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.organization_id = $3
+		ELSE true
+	END
+	-- Filter by resource_target
+	AND CASE
+		WHEN $4::text != '' THEN resource_target = $4
+		ELSE true
+	END
+	-- Filter action
+	AND CASE
+		WHEN $5::text != '' THEN action = $5::audit_action
+		ELSE true
+	END
+	-- Filter by user_id
+	AND CASE
+		WHEN $6::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN user_id = $6
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN $7::text != '' THEN user_id = (
+			SELECT id
+			FROM users
+			WHERE lower(username) = lower($7)
+				AND deleted = false
+		)
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN $8::text != '' THEN users.email = $8
+		ELSE true
+	END
+	-- Filter by date_from
+	AND CASE
+		WHEN $9::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" >= $9
+		ELSE true
+	END
+	-- Filter by date_to
+	AND CASE
+		WHEN $10::timestamp with time zone != '0001-01-01 00:00:00Z' THEN "time" <= $10
+		ELSE true
+	END
+	-- Filter by build_reason
+	AND CASE
+		WHEN $11::text != '' THEN COALESCE(wb_build.reason::text, wb_workspace.reason::text) = $11
+		ELSE true
+	END
+	-- Filter request_id
+	AND CASE
+		WHEN $12::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN audit_logs.request_id = $12
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedAuditLogsOffset
 	-- @authorize_filter
-ORDER BY
-    "time" DESC
-LIMIT
-	-- a limit of 0 means "no limit". The audit log table is unbounded
+ORDER BY "time" DESC
+LIMIT -- a limit of 0 means "no limit". The audit log table is unbounded
 	-- in size, and is expected to be quite large. Implement a default
 	-- limit of 100 to prevent accidental excessively large queries.
-	COALESCE(NULLIF($14 :: int, 0), 100)
-OFFSET
-    $13
+	COALESCE(NULLIF($14::int, 0), 100) OFFSET $13
 `
 
 type GetAuditLogsOffsetParams struct {
@@ -611,7 +712,6 @@ type GetAuditLogsOffsetRow struct {
 	OrganizationName        string         `db:"organization_name" json:"organization_name"`
 	OrganizationDisplayName string         `db:"organization_display_name" json:"organization_display_name"`
 	OrganizationIcon        string         `db:"organization_icon" json:"organization_icon"`
-	Count                   int64          `db:"count" json:"count"`
 }
 
 // GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
@@ -671,7 +771,6 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 			&i.OrganizationName,
 			&i.OrganizationDisplayName,
 			&i.OrganizationIcon,
-			&i.Count,
 		); err != nil {
 			return nil, err
 		}
@@ -687,26 +786,41 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 }
 
 const insertAuditLog = `-- name: InsertAuditLog :one
-INSERT INTO
-	audit_logs (
-        id,
-        "time",
-        user_id,
-        organization_id,
-        ip,
-        user_agent,
-        resource_type,
-        resource_id,
-        resource_target,
-        action,
-        diff,
-        status_code,
-        additional_fields,
-        request_id,
-        resource_icon
-    )
-VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, time, user_id, organization_id, ip, user_agent, resource_type, resource_id, resource_target, action, diff, status_code, additional_fields, request_id, resource_icon
+INSERT INTO audit_logs (
+		id,
+		"time",
+		user_id,
+		organization_id,
+		ip,
+		user_agent,
+		resource_type,
+		resource_id,
+		resource_target,
+		action,
+		diff,
+		status_code,
+		additional_fields,
+		request_id,
+		resource_icon
+	)
+VALUES (
+		$1,
+		$2,
+		$3,
+		$4,
+		$5,
+		$6,
+		$7,
+		$8,
+		$9,
+		$10,
+		$11,
+		$12,
+		$13,
+		$14,
+		$15
+	)
+RETURNING id, time, user_id, organization_id, ip, user_agent, resource_type, resource_id, resource_target, action, diff, status_code, additional_fields, request_id, resource_icon
 `
 
 type InsertAuditLogParams struct {
@@ -4709,7 +4823,7 @@ func (q *sqlQuerier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Con
 }
 
 const getOAuth2ProviderAppByID = `-- name: GetOAuth2ProviderAppByID :one
-SELECT id, created_at, updated_at, name, icon, callback_url FROM oauth2_provider_apps WHERE id = $1
+SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered FROM oauth2_provider_apps WHERE id = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error) {
@@ -4722,12 +4836,15 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID)
 		&i.Name,
 		&i.Icon,
 		&i.CallbackURL,
+		pq.Array(&i.RedirectUris),
+		&i.ClientType,
+		&i.DynamicallyRegistered,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppCodeByID = `-- name: GetOAuth2ProviderAppCodeByID :one
-SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id FROM oauth2_provider_app_codes WHERE id = $1
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method FROM oauth2_provider_app_codes WHERE id = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error) {
@@ -4741,12 +4858,15 @@ func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.U
 		&i.HashedSecret,
 		&i.UserID,
 		&i.AppID,
+		&i.ResourceUri,
+		&i.CodeChallenge,
+		&i.CodeChallengeMethod,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppCodeByPrefix = `-- name: GetOAuth2ProviderAppCodeByPrefix :one
-SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id FROM oauth2_provider_app_codes WHERE secret_prefix = $1
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method FROM oauth2_provider_app_codes WHERE secret_prefix = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppCode, error) {
@@ -4760,6 +4880,9 @@ func (q *sqlQuerier) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secre
 		&i.HashedSecret,
 		&i.UserID,
 		&i.AppID,
+		&i.ResourceUri,
+		&i.CodeChallenge,
+		&i.CodeChallengeMethod,
 	)
 	return i, err
 }
@@ -4838,7 +4961,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, app
 }
 
 const getOAuth2ProviderAppTokenByPrefix = `-- name: GetOAuth2ProviderAppTokenByPrefix :one
-SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
+SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (OAuth2ProviderAppToken, error) {
@@ -4852,12 +4975,13 @@ func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hash
 		&i.RefreshHash,
 		&i.AppSecretID,
 		&i.APIKeyID,
+		&i.Audience,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderApps = `-- name: GetOAuth2ProviderApps :many
-SELECT id, created_at, updated_at, name, icon, callback_url FROM oauth2_provider_apps ORDER BY (name, id) ASC
+SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered FROM oauth2_provider_apps ORDER BY (name, id) ASC
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2ProviderApp, error) {
@@ -4876,6 +5000,9 @@ func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2Provide
 			&i.Name,
 			&i.Icon,
 			&i.CallbackURL,
+			pq.Array(&i.RedirectUris),
+			&i.ClientType,
+			&i.DynamicallyRegistered,
 		); err != nil {
 			return nil, err
 		}
@@ -4893,7 +5020,7 @@ func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2Provide
 const getOAuth2ProviderAppsByUserID = `-- name: GetOAuth2ProviderAppsByUserID :many
 SELECT
   COUNT(DISTINCT oauth2_provider_app_tokens.id) as token_count,
-  oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.callback_url
+  oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.callback_url, oauth2_provider_apps.redirect_uris, oauth2_provider_apps.client_type, oauth2_provider_apps.dynamically_registered
 FROM oauth2_provider_app_tokens
   INNER JOIN oauth2_provider_app_secrets
     ON oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
@@ -4929,6 +5056,9 @@ func (q *sqlQuerier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID u
 			&i.OAuth2ProviderApp.Name,
 			&i.OAuth2ProviderApp.Icon,
 			&i.OAuth2ProviderApp.CallbackURL,
+			pq.Array(&i.OAuth2ProviderApp.RedirectUris),
+			&i.OAuth2ProviderApp.ClientType,
+			&i.OAuth2ProviderApp.DynamicallyRegistered,
 		); err != nil {
 			return nil, err
 		}
@@ -4950,24 +5080,33 @@ INSERT INTO oauth2_provider_apps (
     updated_at,
     name,
     icon,
-    callback_url
+    callback_url,
+    redirect_uris,
+    client_type,
+    dynamically_registered
 ) VALUES(
     $1,
     $2,
     $3,
     $4,
     $5,
-    $6
-) RETURNING id, created_at, updated_at, name, icon, callback_url
+    $6,
+    $7,
+    $8,
+    $9
+) RETURNING id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered
 `
 
 type InsertOAuth2ProviderAppParams struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	Name        string    `db:"name" json:"name"`
-	Icon        string    `db:"icon" json:"icon"`
-	CallbackURL string    `db:"callback_url" json:"callback_url"`
+	ID                    uuid.UUID      `db:"id" json:"id"`
+	CreatedAt             time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time      `db:"updated_at" json:"updated_at"`
+	Name                  string         `db:"name" json:"name"`
+	Icon                  string         `db:"icon" json:"icon"`
+	CallbackURL           string         `db:"callback_url" json:"callback_url"`
+	RedirectUris          []string       `db:"redirect_uris" json:"redirect_uris"`
+	ClientType            sql.NullString `db:"client_type" json:"client_type"`
+	DynamicallyRegistered sql.NullBool   `db:"dynamically_registered" json:"dynamically_registered"`
 }
 
 func (q *sqlQuerier) InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAuth2ProviderAppParams) (OAuth2ProviderApp, error) {
@@ -4978,6 +5117,9 @@ func (q *sqlQuerier) InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAut
 		arg.Name,
 		arg.Icon,
 		arg.CallbackURL,
+		pq.Array(arg.RedirectUris),
+		arg.ClientType,
+		arg.DynamicallyRegistered,
 	)
 	var i OAuth2ProviderApp
 	err := row.Scan(
@@ -4987,6 +5129,9 @@ func (q *sqlQuerier) InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAut
 		&i.Name,
 		&i.Icon,
 		&i.CallbackURL,
+		pq.Array(&i.RedirectUris),
+		&i.ClientType,
+		&i.DynamicallyRegistered,
 	)
 	return i, err
 }
@@ -4999,7 +5144,10 @@ INSERT INTO oauth2_provider_app_codes (
     secret_prefix,
     hashed_secret,
     app_id,
-    user_id
+    user_id,
+    resource_uri,
+    code_challenge,
+    code_challenge_method
 ) VALUES(
     $1,
     $2,
@@ -5007,18 +5155,24 @@ INSERT INTO oauth2_provider_app_codes (
     $4,
     $5,
     $6,
-    $7
-) RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id
+    $7,
+    $8,
+    $9,
+    $10
+) RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method
 `
 
 type InsertOAuth2ProviderAppCodeParams struct {
-	ID           uuid.UUID `db:"id" json:"id"`
-	CreatedAt    time.Time `db:"created_at" json:"created_at"`
-	ExpiresAt    time.Time `db:"expires_at" json:"expires_at"`
-	SecretPrefix []byte    `db:"secret_prefix" json:"secret_prefix"`
-	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
-	AppID        uuid.UUID `db:"app_id" json:"app_id"`
-	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+	ID                  uuid.UUID      `db:"id" json:"id"`
+	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
+	ExpiresAt           time.Time      `db:"expires_at" json:"expires_at"`
+	SecretPrefix        []byte         `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret        []byte         `db:"hashed_secret" json:"hashed_secret"`
+	AppID               uuid.UUID      `db:"app_id" json:"app_id"`
+	UserID              uuid.UUID      `db:"user_id" json:"user_id"`
+	ResourceUri         sql.NullString `db:"resource_uri" json:"resource_uri"`
+	CodeChallenge       sql.NullString `db:"code_challenge" json:"code_challenge"`
+	CodeChallengeMethod sql.NullString `db:"code_challenge_method" json:"code_challenge_method"`
 }
 
 func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg InsertOAuth2ProviderAppCodeParams) (OAuth2ProviderAppCode, error) {
@@ -5030,6 +5184,9 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg Insert
 		arg.HashedSecret,
 		arg.AppID,
 		arg.UserID,
+		arg.ResourceUri,
+		arg.CodeChallenge,
+		arg.CodeChallengeMethod,
 	)
 	var i OAuth2ProviderAppCode
 	err := row.Scan(
@@ -5040,6 +5197,9 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg Insert
 		&i.HashedSecret,
 		&i.UserID,
 		&i.AppID,
+		&i.ResourceUri,
+		&i.CodeChallenge,
+		&i.CodeChallengeMethod,
 	)
 	return i, err
 }
@@ -5101,7 +5261,8 @@ INSERT INTO oauth2_provider_app_tokens (
     hash_prefix,
     refresh_hash,
     app_secret_id,
-    api_key_id
+    api_key_id,
+    audience
 ) VALUES(
     $1,
     $2,
@@ -5109,18 +5270,20 @@ INSERT INTO oauth2_provider_app_tokens (
     $4,
     $5,
     $6,
-    $7
-) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id
+    $7,
+    $8
+) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience
 `
 
 type InsertOAuth2ProviderAppTokenParams struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	ExpiresAt   time.Time `db:"expires_at" json:"expires_at"`
-	HashPrefix  []byte    `db:"hash_prefix" json:"hash_prefix"`
-	RefreshHash []byte    `db:"refresh_hash" json:"refresh_hash"`
-	AppSecretID uuid.UUID `db:"app_secret_id" json:"app_secret_id"`
-	APIKeyID    string    `db:"api_key_id" json:"api_key_id"`
+	ID          uuid.UUID      `db:"id" json:"id"`
+	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
+	ExpiresAt   time.Time      `db:"expires_at" json:"expires_at"`
+	HashPrefix  []byte         `db:"hash_prefix" json:"hash_prefix"`
+	RefreshHash []byte         `db:"refresh_hash" json:"refresh_hash"`
+	AppSecretID uuid.UUID      `db:"app_secret_id" json:"app_secret_id"`
+	APIKeyID    string         `db:"api_key_id" json:"api_key_id"`
+	Audience    sql.NullString `db:"audience" json:"audience"`
 }
 
 func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg InsertOAuth2ProviderAppTokenParams) (OAuth2ProviderAppToken, error) {
@@ -5132,6 +5295,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		arg.RefreshHash,
 		arg.AppSecretID,
 		arg.APIKeyID,
+		arg.Audience,
 	)
 	var i OAuth2ProviderAppToken
 	err := row.Scan(
@@ -5142,6 +5306,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		&i.RefreshHash,
 		&i.AppSecretID,
 		&i.APIKeyID,
+		&i.Audience,
 	)
 	return i, err
 }
@@ -5151,16 +5316,22 @@ UPDATE oauth2_provider_apps SET
     updated_at = $2,
     name = $3,
     icon = $4,
-    callback_url = $5
-WHERE id = $1 RETURNING id, created_at, updated_at, name, icon, callback_url
+    callback_url = $5,
+    redirect_uris = $6,
+    client_type = $7,
+    dynamically_registered = $8
+WHERE id = $1 RETURNING id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered
 `
 
 type UpdateOAuth2ProviderAppByIDParams struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	Name        string    `db:"name" json:"name"`
-	Icon        string    `db:"icon" json:"icon"`
-	CallbackURL string    `db:"callback_url" json:"callback_url"`
+	ID                    uuid.UUID      `db:"id" json:"id"`
+	UpdatedAt             time.Time      `db:"updated_at" json:"updated_at"`
+	Name                  string         `db:"name" json:"name"`
+	Icon                  string         `db:"icon" json:"icon"`
+	CallbackURL           string         `db:"callback_url" json:"callback_url"`
+	RedirectUris          []string       `db:"redirect_uris" json:"redirect_uris"`
+	ClientType            sql.NullString `db:"client_type" json:"client_type"`
+	DynamicallyRegistered sql.NullBool   `db:"dynamically_registered" json:"dynamically_registered"`
 }
 
 func (q *sqlQuerier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg UpdateOAuth2ProviderAppByIDParams) (OAuth2ProviderApp, error) {
@@ -5170,6 +5341,9 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg Update
 		arg.Name,
 		arg.Icon,
 		arg.CallbackURL,
+		pq.Array(arg.RedirectUris),
+		arg.ClientType,
+		arg.DynamicallyRegistered,
 	)
 	var i OAuth2ProviderApp
 	err := row.Scan(
@@ -5179,6 +5353,9 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg Update
 		&i.Name,
 		&i.Icon,
 		&i.CallbackURL,
+		pq.Array(&i.RedirectUris),
+		&i.ClientType,
+		&i.DynamicallyRegistered,
 	)
 	return i, err
 }

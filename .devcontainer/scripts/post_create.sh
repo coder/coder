@@ -1,5 +1,9 @@
 #!/bin/sh
 
+install_devcontainer_cli() {
+	npm install -g @devcontainers/cli
+}
+
 install_ssh_config() {
 	echo "🔑 Installing SSH configuration..."
 	rsync -a /mnt/home/coder/.ssh/ ~/.ssh/
@@ -49,6 +53,7 @@ personalize() {
 	fi
 }
 
+install_devcontainer_cli
 install_ssh_config
 install_dotfiles
 personalize

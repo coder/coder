@@ -5,13 +5,13 @@ import type { Workspace, WorkspaceStatus } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
-import { Spinner } from "components/Spinner/Spinner";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { ArrowLeftIcon, RotateCcwIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import type { ReactNode } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useParams } from "react-router-dom";
 import { Link as RouterLink } from "react-router-dom";
 import { ellipsizeText } from "utils/ellipsizeText";
@@ -148,7 +148,7 @@ const TaskPage = () => {
 				</div>
 			</div>
 		);
-	} else if (terminatedStatuses.includes(task.workspace.latest_build.status)) {
+	} else if (task.workspace.latest_build.status !== "running") {
 		content = (
 			<Margins>
 				<div className="w-full min-h-80 flex items-center justify-center">
@@ -170,20 +170,6 @@ const TaskPage = () => {
 				</div>
 			</Margins>
 		);
-	} else if (!task.workspace.latest_app_status) {
-		content = (
-			<div className="w-full min-h-80 flex items-center justify-center">
-				<div className="flex flex-col items-center">
-					<Spinner loading className="mb-4" />
-					<h3 className="m-0 font-medium text-content-primary text-base">
-						Running your task
-					</h3>
-					<span className="text-content-secondary text-sm">
-						The status should be available soon
-					</span>
-				</div>
-			</div>
-		);
 	} else {
 		content = <TaskApps task={task} />;
 	}
@@ -193,11 +179,15 @@ const TaskPage = () => {
 			<Helmet>
 				<title>{pageTitle(ellipsizeText(task.prompt, 64) ?? "Task")}</title>
 			</Helmet>
-
-			<div className="h-full flex justify-stretch">
-				<TaskSidebar task={task} />
-				{content}
-			</div>
+			<PanelGroup autoSaveId="task" direction="horizontal">
+				<Panel defaultSize={25} minSize={20}>
+					<TaskSidebar task={task} />
+				</Panel>
+				<PanelResizeHandle>
+					<div className="w-1 bg-border h-full hover:bg-border-hover transition-all relative" />
+				</PanelResizeHandle>
+				<Panel className="[&>*]:h-full">{content}</Panel>
+			</PanelGroup>
 		</>
 	);
 };
