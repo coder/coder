@@ -359,7 +359,10 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 	}
 
 	switch req.State {
-	case codersdk.WorkspaceAppStatusStateComplete, codersdk.WorkspaceAppStatusStateFailure, codersdk.WorkspaceAppStatusStateWorking: // valid states
+	case codersdk.WorkspaceAppStatusStateComplete,
+		codersdk.WorkspaceAppStatusStateFailure,
+		codersdk.WorkspaceAppStatusStateWorking,
+		codersdk.WorkspaceAppStatusStateIdle: // valid states
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid state provided.",
@@ -902,19 +905,19 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 // @Tags Agents
 // @Produce json
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
-// @Param container path string true "Container ID or name"
+// @Param devcontainer path string true "Devcontainer ID"
 // @Success 202 {object} codersdk.Response
-// @Router /workspaceagents/{workspaceagent}/containers/devcontainers/container/{container}/recreate [post]
+// @Router /workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate [post]
 func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 
-	container := chi.URLParam(r, "container")
-	if container == "" {
+	devcontainer := chi.URLParam(r, "devcontainer")
+	if devcontainer == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Container ID or name is required.",
+			Message: "Devcontainer ID is required.",
 			Validations: []codersdk.ValidationError{
-				{Field: "container", Detail: "Container ID or name is required."},
+				{Field: "devcontainer", Detail: "Devcontainer ID is required."},
 			},
 		})
 		return
@@ -958,7 +961,7 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 	}
 	defer release()
 
-	m, err := agentConn.RecreateDevcontainer(ctx, container)
+	m, err := agentConn.RecreateDevcontainer(ctx, devcontainer)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			httpapi.Write(ctx, rw, http.StatusRequestTimeout, codersdk.Response{

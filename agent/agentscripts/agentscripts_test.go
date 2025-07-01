@@ -4,7 +4,6 @@ import (
 	"context"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -177,11 +176,6 @@ func TestExecuteOptions(t *testing.T) {
 		Script:      "echo stop",
 		RunOnStop:   true,
 	}
-	postStartScript := codersdk.WorkspaceAgentScript{
-		ID:          uuid.New(),
-		LogSourceID: uuid.New(),
-		Script:      "echo poststart",
-	}
 	regularScript := codersdk.WorkspaceAgentScript{
 		ID:          uuid.New(),
 		LogSourceID: uuid.New(),
@@ -193,10 +187,9 @@ func TestExecuteOptions(t *testing.T) {
 		stopScript,
 		regularScript,
 	}
-	allScripts := append(slices.Clone(scripts), postStartScript)
 
 	scriptByID := func(t *testing.T, id uuid.UUID) codersdk.WorkspaceAgentScript {
-		for _, script := range allScripts {
+		for _, script := range scripts {
 			if script.ID == id {
 				return script
 			}
@@ -206,10 +199,9 @@ func TestExecuteOptions(t *testing.T) {
 	}
 
 	wantOutput := map[uuid.UUID]string{
-		startScript.ID:     "start",
-		stopScript.ID:      "stop",
-		postStartScript.ID: "poststart",
-		regularScript.ID:   "regular",
+		startScript.ID:   "start",
+		stopScript.ID:    "stop",
+		regularScript.ID: "regular",
 	}
 
 	testCases := []struct {
@@ -220,17 +212,12 @@ func TestExecuteOptions(t *testing.T) {
 		{
 			name:    "ExecuteAllScripts",
 			option:  agentscripts.ExecuteAllScripts,
-			wantRun: []uuid.UUID{startScript.ID, stopScript.ID, regularScript.ID, postStartScript.ID},
+			wantRun: []uuid.UUID{startScript.ID, stopScript.ID, regularScript.ID},
 		},
 		{
 			name:    "ExecuteStartScripts",
 			option:  agentscripts.ExecuteStartScripts,
 			wantRun: []uuid.UUID{startScript.ID},
-		},
-		{
-			name:    "ExecutePostStartScripts",
-			option:  agentscripts.ExecutePostStartScripts,
-			wantRun: []uuid.UUID{postStartScript.ID},
 		},
 		{
 			name:    "ExecuteStopScripts",
@@ -260,7 +247,6 @@ func TestExecuteOptions(t *testing.T) {
 			err := runner.Init(
 				scripts,
 				aAPI.ScriptCompleted,
-				agentscripts.WithPostStartScripts(postStartScript),
 			)
 			require.NoError(t, err)
 
@@ -274,7 +260,7 @@ func TestExecuteOptions(t *testing.T) {
 					"script %s should have run when using filter %s", scriptByID(t, id).Script, tc.name)
 			}
 
-			for _, script := range allScripts {
+			for _, script := range scripts {
 				if _, ok := gotRun[script.ID]; ok {
 					continue
 				}

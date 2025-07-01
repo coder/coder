@@ -234,6 +234,17 @@ func (s *OrganizationSyncSettings) String() string {
 	return runtimeconfig.JSONString(s)
 }
 
+func (s *OrganizationSyncSettings) MarshalJSON() ([]byte, error) {
+	if s.Mapping == nil {
+		s.Mapping = make(map[string][]uuid.UUID)
+	}
+
+	// Aliasing the struct to avoid infinite recursion when calling json.Marshal
+	// on the struct itself.
+	type Alias OrganizationSyncSettings
+	return json.Marshal(&struct{ *Alias }{Alias: (*Alias)(s)})
+}
+
 // ParseClaims will parse the claims and return the list of organizations the user
 // should sync to.
 func (s *OrganizationSyncSettings) ParseClaims(ctx context.Context, db database.Store, mergedClaims jwt.MapClaims) ([]uuid.UUID, error) {

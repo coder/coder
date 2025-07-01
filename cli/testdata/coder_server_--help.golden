@@ -85,6 +85,9 @@ Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
           is detected. By default it instructs users to update using 'curl -L
           https://coder.com/install.sh | sh'.
 
+      --hide-ai-tasks bool, $CODER_HIDE_AI_TASKS (default: false)
+          Hide AI tasks from the dashboard.
+
       --ssh-config-options string-array, $CODER_SSH_CONFIG_OPTIONS
           These SSH config options will override the default SSH config options.
           Provide options in "key=value" or "key value" format separated by
@@ -673,6 +676,12 @@ workspaces stopping during the day due to template scheduling.
           the standard cron format, but the day-of-month, month and day-of-week
           must be *. Only one hour and minute can be specified (ranges or comma
           separated values are not supported).
+
+WORKSPACE PREBUILDS OPTIONS: 
+Configure how workspace prebuilds behave.
+
+      --workspace-prebuilds-reconciliation-interval duration, $CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL (default: 1m0s)
+          How often to reconcile workspace prebuilds state.
 
 ⚠️ DANGEROUS OPTIONS: 
       --dangerous-allow-path-app-sharing bool, $CODER_DANGEROUS_ALLOW_PATH_APP_SHARING

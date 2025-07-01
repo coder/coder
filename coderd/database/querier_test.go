@@ -27,7 +27,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -1157,7 +1156,6 @@ func TestProxyByHostname(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1395,7 +1393,6 @@ func TestGetUsers_IncludeSystem(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1418,7 +1415,7 @@ func TestGetUsers_IncludeSystem(t *testing.T) {
 			for _, u := range users {
 				if u.IsSystem {
 					foundSystemUser = true
-					require.Equal(t, prebuilds.SystemUserID, u.ID)
+					require.Equal(t, database.PrebuildsSystemUserID, u.ID)
 				} else {
 					foundRegularUser = true
 					require.Equalf(t, other.ID.String(), u.ID.String(), "found unexpected regular user")
@@ -1568,6 +1565,26 @@ func TestAuditLogDefaultLimit(t *testing.T) {
 	// The length should match the default limit of the SQL query.
 	// Updating the sql query requires changing the number below to match.
 	require.Len(t, rows, 100)
+}
+
+func TestAuditLogCount(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	dbgen.AuditLog(t, db, database.AuditLog{})
+
+	count, err := db.CountAuditLogs(ctx, database.CountAuditLogsParams{})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), count)
 }
 
 func TestWorkspaceQuotas(t *testing.T) {
@@ -1863,8 +1880,6 @@ func TestReadCustomRoles(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
-
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1952,9 +1967,13 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 		})
 
 		// When: The user queries for audit logs
+		count, err := db.CountAuditLogs(memberCtx, database.CountAuditLogsParams{})
+		require.NoError(t, err)
 		logs, err := db.GetAuditLogsOffset(memberCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
-		// Then: No logs returned
+
+		// Then: No logs returned and count is 0
+		require.Equal(t, int64(0), count, "count should be 0")
 		require.Len(t, logs, 0, "no logs should be returned")
 	})
 
@@ -1970,10 +1989,14 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 		})
 
 		// When: the auditor queries for audit logs
+		count, err := db.CountAuditLogs(siteAuditorCtx, database.CountAuditLogsParams{})
+		require.NoError(t, err)
 		logs, err := db.GetAuditLogsOffset(siteAuditorCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
-		// Then: All logs are returned
-		require.ElementsMatch(t, auditOnlyIDs(allLogs), auditOnlyIDs(logs))
+
+		// Then: All logs are returned and count matches
+		require.Equal(t, int64(len(allLogs)), count, "count should match total number of logs")
+		require.ElementsMatch(t, auditOnlyIDs(allLogs), auditOnlyIDs(logs), "all logs should be returned")
 	})
 
 	t.Run("SingleOrgAuditor", func(t *testing.T) {
@@ -1989,10 +2012,14 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 		})
 
 		// When: The auditor queries for audit logs
+		count, err := db.CountAuditLogs(orgAuditCtx, database.CountAuditLogsParams{})
+		require.NoError(t, err)
 		logs, err := db.GetAuditLogsOffset(orgAuditCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
-		// Then: Only the logs for the organization are returned
-		require.ElementsMatch(t, orgAuditLogs[orgID], auditOnlyIDs(logs))
+
+		// Then: Only the logs for the organization are returned and count matches
+		require.Equal(t, int64(len(orgAuditLogs[orgID])), count, "count should match organization logs")
+		require.ElementsMatch(t, orgAuditLogs[orgID], auditOnlyIDs(logs), "only organization logs should be returned")
 	})
 
 	t.Run("TwoOrgAuditors", func(t *testing.T) {
@@ -2009,10 +2036,16 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 		})
 
 		// When: The user queries for audit logs
+		count, err := db.CountAuditLogs(multiOrgAuditCtx, database.CountAuditLogsParams{})
+		require.NoError(t, err)
 		logs, err := db.GetAuditLogsOffset(multiOrgAuditCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
-		// Then: All logs for both organizations are returned
-		require.ElementsMatch(t, append(orgAuditLogs[first], orgAuditLogs[second]...), auditOnlyIDs(logs))
+
+		// Then: All logs for both organizations are returned and count matches
+		expectedLogs := append([]uuid.UUID{}, orgAuditLogs[first]...)
+		expectedLogs = append(expectedLogs, orgAuditLogs[second]...)
+		require.Equal(t, int64(len(expectedLogs)), count, "count should match sum of both organizations")
+		require.ElementsMatch(t, expectedLogs, auditOnlyIDs(logs), "logs from both organizations should be returned")
 	})
 
 	t.Run("ErroneousOrg", func(t *testing.T) {
@@ -2027,9 +2060,13 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 		})
 
 		// When: The user queries for audit logs
+		count, err := db.CountAuditLogs(userCtx, database.CountAuditLogsParams{})
+		require.NoError(t, err)
 		logs, err := db.GetAuditLogsOffset(userCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
-		// Then: No logs are returned
+
+		// Then: No logs are returned and count is 0
+		require.Equal(t, int64(0), count, "count should be 0")
 		require.Len(t, logs, 0, "no logs should be returned")
 	})
 }
@@ -2507,7 +2544,6 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // Capture loop variable to avoid data races
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			db, _ := dbtestutil.NewDB(t)
@@ -2948,7 +2984,6 @@ func TestGetUserStatusCounts(t *testing.T) {
 	}
 
 	for _, tz := range timezones {
-		tz := tz
 		t.Run(tz, func(t *testing.T) {
 			t.Parallel()
 
@@ -2996,7 +3031,6 @@ func TestGetUserStatusCounts(t *testing.T) {
 				}
 
 				for _, tc := range testCases {
-					tc := tc
 					t.Run(tc.name, func(t *testing.T) {
 						t.Parallel()
 						db, _ := dbtestutil.NewDB(t)
@@ -3164,7 +3198,6 @@ func TestGetUserStatusCounts(t *testing.T) {
 				}
 
 				for _, tc := range testCases {
-					tc := tc
 					t.Run(tc.name, func(t *testing.T) {
 						t.Parallel()
 						db, _ := dbtestutil.NewDB(t)
@@ -3297,7 +3330,6 @@ func TestGetUserStatusCounts(t *testing.T) {
 				}
 
 				for _, tc := range testCases {
-					tc := tc
 					t.Run(tc.name, func(t *testing.T) {
 						t.Parallel()
 

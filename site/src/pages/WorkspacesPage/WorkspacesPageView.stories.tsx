@@ -33,6 +33,7 @@ import {
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
 const createWorkspace = (
+	name: string,
 	status: WorkspaceStatus,
 	outdated = false,
 	lastUsedAt = "0001-01-01",
@@ -42,6 +43,7 @@ const createWorkspace = (
 	return {
 		...MockWorkspace,
 		id: uniqueId("workspace"),
+		name: name,
 		outdated,
 		latest_build: {
 			...MockWorkspace.latest_build,
@@ -59,17 +61,50 @@ const createWorkspace = (
 
 // This is type restricted to prevent future statuses from slipping
 // through the cracks unchecked!
-const workspaces = WorkspaceStatuses.map((status) => createWorkspace(status));
+const workspaces = WorkspaceStatuses.map((status) =>
+	createWorkspace(status, status),
+);
 
 // Additional Workspaces depending on time
 const additionalWorkspaces: Record<string, Workspace> = {
 	today: createWorkspace(
+		"running-outdated",
 		"running",
 		true,
 		dayjs().subtract(3, "hour").toString(),
 	),
-	old: createWorkspace("running", true, dayjs().subtract(1, "week").toString()),
+	old: createWorkspace(
+		"old-outdated",
+		"running",
+		true,
+		dayjs().subtract(1, "week").toString(),
+	),
+	oldStopped: createWorkspace(
+		"old-stopped-outdated",
+		"stopped",
+		true,
+		dayjs().subtract(1, "week").toString(),
+	),
+	oldRequireActiveVersion: {
+		...createWorkspace(
+			"old-require-active-version-outdated",
+			"running",
+			true,
+			dayjs().subtract(1, "week").toString(),
+		),
+		template_require_active_version: true,
+	},
+	oldStoppedRequireActiveVersion: {
+		...createWorkspace(
+			"old-stopped-require-active-version-outdated",
+			"stopped",
+			true,
+			dayjs().subtract(1, "week").toString(),
+		),
+		template_require_active_version: true,
+	},
 	veryOld: createWorkspace(
+		"very-old-running-outdated",
 		"running",
 		true,
 		dayjs().subtract(1, "month").subtract(4, "day").toString(),
@@ -78,12 +113,14 @@ const additionalWorkspaces: Record<string, Workspace> = {
 
 const dormantWorkspaces: Record<string, Workspace> = {
 	dormantNoDelete: createWorkspace(
+		"dormant-no-delete",
 		"stopped",
 		false,
 		dayjs().subtract(1, "month").toString(),
 		dayjs().subtract(1, "month").toString(),
 	),
 	dormantAutoDelete: createWorkspace(
+		"dormant-auto-delete",
 		"stopped",
 		false,
 		dayjs().subtract(1, "month").toString(),
@@ -245,7 +282,7 @@ export const UnhealthyWorkspace: Story = {
 	args: {
 		workspaces: [
 			{
-				...createWorkspace("running"),
+				...createWorkspace("unhealthy", "running"),
 				health: {
 					healthy: false,
 					failing_agents: [],
@@ -282,6 +319,7 @@ export const MultipleApps: Story = {
 		workspaces: [
 			{
 				...MockWorkspace,
+				name: "multiple-apps",
 				latest_build: {
 					...MockWorkspace.latest_build,
 					resources: [
@@ -315,7 +353,13 @@ export const MultipleApps: Story = {
 
 export const ShowOrganizations: Story = {
 	args: {
-		workspaces: [{ ...MockWorkspace, organization_name: "limbus-co" }],
+		workspaces: [
+			{
+				...MockWorkspace,
+				name: "other-org-workspace",
+				organization_name: "limbus-co",
+			},
+		],
 	},
 
 	parameters: {
@@ -347,6 +391,7 @@ export const WithLatestAppStatus: Story = {
 		workspaces: [
 			{
 				...MockWorkspace,
+				name: "long-app-status",
 				latest_app_status: {
 					...MockWorkspaceAppStatus,
 					message:
@@ -355,10 +400,12 @@ export const WithLatestAppStatus: Story = {
 			},
 			{
 				...MockWorkspace,
+				name: "no-app-status",
 				latest_app_status: null,
 			},
 			{
 				...MockWorkspace,
+				name: "app-status-working",
 				latest_app_status: {
 					...MockWorkspaceAppStatus,
 					state: "working",
@@ -367,6 +414,7 @@ export const WithLatestAppStatus: Story = {
 			},
 			{
 				...MockWorkspace,
+				name: "app-status-failure",
 				latest_app_status: {
 					...MockWorkspaceAppStatus,
 					state: "failure",
@@ -381,6 +429,7 @@ export const WithLatestAppStatus: Story = {
 						resources: [],
 					},
 				},
+				name: "stopped-app-status-failure",
 				latest_app_status: {
 					...MockWorkspaceAppStatus,
 					state: "failure",
@@ -390,6 +439,7 @@ export const WithLatestAppStatus: Story = {
 			},
 			{
 				...MockWorkspace,
+				name: "app-status-working-with-uri",
 				latest_app_status: {
 					...MockWorkspaceAppStatus,
 					state: "working",

@@ -760,7 +760,6 @@ func rbacTraceAttributes(actor Subject, action policy.Action, objectType string,
 	uniqueRoleNames := actor.SafeRoleNames()
 	roleStrings := make([]string, 0, len(uniqueRoleNames))
 	for _, roleName := range uniqueRoleNames {
-		roleName := roleName
 		roleStrings = append(roleStrings, roleName.String())
 	}
 	return trace.WithAttributes(

@@ -56,7 +56,6 @@ func TestApplicationURLString(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -158,7 +157,6 @@ func TestParseSubdomainAppURL(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -378,7 +376,6 @@ func TestCompileHostnamePattern(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -390,7 +387,6 @@ func TestCompileHostnamePattern(t *testing.T) {
 				require.Equal(t, expected, regex.String(), "generated regex does not match")
 
 				for i, m := range c.matchCases {
-					m := m
 					t.Run(fmt.Sprintf("MatchCase%d", i), func(t *testing.T) {
 						t.Parallel()
 
@@ -407,6 +403,61 @@ func TestCompileHostnamePattern(t *testing.T) {
 				require.Error(t, err)
 				require.ErrorContains(t, err, c.errorContains)
 			}
+		})
+	}
+}
+
+func TestConvertAppURLForCSP(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		host     string
+		wildcard string
+		expected string
+	}{
+		{
+			name:     "Empty",
+			host:     "example.com",
+			wildcard: "",
+			expected: "example.com",
+		},
+		{
+			name:     "NoAsterisk",
+			host:     "example.com",
+			wildcard: "coder.com",
+			expected: "coder.com",
+		},
+		{
+			name:     "Asterisk",
+			host:     "example.com",
+			wildcard: "*.coder.com",
+			expected: "*.coder.com",
+		},
+		{
+			name:     "FirstPrefix",
+			host:     "example.com",
+			wildcard: "*--apps.coder.com",
+			expected: "*.coder.com",
+		},
+		{
+			name:     "FirstSuffix",
+			host:     "example.com",
+			wildcard: "apps--*.coder.com",
+			expected: "*.coder.com",
+		},
+		{
+			name:     "Middle",
+			host:     "example.com",
+			wildcard: "apps.*.com",
+			expected: "example.com",
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, c.expected, appurl.ConvertAppHostForCSP(c.host, c.wildcard))
 		})
 	}
 }

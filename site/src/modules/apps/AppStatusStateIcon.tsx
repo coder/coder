@@ -5,6 +5,7 @@ import {
 	CircleAlertIcon,
 	CircleCheckIcon,
 	HourglassIcon,
+	PauseIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
 import type { FC } from "react";
@@ -23,9 +24,26 @@ export const AppStatusStateIcon: FC<AppStatusStateIconProps> = ({
 	latest,
 	className: customClassName,
 }) => {
-	const className = cn(["size-4 shrink-0", customClassName]);
+	const className = cn([
+		"size-4 shrink-0",
+		customClassName,
+		disabled && "text-content-disabled",
+	]);
 
 	switch (state) {
+		case "idle":
+			// The pause icon is outlined; add a fill since it is hard to see and
+			// remove the stroke so it is not overly thick.
+			return (
+				<PauseIcon
+					css={{ strokeWidth: 0 }}
+					className={cn([
+						"text-content-secondary",
+						className,
+						disabled ? "fill-content-disabled" : "fill-content-secondary",
+					])}
+				/>
+			);
 		case "complete":
 			return (
 				<CircleCheckIcon className={cn(["text-content-success", className])} />

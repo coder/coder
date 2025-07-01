@@ -1614,3 +1614,25 @@ Enable Coder Inbox.
 | Default     | <code>5</code>                                      |
 
 The upper limit of attempts to send a notification.
+
+### --workspace-prebuilds-reconciliation-interval
+
+|             |                                                                 |
+|-------------|-----------------------------------------------------------------|
+| Type        | <code>duration</code>                                           |
+| Environment | <code>$CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL</code> |
+| YAML        | <code>workspace_prebuilds.reconciliation_interval</code>        |
+| Default     | <code>1m0s</code>                                               |
+
+How often to reconcile workspace prebuilds state.
+
+### --hide-ai-tasks
+
+|             |                                   |
+|-------------|-----------------------------------|
+| Type        | <code>bool</code>                 |
+| Environment | <code>$CODER_HIDE_AI_TASKS</code> |
+| YAML        | <code>client.hideAITasks</code>   |
+| Default     | <code>false</code>                |
+
+Hide AI tasks from the dashboard.

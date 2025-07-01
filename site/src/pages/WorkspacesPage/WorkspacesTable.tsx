@@ -18,6 +18,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { Button } from "components/Button/Button";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
@@ -47,8 +48,10 @@ import { ExternalLinkIcon, FileIcon, StarIcon } from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import {
 	BanIcon,
+	CloudIcon,
 	PlayIcon,
 	RefreshCcwIcon,
+	SquareIcon,
 	SquareTerminalIcon,
 } from "lucide-react";
 import {
@@ -74,6 +77,7 @@ import {
 	type PropsWithChildren,
 	type ReactNode,
 	useMemo,
+	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
@@ -491,6 +495,9 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 		onError: onActionError,
 	});
 
+	// State for stop confirmation dialog
+	const [isStopConfirmOpen, setIsStopConfirmOpen] = useState(false);
+
 	const isRetrying =
 		startWorkspaceMutation.isPending ||
 		stopWorkspaceMutation.isPending ||
@@ -535,12 +542,61 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 					</PrimaryAction>
 				)}
 
+				{abilities.actions.includes("stop") && (
+					<PrimaryAction
+						onClick={() => setIsStopConfirmOpen(true)}
+						isLoading={stopWorkspaceMutation.isPending}
+						label="Stop workspace"
+					>
+						<SquareIcon />
+					</PrimaryAction>
+				)}
+
 				{abilities.actions.includes("updateAndStart") && (
 					<>
 						<PrimaryAction
 							onClick={workspaceUpdate.update}
 							isLoading={workspaceUpdate.isUpdating}
 							label="Update and start workspace"
+						>
+							<CloudIcon />
+						</PrimaryAction>
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+					</>
+				)}
+
+				{abilities.actions.includes("updateAndStartRequireActiveVersion") && (
+					<>
+						<PrimaryAction
+							onClick={workspaceUpdate.update}
+							isLoading={workspaceUpdate.isUpdating}
+							label="This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version."
+						>
+							<PlayIcon />
+						</PrimaryAction>
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+					</>
+				)}
+
+				{abilities.actions.includes("updateAndRestart") && (
+					<>
+						<PrimaryAction
+							onClick={workspaceUpdate.update}
+							isLoading={workspaceUpdate.isUpdating}
+							label="Update and restart workspace"
+						>
+							<CloudIcon />
+						</PrimaryAction>
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+					</>
+				)}
+
+				{abilities.actions.includes("updateAndRestartRequireActiveVersion") && (
+					<>
+						<PrimaryAction
+							onClick={workspaceUpdate.update}
+							isLoading={workspaceUpdate.isUpdating}
+							label="This template requires automatic updates on workspace restart. Contact your administrator if you want to preserve the template version."
 						>
 							<PlayIcon />
 						</PrimaryAction>
@@ -573,6 +629,20 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 					disabled={!abilities.canAcceptJobs}
 				/>
 			</div>
+
+			{/* Stop workspace confirmation dialog */}
+			<ConfirmDialog
+				open={isStopConfirmOpen}
+				title="Stop workspace"
+				description={`Are you sure you want to stop the workspace "${workspace.name}"? This will terminate all running processes and disconnect any active sessions.`}
+				confirmText="Stop"
+				onClose={() => setIsStopConfirmOpen(false)}
+				onConfirm={() => {
+					stopWorkspaceMutation.mutate({});
+					setIsStopConfirmOpen(false);
+				}}
+				type="delete"
+			/>
 		</TableCell>
 	);
 };
@@ -593,7 +663,12 @@ const PrimaryAction: FC<PrimaryActionProps> = ({
 		<TooltipProvider>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<Button variant="outline" size="icon-lg" onClick={onClick}>
+					<Button
+						variant="outline"
+						size="icon-lg"
+						onClick={onClick}
+						disabled={isLoading}
+					>
 						<Spinner loading={isLoading}>{children}</Spinner>
 						<span className="sr-only">{label}</span>
 					</Button>

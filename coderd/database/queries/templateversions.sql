@@ -88,11 +88,10 @@ INSERT INTO
 		readme,
 		job_id,
 		created_by,
-		source_example_id,
-		has_ai_task
+		source_example_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
 
 -- name: UpdateTemplateVersionByID :exec
 UPDATE
@@ -119,6 +118,15 @@ UPDATE
 	template_versions
 SET
 	external_auth_providers = $2,
+	updated_at = $3
+WHERE
+	job_id = $1;
+
+-- name: UpdateTemplateVersionAITaskByJobID :exec
+UPDATE
+	template_versions
+SET
+	has_ai_task = $2,
 	updated_at = $3
 WHERE
 	job_id = $1;
@@ -226,3 +234,7 @@ FROM
 WHERE
 	template_versions.id IN (archived_versions.id)
 RETURNING template_versions.id;
+
+-- name: HasTemplateVersionsWithAITask :one
+-- Determines if the template versions table has any rows with has_ai_task = TRUE.
+SELECT EXISTS (SELECT 1 FROM template_versions WHERE has_ai_task = TRUE);
