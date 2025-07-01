@@ -46,21 +46,18 @@ resource "coder_devcontainer" "frontend" {
   count            = data.coder_workspace.me.start_count
   agent_id         = coder_agent.main.id
   workspace_folder = "/home/coder/frontend/${module.git_clone_frontend[0].folder_name}"
-  depends_on       = [module.git_clone_frontend]
 }
 
 resource "coder_devcontainer" "backend" {
   count            = data.coder_workspace.me.start_count
   agent_id         = coder_agent.main.id
   workspace_folder = "/home/coder/backend/${module.git_clone_backend[0].folder_name}"
-  depends_on       = [module.git_clone_backend]
 }
 
 resource "coder_devcontainer" "database" {
   count            = data.coder_workspace.me.start_count
   agent_id         = coder_agent.main.id
   workspace_folder = "/home/coder/database/${module.git_clone_database[0].folder_name}"
-  depends_on       = [module.git_clone_database]
 }
 ```
 
@@ -85,7 +82,6 @@ resource "coder_devcontainer" "frontend" {
   count            = data.coder_parameter.enable_frontend.value ? data.coder_workspace.me.start_count : 0
   agent_id         = coder_agent.main.id
   workspace_folder = "/home/coder/frontend/${module.git_clone_frontend[0].folder_name}"
-  depends_on       = [module.git_clone_frontend]
 }
 ```
 

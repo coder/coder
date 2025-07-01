@@ -31,26 +31,7 @@ the Dev Container integration and the legacy Envbuilder integration.
 
 - The `devcontainers-cli` module requires npm.
 
-  - Use an image that already includes npm, such as `codercom/enterprise-node:ubuntu`
-  - <details><summary>If your template doesn't already include npm, install it at runtime with the `nodejs` module:</summary>
-
-    1. This block should be before the `devcontainers-cli` block in `main.tf`:
-
-       ```terraform
-        module "nodejs" {
-          count    = data.coder_workspace.me.start_count
-          source   = "dev.registry.coder.com/modules/nodejs/coder"
-          agent_id = coder_agent.main.id
-        }
-        ```
-
-    1. In the `devcontainers-cli` module block, add:
-
-       ```terraform
-       depends_on       = [module.nodejs]
-       ```
-
-   </details>
+  - You can use an image that already includes npm, such as `codercom/enterprise-node:ubuntu`.
 
 ## Install the Dev Containers CLI
 
@@ -66,7 +47,7 @@ module "devcontainers-cli" {
 }
 ```
 
-Alternatively, install the devcontainer CLI manually in your base image:
+Alternatively, install `devcontainer/cli` manually in your base image:
 
 ```shell
 RUN npm install -g @devcontainers/cli
@@ -77,7 +58,7 @@ RUN npm install -g @devcontainers/cli
 If you don't use [`git_clone`](#clone-the-repository), point the resource at the folder that contains `devcontainer.json`:
 
 ```terraform
-resource "coder_devcontainer" "project" {
+resource "coder_devcontainer" "project" { # `project` in this example is how users will connect to the dev container: `ssh://project.<workspace>.me.coder`
   count            = data.coder_workspace.me.start_count
   agent_id         = coder_agent.main.id
   workspace_folder = "/home/coder/project"
@@ -88,8 +69,8 @@ resource "coder_devcontainer" "project" {
 
 This step is optional, but it ensures that the project is present before the dev container starts.
 
-Note that if you use the `git_clone` module, place it before the `coder_devcontainer` resource
-and update or replace that resource to point at `/home/coder/project/${module.git_clone[0].folder_name}` so that it is only defined once:
+Note that if you use the `git_clone` module, update or replace the `coder_devcontainer` resource
+to point to `/home/coder/project/${module.git_clone[0].folder_name}` so that it is only defined once:
 
 ```terraform
 module "git_clone" {
@@ -104,7 +85,6 @@ resource "coder_devcontainer" "project" {
   count            = data.coder_workspace.me.start_count
   agent_id         = coder_agent.main.id
   workspace_folder = "/home/coder/${module.git_clone[0].folder_name}"
-  depends_on       = [module.git_clone]
 }
 ```
 
@@ -162,165 +142,11 @@ resource "coder_devcontainer" "backend" {
 }
 ```
 
-## Complete Template Examples
-
-You can test the Coder dev container integration and features with these starter templates.
-
-<details><summary>Docker-based template (privileged)</summary>
-
-This version uses a Docker-in-Docker image, so it works even if the host doesn’t expose a Docker socket.
-
-```terraform
-terraform {
-  required_providers {
-    coder = {
-      source = "coder/coder"
-    }
-    docker = {
-      source = "kreuzwerker/docker"
-    }
-  }
-}
-
-provider "coder" {}
-
-data "coder_workspace"       "me"    {}
-data "coder_workspace_owner" "me"    {}
-
-resource "docker_container" "workspace" {
-  count      = data.coder_workspace.me.start_count
-  image      = "codercom/enterprise-base:ubuntu"           # includes Coder agent
-  name       = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-
-  # share host Docker
-  volumes {
-    host_path      = "/var/run/docker.sock"
-    container_path = "/var/run/docker.sock"
-  }
-
-  must_run = true                                          # keep container alive
-
-  env = [
-    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
-    "CODER_AGENT_URL=${data.coder_workspace.me.access_url}"   # lets built-in entrypoint phone home
-  ]
-}
-
-resource "coder_agent" "main" {
-  os   = "linux"
-  arch = "amd64"
-}
-
-# install node
-module "nodejs" {
-  count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/nodejs/coder"
-  agent_id = coder_agent.main.id
-}
-
-module "devcontainers_cli" {
-  count      = data.coder_workspace.me.start_count
-  source     = "dev.registry.coder.com/modules/devcontainers-cli/coder"
-  agent_id   = coder_agent.main.id
-  depends_on = [module.nodejs]                             # npm first
-}
-
-# clone a repo
-module "git_clone" {
-  count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/git-clone/coder"
-  agent_id = coder_agent.main.id
-  url      = "https://github.com/devcontainers/template-starter.git"
-  base_dir = "/home/coder/project"
-}
-
-# launch the Dev Container
-resource "coder_devcontainer" "project" {
-  count            = data.coder_workspace.me.start_count
-  agent_id         = coder_agent.main.id
-  workspace_folder = "/home/coder/project/${module.git_clone[0].folder_name}"
-  depends_on       = [module.git_clone]
-}
-```
-
-</details>
-
-<details><summary>Kubernetes-based template (Sysbox runtime)</summary>
-
-```terraform
-terraform {
-  required_providers {
-    coder      = { source = "coder/coder" }
-    kubernetes = { source = "hashicorp/kubernetes" }
-  }
-}
-
-data "coder_workspace" "me" {}
-data "coder_workspace_owner" "me" {}
-
-resource "coder_agent" "main" {
-  os   = "linux"
-  arch = "amd64"
-
-  startup_script_behavior = "blocking"
-  startup_script = "sudo service docker start"
-}
-
-module "devcontainers_cli" {
-  count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/devcontainers-cli/coder"
-  agent_id = coder_agent.main.id
-}
-
-module "git_clone" {
-  count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/git-clone/coder"
-  agent_id = coder_agent.main.id
-  url      = "https://github.com/coder/coder.git"
-  base_dir     = "/home/coder/project"
-}
-
-resource "coder_devcontainer" "project" {
-  count            = data.coder_workspace.me.start_count
-  agent_id         = coder_agent.main.id
-  workspace_folder = "/home/coder/project/${module.git_clone[0].folder_name}"
-  depends_on       = [module.git_clone]
-}
-
-resource "kubernetes_pod" "workspace" {
-  count = data.coder_workspace.me.start_count
-
-  metadata {
-    name       = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-    namespace = "coder-workspaces"
-  }
-
-  spec {
-    container {
-      name  = "main"
-      image = "codercom/enterprise-base:ubuntu"
-
-      security_context { privileged = true }  # or use Sysbox / rootless
-      env { name = "CODER_AGENT_TOKEN" value = coder_agent.main.token }
-    }
-  }
-}
-```
-
-</details>
-
 ## Troubleshoot Common Issues
 
 ### Disable dev containers integration
 
-To disable the dev containers integration in your workspace, add the `CODER_AGENT_DEVCONTAINERS_ENABLE` environment variable to your existing `coder_agent` block:
-
-```terraform
-env = {
-  CODER_AGENT_DEVCONTAINERS_ENABLE = "false"
-  # existing variables ...
-}
-```
+To disable the dev containers integration in your workspace, set the `CODER_AGENT_DEVCONTAINERS_ENABLE= "false"` environment variable.
 
 ### Dev container does not start
 
