@@ -108,13 +108,13 @@ type cacheMetrics struct {
 }
 
 type cacheEntry struct {
-	// refCount must only be accessed while the Cache lock is held.
+	// Safety: refCount must only be accessed while the Cache lock is held.
 	refCount int
 	value    *lazy.ValueWithError[CacheEntryValue]
 
-	// Safety: Must only be called while the Cache lock is held
+	// Safety: close must only be called while the Cache lock is held
 	close func()
-	// Safety: Must only be called while the Cache lock is held
+	// Safety: purge must only be called while the Cache lock is held
 	purge func()
 }
 
@@ -143,8 +143,8 @@ func (f *CloseFS) Close() {
 // calls for the same fileID will only result in one fetch, and that parallel
 // calls for distinct fileIDs will fetch in parallel.
 //
-// Safety: Every call to Acquire that does not return an error must have a
-// matching call to Release.
+// Safety: Every call to Acquire that does not return an error must call close
+// on the returned value when it is done being used.
 func (c *Cache) Acquire(ctx context.Context, db database.Store, fileID uuid.UUID) (*CloseFS, error) {
 	// It's important that this `Load` call occurs outside `prepare`, after the
 	// mutex has been released, or we would continue to hold the lock until the
@@ -224,11 +224,6 @@ func (c *Cache) prepare(db database.Store, fileID uuid.UUID) *cacheEntry {
 			close: func() {
 				entry.refCount--
 				c.currentOpenFileReferences.Dec()
-				// Safety: Another thread could grab a reference to this value between
-				// this check and entering `purge`, which will grab the cache lock. This
-				// is annoying, and may lead to temporary duplication of the file in
-				// memory, but is better than the deadlocking potential of other
-				// approaches we tried to solve this.
 				if entry.refCount > 0 {
 					return
 				}
