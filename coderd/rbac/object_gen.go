@@ -54,16 +54,6 @@ var (
 		Type: "audit_log",
 	}
 
-	// ResourceChat
-	// Valid Actions
-	//  - "ActionCreate" :: create a chat
-	//  - "ActionDelete" :: delete a chat
-	//  - "ActionRead" :: read a chat
-	//  - "ActionUpdate" :: update a chat
-	ResourceChat = Object{
-		Type: "chat",
-	}
-
 	// ResourceCryptoKey
 	// Valid Actions
 	//  - "ActionCreate" :: create crypto keys
@@ -222,6 +212,14 @@ var (
 		Type: "organization_member",
 	}
 
+	// ResourcePrebuiltWorkspace
+	// Valid Actions
+	//  - "ActionDelete" :: delete prebuilt workspace
+	//  - "ActionUpdate" :: update prebuilt workspace settings
+	ResourcePrebuiltWorkspace = Object{
+		Type: "prebuilt_workspace",
+	}
+
 	// ResourceProvisionerDaemon
 	// Valid Actions
 	//  - "ActionCreate" :: create a provisioner daemon/key
@@ -370,7 +368,6 @@ func AllResources() []Objecter {
 		ResourceAssignOrgRole,
 		ResourceAssignRole,
 		ResourceAuditLog,
-		ResourceChat,
 		ResourceCryptoKey,
 		ResourceDebugInfo,
 		ResourceDeploymentConfig,
@@ -389,6 +386,7 @@ func AllResources() []Objecter {
 		ResourceOauth2AppSecret,
 		ResourceOrganization,
 		ResourceOrganizationMember,
+		ResourcePrebuiltWorkspace,
 		ResourceProvisionerDaemon,
 		ResourceProvisionerJobs,
 		ResourceReplicas,

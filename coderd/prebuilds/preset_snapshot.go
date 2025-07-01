@@ -1,14 +1,22 @@
 package prebuilds
 
 import (
+	"context"
+	"fmt"
 	"slices"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/quartz"
 
+	tf_provider_helpers "github.com/coder/terraform-provider-coder/v2/provider/helpers"
+
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 )
 
 // ActionType represents the type of action needed to reconcile prebuilds.
@@ -36,12 +44,39 @@ const (
 // - InProgress: prebuilds currently in progress
 // - Backoff: holds failure info to decide if prebuild creation should be backed off
 type PresetSnapshot struct {
-	Preset        database.GetTemplatePresetsWithPrebuildsRow
-	Running       []database.GetRunningPrebuiltWorkspacesRow
-	Expired       []database.GetRunningPrebuiltWorkspacesRow
-	InProgress    []database.CountInProgressPrebuildsRow
-	Backoff       *database.GetPresetsBackoffRow
-	IsHardLimited bool
+	Preset            database.GetTemplatePresetsWithPrebuildsRow
+	PrebuildSchedules []database.TemplateVersionPresetPrebuildSchedule
+	Running           []database.GetRunningPrebuiltWorkspacesRow
+	Expired           []database.GetRunningPrebuiltWorkspacesRow
+	InProgress        []database.CountInProgressPrebuildsRow
+	Backoff           *database.GetPresetsBackoffRow
+	IsHardLimited     bool
+	clock             quartz.Clock
+	logger            slog.Logger
+}
+
+func NewPresetSnapshot(
+	preset database.GetTemplatePresetsWithPrebuildsRow,
+	prebuildSchedules []database.TemplateVersionPresetPrebuildSchedule,
+	running []database.GetRunningPrebuiltWorkspacesRow,
+	expired []database.GetRunningPrebuiltWorkspacesRow,
+	inProgress []database.CountInProgressPrebuildsRow,
+	backoff *database.GetPresetsBackoffRow,
+	isHardLimited bool,
+	clock quartz.Clock,
+	logger slog.Logger,
+) PresetSnapshot {
+	return PresetSnapshot{
+		Preset:            preset,
+		PrebuildSchedules: prebuildSchedules,
+		Running:           running,
+		Expired:           expired,
+		InProgress:        inProgress,
+		Backoff:           backoff,
+		IsHardLimited:     isHardLimited,
+		clock:             clock,
+		logger:            logger,
+	}
 }
 
 // ReconciliationState represents the processed state of a preset's prebuilds,
@@ -83,6 +118,92 @@ func (ra *ReconciliationActions) IsNoop() bool {
 	return ra.Create == 0 && len(ra.DeleteIDs) == 0 && ra.BackoffUntil.IsZero()
 }
 
+// MatchesCron interprets a cron spec as a continuous time range,
+// and returns whether the provided time value falls within that range.
+func MatchesCron(cronExpression string, at time.Time) (bool, error) {
+	sched, err := cron.TimeRange(cronExpression)
+	if err != nil {
+		return false, xerrors.Errorf("failed to parse cron expression: %w", err)
+	}
+
+	return sched.IsWithinRange(at), nil
+}
+
+// CalculateDesiredInstances returns the number of desired instances based on the provided time.
+// If the time matches any defined prebuild schedule, the corresponding number of instances is returned.
+// Otherwise, it falls back to the default number of instances specified in the prebuild configuration.
+func (p PresetSnapshot) CalculateDesiredInstances(at time.Time) int32 {
+	if len(p.PrebuildSchedules) == 0 {
+		// If no schedules are defined, fall back to the default desired instance count
+		return p.Preset.DesiredInstances.Int32
+	}
+
+	if p.Preset.SchedulingTimezone == "" {
+		p.logger.Error(context.Background(), "timezone is not set in prebuild scheduling configuration",
+			slog.F("preset_id", p.Preset.ID),
+			slog.F("timezone", p.Preset.SchedulingTimezone))
+
+		// If timezone is not set, fall back to the default desired instance count
+		return p.Preset.DesiredInstances.Int32
+	}
+
+	// Validate that the provided timezone is valid
+	_, err := time.LoadLocation(p.Preset.SchedulingTimezone)
+	if err != nil {
+		p.logger.Error(context.Background(), "invalid timezone in prebuild scheduling configuration",
+			slog.F("preset_id", p.Preset.ID),
+			slog.F("timezone", p.Preset.SchedulingTimezone),
+			slog.Error(err))
+
+		// If timezone is invalid, fall back to the default desired instance count
+		return p.Preset.DesiredInstances.Int32
+	}
+
+	// Validate that all prebuild schedules are valid and don't overlap with each other.
+	// If any schedule is invalid or schedules overlap, fall back to the default desired instance count.
+	cronSpecs := make([]string, len(p.PrebuildSchedules))
+	for i, schedule := range p.PrebuildSchedules {
+		cronSpecs[i] = schedule.CronExpression
+	}
+	err = tf_provider_helpers.ValidateSchedules(cronSpecs)
+	if err != nil {
+		p.logger.Error(context.Background(), "schedules are invalid or overlap with each other",
+			slog.F("preset_id", p.Preset.ID),
+			slog.F("cron_specs", cronSpecs),
+			slog.Error(err))
+
+		// If schedules are invalid, fall back to the default desired instance count
+		return p.Preset.DesiredInstances.Int32
+	}
+
+	// Look for a schedule whose cron expression matches the provided time
+	for _, schedule := range p.PrebuildSchedules {
+		// Prefix the cron expression with timezone information
+		cronExprWithTimezone := fmt.Sprintf("CRON_TZ=%s %s", p.Preset.SchedulingTimezone, schedule.CronExpression)
+		matches, err := MatchesCron(cronExprWithTimezone, at)
+		if err != nil {
+			p.logger.Error(context.Background(), "cron expression is invalid",
+				slog.F("preset_id", p.Preset.ID),
+				slog.F("cron_expression", cronExprWithTimezone),
+				slog.Error(err))
+			continue
+		}
+		if matches {
+			p.logger.Debug(context.Background(), "current time matched cron expression",
+				slog.F("preset_id", p.Preset.ID),
+				slog.F("current_time", at.String()),
+				slog.F("cron_expression", cronExprWithTimezone),
+				slog.F("desired_instances", schedule.DesiredInstances),
+			)
+
+			return schedule.DesiredInstances
+		}
+	}
+
+	// If no schedule matches, fall back to the default desired instance count
+	return p.Preset.DesiredInstances.Int32
+}
+
 // CalculateState computes the current state of prebuilds for a preset, including:
 // - Actual: Number of currently running prebuilds, i.e., non-expired and expired prebuilds
 // - Expired: Number of currently running expired prebuilds
@@ -111,7 +232,7 @@ func (p PresetSnapshot) CalculateState() *ReconciliationState {
 	expired = int32(len(p.Expired))
 
 	if p.isActive() {
-		desired = p.Preset.DesiredInstances.Int32
+		desired = p.CalculateDesiredInstances(p.clock.Now())
 		eligible = p.countEligible()
 		extraneous = max(actual-expired-desired, 0)
 	}
@@ -146,14 +267,14 @@ func (p PresetSnapshot) CalculateState() *ReconciliationState {
 // - ActionTypeBackoff: Only BackoffUntil is set, indicating when to retry
 // - ActionTypeCreate: Only Create is set, indicating how many prebuilds to create
 // - ActionTypeDelete: Only DeleteIDs is set, containing IDs of prebuilds to delete
-func (p PresetSnapshot) CalculateActions(clock quartz.Clock, backoffInterval time.Duration) ([]*ReconciliationActions, error) {
+func (p PresetSnapshot) CalculateActions(backoffInterval time.Duration) ([]*ReconciliationActions, error) {
 	// TODO: align workspace states with how we represent them on the FE and the CLI
 	//	     right now there's some slight differences which can lead to additional prebuilds being created
 
 	// TODO: add mechanism to prevent prebuilds being reconciled from being claimable by users; i.e. if a prebuild is
 	// 		 about to be deleted, it should not be deleted if it has been claimed - beware of TOCTOU races!
 
-	actions, needsBackoff := p.needsBackoffPeriod(clock, backoffInterval)
+	actions, needsBackoff := p.needsBackoffPeriod(p.clock, backoffInterval)
 	if needsBackoff {
 		return actions, nil
 	}

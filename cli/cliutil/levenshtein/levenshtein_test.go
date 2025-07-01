@@ -95,7 +95,6 @@ func Test_Levenshtein_Matches(t *testing.T) {
 			Expected:    []string{"kubernetes"},
 		},
 	} {
-		tt := tt
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
 			actual := levenshtein.Matches(tt.Needle, tt.MaxDistance, tt.Haystack...)
@@ -179,7 +178,6 @@ func Test_Levenshtein_Distance(t *testing.T) {
 			Error:   levenshtein.ErrMaxDist.Error(),
 		},
 	} {
-		tt := tt
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
 			actual, err := levenshtein.Distance(tt.A, tt.B, tt.MaxDist)

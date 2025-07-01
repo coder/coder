@@ -19,7 +19,7 @@ export interface ApiErrorResponse {
 	validations?: FieldError[];
 }
 
-type ApiError = AxiosError<ApiErrorResponse> & {
+export type ApiError = AxiosError<ApiErrorResponse> & {
 	response: AxiosResponse<ApiErrorResponse>;
 };
 

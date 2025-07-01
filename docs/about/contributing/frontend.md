@@ -259,18 +259,16 @@ We use [Formik](https://formik.org/docs) for forms along with
 
 ## Testing
 
-We use three types of testing in our app: **End-to-end (E2E)**, **Integration**
+We use three types of testing in our app: **End-to-end (E2E)**, **Integration/Unit**
 and **Visual Testing**.
 
-### End-to-End (E2E)
+### End-to-End (E2E) – Playwright
 
 These are useful for testing complete flows like "Create a user", "Import
-template", etc. We use [Playwright](https://playwright.dev/). If you only need
-to test if the page is being rendered correctly, you should consider using the
-**Visual Testing** approach.
+template", etc. We use [Playwright](https://playwright.dev/). These tests run against a full Coder instance, backed by a database, and allows you to make sure that features work properly all the way through the stack. "End to end", so to speak.
 
-For scenarios where you need to be authenticated, you can use
-`test.use({ storageState: getStatePath("authState") })`.
+For scenarios where you need to be authenticated as a certain user, you can use
+`login` helper. Passing it some user credentials will log out of any other user account, and will attempt to login using those credentials.
 
 For ease of debugging, it's possible to run a Playwright test in headful mode
 running a Playwright server on your local machine, and executing the test inside
@@ -289,22 +287,14 @@ local machine and forward the necessary ports to your workspace. At the end of
 the script, you will land _inside_ your workspace with environment variables set
 so you can simply execute the test (`pnpm run playwright:test`).
 
-### Integration
+### Integration/Unit – Jest
 
-Test user interactions like "Click in a button shows a dialog", "Submit the form
-sends the correct data", etc. For this, we use [Jest](https://jestjs.io/) and
-[react-testing-library](https://testing-library.com/docs/react-testing-library/intro/).
-If the test involves routing checks like redirects or maybe checking the info on
-another page, you should probably consider using the **E2E** approach.
+We use Jest mostly for testing code that does _not_ pertain to React. Functions and classes that contain notable app logic, and which are well abstracted from React should have accompanying tests. If the logic is tightly coupled to a React component, a Storybook test or an E2E test may be a better option depending on the scenario.
 
-### Visual testing
+### Visual Testing – Storybook
 
-We use visual tests to test components without user interaction like testing if
-a page/component is rendered correctly depending on some parameters, if a button
-is showing a spinner, if `loading` props are passed correctly, etc. This should
-always be your first option since it is way easier to maintain. For this, we use
-[Storybook](https://storybook.js.org/) and
-[Chromatic](https://www.chromatic.com/).
+We use Storybook for testing all of our React code. For static components, you simply add a story that renders the components with the props that you would like to test, and Storybook will record snapshots of it to ensure that it isn't changed unintentionally. If you would like to test an interaction with the component, then you can add an interaction test by specifying a `play` function for the story. For stories with an interaction test, a snapshot will be recorded of the end state of the component. We use
+[Chromatic](https://www.chromatic.com/) to manage and compare snapshots in CI.
 
 To learn more about testing components that fetch API data, refer to the
 [**Where to fetch data**](#where-to-fetch-data) section.

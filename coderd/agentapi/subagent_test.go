@@ -216,7 +216,7 @@ func TestSubAgentAPI(t *testing.T) {
 				},
 				expectApps: []database.WorkspaceApp{
 					{
-						Slug:                 "code-server",
+						Slug:                 "fdqf0lpd-code-server",
 						DisplayName:          "VS Code",
 						Icon:                 "/icon/code.svg",
 						Command:              sql.NullString{},
@@ -234,7 +234,7 @@ func TestSubAgentAPI(t *testing.T) {
 						DisplayGroup:         sql.NullString{},
 					},
 					{
-						Slug:         "vim",
+						Slug:         "547knu0f-vim",
 						DisplayName:  "Vim",
 						Icon:         "/icon/vim.svg",
 						Command:      sql.NullString{Valid: true, String: "vim"},
@@ -377,7 +377,7 @@ func TestSubAgentAPI(t *testing.T) {
 				},
 				expectApps: []database.WorkspaceApp{
 					{
-						Slug:         "valid-app",
+						Slug:         "511ctirn-valid-app",
 						DisplayName:  "Valid App",
 						SharingLevel: database.AppSharingLevelOwner,
 						Health:       database.WorkspaceAppHealthDisabled,
@@ -410,19 +410,19 @@ func TestSubAgentAPI(t *testing.T) {
 				},
 				expectApps: []database.WorkspaceApp{
 					{
-						Slug:         "authenticated-app",
+						Slug:         "atpt261l-authenticated-app",
 						SharingLevel: database.AppSharingLevelAuthenticated,
 						Health:       database.WorkspaceAppHealthDisabled,
 						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
 					},
 					{
-						Slug:         "owner-app",
+						Slug:         "eh5gp1he-owner-app",
 						SharingLevel: database.AppSharingLevelOwner,
 						Health:       database.WorkspaceAppHealthDisabled,
 						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
 					},
 					{
-						Slug:         "public-app",
+						Slug:         "oopjevf1-public-app",
 						SharingLevel: database.AppSharingLevelPublic,
 						Health:       database.WorkspaceAppHealthDisabled,
 						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
@@ -443,13 +443,13 @@ func TestSubAgentAPI(t *testing.T) {
 				},
 				expectApps: []database.WorkspaceApp{
 					{
-						Slug:         "tab-app",
+						Slug:         "ci9500rm-tab-app",
 						SharingLevel: database.AppSharingLevelOwner,
 						Health:       database.WorkspaceAppHealthDisabled,
 						OpenIn:       database.WorkspaceAppOpenInTab,
 					},
 					{
-						Slug:         "window-app",
+						Slug:         "p17s76re-window-app",
 						SharingLevel: database.AppSharingLevelOwner,
 						Health:       database.WorkspaceAppHealthDisabled,
 						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
@@ -479,7 +479,7 @@ func TestSubAgentAPI(t *testing.T) {
 				},
 				expectApps: []database.WorkspaceApp{
 					{
-						Slug:                 "full-app",
+						Slug:                 "0ccdbg39-full-app",
 						Command:              sql.NullString{Valid: true, String: "echo hello"},
 						DisplayName:          "Full Featured App",
 						External:             true,
@@ -507,7 +507,7 @@ func TestSubAgentAPI(t *testing.T) {
 				},
 				expectApps: []database.WorkspaceApp{
 					{
-						Slug:                 "no-health-app",
+						Slug:                 "nphrhbh6-no-health-app",
 						Health:               database.WorkspaceAppHealthDisabled,
 						SharingLevel:         database.AppSharingLevelOwner,
 						OpenIn:               database.WorkspaceAppOpenInSlimWindow,
@@ -531,7 +531,7 @@ func TestSubAgentAPI(t *testing.T) {
 				},
 				expectApps: []database.WorkspaceApp{
 					{
-						Slug:         "duplicate-app",
+						Slug:         "uiklfckv-duplicate-app",
 						DisplayName:  "First App",
 						SharingLevel: database.AppSharingLevelOwner,
 						Health:       database.WorkspaceAppHealthDisabled,
@@ -568,14 +568,14 @@ func TestSubAgentAPI(t *testing.T) {
 				},
 				expectApps: []database.WorkspaceApp{
 					{
-						Slug:         "duplicate-app",
+						Slug:         "uiklfckv-duplicate-app",
 						DisplayName:  "First Duplicate",
 						SharingLevel: database.AppSharingLevelOwner,
 						Health:       database.WorkspaceAppHealthDisabled,
 						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
 					},
 					{
-						Slug:         "valid-app",
+						Slug:         "511ctirn-valid-app",
 						DisplayName:  "Valid App",
 						SharingLevel: database.AppSharingLevelOwner,
 						Health:       database.WorkspaceAppHealthDisabled,
@@ -754,7 +754,7 @@ func TestSubAgentAPI(t *testing.T) {
 			apps, err := db.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
 			require.NoError(t, err)
 			require.Len(t, apps, 1)
-			require.Equal(t, "duplicate-slug", apps[0].Slug)
+			require.Equal(t, "k5jd7a99-duplicate-slug", apps[0].Slug)
 			require.Equal(t, "First Duplicate", apps[0].DisplayName)
 		})
 	})
@@ -875,13 +875,8 @@ func TestSubAgentAPI(t *testing.T) {
 			require.NoError(t, err)
 		})
 
-		t.Run("DeletesWorkspaceApps", func(t *testing.T) {
+		t.Run("DeleteRetainsWorkspaceApps", func(t *testing.T) {
 			t.Parallel()
-
-			// Skip test on in-memory database since CASCADE DELETE is not implemented
-			if !dbtestutil.WillUsePostgres() {
-				t.Skip("CASCADE DELETE behavior requires PostgreSQL")
-			}
 
 			log := testutil.Logger(t)
 			ctx := testutil.Context(t, testutil.WaitShort)
@@ -931,11 +926,11 @@ func TestSubAgentAPI(t *testing.T) {
 			_, err = api.Database.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), subAgentID) //nolint:gocritic // this is a test.
 			require.ErrorIs(t, err, sql.ErrNoRows)
 
-			// And: The apps are also deleted (due to CASCADE DELETE)
-			// Use raw database since authorization layer requires agent to exist
+			// And: The apps are *retained* to avoid causing issues
+			// where the resources are expected to be present.
 			appsAfterDeletion, err := db.GetWorkspaceAppsByAgentID(ctx, subAgentID)
 			require.NoError(t, err)
-			require.Empty(t, appsAfterDeletion)
+			require.NotEmpty(t, appsAfterDeletion)
 		})
 	})
 
@@ -1133,7 +1128,7 @@ func TestSubAgentAPI(t *testing.T) {
 		apps, err := api.Database.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // this is a test.
 		require.NoError(t, err)
 		require.Len(t, apps, 1)
-		require.Equal(t, "custom-app", apps[0].Slug)
+		require.Equal(t, "v4qhkq17-custom-app", apps[0].Slug)
 		require.Equal(t, "Custom App", apps[0].DisplayName)
 	})
 

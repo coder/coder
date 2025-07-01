@@ -118,7 +118,6 @@ func Test_sshConfigSplitOnCoderSection(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -157,7 +156,6 @@ func Test_sshConfigProxyCommandEscape(t *testing.T) {
 	}
 	// nolint:paralleltest // Fixes a flake
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			if runtime.GOOS == "windows" {
 				t.Skip("Windows doesn't typically execute via /bin/sh or cmd.exe, so this test is not applicable.")
@@ -207,7 +205,6 @@ func Test_sshConfigMatchExecEscape(t *testing.T) {
 	}
 	// nolint:paralleltest // Fixes a flake
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := "/bin/sh"
 			arg := "-c"
@@ -290,7 +287,6 @@ func Test_sshConfigExecEscapeSeparatorForce(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			found, err := sshConfigProxyCommandEscape(tt.path, tt.forceUnix)
@@ -366,7 +362,6 @@ func Test_sshConfigOptions_addOption(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		tt := tt
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
 

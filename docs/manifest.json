@@ -258,16 +258,14 @@
 				},
 				{
 					"title": "Coder Desktop",
-					"description": "Use Coder Desktop to access your workspace like it's a local machine",
+					"description": "Transform remote workspaces into seamless local development environments with no port forwarding required",
 					"path": "./user-guides/desktop/index.md",
 					"icon_path": "./images/icons/computer-code.svg",
-					"state": ["beta"],
 					"children": [
 						{
 							"title": "Coder Desktop connect and sync",
 							"description": "Use Coder Desktop to manage your workspace code and files locally",
-							"path": "./user-guides/desktop/desktop-connect-sync.md",
-							"state": ["beta"]
+							"path": "./user-guides/desktop/desktop-connect-sync.md"
 						}
 					]
 				},
@@ -698,6 +696,11 @@
 							"path": "./admin/integrations/platformx.md"
 						},
 						{
+							"title": "DX Data Cloud",
+							"description": "Tag Coder Users with DX Data Cloud",
+							"path": "./admin/integrations/dx-data-cloud.md"
+						},
+						{
 							"title": "Hashicorp Vault",
 							"description": "Integrate Coder with Hashicorp Vault",
 							"path": "./admin/integrations/vault.md"
@@ -814,61 +817,61 @@
 		},
 		{
 			"title": "Run AI Coding Agents in Coder",
-			"description": "Learn how to run and integrate AI coding agents like GPT-Code, OpenDevin, or SWE-Agent in Coder workspaces to boost developer productivity.",
+			"description": "Learn how to run and integrate agentic AI coding agents like GPT-Code, OpenDevin, or SWE-Agent in Coder workspaces to boost developer productivity.",
 			"path": "./ai-coder/index.md",
 			"icon_path": "./images/icons/wand.svg",
 			"state": ["beta"],
 			"children": [
 				{
 					"title": "Learn about coding agents",
-					"description": "Learn about the different AI agents and their tradeoffs",
+					"description": "Learn about the different agentic AI agents and their tradeoffs",
 					"path": "./ai-coder/agents.md"
 				},
 				{
 					"title": "Create a Coder template for agents",
-					"description": "Create a purpose-built template for your AI agents",
+					"description": "Create a purpose-built template for your agentic AI agents",
 					"path": "./ai-coder/create-template.md",
 					"state": ["beta"]
 				},
 				{
 					"title": "Integrate with your issue tracker",
-					"description": "Assign tickets to AI agents and interact via code reviews",
+					"description": "Assign tickets to agentic AI agents and interact via code reviews",
 					"path": "./ai-coder/issue-tracker.md",
 					"state": ["beta"]
 				},
 				{
 					"title": "Model Context Protocols (MCP) and adding AI tools",
-					"description": "Improve results by adding tools to your AI agents",
+					"description": "Improve results by adding tools to your agentic AI agents",
 					"path": "./ai-coder/best-practices.md",
 					"state": ["beta"]
 				},
 				{
 					"title": "Supervise agents via Coder UI",
-					"description": "Interact with agents via the Coder UI",
+					"description": "Interact with agentic agents via the Coder UI",
 					"path": "./ai-coder/coder-dashboard.md",
 					"state": ["beta"]
 				},
 				{
 					"title": "Supervise agents via the IDE",
-					"description": "Interact with agents via VS Code or Cursor",
+					"description": "Interact with agentic agents via VS Code or Cursor",
 					"path": "./ai-coder/ide-integration.md",
 					"state": ["beta"]
 				},
 				{
 					"title": "Programmatically manage agents",
-					"description": "Manage agents via MCP, the Coder CLI, and/or REST API",
+					"description": "Manage agentic agents via MCP, the Coder CLI, and/or REST API",
 					"path": "./ai-coder/headless.md",
 					"state": ["beta"]
 				},
 				{
 					"title": "Securing agents in Coder",
-					"description": "Learn how to secure agents with boundaries",
+					"description": "Learn how to secure agentic agents with boundaries",
 					"path": "./ai-coder/securing.md",
 					"state": ["early access"]
 				},
 				{
 					"title": "Custom agents",
-					"description": "Learn how to use custom agents with Coder",
+					"description": "Learn how to use custom agentic agents with Coder",
 					"path": "./ai-coder/custom-agents.md",
 					"state": ["beta"]
 				}
@@ -1694,7 +1697,7 @@
 						},
 						{
 							"title": "update",
-							"description": "Will update and start a given workspace if it is out of date",
+							"description": "Will update and start a given workspace if it is out of date. If the workspace is already running, it will be stopped first.",
 							"path": "reference/cli/update.md"
 						},
 						{

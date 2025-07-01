@@ -24,5 +24,6 @@ ignorePatterns:
   - pattern: "mutagen.io"
   - pattern: "docs.github.com"
   - pattern: "claude.ai"
+  - pattern: "splunk.com"
 aliveStatusCodes:
   - 200

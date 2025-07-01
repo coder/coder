@@ -12,7 +12,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 )
 
@@ -57,7 +56,6 @@ func TestReconcileAll(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc // capture
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -74,14 +72,14 @@ func TestReconcileAll(t *testing.T) {
 				// dbmem doesn't ensure membership to the default organization
 				dbgen.OrganizationMember(t, db, database.OrganizationMember{
 					OrganizationID: defaultOrg.ID,
-					UserID:         agplprebuilds.SystemUserID,
+					UserID:         database.PrebuildsSystemUserID,
 				})
 			}
 
-			dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: unrelatedOrg.ID, UserID: agplprebuilds.SystemUserID})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: unrelatedOrg.ID, UserID: database.PrebuildsSystemUserID})
 			if tc.preExistingMembership {
 				// System user already a member of both orgs.
-				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: targetOrg.ID, UserID: agplprebuilds.SystemUserID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: targetOrg.ID, UserID: database.PrebuildsSystemUserID})
 			}
 
 			presets := []database.GetTemplatePresetsWithPrebuildsRow{newPresetRow(unrelatedOrg.ID)}
@@ -91,7 +89,7 @@ func TestReconcileAll(t *testing.T) {
 
 			// Verify memberships before reconciliation.
 			preReconcileMemberships, err := db.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
-				UserID: agplprebuilds.SystemUserID,
+				UserID: database.PrebuildsSystemUserID,
 			})
 			require.NoError(t, err)
 			expectedMembershipsBefore := []uuid.UUID{defaultOrg.ID, unrelatedOrg.ID}
@@ -102,11 +100,11 @@ func TestReconcileAll(t *testing.T) {
 
 			// Reconcile
 			reconciler := prebuilds.NewStoreMembershipReconciler(db, clock)
-			require.NoError(t, reconciler.ReconcileAll(ctx, agplprebuilds.SystemUserID, presets))
+			require.NoError(t, reconciler.ReconcileAll(ctx, database.PrebuildsSystemUserID, presets))
 
 			// Verify memberships after reconciliation.
 			postReconcileMemberships, err := db.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
-				UserID: agplprebuilds.SystemUserID,
+				UserID: database.PrebuildsSystemUserID,
 			})
 			require.NoError(t, err)
 			expectedMembershipsAfter := expectedMembershipsBefore

@@ -691,6 +691,7 @@ const createTemplateVersionTar = async (
 			parameters: [],
 			externalAuthProviders: [],
 			timings: [],
+			aiTasks: [],
 			...response.apply,
 		} as ApplyComplete;
 		response.apply.resources = response.apply.resources?.map(fillResource);
@@ -713,6 +714,7 @@ const createTemplateVersionTar = async (
 			plan: emptyPlan,
 			moduleFiles: new Uint8Array(),
 			moduleFilesHash: new Uint8Array(),
+			aiTasks: [],
 			...response.plan,
 		} as PlanComplete;
 		response.plan.resources = response.plan.resources?.map(fillResource);
@@ -1018,9 +1020,22 @@ export const updateWorkspace = async (
 	await fillParameters(page, richParameters, buildParameters);
 	await page.getByRole("button", { name: /update parameters/i }).click();
 
+	// Wait for the update button to detach.
+	await page.waitForSelector(
+		"button[data-testid='workspace-update-button']:enabled",
+		{ state: "detached" },
+	);
+	// Wait for the workspace to be running again.
 	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
 	});
+	// Wait for the stop button to be enabled again
+	await page.waitForSelector(
+		"button[data-testid='workspace-stop-button']:enabled",
+		{
+			state: "visible",
+		},
+	);
 };
 
 export const updateWorkspaceParameters = async (

@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -40,6 +41,7 @@ type StoreReconciler struct {
 	store      database.Store
 	cfg        codersdk.PrebuildsConfig
 	pubsub     pubsub.Pubsub
+	fileCache  *files.Cache
 	logger     slog.Logger
 	clock      quartz.Clock
 	registerer prometheus.Registerer
@@ -57,6 +59,7 @@ var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
 
 func NewStoreReconciler(store database.Store,
 	ps pubsub.Pubsub,
+	fileCache *files.Cache,
 	cfg codersdk.PrebuildsConfig,
 	logger slog.Logger,
 	clock quartz.Clock,
@@ -66,6 +69,7 @@ func NewStoreReconciler(store database.Store,
 	reconciler := &StoreReconciler{
 		store:             store,
 		pubsub:            ps,
+		fileCache:         fileCache,
 		logger:            logger,
 		cfg:               cfg,
 		clock:             clock,
@@ -265,7 +269,7 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 		}
 
 		membershipReconciler := NewStoreMembershipReconciler(c.store, c.clock)
-		err = membershipReconciler.ReconcileAll(ctx, prebuilds.SystemUserID, snapshot.Presets)
+		err = membershipReconciler.ReconcileAll(ctx, database.PrebuildsSystemUserID, snapshot.Presets)
 		if err != nil {
 			return xerrors.Errorf("reconcile prebuild membership: %w", err)
 		}
@@ -366,6 +370,11 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			return nil
 		}
 
+		presetPrebuildSchedules, err := db.GetActivePresetPrebuildSchedules(ctx)
+		if err != nil {
+			return xerrors.Errorf("failed to get preset prebuild schedules: %w", err)
+		}
+
 		allRunningPrebuilds, err := db.GetRunningPrebuiltWorkspaces(ctx)
 		if err != nil {
 			return xerrors.Errorf("failed to get running prebuilds: %w", err)
@@ -388,10 +397,13 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 
 		state = prebuilds.NewGlobalSnapshot(
 			presetsWithPrebuilds,
+			presetPrebuildSchedules,
 			allRunningPrebuilds,
 			allPrebuildsInProgress,
 			presetsBackoff,
 			hardLimitedPresets,
+			c.clock,
+			c.logger,
 		)
 		return nil
 	}, &database.TxOptions{
@@ -415,7 +427,6 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 
 	// If the preset reached the hard failure limit for the first time during this iteration:
 	// - Mark it as hard-limited in the database
-	// - Send notifications to template admins
 	// - Continue execution, we disallow only creation operation for hard-limited presets. Deletion is allowed.
 	if ps.Preset.PrebuildStatus != database.PrebuildStatusHardLimited && ps.IsHardLimited {
 		logger.Warn(ctx, "preset is hard limited, notifying template admins")
@@ -426,11 +437,6 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		})
 		if err != nil {
 			return xerrors.Errorf("failed to update preset prebuild status: %w", err)
-		}
-
-		err = c.notifyPrebuildFailureLimitReached(ctx, ps)
-		if err != nil {
-			logger.Error(ctx, "failed to notify that number of prebuild failures reached the limit", slog.Error(err))
 		}
 	}
 
@@ -462,55 +468,12 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 	return multiErr.ErrorOrNil()
 }
 
-func (c *StoreReconciler) notifyPrebuildFailureLimitReached(ctx context.Context, ps prebuilds.PresetSnapshot) error {
-	// nolint:gocritic // Necessary to query all the required data.
-	ctx = dbauthz.AsSystemRestricted(ctx)
-
-	// Send notification to template admins.
-	if c.notifEnq == nil {
-		c.logger.Warn(ctx, "notification enqueuer not set, cannot send prebuild is hard limited notification(s)")
-		return nil
-	}
-
-	templateAdmins, err := c.store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleTemplateAdmin},
-	})
-	if err != nil {
-		return xerrors.Errorf("fetch template admins: %w", err)
-	}
-
-	for _, templateAdmin := range templateAdmins {
-		if _, err := c.notifEnq.EnqueueWithData(ctx, templateAdmin.ID, notifications.PrebuildFailureLimitReached,
-			map[string]string{
-				"org":              ps.Preset.OrganizationName,
-				"template":         ps.Preset.TemplateName,
-				"template_version": ps.Preset.TemplateVersionName,
-				"preset":           ps.Preset.Name,
-			},
-			map[string]any{},
-			"prebuilds_reconciler",
-			// Associate this notification with all the related entities.
-			ps.Preset.TemplateID, ps.Preset.TemplateVersionID, ps.Preset.ID, ps.Preset.OrganizationID,
-		); err != nil {
-			c.logger.Error(ctx,
-				"failed to send notification",
-				slog.Error(err),
-				slog.F("template_admin_id", templateAdmin.ID.String()),
-			)
-
-			continue
-		}
-	}
-
-	return nil
-}
-
 func (c *StoreReconciler) CalculateActions(ctx context.Context, snapshot prebuilds.PresetSnapshot) ([]*prebuilds.ReconciliationActions, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
 
-	return snapshot.CalculateActions(c.clock, c.cfg.ReconciliationBackoffInterval.Value())
+	return snapshot.CalculateActions(c.cfg.ReconciliationBackoffInterval.Value())
 }
 
 func (c *StoreReconciler) WithReconciliationLock(
@@ -608,7 +571,8 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 		// Unexpected things happen (i.e. bugs or bitflips); let's defend against disastrous outcomes.
 		// See https://blog.robertelder.org/causes-of-bit-flips-in-computer-memory/.
 		// This is obviously not comprehensive protection against this sort of problem, but this is one essential check.
-		desired := ps.Preset.DesiredInstances.Int32
+		desired := ps.CalculateDesiredInstances(c.clock.Now())
+
 		if action.Create > desired {
 			logger.Critical(ctx, "determined excessive count of prebuilds to create; clamping to desired count",
 				slog.F("create_count", action.Create), slog.F("desired_count", desired))
@@ -667,7 +631,7 @@ func (c *StoreReconciler) createPrebuiltWorkspace(ctx context.Context, prebuiltW
 			ID:                prebuiltWorkspaceID,
 			CreatedAt:         now,
 			UpdatedAt:         now,
-			OwnerID:           prebuilds.SystemUserID,
+			OwnerID:           database.PrebuildsSystemUserID,
 			OrganizationID:    template.OrganizationID,
 			TemplateID:        template.ID,
 			Name:              name,
@@ -709,7 +673,7 @@ func (c *StoreReconciler) deletePrebuiltWorkspace(ctx context.Context, prebuiltW
 			return xerrors.Errorf("failed to get template: %w", err)
 		}
 
-		if workspace.OwnerID != prebuilds.SystemUserID {
+		if workspace.OwnerID != database.PrebuildsSystemUserID {
 			return xerrors.Errorf("prebuilt workspace is not owned by prebuild user anymore, probably it was claimed")
 		}
 
@@ -752,7 +716,7 @@ func (c *StoreReconciler) provision(
 
 	builder := wsbuilder.New(workspace, transition).
 		Reason(database.BuildReasonInitiator).
-		Initiator(prebuilds.SystemUserID).
+		Initiator(database.PrebuildsSystemUserID).
 		MarkPrebuild()
 
 	if transition != database.WorkspaceTransitionDelete {
@@ -771,6 +735,7 @@ func (c *StoreReconciler) provision(
 	_, provisionerJob, _, err := builder.Build(
 		ctx,
 		db,
+		c.fileCache,
 		func(_ policy.Action, _ rbac.Objecter) bool {
 			return true // TODO: harden?
 		},
