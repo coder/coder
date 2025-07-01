@@ -681,7 +681,7 @@ workspaces stopping during the day due to template scheduling.
 WORKSPACE PREBUILDS OPTIONS: 
 Configure how workspace prebuilds behave.
 
-      --workspace-prebuilds-reconciliation-interval duration, $CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL (default: 15s)
+      --workspace-prebuilds-reconciliation-interval duration, $CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL (default: 1m0s)
           How often to reconcile workspace prebuilds state.
 
 ⚠️ DANGEROUS OPTIONS: 

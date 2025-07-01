@@ -1,5 +1,15 @@
 # Prebuilt workspaces
 
+> [!WARNING]
+> Prebuilds Compatibility Limitations:
+> Prebuilt workspaces are currently not compatible with configurations that have Workspace schedule (autostart/autostop), or Dormancy enabled.
+> If these features are configured, prebuilt workspaces may fail to run correctly.
+>
+> In addition, prebuilds currently do not work reliably with [DevContainers feature](../managing-templates/devcontainers/index.md).
+> If your project relies on DevContainer configuration, we recommend disabling prebuilds or carefully testing behavior before enabling them in production.
+>
+> We’re actively working to improve compatibility, but for now, please avoid using prebuilds with these features to ensure stability and expected behavior.
+
 Prebuilt workspaces allow template administrators to improve the developer experience by reducing workspace
 creation time with an automatically maintained pool of ready-to-use workspaces for specific parameter presets.
 

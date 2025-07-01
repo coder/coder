@@ -37,6 +37,7 @@ import {
 } from "components/TableLoader/TableLoader";
 
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	Tooltip,
 	TooltipContent,
@@ -79,7 +80,10 @@ const TasksPage: FC = () => {
 			</Helmet>
 			<Margins>
 				<PageHeader>
-					<PageHeaderTitle>Tasks</PageHeaderTitle>
+					<span className="flex flex-row gap-2">
+						<PageHeaderTitle>Tasks</PageHeaderTitle>
+						<FeatureStageBadge contentType={"beta"} size="md" />
+					</span>
 					<PageHeaderSubtitle>Automate tasks with AI</PageHeaderSubtitle>
 				</PageHeader>
 
@@ -206,7 +210,7 @@ const TaskFormSection: FC<{
 	);
 };
 
-type CreateTaskMutationFnProps = { prompt: string; template: Template };
+type CreateTaskMutationFnProps = { prompt: string; templateVersionId: string };
 
 type TaskFormProps = {
 	templates: Template[];
@@ -236,8 +240,11 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 		: true;
 
 	const createTaskMutation = useMutation({
-		mutationFn: async ({ prompt, template }: CreateTaskMutationFnProps) =>
-			data.createTask(prompt, user.id, template.id, template.active_version_id),
+		mutationFn: async ({
+			prompt,
+			templateVersionId,
+		}: CreateTaskMutationFnProps) =>
+			data.createTask(prompt, user.id, templateVersionId),
 		onSuccess: async (task) => {
 			await queryClient.invalidateQueries({
 				queryKey: ["tasks"],
@@ -257,7 +264,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 		try {
 			await createTaskMutation.mutateAsync({
 				prompt,
-				template: selectedTemplate,
+				templateVersionId: selectedTemplate.active_version_id,
 			});
 		} catch (error) {
 			const message = getErrorMessage(error, "Error creating task");
@@ -600,14 +607,12 @@ export const data = {
 	async createTask(
 		prompt: string,
 		userId: string,
-		templateId: string,
 		templateVersionId: string,
 	): Promise<Task> {
 		const presets = await API.getTemplateVersionPresets(templateVersionId);
 		const defaultPreset = presets.find((p) => p.Default);
 		const workspace = await API.createWorkspace(userId, {
 			name: `task-${generateWorkspaceName()}`,
-			template_id: templateId,
 			template_version_id: templateVersionId,
 			template_version_preset_id: defaultPreset?.ID,
 			rich_parameter_values: [

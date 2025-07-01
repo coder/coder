@@ -45,6 +45,26 @@ const docTemplate = `{
                 }
             }
         },
+        "/.well-known/oauth-authorization-server": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "OAuth2 authorization server metadata.",
+                "operationId": "oauth2-authorization-server-metadata",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2AuthorizationServerMetadata"
+                        }
+                    }
+                }
+            }
+        },
         "/appearance": {
             "get": {
                 "security": [
@@ -2173,6 +2193,61 @@ const docTemplate = `{
             }
         },
         "/oauth2/authorize": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "OAuth2 authorization request (GET - show authorization page).",
+                "operationId": "oauth2-authorization-request-get",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "client_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "A random unguessable string",
+                        "name": "state",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "code"
+                        ],
+                        "type": "string",
+                        "description": "Response type",
+                        "name": "response_type",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Redirect here after authorization",
+                        "name": "redirect_uri",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Token scopes (currently ignored)",
+                        "name": "scope",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Returns HTML authorization page"
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {
@@ -2182,8 +2257,8 @@ const docTemplate = `{
                 "tags": [
                     "Enterprise"
                 ],
-                "summary": "OAuth2 authorization request.",
-                "operationId": "oauth2-authorization-request",
+                "summary": "OAuth2 authorization request (POST - process authorization).",
+                "operationId": "oauth2-authorization-request-post",
                 "parameters": [
                     {
                         "type": "string",
@@ -2224,7 +2299,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "302": {
-                        "description": "Found"
+                        "description": "Returns redirect with authorization code"
                     }
                 }
             }
@@ -13213,6 +13288,53 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OAuth2AuthorizationServerMetadata": {
+            "type": "object",
+            "properties": {
+                "authorization_endpoint": {
+                    "type": "string"
+                },
+                "code_challenge_methods_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "grant_types_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "issuer": {
+                    "type": "string"
+                },
+                "registration_endpoint": {
+                    "type": "string"
+                },
+                "response_types_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "scopes_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "token_endpoint": {
+                    "type": "string"
+                },
+                "token_endpoint_auth_methods_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "codersdk.OAuth2Config": {
             "type": "object",
             "properties": {
@@ -16999,6 +17121,9 @@ const docTemplate = `{
                 },
                 "dirty": {
                     "type": "boolean"
+                },
+                "error": {
+                    "type": "string"
                 },
                 "id": {
                     "type": "string",
