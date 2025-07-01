@@ -15,6 +15,7 @@ import {
 import { useProxy } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { useRetry } from "hooks/useRetry";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
@@ -73,6 +74,144 @@ const TerminalPage: FC = () => {
 
 	const config = useQuery(deploymentConfig());
 	const renderer = config.data?.config.web_terminal_renderer;
+
+	// Store current websocket reference
+	const websocketRef = useRef<WebSocket | null>(null);
+
+	// Retry logic for reconnection
+	const connectToTerminal = useCallback(async () => {
+		if (!terminal || !workspaceAgent) {
+			throw new Error("Terminal or workspace agent not available");
+		}
+
+		setConnectionStatus("connecting");
+
+		// Don't clear terminal content during reconnection to preserve it
+		// terminal.clear();
+
+		// Focusing on connection allows users to reload the page and start
+		// typing immediately.
+		terminal.focus();
+
+		// Disable input while we connect.
+		terminal.options.disableStdin = true;
+
+		// Close existing websocket if any
+		if (websocketRef.current) {
+			websocketRef.current.close(1000);
+			websocketRef.current = null;
+		}
+
+		const url = await terminalWebsocketUrl(
+			// When on development mode we can bypass the proxy and connect directly.
+			process.env.NODE_ENV !== "development"
+				? proxy.preferredPathAppURL
+				: undefined,
+			reconnectionToken,
+			workspaceAgent.id,
+			command,
+			terminal.rows,
+			terminal.cols,
+			containerName,
+			containerUser,
+		);
+
+		return new Promise<void>((resolve, reject) => {
+			const websocket = new WebSocket(url);
+			websocket.binaryType = "arraybuffer";
+			websocketRef.current = websocket;
+
+			const cleanup = () => {
+				websocket.removeEventListener("open", onOpen);
+				websocket.removeEventListener("error", onError);
+				websocket.removeEventListener("close", onClose);
+				websocket.removeEventListener("message", onMessage);
+			};
+
+			const onOpen = () => {
+				// Now that we are connected, allow user input.
+				terminal.options = {
+					disableStdin: false,
+					windowsMode: workspaceAgent?.operating_system === "windows",
+				};
+				// Send the initial size.
+				websocket?.send(
+					new TextEncoder().encode(
+						JSON.stringify({
+							height: terminal.rows,
+							width: terminal.cols,
+						}),
+					),
+				);
+				setConnectionStatus("connected");
+				resolve();
+			};
+
+			const onError = () => {
+				cleanup();
+				terminal.options.disableStdin = true;
+				setConnectionStatus("disconnected");
+				reject(new Error("WebSocket connection failed"));
+			};
+
+			const onClose = () => {
+				cleanup();
+				terminal.options.disableStdin = true;
+				setConnectionStatus("disconnected");
+				reject(new Error("WebSocket connection closed"));
+			};
+
+			const onMessage = (event: MessageEvent) => {
+				if (typeof event.data === "string") {
+					// This exclusively occurs when testing.
+					// "jest-websocket-mock" doesn't support ArrayBuffer.
+					terminal.write(event.data);
+				} else {
+					terminal.write(new Uint8Array(event.data));
+				}
+			};
+
+			websocket.addEventListener("open", onOpen);
+			websocket.addEventListener("error", onError);
+			websocket.addEventListener("close", onClose);
+			websocket.addEventListener("message", onMessage);
+		});
+	}, [
+		terminal,
+		workspaceAgent,
+		proxy.preferredPathAppURL,
+		reconnectionToken,
+		command,
+		containerName,
+		containerUser,
+	]);
+
+	const retryConfig = {
+		onRetry: connectToTerminal,
+		maxAttempts: 10,
+		initialDelay: 1000, // 1 second
+		maxDelay: 30000, // 30 seconds
+		multiplier: 2,
+	};
+
+	const {
+		retry,
+		isRetrying,
+		currentDelay,
+		attemptCount,
+		timeUntilNextRetry,
+		startRetrying,
+		stopRetrying,
+	} = useRetry(retryConfig);
+
+	// Trigger retry when disconnected
+	useEffect(() => {
+		if (connectionStatus === "disconnected" && terminal && workspaceAgent) {
+			startRetrying();
+		} else if (connectionStatus === "connected") {
+			stopRetrying();
+		}
+	}, [connectionStatus, terminal, workspaceAgent, startRetrying, stopRetrying]);
 
 	// Periodically report workspace usage.
 	useQuery(
@@ -182,22 +321,11 @@ const TerminalPage: FC = () => {
 		);
 	}, [navigate, reconnectionToken, searchParams]);
 
-	// Hook up the terminal through a web socket.
+	// Initial connection and terminal setup
 	useEffect(() => {
 		if (!terminal) {
 			return;
 		}
-
-		// The terminal should be cleared on each reconnect
-		// because all data is re-rendered from the backend.
-		terminal.clear();
-
-		// Focusing on connection allows users to reload the page and start
-		// typing immediately.
-		terminal.focus();
-
-		// Disable input while we connect.
-		terminal.options.disableStdin = true;
 
 		// Show a message if we failed to find the workspace or agent.
 		if (workspace.isLoading) {
@@ -220,16 +348,18 @@ const TerminalPage: FC = () => {
 			return;
 		}
 
+		// Clear terminal on initial load (but not on reconnections)
+		terminal.clear();
+
 		// Hook up terminal events to the websocket.
-		let websocket: WebSocket | null;
 		const disposers = [
 			terminal.onData((data) => {
-				websocket?.send(
+				websocketRef.current?.send(
 					new TextEncoder().encode(JSON.stringify({ data: data })),
 				);
 			}),
 			terminal.onResize((event) => {
-				websocket?.send(
+				websocketRef.current?.send(
 					new TextEncoder().encode(
 						JSON.stringify({
 							height: event.rows,
@@ -240,90 +370,25 @@ const TerminalPage: FC = () => {
 			}),
 		];
 
-		let disposed = false;
-
-		terminalWebsocketUrl(
-			// When on development mode we can bypass the proxy and connect directly.
-			process.env.NODE_ENV !== "development"
-				? proxy.preferredPathAppURL
-				: undefined,
-			reconnectionToken,
-			workspaceAgent.id,
-			command,
-			terminal.rows,
-			terminal.cols,
-			containerName,
-			containerUser,
-		)
-			.then((url) => {
-				if (disposed) {
-					return; // Unmounted while we waited for the async call.
-				}
-				websocket = new WebSocket(url);
-				websocket.binaryType = "arraybuffer";
-				websocket.addEventListener("open", () => {
-					// Now that we are connected, allow user input.
-					terminal.options = {
-						disableStdin: false,
-						windowsMode: workspaceAgent?.operating_system === "windows",
-					};
-					// Send the initial size.
-					websocket?.send(
-						new TextEncoder().encode(
-							JSON.stringify({
-								height: terminal.rows,
-								width: terminal.cols,
-							}),
-						),
-					);
-					setConnectionStatus("connected");
-				});
-				websocket.addEventListener("error", () => {
-					terminal.options.disableStdin = true;
-					terminal.writeln(
-						`${Language.websocketErrorMessagePrefix}socket errored`,
-					);
-					setConnectionStatus("disconnected");
-				});
-				websocket.addEventListener("close", () => {
-					terminal.options.disableStdin = true;
-					setConnectionStatus("disconnected");
-				});
-				websocket.addEventListener("message", (event) => {
-					if (typeof event.data === "string") {
-						// This exclusively occurs when testing.
-						// "jest-websocket-mock" doesn't support ArrayBuffer.
-						terminal.write(event.data);
-					} else {
-						terminal.write(new Uint8Array(event.data));
-					}
-				});
-			})
-			.catch((error) => {
-				if (disposed) {
-					return; // Unmounted while we waited for the async call.
-				}
-				terminal.writeln(Language.websocketErrorMessagePrefix + error.message);
-				setConnectionStatus("disconnected");
-			});
+		// Start initial connection
+		connectToTerminal().catch((error) => {
+			terminal.writeln(Language.websocketErrorMessagePrefix + error.message);
+			setConnectionStatus("disconnected");
+		});
 
 		return () => {
-			disposed = true; // Could use AbortController instead?
 			for (const d of disposers) {
 				d.dispose();
 			}
-			websocket?.close(1000);
+			websocketRef.current?.close(1000);
+			websocketRef.current = null;
 		};
 	}, [
-		command,
-		proxy.preferredPathAppURL,
-		reconnectionToken,
 		terminal,
 		workspace.error,
 		workspace.isLoading,
 		workspaceAgent,
-		containerName,
-		containerUser,
+		connectToTerminal,
 	]);
 
 	return (
@@ -347,6 +412,11 @@ const TerminalPage: FC = () => {
 					onAlertChange={() => {
 						fitAddonRef.current?.fit();
 					}}
+					isRetrying={isRetrying}
+					timeUntilNextRetry={timeUntilNextRetry}
+					attemptCount={attemptCount}
+					maxAttempts={retryConfig.maxAttempts}
+					onRetryNow={retry}
 				/>
 				<div
 					css={styles.terminal}
