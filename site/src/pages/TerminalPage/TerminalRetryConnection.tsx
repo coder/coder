@@ -1,6 +1,6 @@
 import { Button } from "components/Button/Button";
 import { Spinner } from "components/Spinner/Spinner";
-import { type FC } from "react";
+import type { FC } from "react";
 
 interface TerminalRetryConnectionProps {
 	/**

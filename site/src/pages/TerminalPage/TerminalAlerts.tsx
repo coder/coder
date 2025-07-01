@@ -4,8 +4,8 @@ import { Alert, type AlertProps } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
 import { type FC, useEffect, useRef, useState } from "react";
 import { docs } from "utils/docs";
-import type { ConnectionStatus } from "./types";
 import { TerminalRetryConnection } from "./TerminalRetryConnection";
+import type { ConnectionStatus } from "./types";
 
 type TerminalAlertsProps = {
 	agent: WorkspaceAgent | undefined;
@@ -73,7 +73,7 @@ export const TerminalAlerts = ({
 			) : lifecycleState === "starting" ? (
 				<LoadingScriptsAlert />
 			) : lifecycleState === "ready" &&
-			  prevLifecycleState.current === "starting" ? (
+				prevLifecycleState.current === "starting" ? (
 				<LoadedScriptsAlert />
 			) : null}
 		</div>

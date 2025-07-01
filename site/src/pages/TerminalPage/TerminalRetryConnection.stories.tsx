@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { action } from "@storybook/addon-actions";
+import type { Meta, StoryObj } from "@storybook/react";
 import { TerminalRetryConnection } from "./TerminalRetryConnection";
 
 const meta: Meta<typeof TerminalRetryConnection> = {
