@@ -6,6 +6,7 @@ import Stack from "@mui/material/Stack";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Button } from "components/Button/Button";
+import { ExternalLinkIcon } from "lucide-react";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
@@ -31,8 +32,10 @@ export const CreateTemplateGalleryPageView: FC<
 							href="https://registry.coder.com"
 							target="_blank"
 							rel="noopener noreferrer"
+							className="flex items-center"
 						>
 							Browse the Coder Registry
+							<ExternalLinkIcon className="size-icon-sm ml-1" />
 						</a>
 					</Button>
 				}

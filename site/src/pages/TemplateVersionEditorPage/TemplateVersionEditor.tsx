@@ -25,7 +25,7 @@ import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { TriangleAlertIcon } from "lucide-react";
 import { ChevronLeftIcon } from "lucide-react";
-import { PlayIcon, PlusIcon, XIcon } from "lucide-react";
+import { ExternalLinkIcon, PlayIcon, PlusIcon, XIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
 import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
@@ -261,8 +261,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									href="https://registry.coder.com"
 									target="_blank"
 									rel="noopener noreferrer"
+									className="flex items-center"
 								>
 									Browse the Coder Registry
+									<ExternalLinkIcon className="size-icon-sm ml-1" />
 								</a>
 							</Button>
 						</span>
