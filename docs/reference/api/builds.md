@@ -491,9 +491,10 @@ curl -X PATCH http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/c
 
 ### Parameters
 
-| Name             | In   | Type   | Required | Description        |
-|------------------|------|--------|----------|--------------------|
-| `workspacebuild` | path | string | true     | Workspace build ID |
+| Name             | In    | Type   | Required | Description               |
+|------------------|-------|--------|----------|---------------------------|
+| `workspacebuild` | path  | string | true     | Workspace build ID        |
+| `expect_state`   | query | string | false    | Expected state of the job |
 
 ### Example responses
 

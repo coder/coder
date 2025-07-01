@@ -581,10 +581,12 @@ func (api *API) notifyWorkspaceUpdated(
 // @Produce json
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
+// @Param expect_state query string false "Expected state of the job"
 // @Success 200 {object} codersdk.Response
 // @Router /workspacebuilds/{workspacebuild}/cancel [patch]
 func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	expectState := r.URL.Query().Get("expect_state")
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 	if err != nil {
@@ -609,46 +611,94 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	job, err := api.Database.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Job has already completed!",
-		})
-		return
-	}
-	if job.CanceledAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Job has already been marked as canceled!",
-		})
-		return
-	}
-	err = api.Database.UpdateProvisionerJobWithCancelByID(ctx, database.UpdateProvisionerJobWithCancelByIDParams{
-		ID: job.ID,
-		CanceledAt: sql.NullTime{
-			Time:  dbtime.Now(),
-			Valid: true,
-		},
-		CompletedAt: sql.NullTime{
-			Time: dbtime.Now(),
-			// If the job is running, don't mark it completed!
-			Valid: !job.WorkerID.Valid,
-		},
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating provisioner job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	if expectState != "" {
+		jobStatus := database.ProvisionerJobStatus(expectState)
+		if !jobStatus.Valid() {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid expect_state. Only 'pending', 'running', 'succeeded', 'canceling', 'canceled', 'failed', or 'unknown' are allowed.",
+			})
+			return
+		}
 
+		// use local error type to detect if the error is due to job state mismatch
+		var errJobStateMismatch = xerrors.New("job is not in the expected state")
+
+		err := api.Database.InTx(func(store database.Store) error {
+			job, err := store.GetProvisionerJobByIDForUpdate(ctx, workspaceBuild.JobID)
+			if err != nil {
+				return err
+			}
+
+			if job.JobStatus != jobStatus {
+				return errJobStateMismatch
+			}
+
+			return store.UpdateProvisionerJobWithCancelByID(ctx, database.UpdateProvisionerJobWithCancelByIDParams{
+				ID: job.ID,
+				CanceledAt: sql.NullTime{
+					Time:  dbtime.Now(),
+					Valid: true,
+				},
+				CompletedAt: sql.NullTime{
+					Time:  dbtime.Now(),
+					Valid: !job.WorkerID.Valid,
+				},
+			})
+		}, nil)
+		if err != nil {
+			if errors.Is(err, errJobStateMismatch) {
+				httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+					Message: "Job is not in the expected state.",
+				})
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching provisioner job.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	} else {
+		job, err := api.Database.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching provisioner job.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if job.CompletedAt.Valid {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Job has already completed!",
+			})
+			return
+		}
+		if job.CanceledAt.Valid {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Job has already been marked as canceled!",
+			})
+			return
+		}
+		err = api.Database.UpdateProvisionerJobWithCancelByID(ctx, database.UpdateProvisionerJobWithCancelByIDParams{
+			ID: job.ID,
+			CanceledAt: sql.NullTime{
+				Time:  dbtime.Now(),
+				Valid: true,
+			},
+			CompletedAt: sql.NullTime{
+				Time: dbtime.Now(),
+				// If the job is running, don't mark it completed!
+				Valid: !job.WorkerID.Valid,
+			},
+		})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error updating provisioner job.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
 	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
 		Kind:        wspubsub.WorkspaceEventKindStateChange,
 		WorkspaceID: workspace.ID,

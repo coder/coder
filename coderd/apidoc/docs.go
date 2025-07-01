@@ -8839,6 +8839,12 @@ const docTemplate = `{
                         "name": "workspacebuild",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Expected state of the job",
+                        "name": "expect_state",
+                        "in": "query"
                     }
                 ],
                 "responses": {

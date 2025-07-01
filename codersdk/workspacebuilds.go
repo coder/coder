@@ -123,9 +123,21 @@ func (c *Client) WorkspaceBuild(ctx context.Context, id uuid.UUID) (WorkspaceBui
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
 }
 
+type CancelWorkspaceBuildRequest struct {
+	ExpectState ProvisionerJobStatus `json:"expect_state,omitempty"`
+}
+
+func (c *CancelWorkspaceBuildRequest) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		q.Set("expect_state", string(c.ExpectState))
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
 // CancelWorkspaceBuild marks a workspace build job as canceled.
-func (c *Client) CancelWorkspaceBuild(ctx context.Context, id uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/workspacebuilds/%s/cancel", id), nil)
+func (c *Client) CancelWorkspaceBuild(ctx context.Context, id uuid.UUID, req CancelWorkspaceBuildRequest) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/workspacebuilds/%s/cancel", id), nil, req.asRequestOption())
 	if err != nil {
 		return err
 	}
