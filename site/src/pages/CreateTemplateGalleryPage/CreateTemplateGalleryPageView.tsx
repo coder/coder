@@ -28,12 +28,13 @@ export const CreateTemplateGalleryPageView: FC<
 		<Margins>
 			<PageHeader
 				actions={
-					<span css={{ whiteSpace: "nowrap" }}>
+					<span className="whitespace-nowrap">
 						<Link
 							href="https://registry.coder.com"
 							target="_blank"
 							rel="noopener noreferrer"
 							size="sm"
+							button
 						>
 							Browse the Coder Registry
 						</Link>

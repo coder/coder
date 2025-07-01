@@ -256,12 +256,13 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							paddingRight: 16,
 						}}
 					>
-						<span css={{ marginRight: 8, whiteSpace: "nowrap" }}>
+						<span className="mr-2 whitespace-nowrap">
 							<Link
 								href="https://registry.coder.com"
 								target="_blank"
 								rel="noopener noreferrer"
 								size="sm"
+								button
 							>
 								Browse the Coder Registry
 							</Link>
