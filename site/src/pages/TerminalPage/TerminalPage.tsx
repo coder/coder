@@ -49,7 +49,7 @@ const TerminalPage: FC = () => {
 	// updates.
 	const [terminal, setTerminal] = useState<Terminal>();
 	const [connectionStatus, setConnectionStatus] =
-		useState<ConnectionStatus>("connecting");
+		useState<ConnectionStatus>("initializing");
 	const [searchParams] = useSearchParams();
 	const isDebugging = searchParams.has("debug");
 	// The reconnection token is a unique token that identifies
