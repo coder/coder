@@ -763,220 +763,351 @@ func TestExpMcpReporter(t *testing.T) {
 		<-cmdDone
 	})
 
-	t.Run("OK", func(t *testing.T) {
-		t.Parallel()
+	makeStatusEvent := func(status agentapi.AgentStatus) *codersdk.ServerSentEvent {
+		return &codersdk.ServerSentEvent{
+			Type: ServerSentEventTypeStatusChange,
+			Data: agentapi.EventStatusChange{
+				Status: status,
+			},
+		}
+	}
 
-		// Create a test deployment and workspace.
-		client, db := coderdtest.NewWithDatabase(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		client, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+	makeMessageEvent := func(id int64, role agentapi.ConversationRole) *codersdk.ServerSentEvent {
+		return &codersdk.ServerSentEvent{
+			Type: ServerSentEventTypeMessageUpdate,
+			Data: agentapi.EventMessageUpdate{
+				Id:   id,
+				Role: role,
+			},
+		}
+	}
 
-		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        user2.ID,
-		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
-			a[0].Apps = []*proto.App{
+	type test struct {
+		// event simulates an event from the screen watcher.
+		event *codersdk.ServerSentEvent
+		// state, summary, and uri simulate a tool call from the AI agent.
+		state    codersdk.WorkspaceAppStatusState
+		summary  string
+		uri      string
+		expected *codersdk.WorkspaceAppStatus
+	}
+
+	runs := []struct {
+		name            string
+		tests           []test
+		disableAgentAPI bool
+	}{
+		// In this run the AI agent starts with a state change but forgets to update
+		// that it finished.
+		{
+			name: "Active",
+			tests: []test{
+				// First the AI agent updates with a state change.
 				{
-					Slug: "vscode",
+					state:   codersdk.WorkspaceAppStatusStateWorking,
+					summary: "doing work",
+					uri:     "https://dev.coder.com",
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateWorking,
+						Message: "doing work",
+						URI:     "https://dev.coder.com",
+					},
 				},
-			}
-			return a
-		}).Do()
-
-		makeStatusEvent := func(status agentapi.AgentStatus) *codersdk.ServerSentEvent {
-			return &codersdk.ServerSentEvent{
-				Type: ServerSentEventTypeStatusChange,
-				Data: agentapi.EventStatusChange{
-					Status: status,
+				// Terminal goes quiet but the AI agent forgot the update, and it is
+				// caught by the screen watcher.  Message and URI are preserved.
+				{
+					event: makeStatusEvent(agentapi.StatusStable),
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateIdle,
+						Message: "doing work",
+						URI:     "https://dev.coder.com",
+					},
 				},
-			}
-		}
-
-		makeMessageEvent := func(id int64, role agentapi.ConversationRole) *codersdk.ServerSentEvent {
-			return &codersdk.ServerSentEvent{
-				Type: ServerSentEventTypeMessageUpdate,
-				Data: agentapi.EventMessageUpdate{
-					Id:   id,
-					Role: role,
+				// A stable update now from the watcher should be discarded, as it is a
+				// duplicate.
+				{
+					event: makeStatusEvent(agentapi.StatusStable),
 				},
-			}
-		}
+				// Terminal becomes active again according to the screen watcher, but no
+				// new user message.  This could be the AI agent being active again, but
+				// it could also be the user messing around.  We will prefer not updating
+				// the status so the "working" update here should be skipped.
+				//
+				// TODO: How do we test the no-op updates?  This update is skipped
+				// because of the logic mentioned above, but how do we prove this update
+				// was skipped because of that and not that the next update was skipped
+				// because it is a duplicate state?  We could mock the queue?
+				{
+					event: makeStatusEvent(agentapi.StatusRunning),
+				},
+				// Agent messages are ignored.
+				{
+					event: makeMessageEvent(0, agentapi.RoleAgent),
+				},
+				// The watcher reports the screen is active again...
+				{
+					event: makeStatusEvent(agentapi.StatusRunning),
+				},
+				// ... but this time we have a new user message so we know there is AI
+				// agent activity.  This time the "working" update will not be skipped.
+				{
+					event: makeMessageEvent(1, agentapi.RoleUser),
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateWorking,
+						Message: "doing work",
+						URI:     "https://dev.coder.com",
+					},
+				},
+				// Watcher reports stable again.
+				{
+					event: makeStatusEvent(agentapi.StatusStable),
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateIdle,
+						Message: "doing work",
+						URI:     "https://dev.coder.com",
+					},
+				},
+			},
+		},
+		// In this run the AI agent never sends any state changes.
+		{
+			name: "Inactive",
+			tests: []test{
+				// The "working" status from the watcher should be accepted, even though
+				// there is no new user message, because it is the first update.
+				{
+					event: makeStatusEvent(agentapi.StatusRunning),
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateWorking,
+						Message: "",
+						URI:     "",
+					},
+				},
+				// Stable update should be accepted.
+				{
+					event: makeStatusEvent(agentapi.StatusStable),
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateIdle,
+						Message: "",
+						URI:     "",
+					},
+				},
+				// Zero ID should be accepted.
+				{
+					event: makeMessageEvent(0, agentapi.RoleUser),
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateWorking,
+						Message: "",
+						URI:     "",
+					},
+				},
+				// Stable again.
+				{
+					event: makeStatusEvent(agentapi.StatusStable),
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateIdle,
+						Message: "",
+						URI:     "",
+					},
+				},
+				// Next ID.
+				{
+					event: makeMessageEvent(1, agentapi.RoleUser),
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateWorking,
+						Message: "",
+						URI:     "",
+					},
+				},
+			},
+		},
+		// We ignore the state from the agent and assume "working".
+		{
+			name: "IgnoreAgentState",
+			// AI agent reports that it is finished but the summary says it is doing
+			// work.
+			tests: []test{
+				{
+					state:   codersdk.WorkspaceAppStatusStateIdle,
+					summary: "doing work",
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateWorking,
+						Message: "doing work",
+					},
+				},
+				// AI agent reports finished again, with a matching summary.  We still
+				// assume it is working.
+				{
+					state:   codersdk.WorkspaceAppStatusStateIdle,
+					summary: "finished",
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateWorking,
+						Message: "finished",
+					},
+				},
+				// Once the watcher reports stable, then we record idle.
+				{
+					event: makeStatusEvent(agentapi.StatusStable),
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateIdle,
+						Message: "finished",
+					},
+				},
+			},
+		},
+		// When AgentAPI is not being used, we accept agent state updates as-is.
+		{
+			name: "KeepAgentState",
+			tests: []test{
+				{
+					state:   codersdk.WorkspaceAppStatusStateWorking,
+					summary: "doing work",
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateWorking,
+						Message: "doing work",
+					},
+				},
+				{
+					state:   codersdk.WorkspaceAppStatusStateIdle,
+					summary: "finished",
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateIdle,
+						Message: "finished",
+					},
+				},
+			},
+			disableAgentAPI: true,
+		},
+	}
 
-		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+	for _, run := range runs {
+		run := run
+		t.Run(run.name, func(t *testing.T) {
+			t.Parallel()
 
-		// Mock the AI AgentAPI server.
-		listening := make(chan func(sse codersdk.ServerSentEvent) error)
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			send, closed, err := httpapi.ServerSentEventSender(w, r)
-			if err != nil {
-				httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error setting up server-sent events.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-			// Send initial message.
-			send(*makeMessageEvent(0, agentapi.RoleAgent))
-			listening <- send
-			<-closed
-		}))
-		t.Cleanup(srv.Close)
-		aiAgentAPIURL := srv.URL
+			ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
 
-		// Watch the workspace for changes.
-		watcher, err := client.WatchWorkspace(ctx, r.Workspace.ID)
-		require.NoError(t, err)
-		var lastAppStatus codersdk.WorkspaceAppStatus
-		nextUpdate := func() codersdk.WorkspaceAppStatus {
-			for {
-				select {
-				case <-ctx.Done():
-					require.FailNow(t, "timed out waiting for status update")
-				case w, ok := <-watcher:
-					require.True(t, ok, "watch channel closed")
-					if w.LatestAppStatus != nil && w.LatestAppStatus.ID != lastAppStatus.ID {
-						lastAppStatus = *w.LatestAppStatus
-						return lastAppStatus
+			// Create a test deployment and workspace.
+			client, db := coderdtest.NewWithDatabase(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			client, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+			r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user2.ID,
+			}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+				a[0].Apps = []*proto.App{
+					{
+						Slug: "vscode",
+					},
+				}
+				return a
+			}).Do()
+
+			// Watch the workspace for changes.
+			watcher, err := client.WatchWorkspace(ctx, r.Workspace.ID)
+			require.NoError(t, err)
+			var lastAppStatus codersdk.WorkspaceAppStatus
+			nextUpdate := func() codersdk.WorkspaceAppStatus {
+				for {
+					select {
+					case <-ctx.Done():
+						require.FailNow(t, "timed out waiting for status update")
+					case w, ok := <-watcher:
+						require.True(t, ok, "watch channel closed")
+						if w.LatestAppStatus != nil && w.LatestAppStatus.ID != lastAppStatus.ID {
+							t.Logf("Got status update: %s > %s", lastAppStatus.State, w.LatestAppStatus.State)
+							lastAppStatus = *w.LatestAppStatus
+							return lastAppStatus
+						}
 					}
 				}
 			}
-		}
 
-		inv, _ := clitest.New(t,
-			"exp", "mcp", "server",
-			// We need the agent credentials, AI AgentAPI url, and a slug for reporting.
-			"--agent-url", client.URL.String(),
-			"--agent-token", r.AgentToken,
-			"--app-status-slug", "vscode",
-			"--ai-agentapi-url", aiAgentAPIURL,
-			"--allowed-tools=coder_report_task",
-		)
-		inv = inv.WithContext(ctx)
-
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
-		stderr := ptytest.New(t)
-		inv.Stderr = stderr.Output()
-
-		// Run the MCP server.
-		cmdDone := make(chan struct{})
-		go func() {
-			defer close(cmdDone)
-			err := inv.Run()
-			assert.NoError(t, err)
-		}()
-
-		// Initialize.
-		payload := `{"jsonrpc":"2.0","id":1,"method":"initialize"}`
-		pty.WriteLine(payload)
-		_ = pty.ReadLine(ctx) // ignore echo
-		_ = pty.ReadLine(ctx) // ignore init response
-
-		sender := <-listening
-
-		tests := []struct {
-			// event simulates an event from the screen watcher.
-			event *codersdk.ServerSentEvent
-			// state, summary, and uri simulate a tool call from the AI agent.
-			state    codersdk.WorkspaceAppStatusState
-			summary  string
-			uri      string
-			expected *codersdk.WorkspaceAppStatus
-		}{
-			// First the AI agent updates with a state change.
-			{
-				state:   codersdk.WorkspaceAppStatusStateWorking,
-				summary: "doing work",
-				uri:     "https://dev.coder.com",
-				expected: &codersdk.WorkspaceAppStatus{
-					State:   codersdk.WorkspaceAppStatusStateWorking,
-					Message: "doing work",
-					URI:     "https://dev.coder.com",
-				},
-			},
-			// Terminal goes quiet but the AI agent forgot the update, and it is
-			// caught by the screen watcher.  Message and URI are preserved.
-			{
-				event: makeStatusEvent(agentapi.StatusStable),
-				expected: &codersdk.WorkspaceAppStatus{
-					State:   codersdk.WorkspaceAppStatusStateIdle,
-					Message: "doing work",
-					URI:     "https://dev.coder.com",
-				},
-			},
-			// A completed update at this point from the watcher should be discarded.
-			{
-				event: makeStatusEvent(agentapi.StatusStable),
-			},
-			// Terminal becomes active again according to the screen watcher, but no
-			// new user message.  This could be the AI agent being active again, but
-			// it could also be the user messing around.  We will prefer not updating
-			// the status so the "working" update here should be skipped.
-			{
-				event: makeStatusEvent(agentapi.StatusRunning),
-			},
-			// Agent messages are ignored.
-			{
-				event: makeMessageEvent(1, agentapi.RoleAgent),
-			},
-			// AI agent reports that it failed and URI is blank.
-			{
-				state:   codersdk.WorkspaceAppStatusStateFailure,
-				summary: "oops",
-				expected: &codersdk.WorkspaceAppStatus{
-					State:   codersdk.WorkspaceAppStatusStateFailure,
-					Message: "oops",
-					URI:     "",
-				},
-			},
-			// The watcher reports the screen is active again...
-			{
-				event: makeStatusEvent(agentapi.StatusRunning),
-			},
-			// ... but this time we have a new user message so we know there is AI
-			// agent activity.  This time the "working" update will not be skipped.
-			{
-				event: makeMessageEvent(2, agentapi.RoleUser),
-				expected: &codersdk.WorkspaceAppStatus{
-					State:   codersdk.WorkspaceAppStatusStateWorking,
-					Message: "oops",
-					URI:     "",
-				},
-			},
-			// Watcher reports stable again.
-			{
-				event: makeStatusEvent(agentapi.StatusStable),
-				expected: &codersdk.WorkspaceAppStatus{
-					State:   codersdk.WorkspaceAppStatusStateIdle,
-					Message: "oops",
-					URI:     "",
-				},
-			},
-		}
-		for _, test := range tests {
-			if test.event != nil {
-				err := sender(*test.event)
-				require.NoError(t, err)
-			} else {
-				// Call the tool and ensure it works.
-				payload := fmt.Sprintf(`{"jsonrpc":"2.0","id":3,"method":"tools/call", "params": {"name": "coder_report_task", "arguments": {"state": %q, "summary": %q, "link": %q}}}`, test.state, test.summary, test.uri)
-				pty.WriteLine(payload)
-				_ = pty.ReadLine(ctx) // ignore echo
-				output := pty.ReadLine(ctx)
-				require.NotEmpty(t, output, "did not receive a response from coder_report_task")
-				// Ensure it is valid JSON.
-				_, err = json.Marshal(output)
-				require.NoError(t, err, "did not receive valid JSON from coder_report_task")
+			args := []string{
+				"exp", "mcp", "server",
+				// We need the agent credentials, AI AgentAPI url (if not
+				// disabled), and a slug for reporting.
+				"--agent-url", client.URL.String(),
+				"--agent-token", r.AgentToken,
+				"--app-status-slug", "vscode",
+				"--allowed-tools=coder_report_task",
 			}
-			if test.expected != nil {
-				got := nextUpdate()
-				require.Equal(t, got.State, test.expected.State)
-				require.Equal(t, got.Message, test.expected.Message)
-				require.Equal(t, got.URI, test.expected.URI)
+
+			// Mock the AI AgentAPI server.
+			listening := make(chan func(sse codersdk.ServerSentEvent) error)
+			if !run.disableAgentAPI {
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					send, closed, err := httpapi.ServerSentEventSender(w, r)
+					if err != nil {
+						httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+							Message: "Internal error setting up server-sent events.",
+							Detail:  err.Error(),
+						})
+						return
+					}
+					// Send initial message.
+					send(*makeMessageEvent(0, agentapi.RoleAgent))
+					listening <- send
+					<-closed
+				}))
+				t.Cleanup(srv.Close)
+				aiAgentAPIURL := srv.URL
+				args = append(args, "--ai-agentapi-url", aiAgentAPIURL)
 			}
-		}
-		cancel()
-		<-cmdDone
-	})
+
+			inv, _ := clitest.New(t, args...)
+			inv = inv.WithContext(ctx)
+
+			pty := ptytest.New(t)
+			inv.Stdin = pty.Input()
+			inv.Stdout = pty.Output()
+			stderr := ptytest.New(t)
+			inv.Stderr = stderr.Output()
+
+			// Run the MCP server.
+			cmdDone := make(chan struct{})
+			go func() {
+				defer close(cmdDone)
+				err := inv.Run()
+				assert.NoError(t, err)
+			}()
+
+			// Initialize.
+			payload := `{"jsonrpc":"2.0","id":1,"method":"initialize"}`
+			pty.WriteLine(payload)
+			_ = pty.ReadLine(ctx) // ignore echo
+			_ = pty.ReadLine(ctx) // ignore init response
+
+			var sender func(sse codersdk.ServerSentEvent) error
+			if !run.disableAgentAPI {
+				sender = <-listening
+			}
+
+			for _, test := range run.tests {
+				if test.event != nil {
+					err := sender(*test.event)
+					require.NoError(t, err)
+				} else {
+					// Call the tool and ensure it works.
+					payload := fmt.Sprintf(`{"jsonrpc":"2.0","id":3,"method":"tools/call", "params": {"name": "coder_report_task", "arguments": {"state": %q, "summary": %q, "link": %q}}}`, test.state, test.summary, test.uri)
+					pty.WriteLine(payload)
+					_ = pty.ReadLine(ctx) // ignore echo
+					output := pty.ReadLine(ctx)
+					require.NotEmpty(t, output, "did not receive a response from coder_report_task")
+					// Ensure it is valid JSON.
+					_, err = json.Marshal(output)
+					require.NoError(t, err, "did not receive valid JSON from coder_report_task")
+				}
+				if test.expected != nil {
+					got := nextUpdate()
+					require.Equal(t, got.State, test.expected.State)
+					require.Equal(t, got.Message, test.expected.Message)
+					require.Equal(t, got.URI, test.expected.URI)
+				}
+			}
+			cancel()
+			<-cmdDone
+		})
+	}
 }

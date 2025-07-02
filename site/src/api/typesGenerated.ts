@@ -1458,6 +1458,19 @@ export interface OAuth2AppEndpoints {
 	readonly device_authorization: string;
 }
 
+// From codersdk/oauth2.go
+export interface OAuth2AuthorizationServerMetadata {
+	readonly issuer: string;
+	readonly authorization_endpoint: string;
+	readonly token_endpoint: string;
+	readonly registration_endpoint?: string;
+	readonly response_types_supported: readonly string[];
+	readonly grant_types_supported: readonly string[];
+	readonly code_challenge_methods_supported: readonly string[];
+	readonly scopes_supported?: readonly string[];
+	readonly token_endpoint_auth_methods_supported?: readonly string[];
+}
+
 // From codersdk/deployment.go
 export interface OAuth2Config {
 	readonly github: OAuth2GithubConfig;
@@ -1836,6 +1849,7 @@ export interface PreviewParameterStyling {
 	readonly placeholder?: string;
 	readonly disabled?: boolean;
 	readonly label?: string;
+	readonly mask_input?: boolean;
 }
 
 // From codersdk/parameters.go
@@ -3342,6 +3356,7 @@ export interface WorkspaceAgentDevcontainer {
 	readonly dirty: boolean;
 	readonly container?: WorkspaceAgentContainer;
 	readonly agent?: WorkspaceAgentDevcontainerAgent;
+	readonly error?: string;
 }
 
 // From codersdk/workspaceagents.go

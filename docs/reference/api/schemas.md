@@ -2890,6 +2890,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "styling": {
         "disabled": true,
         "label": "string",
+        "mask_input": true,
         "placeholder": "string"
       },
       "type": "string",
@@ -4182,6 +4183,46 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `device_authorization` | string | false    |              | Device authorization is optional. |
 | `token`                | string | false    |              |                                   |
 
+## codersdk.OAuth2AuthorizationServerMetadata
+
+```json
+{
+  "authorization_endpoint": "string",
+  "code_challenge_methods_supported": [
+    "string"
+  ],
+  "grant_types_supported": [
+    "string"
+  ],
+  "issuer": "string",
+  "registration_endpoint": "string",
+  "response_types_supported": [
+    "string"
+  ],
+  "scopes_supported": [
+    "string"
+  ],
+  "token_endpoint": "string",
+  "token_endpoint_auth_methods_supported": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name                                    | Type            | Required | Restrictions | Description |
+|-----------------------------------------|-----------------|----------|--------------|-------------|
+| `authorization_endpoint`                | string          | false    |              |             |
+| `code_challenge_methods_supported`      | array of string | false    |              |             |
+| `grant_types_supported`                 | array of string | false    |              |             |
+| `issuer`                                | string          | false    |              |             |
+| `registration_endpoint`                 | string          | false    |              |             |
+| `response_types_supported`              | array of string | false    |              |             |
+| `scopes_supported`                      | array of string | false    |              |             |
+| `token_endpoint`                        | string          | false    |              |             |
+| `token_endpoint_auth_methods_supported` | array of string | false    |              |             |
+
 ## codersdk.OAuth2Config
 
 ```json
@@ -5019,6 +5060,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "styling": {
     "disabled": true,
     "label": "string",
+    "mask_input": true,
     "placeholder": "string"
   },
   "type": "string",
@@ -5088,6 +5130,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "disabled": true,
   "label": "string",
+  "mask_input": true,
   "placeholder": "string"
 }
 ```
@@ -5098,6 +5141,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |---------------|---------|----------|--------------|-------------|
 | `disabled`    | boolean | false    |              |             |
 | `label`       | string  | false    |              |             |
+| `mask_input`  | boolean | false    |              |             |
 | `placeholder` | string  | false    |              |             |
 
 ## codersdk.PreviewParameterValidation
@@ -8554,6 +8598,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     }
   },
   "dirty": true,
+  "error": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "status": "running",
@@ -8569,6 +8614,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `config_path`      | string                                                                                 | false    |              |                            |
 | `container`        | [codersdk.WorkspaceAgentContainer](#codersdkworkspaceagentcontainer)                   | false    |              |                            |
 | `dirty`            | boolean                                                                                | false    |              |                            |
+| `error`            | string                                                                                 | false    |              |                            |
 | `id`               | string                                                                                 | false    |              |                            |
 | `name`             | string                                                                                 | false    |              |                            |
 | `status`           | [codersdk.WorkspaceAgentDevcontainerStatus](#codersdkworkspaceagentdevcontainerstatus) | false    |              | Additional runtime fields. |
@@ -8710,6 +8756,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         }
       },
       "dirty": true,
+      "error": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "name": "string",
       "status": "running",
