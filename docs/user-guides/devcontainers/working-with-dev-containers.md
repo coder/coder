@@ -49,8 +49,7 @@ work.
 
 ## Port Forwarding
 
-Coder automatically forwards any port declared in `appPort`, `forwardPorts`,
-or exposed by `docker-compose.yml`.
+Coder automatically forwards any port declared in `appPort` or `forwardPorts`.
 Use the dashboard to open a forwarded port, or the CLI:
 
 ```console

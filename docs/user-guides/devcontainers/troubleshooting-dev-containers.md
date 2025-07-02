@@ -12,7 +12,6 @@ If your dev container fails to start:
    - `/tmp/coder-agent.log`
    - `/tmp/coder-startup-script.log`
    - `/tmp/coder-script-[script_id].log`
-   - `/tmp/devcontainer-build.log`
 
 1. Verify that Docker is running in your workspace.
 1. Ensure the `devcontainer.json` file is valid.
@@ -23,7 +22,6 @@ If your dev container fails to start:
 ## Rebuild prompt does not appear
 
 1. Confirm that you saved `devcontainer.json` in the correct repo path detected by Coder.
-1. Run `coder devcontainer rebuild` manually.
 1. Check agent logs for `devcontainer build` errors.
 
 ## Known Limitations
