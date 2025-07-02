@@ -11031,10 +11031,11 @@ INSERT INTO
 		group_acl,
 		display_name,
 		allow_user_cancel_workspace_jobs,
-		max_port_sharing_level
+		max_port_sharing_level,
+		use_classic_parameter_flow
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 `
 
 type InsertTemplateParams struct {
@@ -11053,6 +11054,7 @@ type InsertTemplateParams struct {
 	DisplayName                  string          `db:"display_name" json:"display_name"`
 	AllowUserCancelWorkspaceJobs bool            `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
 	MaxPortSharingLevel          AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
+	UseClassicParameterFlow      bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) error {
@@ -11072,6 +11074,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.DisplayName,
 		arg.AllowUserCancelWorkspaceJobs,
 		arg.MaxPortSharingLevel,
+		arg.UseClassicParameterFlow,
 	)
 	return err
 }
