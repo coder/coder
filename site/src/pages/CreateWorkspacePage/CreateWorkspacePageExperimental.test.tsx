@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import type {
 	DynamicParametersResponse,
-	PreviewParameter,
 } from "api/typesGenerated";
 import {
 	MockTemplate,
@@ -11,6 +10,11 @@ import {
 	MockTemplateVersionExternalAuthGithubAuthenticated,
 	MockUserOwner,
 	MockWorkspace,
+	mockDropdownParameter,
+	mockTagSelectParameter,
+	mockSwitchParameter,
+	mockSliderParameter,
+	validationParameter,
 } from "testHelpers/entities";
 import {
 	renderWithAuth,
@@ -36,13 +40,6 @@ type MockPublisher = Readonly<{
 	publishClose: (event: CloseEvent) => void;
 	publishOpen: (event: Event) => void;
 }>;
-
-type WebSocketEventMap = {
-	message: MessageEvent<string>;
-	error: ErrorEvent;
-	close: CloseEvent;
-	open: Event;
-};
 
 type MockWebSocket = Omit<WebSocket, "readyState"> & {
 	readyState: number;
@@ -94,7 +91,7 @@ function createMockWebSocket(
 
 		addEventListener: <E extends keyof WebSocketEventMap>(
 			eventType: E,
-			callback: (event: WebSocketEventMap[E]) => void,
+			callback: WebSocketEventMap[E],
 		) => {
 			if (closed) {
 				return;
@@ -109,7 +106,7 @@ function createMockWebSocket(
 
 		removeEventListener: <E extends keyof WebSocketEventMap>(
 			eventType: E,
-			callback: (event: WebSocketEventMap[E]) => void,
+			callback: WebSocketEventMap[E],
 		) => {
 			if (closed) {
 				return;
@@ -174,134 +171,25 @@ function createMockWebSocket(
 		},
 	};
 
-	return [mockSocket as WebSocket, publisher] as const;
+	return [mockSocket, publisher] as const;
 }
 
-const mockStringParameter: PreviewParameter = {
-	name: "instance_type",
-	display_name: "Instance Type",
-	description: "The type of instance to create",
-	type: "string",
-	mutable: true,
-	default_value: { value: "t3.micro", valid: true },
-	icon: "",
-	options: [
-		{
-			name: "t3.micro",
-			description: "Micro instance",
-			value: { value: "t3.micro", valid: true },
-			icon: "",
-		},
-		{
-			name: "t3.small",
-			description: "Small instance",
-			value: { value: "t3.small", valid: true },
-			icon: "",
-		},
-		{
-			name: "t3.medium",
-			description: "Medium instance",
-			value: { value: "t3.medium", valid: true },
-			icon: "",
-		},
-	],
-	validations: [],
-	styling: {
-		placeholder: "",
-		disabled: false,
-		label: "",
-	},
-	diagnostics: [],
-	value: { value: "", valid: true },
-	required: true,
-	order: 1,
-	form_type: "dropdown",
-	ephemeral: false,
-};
 
-const mockNumberParameter: PreviewParameter = {
-	name: "cpu_count",
-	display_name: "CPU Count",
-	description: "Number of CPU cores",
-	type: "number",
-	mutable: true,
-	default_value: { value: "2", valid: true },
-	icon: "",
-	options: [],
-	validations: [],
-	styling: {
-		placeholder: "",
-		disabled: false,
-		label: "",
-	},
-	diagnostics: [],
-	value: { value: "2", valid: true },
-	required: true,
-	order: 2,
-	form_type: "slider",
-	ephemeral: false,
-};
-
-const mockBooleanParameter: PreviewParameter = {
-	name: "enable_monitoring",
-	display_name: "Enable Monitoring",
-	description: "Enable system monitoring",
-	type: "bool",
-	mutable: true,
-	default_value: { value: "true", valid: true },
-	icon: "",
-	options: [],
-	validations: [],
-	styling: {
-		placeholder: "",
-		disabled: false,
-		label: "",
-	},
-	diagnostics: [],
-	value: { value: "true", valid: true },
-	required: false,
-	order: 3,
-	form_type: "switch",
-	ephemeral: false,
-};
-
-const mockListParameter: PreviewParameter = {
-	name: "tags",
-	display_name: "Tags",
-	description: "Resource tags",
-	type: "list(string)",
-	mutable: true,
-	default_value: { value: "[]", valid: true },
-	icon: "",
-	options: [],
-	validations: [],
-	styling: {
-		placeholder: "",
-		disabled: false,
-		label: "",
-	},
-	diagnostics: [],
-	value: { value: "[]", valid: true },
-	required: false,
-	order: 4,
-	form_type: "tag-select",
-	ephemeral: false,
-};
 
 const mockDynamicParametersResponse: DynamicParametersResponse = {
 	id: 1,
 	parameters: [
-		mockStringParameter,
-		mockNumberParameter,
-		mockBooleanParameter,
-		mockListParameter,
+		mockDropdownParameter,
+		mockSliderParameter,
+		mockSwitchParameter,
+		mockTagSelectParameter,
 	],
 	diagnostics: [],
 };
 
 const mockDynamicParametersResponseWithError: DynamicParametersResponse = {
 	id: 2,
-	parameters: [mockStringParameter],
+	parameters: [mockDropdownParameter],
 	diagnostics: [
 		{
 			severity: "error",
@@ -320,6 +208,12 @@ const renderCreateWorkspacePageExperimental = (
 	return renderWithAuth(<CreateWorkspacePageExperimental />, {
 		route,
 		path: "/templates/:template/workspace",
+		extraRoutes: [
+			{
+				path: "/:username/:workspace",
+				element: <div>Workspace Page</div>,
+			},
+		],
 	});
 };
 
@@ -330,14 +224,12 @@ describe("CreateWorkspacePageExperimental", () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
 
-		// Setup API mocks using jest.spyOn like the existing tests
 		jest.spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
 		jest.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([]);
 		jest.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
 		jest.spyOn(API, "createWorkspace").mockResolvedValue(MockWorkspace);
 		jest.spyOn(API, "checkAuthorization").mockResolvedValue({});
 
-		// Mock the WebSocket creation function
 		jest
 			.spyOn(API, "templateVersionDynamicParameters")
 			.mockImplementation((versionId, _ownerId, callbacks) => {
@@ -490,7 +382,7 @@ describe("CreateWorkspacePageExperimental", () => {
 			});
 		});
 
-		it("only parameteres from latest reponse are displayed", async () => {
+		it("only parameters from latest response are displayed", async () => {
 			jest
 				.spyOn(API, "templateVersionDynamicParameters")
 				.mockImplementation((versionId, _ownerId, callbacks) => {
@@ -502,14 +394,13 @@ describe("CreateWorkspacePageExperimental", () => {
 						callbacks.onMessage(JSON.parse(event.data));
 					});
 
-					// Establish connection and send initial parameters
 					setTimeout(() => {
 						publisher.publishOpen(new Event("open"));
 						publisher.publishMessage(
 							new MessageEvent("message", {
 								data: JSON.stringify({
 									id: 0,
-									parameters: [mockStringParameter],
+									parameters: [mockDropdownParameter],
 									diagnostics: [],
 								}),
 							}),
@@ -524,12 +415,12 @@ describe("CreateWorkspacePageExperimental", () => {
 
 			const response1: DynamicParametersResponse = {
 				id: 1,
-				parameters: [mockStringParameter],
+				parameters: [mockDropdownParameter],
 				diagnostics: [],
 			};
 			const response2: DynamicParametersResponse = {
 				id: 4,
-				parameters: [mockNumberParameter],
+				parameters: [mockSliderParameter],
 				diagnostics: [],
 			};
 
@@ -551,7 +442,7 @@ describe("CreateWorkspacePageExperimental", () => {
 	});
 
 	describe("Dynamic Parameter Types", () => {
-		it("renders string parameter with select options", async () => {
+		it("renders dropdown parameter with options", async () => {
 			renderCreateWorkspacePageExperimental();
 			await waitForLoaderToBeRemoved();
 
@@ -562,7 +453,6 @@ describe("CreateWorkspacePageExperimental", () => {
 				).toBeInTheDocument();
 			});
 
-			// Open select and verify options
 			const select = screen.getByRole("combobox", { name: /instance type/i });
 
 			await waitFor(async () => {
@@ -654,38 +544,106 @@ describe("CreateWorkspacePageExperimental", () => {
 			});
 		});
 
-		// it("handles disabled parameters", async () => {
-		// 	renderCreateWorkspacePageExperimental(
-		// 		`/templates/${MockTemplate.name}/workspace?disable_params=instance_type,cpu_count`,
-		// 	);
-		// 	await waitForLoaderToBeRemoved();
+		it("displays parameter validation errors for min/max constraints", async () => {
 
-		// 	// Wait for parameters to load via WebSocket first
-		// 	await waitFor(() => {
-		// 		expect(screen.getByText("Instance Type")).toBeInTheDocument();
-		// 		expect(screen.getByText("CPU Count")).toBeInTheDocument();
-		// 	});
+			const mockResponseInitial: DynamicParametersResponse = {
+				id: 1,
+				parameters: [validationParameter],
+				diagnostics: [],
+			};
 
-		// 	// Now check if the form controls are disabled
-		// 	await waitFor(() => {
-		// 		const instanceTypeSelect = screen.queryByRole("combobox", {
-		// 			name: /instance type/i,
-		// 		});
-		// 		const cpuInput = screen.queryByDisplayValue("2"); // Look for the number input by its default value
+			const mockResponseWithError: DynamicParametersResponse = {
+				id: 2,
+				parameters: [
+					{
+						...validationParameter,
+						value: { value: "200", valid: false },
+						diagnostics: [
+							{
+								severity: "error",
+								summary: "Invalid parameter value according to 'validation' block",
+								detail: "value 200 is more than the maximum 100",
+								extra: {
+									code: "",
+								},
+							},
+						],
+					},
+				],
+				diagnostics: [],
+			};
 
-		// 		// These elements should either be disabled or not present when disabled
-		// 		if (instanceTypeSelect) {
-		// 			expect(instanceTypeSelect).toBeDisabled();
-		// 		}
-		// 		if (cpuInput) {
-		// 			expect(cpuInput).toBeDisabled();
-		// 		}
+			jest
+				.spyOn(API, "templateVersionDynamicParameters")
+				.mockImplementation((versionId, _ownerId, callbacks) => {
+					const [socket, pub] = createMockWebSocket(`ws://test/${versionId}`);
+					mockWebSocket = socket;
+					publisher = pub;
 
-		// 		// At minimum, the labels should be present
-		// 		expect(screen.getByText("Instance Type")).toBeInTheDocument();
-		// 		expect(screen.getByText("CPU Count")).toBeInTheDocument();
-		// 	});
-		// });
+					socket.addEventListener("message", (event) => {
+						callbacks.onMessage(JSON.parse(event.data));
+					});
+
+					setTimeout(() => {
+						publisher.publishOpen(new Event("open"));
+
+						publisher.publishMessage(
+							new MessageEvent("message", {
+								data: JSON.stringify(mockResponseInitial),
+							}),
+						);
+					}, 10);
+
+					const originalSend = socket.send;
+					socket.send = jest.fn((data) => {
+						originalSend.call(socket, data);
+
+						if (typeof data === "string" && data.includes('"200"')) {
+							setTimeout(() => {
+								publisher.publishMessage(
+									new MessageEvent("message", {
+										data: JSON.stringify(mockResponseWithError),
+									}),
+								);
+							}, 10);
+						}
+					});
+
+					return mockWebSocket;
+				});
+
+			renderCreateWorkspacePageExperimental();
+			await waitForLoaderToBeRemoved();
+
+			await waitFor(() => {
+				expect(screen.getByText("Invalid Parameter")).toBeInTheDocument();
+			});
+
+			const numberInput = screen.getByDisplayValue("50");
+			expect(numberInput).toBeInTheDocument();
+
+			await waitFor(async () => {
+				await userEvent.clear(numberInput);
+				await userEvent.type(numberInput, "200");
+			});
+
+			await waitFor(() => {
+				expect(screen.getByDisplayValue("200")).toBeInTheDocument();
+			});
+
+			await waitFor(() => {
+				expect(screen.getByText("Invalid parameter value according to 'validation' block")).toBeInTheDocument();
+			});
+
+			await waitFor(() => {
+				expect(
+					screen.getByText("value 200 is more than the maximum 100"),
+				).toBeInTheDocument();
+			});
+
+			const errorElement = screen.getByText("value 200 is more than the maximum 100");
+			expect(errorElement.closest('div')).toHaveClass("text-content-destructive");
+		});
 	});
 
 	describe("External Authentication", () => {
@@ -1018,6 +976,7 @@ describe("CreateWorkspacePageExperimental", () => {
 		// 			);
 		// 		});
 		// 	});
+		// });
 	});
 
 	// describe("Navigation", () => {
