@@ -244,3 +244,11 @@ type OAuth2AuthorizationServerMetadata struct {
 	ScopesSupported                   []string `json:"scopes_supported,omitempty"`
 	TokenEndpointAuthMethodsSupported []string `json:"token_endpoint_auth_methods_supported,omitempty"`
 }
+
+// OAuth2ProtectedResourceMetadata represents RFC 9728 OAuth 2.0 Protected Resource Metadata
+type OAuth2ProtectedResourceMetadata struct {
+	Resource               string   `json:"resource"`
+	AuthorizationServers   []string `json:"authorization_servers"`
+	ScopesSupported        []string `json:"scopes_supported,omitempty"`
+	BearerMethodsSupported []string `json:"bearer_methods_supported,omitempty"`
+}

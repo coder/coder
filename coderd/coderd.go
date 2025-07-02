@@ -914,6 +914,8 @@ func New(options *Options) *API {
 
 	// OAuth2 metadata endpoint for RFC 8414 discovery
 	r.Get("/.well-known/oauth-authorization-server", api.oauth2AuthorizationServerMetadata)
+	// OAuth2 protected resource metadata endpoint for RFC 9728 discovery
+	r.Get("/.well-known/oauth-protected-resource", api.oauth2ProtectedResourceMetadata)
 
 	// OAuth2 linking routes do not make sense under the /api/v2 path.  These are
 	// for an external application to use Coder as an OAuth2 provider, not for
