@@ -4055,6 +4055,19 @@ func (q *FakeQuerier) GetOAuth2ProviderAppSecretsByAppID(_ context.Context, appI
 	return []database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetOAuth2ProviderAppTokenByAPIKeyID(_ context.Context, apiKeyID string) (database.OAuth2ProviderAppToken, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, token := range q.oauth2ProviderAppTokens {
+		if token.APIKeyID == apiKeyID {
+			return token, nil
+		}
+	}
+
+	return database.OAuth2ProviderAppToken{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetOAuth2ProviderAppTokenByPrefix(_ context.Context, hashPrefix []byte) (database.OAuth2ProviderAppToken, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -4100,13 +4113,8 @@ func (q *FakeQuerier) GetOAuth2ProviderAppsByUserID(_ context.Context, userID uu
 		}
 		if len(tokens) > 0 {
 			rows = append(rows, database.GetOAuth2ProviderAppsByUserIDRow{
-				OAuth2ProviderApp: database.OAuth2ProviderApp{
-					CallbackURL: app.CallbackURL,
-					ID:          app.ID,
-					Icon:        app.Icon,
-					Name:        app.Name,
-				},
-				TokenCount: int64(len(tokens)),
+				OAuth2ProviderApp: app,
+				TokenCount:        int64(len(tokens)),
 			})
 		}
 	}
@@ -8926,12 +8934,15 @@ func (q *FakeQuerier) InsertOAuth2ProviderApp(_ context.Context, arg database.In
 
 	//nolint:gosimple // Go wants database.OAuth2ProviderApp(arg), but we cannot be sure the structs will remain identical.
 	app := database.OAuth2ProviderApp{
-		ID:          arg.ID,
-		CreatedAt:   arg.CreatedAt,
-		UpdatedAt:   arg.UpdatedAt,
-		Name:        arg.Name,
-		Icon:        arg.Icon,
-		CallbackURL: arg.CallbackURL,
+		ID:                    arg.ID,
+		CreatedAt:             arg.CreatedAt,
+		UpdatedAt:             arg.UpdatedAt,
+		Name:                  arg.Name,
+		Icon:                  arg.Icon,
+		CallbackURL:           arg.CallbackURL,
+		RedirectUris:          arg.RedirectUris,
+		ClientType:            arg.ClientType,
+		DynamicallyRegistered: arg.DynamicallyRegistered,
 	}
 	q.oauth2ProviderApps = append(q.oauth2ProviderApps, app)
 
@@ -9016,6 +9027,8 @@ func (q *FakeQuerier) InsertOAuth2ProviderAppToken(_ context.Context, arg databa
 				RefreshHash: arg.RefreshHash,
 				APIKeyID:    arg.APIKeyID,
 				AppSecretID: arg.AppSecretID,
+				UserID:      arg.UserID,
+				Audience:    arg.Audience,
 			}
 			q.oauth2ProviderAppTokens = append(q.oauth2ProviderAppTokens, token)
 			return token, nil
@@ -10798,12 +10811,15 @@ func (q *FakeQuerier) UpdateOAuth2ProviderAppByID(_ context.Context, arg databas
 	for index, app := range q.oauth2ProviderApps {
 		if app.ID == arg.ID {
 			newApp := database.OAuth2ProviderApp{
-				ID:          arg.ID,
-				CreatedAt:   app.CreatedAt,
-				UpdatedAt:   arg.UpdatedAt,
-				Name:        arg.Name,
-				Icon:        arg.Icon,
-				CallbackURL: arg.CallbackURL,
+				ID:                    arg.ID,
+				CreatedAt:             app.CreatedAt,
+				UpdatedAt:             arg.UpdatedAt,
+				Name:                  arg.Name,
+				Icon:                  arg.Icon,
+				CallbackURL:           arg.CallbackURL,
+				RedirectUris:          arg.RedirectUris,
+				ClientType:            arg.ClientType,
+				DynamicallyRegistered: arg.DynamicallyRegistered,
 			}
 			q.oauth2ProviderApps[index] = newApp
 			return newApp, nil

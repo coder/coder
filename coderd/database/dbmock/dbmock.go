@@ -2103,6 +2103,21 @@ func (mr *MockStoreMockRecorder) GetOAuth2ProviderAppSecretsByAppID(ctx, appID a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderAppSecretsByAppID", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderAppSecretsByAppID), ctx, appID)
 }
 
+// GetOAuth2ProviderAppTokenByAPIKeyID mocks base method.
+func (m *MockStore) GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, apiKeyID string) (database.OAuth2ProviderAppToken, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOAuth2ProviderAppTokenByAPIKeyID", ctx, apiKeyID)
+	ret0, _ := ret[0].(database.OAuth2ProviderAppToken)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOAuth2ProviderAppTokenByAPIKeyID indicates an expected call of GetOAuth2ProviderAppTokenByAPIKeyID.
+func (mr *MockStoreMockRecorder) GetOAuth2ProviderAppTokenByAPIKeyID(ctx, apiKeyID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderAppTokenByAPIKeyID", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderAppTokenByAPIKeyID), ctx, apiKeyID)
+}
+
 // GetOAuth2ProviderAppTokenByPrefix mocks base method.
 func (m *MockStore) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (database.OAuth2ProviderAppToken, error) {
 	m.ctrl.T.Helper()
