@@ -51,6 +51,7 @@ const (
 
 // ConnectionLogStatus is the status of a connection log entry.
 // It's the argument to the `status` filter when fetching connection logs.
+// This is only used in the frontend, not the backend.
 type ConnectionLogStatus string
 
 const (
