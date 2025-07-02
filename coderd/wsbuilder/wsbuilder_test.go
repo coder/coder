@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/provisionersdk"
 
 	"github.com/google/uuid"
@@ -998,6 +999,23 @@ func TestWorkspaceBuildDeleteOrphan(t *testing.T) {
 		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 		req.NoError(err)
 	})
+}
+
+func TestWsbuildError(t *testing.T) {
+	t.Parallel()
+
+	const msg = "test error"
+	var buildErr error = wsbuilder.BuildError{
+		Status:  http.StatusBadRequest,
+		Message: msg,
+	}
+
+	respErr, ok := httperror.IsCoderSDKError(buildErr)
+	require.True(t, ok, "should be a Coder SDK error")
+
+	code, resp := respErr.Response()
+	require.Equal(t, http.StatusBadRequest, code)
+	require.Equal(t, resp.Message, msg)
 }
 
 type txExpect func(mTx *dbmock.MockStore)
