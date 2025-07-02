@@ -10,6 +10,7 @@ interface UseWithRetryResult {
   call: () => Promise<void>;
   retryAt: Date | null;
   isLoading: boolean;
+  attemptCount: number;
 }
 
 interface RetryState {
@@ -63,8 +64,8 @@ export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
             executeAttempt(attempt + 1);
           }, delay);
         } else {
-          // No more attempts - reset state
-          setState({ isLoading: false, retryAt: null, attemptCount: 0 });
+          // No more attempts - keep attemptCount for tracking
+          setState(prev => ({ ...prev, isLoading: false, retryAt: null }));
         }
       }
     };
@@ -83,5 +84,6 @@ export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
     call,
     retryAt: state.retryAt,
     isLoading: state.isLoading,
+    attemptCount: state.attemptCount,
   };
 }

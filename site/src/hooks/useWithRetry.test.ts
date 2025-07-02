@@ -21,6 +21,7 @@ describe("useWithRetry", () => {
 
     expect(result.current.isLoading).toBe(false);
     expect(result.current.retryAt).toBe(null);
+    expect(result.current.attemptCount).toBe(0);
   });
 
   it("should execute function successfully on first attempt", async () => {
@@ -35,6 +36,7 @@ describe("useWithRetry", () => {
     expect(mockFn).toHaveBeenCalledTimes(1);
     expect(result.current.isLoading).toBe(false);
     expect(result.current.retryAt).toBe(null);
+    expect(result.current.attemptCount).toBe(0);
   });
 
   it("should set isLoading to true during execution", async () => {
@@ -122,6 +124,7 @@ describe("useWithRetry", () => {
     // After 10 attempts, should stop retrying
     expect(result.current.isLoading).toBe(false);
     expect(result.current.retryAt).toBe(null);
+    expect(result.current.attemptCount).toBe(10); // Should preserve final attempt count
   });
 
   it("should respect max delay of 10 minutes", async () => {
@@ -244,5 +247,39 @@ describe("useWithRetry", () => {
 
     // Function should not have been called again
     expect(mockFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("should preserve attemptCount when max attempts reached", async () => {
+    mockFn.mockRejectedValue(new Error("Always fails"));
+
+    const { result } = renderHook(() => useWithRetry(mockFn));
+
+    // Start the call
+    await act(async () => {
+      await result.current.call();
+    });
+
+    expect(result.current.attemptCount).toBe(1);
+
+    // Fast-forward through 9 more retries to reach max attempts
+    for (let i = 1; i < 10; i++) {
+      const delay = Math.min(1000 * 2 ** (i - 1), 600000);
+      await act(async () => {
+        jest.advanceTimersByTime(delay);
+      });
+      expect(result.current.attemptCount).toBe(i + 1);
+    }
+
+    // After max attempts, attemptCount should be preserved
+    expect(result.current.attemptCount).toBe(10);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.retryAt).toBe(null);
+
+    // Calling again should reset attemptCount
+    await act(async () => {
+      await result.current.call();
+    });
+
+    expect(result.current.attemptCount).toBe(1); // Reset on new call
   });
 });
