@@ -121,7 +121,7 @@ Before you can use Coder Desktop, you will need to sign in.
 
 ## Troubleshooting
 
-- Do not install more than one copy of Coder Desktop. To avoid system VPN configuration conflicts, only one copy of `Coder Desktop.app` should exist on your Mac, and it must remain in `/Applications`.
+Do not install more than one copy of Coder Desktop. To avoid system VPN configuration conflicts, only one copy of `Coder Desktop.app` should exist on your Mac, and it must remain in `/Applications`.
 
 ## Next Steps
 
