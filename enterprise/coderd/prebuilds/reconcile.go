@@ -3,6 +3,7 @@ package prebuilds
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -256,6 +257,28 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 	logger.Debug(ctx, "starting reconciliation")
 
 	err := c.WithReconciliationLock(ctx, logger, func(ctx context.Context, _ database.Store) error {
+		// Check if prebuilds reconciliation is paused
+		settingsJSON, err := c.store.GetPrebuildsSettings(ctx)
+		if err != nil {
+			return xerrors.Errorf("get prebuilds settings: %w", err)
+		}
+
+		var settings codersdk.PrebuildsSettings
+		if len(settingsJSON) > 0 {
+			if err := json.Unmarshal([]byte(settingsJSON), &settings); err != nil {
+				return xerrors.Errorf("unmarshal prebuilds settings: %w", err)
+			}
+		}
+
+		if c.metrics != nil {
+			c.metrics.setReconciliationPaused(settings.ReconciliationPaused)
+		}
+
+		if settings.ReconciliationPaused {
+			logger.Info(ctx, "prebuilds reconciliation is paused, skipping reconciliation")
+			return nil
+		}
+
 		snapshot, err := c.SnapshotState(ctx, c.store)
 		if err != nil {
 			return xerrors.Errorf("determine current snapshot: %w", err)

@@ -2143,3 +2143,80 @@ func mustParseTime(t *testing.T, layout, value string) time.Time {
 	require.NoError(t, err)
 	return parsedTime
 }
+
+func TestReconciliationRespectsPauseSetting(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	clock := quartz.NewMock(t)
+	db, ps := dbtestutil.NewDB(t)
+	cfg := codersdk.PrebuildsConfig{
+		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
+	}
+	logger := testutil.Logger(t)
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
+
+	// Setup a template with a preset that should create prebuilds
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, ps, org.ID, user.ID, template.ID)
+	_ = setupTestDBPreset(t, db, templateVersionID, 2, "test")
+
+	// Initially, reconciliation should create prebuilds
+	err := reconciler.ReconcileAll(ctx)
+	require.NoError(t, err)
+
+	// Verify that prebuilds were created
+	workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 2, "should have created 2 prebuilds")
+
+	// Now pause prebuilds reconciliation
+	err = db.UpsertPrebuildsSettings(ctx, `{"reconciliation_paused": true}`)
+	require.NoError(t, err)
+
+	// Delete the existing prebuilds to simulate a scenario where reconciliation would normally recreate them
+	for _, workspace := range workspaces {
+		err = db.UpdateWorkspaceDeletedByID(ctx, database.UpdateWorkspaceDeletedByIDParams{
+			ID:      workspace.ID,
+			Deleted: true,
+		})
+		require.NoError(t, err)
+	}
+
+	// Verify prebuilds are deleted
+	workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 0, "prebuilds should be deleted")
+
+	// Run reconciliation again - it should be paused and not recreate prebuilds
+	err = reconciler.ReconcileAll(ctx)
+	require.NoError(t, err)
+
+	// Verify that no new prebuilds were created because reconciliation is paused
+	workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 0, "should not create prebuilds when reconciliation is paused")
+
+	// Resume prebuilds reconciliation
+	err = db.UpsertPrebuildsSettings(ctx, `{"reconciliation_paused": false}`)
+	require.NoError(t, err)
+
+	// Run reconciliation again - it should now recreate the prebuilds
+	err = reconciler.ReconcileAll(ctx)
+	require.NoError(t, err)
+
+	// Verify that prebuilds were recreated
+	workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 2, "should have recreated 2 prebuilds after resuming")
+}

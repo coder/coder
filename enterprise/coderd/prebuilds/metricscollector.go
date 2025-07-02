@@ -29,6 +29,7 @@ const (
 	MetricEligibleGauge             = namespace + "eligible"
 	MetricPresetHardLimitedGauge    = namespace + "preset_hard_limited"
 	MetricLastUpdatedGauge          = namespace + "metrics_last_updated"
+	MetricReconciliationPausedGauge = namespace + "reconciliation_paused"
 )
 
 var (
@@ -95,6 +96,12 @@ var (
 		[]string{},
 		nil,
 	)
+	reconciliationPausedDesc = prometheus.NewDesc(
+		MetricReconciliationPausedGauge,
+		"Indicates whether prebuilds reconciliation is currently paused (1 = paused, 0 = not paused).",
+		[]string{},
+		nil,
+	)
 )
 
 const (
@@ -114,6 +121,9 @@ type MetricsCollector struct {
 
 	isPresetHardLimited   map[hardLimitedPresetKey]bool
 	isPresetHardLimitedMu sync.Mutex
+
+	reconciliationPaused   bool
+	reconciliationPausedMu sync.RWMutex
 }
 
 var _ prometheus.Collector = new(MetricsCollector)
@@ -140,6 +150,7 @@ func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
 	descCh <- eligiblePrebuildsDesc
 	descCh <- presetHardLimitedDesc
 	descCh <- lastUpdateDesc
+	descCh <- reconciliationPausedDesc
 }
 
 // Collect uses the cached state to set configured metrics.
@@ -196,6 +207,15 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 		metricsCh <- prometheus.MustNewConstMetric(presetHardLimitedDesc, prometheus.GaugeValue, val, key.templateName, key.presetName, key.orgName)
 	}
 	mc.isPresetHardLimitedMu.Unlock()
+
+	mc.reconciliationPausedMu.RLock()
+	var pausedValue float64
+	if mc.reconciliationPaused {
+		pausedValue = 1
+	}
+	mc.reconciliationPausedMu.RUnlock()
+
+	metricsCh <- prometheus.MustNewConstMetric(reconciliationPausedDesc, prometheus.GaugeValue, pausedValue)
 
 	metricsCh <- prometheus.MustNewConstMetric(lastUpdateDesc, prometheus.GaugeValue, float64(currentState.createdAt.Unix()))
 }
@@ -285,4 +305,11 @@ func (mc *MetricsCollector) registerHardLimitedPresets(isPresetHardLimited map[h
 	defer mc.isPresetHardLimitedMu.Unlock()
 
 	mc.isPresetHardLimited = isPresetHardLimited
+}
+
+func (mc *MetricsCollector) setReconciliationPaused(paused bool) {
+	mc.reconciliationPausedMu.Lock()
+	defer mc.reconciliationPausedMu.Unlock()
+
+	mc.reconciliationPaused = paused
 }
