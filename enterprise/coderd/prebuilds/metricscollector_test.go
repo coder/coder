@@ -502,9 +502,6 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 		err = reconciler.ReconcileAll(ctx)
 		require.NoError(t, err)
 
-		// Force metrics update
-		require.NoError(t, reconciler.ForceMetricsUpdate(ctx))
-
 		// Check that the metric shows reconciliation is not paused
 		metricsFamilies, err := registry.Gather()
 		require.NoError(t, err)
@@ -527,16 +524,12 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Set reconciliation to paused
-		err := db.UpsertPrebuildsSettings(ctx, `{"reconciliation_paused": true}`)
+		err := prebuilds.SetPrebuildsReconciliationPaused(ctx, db, true)
 		require.NoError(t, err)
 
 		// Run reconciliation to update the metric
 		err = reconciler.ReconcileAll(ctx)
 		require.NoError(t, err)
-
-		// Force metrics update
-		//nolint:gocritic // AsPrebuildsOrchestrator is used in the actual implementation as well. This doesn't run as a specific user.
-		require.NoError(t, reconciler.ForceMetricsUpdate(ctx))
 
 		// Check that the metric shows reconciliation is paused
 		metricsFamilies, err := registry.Gather()
@@ -560,16 +553,12 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Set reconciliation back to not paused
-		err := db.UpsertPrebuildsSettings(ctx, `{"reconciliation_paused": false}`)
+		err := prebuilds.SetPrebuildsReconciliationPaused(ctx, db, false)
 		require.NoError(t, err)
 
 		// Run reconciliation to update the metric
 		err = reconciler.ReconcileAll(ctx)
 		require.NoError(t, err)
-
-		// Force metrics update
-		//nolint:gocritic // AsPrebuildsOrchestrator is used in the actual implementation as well. This doesn't run as a specific user.
-		require.NoError(t, reconciler.ForceMetricsUpdate(ctx))
 
 		// Check that the metric shows reconciliation is not paused
 		metricsFamilies, err := registry.Gather()

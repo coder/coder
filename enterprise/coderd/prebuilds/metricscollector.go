@@ -157,6 +157,15 @@ func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
 // The state is cached because this function can be called multiple times per second and retrieving the current state
 // is an expensive operation.
 func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
+	mc.reconciliationPausedMu.RLock()
+	var pausedValue float64
+	if mc.reconciliationPaused {
+		pausedValue = 1
+	}
+	mc.reconciliationPausedMu.RUnlock()
+
+	metricsCh <- prometheus.MustNewConstMetric(reconciliationPausedDesc, prometheus.GaugeValue, pausedValue)
+
 	currentState := mc.latestState.Load() // Grab a copy; it's ok if it goes stale during the course of this func.
 	if currentState == nil {
 		mc.logger.Warn(context.Background(), "failed to set prebuilds metrics; state not set")
@@ -207,15 +216,6 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 		metricsCh <- prometheus.MustNewConstMetric(presetHardLimitedDesc, prometheus.GaugeValue, val, key.templateName, key.presetName, key.orgName)
 	}
 	mc.isPresetHardLimitedMu.Unlock()
-
-	mc.reconciliationPausedMu.RLock()
-	var pausedValue float64
-	if mc.reconciliationPaused {
-		pausedValue = 1
-	}
-	mc.reconciliationPausedMu.RUnlock()
-
-	metricsCh <- prometheus.MustNewConstMetric(reconciliationPausedDesc, prometheus.GaugeValue, pausedValue)
 
 	metricsCh <- prometheus.MustNewConstMetric(lastUpdateDesc, prometheus.GaugeValue, float64(currentState.createdAt.Unix()))
 }

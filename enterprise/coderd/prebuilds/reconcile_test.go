@@ -2181,7 +2181,7 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	require.Len(t, workspaces, 2, "should have created 2 prebuilds")
 
 	// Now pause prebuilds reconciliation
-	err = db.UpsertPrebuildsSettings(ctx, `{"reconciliation_paused": true}`)
+	err = prebuilds.SetPrebuildsReconciliationPaused(ctx, db, true)
 	require.NoError(t, err)
 
 	// Delete the existing prebuilds to simulate a scenario where reconciliation would normally recreate them
@@ -2208,7 +2208,7 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	require.Len(t, workspaces, 0, "should not create prebuilds when reconciliation is paused")
 
 	// Resume prebuilds reconciliation
-	err = db.UpsertPrebuildsSettings(ctx, `{"reconciliation_paused": false}`)
+	err = prebuilds.SetPrebuildsReconciliationPaused(ctx, db, false)
 	require.NoError(t, err)
 
 	// Run reconciliation again - it should now recreate the prebuilds

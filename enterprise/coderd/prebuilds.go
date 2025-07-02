@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 )
 
 // @Summary Get prebuilds settings
@@ -101,7 +102,7 @@ func (api *API) putPrebuildsSettings(rw http.ResponseWriter, r *http.Request) {
 		ReconciliationPaused: settings.ReconciliationPaused,
 	}
 
-	err = api.Database.UpsertPrebuildsSettings(ctx, string(settingsJSON))
+	err = prebuilds.SetPrebuildsReconciliationPaused(ctx, api.Database, settings.ReconciliationPaused)
 	if err != nil {
 		if rbac.IsUnauthorizedError(err) {
 			httpapi.Forbidden(rw)

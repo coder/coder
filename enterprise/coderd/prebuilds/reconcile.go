@@ -15,7 +15,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -23,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -906,4 +906,19 @@ func (c *StoreReconciler) trackResourceReplacement(ctx context.Context, workspac
 	}
 
 	return notifErr
+}
+
+type Settings struct {
+	ReconciliationPaused bool `json:"reconciliation_paused"`
+}
+
+func SetPrebuildsReconciliationPaused(ctx context.Context, db database.Store, paused bool) error {
+	settings := Settings{
+		ReconciliationPaused: paused,
+	}
+	settingsJSON, err := json.Marshal(settings)
+	if err != nil {
+		return xerrors.Errorf("marshal settings: %w", err)
+	}
+	return db.UpsertPrebuildsSettings(ctx, string(settingsJSON))
 }
