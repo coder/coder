@@ -14,11 +14,14 @@ message TrackTokenUsageRequest {
 	string msg_id = 1;
 	int64 input_tokens = 2;
 	int64 output_tokens = 3;
+  string model = 4;
+  map<string, int64> other = 5;
 }
 message TrackTokenUsageResponse {}
 
 message TrackUserPromptsRequest {
 	string prompt = 1;
+  string model = 2;
 }
 message TrackUserPromptsResponse {}
 

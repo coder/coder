@@ -423,12 +423,13 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not acquire coderd client", http.StatusInternalServerError)
 		return
 	}
-	_ = coderdClient
 
 	useBeta := r.URL.Query().Get("beta") == "true"
 	if !useBeta {
-		http.Error(w, "only beta API supported", http.StatusInternalServerError)
-		return
+		b.logger.Warn(r.Context(), "non-beta API requested, using beta instead", slog.F("url", r.URL.String()))
+		useBeta = true
+		//http.Error(w, "only beta API supported", http.StatusInternalServerError)
+		//return
 	}
 
 	body, err := io.ReadAll(r.Body)
@@ -451,12 +452,76 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Claude Code uses the 3.5 Haiku model to do autocomplete and other small tasks.
+	isHaiku := strings.Contains(string(in.Model), "3-5-haiku")
+
+	// Find the most recent user message and track the prompt.
+	if len(in.Messages) > 0 && !isHaiku {
+		var userMessage string
+		for i := len(in.Messages) - 1; i >= 0; i-- {
+			m := in.Messages[i]
+			if m.Role != anthropic.BetaMessageParamRoleUser {
+				continue
+			}
+			if len(m.Content) == 0 {
+				continue
+			}
+
+			for j := len(m.Content) - 1; j >= 0; j-- {
+				if textContent := m.Content[j].GetText(); textContent != nil {
+					userMessage = *textContent
+				}
+
+				// Ignore internal Claude Code prompts.
+				if userMessage == "test" ||
+					strings.Contains(userMessage, "<system-reminder>") {
+					userMessage = ""
+					continue
+				}
+
+				// Handle Cursor-specific formatting by extracting content from <user_query> tags
+				if isCursor, _ := regexp.MatchString("<user_query>", userMessage); isCursor {
+					userMessage = b.extractCursorUserQuery(userMessage)
+				}
+				goto track
+			}
+		}
+
+	track:
+		if userMessage != "" {
+			if _, err = coderdClient.TrackUserPrompts(ctx, &proto.TrackUserPromptsRequest{
+				Prompt: userMessage,
+				Model:  string(in.Model),
+			}); err != nil {
+				b.logger.Error(r.Context(), "failed to track user prompt", slog.Error(err))
+			}
+		}
+	}
+
 	// looks up API key with os.LookupEnv("ANTHROPIC_API_KEY")
 	client := anthropic.NewClient()
 	if !in.UseStreaming() {
 		msg, err := client.Beta.Messages.New(ctx, in.BetaMessageNewParams)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+
+		// TODO: these figures don't seem to exactly match what Claude Code reports. Find the source of inconsistency!
+		_, err = coderdClient.TrackTokenUsage(ctx, &proto.TrackTokenUsageRequest{
+			MsgId:        msg.ID,
+			Model:        string(msg.Model),
+			InputTokens:  msg.Usage.InputTokens,
+			OutputTokens: msg.Usage.OutputTokens,
+			Other: map[string]int64{
+				"web_search_requests":  msg.Usage.ServerToolUse.WebSearchRequests,
+				"cache_creation_input": msg.Usage.CacheCreationInputTokens,
+				"cache_read_input":     msg.Usage.CacheReadInputTokens,
+				"cache_ephemeral_1h_input":   msg.Usage.CacheCreation.Ephemeral1hInputTokens,
+				"cache_ephemeral_5m_input":   msg.Usage.CacheCreation.Ephemeral5mInputTokens,
+			},
+		})
+		if err != nil {
+			b.logger.Error(ctx, "failed to track usage", slog.Error(err))
 		}
 
 		out := []byte(msg.RawJSON())
@@ -514,6 +579,24 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 		if err := es.TrySend(streamCtx, event); err != nil {
 			b.logger.Error(ctx, "failed to send event", slog.Error(err))
 		}
+	}
+
+	// TODO: these figures don't seem to exactly match what Claude Code reports. Find the source of inconsistency!
+	_, err = coderdClient.TrackTokenUsage(streamCtx, &proto.TrackTokenUsageRequest{
+		MsgId:        message.ID,
+		Model:        string(message.Model),
+		InputTokens:  message.Usage.InputTokens,
+		OutputTokens: message.Usage.OutputTokens,
+		Other: map[string]int64{
+			"web_search_requests":  message.Usage.ServerToolUse.WebSearchRequests,
+			"cache_creation_input": message.Usage.CacheCreationInputTokens,
+			"cache_read_input":     message.Usage.CacheReadInputTokens,
+			"cache_ephemeral_1h_input":   message.Usage.CacheCreation.Ephemeral1hInputTokens,
+			"cache_ephemeral_5m_input":   message.Usage.CacheCreation.Ephemeral5mInputTokens,
+		},
+	})
+	if err != nil {
+		b.logger.Error(ctx, "failed to track usage", slog.Error(err))
 	}
 
 	var streamErr error
