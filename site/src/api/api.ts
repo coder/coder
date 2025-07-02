@@ -1277,9 +1277,14 @@ class ApiMethods {
 
 	cancelWorkspaceBuild = async (
 		workspaceBuildId: TypesGen.WorkspaceBuild["id"],
+		request?: TypesGen.CancelWorkspaceBuildRequest,
 	): Promise<TypesGen.Response> => {
+		const params = request?.expect_status
+			? new URLSearchParams({ expect_status: request.expect_status }).toString()
+			: "";
+
 		const response = await this.axios.patch(
-			`/api/v2/workspacebuilds/${workspaceBuildId}/cancel`,
+			`/api/v2/workspacebuilds/${workspaceBuildId}/cancel${params ? `?${params}` : ""}`,
 		);
 
 		return response.data;

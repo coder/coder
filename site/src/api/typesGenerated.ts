@@ -294,8 +294,16 @@ export const CLITelemetryHeader = "Coder-CLI-Telemetry";
 
 // From codersdk/workspacebuilds.go
 export interface CancelWorkspaceBuildRequest {
-	readonly expect_state?: ProvisionerJobStatus;
+	readonly expect_status?: CancelWorkspaceBuildStatus;
 }
+
+// From codersdk/workspacebuilds.go
+export type CancelWorkspaceBuildStatus = "pending" | "running";
+
+export const CancelWorkspaceBuildStatuses: CancelWorkspaceBuildStatus[] = [
+	"pending",
+	"running",
+];
 
 // From codersdk/users.go
 export interface ChangePasswordWithOneTimePasscodeRequest {

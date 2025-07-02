@@ -266,6 +266,12 @@ export const startWorkspace = (
 export const cancelBuild = (workspace: Workspace, queryClient: QueryClient) => {
 	return {
 		mutationFn: () => {
+			// If workspace status is pending, include expect_status parameter
+			if (workspace.latest_build.status === "pending") {
+				return API.cancelWorkspaceBuild(workspace.latest_build.id, {
+					expect_status: "pending",
+				});
+			}
 			return API.cancelWorkspaceBuild(workspace.latest_build.id);
 		},
 		onSuccess: async () => {
