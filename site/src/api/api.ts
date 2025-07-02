@@ -1813,6 +1813,14 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getConnectionLogs = async (
+		options: TypesGen.ConnectionLogsRequest,
+	): Promise<TypesGen.ConnectionLogResponse> => {
+		const url = getURLWithSearchParams("/api/v2/connectionlog", options);
+		const response = await this.axios.get(url);
+		return response.data;
+	};
+
 	getTemplateDAUs = async (
 		templateId: string,
 	): Promise<TypesGen.DAUsResponse> => {
