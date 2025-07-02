@@ -467,11 +467,11 @@ func (api *API) updaterLoop() {
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
 					api.logger.Warn(api.ctx, "updater loop ticker canceled", slog.Error(err))
-				} else {
-					// Avoid excessive logging of the same error.
-					if prevErr == nil || prevErr.Error() != err.Error() {
-						api.logger.Error(api.ctx, "updater loop ticker failed", slog.Error(err))
-					}
+					return nil
+				}
+				// Avoid excessive logging of the same error.
+				if prevErr == nil || prevErr.Error() != err.Error() {
+					api.logger.Error(api.ctx, "updater loop ticker failed", slog.Error(err))
 				}
 				prevErr = err
 			} else {
