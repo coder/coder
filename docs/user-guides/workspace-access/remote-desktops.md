@@ -167,5 +167,3 @@ To disable RDP over UDP manually, run the following in PowerShell:
 New-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name "SelectTransport" -Value 1 -PropertyType DWORD -Force
 Restart-Service -Name "TermService" -Force
 ```
-
-![VNC Desktop in Coder](../../images/vnc-desktop.png)
