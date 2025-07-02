@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-// Configuration constants
 const MAX_ATTEMPTS = 10;
-const INITIAL_DELAY = 1000; // 1 second
-const MAX_DELAY = 600000; // 10 minutes
+const DELAY_MS = 1_000;
+const MAX_DELAY_MS = 600_000; // 10 minutes
+// Determines how much the delay between retry attempts increases after each
+// failure.
 const MULTIPLIER = 2;
 
 interface UseWithRetryResult {
 	call: () => Promise<void>;
-	retryAt: Date | null;
+	retryAt: Date | undefined;
 	isLoading: boolean;
-	attemptCount: number;
 }
 
 interface RetryState {
 	isLoading: boolean;
-	retryAt: Date | null;
+	retryAt: Date | undefined;
 	attemptCount: number;
 }
 
@@ -26,13 +26,13 @@ interface RetryState {
 export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
 	const [state, setState] = useState<RetryState>({
 		isLoading: false,
-		retryAt: null,
+		retryAt: undefined,
 		attemptCount: 0,
 	});
 
 	const timeoutRef = useRef<number | null>(null);
 
-	const clearTimer = useCallback(() => {
+	const clearTimeout = useCallback(() => {
 		if (timeoutRef.current) {
 			window.clearTimeout(timeoutRef.current);
 			timeoutRef.current = null;
@@ -40,57 +40,55 @@ export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
 	}, []);
 
 	const call = useCallback(async () => {
-		// Cancel any existing retry and start fresh
-		clearTimer();
+		clearTimeout();
 
 		const executeAttempt = async (attempt: number): Promise<void> => {
 			setState((prev) => ({ ...prev, isLoading: true, attemptCount: attempt }));
 
 			try {
 				await fn();
-				// Success - reset everything
-				setState({ isLoading: false, retryAt: null, attemptCount: 0 });
+				setState({ isLoading: false, retryAt: undefined, attemptCount: 0 });
 			} catch (error) {
-				// Failure - schedule retry if attempts remaining
-				if (attempt < MAX_ATTEMPTS) {
-					const delay = Math.min(
-						INITIAL_DELAY * MULTIPLIER ** attempt,
-						MAX_DELAY,
+				// Since attempts start from 0, we need to add +1 to make the condition work
+				// This ensures exactly MAX_ATTEMPTS total attempts (attempt 0, 1, 2, ..., 9)
+				if (attempt + 1 < MAX_ATTEMPTS) {
+					const delayMs = Math.min(
+						DELAY_MS * MULTIPLIER ** attempt,
+						MAX_DELAY_MS,
 					);
-					const retryTime = new Date(Date.now() + delay);
 
 					setState((prev) => ({
 						...prev,
 						isLoading: false,
-						retryAt: retryTime,
+						retryAt: new Date(Date.now() + delayMs),
 					}));
 
-					// Schedule the actual retry
 					timeoutRef.current = window.setTimeout(() => {
-						setState((prev) => ({ ...prev, retryAt: null }));
+						setState((prev) => ({ ...prev, retryAt: undefined }));
 						executeAttempt(attempt + 1);
-					}, delay);
+					}, delayMs);
 				} else {
-					// No more attempts - keep attemptCount for tracking
-					setState((prev) => ({ ...prev, isLoading: false, retryAt: null }));
+					setState((prev) => ({
+						...prev,
+						isLoading: false,
+						retryAt: undefined,
+					}));
 				}
 			}
 		};
 
 		await executeAttempt(0);
-	}, [fn, clearTimer]);
+	}, [fn, clearTimeout]);
 
-	// Cleanup on unmount
 	useEffect(() => {
 		return () => {
-			clearTimer();
+			clearTimeout();
 		};
-	}, [clearTimer]);
+	}, [clearTimeout]);
 
 	return {
 		call,
 		retryAt: state.retryAt,
 		isLoading: state.isLoading,
-		attemptCount: state.attemptCount,
 	};
 }
