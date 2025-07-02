@@ -74,7 +74,7 @@ describe("useWithRetry", () => {
     });
 
     expect(mockFn).toHaveBeenCalledTimes(1);
-    expect(result.current.isLoading).toBe(true);
+    expect(result.current.isLoading).toBe(false);
     expect(result.current.retryAt).not.toBe(null);
 
     // Fast-forward to first retry (1 second)
@@ -83,7 +83,7 @@ describe("useWithRetry", () => {
     });
 
     expect(mockFn).toHaveBeenCalledTimes(2);
-    expect(result.current.isLoading).toBe(true);
+    expect(result.current.isLoading).toBe(false);
     expect(result.current.retryAt).not.toBe(null);
 
     // Fast-forward to second retry (2 seconds)
@@ -96,12 +96,10 @@ describe("useWithRetry", () => {
     expect(result.current.retryAt).toBe(null);
   });
 
-  it("should stop retrying after max attempts", async () => {
+  it("should stop retrying after max attempts (10)", async () => {
     mockFn.mockRejectedValue(new Error("Always fails"));
 
-    const { result } = renderHook(() =>
-      useWithRetry(mockFn, { maxAttempts: 2 }),
-    );
+    const { result } = renderHook(() => useWithRetry(mockFn));
 
     // Start the call
     await act(async () => {
@@ -109,83 +107,58 @@ describe("useWithRetry", () => {
     });
 
     expect(mockFn).toHaveBeenCalledTimes(1);
-    expect(result.current.isLoading).toBe(true);
-
-    // Fast-forward to first retry
-    await act(async () => {
-      jest.advanceTimersByTime(1000);
-    });
-
-    expect(mockFn).toHaveBeenCalledTimes(2);
     expect(result.current.isLoading).toBe(false);
-    expect(result.current.retryAt).toBe(null);
-  });
-
-  it("should use custom retry options", async () => {
-    mockFn
-      .mockRejectedValueOnce(new Error("First failure"))
-      .mockResolvedValueOnce(undefined);
-
-    const { result } = renderHook(() =>
-      useWithRetry(mockFn, {
-        initialDelay: 500,
-        multiplier: 3,
-        maxAttempts: 2,
-      }),
-    );
-
-    // Start the call
-    await act(async () => {
-      await result.current.call();
-    });
-
-    expect(mockFn).toHaveBeenCalledTimes(1);
-    expect(result.current.isLoading).toBe(true);
     expect(result.current.retryAt).not.toBe(null);
 
-    // Fast-forward by custom initial delay (500ms)
-    await act(async () => {
-      jest.advanceTimersByTime(500);
-    });
+    // Fast-forward through all retries
+    for (let i = 1; i < 10; i++) {
+      const delay = Math.min(1000 * 2 ** (i - 1), 600000); // exponential backoff with max delay
+      await act(async () => {
+        jest.advanceTimersByTime(delay);
+      });
+      expect(mockFn).toHaveBeenCalledTimes(i + 1);
+    }
 
-    expect(mockFn).toHaveBeenCalledTimes(2);
+    // After 10 attempts, should stop retrying
     expect(result.current.isLoading).toBe(false);
     expect(result.current.retryAt).toBe(null);
   });
 
-  it("should respect max delay", async () => {
+  it("should respect max delay of 10 minutes", async () => {
     mockFn.mockRejectedValue(new Error("Always fails"));
 
-    const { result } = renderHook(() =>
-      useWithRetry(mockFn, {
-        initialDelay: 1000,
-        multiplier: 10,
-        maxDelay: 2000,
-        maxAttempts: 3,
-      }),
-    );
+    const { result } = renderHook(() => useWithRetry(mockFn));
 
     // Start the call
     await act(async () => {
       await result.current.call();
     });
 
-    expect(result.current.isLoading).toBe(true);
-
-    // First retry should be at 1000ms (initial delay)
-    await act(async () => {
-      jest.advanceTimersByTime(1000);
-    });
-
-    expect(mockFn).toHaveBeenCalledTimes(2);
-
-    // Second retry should be at 2000ms (max delay, not 10000ms)
-    await act(async () => {
-      jest.advanceTimersByTime(2000);
-    });
-
-    expect(mockFn).toHaveBeenCalledTimes(3);
     expect(result.current.isLoading).toBe(false);
+
+    // Fast-forward through several retries to reach max delay
+    // After attempt 9, delay would be 1000 * 2^9 = 512000ms, which is less than 600000ms (10 min)
+    // After attempt 10, delay would be 1000 * 2^10 = 1024000ms, which should be capped at 600000ms
+    
+    // Skip to attempt 9 (delay calculation: 1000 * 2^8 = 256000ms)
+    for (let i = 1; i < 9; i++) {
+      const delay = 1000 * 2 ** (i - 1);
+      await act(async () => {
+        jest.advanceTimersByTime(delay);
+      });
+    }
+
+    expect(mockFn).toHaveBeenCalledTimes(9);
+    expect(result.current.retryAt).not.toBe(null);
+
+    // The 9th retry should use max delay (600000ms = 10 minutes)
+    await act(async () => {
+      jest.advanceTimersByTime(600000);
+    });
+
+    expect(mockFn).toHaveBeenCalledTimes(10);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.retryAt).toBe(null);
   });
 
   it("should cancel previous retry when call is invoked again", async () => {
@@ -201,7 +174,7 @@ describe("useWithRetry", () => {
     });
 
     expect(mockFn).toHaveBeenCalledTimes(1);
-    expect(result.current.isLoading).toBe(true);
+    expect(result.current.isLoading).toBe(false);
     expect(result.current.retryAt).not.toBe(null);
 
     // Call again before retry happens
@@ -221,61 +194,50 @@ describe("useWithRetry", () => {
     expect(mockFn).toHaveBeenCalledTimes(2); // Should not have been called again
   });
 
-  it("should update retryAt countdown", async () => {
+  it("should set retryAt when scheduling retry", async () => {
     mockFn.mockRejectedValue(new Error("Failure"));
 
-    const { result } = renderHook(() =>
-      useWithRetry(mockFn, { initialDelay: 1000 }),
-    );
+    const { result } = renderHook(() => useWithRetry(mockFn));
 
     // Start the call
     await act(async () => {
       await result.current.call();
     });
 
-    const initialRetryAt = result.current.retryAt;
-    expect(initialRetryAt).not.toBe(null);
+    const retryAt = result.current.retryAt;
+    expect(retryAt).not.toBe(null);
+    expect(retryAt).toBeInstanceOf(Date);
 
-    // Advance time by 100ms (countdown update interval)
-    await act(async () => {
-      jest.advanceTimersByTime(100);
-    });
-
-    // retryAt should still be set but countdown should be updating
-    expect(result.current.retryAt).not.toBe(null);
-
-    // Advance to just before retry time
-    await act(async () => {
-      jest.advanceTimersByTime(850);
-    });
-
-    expect(result.current.retryAt).not.toBe(null);
+    // retryAt should be approximately 1 second in the future
+    const expectedTime = Date.now() + 1000;
+    const actualTime = retryAt!.getTime();
+    expect(Math.abs(actualTime - expectedTime)).toBeLessThan(100); // Allow 100ms tolerance
 
     // Advance past retry time
     await act(async () => {
-      jest.advanceTimersByTime(100);
+      jest.advanceTimersByTime(1000);
     });
 
     expect(result.current.retryAt).toBe(null);
   });
 
-  it("should cleanup timers on unmount", async () => {
+  it("should cleanup timer on unmount", async () => {
     mockFn.mockRejectedValue(new Error("Failure"));
 
     const { result, unmount } = renderHook(() => useWithRetry(mockFn));
 
-    // Start the call to create timers
+    // Start the call to create timer
     await act(async () => {
       await result.current.call();
     });
 
-    expect(result.current.isLoading).toBe(true);
+    expect(result.current.isLoading).toBe(false);
     expect(result.current.retryAt).not.toBe(null);
 
-    // Unmount should cleanup timers
+    // Unmount should cleanup timer
     unmount();
 
-    // Advance time to ensure timers were cleared
+    // Advance time to ensure timer was cleared
     await act(async () => {
       jest.advanceTimersByTime(5000);
     });

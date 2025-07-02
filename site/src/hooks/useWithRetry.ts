@@ -1,134 +1,87 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 // Configuration constants
-const DEFAULT_MAX_ATTEMPTS = 3;
-const DEFAULT_INITIAL_DELAY = 1000; // 1 second
-const DEFAULT_MAX_DELAY = 8000; // 8 seconds
-const DEFAULT_MULTIPLIER = 2;
-const COUNTDOWN_UPDATE_INTERVAL = 100; // Update countdown every 100ms
+const MAX_ATTEMPTS = 10;
+const INITIAL_DELAY = 1000; // 1 second
+const MAX_DELAY = 600000; // 10 minutes
+const MULTIPLIER = 2;
 
 interface UseWithRetryResult {
-  // Executes the function received
   call: () => Promise<void>;
   retryAt: Date | null;
   isLoading: boolean;
 }
 
-interface UseWithRetryOptions {
-  maxAttempts?: number;
-  initialDelay?: number;
-  maxDelay?: number;
-  multiplier?: number;
+interface RetryState {
+  isLoading: boolean;
+  retryAt: Date | null;
+  attemptCount: number;
 }
 
 /**
  * Hook that wraps a function with automatic retry functionality
  * Provides a simple interface for executing functions with exponential backoff retry
  */
-export function useWithRetry(
-  fn: () => Promise<void>,
-  options: UseWithRetryOptions = {},
-): UseWithRetryResult {
-  const {
-    maxAttempts = DEFAULT_MAX_ATTEMPTS,
-    initialDelay = DEFAULT_INITIAL_DELAY,
-    maxDelay = DEFAULT_MAX_DELAY,
-    multiplier = DEFAULT_MULTIPLIER,
-  } = options;
-
-  const [isLoading, setIsLoading] = useState(false);
-  const [retryAt, setRetryAt] = useState<Date | null>(null);
-  const [attemptCount, setAttemptCount] = useState(0);
+export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
+  const [state, setState] = useState<RetryState>({
+    isLoading: false,
+    retryAt: null,
+    attemptCount: 0,
+  });
 
   const timeoutRef = useRef<number | null>(null);
-  const countdownRef = useRef<number | null>(null);
-  const executeFunctionRef = useRef<(attempt: number) => Promise<void>>();
 
-  const clearTimers = useCallback(() => {
+  const clearTimer = useCallback(() => {
     if (timeoutRef.current) {
       window.clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
-    if (countdownRef.current) {
-      window.clearInterval(countdownRef.current);
-      countdownRef.current = null;
-    }
   }, []);
 
-  const calculateDelay = useCallback(
-    (attempt: number): number => {
-      const delay = initialDelay * multiplier ** attempt;
-      return Math.min(delay, maxDelay);
-    },
-    [initialDelay, multiplier, maxDelay],
-  );
-
-  const executeFunction = useCallback(
-    async (attempt: number = 0) => {
-      setIsLoading(true);
-      setAttemptCount(attempt);
+  const call = useCallback(async () => {
+    // Cancel any existing retry and start fresh
+    clearTimer();
+    
+    const executeAttempt = async (attempt: number): Promise<void> => {
+      setState(prev => ({ ...prev, isLoading: true, attemptCount: attempt }));
 
       try {
         await fn();
         // Success - reset everything
-        setIsLoading(false);
-        setRetryAt(null);
-        setAttemptCount(0);
-        clearTimers();
+        setState({ isLoading: false, retryAt: null, attemptCount: 0 });
       } catch (error) {
         // Failure - schedule retry if attempts remaining
-        if (attempt < maxAttempts) {
-          const delay = calculateDelay(attempt);
+        if (attempt < MAX_ATTEMPTS) {
+          const delay = Math.min(INITIAL_DELAY * MULTIPLIER ** attempt, MAX_DELAY);
           const retryTime = new Date(Date.now() + delay);
-          setRetryAt(retryTime);
-
-          // Update countdown every 100ms for smooth UI updates
-          countdownRef.current = window.setInterval(() => {
-            const now = Date.now();
-            const timeLeft = retryTime.getTime() - now;
-            
-            if (timeLeft <= 0) {
-              clearTimers();
-              setRetryAt(null);
-            }
-          }, COUNTDOWN_UPDATE_INTERVAL);
+          
+          setState(prev => ({ ...prev, isLoading: false, retryAt: retryTime }));
 
           // Schedule the actual retry
           timeoutRef.current = window.setTimeout(() => {
-            setRetryAt(null);
-            executeFunctionRef.current?.(attempt + 1);
+            setState(prev => ({ ...prev, retryAt: null }));
+            executeAttempt(attempt + 1);
           }, delay);
         } else {
           // No more attempts - reset state
-          setIsLoading(false);
-          setRetryAt(null);
-          setAttemptCount(0);
+          setState({ isLoading: false, retryAt: null, attemptCount: 0 });
         }
       }
-    },
-    [fn, maxAttempts, calculateDelay, clearTimers],
-  );
+    };
 
-  // Update the ref with the current executeFunction
-  executeFunctionRef.current = executeFunction;
-
-  const call = useCallback(() => {
-    // Cancel any existing retry and start fresh
-    clearTimers();
-    setRetryAt(null);
-    return executeFunction(0);
-  }, [executeFunction, clearTimers]);
+    await executeAttempt(0);
+  }, [fn, clearTimer]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      clearTimers();
+      clearTimer();
     };
-  }, [clearTimers]);
+  }, [clearTimer]);
 
   return {
     call,
-    retryAt,
-    isLoading,
+    retryAt: state.retryAt,
+    isLoading: state.isLoading,
   };
 }
