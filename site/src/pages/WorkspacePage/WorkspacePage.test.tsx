@@ -242,7 +242,9 @@ describe("WorkspacePage", () => {
 		});
 		await user.click(confirmButton);
 
-		expect(cancelWorkspaceMock).toHaveBeenCalledWith(MockStartingWorkspace.latest_build.id);
+		expect(cancelWorkspaceMock).toHaveBeenCalledWith(
+			MockStartingWorkspace.latest_build.id,
+		);
 	});
 
 	it("requests cancellation when the user presses Cancel and the workspace is pending", async () => {
@@ -270,7 +272,10 @@ describe("WorkspacePage", () => {
 		});
 		await user.click(confirmButton);
 
-		expect(cancelWorkspaceMock).toHaveBeenCalledWith(MockPendingWorkspace.latest_build.id, { expect_status: "pending" });
+		expect(cancelWorkspaceMock).toHaveBeenCalledWith(
+			MockPendingWorkspace.latest_build.id,
+			{ expect_status: "pending" },
+		);
 	});
 
 	it("requests an update when the user presses Update", async () => {
