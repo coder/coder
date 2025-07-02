@@ -738,7 +738,10 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		})
 		// Then: the request should fail with 412.
 		require.Error(t, err)
-		require.Equal(t, http.StatusPreconditionFailed, err.(*codersdk.Error).StatusCode())
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 	})
 
 	t.Run("Cancel with expect_state - invalid status", func(t *testing.T) {
