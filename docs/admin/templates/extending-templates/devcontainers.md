@@ -123,7 +123,9 @@ Coder names dev container agents in this order:
 
 1. `customizations.coder.name` in `devcontainer.json`
 1. Project directory name (name of folder containing `devcontainer.json` or `.devcontainer` folder)
-1. If project directory name is already taken, the name is expanded to include the parent folder (`/home/coder/some/project` -> `project` (taken) -> `some-project`)
+1. If the project directory name is already taken, the name is expanded to include the parent folder.
+
+   For example, if the path is `/home/coder/some/project` and `project` is taken, then the agent is `some-project`.
 
 ### Multiple dev containers
 
@@ -138,6 +140,67 @@ resource "coder_devcontainer" "backend" {
   count            = data.coder_workspace.me.start_count
   agent_id         = coder_agent.main.id
   workspace_folder = "/home/coder/backend"
+}
+```
+
+## Example Docker Dev Container
+
+<details><summary>Expand for the full file:</summary>
+
+```terraform
+terraform {
+  required_providers {
+    coder  = { source = "coder/coder" }
+    docker = { source = "kreuzwerker/docker" }
+  }
+}
+
+data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
+
+resource "coder_agent" "main" {
+  os   = "linux"
+  arch = "amd64"
+
+  startup_script_behavior = "blocking"
+  startup_script  = "sudo service docker start"
+  shutdown_script = "sudo service docker stop"
+}
+
+module "devcontainers-cli" {
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/modules/devcontainers-cli/coder"
+  agent_id = coder_agent.main.id
+}
+
+module "git_clone" {
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/modules/git-clone/coder"
+  agent_id = coder_agent.main.id
+  url      = "https://github.com/coder/coder.git"
+  base_dir = "/home/coder"
+}
+
+resource "coder_devcontainer" "project" {
+  count            = data.coder_workspace.me.start_count
+  agent_id         = coder_agent.main.id
+  workspace_folder = "/home/coder/${module.git_clone[0].folder_name}"
+}
+
+resource "docker_container" "workspace" {
+  count = data.coder_workspace.me.start_count
+  image = "codercom/enterprise-node:ubuntu"
+  name  = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+
+  runtime = "sysbox-runc"
+
+  entrypoint = ["sh", "-c", coder_agent.main.init_script]
+
+  env = [
+    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
+    "CODER_AGENT_URL=${data.coder_workspace.me.access_url}",
+    "CODER_AGENT_DEVCONTAINERS_ENABLE=true"
+  ]
 }
 ```
 
