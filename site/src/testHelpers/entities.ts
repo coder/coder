@@ -2450,6 +2450,21 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
 	}),
 };
 
+export const MockEntitlementsWithConnectionLog: TypesGen.Entitlements = {
+	errors: [],
+	warnings: [],
+	has_license: true,
+	require_telemetry: false,
+	trial: false,
+	refreshed_at: "2022-05-20T16:45:57.122Z",
+	features: withDefaultFeatures({
+		connection_log: {
+			enabled: true,
+			entitlement: "entitled",
+		},
+	}),
+};
+
 export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
 	errors: [],
 	warnings: [],
@@ -2718,6 +2733,79 @@ export const MockAuditLogRequestPasswordReset: TypesGen.AuditLog = {
 	},
 };
 
+export const MockWebConnectionLog: TypesGen.ConnectionLog = {
+	id: "497dcba3-ecbf-4587-a2dd-5eb0665e6880",
+	connect_time: "2022-05-19T16:45:57.122Z",
+	organization: {
+		id: MockOrganization.id,
+		name: MockOrganization.name,
+		display_name: MockOrganization.display_name,
+		icon: MockOrganization.icon,
+	},
+	workspace_owner_id: MockUserMember.id,
+	workspace_owner_username: MockUserMember.username,
+	workspace_id: MockWorkspace.id,
+	workspace_name: MockWorkspace.name,
+	agent_name: "dev",
+	ip: "127.0.0.1",
+	type: "workspace_app",
+	web_info: {
+		user_agent:
+			'"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36"',
+		user: MockUserMember,
+		slug_or_port: "code-server",
+		status_code: 200,
+	},
+};
+
+export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
+	id: "7884a866-4ae1-4945-9fba-b2b8d2b7c5a9",
+	connect_time: "2022-05-19T16:45:57.122Z",
+	organization: {
+		id: MockOrganization.id,
+		name: MockOrganization.name,
+		display_name: MockOrganization.display_name,
+		icon: MockOrganization.icon,
+	},
+	workspace_owner_id: MockUserMember.id,
+	workspace_owner_username: MockUserMember.username,
+	workspace_id: MockWorkspace.id,
+	workspace_name: MockWorkspace.name,
+	agent_name: "dev",
+	ip: "127.0.0.1",
+	type: "ssh",
+	ssh_info: {
+		connection_id: "026c8c11-fc5c-4df8-a286-5fe6d7f54f98",
+		disconnect_reason: undefined,
+		disconnect_time: undefined,
+		exit_code: undefined,
+	},
+};
+
+export const MockDisconnectedSSHConnectionLog: TypesGen.ConnectionLog = {
+	id: "893e75e0-1518-4ac8-9629-35923a39533a",
+	connect_time: "2022-05-19T16:45:57.122Z",
+	organization: {
+		id: MockOrganization.id,
+		name: MockOrganization.name,
+		display_name: MockOrganization.display_name,
+		icon: MockOrganization.icon,
+	},
+	workspace_owner_id: MockUserMember.id,
+	workspace_owner_username: MockUserMember.username,
+	workspace_id: MockWorkspace.id,
+	workspace_name: MockWorkspace.name,
+	agent_name: "dev",
+	ip: "127.0.0.1",
+	type: "ssh",
+	ssh_info: {
+		connection_id: "026c8c11-fc5c-4df8-a286-5fe6d7f54f98",
+		disconnect_reason: "server shut down",
+		disconnect_time: "2022-05-19T16:49:57.122Z",
+		exit_code: 0,
+	},
+};
+
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
 	credits_consumed: 0,
 	budget: 100,
@@ -2882,6 +2970,7 @@ export const MockPermissions: Permissions = {
 	viewAllUsers: true,
 	updateUsers: true,
 	viewAnyAuditLog: true,
+	viewAnyConnectionLog: true,
 	viewDeploymentConfig: true,
 	editDeploymentConfig: true,
 	viewDeploymentStats: true,
@@ -2909,6 +2998,7 @@ export const MockNoPermissions: Permissions = {
 	viewAllUsers: false,
 	updateUsers: false,
 	viewAnyAuditLog: false,
+	viewAnyConnectionLog: false,
 	viewDeploymentConfig: false,
 	editDeploymentConfig: false,
 	viewDeploymentStats: false,
