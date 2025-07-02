@@ -3236,6 +3236,50 @@ export const mockSliderParameter: TypesGen.PreviewParameter = {
 	order: 2,
 };
 
+export const mockMultiSelectParameter: TypesGen.PreviewParameter = {
+	name: "ides",
+	display_name: "IDEs",
+	description: "Enabled IDEs",
+	type: "list(string)",
+	form_type: "multi-select",
+	mutable: true,
+	ephemeral: false,
+	required: false,
+	value: { value: "[]", valid: true },
+	default_value: { value: "[]", valid: true },
+	options: [
+		{
+			name: "vscode",
+			description: "Visual Studio Code",
+			value: { value: "vscode", valid: true },
+			icon: "",
+		},
+		{
+			name: "cursor",
+			description: "Cursor",
+			value: { value: "cursor", valid: true },
+			icon: "",
+		},
+		{
+			name: "goland",
+			description: "Goland",
+			value: { value: "goland", valid: true },
+			icon: "",
+		},
+		{
+			name: "windsurf",
+			description: "Windsurf",
+			value: { value: "windsurf", valid: true },
+			icon: "",
+		},
+	],
+	validations: [],
+	diagnostics: [],
+	icon: "",
+	styling: {},
+	order: 5,
+};
+
 export const validationParameter: TypesGen.PreviewParameter = {
 	name: "invalid_number",
 	display_name: "Invalid Parameter",

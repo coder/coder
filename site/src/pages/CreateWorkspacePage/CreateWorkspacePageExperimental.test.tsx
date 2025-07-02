@@ -15,6 +15,7 @@ import {
 	mockSwitchParameter,
 	mockSliderParameter,
 	validationParameter,
+	mockMultiSelectParameter,
 } from "testHelpers/entities";
 import {
 	renderWithAuth,
@@ -183,6 +184,7 @@ const mockDynamicParametersResponse: DynamicParametersResponse = {
 		mockSliderParameter,
 		mockSwitchParameter,
 		mockTagSelectParameter,
+		mockMultiSelectParameter,
 	],
 	diagnostics: [],
 };
@@ -508,6 +510,38 @@ describe("CreateWorkspacePageExperimental", () => {
 			});
 		});
 
+		it("renders multi-select parameter", async () => {
+			renderCreateWorkspacePageExperimental();
+			await waitForLoaderToBeRemoved();
+
+			await waitFor(() => {
+				expect(screen.getByText("IDEs")).toBeInTheDocument();
+			});
+
+			const multiSelect = screen.getByTestId("multiselect-ides");
+			expect(multiSelect).toBeInTheDocument();
+
+			const select = multiSelect.querySelector('[role="combobox"]');
+			expect(select).toBeInTheDocument();
+
+			await waitFor(async () => {
+				await userEvent.click(select!);
+			});
+
+			expect(
+				screen.getByRole("option", { name: /vscode/i }),
+			).toBeInTheDocument();
+			expect(
+				screen.getByRole("option", { name: /cursor/i }),
+			).toBeInTheDocument();
+			expect(
+				screen.getByRole("option", { name: /goland/i }),
+			).toBeInTheDocument();
+			expect(
+				screen.getByRole("option", { name: /windsurf/i }),
+			).toBeInTheDocument();
+		});
+
 		it("displays parameter validation errors", async () => {
 			jest
 				.spyOn(API, "templateVersionDynamicParameters")
@@ -815,6 +849,7 @@ describe("CreateWorkspacePageExperimental", () => {
 								value: "true",
 							}),
 							expect.objectContaining({ name: "tags", value: "[]" }),
+							expect.objectContaining({ name: "ides", value: "[]" }),
 						],
 					}),
 				);
