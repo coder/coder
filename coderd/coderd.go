@@ -1500,6 +1500,7 @@ func New(options *Options) *API {
 			r.Get("/", api.tailnetRPCConn)
 		})
 		r.Route("/aibridge", func(r chi.Router) {
+			r.Use(aibridged.AuthMiddleware(api.Database))
 			r.Post("/v1/chat/completions", api.bridgeAIRequest)
 			r.Get("/v1/models", func(rw http.ResponseWriter, r *http.Request) {
 				httpapi.Write(context.Background(), rw, http.StatusOK, map[string]any{

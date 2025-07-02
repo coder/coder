@@ -452,7 +452,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Claude Code uses the 3.5 Haiku model to do autocomplete and other small tasks.
+	// Claude Code uses the 3.5 Haiku model to do autocomplete and other small tasks. (see ANTHROPIC_SMALL_FAST_MODEL).
 	isHaiku := strings.Contains(string(in.Model), "3-5-haiku")
 
 	// Find the most recent user message and track the prompt.
