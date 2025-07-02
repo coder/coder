@@ -41,13 +41,52 @@ Try prompts such as:
 
 To import the template and begin configuring it, follow the [documentation in the Coder Registry](https://comingsoon.com)
 
+> [!NOTE]
+> The Tasks tab will appear automatically after you add a Tasks-compatible template and refresh the page.
+
 ### Option 2&rpar; Create or Duplicate Your Own Template
 
-Because Tasks run unpredictable AI agents, often for background tasks, we recommend creating a seperate template for Coder Tasks with limited permissions.
+A template becomes a Task template if it defines a `coder_ai_task` resource and a `coder_parameter` named `"AI Prompt"`. Coder analyzes template files during template version import to determine if these requirements are met.
+
+```hcl
+data "coder_parameter" "ai_prompt" {
+    name = "AI Prompt"
+    type = "string"
+}
+
+# Multiple coder_ai_tasks can be defined in a template
+resource "coder_ai_task" "claude-code" {
+    # At most one coder ai task can be instantiated during a workspace build.
+    # Coder fails the build if it would instantiate more than 1.
+    count = data.coder_parameter.ai_prompt.value != "" ? 1 : 0
+
+    sidebar_app {
+        # which app to display in the sidebar on the task page
+        id = coder_app.claude-code.id
+    }
+}
+```
+
+> [!NOTE]
+> This definition is not final and may change while Tasks is in beta. After any changes, we guarantee backwards compatibility for one minor Coder version. After that, you may need to update your template to continue using it with Tasks.
+
+Because Tasks run unpredictable AI agents, often for background tasks, we recommend creating a separate template for Coder Tasks with limited permissions.
 
 You can always duplicate your existing template, then apply seperate network policies/firewalls/permissions to the template. From there, follow the docs for one of our [built-in modules for agents](https://registry.coder.com/modules?search=tag%3Aagent) in order to add it to your template, configure your LLM provider.
 
 Alternatively, follow our guide for [custom agents](./custom-agents.md)
+
+## Customizing the Task UI
+
+The Task UI displays all workspace apps declared in a Task template. You can customize the app shown in the sidebar using the `sidebar_app.id` field on the `coder_ai_task` resource.
+
+If a workspace app has the special `"preview"` slug, a navbar will appear above it. This is intended for templates that let users preview a web app they’re working on.
+
+We plan to introduce more customization options in future releases.
+
+## Opting out of Tasks
+
+If you tried Tasks and decided you don't want to use it, you can hide the Tasks tab by starting `coder server` with the `CODER_HIDE_AI_TASKS=true` environment variable or the `--hide-ai-tasks` flag.
 
 ## Next Steps
 
