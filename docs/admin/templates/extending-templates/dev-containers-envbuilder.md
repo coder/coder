@@ -19,28 +19,6 @@ Use this page to decide which path fits your project or platform needs.
 | Templates                                | Standard `devcontainer.json`             | Terraform + Envbuilder blocks             |
 | Suitable for CI / AI agents              | Yes. Deterministic, composable           | Less ideal. No isolated container         |
 
-## When To Choose the Dev Containers Integration
-
-Choose the new integration if:
-
-- Your workspace image can run Docker (DinD, Sysbox, or a mounted Docker socket).
-- You need multiple Dev Containers (like `frontend`, `backend`, `db`) in a single workspace.
-- Developers should own their environment and rebuild on demand.
-- You rely on features such as automatic port forwarding, full SSH into containers, or change-detection prompts.
-
-[Dev Container integration](./devcontainers.md) documentation.
-
-## When To Choose Envbuilder
-
-Envbuilder remains a solid choice when:
-
-- Docker isn’t available or allowed inside the workspace image.
-- The platform team wants tight control over container contents via Terraform.
-- A single layered environment is sufficient (no need for separate sub-containers).
-- You already have Envbuilder templates in production and they meet current needs.
-
-[Envbuilder Dev Container](../managing-templates/devcontainers/add-devcontainer.md#envbuilder-terraform-provider) documentation.
-
 ## How To Migrate From Envbuilder to the Dev Containers Integration
 
 1. Ensure the workspace image can run Docker and has sufficient resources:
@@ -51,12 +29,19 @@ Envbuilder remains a solid choice when:
 
 1. Remove any Envbuilder blocks that reference `coder_dev_envbuilder` from the template.
 1. Add (or keep) a standard `.devcontainer/` folder with `devcontainer.json` in the repository.
-1. Add the `devcontainers-cli` module:
+1. Follow the [dev containers documentation](./devcontainers.md) for the full list of steps and options.
+
+   At minimum, add the `devcontainers-cli` module and `coder_devcontainer` resource:
 
    ```terraform
    module "devcontainers_cli" {
      source   = "dev.registry.coder.com/modules/devcontainers-cli/coder"
      agent_id = coder_agent.main.id
+   }
+   resource "coder_devcontainer" "project" { # `project` in this example is how users will connect to the dev container: `ssh://project.<workspace>.me.coder`
+     count            = data.coder_workspace.me.start_count
+     agent_id         = coder_agent.main.id
+     workspace_folder = "/home/coder/project"
    }
    ```
 
