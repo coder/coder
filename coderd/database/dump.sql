@@ -242,7 +242,8 @@ CREATE TYPE resource_type AS ENUM (
     'idp_sync_settings_group',
     'idp_sync_settings_role',
     'workspace_agent',
-    'workspace_app'
+    'workspace_app',
+    'prebuilds_settings'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -1138,12 +1139,15 @@ CREATE TABLE oauth2_provider_app_tokens (
     refresh_hash bytea NOT NULL,
     app_secret_id uuid NOT NULL,
     api_key_id text NOT NULL,
-    audience text
+    audience text,
+    user_id uuid NOT NULL
 );
 
 COMMENT ON COLUMN oauth2_provider_app_tokens.refresh_hash IS 'Refresh tokens provide a way to refresh an access token (API key). An expired API key can be refreshed if this token is not yet expired, meaning this expiry can outlive an API key.';
 
 COMMENT ON COLUMN oauth2_provider_app_tokens.audience IS 'Token audience binding from resource parameter';
+
+COMMENT ON COLUMN oauth2_provider_app_tokens.user_id IS 'Denormalized user ID for performance optimization in authorization checks';
 
 CREATE TABLE oauth2_provider_apps (
     id uuid NOT NULL,
@@ -2856,6 +2860,9 @@ ALTER TABLE ONLY api_keys
 
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY oauth2_provider_app_tokens
+    ADD CONSTRAINT fk_oauth2_provider_app_tokens_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY external_auth_links
     ADD CONSTRAINT git_auth_links_oauth_access_token_key_id_fkey FOREIGN KEY (oauth_access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);

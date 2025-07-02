@@ -394,6 +394,7 @@ export interface CreateTemplateRequest {
 	readonly disable_everyone_group_access: boolean;
 	readonly require_active_version: boolean;
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel | null;
+	readonly template_use_classic_parameter_flow?: boolean;
 }
 
 // From codersdk/templateversions.go
@@ -1482,6 +1483,14 @@ export interface OAuth2GithubConfig {
 }
 
 // From codersdk/oauth2.go
+export interface OAuth2ProtectedResourceMetadata {
+	readonly resource: string;
+	readonly authorization_servers: readonly string[];
+	readonly scopes_supported?: readonly string[];
+	readonly bearer_methods_supported?: readonly string[];
+}
+
+// From codersdk/oauth2.go
 export interface OAuth2ProviderApp {
 	readonly id: string;
 	readonly name: string;
@@ -1785,6 +1794,11 @@ export interface PrebuildsConfig {
 	readonly failure_hard_limit: number;
 }
 
+// From codersdk/prebuilds.go
+export interface PrebuildsSettings {
+	readonly reconciliation_paused: boolean;
+}
+
 // From codersdk/presets.go
 export interface Preset {
 	readonly ID: string;
@@ -1836,6 +1850,7 @@ export interface PreviewParameterStyling {
 	readonly placeholder?: string;
 	readonly disabled?: boolean;
 	readonly label?: string;
+	readonly mask_input?: boolean;
 }
 
 // From codersdk/parameters.go
@@ -2290,6 +2305,7 @@ export type ResourceType =
 	| "oauth2_provider_app_secret"
 	| "organization"
 	| "organization_member"
+	| "prebuilds_settings"
 	| "template"
 	| "template_version"
 	| "user"
@@ -2316,6 +2332,7 @@ export const ResourceTypes: ResourceType[] = [
 	"oauth2_provider_app_secret",
 	"organization",
 	"organization_member",
+	"prebuilds_settings",
 	"template",
 	"template_version",
 	"user",

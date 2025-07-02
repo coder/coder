@@ -4804,12 +4804,11 @@ const deleteOAuth2ProviderAppTokensByAppAndUserID = `-- name: DeleteOAuth2Provid
 DELETE FROM
   oauth2_provider_app_tokens
 USING
-  oauth2_provider_app_secrets, api_keys
+  oauth2_provider_app_secrets
 WHERE
   oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
-  AND api_keys.id = oauth2_provider_app_tokens.api_key_id
   AND oauth2_provider_app_secrets.app_id = $1
-	AND api_keys.user_id = $2
+  AND oauth2_provider_app_tokens.user_id = $2
 `
 
 type DeleteOAuth2ProviderAppTokensByAppAndUserIDParams struct {
@@ -4960,8 +4959,29 @@ func (q *sqlQuerier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, app
 	return items, nil
 }
 
+const getOAuth2ProviderAppTokenByAPIKeyID = `-- name: GetOAuth2ProviderAppTokenByAPIKeyID :one
+SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id FROM oauth2_provider_app_tokens WHERE api_key_id = $1
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, apiKeyID string) (OAuth2ProviderAppToken, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppTokenByAPIKeyID, apiKeyID)
+	var i OAuth2ProviderAppToken
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.HashPrefix,
+		&i.RefreshHash,
+		&i.AppSecretID,
+		&i.APIKeyID,
+		&i.Audience,
+		&i.UserID,
+	)
+	return i, err
+}
+
 const getOAuth2ProviderAppTokenByPrefix = `-- name: GetOAuth2ProviderAppTokenByPrefix :one
-SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
+SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (OAuth2ProviderAppToken, error) {
@@ -4976,6 +4996,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hash
 		&i.AppSecretID,
 		&i.APIKeyID,
 		&i.Audience,
+		&i.UserID,
 	)
 	return i, err
 }
@@ -5026,10 +5047,8 @@ FROM oauth2_provider_app_tokens
     ON oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
   INNER JOIN oauth2_provider_apps
     ON oauth2_provider_apps.id = oauth2_provider_app_secrets.app_id
-  INNER JOIN api_keys
-    ON api_keys.id = oauth2_provider_app_tokens.api_key_id
 WHERE
-  api_keys.user_id = $1
+  oauth2_provider_app_tokens.user_id = $1
 GROUP BY
   oauth2_provider_apps.id
 `
@@ -5262,6 +5281,7 @@ INSERT INTO oauth2_provider_app_tokens (
     refresh_hash,
     app_secret_id,
     api_key_id,
+    user_id,
     audience
 ) VALUES(
     $1,
@@ -5271,8 +5291,9 @@ INSERT INTO oauth2_provider_app_tokens (
     $5,
     $6,
     $7,
-    $8
-) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience
+    $8,
+    $9
+) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id
 `
 
 type InsertOAuth2ProviderAppTokenParams struct {
@@ -5283,6 +5304,7 @@ type InsertOAuth2ProviderAppTokenParams struct {
 	RefreshHash []byte         `db:"refresh_hash" json:"refresh_hash"`
 	AppSecretID uuid.UUID      `db:"app_secret_id" json:"app_secret_id"`
 	APIKeyID    string         `db:"api_key_id" json:"api_key_id"`
+	UserID      uuid.UUID      `db:"user_id" json:"user_id"`
 	Audience    sql.NullString `db:"audience" json:"audience"`
 }
 
@@ -5295,6 +5317,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		arg.RefreshHash,
 		arg.AppSecretID,
 		arg.APIKeyID,
+		arg.UserID,
 		arg.Audience,
 	)
 	var i OAuth2ProviderAppToken
@@ -5307,6 +5330,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		&i.AppSecretID,
 		&i.APIKeyID,
 		&i.Audience,
+		&i.UserID,
 	)
 	return i, err
 }
@@ -9604,6 +9628,18 @@ func (q *sqlQuerier) GetOAuthSigningKey(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getPrebuildsSettings = `-- name: GetPrebuildsSettings :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'prebuilds_settings'), '{}') :: text AS prebuilds_settings
+`
+
+func (q *sqlQuerier) GetPrebuildsSettings(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getPrebuildsSettings)
+	var prebuilds_settings string
+	err := row.Scan(&prebuilds_settings)
+	return prebuilds_settings, err
+}
+
 const getRuntimeConfig = `-- name: GetRuntimeConfig :one
 SELECT value FROM site_configs WHERE site_configs.key = $1
 `
@@ -9783,6 +9819,16 @@ ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'oauth_signi
 
 func (q *sqlQuerier) UpsertOAuthSigningKey(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertOAuthSigningKey, value)
+	return err
+}
+
+const upsertPrebuildsSettings = `-- name: UpsertPrebuildsSettings :exec
+INSERT INTO site_configs (key, value) VALUES ('prebuilds_settings', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'prebuilds_settings'
+`
+
+func (q *sqlQuerier) UpsertPrebuildsSettings(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertPrebuildsSettings, value)
 	return err
 }
 
@@ -11031,10 +11077,11 @@ INSERT INTO
 		group_acl,
 		display_name,
 		allow_user_cancel_workspace_jobs,
-		max_port_sharing_level
+		max_port_sharing_level,
+		use_classic_parameter_flow
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 `
 
 type InsertTemplateParams struct {
@@ -11053,6 +11100,7 @@ type InsertTemplateParams struct {
 	DisplayName                  string          `db:"display_name" json:"display_name"`
 	AllowUserCancelWorkspaceJobs bool            `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
 	MaxPortSharingLevel          AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
+	UseClassicParameterFlow      bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) error {
@@ -11072,6 +11120,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.DisplayName,
 		arg.AllowUserCancelWorkspaceJobs,
 		arg.MaxPortSharingLevel,
+		arg.UseClassicParameterFlow,
 	)
 	return err
 }

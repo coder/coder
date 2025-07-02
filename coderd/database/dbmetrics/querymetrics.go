@@ -1019,6 +1019,13 @@ func (m queryMetricsStore) GetOAuth2ProviderAppSecretsByAppID(ctx context.Contex
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, apiKeyID string) (database.OAuth2ProviderAppToken, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuth2ProviderAppTokenByAPIKeyID(ctx, apiKeyID)
+	m.queryLatencies.WithLabelValues("GetOAuth2ProviderAppTokenByAPIKeyID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (database.OAuth2ProviderAppToken, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOAuth2ProviderAppTokenByPrefix(ctx, hashPrefix)
@@ -1100,6 +1107,13 @@ func (m queryMetricsStore) GetPrebuildMetrics(ctx context.Context) ([]database.G
 	start := time.Now()
 	r0, r1 := m.s.GetPrebuildMetrics(ctx)
 	m.queryLatencies.WithLabelValues("GetPrebuildMetrics").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetPrebuildsSettings(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPrebuildsSettings(ctx)
+	m.queryLatencies.WithLabelValues("GetPrebuildsSettings").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -3172,6 +3186,13 @@ func (m queryMetricsStore) UpsertOAuthSigningKey(ctx context.Context, value stri
 	start := time.Now()
 	r0 := m.s.UpsertOAuthSigningKey(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertOAuthSigningKey").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) UpsertPrebuildsSettings(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertPrebuildsSettings(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertPrebuildsSettings").Observe(time.Since(start).Seconds())
 	return r0
 }
 
