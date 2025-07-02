@@ -81,11 +81,7 @@ Our [Amazon DCV Windows](https://registry.coder.com/modules/amazon-dcv-windows) 
 
 <div class="tabs">
 
-### Browser
-
-Our [Amazon DCV Windows](https://registry.coder.com/modules/amazon-dcv-windows) module adds a one-click button to open an Amazon DCV session in the browser. This requires just a few lines of Terraform in your template, see the documentation on our registry for setup.
-
-### Desktop
+### Desktop Client
 
 Connect using the [Amazon DCV Desktop client](https://docs.aws.amazon.com/dcv/latest/userguide/using-connecting.html) by forwarding the DCV port to your local machine:
 
@@ -104,6 +100,10 @@ coder port-forward <workspace-name> --tcp 8443:8443
 ```
 
 </div>
+
+### Browser
+
+Our [Amazon DCV Windows](https://registry.coder.com/modules/amazon-dcv-windows) module adds a one-click button to open an Amazon DCV session in the browser. This requires just a few lines of Terraform in your template, see the documentation on our registry for setup.
 
 </div>
 
@@ -125,7 +125,7 @@ As a starting point, see the enterprise-desktop image. It can be used to provisi
 
 <div class="tabs">
 
-### Desktop
+### Desktop Client
 
 Use a VNC client (e.g., [TigerVNC](https://tigervnc.org/)) by forwarding the VNC port to your local machine.
 
