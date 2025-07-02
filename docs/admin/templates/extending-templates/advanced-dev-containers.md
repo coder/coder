@@ -196,5 +196,5 @@ resource "docker_container" "workspace" {
 ## Troubleshooting
 
 1. Run `docker ps` inside the workspace to ensure Docker is available.
-1. Check `/tmp/startup.log` for agent logs.
+1. Check `/tmp/coder-agent.log` for agent logs.
 1. Verify the workspace image includes Node/npm or add the `nodejs` module before the `devcontainers_cli` module.
