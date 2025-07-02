@@ -83,6 +83,7 @@ type Builder struct {
 	parameterValues                      *[]string
 	templateVersionPresetParameterValues *[]database.TemplateVersionPresetParameter
 	parameterRender                      dynamicparameters.Renderer
+	workspaceTags                        *map[string]string
 
 	prebuiltWorkspaceBuildStage  sdkproto.PrebuiltWorkspaceBuildStage
 	verifyNoLegacyParametersOnce bool
@@ -929,6 +930,71 @@ func (b *Builder) getLastBuildJob() (*database.ProvisionerJob, error) {
 }
 
 func (b *Builder) getProvisionerTags() (map[string]string, error) {
+	if b.workspaceTags != nil {
+		return *b.workspaceTags, nil
+	}
+
+	var tags map[string]string
+	var err error
+
+	if b.usingDynamicParameters() {
+		tags, err = b.getClassicProvisionerTags()
+	} else {
+		tags, err = b.getClassicProvisionerTags()
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("get provisioner tags: %w", err)
+	}
+
+	b.workspaceTags = &tags
+	return *b.workspaceTags, nil
+}
+
+func (b *Builder) getDynamicProvisionerTags() (map[string]string, error) {
+	// Step 1: Mutate template manually set version tags
+	templateVersionJob, err := b.getTemplateVersionJob()
+	if err != nil {
+		return nil, BuildError{http.StatusInternalServerError, "failed to fetch template version job", err}
+	}
+	annotationTags := provisionersdk.MutateTags(b.workspace.OwnerID, templateVersionJob.Tags)
+
+	tags := map[string]string{}
+	for name, value := range annotationTags {
+		tags[name] = value
+	}
+
+	// Step 2: Fetch tags from the template
+	render, err := b.getDynamicParameterRenderer()
+	if err != nil {
+		return nil, BuildError{http.StatusInternalServerError, "failed to get dynamic parameter renderer", err}
+	}
+
+	names, values, err := b.getParameters()
+	if err != nil {
+		return nil, xerrors.Errorf("tags render: %w", err)
+	}
+
+	vals := make(map[string]string, len(names))
+	for i, name := range names {
+		if i >= len(values) {
+			return nil, BuildError{http.StatusInternalServerError,
+				fmt.Sprintf("parameter names and values mismatch, %d names & %d values", len(names), len(values)),
+				xerrors.New("names and values mismatch"),
+			}
+		}
+		vals[name] = values[i]
+	}
+
+	output, diags := render.Render(b.ctx, b.workspace.OwnerID, vals)
+	tagErr := dynamicparameters.CheckTags(output, diags)
+	if tagErr != nil {
+		return nil, tagErr
+	}
+
+	return output.WorkspaceTags.Tags(), nil
+}
+
+func (b *Builder) getClassicProvisionerTags() (map[string]string, error) {
 	// Step 1: Mutate template version tags
 	templateVersionJob, err := b.getTemplateVersionJob()
 	if err != nil {
