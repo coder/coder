@@ -77,7 +77,7 @@ Our [RDP Web](https://registry.coder.com/modules/windows-rdp) module in the Code
 
 ## Amazon DCV
 
-Our [Amazon DCV Windows](https://registry.coder.com/modules/amazon-dcv-windows) installs and configures the Amazon DCV server for seamless remote desktop access. It allows connecting through the both the [Amazon DCV web client](https://docs.aws.amazon.com/dcv/latest/userguide/web-client.html) and a web browser.
+Our [Amazon DCV Windows](https://registry.coder.com/modules/amazon-dcv-windows) installs and configures the Amazon DCV server for seamless remote desktop access. It allows connecting through the both the [Amazon DCV desktop clients](https://docs.aws.amazon.com/dcv/latest/userguide/using-connecting.html) and a [web browser](https://docs.aws.amazon.com/dcv/latest/userguide/using-connecting-browser-connect.html).
 
 <div class="tabs">
 
