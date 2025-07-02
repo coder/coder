@@ -122,7 +122,6 @@ For more advanced use cases, consult the [advanced dev containers doc](./advance
 Coder names dev container agents in this order:
 
 1. `customizations.coder.name` in `devcontainer.json`
-1. Resource name used in terraform (`resource "coder_devcontainer" "name"`)
 1. Project directory name (name of folder containing `devcontainer.json` or `.devcontainer` folder)
 1. If project directory name is already taken, the name is expanded to include the parent folder (`/home/coder/some/project` -> `project` (taken) -> `some-project`)
 

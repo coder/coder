@@ -36,11 +36,11 @@ When a workspace with the dev containers integration starts:
 
 - Automatic discovery of `.devcontainer` configs.
 - Change detection with rebuild prompts.
-- Rebuild containers with one click from the Coder dashboard or from the CLI.
+- Rebuild containers with one click from the Coder dashboard.
 
 ### Connectivity
 
-- Full SSH access directly into dev containers (`coder ssh <workspace>.<devcontainer>`).
+- Full SSH access directly into dev containers (`coder ssh <agent>.<workspace>.me.coder`).
 - Automatic port forwarding.
 
 ## Comparison with Envbuilder-based Dev Containers
@@ -59,7 +59,7 @@ Visit [Choose an approach to Dev Containers](../../admin/templates/extending-tem
 
 ## Known Limitations
 
-Currently, dev containers are not compatible with the [prebuilt workspaces](../../admin/templates/extending-templates/prebuilt-workspaces.md).
+Currently, dev containers are not compatible with [prebuilt workspaces](../../admin/templates/extending-templates/prebuilt-workspaces.md).
 
 If your template allows for prebuilt workspaces, do not select a prebuilt workspace if you plan to use a dev container.
 
