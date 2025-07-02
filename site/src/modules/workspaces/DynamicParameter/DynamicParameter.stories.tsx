@@ -10,7 +10,7 @@ const meta: Meta<typeof DynamicParameter> = {
 	},
 	args: {
 		parameter: MockPreviewParameter,
-		onChange: () => {},
+		onChange: () => { },
 	},
 };
 
@@ -74,6 +74,41 @@ export const Dropdown: Story = {
 					icon: "",
 				},
 			],
+		},
+	},
+};
+
+export const DropdownWithManyOptions: Story = {
+	args: {
+		parameter: {
+			...MockPreviewParameter,
+			form_type: "dropdown",
+			type: "string",
+			options: [
+				{ name: "JavaScript", value: { valid: true, value: "javascript" }, description: "JavaScript programming language", icon: "" },
+				{ name: "TypeScript", value: { valid: true, value: "typescript" }, description: "TypeScript programming language", icon: "" },
+				{ name: "Python", value: { valid: true, value: "python" }, description: "Python programming language", icon: "" },
+				{ name: "Java", value: { valid: true, value: "java" }, description: "Java programming language", icon: "" },
+				{ name: "C++", value: { valid: true, value: "cpp" }, description: "C++ programming language", icon: "" },
+				{ name: "C#", value: { valid: true, value: "csharp" }, description: "C# programming language", icon: "" },
+				{ name: "Ruby", value: { valid: true, value: "ruby" }, description: "Ruby programming language", icon: "" },
+				{ name: "Go", value: { valid: true, value: "go" }, description: "Go programming language", icon: "" },
+				{ name: "Rust", value: { valid: true, value: "rust" }, description: "Rust programming language", icon: "" },
+				{ name: "Swift", value: { valid: true, value: "swift" }, description: "Swift programming language", icon: "" },
+				{ name: "Kotlin", value: { valid: true, value: "kotlin" }, description: "Kotlin programming language", icon: "" },
+				{ name: "Scala", value: { valid: true, value: "scala" }, description: "Scala programming language", icon: "" },
+				{ name: "PHP", value: { valid: true, value: "php" }, description: "PHP programming language", icon: "" },
+				{ name: "Perl", value: { valid: true, value: "perl" }, description: "Perl programming language", icon: "" },
+				{ name: "R", value: { valid: true, value: "r" }, description: "R programming language", icon: "" },
+				{ name: "MATLAB", value: { valid: true, value: "matlab" }, description: "MATLAB programming language", icon: "" },
+				{ name: "Julia", value: { valid: true, value: "julia" }, description: "Julia programming language", icon: "" },
+				{ name: "Dart", value: { valid: true, value: "dart" }, description: "Dart programming language", icon: "" },
+				{ name: "Lua", value: { valid: true, value: "lua" }, description: "Lua programming language", icon: "" },
+				{ name: "Haskell", value: { valid: true, value: "haskell" }, description: "Haskell programming language", icon: "" },
+			],
+			styling: {
+				placeholder: "Select a programming language",
+			},
 		},
 	},
 };
