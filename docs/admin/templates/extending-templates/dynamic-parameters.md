@@ -284,11 +284,13 @@ data "coder_parameter" "cpu_cores" {
 }
 ```
 
-<!-- ### Secrets
+### Secrets
 
 Sliders can be used for configuration on a linear scale, like resource allocation. The `validation` block is used to clamp the minimum and maximum values for the parameter.
 
 [Try secret parameters on the Parameters Playground](https://playground.coder.app/parameters/wmiP7FM3Za).
+
+Note: this text may not be properly hidden in the Playground. The `mask_input` styling attribute is supported in v2.24.0 and onward.
 
 ```terraform
 data "coder_parameter" "private_api_key" {
@@ -302,10 +304,10 @@ data "coder_parameter" "private_api_key" {
   default = "privatekey"
 
   styling = jsonencode({
-    maskInput = true
+    mask_input = true
   })
 }
-``` -->
+```
 
 
 </div>
@@ -549,35 +551,159 @@ data "coder_parameter" "region" {
 
 </div>
 
+## Identity-aware parameters (Premium)
+
+Premium users can leverage our roles and groups to conditionally expose or change parameters based on user identity. This is helpful for establishing governance policy directly in the workspace creation form, rather than creating multiple templates to manage RBAC.
+
+User identity is referenced in Terraform by reading the [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) data source.
+
 <div class="tabs">
 
 ## Admin Options
 
-```
-data "coder_parameter" "advanced_setting" {
-  # This parameter is only visible when show_advanced is true
-  count = contains(data.workspace_owner.groups) ? 1 : 0
-  name         = "advanced_setting"
-  display_name = "Advanced Setting"
-  description  = "An advanced configuration option"
-  type         = "string"
-  default      = "default_value"
-  mutable      = true
-  order        = 1
+Template administrators often want to expose certain experimental or unstable options only to those with elevated roles. You can now do this by setting `count` based on a user's group or role, referencing the [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) data source. 
+
+[Try out admin-only options in the Playground](https://playground.coder.app/parameters/5Gn9W3hYs7).
+
+```terraform
+
+locals {
+  roles = [for r in data.coder_workspace_owner.me.rbac_roles: r.name]
+  is_admin = contains(data.coder_workspace_owner.me.groups, "admin")
+  has_admin_role = contains(local.roles, "owner")
 }
+
+data "coder_workspace_owner" "me" {}
+
+data "coder_parameter" "advanced_settings" {
+  # This parameter is only visible when the user is an administrator
+  count = local.is_admin ? 1 : 0
+  
+  name         = "advanced_settings"
+  display_name = "Add an arbitrary script"
+  description  = "An advanced configuration option only available to admins."
+  type         = "string"
+  form_type    = "textarea" 
+  mutable      = true
+  order        = 5
+
+  styling = jsonencode({
+    placeholder = <<-EOT
+  #!/usr/bin/env bash
+  while true; do
+    echo "hello world"
+    sleep 1
+  done
+  EOT
+  })
+}
+
 ```
 
 ## Role-specific options
 
-## Groups as namespaces
+Similarly to the above example, you can show certain options to specific roles on the platform. This allows you to restrict resources for those who may not need them.
 
- </div>
+```terraform
+locals {
+  roles = [for r in data.coder_workspace_owner.me.rbac_roles: r.name]
+  is_admin = contains(data.coder_workspace_owner.me.groups, "admin")
+  has_admin_role = contains(roles, "owner")
 
-## Advanced use cases
 
-## Dynamic Parameter Use Case Examples
 
-<details><summary>Conditional Parameters: Region and Instance Types</summary>
+  non_admin_desc = "YOU ARE NOT AN ADMIN! Set user to 'Administrator' in the top right."
+  admin_desc     = "You are an administrator! You now have access to the secret advanced option."
+}
+
+data "coder_workspace_owner" "me" {}
+
+data "coder_parameter" "advanced_settings" {
+  # This parameter is only visible when show_advanced is true
+  count = local.is_admin ? 1 : 0
+  name         = "advanced_settings"
+  display_name = "Add an arbitrary script"
+  description  = "An advanced configuration option only available to admins."
+  type         = "string"
+  form_type    = "textarea" 
+
+  styling = jsonencode({
+    placeholder = <<-EOT
+  #!/usr/bin/env bash
+  while true; do
+    echo "hello world"
+    sleep 1
+  done
+  EOT
+  })
+
+  mutable      = true
+  order        = 5
+}
+```
+
+### User-aware Regions
+
+You can expose regions depending on which group a user belongs to. This way developers can't incidentally induce low-latency with world-spanning connections. 
+
+[Try user-aware regions in the parameter playground](https://playground.coder.app/parameters/tBD-mbZRGm)
+
+```terraform
+
+locals {
+  eu_regions = [
+    "eu-west-1 (Ireland)",
+    "eu-central-1 (Frankfurt)",
+    "eu-north-1 (Stockholm)",
+    "eu-west-3 (Paris)",
+    "eu-south-1 (Milan)"
+  ]
+
+  us_regions = [
+    "us-east-1 (N. Virginia)",
+    "us-west-1 (California)",
+    "us-west-2 (Oregon)",
+    "us-east-2 (Ohio)",
+    "us-central-1 (Iowa)"
+  ]
+
+  eu_group_name = "eu-helsinki"
+  is_eu_dev = contains(data.coder_workspace_owner.me.groups, local.eu_group_name)
+  region_desc_tag = local.is_eu_dev ? "european" : "american"
+}
+
+data "coder_parameter" "region" {
+  name         = "region"
+  display_name = "Select a Region"
+  description  = "Select from ${local.region_desc_tag} region options."
+  type         = "string"
+  form_type    = "dropdown"
+  order        = 5
+  default      = local.is_eu_dev ? local.eu_regions[0] : local.us_regions[0]
+
+  dynamic "option" {
+    for_each = local.is_eu_dev ? local.eu_regions : local.us_regions
+    content {
+      name        = option.value
+      value       = option.value
+      description = "Use ${option.value}"
+    }
+  }
+}
+```
+
+
+### Groups as namespaces
+
+A slightly unorthodox way to leverage this is filling the selections of a parameter from the user's groups. Some users associate groups with namespaces (E.G. Kubernetes), then allow users to target that namespace with a parameter like so.
+
+
+```terraform
+
+
+```
+
+</div>
 
 This example shows instance types based on the selected region:
 
@@ -626,39 +752,6 @@ data "coder_parameter" "instance_type" {
 }
 ```
 
-</details>
-
-<details><summary>Advanced Options Toggle</summary>
-
-This example shows how to create an advanced options section:
-
-```tf
-data "coder_parameter" "show_advanced" {
-  name         = "show_advanced"
-  display_name = "Show Advanced Options"
-  description  = "Enable to show advanced configuration options"
-  type         = "bool"
-  default      = false
-  order        = 0
-}
-
-data "coder_parameter" "advanced_setting" {
-  # This parameter is only visible when show_advanced is true
-  count = data.coder_parameter.show_advanced.value ? 1 : 0
-  name         = "advanced_setting"
-  display_name = "Advanced Setting"
-  description  = "An advanced configuration option"
-  type         = "string"
-  default      = "default_value"
-  mutable      = true
-  order        = 1
-}
-```
-
-</details>
-
-<details><summary>Team-specific Resources</summary>
-
 This example filters resources based on user group membership:
 
 ```tf
@@ -685,9 +778,7 @@ data "coder_parameter" "instance_type" {
 }
 ```
 
-### Advanced Usage Patterns
-
-<details><summary>Creating Branching Paths</summary>
+### 
 
 For templates serving multiple teams or use cases, you can create comprehensive branching paths:
 
@@ -761,54 +852,5 @@ data "coder_parameter" "vm_image" {
 }
 ```
 
-</details>
+## Troubleshooting
 
-<details><summary>Conditional Validation</summary>
-
-Adjust validation rules dynamically based on parameter values:
-
-```tf
-data "coder_parameter" "team" {
-  name        = "team"
-  display_name = "Team"
-  type        = "string"
-  default     = "engineering"
-
-  option {
-    name  = "Engineering"
-    value = "engineering"
-  }
-
-  option {
-    name  = "Data Science"
-    value = "data-science"
-  }
-}
-
-data "coder_parameter" "cpu_count" {
-  name        = "cpu_count"
-  display_name = "CPU Count"
-  type        = "number"
-  default     = 2
-
-  # Engineering team has lower limits
-  dynamic "validation" {
-    for_each = data.coder_parameter.team.value == "engineering" ? [1] : []
-    content {
-      min = 1
-      max = 4
-    }
-  }
-
-  # Data Science team has higher limits
-  dynamic "validation" {
-    for_each = data.coder_parameter.team.value == "data-science" ? [1] : []
-    content {
-      min = 2
-      max = 8
-    }
-  }
-}
-```
-
-</details>
