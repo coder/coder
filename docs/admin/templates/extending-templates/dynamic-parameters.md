@@ -104,13 +104,13 @@ The "Options" column in the table below indicates whether the form type requires
 
 ### New Form Types
 
-The following examples show some basic usage of the sing the [`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute explained above.
+The following examples show some basic usage of the [`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute explained above. These are used to change the input style of form controls in the create workspace form.
 
 <div class="tabs">
 
 ### Dropdowns
 
-All single-select parameters with options may now use the `form_type=\"dropdown\"` attribute for better organization.
+Single-select parameters with options may now use the `form_type=\"dropdown\"` attribute for better organization.
 
 [Try dropdown lists on the Parameter Playground](https://playground.coder.app/parameters/kgNBpjnz7x)
 
@@ -284,6 +284,30 @@ data "coder_parameter" "cpu_cores" {
 }
 ```
 
+<!-- ### Secrets
+
+Sliders can be used for configuration on a linear scale, like resource allocation. The `validation` block is used to clamp the minimum and maximum values for the parameter.
+
+[Try secret parameters on the Parameters Playground](https://playground.coder.app/parameters/wmiP7FM3Za).
+
+```terraform
+data "coder_parameter" "private_api_key" {
+  name         = "private_api_key"
+  display_name = "Your super secret API key"
+  type         = "string"
+    
+  form_type = "input" # | "textarea"
+
+  # Will render as "**********"
+  default = "privatekey"
+
+  styling = jsonencode({
+    maskInput = true
+  })
+}
+``` -->
+
+
 </div>
 
 ### Conditional Parameters
@@ -315,7 +339,6 @@ data "coder_parameter" "show_cpu_cores" {
   order        = 1
 }
 
-
 data "coder_parameter" "cpu_cores" {
   # Only show this parameter if the previous box is selected.
   count = data.coder_parameter.show_cpu_cores.value ? 1 : 0
@@ -337,9 +360,20 @@ data "coder_parameter" "cpu_cores" {
 
 For a given parameter, we can influence which option is selected by default based on the selection of another. This allows us to suggest an option dynamically without strict enforcement.
 
-[Try dynamic defaults in the Parameter Playground](https://playground.coder.app/parameters/Ilko59tf89).
+[Try dynamic defaults in the Parameter Playground](https://playground.coder.app/parameters/DEi-Bi6DVe).
 
 ```terraform
+locals {
+  ides = [
+    "VS Code",
+    "IntelliJ", "GoLand",
+    "WebStorm", "PyCharm",
+    "Databricks", "Jupyter Notebook",
+  ]
+  mlkit_ides = jsonencode(["Databricks", "PyCharm"])
+  core_ides = jsonencode(["VS Code", "GoLand"])
+}
+
 data "coder_parameter" "git_repo" {
   name = "git_repo"
   display_name = "Git repo"
@@ -374,7 +408,7 @@ data "coder_parameter" "ide_selector" {
   display_name = "Select IDEs"
   form_type = "multi-select"
   type      = "list(string)"
-  default   = try(data.coder_parameter.git_repo.value, "") == "coder/mlkit" ? jsonencode(["Databricks", "PyCharm"]) : jsonencode(["VS Code", "GoLand"])
+  default   = try(data.coder_parameter.git_repo.value, "") == "coder/mlkit" ? local.mlkit_ides : local.core_ides
 
 
   dynamic "option" {
@@ -392,7 +426,6 @@ data "coder_parameter" "ide_selector" {
 Parameters' validation block can also leverage inputs from other parameters.
 
 [Try dynamic validation in the Parameter Playground](https://playground.coder.app/parameters/sdbzXxagJ4).
-
 
 ```terraform
 data "coder_parameter" "git_repo" {
@@ -441,8 +474,76 @@ data "coder_parameter" "cpu_cores" {
 
 ## Daisy Chaining
 
-```
+You can daisy-chain the conditionals shown here to create a dynamically expanding form. Note that parameters must be indexed when using the `count` attribute. 
 
+```terraform
+
+data "coder_parameter" "git_repo" {
+  name = "git_repo"
+  display_name = "Git repo"
+  description = "Select a git repo to work on."
+  order = 1
+  mutable = true
+  type = "string"
+  form_type = "dropdown"
+
+  option {
+    # A Go-heavy repository
+    name = "coder/coder"
+    value = "coder/coder"
+  }
+
+  option {
+    # A python-heavy repository
+    name = "coder/mlkit"
+    value = "coder/mlkit"
+  }
+}
+
+data "coder_parameter" "ide_selector" {
+  # Conditionally expose this parameter
+  count = try(data.coder_parameter.git_repo.value, "") != "" ? 1 : 0
+
+  name = "ide_selector"
+  description  = "Choose any IDEs for your workspace."
+  order        = 2
+  mutable      = true
+
+  display_name = "Select IDEs"
+  form_type = "multi-select"
+  type      = "list(string)"
+  default   = try(data.coder_parameter.git_repo.value, "") == "coder/mlkit" ? local.mlkit_ides : local.core_ides
+
+
+  dynamic "option" {
+    for_each = local.ides
+    content {
+      name  = option.value
+      value = option.value
+    }
+  }
+}
+
+data "coder_parameter" "region" {
+  # Only show this parameter if any IDEs are selected.
+  count = try(data.coder_parameter.ide_selector.value,) ? 1 : 0
+
+  name         = "region"
+  display_name = "Select a Region"
+  type         = "number"
+  form_type    = "slider"
+  order        = 2
+
+  # Dynamically set default
+  default      = try(data.coder_parameter.git_repo.value, "") == "coder/mlkit" ? 12 : 6
+
+  validation {
+    min = 1
+
+    # Dynamically set max validation
+    max = try(data.coder_parameter.git_repo.value, "") == "coder/mlkit" ? 16 : 8
+  }
+}
 
 ```
 
