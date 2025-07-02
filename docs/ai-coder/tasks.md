@@ -21,17 +21,7 @@ Enterprise LLM Providers such as AWS Bedrock, GCP Vertex and proxies such as Lit
 
 Each task runs inside its own Coder workspace for isolation purposes. Agents like Claude Code also run in the workspace, and can be pre-installed via a module in the Coder Template. Agents then communicate with your LLM provider, so no GPUs are directly required in your workspaces for inference.
 
-<div class="tabs">
-
-## High-Level
-
 ![High-Level Architecture](../images/guides/ai-agents/architecture-high-level.png)
-
-## In-Depth
-
-Coming soon!
-
-</div>
 
 Coder's [built-in modules for agents](https://registry.coder.com/modules?search=tag%3Aagent) will pre-install the agent alongside [AgentAPI](https://github.com/coder/agentapi). AgentAPI is an open source project developed by Coder which improves status reporting and the Chat UI, regardless of which agent you use.
 

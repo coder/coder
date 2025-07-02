@@ -869,17 +869,14 @@
 			"icon_path": "./images/icons/wand.svg",
 			"children": [
 				{
-					"title": "Use Cases",
-					"description": "./use-cases.md",
-					"path": "./ai-coder/use-cases.md"
+					"title": "Best Practices",
+					"description": "./best-practices.md",
+					"path": "./ai-coder/best-practices.md"
 				},
 				{
 					"title": "In the IDE",
 					"description": "./ide-agents.md",
-					"path": "./ai-coder/ide-agents.md",
-					"state": [
-						"beta"
-					]
+					"path": "./ai-coder/ide-agents.md"
 				},
 				{
 					"title": "Coder Tasks",
@@ -890,52 +887,17 @@
 					],
 					"children": [
 						{
-							"title": "Best Practices",
-							"description": "Best practices running Coder Tasks, with productivity and security perspectives",
-							"path": "./ai-coder/coming-soon.md",
-							"state": [
-								"beta"
-							]
-						},
-						{
-							"title": "LLM Providers",
-							"description": "Run Coder Tasks with LLM Providers such as AWS Bedrock and GCP Vertex AI",
-							"path": "./ai-coder/coming-soon.md",
-							"state": [
-								"beta"
-							]
-						},
-						{
-							"title": "MCP Servers",
-							"description": "Install and run MCP Servers with Coder Tasks",
-							"path": "./ai-coder/coming-soon.md",
-							"state": [
-								"beta"
-							]
-						},
-						{
-							"title": "Security Considerations",
-							"description": "Securty Considerations running Coder Tasks",
-							"path": "./ai-coder/coming-soon.md",
-							"state": [
-								"beta"
-							]
-						},
-						{
-							"title": "Architecture Considerations",
-							"description": "Architecture Considerations running Coder Tasks",
-							"path": "./ai-coder/coming-soon.md",
-							"state": [
-								"beta"
-							]
-						},
-						{
 							"title": "Custom Agents",
 							"description": "Run custom agents with Coder Tasks",
 							"path": "./ai-coder/custom-agents.md",
 							"state": [
 								"beta"
 							]
+						},
+						{
+							"title": "Security & Boundaries",
+							"description": "Learn about security and boundaries when running AI coding agents in Coder",
+							"path": "./ai-coder/security.md"
 						}
 					]
 				}
