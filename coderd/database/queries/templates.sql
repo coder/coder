@@ -8,6 +8,7 @@ WHERE
 LIMIT
 	1;
 
+-- TODO(cian): also return related provisioner job for active template version
 -- name: GetTemplatesWithFilter :many
 SELECT
 	t.*
@@ -64,6 +65,7 @@ WHERE
 ORDER BY (t.name, t.id) ASC
 ;
 
+-- TODO(cian): also return related provisioner job for active template version
 -- name: GetTemplateByOrganizationAndName :one
 SELECT
 	*

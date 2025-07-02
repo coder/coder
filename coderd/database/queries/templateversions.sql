@@ -1,3 +1,4 @@
+-- TODO(cian): also return related provisioner job for active template version
 -- name: GetTemplateVersionsByTemplateID :many
 SELECT
 	*
@@ -39,6 +40,7 @@ LIMIT
 	-- A null limit means "no limit", so 0 means return all
 	NULLIF(@limit_opt :: int, 0);
 
+-- TODO(cian): also return related provisioner job for active template version
 -- name: GetTemplateVersionByJobID :one
 SELECT
 	*
@@ -47,9 +49,11 @@ FROM
 WHERE
 	job_id = $1;
 
+-- TODO(cian): also return related provisioner job for active template version
 -- name: GetTemplateVersionsCreatedAfter :many
 SELECT * FROM template_version_with_user AS template_versions WHERE created_at > $1;
 
+-- TODO(cian): also return related provisioner job for active template version
 -- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
 	*
@@ -59,6 +63,7 @@ WHERE
 	template_id = $1
 	AND "name" = $2;
 
+-- TODO(cian): also return related provisioner job for active template version
 -- name: GetTemplateVersionByID :one
 SELECT
 	*
@@ -131,6 +136,7 @@ SET
 WHERE
 	job_id = $1;
 
+-- TODO(cian): also return related provisioner job for active template version
 -- name: GetPreviousTemplateVersion :one
 SELECT
 	*
