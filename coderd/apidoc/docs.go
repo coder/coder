@@ -8841,9 +8841,13 @@ const docTemplate = `{
                         "required": true
                     },
                     {
+                        "enum": [
+                            "running",
+                            "pending"
+                        ],
                         "type": "string",
-                        "description": "Expected state of the job",
-                        "name": "expect_state",
+                        "description": "Expected status of the job",
+                        "name": "expect_status",
                         "in": "query"
                     }
                 ],

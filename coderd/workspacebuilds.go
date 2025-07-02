@@ -581,12 +581,12 @@ func (api *API) notifyWorkspaceUpdated(
 // @Produce json
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
-// @Param expect_state query string false "Expected state of the job"
+// @Param expect_status query string false "Expected status of the job" Enums(running, pending)
 // @Success 200 {object} codersdk.Response
 // @Router /workspacebuilds/{workspacebuild}/cancel [patch]
 func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	expectState := r.URL.Query().Get("expect_state")
+	expectStatus := r.URL.Query().Get("expect_status")
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 	if err != nil {
@@ -596,90 +596,60 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	valid, err := api.verifyUserCanCancelWorkspaceBuilds(ctx, httpmw.APIKey(r).UserID, workspace.TemplateID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error verifying permission to cancel workspace build.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if !valid {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "User is not allowed to cancel workspace builds. Owner role is required.",
-		})
-		return
-	}
-
-	if expectState != "" {
-		jobStatus := database.ProvisionerJobStatus(expectState)
-		if !jobStatus.Valid() {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid expect_state. Only 'pending', 'running', 'succeeded', 'canceling', 'canceled', 'failed', or 'unknown' are allowed.",
-			})
-			return
-		}
-
-		// use local error type to detect if the error is due to job state mismatch
-		var errJobStateMismatch = xerrors.New("job is not in the expected state")
-
-		err := api.Database.InTx(func(store database.Store) error {
-			job, err := store.GetProvisionerJobByIDForUpdate(ctx, workspaceBuild.JobID)
-			if err != nil {
-				return err
-			}
-
-			if job.JobStatus != jobStatus {
-				return errJobStateMismatch
-			}
-
-			return store.UpdateProvisionerJobWithCancelByID(ctx, database.UpdateProvisionerJobWithCancelByIDParams{
-				ID: job.ID,
-				CanceledAt: sql.NullTime{
-					Time:  dbtime.Now(),
-					Valid: true,
-				},
-				CompletedAt: sql.NullTime{
-					Time:  dbtime.Now(),
-					Valid: !job.WorkerID.Valid,
-				},
-			})
-		}, nil)
+	err = api.Database.InTx(func(store database.Store) error {
+		valid, err := api.verifyUserCanCancelWorkspaceBuilds(ctx, store, httpmw.APIKey(r).UserID, workspace.TemplateID)
 		if err != nil {
-			if errors.Is(err, errJobStateMismatch) {
-				httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
-					Message: "Job is not in the expected state.",
-				})
-				return
-			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching provisioner job.",
+				Message: "Internal error verifying permission to cancel workspace build.",
 				Detail:  err.Error(),
 			})
-			return
+			return nil
 		}
-	} else {
-		job, err := api.Database.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
+		if !valid {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "User is not allowed to cancel workspace builds. Owner role is required.",
+			})
+			return nil
+		}
+
+		job, err := store.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching provisioner job.",
 				Detail:  err.Error(),
 			})
-			return
+			return nil
 		}
 		if job.CompletedAt.Valid {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Job has already completed!",
 			})
-			return
+			return nil
 		}
 		if job.CanceledAt.Valid {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Job has already been marked as canceled!",
 			})
-			return
+			return nil
 		}
-		err = api.Database.UpdateProvisionerJobWithCancelByID(ctx, database.UpdateProvisionerJobWithCancelByIDParams{
+
+		if expectStatus != "" {
+			if expectStatus != "running" && expectStatus != "pending" {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid expect_status. Only 'running' or 'pending' are allowed.",
+				})
+				return nil
+			}
+
+			if job.JobStatus != database.ProvisionerJobStatus(expectStatus) {
+				httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+					Message: "Job is not in the expected state.",
+				})
+				return nil
+			}
+		}
+
+		err = store.UpdateProvisionerJobWithCancelByID(ctx, database.UpdateProvisionerJobWithCancelByIDParams{
 			ID: job.ID,
 			CanceledAt: sql.NullTime{
 				Time:  dbtime.Now(),
@@ -696,9 +666,19 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 				Message: "Internal error updating provisioner job.",
 				Detail:  err.Error(),
 			})
-			return
+			return nil
 		}
+
+		return nil
+	}, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
 	}
+
 	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
 		Kind:        wspubsub.WorkspaceEventKindStateChange,
 		WorkspaceID: workspace.ID,
@@ -709,8 +689,8 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
-func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID uuid.UUID, templateID uuid.UUID) (bool, error) {
-	template, err := api.Database.GetTemplateByID(ctx, templateID)
+func (*API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, store database.Store, userID uuid.UUID, templateID uuid.UUID) (bool, error) {
+	template, err := store.GetTemplateByID(ctx, templateID)
 	if err != nil {
 		return false, xerrors.New("no template exists for this workspace")
 	}
@@ -719,7 +699,7 @@ func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID u
 		return true, nil // all users can cancel workspace builds
 	}
 
-	user, err := api.Database.GetUserByID(ctx, userID)
+	user, err := store.GetUserByID(ctx, userID)
 	if err != nil {
 		return false, xerrors.New("user does not exist")
 	}

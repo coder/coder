@@ -123,14 +123,21 @@ func (c *Client) WorkspaceBuild(ctx context.Context, id uuid.UUID) (WorkspaceBui
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
 }
 
+type CancelWorkspaceBuildStatus string
+
+const (
+	CancelWorkspaceBuildStatusRunning CancelWorkspaceBuildStatus = "running"
+	CancelWorkspaceBuildStatusPending CancelWorkspaceBuildStatus = "pending"
+)
+
 type CancelWorkspaceBuildRequest struct {
-	ExpectState ProvisionerJobStatus `json:"expect_state,omitempty"`
+	ExpectStatus CancelWorkspaceBuildStatus `json:"expect_status,omitempty"`
 }
 
 func (c *CancelWorkspaceBuildRequest) asRequestOption() RequestOption {
 	return func(r *http.Request) {
 		q := r.URL.Query()
-		q.Set("expect_state", string(c.ExpectState))
+		q.Set("expect_status", string(c.ExpectStatus))
 		r.URL.RawQuery = q.Encode()
 	}
 }

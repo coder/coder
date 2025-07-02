@@ -672,7 +672,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 
 		// When: the workspace build is canceled
 		err = client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildRequest{
-			ExpectState: codersdk.ProvisionerJobPending,
+			ExpectStatus: codersdk.CancelWorkspaceBuildStatusPending,
 		})
 		require.NoError(t, err)
 
@@ -734,7 +734,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 
 		// When: a cancel request is made with expect_state=pending
 		err = client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildRequest{
-			ExpectState: codersdk.ProvisionerJobPending,
+			ExpectStatus: codersdk.CancelWorkspaceBuildStatusPending,
 		})
 		// Then: the request should fail with 412.
 		require.Error(t, err)
@@ -765,13 +765,13 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 
 		// When: a cancel request is made with invalid expect_state
 		err := client.CancelWorkspaceBuild(ctx, workspace.LatestBuild.ID, codersdk.CancelWorkspaceBuildRequest{
-			ExpectState: "invalid_status",
+			ExpectStatus: "invalid_status",
 		})
 		// Then: the request should fail with 400.
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Contains(t, apiErr.Message, "Invalid expect_state")
+		require.Contains(t, apiErr.Message, "Invalid expect_status")
 	})
 }
 
