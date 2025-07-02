@@ -42,6 +42,7 @@ export function useWithRetry(
 
   const timeoutRef = useRef<number | null>(null);
   const countdownRef = useRef<number | null>(null);
+  const executeFunctionRef = useRef<(attempt: number) => Promise<void>>();
 
   const clearTimers = useCallback(() => {
     if (timeoutRef.current) {
@@ -62,38 +63,6 @@ export function useWithRetry(
     [initialDelay, multiplier, maxDelay],
   );
 
-  const scheduleRetry = useCallback(
-    (attempt: number) => {
-      if (attempt >= maxAttempts) {
-        setIsLoading(false);
-        setRetryAt(null);
-        return;
-      }
-
-      const delay = calculateDelay(attempt);
-      const retryTime = new Date(Date.now() + delay);
-      setRetryAt(retryTime);
-
-      // Update countdown every 100ms for smooth UI updates
-      countdownRef.current = window.setInterval(() => {
-        const now = Date.now();
-        const timeLeft = retryTime.getTime() - now;
-        
-        if (timeLeft <= 0) {
-          clearTimers();
-          setRetryAt(null);
-        }
-      }, COUNTDOWN_UPDATE_INTERVAL);
-
-      // Schedule the actual retry
-      timeoutRef.current = window.setTimeout(() => {
-        setRetryAt(null);
-        executeFunction(attempt + 1);
-      }, delay);
-    },
-    [maxAttempts, calculateDelay, clearTimers],
-  );
-
   const executeFunction = useCallback(
     async (attempt: number = 0) => {
       setIsLoading(true);
@@ -109,7 +78,26 @@ export function useWithRetry(
       } catch (error) {
         // Failure - schedule retry if attempts remaining
         if (attempt < maxAttempts) {
-          scheduleRetry(attempt);
+          const delay = calculateDelay(attempt);
+          const retryTime = new Date(Date.now() + delay);
+          setRetryAt(retryTime);
+
+          // Update countdown every 100ms for smooth UI updates
+          countdownRef.current = window.setInterval(() => {
+            const now = Date.now();
+            const timeLeft = retryTime.getTime() - now;
+            
+            if (timeLeft <= 0) {
+              clearTimers();
+              setRetryAt(null);
+            }
+          }, COUNTDOWN_UPDATE_INTERVAL);
+
+          // Schedule the actual retry
+          timeoutRef.current = window.setTimeout(() => {
+            setRetryAt(null);
+            executeFunctionRef.current?.(attempt + 1);
+          }, delay);
         } else {
           // No more attempts - reset state
           setIsLoading(false);
@@ -118,8 +106,11 @@ export function useWithRetry(
         }
       }
     },
-    [fn, maxAttempts, scheduleRetry, clearTimers],
+    [fn, maxAttempts, calculateDelay, clearTimers],
   );
+
+  // Update the ref with the current executeFunction
+  executeFunctionRef.current = executeFunction;
 
   const call = useCallback(() => {
     // Cancel any existing retry and start fresh
