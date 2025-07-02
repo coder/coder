@@ -12,7 +12,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -21,9 +20,7 @@ import (
 	ant_ssestream "github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 	"github.com/google/uuid"
 	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
 	"github.com/openai/openai-go/shared/constant"
-	"github.com/tidwall/gjson"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -60,42 +57,6 @@ func NewBridge(cfg codersdk.AIBridgeConfig, addr string, logger slog.Logger, cli
 	bridge.logger = logger
 
 	return &bridge
-}
-
-// ChatCompletionNewParamsWrapper exists because the "stream" param is not included in openai.ChatCompletionNewParams.
-type ChatCompletionNewParamsWrapper struct {
-	openai.ChatCompletionNewParams `json:""`
-	Stream                         bool `json:"stream,omitempty"`
-}
-
-func (b ChatCompletionNewParamsWrapper) MarshalJSON() ([]byte, error) {
-	type shadow ChatCompletionNewParamsWrapper
-	return param.MarshalWithExtras(b, (*shadow)(&b), map[string]any{
-		"stream": b.Stream,
-	})
-}
-
-func (b *ChatCompletionNewParamsWrapper) UnmarshalJSON(raw []byte) error {
-	err := b.ChatCompletionNewParams.UnmarshalJSON(raw)
-	if err != nil {
-		return err
-	}
-
-	in := gjson.ParseBytes(raw)
-	if stream := in.Get("stream"); stream.Exists() {
-		b.Stream = stream.Bool()
-		if b.Stream {
-			b.ChatCompletionNewParams.StreamOptions = openai.ChatCompletionStreamOptionsParam{
-				IncludeUsage: openai.Bool(true), // Always include usage when streaming.
-			}
-		} else {
-			b.ChatCompletionNewParams.StreamOptions = openai.ChatCompletionStreamOptionsParam{}
-		}
-	} else {
-		b.ChatCompletionNewParams.StreamOptions = openai.ChatCompletionStreamOptionsParam{}
-	}
-
-	return nil
 }
 
 func (b *Bridge) openAITarget() *url.URL {
@@ -151,28 +112,13 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(in.Messages) > 0 {
-		// Find last user message.
-		var msg *openai.ChatCompletionUserMessageParam
-		for i := len(in.Messages) - 1; i >= 0; i-- {
-			m := in.Messages[i]
-			if m.OfUser != nil {
-				msg = m.OfUser
-				break
-			}
-		}
-
-		if msg != nil {
-			message := msg.Content.OfString.String()
-			if isCursor, _ := regexp.MatchString("<user_query>", message); isCursor {
-				message = b.extractCursorUserQuery(message)
-			}
-
-			if _, err = coderdClient.TrackUserPrompts(ctx, &proto.TrackUserPromptsRequest{
-				Prompt: message,
-			}); err != nil {
-				b.logger.Error(r.Context(), "failed to track user prompt", slog.Error(err))
-			}
+	prompt, err := in.LastUserPrompt() // TODO: error handling.
+	if prompt != nil {
+		if _, err = coderdClient.TrackUserPrompts(ctx, &proto.TrackUserPromptsRequest{
+			Model:  in.Model,
+			Prompt: *prompt,
+		}); err != nil {
+			b.logger.Error(r.Context(), "failed to track user prompt", slog.Error(err))
 		}
 	}
 
@@ -389,19 +335,6 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (b *Bridge) extractCursorUserQuery(message string) string {
-	pat := regexp.MustCompile(`<user_query>(?P<content>[\s\S]*?)</user_query>`)
-	match := pat.FindStringSubmatch(message)
-	if match != nil {
-		// Get the named group by index
-		contentIndex := pat.SubexpIndex("content")
-		if contentIndex != -1 {
-			message = match[contentIndex]
-		}
-	}
-	return strings.TrimSpace(message)
-}
-
 func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	sessionID := uuid.New()
 	_, _ = fmt.Fprintf(os.Stderr, "[%s] new chat session started\n\n", sessionID)
@@ -453,44 +386,14 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Claude Code uses the 3.5 Haiku model to do autocomplete and other small tasks. (see ANTHROPIC_SMALL_FAST_MODEL).
-	isHaiku := strings.Contains(string(in.Model), "3-5-haiku")
+	isSmallFastModel := strings.Contains(string(in.Model), "3-5-haiku")
 
 	// Find the most recent user message and track the prompt.
-	if len(in.Messages) > 0 && !isHaiku {
-		var userMessage string
-		for i := len(in.Messages) - 1; i >= 0; i-- {
-			m := in.Messages[i]
-			if m.Role != anthropic.BetaMessageParamRoleUser {
-				continue
-			}
-			if len(m.Content) == 0 {
-				continue
-			}
-
-			for j := len(m.Content) - 1; j >= 0; j-- {
-				if textContent := m.Content[j].GetText(); textContent != nil {
-					userMessage = *textContent
-				}
-
-				// Ignore internal Claude Code prompts.
-				if userMessage == "test" ||
-					strings.Contains(userMessage, "<system-reminder>") {
-					userMessage = ""
-					continue
-				}
-
-				// Handle Cursor-specific formatting by extracting content from <user_query> tags
-				if isCursor, _ := regexp.MatchString("<user_query>", userMessage); isCursor {
-					userMessage = b.extractCursorUserQuery(userMessage)
-				}
-				goto track
-			}
-		}
-
-	track:
-		if userMessage != "" {
+	if !isSmallFastModel {
+		prompt, err := in.LastUserPrompt() // TODO: error handling.
+		if prompt != nil {
 			if _, err = coderdClient.TrackUserPrompts(ctx, &proto.TrackUserPromptsRequest{
-				Prompt: userMessage,
+				Prompt: *prompt,
 				Model:  string(in.Model),
 			}); err != nil {
 				b.logger.Error(r.Context(), "failed to track user prompt", slog.Error(err))
@@ -513,11 +416,11 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 			InputTokens:  msg.Usage.InputTokens,
 			OutputTokens: msg.Usage.OutputTokens,
 			Other: map[string]int64{
-				"web_search_requests":  msg.Usage.ServerToolUse.WebSearchRequests,
-				"cache_creation_input": msg.Usage.CacheCreationInputTokens,
-				"cache_read_input":     msg.Usage.CacheReadInputTokens,
-				"cache_ephemeral_1h_input":   msg.Usage.CacheCreation.Ephemeral1hInputTokens,
-				"cache_ephemeral_5m_input":   msg.Usage.CacheCreation.Ephemeral5mInputTokens,
+				"web_search_requests":      msg.Usage.ServerToolUse.WebSearchRequests,
+				"cache_creation_input":     msg.Usage.CacheCreationInputTokens,
+				"cache_read_input":         msg.Usage.CacheReadInputTokens,
+				"cache_ephemeral_1h_input": msg.Usage.CacheCreation.Ephemeral1hInputTokens,
+				"cache_ephemeral_5m_input": msg.Usage.CacheCreation.Ephemeral5mInputTokens,
 			},
 		})
 		if err != nil {
@@ -588,11 +491,11 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 		InputTokens:  message.Usage.InputTokens,
 		OutputTokens: message.Usage.OutputTokens,
 		Other: map[string]int64{
-			"web_search_requests":  message.Usage.ServerToolUse.WebSearchRequests,
-			"cache_creation_input": message.Usage.CacheCreationInputTokens,
-			"cache_read_input":     message.Usage.CacheReadInputTokens,
-			"cache_ephemeral_1h_input":   message.Usage.CacheCreation.Ephemeral1hInputTokens,
-			"cache_ephemeral_5m_input":   message.Usage.CacheCreation.Ephemeral5mInputTokens,
+			"web_search_requests":      message.Usage.ServerToolUse.WebSearchRequests,
+			"cache_creation_input":     message.Usage.CacheCreationInputTokens,
+			"cache_read_input":         message.Usage.CacheReadInputTokens,
+			"cache_ephemeral_1h_input": message.Usage.CacheCreation.Ephemeral1hInputTokens,
+			"cache_ephemeral_5m_input": message.Usage.CacheCreation.Ephemeral5mInputTokens,
 		},
 	})
 	if err != nil {
