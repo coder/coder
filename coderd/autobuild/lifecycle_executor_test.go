@@ -2,6 +2,10 @@ package autobuild_test
 
 import (
 	"context"
+	"database/sql"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/quartz"
 	"testing"
 	"time"
 
@@ -1181,6 +1185,135 @@ func TestNotifications(t *testing.T) {
 		require.Contains(t, sent[0].Targets, workspace.OrganizationID)
 		require.Contains(t, sent[0].Targets, workspace.OwnerID)
 	})
+}
+
+func TestExecutorAutostopPrebuilds(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("this test requires postgres")
+	}
+
+	clock := quartz.NewMock(t)
+	db, pb := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	var (
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan autobuild.Stats)
+		client  = coderdtest.New(t, &coderdtest.Options{
+			Database:                 db,
+			Pubsub:                   pb,
+			AutobuildTicker:          tickCh,
+			IncludeProvisionerDaemon: true,
+			AutobuildStats:           statsCh,
+		})
+	)
+	// Given: we have a prebuilt workspace
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	preset := setupTestDBPreset(t, db, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	dbPrebuiltWorkspace := setupTestDBWorkspace(t, clock, db, pb, user.OrganizationID, database.PrebuildsSystemUserID, template.ID, version.ID, preset.ID)
+	workspace := coderdtest.MustWorkspace(t, client, dbPrebuiltWorkspace.ID)
+
+	// Given: workspace is running
+	require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
+	require.NotZero(t, workspace.LatestBuild.Deadline)
+
+	// When: the autobuild executor ticks *after* the deadline:
+	go func() {
+		tickCh <- workspace.LatestBuild.Deadline.Time.Add(time.Minute)
+		close(tickCh)
+	}()
+
+	// Then: the workspace should be stopped
+	stats := <-statsCh
+	assert.Len(t, stats.Errors, 0)
+
+	// Wrong: Prebuilds included in the query
+	//assert.Len(t, stats.Transitions, 1)
+	//assert.Contains(t, stats.Transitions, workspace.ID)
+	//assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID])
+	//workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+	//assert.Equal(t, codersdk.BuildReasonAutostop, workspace.LatestBuild.Reason)
+
+	// Correct: Prebuilds not included in the query
+	// Prebuilt workspace should stay in a start status
+	assert.Len(t, stats.Transitions, 0)
+	workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+	assert.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
+}
+
+func setupTestDBPreset(
+	t *testing.T,
+	db database.Store,
+	templateVersionID uuid.UUID,
+) database.TemplateVersionPreset {
+	t.Helper()
+
+	preset := dbgen.Preset(t, db, database.InsertPresetParams{
+		TemplateVersionID: templateVersionID,
+		Name:              "preset-test",
+		DesiredInstances: sql.NullInt32{
+			Valid: true,
+			Int32: 1,
+		},
+	})
+	dbgen.PresetParameter(t, db, database.InsertPresetParametersParams{
+		TemplateVersionPresetID: preset.ID,
+		Names:                   []string{"test"},
+		Values:                  []string{"test"},
+	})
+
+	return preset
+}
+
+func setupTestDBWorkspace(
+	t *testing.T,
+	clock quartz.Clock,
+	db database.Store,
+	ps pubsub.Pubsub,
+	orgID uuid.UUID,
+	ownerID uuid.UUID,
+	templateID uuid.UUID,
+	templateVersionID uuid.UUID,
+	presetID uuid.UUID,
+) database.WorkspaceTable {
+	t.Helper()
+
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		TemplateID:     templateID,
+		OrganizationID: orgID,
+		OwnerID:        ownerID,
+		Deleted:        false,
+		CreatedAt:      time.Now().Add(-time.Hour * 2),
+	})
+	job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+		InitiatorID:    ownerID,
+		CreatedAt:      time.Now().Add(-time.Hour * 2),
+		StartedAt:      sql.NullTime{Time: clock.Now().Add(-time.Hour * 2), Valid: true},
+		CompletedAt:    sql.NullTime{Time: clock.Now().Add(-time.Hour), Valid: true},
+		OrganizationID: orgID,
+	})
+	workspaceBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:             workspace.ID,
+		InitiatorID:             ownerID,
+		TemplateVersionID:       templateVersionID,
+		JobID:                   job.ID,
+		TemplateVersionPresetID: uuid.NullUUID{UUID: presetID, Valid: true},
+		Transition:              database.WorkspaceTransitionStart,
+		CreatedAt:               clock.Now(),
+	})
+	dbgen.WorkspaceBuildParameters(t, db, []database.WorkspaceBuildParameter{
+		{
+			WorkspaceBuildID: workspaceBuild.ID,
+			Name:             "test",
+			Value:            "test",
+		},
+	})
+
+	return workspace
 }
 
 func mustProvisionWorkspace(t *testing.T, client *codersdk.Client, mut ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {

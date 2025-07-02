@@ -19535,7 +19535,9 @@ WHERE
 			provisioner_jobs.completed_at IS NOT NULL AND
 			($1 :: timestamptz) - provisioner_jobs.completed_at > (INTERVAL '1 millisecond' * (templates.failure_ttl / 1000000))
 		)
-	) AND workspaces.deleted = 'false'
+	)
+  	AND workspaces.deleted = 'false'
+  	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 `
 
 type GetWorkspacesEligibleForTransitionRow struct {
