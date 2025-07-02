@@ -5,7 +5,7 @@ development.
 
 Follow this guide to use Windsurf to access your Coder workspaces.
 
-If your team uses Windsurf regularly, ask your Coder administrator to add Windsurf as a workspace application in your template.
+If your team uses Windsurf regularly, ask your Coder administrator to add Windsurf as a workspace application in your template. You can also use the [Windsurf module](https://registry.coder.com/modules/coder/windsurf) to easily add Windsurf to your Coder templates.
 
 ## Install Windsurf
 
