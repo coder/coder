@@ -449,6 +449,7 @@ func (api *API) updaterLoop() {
 	// We utilize a TickerFunc here instead of a regular Ticker so that
 	// we can guarantee execution of the updateContainers method after
 	// advancing the clock.
+	var prevErr error
 	ticker := api.clock.TickerFunc(api.ctx, api.updateInterval, func() error {
 		done := make(chan error, 1)
 		var sent bool
@@ -467,8 +468,14 @@ func (api *API) updaterLoop() {
 				if errors.Is(err, context.Canceled) {
 					api.logger.Warn(api.ctx, "updater loop ticker canceled", slog.Error(err))
 				} else {
-					api.logger.Error(api.ctx, "updater loop ticker failed", slog.Error(err))
+					// Avoid excessive logging of the same error.
+					if prevErr == nil || prevErr.Error() != err.Error() {
+						api.logger.Error(api.ctx, "updater loop ticker failed", slog.Error(err))
+					}
 				}
+				prevErr = err
+			} else {
+				prevErr = nil
 			}
 		default:
 			api.logger.Debug(api.ctx, "updater loop ticker skipped, update in progress")
