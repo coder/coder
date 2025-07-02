@@ -31,17 +31,6 @@ on your local machine, and enable RDP on your workspace.
 
 <div class="tabs">
 
-### CLI
-
-Use the following command to forward the RDP port to your local machine:
-
-```console
-coder port-forward <workspace-name> --tcp 3399:3389
-```
-
-Then, connect to your workspace via RDP at `localhost:3399`.
-![windows-rdp](../../images/ides/windows_rdp_client.png)
-
 ### RDP with Coder Desktop
 
 [Coder Desktop](../desktop/index.md)'s Coder Connect feature creates a connection to your workspaces in the background.
@@ -49,22 +38,7 @@ There is no need for port forwarding when it is enabled.
 
 Use your favorite RDP client to connect to `<workspace-name>.coder` instead of `localhost:3399`.
 
-> [!NOTE]
-> Some versions of Windows, including Windows Server 2022, do not communicate correctly over UDP
-> when using Coder Connect because they do not respect the maximum transmission unit (MTU) of the link.
-> When this happens, the RDP client will appear to connect, but displays a blank screen.
->
-> To avoid this error, Coder's [Windows RDP](https://registry.coder.com/modules/windows-rdp) module
-> [disables RDP over UDP automatically](https://github.com/coder/registry/blob/b58bfebcf3bcdcde4f06a183f92eb3e01842d270/registry/coder/modules/windows-rdp/powershell-installation-script.tftpl#L22).
->
-> To disable RDP over UDP, run the following in PowerShell:
->
-> ```powershell
-> New-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name "SelectTransport" -Value 1 -PropertyType DWORD -Force
-> Restart-Service -Name "TermService" -Force
-> ```
-
-You can also use a URI handler to directly launch an RDP session.
+You can also use a URI handler to launch an RDP session directly.
 
 The URI format is:
 
@@ -94,6 +68,32 @@ resource "coder_app" "rdp-coder-desktop" {
   external     = true
 }
 ```
+
+> [!NOTE]
+> Some versions of Windows, including Windows Server 2022, do not communicate correctly over UDP
+> when using Coder Connect because they do not respect the maximum transmission unit (MTU) of the link.
+> When this happens, the RDP client will appear to connect, but displays a blank screen.
+>
+> To avoid this error, Coder's [Windows RDP](https://registry.coder.com/modules/windows-rdp) module
+> [disables RDP over UDP automatically](https://github.com/coder/registry/blob/b58bfebcf3bcdcde4f06a183f92eb3e01842d270/registry/coder/modules/windows-rdp/powershell-installation-script.tftpl#L22).
+>
+> To disable RDP over UDP, run the following in PowerShell:
+>
+> ```powershell
+> New-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name "SelectTransport" -Value 1 -PropertyType DWORD -Force
+> Restart-Service -Name "TermService" -Force
+> ```
+
+### CLI
+
+Use the following command to forward the RDP port to your local machine:
+
+```console
+coder port-forward <workspace-name> --tcp 3399:3389
+```
+
+Then, connect to your workspace via RDP at `localhost:3399`.
+![windows-rdp](../../images/ides/windows_rdp_client.png)
 
 </div>
 
