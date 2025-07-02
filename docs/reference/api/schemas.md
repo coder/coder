@@ -4980,6 +4980,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `reconciliation_backoff_lookback` | integer | false    |              | Reconciliation backoff lookback determines the time window to look back when calculating the number of failed prebuilds, which influences the backoff strategy.                                                                                                                                   |
 | `reconciliation_interval`         | integer | false    |              | Reconciliation interval defines how often the workspace prebuilds state should be reconciled.                                                                                                                                                                                                     |
 
+## codersdk.PrebuildsSettings
+
+```json
+{
+  "reconciliation_paused": true
+}
+```
+
+### Properties
+
+| Name                    | Type    | Required | Restrictions | Description |
+|-------------------------|---------|----------|--------------|-------------|
+| `reconciliation_paused` | boolean | false    |              |             |
+
 ## codersdk.Preset
 
 ```json
@@ -6058,6 +6072,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `convert_login`                  |
 | `health_settings`                |
 | `notifications_settings`         |
+| `prebuilds_settings`             |
 | `workspace_proxy`                |
 | `organization`                   |
 | `oauth2_provider_app`            |

@@ -297,6 +297,7 @@ type data struct {
 	presets                          []database.TemplateVersionPreset
 	presetParameters                 []database.TemplateVersionPresetParameter
 	presetPrebuildSchedules          []database.TemplateVersionPresetPrebuildSchedule
+	prebuildsSettings                []byte
 }
 
 func tryPercentileCont(fs []float64, p float64) float64 {
@@ -4277,7 +4278,14 @@ func (*FakeQuerier) GetPrebuildMetrics(_ context.Context) ([]database.GetPrebuil
 	return make([]database.GetPrebuildMetricsRow, 0), nil
 }
 
-func (q *FakeQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
+func (q *FakeQuerier) GetPrebuildsSettings(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return string(slices.Clone(q.prebuildsSettings)), nil
+}
+
+func (q *FakeQuerier) GetPresetByID(_ context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -12313,6 +12321,14 @@ func (q *FakeQuerier) UpsertOAuthSigningKey(_ context.Context, value string) err
 	defer q.mutex.Unlock()
 
 	q.oauthSigningKey = value
+	return nil
+}
+
+func (q *FakeQuerier) UpsertPrebuildsSettings(_ context.Context, value string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.prebuildsSettings = []byte(value)
 	return nil
 }
 

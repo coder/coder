@@ -2283,6 +2283,21 @@ func (mr *MockStoreMockRecorder) GetPrebuildMetrics(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPrebuildMetrics", reflect.TypeOf((*MockStore)(nil).GetPrebuildMetrics), ctx)
 }
 
+// GetPrebuildsSettings mocks base method.
+func (m *MockStore) GetPrebuildsSettings(ctx context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPrebuildsSettings", ctx)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPrebuildsSettings indicates an expected call of GetPrebuildsSettings.
+func (mr *MockStoreMockRecorder) GetPrebuildsSettings(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPrebuildsSettings", reflect.TypeOf((*MockStore)(nil).GetPrebuildsSettings), ctx)
+}
+
 // GetPresetByID mocks base method.
 func (m *MockStore) GetPresetByID(ctx context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
 	m.ctrl.T.Helper()
@@ -6717,6 +6732,20 @@ func (m *MockStore) UpsertOAuthSigningKey(ctx context.Context, value string) err
 func (mr *MockStoreMockRecorder) UpsertOAuthSigningKey(ctx, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOAuthSigningKey", reflect.TypeOf((*MockStore)(nil).UpsertOAuthSigningKey), ctx, value)
+}
+
+// UpsertPrebuildsSettings mocks base method.
+func (m *MockStore) UpsertPrebuildsSettings(ctx context.Context, value string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertPrebuildsSettings", ctx, value)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertPrebuildsSettings indicates an expected call of UpsertPrebuildsSettings.
+func (mr *MockStoreMockRecorder) UpsertPrebuildsSettings(ctx, value any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertPrebuildsSettings", reflect.TypeOf((*MockStore)(nil).UpsertPrebuildsSettings), ctx, value)
 }
 
 // UpsertProvisionerDaemon mocks base method.

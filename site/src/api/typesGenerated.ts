@@ -1786,6 +1786,11 @@ export interface PrebuildsConfig {
 	readonly failure_hard_limit: number;
 }
 
+// From codersdk/prebuilds.go
+export interface PrebuildsSettings {
+	readonly reconciliation_paused: boolean;
+}
+
 // From codersdk/presets.go
 export interface Preset {
 	readonly ID: string;
@@ -2292,6 +2297,7 @@ export type ResourceType =
 	| "oauth2_provider_app_secret"
 	| "organization"
 	| "organization_member"
+	| "prebuilds_settings"
 	| "template"
 	| "template_version"
 	| "user"
@@ -2318,6 +2324,7 @@ export const ResourceTypes: ResourceType[] = [
 	"oauth2_provider_app_secret",
 	"organization",
 	"organization_member",
+	"prebuilds_settings",
 	"template",
 	"template_version",
 	"user",

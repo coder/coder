@@ -242,7 +242,8 @@ CREATE TYPE resource_type AS ENUM (
     'idp_sync_settings_group',
     'idp_sync_settings_role',
     'workspace_agent',
-    'workspace_app'
+    'workspace_app',
+    'prebuilds_settings'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (

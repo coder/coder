@@ -1103,6 +1103,13 @@ func (m queryMetricsStore) GetPrebuildMetrics(ctx context.Context) ([]database.G
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetPrebuildsSettings(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPrebuildsSettings(ctx)
+	m.queryLatencies.WithLabelValues("GetPrebuildsSettings").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetPresetByID(ctx context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetPresetByID(ctx, presetID)
@@ -3172,6 +3179,13 @@ func (m queryMetricsStore) UpsertOAuthSigningKey(ctx context.Context, value stri
 	start := time.Now()
 	r0 := m.s.UpsertOAuthSigningKey(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertOAuthSigningKey").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) UpsertPrebuildsSettings(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertPrebuildsSettings(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertPrebuildsSettings").Observe(time.Since(start).Seconds())
 	return r0
 }
 
