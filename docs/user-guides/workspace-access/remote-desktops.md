@@ -121,8 +121,6 @@ As a starting point, see the enterprise-desktop image. It can be used to provisi
 - XFCE Desktop
 - KasmVNC Server and Web Client
 
-![VNC Desktop in Coder](../../images/vnc-desktop.png)
-
 <div class="tabs">
 
 ### Desktop Client
@@ -152,6 +150,8 @@ Now you can connect to your workspace's VNC server using a VNC client at `localh
 The [KasmVNC module](https://registry.coder.com/modules/coder/kasmvnc) allows browser-based access to your workspace by installing and configuring the [KasmVNC](https://github.com/kasmtech/KasmVNC) server and web client.
 
 </div>
+
+![VNC Desktop in Coder](../../images/vnc-desktop.png)
 
 ## Troubleshooting
 
