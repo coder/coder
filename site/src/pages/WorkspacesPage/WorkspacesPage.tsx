@@ -78,8 +78,24 @@ const WorkspacesPage: FC = () => {
 	const { data, error, refetch } = useQuery({
 		...workspacesQueryOptions,
 		refetchInterval: ({ state }) => {
-			return state.error ? false : 5_000;
+			if (state.error) return false;
+
+			// Check if any workspace has an active build
+			const hasActiveBuilds = state.data?.workspaces?.some((workspace) => {
+				const status = workspace.latest_build.status;
+				return [
+					"canceling",
+					"deleting",
+					"pending",
+					"starting",
+					"stopping",
+				].includes(status);
+			});
+
+			// Poll every 5s if there are active builds, otherwise every 30s
+			return hasActiveBuilds ? 5_000 : 30_000;
 		},
+		refetchIntervalInBackground: false, // Stop polling when tab is inactive
 	});
 
 	const [checkedWorkspaces, setCheckedWorkspaces] = useState<
