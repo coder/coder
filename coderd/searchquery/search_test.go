@@ -427,7 +427,7 @@ func TestSearchConnectionLogs(t *testing.T) {
 		query := fmt.Sprintf(`organization:testorg workspace_owner:testowner `+
 			`workspace_owner_email:owner@example.com type:port_forwarding username:testuser `+
 			`user_email:test@example.com started_after:"2023-01-01T00:00:00Z" `+
-			`started_before:"2023-01-16T12:00:00+12:00" workspace_id:%s connection_id:%s status:connected`,
+			`started_before:"2023-01-16T12:00:00+12:00" workspace_id:%s connection_id:%s status:ongoing`,
 			workspaceID.String(), connectionID.String())
 
 		values, errs := searchquery.ConnectionLogs(context.Background(), db, query, database.APIKey{})
@@ -444,7 +444,7 @@ func TestSearchConnectionLogs(t *testing.T) {
 			StartedBefore:       time.Date(2023, 1, 16, 0, 0, 0, 0, time.UTC),
 			WorkspaceID:         workspaceID,
 			ConnectionID:        connectionID,
-			Status:              string(database.ConnectionStatusConnected),
+			Status:              string(codersdk.ConnectionLogStatusOngoing),
 		}
 
 		require.Equal(t, expected, values)

@@ -90,7 +90,7 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 		StartedBefore:       parser.Time3339Nano(values, time.Time{}, "started_before"),
 		WorkspaceID:         parser.UUID(values, uuid.Nil, "workspace_id"),
 		ConnectionID:        parser.UUID(values, uuid.Nil, "connection_id"),
-		Status:              string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[database.ConnectionStatus])),
+		Status:              string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[codersdk.ConnectionLogStatus])),
 	}
 
 	if filter.Username == "me" {

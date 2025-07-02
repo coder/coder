@@ -51,13 +51,21 @@ const (
 
 // ConnectionLogStatus is the status of a connection log entry.
 // It's the argument to the `status` filter when fetching connection logs.
-// This is only used in the frontend, not the backend.
 type ConnectionLogStatus string
 
 const (
-	ConnectionLogStatusConnected    ConnectionLogStatus = "connected"
-	ConnectionLogStatusDisconnected ConnectionLogStatus = "disconnected"
+	ConnectionLogStatusOngoing   ConnectionLogStatus = "ongoing"
+	ConnectionLogStatusCompleted ConnectionLogStatus = "completed"
 )
+
+func (s ConnectionLogStatus) Valid() bool {
+	switch s {
+	case ConnectionLogStatusOngoing, ConnectionLogStatusCompleted:
+		return true
+	default:
+		return false
+	}
+}
 
 type ConnectionLogWebInfo struct {
 	UserAgent string `json:"user_agent"`
@@ -92,7 +100,7 @@ type ConnectionLogResponse struct {
 }
 
 func (c *Client) ConnectionLogs(ctx context.Context, req ConnectionLogsRequest) (ConnectionLogResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/connectionlogs", nil, req.Pagination.asRequestOption(), func(r *http.Request) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/connectionlog", nil, req.Pagination.asRequestOption(), func(r *http.Request) {
 		q := r.URL.Query()
 		var params []string
 		if req.SearchQuery != "" {

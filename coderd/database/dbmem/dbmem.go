@@ -14110,7 +14110,7 @@ func (q *FakeQuerier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg
 				continue
 			}
 			isConnected := !clog.CloseTime.Valid
-			if (arg.Status == "connected" && !isConnected) || (arg.Status == "disconnected" && isConnected) {
+			if (arg.Status == string(codersdk.ConnectionLogStatusOngoing) && !isConnected) || (arg.Status == string(codersdk.ConnectionLogStatusCompleted) && isConnected) {
 				continue
 			}
 		}

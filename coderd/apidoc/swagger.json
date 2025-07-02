@@ -291,7 +291,7 @@
 				}
 			}
 		},
-		"/connectionlogs": {
+		"/connectionlog": {
 			"get": {
 				"security": [
 					{

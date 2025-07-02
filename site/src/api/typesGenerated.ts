@@ -340,11 +340,11 @@ export interface ConnectionLogSSHInfo {
 }
 
 // From codersdk/connectionlog.go
-export type ConnectionLogStatus = "connected" | "disconnected";
+export type ConnectionLogStatus = "completed" | "ongoing";
 
 export const ConnectionLogStatuses: ConnectionLogStatus[] = [
-	"connected",
-	"disconnected",
+	"completed",
+	"ongoing",
 ];
 
 // From codersdk/connectionlog.go

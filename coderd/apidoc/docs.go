@@ -343,7 +343,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/connectionlogs": {
+        "/connectionlog": {
             "get": {
                 "security": [
                     {

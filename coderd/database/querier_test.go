@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -2410,16 +2411,16 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			expectedLogIDs: []uuid.UUID{log1.ID},
 		},
 		{
-			name: "StatusConnected",
+			name: "StatusOngoing",
 			params: database.GetConnectionLogsOffsetParams{
-				Status: string(database.ConnectionStatusConnected),
+				Status: string(codersdk.ConnectionLogStatusOngoing),
 			},
 			expectedLogIDs: []uuid.UUID{log4.ID},
 		},
 		{
-			name: "StatusDisconnected",
+			name: "StatusCompleted",
 			params: database.GetConnectionLogsOffsetParams{
-				Status: string(database.ConnectionStatusDisconnected),
+				Status: string(codersdk.ConnectionLogStatusCompleted),
 			},
 			expectedLogIDs: []uuid.UUID{log2.ID, log3.ID},
 		},
@@ -2428,7 +2429,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			params: database.GetConnectionLogsOffsetParams{
 				OrganizationID: orgA.Org.ID,
 				Type:           string(database.ConnectionTypeVscode),
-				Status:         string(database.ConnectionStatusDisconnected),
+				Status:         string(codersdk.ConnectionLogStatusCompleted),
 			},
 			expectedLogIDs: []uuid.UUID{log2.ID},
 		},

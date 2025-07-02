@@ -130,12 +130,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/connectionlogs?limit=0 \
+curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /connectionlogs`
+`GET /connectionlog`
 
 ### Parameters
 

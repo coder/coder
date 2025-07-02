@@ -26,7 +26,7 @@ import (
 // @Param limit query int true "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.ConnectionLogResponse
-// @Router /connectionlogs [get]
+// @Router /connectionlog [get]
 func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)

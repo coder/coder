@@ -884,10 +884,10 @@ WHERE
 	-- Filter by whether the session has a close_time
 	AND CASE
 		WHEN $13 :: text != '' THEN
-			(($13 :: connection_status = 'connected' AND close_time IS NULL) OR
-			($13 :: connection_status = 'disconnected' AND close_time IS NOT NULL)) AND
+			(($13 = 'ongoing' AND close_time IS NULL) OR
+			($13 = 'completed' AND close_time IS NOT NULL)) AND
 			-- Exclude web events, since we don't know their close time.
-			type NOT IN ('workspace_app', 'port_forwarding')
+			"type" NOT IN ('workspace_app', 'port_forwarding')
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in
