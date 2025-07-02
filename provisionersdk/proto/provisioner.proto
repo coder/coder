@@ -212,6 +212,11 @@ message VolumeResourceMonitor {
   int32 threshold = 3;
 }
 
+enum AppCORSBehavior {
+    SIMPLE = 0;
+    PASSTHRU = 1;
+}
+
 message DisplayApps {
   bool vscode = 1;
   bool vscode_insiders = 2;
@@ -268,6 +273,7 @@ message App {
   AppOpenIn open_in = 12;
   string group = 13;
   string id = 14; // If nil, new UUID will be generated.
+  AppCORSBehavior cors_behavior = 15;
 }
 
 // Healthcheck represents configuration for checking for app readiness.

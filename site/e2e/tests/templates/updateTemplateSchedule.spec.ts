@@ -31,6 +31,7 @@ test("update template schedule settings without override other settings", async 
 		require_active_version: true,
 		max_port_share_level: null,
 		allow_user_cancel_workspace_jobs: null,
+		cors_behavior: null,
 	});
 
 	await page.goto(`${baseURL}/templates/${template.name}/settings/schedule`, {

@@ -790,6 +790,7 @@ func WorkspaceApp(t testing.TB, db database.Store, orig database.WorkspaceApp) d
 		DisplayOrder:         takeFirst(orig.DisplayOrder, 1),
 		DisplayGroup:         orig.DisplayGroup,
 		Hidden:               orig.Hidden,
+		CORSBehavior:         takeFirst(orig.CORSBehavior, database.AppCorsBehaviorSimple),
 		OpenIn:               takeFirst(orig.OpenIn, database.WorkspaceAppOpenInSlimWindow),
 	})
 	require.NoError(t, err, "insert app")

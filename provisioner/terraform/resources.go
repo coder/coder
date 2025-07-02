@@ -102,18 +102,19 @@ type agentAppAttributes struct {
 	Slug        string `mapstructure:"slug"`
 	DisplayName string `mapstructure:"display_name"`
 	// Name is deprecated in favor of DisplayName.
-	Name        string                     `mapstructure:"name"`
-	Icon        string                     `mapstructure:"icon"`
-	URL         string                     `mapstructure:"url"`
-	External    bool                       `mapstructure:"external"`
-	Command     string                     `mapstructure:"command"`
-	Share       string                     `mapstructure:"share"`
-	Subdomain   bool                       `mapstructure:"subdomain"`
-	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
-	Order       int64                      `mapstructure:"order"`
-	Group       string                     `mapstructure:"group"`
-	Hidden      bool                       `mapstructure:"hidden"`
-	OpenIn      string                     `mapstructure:"open_in"`
+	Name         string                     `mapstructure:"name"`
+	Icon         string                     `mapstructure:"icon"`
+	URL          string                     `mapstructure:"url"`
+	External     bool                       `mapstructure:"external"`
+	Command      string                     `mapstructure:"command"`
+	Share        string                     `mapstructure:"share"`
+	CORSBehavior string                     `mapstructure:"cors_behavior"`
+	Subdomain    bool                       `mapstructure:"subdomain"`
+	Healthcheck  []appHealthcheckAttributes `mapstructure:"healthcheck"`
+	Order        int64                      `mapstructure:"order"`
+	Group        string                     `mapstructure:"group"`
+	Hidden       bool                       `mapstructure:"hidden"`
+	OpenIn       string                     `mapstructure:"open_in"`
 }
 
 type agentEnvAttributes struct {
@@ -534,6 +535,15 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				sharingLevel = proto.AppSharingLevel_PUBLIC
 			}
 
+			var corsBehavior proto.AppCORSBehavior
+			switch strings.ToLower(attrs.CORSBehavior) {
+			case "passthru":
+				corsBehavior = proto.AppCORSBehavior_PASSTHRU
+			default:
+				corsBehavior = proto.AppCORSBehavior_SIMPLE
+				logger.Debug(ctx, "cors_behavior not set, defaulting to 'simple'", slog.F("address", convertAddressToLabel(resource.Address)))
+			}
+
 			openIn := proto.AppOpenIn_SLIM_WINDOW
 			switch strings.ToLower(attrs.OpenIn) {
 			case "slim-window":
@@ -569,6 +579,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 						Icon:         attrs.Icon,
 						Subdomain:    attrs.Subdomain,
 						SharingLevel: sharingLevel,
+						CorsBehavior: corsBehavior,
 						Healthcheck:  healthcheck,
 						Order:        attrs.Order,
 						Group:        attrs.Group,

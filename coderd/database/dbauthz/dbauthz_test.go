@@ -4206,6 +4206,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Health:       database.WorkspaceAppHealthDisabled,
 			SharingLevel: database.AppSharingLevelOwner,
 			OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+			CORSBehavior: database.AppCorsBehaviorSimple,
 		}).Asserts(ws, policy.ActionUpdate)
 	}))
 	s.Run("InsertWorkspaceResourceMetadata", s.Subtest(func(db database.Store, check *expects) {

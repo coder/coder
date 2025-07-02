@@ -9330,6 +9330,7 @@ func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		AllowUserAutostart:           true,
 		AllowUserAutostop:            true,
 		MaxPortSharingLevel:          arg.MaxPortSharingLevel,
+		CORSBehavior:                 arg.CORSBehavior,
 		UseClassicParameterFlow:      true,
 	}
 	q.templates = append(q.templates, template)
@@ -11143,6 +11144,7 @@ func (q *FakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.GroupACL = arg.GroupACL
 		tpl.AllowUserCancelWorkspaceJobs = arg.AllowUserCancelWorkspaceJobs
 		tpl.MaxPortSharingLevel = arg.MaxPortSharingLevel
+		tpl.CORSBehavior = arg.CORSBehavior
 		tpl.UseClassicParameterFlow = arg.UseClassicParameterFlow
 		q.templates[idx] = tpl
 		return nil
@@ -13102,6 +13104,7 @@ func (q *FakeQuerier) UpsertWorkspaceApp(ctx context.Context, arg database.Upser
 			External:             arg.External,
 			Subdomain:            arg.Subdomain,
 			SharingLevel:         arg.SharingLevel,
+			CORSBehavior:         arg.CORSBehavior,
 			HealthcheckUrl:       arg.HealthcheckUrl,
 			HealthcheckInterval:  arg.HealthcheckInterval,
 			HealthcheckThreshold: arg.HealthcheckThreshold,

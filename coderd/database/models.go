@@ -132,6 +132,64 @@ func AllAgentKeyScopeEnumValues() []AgentKeyScopeEnum {
 	}
 }
 
+type AppCORSBehavior string
+
+const (
+	AppCorsBehaviorSimple   AppCORSBehavior = "simple"
+	AppCorsBehaviorPassthru AppCORSBehavior = "passthru"
+)
+
+func (e *AppCORSBehavior) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AppCORSBehavior(s)
+	case string:
+		*e = AppCORSBehavior(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AppCORSBehavior: %T", src)
+	}
+	return nil
+}
+
+type NullAppCORSBehavior struct {
+	AppCORSBehavior AppCORSBehavior `json:"app_cors_behavior"`
+	Valid           bool            `json:"valid"` // Valid is true if AppCORSBehavior is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAppCORSBehavior) Scan(value interface{}) error {
+	if value == nil {
+		ns.AppCORSBehavior, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AppCORSBehavior.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAppCORSBehavior) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AppCORSBehavior), nil
+}
+
+func (e AppCORSBehavior) Valid() bool {
+	switch e {
+	case AppCorsBehaviorSimple,
+		AppCorsBehaviorPassthru:
+		return true
+	}
+	return false
+}
+
+func AllAppCORSBehaviorValues() []AppCORSBehavior {
+	return []AppCORSBehavior{
+		AppCorsBehaviorSimple,
+		AppCorsBehaviorPassthru,
+	}
+}
+
 type AppSharingLevel string
 
 const (
@@ -3264,6 +3322,7 @@ type Template struct {
 	Deprecated                    string          `db:"deprecated" json:"deprecated"`
 	ActivityBump                  int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
+	CORSBehavior                  AppCORSBehavior `db:"cors_behavior" json:"cors_behavior"`
 	UseClassicParameterFlow       bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
@@ -3311,6 +3370,7 @@ type TemplateTable struct {
 	Deprecated          string          `db:"deprecated" json:"deprecated"`
 	ActivityBump        int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
+	CORSBehavior        AppCORSBehavior `db:"cors_behavior" json:"cors_behavior"`
 	// Determines whether to default to the dynamic parameter creation flow for this template or continue using the legacy classic parameter creation flow.This is a template wide setting, the template admin can revert to the classic flow if there are any issues. An escape hatch is required, as workspace creation is a core workflow and cannot break. This column will be removed when the dynamic parameter creation flow is stable.
 	UseClassicParameterFlow bool `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 }
@@ -3782,6 +3842,7 @@ type WorkspaceApp struct {
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 	// Determines if the app is not shown in user interfaces.
 	Hidden       bool               `db:"hidden" json:"hidden"`
+	CORSBehavior AppCORSBehavior    `db:"cors_behavior" json:"cors_behavior"`
 	OpenIn       WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
 	DisplayGroup sql.NullString     `db:"display_group" json:"display_group"`
 }

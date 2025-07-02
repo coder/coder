@@ -2650,6 +2650,14 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				return xerrors.Errorf("parse app uuid: %w", err)
 			}
 
+			var corsBehavior database.AppCORSBehavior
+			switch app.CorsBehavior {
+			case sdkproto.AppCORSBehavior_PASSTHRU:
+				corsBehavior = database.AppCorsBehaviorPassthru
+			default:
+				corsBehavior = database.AppCorsBehaviorSimple
+			}
+
 			// If workspace apps are "persistent", the ID will not be regenerated across workspace builds, so we have to upsert.
 			dbApp, err := db.UpsertWorkspaceApp(ctx, database.UpsertWorkspaceAppParams{
 				ID:          id,
@@ -2669,6 +2677,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				External:             app.External,
 				Subdomain:            app.Subdomain,
 				SharingLevel:         sharingLevel,
+				CORSBehavior:         corsBehavior,
 				HealthcheckUrl:       app.Healthcheck.Url,
 				HealthcheckInterval:  app.Healthcheck.Interval,
 				HealthcheckThreshold: app.Healthcheck.Threshold,

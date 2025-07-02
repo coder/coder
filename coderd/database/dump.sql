@@ -15,6 +15,11 @@ CREATE TYPE api_key_scope AS ENUM (
     'application_connect'
 );
 
+CREATE TYPE app_cors_behavior AS ENUM (
+    'simple',
+    'passthru'
+);
+
 CREATE TYPE app_sharing_level AS ENUM (
     'owner',
     'authenticated',
@@ -581,15 +586,15 @@ BEGIN
             IF workspace_count > 0 THEN
                 error_parts := array_append(error_parts, workspace_count || ' workspaces');
             END IF;
-            
+
             IF template_count > 0 THEN
                 error_parts := array_append(error_parts, template_count || ' templates');
             END IF;
-            
+
             IF provisioner_keys_count > 0 THEN
                 error_parts := array_append(error_parts, provisioner_keys_count || ' provisioner keys');
             END IF;
-            
+
             error_message := error_message || array_to_string(error_parts, ', ') || ' that must be deleted first';
             RAISE EXCEPTION '%', error_message;
         END;
@@ -1635,6 +1640,7 @@ CREATE TABLE templates (
     deprecated text DEFAULT ''::text NOT NULL,
     activity_bump bigint DEFAULT '3600000000000'::bigint NOT NULL,
     max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
+    cors_behavior app_cors_behavior DEFAULT 'simple'::app_cors_behavior NOT NULL,
     use_classic_parameter_flow boolean DEFAULT true NOT NULL
 );
 
@@ -1687,6 +1693,7 @@ CREATE VIEW template_with_names AS
     templates.deprecated,
     templates.activity_bump,
     templates.max_port_sharing_level,
+    templates.cors_behavior,
     templates.use_classic_parameter_flow,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
@@ -2059,6 +2066,7 @@ CREATE TABLE workspace_apps (
     external boolean DEFAULT false NOT NULL,
     display_order integer DEFAULT 0 NOT NULL,
     hidden boolean DEFAULT false NOT NULL,
+    cors_behavior app_cors_behavior DEFAULT 'simple'::app_cors_behavior NOT NULL,
     open_in workspace_app_open_in DEFAULT 'slim-window'::workspace_app_open_in NOT NULL,
     display_group text
 );

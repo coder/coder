@@ -29,6 +29,54 @@ To include deprecated templates, specify `deprecated:true` in the search query.
 
 ```json
 [
+	{
+		"active_user_count": 0,
+		"active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+		"activity_bump_ms": 0,
+		"allow_user_autostart": true,
+		"allow_user_autostop": true,
+		"allow_user_cancel_workspace_jobs": true,
+		"autostart_requirement": {
+			"days_of_week": ["monday"]
+		},
+		"autostop_requirement": {
+			"days_of_week": ["monday"],
+			"weeks": 0
+		},
+		"build_time_stats": {
+			"property1": {
+				"p50": 123,
+				"p95": 146
+			},
+			"property2": {
+				"p50": 123,
+				"p95": 146
+			}
+		},
+		"cors_behavior": "simple",
+		"created_at": "2019-08-24T14:15:22Z",
+		"created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
+		"created_by_name": "string",
+		"default_ttl_ms": 0,
+		"deprecated": true,
+		"deprecation_message": "string",
+		"description": "string",
+		"display_name": "string",
+		"failure_ttl_ms": 0,
+		"icon": "string",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"max_port_share_level": "owner",
+		"name": "string",
+		"organization_display_name": "string",
+		"organization_icon": "string",
+		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+		"organization_name": "string",
+		"provisioner": "terraform",
+		"require_active_version": true,
+		"time_til_dormant_autodelete_ms": 0,
+		"time_til_dormant_ms": 0,
+		"updated_at": "2019-08-24T14:15:22Z"
+	}
   {
     "active_user_count": 0,
     "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
@@ -1093,54 +1141,6 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
 ```json
 {
   "active_user_count": 0,
-  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
-  "activity_bump_ms": 0,
-  "allow_user_autostart": true,
-  "allow_user_autostop": true,
-  "allow_user_cancel_workspace_jobs": true,
-  "autostart_requirement": {
-    "days_of_week": [
-      "monday"
-    ]
-  },
-  "autostop_requirement": {
-    "days_of_week": [
-      "monday"
-    ],
-    "weeks": 0
-  },
-  "build_time_stats": {
-    "property1": {
-      "p50": 123,
-      "p95": 146
-    },
-    "property2": {
-      "p50": 123,
-      "p95": 146
-    }
-  },
-  "created_at": "2019-08-24T14:15:22Z",
-  "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
-  "created_by_name": "string",
-  "default_ttl_ms": 0,
-  "deprecated": true,
-  "deprecation_message": "string",
-  "description": "string",
-  "display_name": "string",
-  "failure_ttl_ms": 0,
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "max_port_share_level": "owner",
-  "name": "string",
-  "organization_display_name": "string",
-  "organization_icon": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "organization_name": "string",
-  "provisioner": "terraform",
-  "require_active_version": true,
-  "time_til_dormant_autodelete_ms": 0,
-  "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z",
   "use_classic_parameter_flow": true
 }
 ```
@@ -1190,7 +1190,6 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/daus \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                   |
 |--------|---------------------------------------------------------|-------------|----------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DAUsResponse](schemas.md#codersdkdausresponse) |
 
