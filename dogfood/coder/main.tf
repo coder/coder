@@ -496,6 +496,10 @@ resource "coder_agent" "dev" {
     #!/usr/bin/env bash
     set -eux -o pipefail
 
+    # Clean up the Go build cache to prevent the home volume from
+    # accumulating waste and growing too large.
+    go clean -cache
+
     # Clean up the unused resources to keep storage usage low.
     #
     # WARNING! This will remove:
