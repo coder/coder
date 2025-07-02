@@ -405,47 +405,68 @@ func TestSearchAudit(t *testing.T) {
 
 func TestSearchConnectionLogs(t *testing.T) {
 	t.Parallel()
+	t.Run("All", func(t *testing.T) {
+		t.Parallel()
 
-	orgID := uuid.New()
-	workspaceOwnerID := uuid.New()
-	workspaceID := uuid.New()
-	connectionID := uuid.New()
+		orgID := uuid.New()
+		workspaceOwnerID := uuid.New()
+		workspaceID := uuid.New()
+		connectionID := uuid.New()
 
-	db, _ := dbtestutil.NewDB(t)
-	dbgen.Organization(t, db, database.Organization{
-		ID:   orgID,
-		Name: "testorg",
+		db, _ := dbtestutil.NewDB(t)
+		dbgen.Organization(t, db, database.Organization{
+			ID:   orgID,
+			Name: "testorg",
+		})
+		dbgen.User(t, db, database.User{
+			ID:       workspaceOwnerID,
+			Username: "testowner",
+			Email:    "owner@example.com",
+		})
+
+		query := fmt.Sprintf(`organization:testorg workspace_owner:testowner `+
+			`workspace_owner_email:owner@example.com type:port_forwarding username:testuser `+
+			`user_email:test@example.com started_after:"2023-01-01T00:00:00Z" `+
+			`started_before:"2023-01-16T12:00:00+12:00" workspace_id:%s connection_id:%s status:connected`,
+			workspaceID.String(), connectionID.String())
+
+		values, errs := searchquery.ConnectionLogs(context.Background(), db, query, database.APIKey{})
+		require.Len(t, errs, 0)
+
+		expected := database.GetConnectionLogsOffsetParams{
+			OrganizationID:      orgID,
+			WorkspaceOwner:      "testowner",
+			WorkspaceOwnerEmail: "owner@example.com",
+			Type:                string(database.ConnectionTypePortForwarding),
+			Username:            "testuser",
+			UserEmail:           "test@example.com",
+			StartedAfter:        time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			StartedBefore:       time.Date(2023, 1, 16, 0, 0, 0, 0, time.UTC),
+			WorkspaceID:         workspaceID,
+			ConnectionID:        connectionID,
+			Status:              string(database.ConnectionStatusConnected),
+		}
+
+		require.Equal(t, expected, values)
 	})
-	dbgen.User(t, db, database.User{
-		ID:       workspaceOwnerID,
-		Username: "testowner",
-		Email:    "owner@example.com",
+
+	t.Run("Me", func(t *testing.T) {
+		t.Parallel()
+
+		userID := uuid.New()
+		db, _ := dbtestutil.NewDB(t)
+
+		query := `username:me workspace_owner:me`
+		values, errs := searchquery.ConnectionLogs(context.Background(), db, query, database.APIKey{UserID: userID})
+		require.Len(t, errs, 0)
+
+		expected := database.GetConnectionLogsOffsetParams{
+			UserID:           userID,
+			WorkspaceOwnerID: userID,
+		}
+
+		require.Equal(t, expected, values)
 	})
-
-	query := fmt.Sprintf(`organization:testorg workspace_owner:testowner `+
-		`workspace_owner_email:owner@example.com type:port_forwarding username:testuser `+
-		`user_email:test@example.com started_after:"2023-01-01T00:00:00Z" `+
-		`started_before:"2023-01-16T12:00:00+12:00" workspace_id:%s connection_id:%s status:connected`,
-		workspaceID.String(), connectionID.String())
-
-	values, errs := searchquery.ConnectionLogs(context.Background(), db, query)
-	require.Len(t, errs, 0)
-
-	expected := database.GetConnectionLogsOffsetParams{
-		OrganizationID:      orgID,
-		WorkspaceOwner:      "testowner",
-		WorkspaceOwnerEmail: "owner@example.com",
-		Type:                string(database.ConnectionTypePortForwarding),
-		Username:            "testuser",
-		UserEmail:           "test@example.com",
-		StartedAfter:        time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-		StartedBefore:       time.Date(2023, 1, 16, 0, 0, 0, 0, time.UTC),
-		WorkspaceID:         workspaceID,
-		ConnectionID:        connectionID,
-		Status:              string(database.ConnectionStatusConnected),
-	}
-
-	require.Equal(t, expected, values)
 }
 
 func TestSearchUsers(t *testing.T) {

@@ -37,7 +37,7 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.ConnectionLogs(ctx, api.Database, queryStr)
+	filter, errs := searchquery.ConnectionLogs(ctx, api.Database, queryStr, apiKey)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid connection search query.",
@@ -49,16 +49,6 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 	filter.OffsetOpt = int32(page.Offset)
 	// #nosec G115 - Safe conversion as pagination limit is expected to be within int32 range
 	filter.LimitOpt = int32(page.Limit)
-
-	if filter.Username == "me" {
-		filter.UserID = apiKey.UserID
-		filter.Username = ""
-	}
-
-	if filter.WorkspaceOwner == "me" {
-		filter.WorkspaceOwnerID = apiKey.UserID
-		filter.WorkspaceOwner = ""
-	}
 
 	dblogs, err := api.Database.GetConnectionLogsOffset(ctx, filter)
 	if dbauthz.IsNotAuthorizedError(err) {

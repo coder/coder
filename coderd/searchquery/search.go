@@ -67,7 +67,7 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 	return filter, parser.Errors
 }
 
-func ConnectionLogs(ctx context.Context, db database.Store, query string) (database.GetConnectionLogsOffsetParams, []codersdk.ValidationError) {
+func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey database.APIKey) (database.GetConnectionLogsOffsetParams, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
@@ -92,6 +92,17 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string) (datab
 		ConnectionID:        parser.UUID(values, uuid.Nil, "connection_id"),
 		Status:              string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[database.ConnectionStatus])),
 	}
+
+	if filter.Username == "me" {
+		filter.UserID = apiKey.UserID
+		filter.Username = ""
+	}
+
+	if filter.WorkspaceOwner == "me" {
+		filter.WorkspaceOwnerID = apiKey.UserID
+		filter.WorkspaceOwner = ""
+	}
+
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
 }
