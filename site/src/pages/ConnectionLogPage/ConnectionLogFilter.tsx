@@ -16,6 +16,7 @@ import {
 } from "modules/tableFiltering/options";
 import type { FC } from "react";
 import { connectionTypeToFriendlyName } from "utils/connection";
+import { docs } from "utils/docs";
 
 const PRESET_FILTERS = [
 	{
@@ -45,8 +46,7 @@ export const ConnectionLogFilter: FC<ConnectionLogFilterProps> = ({
 
 	return (
 		<Filter
-			// TODO(ethanndickson): Add docs
-			// learnMoreLink={docs("/admin/security/connection-logs#filtering-logs")}
+			learnMoreLink={docs("/admin/security/connection-logs#filtering-logs")}
 			presets={PRESET_FILTERS}
 			isLoading={menus.user.isInitializing}
 			filter={filter}

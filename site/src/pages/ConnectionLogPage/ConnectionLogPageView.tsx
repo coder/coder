@@ -21,7 +21,9 @@ import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { Timeline } from "components/Timeline/Timeline";
 import type { ComponentProps, FC } from "react";
+import { docs } from "utils/docs";
 import { ConnectionLogFilter } from "./ConnectionLogFilter";
+import { ConnectionLogHelpTooltip } from "./ConnectionLogHelpTooltip";
 import { ConnectionLogRow } from "./ConnectionLogRow/ConnectionLogRow";
 
 const Language = {
@@ -59,6 +61,7 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 				<PageHeaderTitle>
 					<Stack direction="row" spacing={1} alignItems="center">
 						<span>{Language.title}</span>
+						<ConnectionLogHelpTooltip />
 					</Stack>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
@@ -134,8 +137,7 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 					<Paywall
 						message="Connection logs"
 						description="Connection logs allow you to see how and when users connect to workspaces. You need a Premium license to use this feature."
-						// TODO(ethanndickson): docs
-						// documentationLink={docs("/admin/security/connection-logs")}
+						documentationLink={docs("/admin/security/connection-logs")}
 					/>
 				</Cond>
 			</ChooseOne>
