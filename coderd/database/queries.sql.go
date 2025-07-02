@@ -6450,7 +6450,6 @@ WITH latest_prebuilds AS (
 		workspaces.name,
 		workspaces.template_id,
 		workspace_latest_builds.template_version_id,
-		workspace_latest_builds.template_version_preset_id,
 		workspace_latest_builds.job_id,
 		workspaces.created_at
 	FROM workspace_latest_builds
@@ -6459,6 +6458,16 @@ WITH latest_prebuilds AS (
 	AND workspace_latest_builds.job_status = 'succeeded'::provisioner_job_status
 	AND workspaces.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 	AND NOT workspaces.deleted
+),
+workspace_latest_presets AS (
+	SELECT DISTINCT ON (latest_prebuilds.id)
+		latest_prebuilds.id AS workspace_id,
+		workspace_builds.template_version_preset_id AS current_preset_id
+	FROM latest_prebuilds
+	JOIN workspace_builds ON workspace_builds.workspace_id = latest_prebuilds.id
+	WHERE workspace_builds.transition = 'start'::workspace_transition
+	AND   workspace_builds.template_version_preset_id IS NOT NULL
+	ORDER BY latest_prebuilds.id, workspace_builds.build_number DESC
 ),
 ready_agents AS (
 	SELECT
@@ -6476,12 +6485,12 @@ SELECT
 	latest_prebuilds.name,
 	latest_prebuilds.template_id,
 	latest_prebuilds.template_version_id,
-	-- TODO(cian): this can be null, which differs from prebuilt_workspaces view.
-	latest_prebuilds.template_version_preset_id AS current_preset_id,
+	workspace_latest_presets.current_preset_id,
 	COALESCE(ready_agents.ready, false)::boolean AS ready,
 	latest_prebuilds.created_at
 FROM latest_prebuilds
 LEFT JOIN ready_agents ON ready_agents.job_id = latest_prebuilds.job_id
+LEFT JOIN workspace_latest_presets ON workspace_latest_presets.workspace_id = latest_prebuilds.id
 `
 
 type GetRunningPrebuiltWorkspacesRow struct {
