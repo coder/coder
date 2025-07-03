@@ -37,11 +37,11 @@ const (
 	displaySecretLength = 6  // Length of visible part in UI (last 6 characters)
 )
 
-func (*API) oAuth2ProviderMiddleware(next http.Handler) http.Handler {
+func (api *API) oAuth2ProviderMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		if !buildinfo.IsDev() {
+		if !api.Experiments.Enabled(codersdk.ExperimentOAuth2) && !buildinfo.IsDev() {
 			httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
-				Message: "OAuth2 provider is under development.",
+				Message: "OAuth2 provider functionality requires enabling the 'oauth2' experiment.",
 			})
 			return
 		}
