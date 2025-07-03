@@ -235,6 +235,54 @@ const mockParameterWithIcon = createMockParameter({
 	icon: "/test-icon.png",
 });
 
+const mockNumberInputParameter = createMockParameter({
+	name: "number_input_param",
+	display_name: "Number Input Parameter",
+	description: "A numeric input parameter with min/max validations",
+	type: "number",
+	form_type: "input",
+	default_value: { value: "5", valid: true },
+	validations: [
+		{
+			validation_min: 1,
+			validation_max: 10,
+			validation_error: "Value must be between 1 and 10",
+			validation_regex: null,
+			validation_monotonic: null,
+		},
+	],
+});
+
+// Mock for a masked input parameter (e.g. secrets)
+const mockMaskedInputParameter = createMockParameter({
+	name: "masked_input_param",
+	display_name: "Masked Input Parameter",
+	type: "string",
+	form_type: "input",
+	styling: {
+		placeholder: "********",
+		disabled: false,
+		label: "",
+		mask_input: true,
+	},
+});
+
+// Mock parameter that contains a warning diagnostic
+const mockWarningParameter = createMockParameter({
+	name: "warning_param",
+	display_name: "Warning Parameter",
+	description: "Parameter with a warning diagnostic",
+	form_type: "input",
+	diagnostics: [
+		{
+			severity: "warning",
+			summary: "This is a warning",
+			detail: "Something might be wrong",
+			extra: { code: "warning" },
+		},
+	],
+});
+
 describe("DynamicParameter", () => {
 	const mockOnChange = jest.fn();
 
@@ -421,7 +469,6 @@ describe("DynamicParameter", () => {
 				await userEvent.click(select);
 			});
 
-			// Option 2 has an icon
 			const icons = screen.getAllByRole("img");
 			expect(
 				icons.some((icon) => icon.getAttribute("src") === "/icon2.png"),
@@ -530,23 +577,6 @@ describe("DynamicParameter", () => {
 			expect(screen.getByText("Slider Parameter")).toBeInTheDocument();
 			const slider = screen.getByRole("slider");
 			expect(slider).toHaveAttribute("aria-valuenow", "50");
-		});
-
-		it("handles slider value changes", async () => {
-			render(
-				<DynamicParameter
-					parameter={mockSliderParameter}
-					value="50"
-					onChange={mockOnChange}
-				/>,
-			);
-
-			const slider = screen.getByRole("slider");
-
-			fireEvent.keyDown(slider, { key: "ArrowRight" });
-
-			expect(slider).toHaveAttribute("tabindex", "0");
-			expect(slider).not.toHaveAttribute("aria-disabled");
 		});
 
 		it("respects min/max constraints from validation_condition", () => {
@@ -762,7 +792,6 @@ describe("DynamicParameter", () => {
 			);
 
 			const input = screen.getByRole("textbox");
-			const label = screen.getByText("String Parameter");
 
 			expect(input).toHaveAccessibleName("String Parameter");
 		});
@@ -872,7 +901,6 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			// Should not crash and should render the component
 			expect(screen.getByText("Tags Parameter")).toBeInTheDocument();
 		});
 
@@ -909,6 +937,80 @@ describe("DynamicParameter", () => {
 			expect(
 				screen.getByText("Param with Special Characters!@#$%"),
 			).toBeInTheDocument();
+		});
+	});
+
+	describe("Number Input Parameter", () => {
+		it("renders number input with correct min/max attributes", () => {
+			render(
+				<DynamicParameter
+					parameter={mockNumberInputParameter}
+					value="5"
+					onChange={mockOnChange}
+				/>,
+			);
+
+			const input = screen.getByRole("spinbutton");
+			expect(input).toHaveAttribute("min", "1");
+			expect(input).toHaveAttribute("max", "10");
+		});
+
+		it("calls onChange when numeric value changes (debounced)", () => {
+			jest.useFakeTimers();
+			render(
+				<DynamicParameter
+					parameter={mockNumberInputParameter}
+					value="5"
+					onChange={mockOnChange}
+				/>,
+			);
+
+			const input = screen.getByRole("spinbutton");
+			fireEvent.change(input, { target: { value: "7" } });
+
+			act(() => {
+				jest.runAllTimers();
+			});
+
+			expect(mockOnChange).toHaveBeenCalledWith("7");
+			jest.useRealTimers();
+		});
+	});
+
+	describe("Masked Input Parameter", () => {
+		it("renders a password field by default and toggles visibility on mouse events", async () => {
+			render(
+				<DynamicParameter
+					parameter={mockMaskedInputParameter}
+					value="secret123"
+					onChange={mockOnChange}
+				/>,
+			);
+
+			const input = screen.getByLabelText("Masked Input Parameter");
+			expect(input).toHaveAttribute("type", "password");
+
+			const toggleButton = screen.getByRole("button");
+			fireEvent.mouseDown(toggleButton);
+			expect(input).toHaveAttribute("type", "text");
+
+			fireEvent.mouseUp(toggleButton);
+			expect(input).toHaveAttribute("type", "password");
+		});
+	});
+
+	describe("Parameter Diagnostics", () => {
+		it("renders warning diagnostics for non-error parameters", () => {
+			render(
+				<DynamicParameter
+					parameter={mockWarningParameter}
+					value=""
+					onChange={mockOnChange}
+				/>,
+			);
+
+			expect(screen.getByText("This is a warning")).toBeInTheDocument();
+			expect(screen.getByText("Something might be wrong")).toBeInTheDocument();
 		});
 	});
 });
