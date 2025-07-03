@@ -1050,6 +1050,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `autostart` |
 | `autostop`  |
 
+## codersdk.CORSBehavior
+
+```json
+"simple"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value      |
+|------------|
+| `simple`   |
+| `passthru` |
+
 ## codersdk.ChangePasswordWithOneTimePasscodeRequest
 
 ```json
@@ -1247,6 +1262,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "weeks": 0
   },
+  "cors_behavior": "simple",
   "default_ttl_ms": 0,
   "delete_ttl_ms": 0,
   "description": "string",
@@ -1273,6 +1289,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `allow_user_cancel_workspace_jobs`    | boolean                                                                        | false    |              | Allow users to cancel in-progress workspace jobs. *bool as the default value is "true".                                                                                                                                                                                                                             |
 | `autostart_requirement`               | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              | Autostart requirement allows optionally specifying the autostart allowed days for workspaces created from this template. This is an enterprise feature.                                                                                                                                                             |
 | `autostop_requirement`                | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement allows optionally specifying the autostop requirement for workspaces created from this template. This is an enterprise feature.                                                                                                                                                                |
+| `cors_behavior`                       | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              | Cors behavior allows optionally specifying the CORS behavior for all shared ports.                                                                                                                                                                                                                                  |
 | `default_ttl_ms`                      | integer                                                                        | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                                                                                          |
 | `delete_ttl_ms`                       | integer                                                                        | false    |              | Delete ttl ms allows optionally specifying the max lifetime before Coder permanently deletes dormant workspaces created from this template.                                                                                                                                                                         |
 | `description`                         | string                                                                         | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                                                                                         |
@@ -6691,6 +6708,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "p95": 146
     }
   },
+  "cors_behavior": "simple",
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
@@ -6730,6 +6748,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `autostart_requirement`            | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                                                 |
 | `autostop_requirement`             | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are enterprise features. Its value is only used if your license is entitled to use the advanced template scheduling feature.                      |
 | `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats)             | false    |              |                                                                                                                                                                                                 |
+| `cors_behavior`                    | [codersdk.CORSBehavior](#codersdkcorsbehavior)                                 | false    |              |                                                                                                                                                                                                 |
 | `created_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `created_by_id`                    | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `created_by_name`                  | string                                                                         | false    |              |                                                                                                                                                                                                 |

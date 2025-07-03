@@ -296,7 +296,14 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		// First check if it's a port-based URL with an optional "s" suffix for HTTPS.
 		potentialPortStr      = strings.TrimSuffix(r.AppSlugOrPort, "s")
 		portUint, portUintErr = strconv.ParseUint(potentialPortStr, 10, 16)
+		// corsBehavior          database.CorsBehavior
 	)
+
+	// tmpl, err := db.GetTemplateByID(ctx, workspace.TemplateID)
+	// if err != nil {
+	// 	return nil, xerrors.Errorf("get template %q: %w", workspace.TemplateID, err)
+	// }
+	// corsBehavior = tmpl.CorsBehavior
 	//nolint:nestif
 	if portUintErr == nil {
 		protocol := "http"
@@ -417,6 +424,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		App:             app,
 		AppURL:          appURLParsed,
 		AppSharingLevel: appSharingLevel,
+		// CorsBehavior:    corsBehavior,
 	}, nil
 }
 

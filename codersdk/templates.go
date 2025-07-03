@@ -61,6 +61,7 @@ type Template struct {
 	// template version.
 	RequireActiveVersion bool                         `json:"require_active_version"`
 	MaxPortShareLevel    WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
+	CORSBehavior         *CORSBehavior                `json:"cors_behavior"`
 
 	UseClassicParameterFlow bool `json:"use_classic_parameter_flow"`
 }
@@ -252,6 +253,7 @@ type UpdateTemplateMeta struct {
 	// of the template.
 	DisableEveryoneGroupAccess bool                          `json:"disable_everyone_group_access"`
 	MaxPortShareLevel          *WorkspaceAgentPortShareLevel `json:"max_port_share_level,omitempty"`
+	CORSBehavior               *CORSBehavior                 `json:"cors_behavior"`
 	// UseClassicParameterFlow is a flag that switches the default behavior to use the classic
 	// parameter flow when creating a workspace. This only affects deployments with the experiment
 	// "dynamic-parameters" enabled. This setting will live for a period after the experiment is

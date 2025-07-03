@@ -117,6 +117,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"max_port_sharing_level":            ActionTrack,
 		"activity_bump":                     ActionTrack,
 		"use_classic_parameter_flow":        ActionTrack,
+		"cors_behavior":                     ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                      ActionTrack,

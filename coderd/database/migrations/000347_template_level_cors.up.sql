@@ -1,4 +1,4 @@
-CREATE TYPE app_cors_behavior AS ENUM (
+CREATE TYPE cors_behavior AS ENUM (
     'simple',
     'passthru'
 );
