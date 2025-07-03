@@ -7,14 +7,13 @@ user-controlled startup, repository selection, and infrastructure tuning.
 
 Run independent dev containers in the same workspace so each component appears as its own agent.
 
-In this example, there are three: `frontend`, `backend`, and a `database`:
+In this example, there are two: `frontend` and `backend`:
 
 ```terraform
 # Clone each repo
 module "git_clone_frontend" {
   count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/modules/git-clone/coder"
-  version  = "~> 1.0"
+  source   = "dev.registry.coder.com/modules/git-clone/coder"
 
   agent_id = coder_agent.main.id
   url      = "https://github.com/your-org/frontend.git"
@@ -23,22 +22,11 @@ module "git_clone_frontend" {
 
 module "git_clone_backend" {
   count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/modules/git-clone/coder"
-  version  = "~> 1.0"
+  source   = "dev.registry.coder.com/modules/git-clone/coder"
 
   agent_id = coder_agent.main.id
   url      = "https://github.com/your-org/backend.git"
   base_dir = "/home/coder/backend"
-}
-
-module "git_clone_database" {
-  count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/modules/git-clone/coder"
-  version  = "~> 1.0"
-
-  agent_id = coder_agent.main.id
-  url      = "https://github.com/your-org/database.git"
-  base_dir = "/home/coder/database"
 }
 
 # Dev container resources
@@ -54,11 +42,6 @@ resource "coder_devcontainer" "backend" {
   workspace_folder = "/home/coder/backend/${module.git_clone_backend[0].folder_name}"
 }
 
-resource "coder_devcontainer" "database" {
-  count            = data.coder_workspace.me.start_count
-  agent_id         = coder_agent.main.id
-  workspace_folder = "/home/coder/database/${module.git_clone_database[0].folder_name}"
-}
 ```
 
 Each dev container appears as a separate agent, so developers can connect to any
@@ -89,112 +72,40 @@ resource "coder_devcontainer" "frontend" {
 
 Prompt users to pick a repository or team at workspace creation time and clone the selected repo(s) automatically into the workspace:
 
-### Dropdown selector
+1. Add a parameter to the template:
 
-```terraform
-data "coder_parameter" "project" {
-  name        = "Project"
-  description = "Choose a project"
-  type        = "string"
-  mutable     = true
-  order       = 1
+   ```terraform
+   data "coder_parameter" "project" {
+     name        = "project"
+     display_name = "Choose a project"
+     type        = "string"
+     default     = "https://github.com/coder/coder.git"
 
-  option { name = "E-commerce FE" value = "https://github.com/org/ecom-fe.git" icon = "/icon/react.svg" }
-  option { name = "Payment API"  value = "https://github.com/org/pay.git"      icon = "/icon/nodejs.svg" }
-}
+     option {
+        name = "coder/coder"
+        value = "https://github.com/coder/coder.git"
+     }
+     option {
+       name = "Dev Container template"
+       value = "https://github.com/devcontainers/template-starter.git"
+     }
+   }
+   ```
 
-module "git_clone_selected" {
-  count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/modules/git-clone/coder"
-  version  = "~> 1.0"
+1. Change the `git_clone` module to accept the `value` as the `url`:
 
-  agent_id = coder_agent.main.id
-  url      = data.coder_parameter.project.value
-  base_dir = "/home/coder/project"
-}
-```
-
-### Team-based selection
-
-```terraform
-data "coder_parameter" "team" {
-  name    = "Team"
-  type    = "string"
-  mutable = true
-  order   = 1
-
-  option { name = "Frontend" value = "frontend" icon = "/icon/react.svg" }
-  option { name = "Backend"  value = "backend"  icon = "/icon/nodejs.svg" }
-}
-
-locals {
-  repos = {
-    frontend = ["https://github.com/your-org/web.git"]
-    backend  = ["https://github.com/your-org/api.git"]
-  }
-}
-
-module "git_clone_team" {
-  count    = length(local.repos[data.coder_parameter.team.value]) * data.coder_workspace.me.start_count
-  source   = "registry.coder.com/modules/git-clone/coder"
-  version  = "~> 1.0"
-
-  agent_id = coder_agent.main.id
-  url      = local.repos[data.coder_parameter.team.value][count.index]
-  base_dir = "/home/coder/${replace(basename(url), \".git\", \"\")}"
-}
-```
-
-## Infrastructure Tuning
-
-Adjust workspace infrastructure to set memory/CPU limits, attach a custom Docker network,
-or add persistent volumes—to improve performance and isolation for dev containers:
-
-### Resource limits
-
-```terraform
-resource "docker_container" "workspace" {
-  count    = data.coder_workspace.me.start_count
-  image    = "codercom/enterprise-node:ubuntu"
-
-  resources {
-    memory = 4096   # MiB
-    cpus   = 2
-    memory_swap = 8192
-  }
-}
-```
-
-### Custom network
-
-```terraform
-resource "docker_network" "dev" {
-  name = "coder-${data.coder_workspace.me.id}-dev"
-}
-
-resource "docker_container" "workspace" {
-  networks_advanced { name = docker_network.dev.name }
-}
-```
-
-### Volume caching
-
-```terraform
-resource "docker_volume" "node_modules" {
-  name = "coder-${data.coder_workspace.me.id}-node-modules"
-  lifecycle { ignore_changes = all }
-}
-
-resource "docker_container" "workspace" {
-  volumes {
-    container_path = "/home/coder/project/node_modules"
-    volume_name    = docker_volume.node_modules.name
-  }
-}
-```
+    ```terraform
+    module "git_clone" {
+     count    = data.coder_workspace.me.start_count
+     source   = "dev.registry.coder.com/modules/git-clone/coder"
+     agent_id = coder_agent.main.id
+     url      = data.coder_parameter.project.value
+     base_dir = "/home/coder"
+    }
+    ```
 
 ## Troubleshooting
 
 1. Run `docker ps` inside the workspace to ensure Docker is available.
 1. Check `/tmp/coder-agent.log` for agent logs.
-1. Verify the workspace image includes Node/npm or add the `nodejs` module before the `devcontainers_cli` module.
+1. Verify that the workspace image includes Node/npm.
