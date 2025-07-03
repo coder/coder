@@ -1,15 +1,15 @@
 ---
-display_name: Docker (Devcontainer)
+display_name: Docker (Envbuilder)
 description: Provision envbuilder containers as Coder workspaces
 icon: ../../../site/static/icon/docker.png
 maintainer_github: coder
 verified: true
-tags: [container, docker, devcontainer]
+tags: [container, docker, devcontainer, envbuilder]
 ---
 
-# Remote Development on Docker Containers (with Devcontainers)
+# Remote Development on Docker Containers (with Envbuilder)
 
-Provision Devcontainers as [Coder workspaces](https://coder.com/docs/workspaces) in Docker with this example template.
+Provision Envbuilder containers based on `devcontainer.json` as [Coder workspaces](https://coder.com/docs/workspaces) in Docker with this example template.
 
 ## Prerequisites
 
@@ -30,7 +30,7 @@ sudo -u coder docker ps
 
 ## Architecture
 
-Coder supports Devcontainers via [envbuilder](https://github.com/coder/envbuilder), an open source project. Read more about this in [Coder's documentation](https://coder.com/docs/templates/dev-containers).
+Coder supports Envbuilder containers based on `devcontainer.json` via [envbuilder](https://github.com/coder/envbuilder), an open source project. Read more about this in [Coder's documentation](https://coder.com/docs/templates/dev-containers).
 
 This template provisions the following resources:
 
@@ -49,7 +49,7 @@ Edit the `devcontainer.json` instead!
 
 ## Docker-in-Docker
 
-See the [Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/docker.md) for information on running Docker containers inside a devcontainer built by Envbuilder.
+See the [Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/docker.md) for information on running Docker containers inside an Envbuilder container.
 
 ## Caching
 
@@ -67,7 +67,7 @@ docker run --detach \
   registry:2
 ```
 
-Then, when creating the template, enter `localhost:5000/devcontainer-cache` for the parameter `cache_repo`.
+Then, when creating the template, enter `localhost:5000/envbuilder-cache` for the parameter `cache_repo`.
 
 See the [Envbuilder Terraform Provider Examples](https://github.com/coder/terraform-provider-envbuilder/blob/main/examples/resources/envbuilder_cached_image/envbuilder_cached_image_resource.tf/) for a more complete example of how the provider works.
 
