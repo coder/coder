@@ -242,7 +242,8 @@ CREATE TYPE resource_type AS ENUM (
     'idp_sync_settings_group',
     'idp_sync_settings_role',
     'workspace_agent',
-    'workspace_app'
+    'workspace_app',
+    'prebuilds_settings'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -1104,10 +1105,19 @@ CREATE TABLE oauth2_provider_app_codes (
     secret_prefix bytea NOT NULL,
     hashed_secret bytea NOT NULL,
     user_id uuid NOT NULL,
-    app_id uuid NOT NULL
+    app_id uuid NOT NULL,
+    resource_uri text,
+    code_challenge text,
+    code_challenge_method text
 );
 
 COMMENT ON TABLE oauth2_provider_app_codes IS 'Codes are meant to be exchanged for access tokens.';
+
+COMMENT ON COLUMN oauth2_provider_app_codes.resource_uri IS 'RFC 8707 resource parameter for audience restriction';
+
+COMMENT ON COLUMN oauth2_provider_app_codes.code_challenge IS 'PKCE code challenge for public clients';
+
+COMMENT ON COLUMN oauth2_provider_app_codes.code_challenge_method IS 'PKCE challenge method (S256)';
 
 CREATE TABLE oauth2_provider_app_secrets (
     id uuid NOT NULL,
@@ -1128,10 +1138,16 @@ CREATE TABLE oauth2_provider_app_tokens (
     hash_prefix bytea NOT NULL,
     refresh_hash bytea NOT NULL,
     app_secret_id uuid NOT NULL,
-    api_key_id text NOT NULL
+    api_key_id text NOT NULL,
+    audience text,
+    user_id uuid NOT NULL
 );
 
 COMMENT ON COLUMN oauth2_provider_app_tokens.refresh_hash IS 'Refresh tokens provide a way to refresh an access token (API key). An expired API key can be refreshed if this token is not yet expired, meaning this expiry can outlive an API key.';
+
+COMMENT ON COLUMN oauth2_provider_app_tokens.audience IS 'Token audience binding from resource parameter';
+
+COMMENT ON COLUMN oauth2_provider_app_tokens.user_id IS 'Denormalized user ID for performance optimization in authorization checks';
 
 CREATE TABLE oauth2_provider_apps (
     id uuid NOT NULL,
@@ -1139,10 +1155,70 @@ CREATE TABLE oauth2_provider_apps (
     updated_at timestamp with time zone NOT NULL,
     name character varying(64) NOT NULL,
     icon character varying(256) NOT NULL,
-    callback_url text NOT NULL
+    callback_url text NOT NULL,
+    redirect_uris text[],
+    client_type text DEFAULT 'confidential'::text,
+    dynamically_registered boolean DEFAULT false,
+    client_id_issued_at timestamp with time zone DEFAULT now(),
+    client_secret_expires_at timestamp with time zone,
+    grant_types text[] DEFAULT '{authorization_code,refresh_token}'::text[],
+    response_types text[] DEFAULT '{code}'::text[],
+    token_endpoint_auth_method text DEFAULT 'client_secret_basic'::text,
+    scope text DEFAULT ''::text,
+    contacts text[],
+    client_uri text,
+    logo_uri text,
+    tos_uri text,
+    policy_uri text,
+    jwks_uri text,
+    jwks jsonb,
+    software_id text,
+    software_version text,
+    registration_access_token text,
+    registration_client_uri text
 );
 
 COMMENT ON TABLE oauth2_provider_apps IS 'A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.';
+
+COMMENT ON COLUMN oauth2_provider_apps.redirect_uris IS 'List of valid redirect URIs for the application';
+
+COMMENT ON COLUMN oauth2_provider_apps.client_type IS 'OAuth2 client type: confidential or public';
+
+COMMENT ON COLUMN oauth2_provider_apps.dynamically_registered IS 'Whether this app was created via dynamic client registration';
+
+COMMENT ON COLUMN oauth2_provider_apps.client_id_issued_at IS 'RFC 7591: Timestamp when client_id was issued';
+
+COMMENT ON COLUMN oauth2_provider_apps.client_secret_expires_at IS 'RFC 7591: Timestamp when client_secret expires (null for non-expiring)';
+
+COMMENT ON COLUMN oauth2_provider_apps.grant_types IS 'RFC 7591: Array of grant types the client is allowed to use';
+
+COMMENT ON COLUMN oauth2_provider_apps.response_types IS 'RFC 7591: Array of response types the client supports';
+
+COMMENT ON COLUMN oauth2_provider_apps.token_endpoint_auth_method IS 'RFC 7591: Authentication method for token endpoint';
+
+COMMENT ON COLUMN oauth2_provider_apps.scope IS 'RFC 7591: Space-delimited scope values the client can request';
+
+COMMENT ON COLUMN oauth2_provider_apps.contacts IS 'RFC 7591: Array of email addresses for responsible parties';
+
+COMMENT ON COLUMN oauth2_provider_apps.client_uri IS 'RFC 7591: URL of the client home page';
+
+COMMENT ON COLUMN oauth2_provider_apps.logo_uri IS 'RFC 7591: URL of the client logo image';
+
+COMMENT ON COLUMN oauth2_provider_apps.tos_uri IS 'RFC 7591: URL of the client terms of service';
+
+COMMENT ON COLUMN oauth2_provider_apps.policy_uri IS 'RFC 7591: URL of the client privacy policy';
+
+COMMENT ON COLUMN oauth2_provider_apps.jwks_uri IS 'RFC 7591: URL of the client JSON Web Key Set';
+
+COMMENT ON COLUMN oauth2_provider_apps.jwks IS 'RFC 7591: JSON Web Key Set document value';
+
+COMMENT ON COLUMN oauth2_provider_apps.software_id IS 'RFC 7591: Identifier for the client software';
+
+COMMENT ON COLUMN oauth2_provider_apps.software_version IS 'RFC 7591: Version of the client software';
+
+COMMENT ON COLUMN oauth2_provider_apps.registration_access_token IS 'RFC 7592: Hashed registration access token for client management';
+
+COMMENT ON COLUMN oauth2_provider_apps.registration_client_uri IS 'RFC 7592: URI for client configuration endpoint';
 
 CREATE TABLE organizations (
     id uuid NOT NULL,
@@ -2835,6 +2911,9 @@ ALTER TABLE ONLY api_keys
 
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY oauth2_provider_app_tokens
+    ADD CONSTRAINT fk_oauth2_provider_app_tokens_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY external_auth_links
     ADD CONSTRAINT git_auth_links_oauth_access_token_key_id_fkey FOREIGN KEY (oauth_access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);

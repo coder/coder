@@ -258,16 +258,14 @@
 				},
 				{
 					"title": "Coder Desktop",
-					"description": "Use Coder Desktop to access your workspace like it's a local machine",
+					"description": "Transform remote workspaces into seamless local development environments with no port forwarding required",
 					"path": "./user-guides/desktop/index.md",
 					"icon_path": "./images/icons/computer-code.svg",
-					"state": ["beta"],
 					"children": [
 						{
 							"title": "Coder Desktop connect and sync",
 							"description": "Use Coder Desktop to manage your workspace code and files locally",
-							"path": "./user-guides/desktop/desktop-connect-sync.md",
-							"state": ["beta"]
+							"path": "./user-guides/desktop/desktop-connect-sync.md"
 						}
 					]
 				},
@@ -1396,6 +1394,21 @@
 							"title": "port-forward",
 							"description": "Forward ports from a workspace to the local machine. For reverse port forwarding, use \"coder ssh -R\".",
 							"path": "reference/cli/port-forward.md"
+						},
+						{
+							"title": "prebuilds",
+							"description": "Manage Coder prebuilds",
+							"path": "reference/cli/prebuilds.md"
+						},
+						{
+							"title": "prebuilds pause",
+							"description": "Pause prebuilds",
+							"path": "reference/cli/prebuilds_pause.md"
+						},
+						{
+							"title": "prebuilds resume",
+							"description": "Resume prebuilds",
+							"path": "reference/cli/prebuilds_resume.md"
 						},
 						{
 							"title": "provisioner",

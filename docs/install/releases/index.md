@@ -57,13 +57,13 @@ pages.
 <!-- RELEASE_CALENDAR_START -->
 | Release name                                   | Release Date      | Status           | Latest Release                                                 |
 |------------------------------------------------|-------------------|------------------|----------------------------------------------------------------|
-| [2.18](https://coder.com/changelog/coder-2-18) | December 03, 2024 | Not Supported    | [v2.18.5](https://github.com/coder/coder/releases/tag/v2.18.5) |
 | [2.19](https://coder.com/changelog/coder-2-19) | February 04, 2025 | Not Supported    | [v2.19.3](https://github.com/coder/coder/releases/tag/v2.19.3) |
 | [2.20](https://coder.com/changelog/coder-2-20) | March 04, 2025    | Not Supported    | [v2.20.3](https://github.com/coder/coder/releases/tag/v2.20.3) |
-| [2.21](https://coder.com/changelog/coder-2-21) | April 02, 2025    | Security Support | [v2.21.3](https://github.com/coder/coder/releases/tag/v2.21.3) |
-| [2.22](https://coder.com/changelog/coder-2-22) | May 16, 2025      | Stable           | [v2.22.1](https://github.com/coder/coder/releases/tag/v2.22.1) |
-| [2.23](https://coder.com/changelog/coder-2-23) | June 03, 2025     | Mainline         | [v2.23.1](https://github.com/coder/coder/releases/tag/v2.23.1) |
-| 2.24                                           |                   | Not Released     | N/A                                                            |
+| [2.21](https://coder.com/changelog/coder-2-21) | April 02, 2025    | Not Supported    | [v2.21.3](https://github.com/coder/coder/releases/tag/v2.21.3) |
+| [2.22](https://coder.com/changelog/coder-2-22) | May 16, 2025      | Security Support | [v2.22.1](https://github.com/coder/coder/releases/tag/v2.22.1) |
+| [2.23](https://coder.com/changelog/coder-2-23) | June 03, 2025     | Stable           | [v2.23.2](https://github.com/coder/coder/releases/tag/v2.23.2) |
+| [2.24](https://coder.com/changelog/coder-2-24) | July 01, 2025     | Mainline         | [v2.24.1](https://github.com/coder/coder/releases/tag/v2.24.1) |
+| 2.25                                           |                   | Not Released     | N/A                                                            |
 <!-- RELEASE_CALENDAR_END -->
 
 > [!TIP]
