@@ -11711,7 +11711,73 @@ const docTemplate = `{
             }
         },
         "codersdk.CreateTestAuditLogRequest": {
-            "type": "object"
+            "type": "object",
+            "properties": {
+                "action": {
+                    "enum": [
+                        "create",
+                        "write",
+                        "delete",
+                        "start",
+                        "stop"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AuditAction"
+                        }
+                    ]
+                },
+                "additional_fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "build_reason": {
+                    "enum": [
+                        "autostart",
+                        "autostop",
+                        "initiator"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.BuildReason"
+                        }
+                    ]
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "request_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "resource_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "resource_type": {
+                    "enum": [
+                        "template",
+                        "template_version",
+                        "user",
+                        "workspace",
+                        "workspace_build",
+                        "git_ssh_key",
+                        "auditable_group"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ResourceType"
+                        }
+                    ]
+                },
+                "time": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
         },
         "codersdk.CreateTokenRequest": {
             "type": "object",
@@ -12484,12 +12550,16 @@ const docTemplate = `{
                 "auto-fill-parameters",
                 "notifications",
                 "workspace-usage",
-                "web-push"
+                "web-push",
+                "oauth2",
+                "mcp-server-http"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
+                "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
+                "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
@@ -12498,7 +12568,9 @@ const docTemplate = `{
                 "ExperimentAutoFillParameters",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
-                "ExperimentWebPush"
+                "ExperimentWebPush",
+                "ExperimentOAuth2",
+                "ExperimentMCPServerHTTP"
             ]
         },
         "codersdk.ExternalAuth": {
