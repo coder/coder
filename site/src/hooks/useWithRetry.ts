@@ -8,14 +8,13 @@ const MULTIPLIER = 2;
 
 interface UseWithRetryResult {
 	call: () => Promise<void>;
-	retryAt: Date | undefined;
+	nextRetryAt: Date | undefined;
 	isLoading: boolean;
 }
 
 interface RetryState {
 	isLoading: boolean;
-	retryAt: Date | undefined;
-	attemptCount: number;
+	nextRetryAt: Date | undefined;
 }
 
 /**
@@ -25,8 +24,7 @@ interface RetryState {
 export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
 	const [state, setState] = useState<RetryState>({
 		isLoading: false,
-		retryAt: undefined,
-		attemptCount: 0,
+		nextRetryAt: undefined,
 	});
 
 	const timeoutRef = useRef<number | null>(null);
@@ -42,25 +40,30 @@ export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
 		clearTimeout();
 
 		const executeAttempt = async (attempt: number): Promise<void> => {
-			setState((prev) => ({ ...prev, isLoading: true, attemptCount: attempt }));
+			setState({
+				isLoading: true,
+				nextRetryAt: undefined,
+			});
 
 			try {
 				await fn();
-				setState({ isLoading: false, retryAt: undefined, attemptCount: 0 });
+				setState({ isLoading: false, nextRetryAt: undefined });
 			} catch (error) {
 				const delayMs = Math.min(
 					DELAY_MS * MULTIPLIER ** attempt,
 					MAX_DELAY_MS,
 				);
 
-				setState((prev) => ({
-					...prev,
+				setState({
 					isLoading: false,
-					retryAt: new Date(Date.now() + delayMs),
-				}));
+					nextRetryAt: new Date(Date.now() + delayMs),
+				});
 
 				timeoutRef.current = window.setTimeout(() => {
-					setState((prev) => ({ ...prev, retryAt: undefined }));
+					setState({
+						isLoading: false,
+						nextRetryAt: undefined,
+					});
 					executeAttempt(attempt + 1);
 				}, delayMs);
 			}
@@ -77,7 +80,7 @@ export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
 
 	return {
 		call,
-		retryAt: state.retryAt,
+		nextRetryAt: state.nextRetryAt,
 		isLoading: state.isLoading,
 	};
 }
