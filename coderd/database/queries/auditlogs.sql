@@ -156,3 +156,19 @@ INSERT INTO
     )
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *;
+
+-- name: DeleteOldAuditLogConnectionEvents :exec
+DELETE FROM audit_logs
+WHERE id IN (
+    SELECT id FROM audit_logs
+    WHERE
+        (
+            action = 'connect'
+            OR action = 'disconnect'
+            OR action = 'open'
+            OR action = 'close'
+        )
+        AND "time" < @before_time::timestamp with time zone
+    ORDER BY "time" ASC
+    LIMIT @limit_count
+);
