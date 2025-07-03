@@ -25,6 +25,13 @@ message TrackUserPromptsRequest {
 }
 message TrackUserPromptsResponse {}
 
+message TrackToolUseRequest {
+	string tool = 1;
+  string model = 2;
+  map<string, string> input = 3;
+}
+message TrackToolUseResponse {}
+
 // AIBridgeDaemon describes the service exposed by coderd, which allows the AI bridge to send data to coderd.
 service AIBridgeDaemon {
 
@@ -33,4 +40,5 @@ service AIBridgeDaemon {
 	rpc AuditPrompt(AuditPromptRequest) returns (AuditPromptResponse);
 	rpc TrackTokenUsage(TrackTokenUsageRequest) returns (TrackTokenUsageResponse);
 	rpc TrackUserPrompts(TrackUserPromptsRequest) returns (TrackUserPromptsResponse);
+	rpc TrackToolUse(TrackToolUseRequest) returns (TrackToolUseResponse);
 }

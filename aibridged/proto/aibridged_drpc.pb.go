@@ -41,6 +41,7 @@ type DRPCAIBridgeDaemonClient interface {
 	AuditPrompt(ctx context.Context, in *AuditPromptRequest) (*AuditPromptResponse, error)
 	TrackTokenUsage(ctx context.Context, in *TrackTokenUsageRequest) (*TrackTokenUsageResponse, error)
 	TrackUserPrompts(ctx context.Context, in *TrackUserPromptsRequest) (*TrackUserPromptsResponse, error)
+	TrackToolUse(ctx context.Context, in *TrackToolUseRequest) (*TrackToolUseResponse, error)
 }
 
 type drpcAIBridgeDaemonClient struct {
@@ -80,10 +81,20 @@ func (c *drpcAIBridgeDaemonClient) TrackUserPrompts(ctx context.Context, in *Tra
 	return out, nil
 }
 
+func (c *drpcAIBridgeDaemonClient) TrackToolUse(ctx context.Context, in *TrackToolUseRequest) (*TrackToolUseResponse, error) {
+	out := new(TrackToolUseResponse)
+	err := c.cc.Invoke(ctx, "/aibridged.AIBridgeDaemon/TrackToolUse", drpcEncoding_File_aibridged_proto_aibridged_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCAIBridgeDaemonServer interface {
 	AuditPrompt(context.Context, *AuditPromptRequest) (*AuditPromptResponse, error)
 	TrackTokenUsage(context.Context, *TrackTokenUsageRequest) (*TrackTokenUsageResponse, error)
 	TrackUserPrompts(context.Context, *TrackUserPromptsRequest) (*TrackUserPromptsResponse, error)
+	TrackToolUse(context.Context, *TrackToolUseRequest) (*TrackToolUseResponse, error)
 }
 
 type DRPCAIBridgeDaemonUnimplementedServer struct{}
@@ -100,9 +111,13 @@ func (s *DRPCAIBridgeDaemonUnimplementedServer) TrackUserPrompts(context.Context
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCAIBridgeDaemonUnimplementedServer) TrackToolUse(context.Context, *TrackToolUseRequest) (*TrackToolUseResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCAIBridgeDaemonDescription struct{}
 
-func (DRPCAIBridgeDaemonDescription) NumMethods() int { return 3 }
+func (DRPCAIBridgeDaemonDescription) NumMethods() int { return 4 }
 
 func (DRPCAIBridgeDaemonDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -133,6 +148,15 @@ func (DRPCAIBridgeDaemonDescription) Method(n int) (string, drpc.Encoding, drpc.
 						in1.(*TrackUserPromptsRequest),
 					)
 			}, DRPCAIBridgeDaemonServer.TrackUserPrompts, true
+	case 3:
+		return "/aibridged.AIBridgeDaemon/TrackToolUse", drpcEncoding_File_aibridged_proto_aibridged_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAIBridgeDaemonServer).
+					TrackToolUse(
+						ctx,
+						in1.(*TrackToolUseRequest),
+					)
+			}, DRPCAIBridgeDaemonServer.TrackToolUse, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -184,6 +208,22 @@ type drpcAIBridgeDaemon_TrackUserPromptsStream struct {
 }
 
 func (x *drpcAIBridgeDaemon_TrackUserPromptsStream) SendAndClose(m *TrackUserPromptsResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_aibridged_proto_aibridged_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAIBridgeDaemon_TrackToolUseStream interface {
+	drpc.Stream
+	SendAndClose(*TrackToolUseResponse) error
+}
+
+type drpcAIBridgeDaemon_TrackToolUseStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAIBridgeDaemon_TrackToolUseStream) SendAndClose(m *TrackToolUseResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_aibridged_proto_aibridged_proto{}); err != nil {
 		return err
 	}

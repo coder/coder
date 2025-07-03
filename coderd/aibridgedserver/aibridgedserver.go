@@ -50,6 +50,20 @@ func (s *Server) TrackUserPrompts(ctx context.Context, in *proto.TrackUserPrompt
 	return &proto.TrackUserPromptsResponse{}, nil
 }
 
+func (s *Server) TrackToolUse(ctx context.Context, in *proto.TrackToolUseRequest) (*proto.TrackToolUseResponse, error) {
+	raw, err := json.Marshal(in)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal event: %w", err)
+	}
+
+	err = s.store.InsertWormholeEvent(ctx, database.InsertWormholeEventParams{Event: raw, EventType: "tool_use"})
+	if err != nil {
+		return nil, xerrors.Errorf("store event: %w", err)
+	}
+
+	return &proto.TrackToolUseResponse{}, nil
+}
+
 func NewServer(lifecycleCtx context.Context, store database.Store) (*Server, error) {
 	return &Server{
 		lifecycleCtx: lifecycleCtx,

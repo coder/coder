@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"sync"
@@ -132,6 +133,9 @@ func (s *eventStream) TrySend(ctx context.Context, data any, exclusions ...strin
 		// out all the zero value objects in the response, with optional exclusions.
 		payload, err = util.MarshalNoZero(data, exclusions...)
 	default:
+		zero, _ := util.MarshalNoZero(data, exclusions...)
+		fmt.Printf("[zero] %s\n", zero)
+
 		payload, err = json.Marshal(data)
 	}
 

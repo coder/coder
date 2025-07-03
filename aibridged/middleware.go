@@ -40,7 +40,7 @@ func AuthMiddleware(db database.Store) func(http.Handler) http.Handler {
 }
 
 // extractAuthTokenForBridge extracts authorization token from HTTP request using multiple sources.
-// It checks Authorization header (Bearer token), Coder session headers, and cookies.
+// It checks Authorization header (Bearer token), X-Api-Key header, and Coder session headers and cookies.
 func extractAuthTokenForBridge(r *http.Request) string {
 	// 1. Check Authorization header for Bearer token
 	authHeader := r.Header.Get("Authorization")
@@ -54,6 +54,12 @@ func extractAuthTokenForBridge(r *http.Request) string {
 		}
 	}
 
-	// 2. Fall back to Coder's standard token extraction
+	// 2. Check X-Api-Key header
+	apiKeyHeader := r.Header.Get("X-Api-Key")
+	if apiKeyHeader != "" {
+		return apiKeyHeader
+	}
+
+	// 3. Fall back to Coder's standard token extraction
 	return httpmw.APITokenFromRequest(r)
 }

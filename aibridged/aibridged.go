@@ -188,6 +188,16 @@ func (s *Server) TrackUserPrompts(ctx context.Context, in *proto.TrackUserPrompt
 	return out, nil
 }
 
+func (s *Server) TrackToolUse(ctx context.Context, in *proto.TrackToolUseRequest) (*proto.TrackToolUseResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.TrackToolUseResponse, error) {
+		return client.TrackToolUse(ctx, in)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // func (s *Server) ChatCompletions(payload *proto.JSONPayload, stream proto.DRPCOpenAIService_ChatCompletionsStream) error {
 //	// TODO: call OpenAI API.
 //

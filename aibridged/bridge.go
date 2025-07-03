@@ -18,6 +18,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	ant_ssestream "github.com/anthropics/anthropic-sdk-go/packages/ssestream"
+	ant_constant "github.com/anthropics/anthropic-sdk-go/shared/constant"
 	"github.com/google/uuid"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/shared/constant"
@@ -27,6 +28,8 @@ import (
 
 	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
+
+	"github.com/invopop/jsonschema"
 )
 
 type Bridge struct {
@@ -385,6 +388,19 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	toolParams := []anthropic.BetaToolParam{
+		{
+			Name:        "get_coordinates",
+			Description: anthropic.String("Accepts a place as an address, then returns the latitude and longitude coordinates."),
+			InputSchema: GetCoordinatesInputSchema,
+		},
+	}
+	tools := make([]anthropic.BetaToolUnionParam, len(toolParams))
+	for i, toolParam := range toolParams {
+		tools[i] = anthropic.BetaToolUnionParam{OfTool: &toolParam}
+	}
+	in.Tools = tools
+
 	// Claude Code uses the 3.5 Haiku model to do autocomplete and other small tasks. (see ANTHROPIC_SMALL_FAST_MODEL).
 	isSmallFastModel := strings.Contains(string(in.Model), "3-5-haiku")
 
@@ -454,24 +470,13 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 
 	stream := client.Beta.Messages.NewStreaming(streamCtx, in.BetaMessageNewParams)
 
+	var foundToolCall bool
+
+	var events []anthropic.BetaRawMessageStreamEventUnion
 	var message anthropic.BetaMessage
 	for stream.Next() {
 		event := stream.Current()
-
-		// Log MCP tool result events
-		eventData := event.RawJSON()
-		if strings.Contains(eventData, "web_search_requests") {
-			b.logger.Info(ctx, "Usage event with web_search_requests", slog.F("event", eventData))
-		}
-		if strings.Contains(eventData, "mcp_tool_result") {
-			b.logger.Info(ctx, "MCP tool result event", slog.F("event", eventData))
-		}
-		if strings.Contains(eventData, "tool_result") {
-			b.logger.Info(ctx, "Tool result event", slog.F("event", eventData))
-		}
-		if strings.Contains(eventData, "tool_use") {
-			b.logger.Info(ctx, "Tool use event", slog.F("event", eventData))
-		}
+		events = append(events, event)
 
 		if err := message.Accumulate(event); err != nil {
 			b.logger.Error(ctx, "failed to accumulate streaming events", slog.Error(err), slog.F("event", event), slog.F("msg", message.RawJSON()))
@@ -479,11 +484,94 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if err := es.TrySend(streamCtx, event); err != nil {
-			b.logger.Error(ctx, "failed to send event", slog.Error(err))
+		// [zero] {"type":"content_block_stop"}
+		//[zero] {"content_block":{"id":"toolu_015YCpDbjWuSbcKGfDRWR1bD","name":"get_coordinates","type":"tool_use"},"index":1,"type":"content_block_start"}
+		//[zero] {"delta":{"type":"input_json_delta"},"index":1,"type":"content_block_delta"}
+
+		switch e := event.AsAny().(type) {
+		case anthropic.BetaRawContentBlockStartEvent:
+			switch e.ContentBlock.AsAny().(type) {
+			case anthropic.BetaToolUseBlock:
+				foundToolCall = true // Ensure no more events get sent after this point since our injected tool needs to be called.
+				// TODO: ensure ONLY our injected tools cause this.
+			}
+		}
+
+		if !foundToolCall {
+			if err := es.TrySend(streamCtx, event); err != nil {
+				b.logger.Error(ctx, "failed to send event", slog.Error(err))
+			}
+		} else {
+			fmt.Printf("[ignored, tool call found] %s\n", event.RawJSON())
 		}
 	}
 
+	if foundToolCall {
+		for _, c := range message.Content {
+			switch c.AsAny().(type) {
+			case anthropic.BetaToolUseBlock:
+				fn := c.AsToolUse().Name
+				//input := c.AsToolUse().Input
+
+				var input GetCoordinatesInput
+				raw := c.Input
+				err = json.Unmarshal(raw, &input)
+				if err != nil {
+					b.logger.Error(ctx, "failed to send event", slog.Error(err))
+					goto outer
+				}
+
+				fmt.Printf("[tool] %s %+v\n", fn, input)
+				resp := GetCoordinates(input.Location)
+				out := fmt.Sprintf("The latitude is %.2f and longitude is %.2f.", resp.Lat, resp.Long)
+
+				_, err = coderdClient.TrackToolUse(streamCtx, &proto.TrackToolUseRequest{
+					Model: string(message.Model),
+					Input: map[string]string{
+						"location": input.Location,
+					},
+					Tool: fn,
+				})
+				if err != nil {
+					b.logger.Error(ctx, "failed to track usage", slog.Error(err))
+				}
+
+				// Start content block
+				var textType ant_constant.Text
+				if err := es.TrySend(streamCtx, anthropic.BetaRawMessageStreamEventUnion{
+					Type:  string(ant_constant.ValueOf[ant_constant.ContentBlockStart]()),
+					Index: 0, // TODO: which index to use?
+					ContentBlock: anthropic.BetaRawContentBlockStartEventContentBlockUnion{
+						Type: string(textType.Default()),
+					},
+				}); err != nil {
+					b.logger.Error(ctx, "failed to send content block start event", slog.Error(err))
+				}
+
+				// Send the tool result
+				if err := es.TrySend(streamCtx, anthropic.BetaRawMessageStreamEventUnion{
+					Type:  string(ant_constant.ValueOf[ant_constant.ContentBlockDelta]()),
+					Index: 0, // TODO: which index to use?
+					Delta: anthropic.BetaRawMessageStreamEventUnionDelta{
+						Type: string(ant_constant.ValueOf[ant_constant.TextDelta]()),
+						Text: out,
+					},
+				}); err != nil {
+					b.logger.Error(ctx, "failed to send content block delta event", slog.Error(err))
+				}
+
+				// Stop content block
+				if err := es.TrySend(streamCtx, anthropic.BetaRawMessageStreamEventUnion{
+					Type:  string(ant_constant.ValueOf[ant_constant.ContentBlockStop]()),
+					Index: 0, // TODO: which index to use?
+				}); err != nil {
+					b.logger.Error(ctx, "failed to send content block stop event", slog.Error(err))
+				}
+			}
+		}
+	}
+
+outer:
 	// TODO: these figures don't seem to exactly match what Claude Code reports. Find the source of inconsistency!
 	_, err = coderdClient.TrackTokenUsage(streamCtx, &proto.TrackTokenUsageRequest{
 		MsgId:        message.ID,
@@ -525,6 +613,38 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 
 	select {
 	case <-streamCtx.Done():
+	}
+}
+
+type GetCoordinatesInput struct {
+	Location string `json:"location" jsonschema_description:"The location to look up."`
+}
+
+var GetCoordinatesInputSchema = GenerateSchema[GetCoordinatesInput]()
+
+type GetCoordinateResponse struct {
+	Long float64 `json:"long"`
+	Lat  float64 `json:"lat"`
+}
+
+func GetCoordinates(location string) GetCoordinateResponse {
+	return GetCoordinateResponse{
+		Long: -122.4194,
+		Lat:  37.7749,
+	}
+}
+
+func GenerateSchema[T any]() anthropic.BetaToolInputSchemaParam {
+	reflector := jsonschema.Reflector{
+		AllowAdditionalProperties: false,
+		DoNotReference:            true,
+	}
+	var v T
+
+	schema := reflector.Reflect(v)
+
+	return anthropic.BetaToolInputSchemaParam{
+		Properties: schema.Properties,
 	}
 }
 
