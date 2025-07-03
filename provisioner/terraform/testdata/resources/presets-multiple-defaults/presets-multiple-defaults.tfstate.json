@@ -10,7 +10,7 @@
           "type": "coder_parameter",
           "name": "instance_type",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "default": "t3.micro",
             "description": "Instance type",
@@ -39,7 +39,7 @@
           "type": "coder_workspace_preset",
           "name": "development",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "default": true,
             "id": "development",
@@ -71,7 +71,7 @@
           "type": "coder_workspace_preset",
           "name": "production",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "default": true,
             "id": "production",

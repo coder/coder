@@ -31,8 +31,7 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
-            "token": true
+            "resources_monitoring": []
           }
         },
         {
@@ -130,7 +129,7 @@
             "type": "coder_parameter",
             "name": "example",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 1,
+            "schema_version": 0,
             "values": {
               "default": null,
               "description": null,
@@ -159,7 +158,7 @@
             "type": "coder_parameter",
             "name": "sample",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 1,
+            "schema_version": 0,
             "values": {
               "default": "ok",
               "description": "blah blah",
@@ -244,7 +243,7 @@
               "constant_value": "string"
             }
           },
-          "schema_version": 1
+          "schema_version": 0
         },
         {
           "address": "data.coder_parameter.sample",
@@ -269,13 +268,10 @@
               "constant_value": "string"
             }
           },
-          "schema_version": 1
+          "schema_version": 0
         }
       ]
     }
   },
-  "timestamp": "2025-03-03T20:39:59Z",
-  "applyable": true,
-  "complete": true,
-  "errored": false
+  "timestamp": "2025-03-03T20:39:59Z"
 }
