@@ -2,7 +2,7 @@
 
 ## RDP
 
-The common way to connect to a Windows workspace is using Remote Desktop Protocol (RDP). RDP is a proprietary protocol developed by Microsoft that allows users to remotely control a computer over a network connection. It provides a graphical user interface (GUI) for remote access, enabling users to interact with the remote system as if they were sitting in front of it.
+The most common way to get a GUI-based connection to a Windows workspace is by using Remote Desktop Protocol (RDP).
 
 <div class="tabs">
 
