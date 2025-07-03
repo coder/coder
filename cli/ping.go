@@ -53,7 +53,7 @@ func (s *pingSummary) addResult(r *ipnstate.PingResult) {
 	if s.Min == nil || r.LatencySeconds < s.Min.Seconds() {
 		s.Min = ptr.Ref(time.Duration(r.LatencySeconds * float64(time.Second)))
 	}
-	if s.Max == nil || r.LatencySeconds > s.Min.Seconds() {
+	if s.Max == nil || r.LatencySeconds > s.Max.Seconds() {
 		s.Max = ptr.Ref(time.Duration(r.LatencySeconds * float64(time.Second)))
 	}
 	s.latencySum += r.LatencySeconds

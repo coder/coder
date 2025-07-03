@@ -1396,6 +1396,21 @@
 							"path": "reference/cli/port-forward.md"
 						},
 						{
+							"title": "prebuilds",
+							"description": "Manage Coder prebuilds",
+							"path": "reference/cli/prebuilds.md"
+						},
+						{
+							"title": "prebuilds pause",
+							"description": "Pause prebuilds",
+							"path": "reference/cli/prebuilds_pause.md"
+						},
+						{
+							"title": "prebuilds resume",
+							"description": "Resume prebuilds",
+							"path": "reference/cli/prebuilds_resume.md"
+						},
+						{
 							"title": "provisioner",
 							"description": "View and manage provisioner daemons and jobs",
 							"path": "reference/cli/provisioner.md"
