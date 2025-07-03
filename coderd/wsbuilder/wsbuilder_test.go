@@ -1015,7 +1015,7 @@ func TestWsbuildError(t *testing.T) {
 
 	code, resp := respErr.Response()
 	require.Equal(t, http.StatusBadRequest, code)
-	require.Equal(t, resp.Message, msg)
+	require.Equal(t, msg, resp.Message)
 }
 
 type txExpect func(mTx *dbmock.MockStore)
