@@ -528,7 +528,13 @@
 								{
 									"title": "Build Parameters",
 									"description": "Use parameters to customize workspaces at build",
-									"path": "./admin/templates/extending-templates/parameters.md"
+									"path": "./admin/templates/extending-templates/parameters.md",
+									"state": ["beta"]
+								},
+								{
+									"title": "Dynamic Parameters",
+									"description": "Conditional, identity-aware parameter syntax for advanced users.",
+									"path": "./admin/templates/extending-templates/dynamic-parameters.md"
 								},
 								{
 									"title": "Prebuilt workspaces",

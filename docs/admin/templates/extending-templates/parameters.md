@@ -392,37 +392,29 @@ parameters in one of two ways:
 
   Or set the [environment variable](../../setup/index.md), `CODER_EXPERIMENTS=auto-fill-parameters`
 
-## Dynamic Parameters (Early Access)
+## Dynamic Parameters (Beta)
 
-Dynamic Parameters enhances Coder's existing parameter system with real-time validation,
-conditional parameter behavior, and richer input types.
-This feature allows template authors to create more interactive and responsive workspace creation experiences.
+Coder v2.24.0 introduces Dynamic Parameters to extend the existing parameter system with conditional form controls, enriched input types, and user idenitity awareness. 
+This feature allows template authors to create interactive workspace creation forms, meaning more environment customization and fewer templates to maintain. 
 
-### Enable Dynamic Parameters
+All parameters are parsed from Terraform, meaning your workspace creation forms live in the same location as your provisioning code. You can use all the native Terraform functions and conditionality to create a self-service tooling catalog for every template. 
 
-To use Dynamic Parameters, enable the experiment flag or set the environment variable.
+Administrators can now:
+- Have parameters respond to the inputs of others
+- Only show parameters when other input criteria is met
+- Only show select parameters to target Coder roles or groups
 
-Note that as of v2.22.0, Dynamic parameters are an unsafe experiment and will not be enabled with the experiment wildcard.
+You can try the dynamic parameter syntax and any of the code examples below in the [Parameters Playground](https://playground.coder.app/parameters) today. We advise experimenting here before upgrading templates.  
 
-<div class="tabs">
 
-#### Flag
+### Enable Dynamic Parameters 
 
-```shell
-coder server --experiments=dynamic-parameters
-```
+In v2.24.0, you can opt-in to Dynamic Parameters on a per-template basis. To use dynamic parameters, go to your template settings and toggle the "Enable Dynamic Parameters Beta" option. 
 
-#### Env Variable
+[Image of template settings with dynamic parameters beta option]
 
-```shell
-CODER_EXPERIMENTS=dynamic-parameters
-```
+Next, update your template to use version >=2.4.0 of the Coder provider with the following Terraform block.
 
-</div>
-
-Dynamic Parameters also require version >=2.4.0 of the Coder provider.
-
-Enable the experiment, then include the following at the top of your template:
 
 ```terraform
 terraform {
@@ -435,8 +427,22 @@ terraform {
 }
 ```
 
-Once enabled, users can toggle between the experimental and classic interfaces during
-workspace creation using an escape hatch in the workspace creation form.
+
+Once configured, users should see the updated workspace creation form. Then you are ready to start leveraging the new conditionality system and new input types. Note that these new features must be declared in your Terraform to start leveraging Dynamic Parameters. If you decide later to revert to the legacy flow, Dynamic Parameters may be disabled in the template settings.
+
+### When to upgrade to dynamic parameters
+
+Dynamic parameters is **backwards compatible** with existing coder templates. When opting-in to the new experience, no functional changes will be applied to your existing parameters.
+
+[Screenshot of before and after dynamic parameters on a "legacy" template]
+
+There are three reasons for users to try Dynamic Parameters:
+
+- You maintain many templates for many teams with unique expectations or use cases
+- You want to selectively expose privledged workspace options to admins, power users, or personas
+- You want to make the workspace creation flow more ergonomic for developers.
+
+Dynamic Parameters help you reduce template duplication by setting conditions on which users may see which parameters. 
 
 ## Features and Capabilities
 
@@ -454,15 +460,15 @@ Dynamic Parameters introduces three primary enhancements to the standard paramet
   - Read user data at build time from [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner)
   - Conditionally hide parameters based on user's role
   - Change parameter options based on user groups
-  - Reference user name in parameters
+  - Reference user name, groups, and roles in parameter text
 
 - **Additional Form Inputs**
 
   - Searchable dropdown lists for easier selection
   - Multi-select options for choosing multiple items
   - Secret text inputs for sensitive information
-  - Key-value pair inputs for complex data
-  - Button parameters for toggling sections
+  - Slider input for disk size, model temperature
+  - Disabled parameters to display immutable data
 
 ## Available Form Input Types
 
@@ -534,20 +540,6 @@ data "coder_parameter" "custom_domain" {
   type         = "string"
   form_type    = "input" # This is the default for string parameters without options
   default      = ""
-}
-```
-
-</details>
-
-<details><summary>key-value: Input for entering key-value pairs</summary>
-
-```tf
-data "coder_parameter" "environment_vars" {
-  name         = "environment_vars"
-  display_name = "Environment Variables"
-  type         = "string"
-  form_type    = "key-value"
-  default      = jsonencode({"NODE_ENV": "development"})
 }
 ```
 
