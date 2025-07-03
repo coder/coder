@@ -64,6 +64,20 @@ Then, connect to your workspace via RDP at `localhost:3399`.
 
 </div>
 
+#### RDP UDP Issues
+
+> [!NOTE]
+> Some versions of Windows, including Windows Server 2022, do not communicate correctly over UDP when using Coder Connect because they do not respect the maximum transmission unit (MTU) of the link. When this happens, the RDP client will appear to connect, but displays a blank screen.
+>
+> To avoid this error, Coder's [Windows RDP](https://registry.coder.com/modules/windows-rdp) module [disables RDP over UDP automatically](https://github.com/coder/registry/blob/b58bfebcf3bcdcde4f06a183f92eb3e01842d270/registry/coder/modules/windows-rdp/powershell-installation-script.tftpl#L22).
+>
+> To disable RDP over UDP manually, run the following in PowerShell:
+>
+> ```powershell
+> New-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name "SelectTransport" -Value 1 -PropertyType DWORD -Force
+> Restart-Service -Name "TermService" -Force
+> ```
+
 ### Browser
 
 Our [RDP Web](https://registry.coder.com/modules/windows-rdp) module in the Coder Registry adds a one-click button to open an RDP session in the browser. This requires just a few lines of Terraform in your template, see the documentation on our registry for setup.
@@ -152,18 +166,3 @@ The [KasmVNC module](https://registry.coder.com/modules/coder/kasmvnc) allows br
 </div>
 
 ![VNC Desktop in Coder](../../images/vnc-desktop.png)
-
-## Troubleshooting
-
-### RDP UDP Issues
-
-Some versions of Windows, including Windows Server 2022, do not communicate correctly over UDP when using Coder Connect because they do not respect the maximum transmission unit (MTU) of the link. When this happens, the RDP client will appear to connect, but displays a blank screen.
-
-To avoid this error, Coder's [Windows RDP](https://registry.coder.com/modules/windows-rdp) module [disables RDP over UDP automatically](https://github.com/coder/registry/blob/b58bfebcf3bcdcde4f06a183f92eb3e01842d270/registry/coder/modules/windows-rdp/powershell-installation-script.tftpl#L22).
-
-To disable RDP over UDP manually, run the following in PowerShell:
-
-```powershell
-New-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name "SelectTransport" -Value 1 -PropertyType DWORD -Force
-Restart-Service -Name "TermService" -Force
-```
