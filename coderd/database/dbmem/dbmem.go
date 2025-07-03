@@ -8983,12 +8983,6 @@ func (q *FakeQuerier) InsertOAuth2ProviderApp(_ context.Context, arg database.In
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for _, app := range q.oauth2ProviderApps {
-		if app.Name == arg.Name {
-			return database.OAuth2ProviderApp{}, errUniqueConstraint
-		}
-	}
-
 	//nolint:gosimple // Go wants database.OAuth2ProviderApp(arg), but we cannot be sure the structs will remain identical.
 	app := database.OAuth2ProviderApp{
 		ID:                      arg.ID,

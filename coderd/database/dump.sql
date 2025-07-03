@@ -2495,9 +2495,6 @@ ALTER TABLE ONLY oauth2_provider_app_tokens
     ADD CONSTRAINT oauth2_provider_app_tokens_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY oauth2_provider_apps
-    ADD CONSTRAINT oauth2_provider_apps_name_key UNIQUE (name);
-
-ALTER TABLE ONLY oauth2_provider_apps
     ADD CONSTRAINT oauth2_provider_apps_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY organization_members
