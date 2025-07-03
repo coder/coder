@@ -1,14 +1,14 @@
-# Add a dev container template to Coder
+# Add an Envbuilder Dev Container Template
 
-A Coder administrator adds a dev container-compatible template to Coder
-(Envbuilder). This allows the template to prompt for the developer for their dev
-container repository's URL as a
-[parameter](../../extending-templates/parameters.md) when they create their
-workspace. Envbuilder clones the repo and builds a container from the
-`devcontainer.json` specified in the repo.
+This guide shows platform administrators how to add an Envbuilder dev container template to Coder.
 
-You can create template files through the Coder dashboard, CLI, or you can
-choose a template from the
+This allows the template to prompt for the developer for their dev container repository's URL as a
+[parameter](../../extending-templates/parameters.md) when they create their workspace.
+Envbuilder clones the repo and builds a container from the `devcontainer.json` specified in the repo.
+
+For the Docker-based Dev Containers integration, follow the [Configure a template for dev containers](../../extending-templates/devcontainers.md) documentation instead.
+
+You can create template files through the Coder dashboard, CLI, or you can choose a template from the
 [Coder registry](https://registry.coder.com/templates):
 
 <div class="tabs">
@@ -118,7 +118,7 @@ their development environments:
 # …
 ```
 
-## Example templates
+## Example Templates
 
 | Template                                                                                                            | Description                                                                                                                                                         |
 |---------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -132,7 +132,7 @@ Your template can prompt the user for a repo URL with
 
 ![Dev container parameter screen](../../../../images/templates/devcontainers.png)
 
-## Dev container lifecycle scripts
+## Dev Container Lifecycle Scripts
 
 The `onCreateCommand`, `updateContentCommand`, `postCreateCommand`, and
 `postStartCommand` lifecycle scripts are run each time the container is started.
@@ -141,6 +141,7 @@ a user begins using the workspace.
 
 Lifecycle scripts are managed by project developers.
 
-## Next steps
+## Next Steps
 
+- [Choose an approach to Dev Containers](../../extending-templates/dev-containers-envbuilder.md)
 - [Dev container security and caching](./devcontainer-security-caching.md)
