@@ -1277,7 +1277,7 @@ class ApiMethods {
 
 	cancelWorkspaceBuild = async (
 		workspaceBuildId: TypesGen.WorkspaceBuild["id"],
-		request?: TypesGen.CancelWorkspaceBuildRequest,
+		request?: TypesGen.CancelWorkspaceBuildParams,
 	): Promise<TypesGen.Response> => {
 		const params = request?.expect_status
 			? new URLSearchParams({ expect_status: request.expect_status }).toString()
