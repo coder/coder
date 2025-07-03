@@ -303,10 +303,21 @@ func fetch(store database.Store, fileID uuid.UUID) (CacheEntryValue, error) {
 		return CacheEntryValue{}, xerrors.Errorf("failed to read file from database: %w", err)
 	}
 
-	content := bytes.NewBuffer(file.Data)
+	var files fs.FS
+	switch file.Mimetype {
+	case "application/zip", "application/x-zip-compressed":
+		files, err = archivefs.FromZipReader(bytes.NewReader(file.Data), int64(len(file.Data)))
+		if err != nil {
+			return CacheEntryValue{}, xerrors.Errorf("failed to read zip file: %w", err)
+		}
+	case "application/x-tar":
+	default:
+		files = archivefs.FromTarReader(bytes.NewBuffer(file.Data))
+	}
+
 	return CacheEntryValue{
 		Object: file.RBACObject(),
-		FS:     archivefs.FromTarReader(content),
+		FS:     files,
 		Size:   int64(len(file.Data)),
 	}, nil
 }
