@@ -1552,6 +1552,16 @@ func (q *querier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Contex
 	return q.db.DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, arg)
 }
 
+func (q *querier) DeleteOldAuditLogConnectionEvents(ctx context.Context, threshold database.DeleteOldAuditLogConnectionEventsParams) error {
+	// `ResourceSystem` is deprecated, but it doesn't make sense to add
+	// `policy.ActionDelete` to `ResourceAuditLog`, since this is the one and
+	// only time we'll be deleting from the audit log.
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteOldAuditLogConnectionEvents(ctx, threshold)
+}
+
 func (q *querier) DeleteOldNotificationMessages(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceNotificationMessage); err != nil {
 		return err
