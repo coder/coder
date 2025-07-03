@@ -29,6 +29,7 @@ export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
 	});
 
 	const timeoutRef = useRef<number | null>(null);
+	const mountedRef = useRef(true);
 
 	const clearTimeout = useCallback(() => {
 		if (timeoutRef.current) {
@@ -43,6 +44,9 @@ export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
 		clearTimeout();
 
 		const executeAttempt = async (attempt: number): Promise<void> => {
+			if (!mountedRef.current) {
+				return;
+			}
 			setState({
 				isLoading: true,
 				nextRetryAt: undefined,
@@ -50,8 +54,13 @@ export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
 
 			try {
 				await stableFn();
-				setState({ isLoading: false, nextRetryAt: undefined });
+				if (mountedRef.current) {
+					setState({ isLoading: false, nextRetryAt: undefined });
+				}
 			} catch (error) {
+				if (!mountedRef.current) {
+					return;
+				}
 				const delayMs = Math.min(
 					DELAY_MS * MULTIPLIER ** attempt,
 					MAX_DELAY_MS,
@@ -63,6 +72,9 @@ export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
 				});
 
 				timeoutRef.current = window.setTimeout(() => {
+					if (!mountedRef.current) {
+						return;
+					}
 					setState({
 						isLoading: false,
 						nextRetryAt: undefined,
@@ -77,6 +89,7 @@ export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
 
 	useEffect(() => {
 		return () => {
+			mountedRef.current = false;
 			clearTimeout();
 		};
 	}, [clearTimeout]);

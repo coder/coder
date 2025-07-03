@@ -256,4 +256,38 @@ describe("useWithRetry", () => {
 		// Function should not have been called again
 		expect(mockFn).toHaveBeenCalledTimes(1);
 	});
+
+	it("should prevent scheduling retries when function completes after unmount", async () => {
+		let rejectPromise: (error: Error) => void;
+		const promise = new Promise<void>((_, reject) => {
+			rejectPromise = reject;
+		});
+		mockFn.mockReturnValue(promise);
+
+		const { result, unmount } = renderHook(() => useWithRetry(mockFn));
+
+		// Start the call - this will make the function in-flight
+		act(() => {
+			result.current.call();
+		});
+
+		expect(result.current.isLoading).toBe(true);
+
+		// Unmount while function is still in-flight
+		unmount();
+
+		// Function completes with error after unmount
+		await act(async () => {
+			rejectPromise!(new Error("Failed after unmount"));
+			await promise.catch(() => {}); // Suppress unhandled rejection
+		});
+
+		// Advance time to ensure no retry timers were scheduled
+		await act(async () => {
+			jest.advanceTimersByTime(5000);
+		});
+
+		// Function should only have been called once (no retries after unmount)
+		expect(mockFn).toHaveBeenCalledTimes(1);
+	});
 });
