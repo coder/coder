@@ -58,7 +58,7 @@ Before creating a pull request, ensure you run:
 2. `pnpm lint` - Fix linting issues
 3. `pnpm format` - Format code consistently
 4. `pnpm test` - Run affected unit tests
-5. Visual check in Storybook if component changes
+5. Check Storybook for any components affected by code changes
 
 ## Tech Stack Overview
 
@@ -97,8 +97,9 @@ the most important.
 
 When working on existing components:
 
-1. **Prefer shadcn/ui components** over MUI when available
-2. **Use TailwindCSS classes** instead of Emotion `css` prop or `sx` prop
+These instructions assume that you have already checked the `src/components` directory, and it doesn't have the right component you need.
+1. **Prefer components in this order:** `shadcn/ui`, Radix, MUI
+2. **Use TailwindCSS classes** instead of Emotion's `css` prop or MUI's `sx` prop
 3. **Check `src/components/`** for existing shadcn/ui implementations before creating new ones
 4. **Do not use the shadcn CLI** - manually add components to maintain consistency
 5. **Update tests** to reflect new component structure when migrating
@@ -114,10 +115,43 @@ For new components:
 
 Use the custom semantic color tokens defined in our Tailwind configuration:
 
-- **Content colors**: `content-primary`, `content-secondary`, `content-disabled`, `content-invert`, `content-success`, `content-link`, `content-destructive`, `content-warning`
-- **Surface colors**: `surface-primary`, `surface-secondary`, `surface-tertiary`, `surface-quaternary`, `surface-invert-primary`, `surface-invert-secondary`, `surface-destructive`, `surface-green`, `surface-grey`, `surface-orange`, `surface-sky`, `surface-red`, `surface-purple`
-- **Border colors**: `border-default`, `border-warning`, `border-destructive`, `border-success`, `border-hover`
-- **Highlight colors**: `highlight-purple`, `highlight-green`, `highlight-grey`, `highlight-sky`, `highlight-red`
+- **Text/foreground content colors**
+  - `primary`
+  - `secondary`
+  - `disabled`
+  - `invert`
+  - `success`
+  - `link`
+  - `destructive`
+  - `warning`
+- **Surface colors**
+  - `primary`
+  - `secondary`
+  - `tertiary`
+  - `quaternary`
+  - `invert-primary`
+  - `invert-secondary`
+  - `destructive`
+  - `green`
+  - `grey`
+  - `orange`
+  - `sky`
+  - `red`
+  - `purple`
+- **Border colors**
+  - `default`
+  - `warning`
+  - `destructive`
+  - `success`
+  - `hover`
+- **Highlight colors**
+  - `purple`
+  - `green`
+  - `grey`
+  - `sky`
+  - `red`
+
+Variants are configured for each of Tailwind's color-based classes (`text`, `bg`, `fill`, etc.). For example, to set the text color for primary content, use the `text-content-primary` class. To make a `<div>` use warning colors, use `bg-warning` and `border-warning`.
 
 ## Structure
 
