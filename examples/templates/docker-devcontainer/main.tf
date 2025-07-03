@@ -315,12 +315,11 @@ resource "docker_container" "workspace" {
   image = local.workspace_image
 
   # NOTE: The `privileged` mode is one way to run Docker-in-Docker,
-  # which is required for the devcontainer to work. IF this is not
+  # which is required for the devcontainer to work. If this is not
   # desired, you can remove this line. However, you will need to ensure
   # that the devcontainer can run Docker commands in some other way.
-  # Mounting the host Docker socket is one way to do this, but it is
-  # strongly discouraged because workspaces will then compete for
-  # control of the devcontainers.
+  # Mounting the host Docker socket is strongly discouraged because
+  # workspaces will then compete for control of the devcontainers.
   privileged = true
 
   # Uses lower() to avoid Docker restriction on container names.
