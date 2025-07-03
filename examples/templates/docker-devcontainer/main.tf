@@ -45,7 +45,7 @@ resource "coder_agent" "main" {
   arch            = data.coder_provisioner.me.arch
   os              = "linux"
   startup_script  = <<-EOT
-    set -ex
+    set -e
 
     # Prepare user home with default files on first start.
     if [ ! -f ~/.init_done ]; then
