@@ -32,12 +32,12 @@ sudo -u coder docker ps
 
 ## Architecture
 
-This example uses the `codercom/enterprise-node:ubuntu` Docker image as a base image for the workspace. It was chosen because it includes necessary tools like Docker and Node.js, which are required for running Dev Containers via the `@devcontainers/cli` tool.
+This example uses the `codercom/enterprise-node:ubuntu` Docker image as a base image for the workspace. It includes necessary tools like Docker and Node.js, which are required for running Dev Containers via the `@devcontainers/cli` tool.
 
 This template provisions the following resources:
 
 - Docker image (built by Docker socket and kept locally)
-- Docker container pod (ephemeral)
+- Docker container (ephemeral)
 - Docker volume (persistent on `/home/coder`)
 - Docker volume (persistent on `/var/lib/docker`)
 
