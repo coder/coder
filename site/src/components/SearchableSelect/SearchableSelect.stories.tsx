@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { GitBranch, Globe, Lock, Users } from "lucide-react";
 import { useState } from "react";
 import {
 	SearchableSelect,
@@ -7,7 +8,6 @@ import {
 	SearchableSelectTrigger,
 	SearchableSelectValue,
 } from "./SearchableSelect";
-import { GitBranch, Globe, Lock, Users } from "lucide-react";
 
 const meta: Meta<typeof SearchableSelect> = {
 	title: "components/SearchableSelect",
@@ -112,10 +112,36 @@ export const WithIcons: Story = {
 const ProgrammingLanguagesExample = () => {
 	const [value, setValue] = useState("");
 	const languages = [
-		"JavaScript", "TypeScript", "Python", "Java", "C++", "C#", "Ruby",
-		"Go", "Rust", "Swift", "Kotlin", "Scala", "PHP", "Perl", "R",
-		"MATLAB", "Julia", "Dart", "Lua", "Haskell", "Clojure", "Elixir",
-		"F#", "OCaml", "Erlang", "Nim", "Crystal", "Zig", "V", "Racket"
+		"JavaScript",
+		"TypeScript",
+		"Python",
+		"Java",
+		"C++",
+		"C#",
+		"Ruby",
+		"Go",
+		"Rust",
+		"Swift",
+		"Kotlin",
+		"Scala",
+		"PHP",
+		"Perl",
+		"R",
+		"MATLAB",
+		"Julia",
+		"Dart",
+		"Lua",
+		"Haskell",
+		"Clojure",
+		"Elixir",
+		"F#",
+		"OCaml",
+		"Erlang",
+		"Nim",
+		"Crystal",
+		"Zig",
+		"V",
+		"Racket",
 	];
 
 	return (
@@ -149,7 +175,9 @@ const DisabledExample = () => {
 				<SearchableSelectValue />
 			</SearchableSelectTrigger>
 			<SearchableSelectContent>
-				<SearchableSelectItem value="disabled">Disabled Option</SearchableSelectItem>
+				<SearchableSelectItem value="disabled">
+					Disabled Option
+				</SearchableSelectItem>
 			</SearchableSelectContent>
 		</SearchableSelect>
 	);
@@ -163,7 +191,12 @@ const RequiredExample = () => {
 	const [value, setValue] = useState("");
 
 	return (
-		<form onSubmit={(e) => { e.preventDefault(); alert(`Selected: ${value}`); }}>
+		<form
+			onSubmit={(e) => {
+				e.preventDefault();
+				alert(`Selected: ${value}`);
+			}}
+		>
 			<div className="space-y-4">
 				<SearchableSelect
 					value={value}
@@ -175,12 +208,21 @@ const RequiredExample = () => {
 						<SearchableSelectValue />
 					</SearchableSelectTrigger>
 					<SearchableSelectContent>
-						<SearchableSelectItem value="option1">Option 1</SearchableSelectItem>
-						<SearchableSelectItem value="option2">Option 2</SearchableSelectItem>
-						<SearchableSelectItem value="option3">Option 3</SearchableSelectItem>
+						<SearchableSelectItem value="option1">
+							Option 1
+						</SearchableSelectItem>
+						<SearchableSelectItem value="option2">
+							Option 2
+						</SearchableSelectItem>
+						<SearchableSelectItem value="option3">
+							Option 3
+						</SearchableSelectItem>
 					</SearchableSelectContent>
 				</SearchableSelect>
-				<button type="submit" className="px-4 py-2 bg-content-link text-white rounded">
+				<button
+					type="submit"
+					className="px-4 py-2 bg-content-link text-white rounded"
+				>
 					Submit
 				</button>
 			</div>
@@ -244,7 +286,9 @@ const GitBranchesExample = () => {
 							<GitBranch className="size-icon-sm" />
 							<span>{branch.name}</span>
 							{branch.isDefault && (
-								<span className="ml-auto text-xs text-content-secondary">default</span>
+								<span className="ml-auto text-xs text-content-secondary">
+									default
+								</span>
 							)}
 						</div>
 					</SearchableSelectItem>

@@ -1,12 +1,3 @@
-import * as React from "react";
-import { useState, useRef, useEffect } from "react";
-import { Check, ChevronDown, Search } from "lucide-react";
-import { cn } from "utils/cn";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/Popover/Popover";
 import {
 	Command,
 	CommandEmpty,
@@ -15,6 +6,15 @@ import {
 	CommandItem,
 	CommandList,
 } from "components/Command/Command";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
+import { Check, ChevronDown, Search } from "lucide-react";
+import * as React from "react";
+import { useEffect, useRef, useState } from "react";
+import { cn } from "utils/cn";
 
 interface SearchableSelectProps {
 	value?: string;
@@ -64,12 +64,16 @@ interface SearchableSelectContextValue {
 	emptyMessage?: string;
 }
 
-const SearchableSelectContext = React.createContext<SearchableSelectContextValue | undefined>(undefined);
+const SearchableSelectContext = React.createContext<
+	SearchableSelectContextValue | undefined
+>(undefined);
 
 const useSearchableSelectContext = () => {
 	const context = React.useContext(SearchableSelectContext);
 	if (!context) {
-		throw new Error("SearchableSelect components must be used within SearchableSelect");
+		throw new Error(
+			"SearchableSelect components must be used within SearchableSelect",
+		);
 	}
 	return context;
 };
@@ -141,7 +145,7 @@ export const SearchableSelectTrigger = React.forwardRef<
             ring-offset-background text-content-secondary placeholder:text-content-secondary focus:outline-none
             focus:ring-2 focus:ring-content-link disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1
             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link`,
-						className
+						className,
 					)}
 				>
 					{children}
@@ -156,7 +160,11 @@ export const SearchableSelectValue: React.FC<SearchableSelectValueProps> = ({
 	placeholder,
 	className,
 }) => {
-	const { value, items, placeholder: contextPlaceholder } = useSearchableSelectContext();
+	const {
+		value,
+		items,
+		placeholder: contextPlaceholder,
+	} = useSearchableSelectContext();
 	const displayPlaceholder = placeholder || contextPlaceholder;
 
 	return (
@@ -169,17 +177,16 @@ export const SearchableSelectValue: React.FC<SearchableSelectValueProps> = ({
 	);
 };
 
-export const SearchableSelectContent: React.FC<SearchableSelectContentProps> = ({
-	children,
-	className,
-}) => {
+export const SearchableSelectContent: React.FC<
+	SearchableSelectContentProps
+> = ({ children, className }) => {
 	const { setSearch, search, emptyMessage } = useSearchableSelectContext();
 
 	return (
 		<PopoverContent
 			className={cn(
 				"min-w-[var(--radix-popover-trigger-width)] p-0",
-				className
+				className,
 			)}
 		>
 			<Command shouldFilter={false}>
@@ -196,9 +203,7 @@ export const SearchableSelectContent: React.FC<SearchableSelectContentProps> = (
 					<CommandEmpty className="py-6 text-center text-sm">
 						{emptyMessage}
 					</CommandEmpty>
-					<CommandGroup className="p-1">
-						{children}
-					</CommandGroup>
+					<CommandGroup className="p-1">{children}</CommandGroup>
 				</CommandList>
 			</Command>
 		</PopoverContent>
@@ -210,7 +215,13 @@ export const SearchableSelectItem: React.FC<SearchableSelectItemProps> = ({
 	children,
 	className,
 }) => {
-	const { value: selectedValue, onValueChange, setOpen, items, search } = useSearchableSelectContext();
+	const {
+		value: selectedValue,
+		onValueChange,
+		setOpen,
+		items,
+		search,
+	} = useSearchableSelectContext();
 
 	// Register item content
 	useEffect(() => {
@@ -222,17 +233,23 @@ export const SearchableSelectItem: React.FC<SearchableSelectItemProps> = ({
 
 	// Simple search filter
 	const searchableText = React.Children.toArray(children)
-		.map(child => {
-			if (typeof child === 'string') return child;
-			if (React.isValidElement(child) && typeof child.props.children === 'string') {
+		.map((child) => {
+			if (typeof child === "string") return child;
+			if (
+				React.isValidElement(child) &&
+				typeof child.props.children === "string"
+			) {
 				return child.props.children;
 			}
-			return '';
+			return "";
 		})
-		.join(' ')
+		.join(" ")
 		.toLowerCase();
 
-	const isVisible = !search || searchableText.includes(search.toLowerCase()) || value.toLowerCase().includes(search.toLowerCase());
+	const isVisible =
+		!search ||
+		searchableText.includes(search.toLowerCase()) ||
+		value.toLowerCase().includes(search.toLowerCase());
 
 	if (!isVisible) {
 		return null;
@@ -249,7 +266,7 @@ export const SearchableSelectItem: React.FC<SearchableSelectItemProps> = ({
 				"relative flex w-full cursor-default select-none items-center rounded-sm py-1.5",
 				"pl-2 pr-8 text-sm text-content-secondary outline-none focus:bg-surface-secondary",
 				"focus:text-content-primary data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-				className
+				className,
 			)}
 		>
 			{children}

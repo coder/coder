@@ -19,7 +19,7 @@ describe("SearchableSelect", () => {
 				<SearchableSelectContent>
 					<SearchableSelectItem value="option1">Option 1</SearchableSelectItem>
 				</SearchableSelectContent>
-			</SearchableSelect>
+			</SearchableSelect>,
 		);
 
 		expect(screen.getByText("Select an option")).toBeInTheDocument();
@@ -37,7 +37,7 @@ describe("SearchableSelect", () => {
 					<SearchableSelectItem value="option1">Option 1</SearchableSelectItem>
 					<SearchableSelectItem value="option2">Option 2</SearchableSelectItem>
 				</SearchableSelectContent>
-			</SearchableSelect>
+			</SearchableSelect>,
 		);
 
 		const trigger = screen.getByRole("combobox");
@@ -61,7 +61,7 @@ describe("SearchableSelect", () => {
 					<SearchableSelectItem value="banana">Banana</SearchableSelectItem>
 					<SearchableSelectItem value="cherry">Cherry</SearchableSelectItem>
 				</SearchableSelectContent>
-			</SearchableSelect>
+			</SearchableSelect>,
 		);
 
 		const trigger = screen.getByRole("combobox");
@@ -88,7 +88,7 @@ describe("SearchableSelect", () => {
 					<SearchableSelectItem value="option1">Option 1</SearchableSelectItem>
 					<SearchableSelectItem value="option2">Option 2</SearchableSelectItem>
 				</SearchableSelectContent>
-			</SearchableSelect>
+			</SearchableSelect>,
 		);
 
 		const trigger = screen.getByRole("combobox");
@@ -101,7 +101,9 @@ describe("SearchableSelect", () => {
 
 		// Dropdown should close after selection
 		await waitFor(() => {
-			expect(screen.queryByPlaceholderText("Search...")).not.toBeInTheDocument();
+			expect(
+				screen.queryByPlaceholderText("Search..."),
+			).not.toBeInTheDocument();
 		});
 	});
 
@@ -115,7 +117,7 @@ describe("SearchableSelect", () => {
 					<SearchableSelectItem value="option1">Option 1</SearchableSelectItem>
 					<SearchableSelectItem value="option2">Option 2</SearchableSelectItem>
 				</SearchableSelectContent>
-			</SearchableSelect>
+			</SearchableSelect>,
 		);
 
 		expect(screen.getByRole("combobox")).toHaveTextContent("Option 2");
@@ -133,7 +135,7 @@ describe("SearchableSelect", () => {
 					<SearchableSelectItem value="option1">Option 1</SearchableSelectItem>
 					<SearchableSelectItem value="option2">Option 2</SearchableSelectItem>
 				</SearchableSelectContent>
-			</SearchableSelect>
+			</SearchableSelect>,
 		);
 
 		const trigger = screen.getByRole("combobox");
@@ -141,7 +143,7 @@ describe("SearchableSelect", () => {
 
 		// The selected item should have a check mark (SVG element)
 		const option2Item = screen.getByText("Option 2").closest('[role="option"]');
-		const checkIcon = option2Item?.querySelector('svg');
+		const checkIcon = option2Item?.querySelector("svg");
 		expect(checkIcon).toBeInTheDocument();
 	});
 
@@ -157,7 +159,7 @@ describe("SearchableSelect", () => {
 					<SearchableSelectItem value="apple">Apple</SearchableSelectItem>
 					<SearchableSelectItem value="banana">Banana</SearchableSelectItem>
 				</SearchableSelectContent>
-			</SearchableSelect>
+			</SearchableSelect>,
 		);
 
 		const trigger = screen.getByRole("combobox");
@@ -181,7 +183,7 @@ describe("SearchableSelect", () => {
 					<SearchableSelectItem value="apple">Apple</SearchableSelectItem>
 					<SearchableSelectItem value="banana">Banana</SearchableSelectItem>
 				</SearchableSelectContent>
-			</SearchableSelect>
+			</SearchableSelect>,
 		);
 
 		const trigger = screen.getByRole("combobox");
@@ -213,7 +215,7 @@ describe("SearchableSelect", () => {
 				<SearchableSelectContent>
 					<SearchableSelectItem value="option1">Option 1</SearchableSelectItem>
 				</SearchableSelectContent>
-			</SearchableSelect>
+			</SearchableSelect>,
 		);
 
 		const trigger = screen.getByRole("combobox");
@@ -233,7 +235,7 @@ describe("SearchableSelect", () => {
 				<SearchableSelectContent>
 					<SearchableSelectItem value="option1">Option 1</SearchableSelectItem>
 				</SearchableSelectContent>
-			</SearchableSelect>
+			</SearchableSelect>,
 		);
 
 		expect(document.getElementById("my-select")).toBeInTheDocument();
@@ -249,11 +251,17 @@ describe("SearchableSelect", () => {
 					<SearchableSelectValue />
 				</SearchableSelectTrigger>
 				<SearchableSelectContent>
-					<SearchableSelectItem value="us-east-1">US East (N. Virginia)</SearchableSelectItem>
-					<SearchableSelectItem value="eu-west-1">EU (Ireland)</SearchableSelectItem>
-					<SearchableSelectItem value="ap-southeast-1">Asia Pacific (Singapore)</SearchableSelectItem>
+					<SearchableSelectItem value="us-east-1">
+						US East (N. Virginia)
+					</SearchableSelectItem>
+					<SearchableSelectItem value="eu-west-1">
+						EU (Ireland)
+					</SearchableSelectItem>
+					<SearchableSelectItem value="ap-southeast-1">
+						Asia Pacific (Singapore)
+					</SearchableSelectItem>
 				</SearchableSelectContent>
-			</SearchableSelect>
+			</SearchableSelect>,
 		);
 
 		const trigger = screen.getByRole("combobox");
@@ -265,7 +273,9 @@ describe("SearchableSelect", () => {
 		// Should find the EU option by its value
 		expect(screen.getByText("EU (Ireland)")).toBeInTheDocument();
 		expect(screen.queryByText("US East (N. Virginia)")).not.toBeInTheDocument();
-		expect(screen.queryByText("Asia Pacific (Singapore)")).not.toBeInTheDocument();
+		expect(
+			screen.queryByText("Asia Pacific (Singapore)"),
+		).not.toBeInTheDocument();
 	});
 
 	it("supports complex content in items", async () => {
@@ -290,7 +300,7 @@ describe("SearchableSelect", () => {
 						</div>
 					</SearchableSelectItem>
 				</SearchableSelectContent>
-			</SearchableSelect>
+			</SearchableSelect>,
 		);
 
 		const trigger = screen.getByRole("combobox");
