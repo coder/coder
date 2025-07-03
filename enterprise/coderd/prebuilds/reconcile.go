@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -398,9 +400,19 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			return xerrors.Errorf("failed to get preset prebuild schedules: %w", err)
 		}
 
+		// Get results from both original and optimized queries for comparison
 		allRunningPrebuilds, err := db.GetRunningPrebuiltWorkspaces(ctx)
 		if err != nil {
 			return xerrors.Errorf("failed to get running prebuilds: %w", err)
+		}
+
+		// Compare with optimized query to ensure behavioral correctness
+		optimized, err := db.GetRunningPrebuiltWorkspacesOptimized(ctx)
+		if err != nil {
+			// Log the error but continue with original results
+			c.logger.Error(ctx, "optimized GetRunningPrebuiltWorkspacesOptimized failed", slog.Error(err))
+		} else {
+			CompareGetRunningPrebuiltWorkspacesResults(ctx, c.logger, allRunningPrebuilds, optimized)
 		}
 
 		allPrebuildsInProgress, err := db.CountInProgressPrebuilds(ctx)
@@ -921,4 +933,30 @@ func SetPrebuildsReconciliationPaused(ctx context.Context, db database.Store, pa
 		return xerrors.Errorf("marshal settings: %w", err)
 	}
 	return db.UpsertPrebuildsSettings(ctx, string(settingsJSON))
+}
+
+// CompareGetRunningPrebuiltWorkspacesResults compares the original and optimized
+// query results and logs any differences found. This function can be easily
+// removed once we're confident the optimized query works correctly.
+func CompareGetRunningPrebuiltWorkspacesResults(
+	ctx context.Context,
+	logger slog.Logger,
+	original []database.GetRunningPrebuiltWorkspacesRow,
+	optimized []database.GetRunningPrebuiltWorkspacesOptimizedRow,
+) {
+	// Convert optimized results to the same type as original for comparison
+	var optimizedConverted []database.GetRunningPrebuiltWorkspacesRow
+	if original != nil {
+		optimizedConverted := make([]database.GetRunningPrebuiltWorkspacesRow, len(optimized))
+		for i, row := range optimized {
+			optimizedConverted[i] = database.GetRunningPrebuiltWorkspacesRow(row)
+		}
+	}
+
+	// Compare the results and log an error if they differ.
+	// NOTE: explicitly not sorting here as both query results are ordered by ID.
+	if diff := cmp.Diff(original, optimizedConverted); diff != "" {
+		logger.Error(ctx, "results differ for GetRunningPrebuiltWorkspacesOptimized",
+			slog.F("diff", diff))
+	}
 }

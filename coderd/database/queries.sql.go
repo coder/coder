@@ -6444,6 +6444,63 @@ func (q *sqlQuerier) GetPresetsBackoff(ctx context.Context, lookback time.Time) 
 }
 
 const getRunningPrebuiltWorkspaces = `-- name: GetRunningPrebuiltWorkspaces :many
+SELECT
+		p.id,
+		p.name,
+		p.template_id,
+		b.template_version_id,
+		p.current_preset_id AS current_preset_id,
+		p.ready,
+		p.created_at
+FROM workspace_prebuilds p
+		INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
+WHERE (b.transition = 'start'::workspace_transition
+	AND b.job_status = 'succeeded'::provisioner_job_status)
+ORDER BY p.id
+`
+
+type GetRunningPrebuiltWorkspacesRow struct {
+	ID                uuid.UUID     `db:"id" json:"id"`
+	Name              string        `db:"name" json:"name"`
+	TemplateID        uuid.UUID     `db:"template_id" json:"template_id"`
+	TemplateVersionID uuid.UUID     `db:"template_version_id" json:"template_version_id"`
+	CurrentPresetID   uuid.NullUUID `db:"current_preset_id" json:"current_preset_id"`
+	Ready             bool          `db:"ready" json:"ready"`
+	CreatedAt         time.Time     `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRunningPrebuiltWorkspacesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getRunningPrebuiltWorkspaces)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetRunningPrebuiltWorkspacesRow
+	for rows.Next() {
+		var i GetRunningPrebuiltWorkspacesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.TemplateID,
+			&i.TemplateVersionID,
+			&i.CurrentPresetID,
+			&i.Ready,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getRunningPrebuiltWorkspacesOptimized = `-- name: GetRunningPrebuiltWorkspacesOptimized :many
 WITH latest_prebuilds AS (
 	SELECT
 		workspaces.id,
@@ -6491,9 +6548,10 @@ SELECT
 FROM latest_prebuilds
 LEFT JOIN ready_agents ON ready_agents.job_id = latest_prebuilds.job_id
 LEFT JOIN workspace_latest_presets ON workspace_latest_presets.workspace_id = latest_prebuilds.id
+ORDER BY latest_prebuilds.id
 `
 
-type GetRunningPrebuiltWorkspacesRow struct {
+type GetRunningPrebuiltWorkspacesOptimizedRow struct {
 	ID                uuid.UUID     `db:"id" json:"id"`
 	Name              string        `db:"name" json:"name"`
 	TemplateID        uuid.UUID     `db:"template_id" json:"template_id"`
@@ -6503,15 +6561,15 @@ type GetRunningPrebuiltWorkspacesRow struct {
 	CreatedAt         time.Time     `db:"created_at" json:"created_at"`
 }
 
-func (q *sqlQuerier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRunningPrebuiltWorkspacesRow, error) {
-	rows, err := q.db.QueryContext(ctx, getRunningPrebuiltWorkspaces)
+func (q *sqlQuerier) GetRunningPrebuiltWorkspacesOptimized(ctx context.Context) ([]GetRunningPrebuiltWorkspacesOptimizedRow, error) {
+	rows, err := q.db.QueryContext(ctx, getRunningPrebuiltWorkspacesOptimized)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetRunningPrebuiltWorkspacesRow
+	var items []GetRunningPrebuiltWorkspacesOptimizedRow
 	for rows.Next() {
-		var i GetRunningPrebuiltWorkspacesRow
+		var i GetRunningPrebuiltWorkspacesOptimizedRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,

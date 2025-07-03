@@ -2331,3 +2331,151 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, workspaces, 2, "should have recreated 2 prebuilds after resuming")
 }
+
+func TestCompareGetRunningPrebuiltWorkspacesResults(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	// Helper to create test data
+	createWorkspaceRow := func(id string, name string, ready bool) database.GetRunningPrebuiltWorkspacesRow {
+		uid := uuid.MustParse(id)
+		return database.GetRunningPrebuiltWorkspacesRow{
+			ID:                uid,
+			Name:              name,
+			TemplateID:        uuid.New(),
+			TemplateVersionID: uuid.New(),
+			CurrentPresetID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			Ready:             ready,
+			CreatedAt:         time.Now(),
+		}
+	}
+
+	createOptimizedRow := func(row database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesOptimizedRow {
+		return database.GetRunningPrebuiltWorkspacesOptimizedRow(row)
+	}
+
+	t.Run("identical results - no logging", func(t *testing.T) {
+		t.Parallel()
+
+		spy := &logSpy{}
+		logger := slog.Make(spy)
+
+		original := []database.GetRunningPrebuiltWorkspacesRow{
+			createWorkspaceRow("550e8400-e29b-41d4-a716-446655440000", "workspace1", true),
+			createWorkspaceRow("550e8400-e29b-41d4-a716-446655440001", "workspace2", false),
+		}
+
+		optimized := []database.GetRunningPrebuiltWorkspacesOptimizedRow{
+			createOptimizedRow(original[0]),
+			createOptimizedRow(original[1]),
+		}
+
+		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
+
+		// Should not log any errors when results are identical
+		require.Empty(t, spy.entries)
+	})
+
+	t.Run("count mismatch - logs error", func(t *testing.T) {
+		t.Parallel()
+
+		spy := &logSpy{}
+		logger := slog.Make(spy)
+
+		original := []database.GetRunningPrebuiltWorkspacesRow{
+			createWorkspaceRow("550e8400-e29b-41d4-a716-446655440000", "workspace1", true),
+		}
+
+		optimized := []database.GetRunningPrebuiltWorkspacesOptimizedRow{
+			createOptimizedRow(original[0]),
+			createOptimizedRow(createWorkspaceRow("550e8400-e29b-41d4-a716-446655440001", "workspace2", false)),
+		}
+
+		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
+
+		// Should log exactly one error for count mismatch
+		require.Len(t, spy.entries, 1)
+		assert.Equal(t, slog.LevelError, spy.entries[0].Level)
+		assert.Equal(t, "result count mismatch for GetRunningPrebuiltWorkspacesOptimized", spy.entries[0].Message)
+		assert.Equal(t, 1, spy.getField(0, "original_count"))
+		assert.Equal(t, 2, spy.getField(0, "optimized_count"))
+	})
+
+	t.Run("field differences - logs errors", func(t *testing.T) {
+		t.Parallel()
+
+		spy := &logSpy{}
+		logger := slog.Make(spy)
+
+		workspace1 := createWorkspaceRow("550e8400-e29b-41d4-a716-446655440000", "workspace1", true)
+		workspace2 := createWorkspaceRow("550e8400-e29b-41d4-a716-446655440001", "workspace2", false)
+
+		original := []database.GetRunningPrebuiltWorkspacesRow{workspace1, workspace2}
+
+		// Create optimized with different values
+		optimized1 := createOptimizedRow(workspace1)
+		optimized1.Name = "different-name" // Different name
+		optimized1.Ready = false           // Different ready status
+
+		optimized2 := createOptimizedRow(workspace2)
+		optimized2.CurrentPresetID = uuid.NullUUID{Valid: false} // Different preset ID (NULL)
+
+		optimized := []database.GetRunningPrebuiltWorkspacesOptimizedRow{optimized1, optimized2}
+
+		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
+
+		// Should log exactly one error with a cmp.Diff output
+		require.Len(t, spy.entries, 1)
+		assert.Equal(t, slog.LevelError, spy.entries[0].Level)
+		assert.Equal(t, "GetRunningPrebuiltWorkspacesOptimized results differ from original", spy.entries[0].Message)
+
+		diff := spy.getField(0, "diff")
+		require.NotNil(t, diff)
+		diffStr := diff.(string)
+
+		// The diff should contain information about the differences we introduced
+		assert.Contains(t, diffStr, "different-name")  // Changed name
+		assert.Contains(t, diffStr, "workspace1")      // Original name
+		assert.Contains(t, diffStr, "Ready")           // Changed ready status
+		assert.Contains(t, diffStr, "CurrentPresetID") // Changed preset ID
+	})
+
+	t.Run("empty results - no logging", func(t *testing.T) {
+		t.Parallel()
+
+		spy := &logSpy{}
+		logger := slog.Make(spy)
+
+		original := []database.GetRunningPrebuiltWorkspacesRow{}
+		optimized := []database.GetRunningPrebuiltWorkspacesOptimizedRow{}
+
+		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
+
+		// Should not log any errors when both results are empty
+		require.Empty(t, spy.entries)
+	})
+}
+
+// logSpy captures log entries for testing
+type logSpy struct {
+	entries []slog.SinkEntry
+}
+
+func (s *logSpy) LogEntry(_ context.Context, e slog.SinkEntry) {
+	s.entries = append(s.entries, e)
+}
+
+func (*logSpy) Sync() {}
+
+func (s *logSpy) getField(entryIndex int, fieldName string) interface{} {
+	if entryIndex >= len(s.entries) {
+		return nil
+	}
+	for _, field := range s.entries[entryIndex].Fields {
+		if field.Name == fieldName {
+			return field.Value
+		}
+	}
+	return nil
+}

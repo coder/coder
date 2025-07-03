@@ -5101,6 +5101,10 @@ func (q *FakeQuerier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]datab
 	return nil, ErrUnimplemented
 }
 
+func (q *FakeQuerier) GetRunningPrebuiltWorkspacesOptimized(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesOptimizedRow, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetRuntimeConfig(_ context.Context, key string) (string, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
