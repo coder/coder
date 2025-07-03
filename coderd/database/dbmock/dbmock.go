@@ -2748,21 +2748,6 @@ func (mr *MockStoreMockRecorder) GetRunningPrebuiltWorkspacesOptimized(ctx any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRunningPrebuiltWorkspacesOptimized", reflect.TypeOf((*MockStore)(nil).GetRunningPrebuiltWorkspacesOptimized), ctx)
 }
 
-// GetRunningPrebuiltWorkspacesWithComparison mocks base method.
-func (m *MockStore) GetRunningPrebuiltWorkspacesWithComparison(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRunningPrebuiltWorkspacesWithComparison", ctx)
-	ret0, _ := ret[0].([]database.GetRunningPrebuiltWorkspacesRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetRunningPrebuiltWorkspacesWithComparison indicates an expected call of GetRunningPrebuiltWorkspacesWithComparison.
-func (mr *MockStoreMockRecorder) GetRunningPrebuiltWorkspacesWithComparison(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRunningPrebuiltWorkspacesWithComparison", reflect.TypeOf((*MockStore)(nil).GetRunningPrebuiltWorkspacesWithComparison), ctx)
-}
-
 // GetRuntimeConfig mocks base method.
 func (m *MockStore) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
 	m.ctrl.T.Helper()
