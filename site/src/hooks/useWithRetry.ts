@@ -38,7 +38,7 @@ export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
 		}
 	}, []);
 
-	const stableFn = useEffectEvent(fn)
+	const stableFn = useEffectEvent(fn);
 
 	const call = useCallback(async () => {
 		clearTimeout();
