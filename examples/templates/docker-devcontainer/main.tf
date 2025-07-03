@@ -54,10 +54,6 @@ resource "coder_agent" "main" {
     fi
 
     if [ "$${CODER_AGENT_URL#*host.docker.internal}" != "$CODER_AGENT_URL" ]; then
-      # Start the docker service if it is not running, this will create
-      # the "docker0" interface if it does not exist.
-      sudo service docker start
-
       # If the access URL is host.docker.internal, we set up forwarding
       # to the host Docker gateway IP address, which is typically
       # 172.17.0.1, this will allow the devcontainers to access the
@@ -84,6 +80,10 @@ resource "coder_agent" "main" {
           echo "Forwarded default ports 80/443 to $host_ip"
           ;;
       esac
+
+      # Start the docker service if it is not running, this will create
+      # the "docker0" interface if it does not exist.
+      sudo service docker start
 
       # Since we cannot define "--add-host" for devcontainers, we define
       # a dnsmasq configuration that allows devcontainers to resolve the
