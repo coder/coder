@@ -34,6 +34,8 @@ var (
 	errBadToken = xerrors.New("Invalid token")
 	// errInvalidPKCE means the PKCE verification failed.
 	errInvalidPKCE = xerrors.New("invalid code_verifier")
+	// errInvalidResource means the resource parameter validation failed.
+	errInvalidResource = xerrors.New("invalid resource parameter")
 )
 
 type tokenParams struct {
@@ -73,6 +75,13 @@ func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []c
 		refreshToken: p.String(vals, "", "refresh_token"),
 		codeVerifier: p.String(vals, "", "code_verifier"),
 		resource:     p.String(vals, "", "resource"),
+	}
+	// Validate resource parameter syntax (RFC 8707): must be absolute URI without fragment
+	if err := validateResourceParameter(params.resource); err != nil {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  "resource",
+			Detail: "must be an absolute URI without fragment",
+		})
 	}
 
 	p.ErrorExcessParams(vals)
@@ -148,6 +157,10 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 		}
 		if errors.Is(err, errInvalidPKCE) {
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_grant", "The PKCE code verifier is invalid")
+			return
+		}
+		if errors.Is(err, errInvalidResource) {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_target", "The resource parameter is invalid")
 			return
 		}
 		if errors.Is(err, errBadToken) {
@@ -226,6 +239,20 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		}
 	}
 
+	// Verify resource parameter consistency (RFC 8707)
+	if dbCode.ResourceUri.Valid && dbCode.ResourceUri.String != "" {
+		// Resource was specified during authorization - it must match in token request
+		if params.resource == "" {
+			return oauth2.Token{}, errInvalidResource
+		}
+		if params.resource != dbCode.ResourceUri.String {
+			return oauth2.Token{}, errInvalidResource
+		}
+	} else if params.resource != "" {
+		// Resource was not specified during authorization but is now provided
+		return oauth2.Token{}, errInvalidResource
+	}
+
 	// Generate a refresh token.
 	refreshToken, err := GenerateSecret()
 	if err != nil {
@@ -285,6 +312,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 			RefreshHash: []byte(refreshToken.Hashed),
 			AppSecretID: dbSecret.ID,
 			APIKeyID:    newKey.ID,
+			UserID:      dbCode.UserID,
 			Audience:    dbCode.ResourceUri,
 		})
 		if err != nil {
@@ -330,6 +358,14 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	// Ensure the token has not expired.
 	if dbToken.ExpiresAt.Before(dbtime.Now()) {
 		return oauth2.Token{}, errBadToken
+	}
+
+	// Verify resource parameter consistency for refresh tokens (RFC 8707)
+	if params.resource != "" {
+		// If resource is provided in refresh request, it must match the original token's audience
+		if !dbToken.Audience.Valid || dbToken.Audience.String != params.resource {
+			return oauth2.Token{}, errInvalidResource
+		}
 	}
 
 	// Grab the user roles so we can perform the refresh as the user.
@@ -385,6 +421,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 			RefreshHash: []byte(refreshToken.Hashed),
 			AppSecretID: dbToken.AppSecretID,
 			APIKeyID:    newKey.ID,
+			UserID:      dbToken.UserID,
 			Audience:    dbToken.Audience,
 		})
 		if err != nil {
@@ -403,4 +440,27 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 		Expiry:       key.ExpiresAt,
 		ExpiresIn:    int64(time.Until(key.ExpiresAt).Seconds()),
 	}, nil
+}
+
+// validateResourceParameter validates that a resource parameter conforms to RFC 8707:
+// must be an absolute URI without fragment component.
+func validateResourceParameter(resource string) error {
+	if resource == "" {
+		return nil // Resource parameter is optional
+	}
+
+	u, err := url.Parse(resource)
+	if err != nil {
+		return xerrors.Errorf("invalid URI syntax: %w", err)
+	}
+
+	if u.Scheme == "" {
+		return xerrors.New("must be an absolute URI with scheme")
+	}
+
+	if u.Fragment != "" {
+		return xerrors.New("must not contain fragment component")
+	}
+
+	return nil
 }

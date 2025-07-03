@@ -26,6 +26,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
@@ -341,6 +342,104 @@ func (f *fakeExecer) getLastCommand() *exec.Cmd {
 
 func TestAPI(t *testing.T) {
 	t.Parallel()
+
+	t.Run("NoUpdaterLoopLogspam", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx        = testutil.Context(t, testutil.WaitShort)
+			logbuf     strings.Builder
+			logger     = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).AppendSinks(sloghuman.Sink(&logbuf))
+			mClock     = quartz.NewMock(t)
+			tickerTrap = mClock.Trap().TickerFunc("updaterLoop")
+			firstErr   = xerrors.New("first error")
+			secondErr  = xerrors.New("second error")
+			fakeCLI    = &fakeContainerCLI{
+				listErr: firstErr,
+			}
+		)
+
+		api := agentcontainers.NewAPI(logger,
+			agentcontainers.WithClock(mClock),
+			agentcontainers.WithContainerCLI(fakeCLI),
+		)
+		api.Start()
+		defer api.Close()
+
+		// Make sure the ticker function has been registered
+		// before advancing the clock.
+		tickerTrap.MustWait(ctx).MustRelease(ctx)
+		tickerTrap.Close()
+
+		logbuf.Reset()
+
+		// First tick should handle the error.
+		_, aw := mClock.AdvanceNext()
+		aw.MustWait(ctx)
+
+		// Verify first error is logged.
+		got := logbuf.String()
+		t.Logf("got log: %q", got)
+		require.Contains(t, got, "updater loop ticker failed", "first error should be logged")
+		require.Contains(t, got, "first error", "should contain first error message")
+		logbuf.Reset()
+
+		// Second tick should handle the same error without logging it again.
+		_, aw = mClock.AdvanceNext()
+		aw.MustWait(ctx)
+
+		// Verify same error is not logged again.
+		got = logbuf.String()
+		t.Logf("got log: %q", got)
+		require.Empty(t, got, "same error should not be logged again")
+
+		// Change to a different error.
+		fakeCLI.listErr = secondErr
+
+		// Third tick should handle the different error and log it.
+		_, aw = mClock.AdvanceNext()
+		aw.MustWait(ctx)
+
+		// Verify different error is logged.
+		got = logbuf.String()
+		t.Logf("got log: %q", got)
+		require.Contains(t, got, "updater loop ticker failed", "different error should be logged")
+		require.Contains(t, got, "second error", "should contain second error message")
+		logbuf.Reset()
+
+		// Clear the error to simulate success.
+		fakeCLI.listErr = nil
+
+		// Fourth tick should succeed.
+		_, aw = mClock.AdvanceNext()
+		aw.MustWait(ctx)
+
+		// Fifth tick should continue to succeed.
+		_, aw = mClock.AdvanceNext()
+		aw.MustWait(ctx)
+
+		// Verify successful operations are logged properly.
+		got = logbuf.String()
+		t.Logf("got log: %q", got)
+		gotSuccessCount := strings.Count(got, "containers updated successfully")
+		require.GreaterOrEqual(t, gotSuccessCount, 2, "should have successful update got")
+		require.NotContains(t, got, "updater loop ticker failed", "no errors should be logged during success")
+		logbuf.Reset()
+
+		// Reintroduce the original error.
+		fakeCLI.listErr = firstErr
+
+		// Sixth tick should handle the error after success and log it.
+		_, aw = mClock.AdvanceNext()
+		aw.MustWait(ctx)
+
+		// Verify error after success is logged.
+		got = logbuf.String()
+		t.Logf("got log: %q", got)
+		require.Contains(t, got, "updater loop ticker failed", "error after success should be logged")
+		require.Contains(t, got, "first error", "should contain first error message")
+		logbuf.Reset()
+	})
 
 	// List tests the API.getContainers method using a mock
 	// implementation. It specifically tests caching behavior.

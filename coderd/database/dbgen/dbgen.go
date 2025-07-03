@@ -100,6 +100,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		DisplayName:                  takeFirst(seed.DisplayName, testutil.GetRandomName(t)),
 		AllowUserCancelWorkspaceJobs: seed.AllowUserCancelWorkspaceJobs,
 		MaxPortSharingLevel:          takeFirst(seed.MaxPortSharingLevel, database.AppSharingLevelOwner),
+		UseClassicParameterFlow:      takeFirst(seed.UseClassicParameterFlow, true),
 	})
 	require.NoError(t, err, "insert template")
 
@@ -1190,6 +1191,7 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 		RefreshHash: takeFirstSlice(seed.RefreshHash, []byte("hashed-secret")),
 		AppSecretID: takeFirst(seed.AppSecretID, uuid.New()),
 		APIKeyID:    takeFirst(seed.APIKeyID, uuid.New().String()),
+		UserID:      takeFirst(seed.UserID, uuid.New()),
 		Audience:    seed.Audience,
 	})
 	require.NoError(t, err, "insert oauth2 app token")

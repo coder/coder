@@ -65,6 +65,26 @@ const docTemplate = `{
                 }
             }
         },
+        "/.well-known/oauth-protected-resource": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "OAuth2 protected resource metadata.",
+                "operationId": "oauth2-protected-resource-metadata",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2ProtectedResourceMetadata"
+                        }
+                    }
+                }
+            }
+        },
         "/appearance": {
             "get": {
                 "security": [
@@ -4290,6 +4310,71 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.TemplateVersion"
                         }
+                    }
+                }
+            }
+        },
+        "/prebuilds/settings": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Prebuilds"
+                ],
+                "summary": "Get prebuilds settings",
+                "operationId": "get-prebuilds-settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PrebuildsSettings"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Prebuilds"
+                ],
+                "summary": "Update prebuilds settings",
+                "operationId": "update-prebuilds-settings",
+                "parameters": [
+                    {
+                        "description": "Prebuilds settings request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PrebuildsSettings"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PrebuildsSettings"
+                        }
+                    },
+                    "304": {
+                        "description": "Not Modified"
                     }
                 }
             }
@@ -11434,6 +11519,10 @@ const docTemplate = `{
                     "description": "RequireActiveVersion mandates that workspaces are built with the active\ntemplate version.",
                     "type": "boolean"
                 },
+                "template_use_classic_parameter_flow": {
+                    "description": "UseClassicParameterFlow allows optionally specifying whether\nthe template should use the classic parameter flow. The default if unset is\ntrue, and is why ` + "`" + `*bool` + "`" + ` is used here. When dynamic parameters becomes\nthe default, this will default to false.",
+                    "type": "boolean"
+                },
                 "template_version_id": {
                     "description": "VersionID is an in-progress or completed job to use as an initial version\nof the template.\n\nThis is required on creation to enable a user-flow of validating a\ntemplate works. There is no reason the data-model cannot support empty\ntemplates, but it doesn't make sense for users.",
                     "type": "string",
@@ -13472,6 +13561,32 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OAuth2ProtectedResourceMetadata": {
+            "type": "object",
+            "properties": {
+                "authorization_servers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "bearer_methods_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "scopes_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "codersdk.OAuth2ProviderApp": {
             "type": "object",
             "properties": {
@@ -14144,6 +14259,14 @@ const docTemplate = `{
                 "reconciliation_interval": {
                     "description": "ReconciliationInterval defines how often the workspace prebuilds state should be reconciled.",
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.PrebuildsSettings": {
+            "type": "object",
+            "properties": {
+                "reconciliation_paused": {
+                    "type": "boolean"
                 }
             }
         },
@@ -15134,6 +15257,7 @@ const docTemplate = `{
                 "convert_login",
                 "health_settings",
                 "notifications_settings",
+                "prebuilds_settings",
                 "workspace_proxy",
                 "organization",
                 "oauth2_provider_app",
@@ -15160,6 +15284,7 @@ const docTemplate = `{
                 "ResourceTypeConvertLogin",
                 "ResourceTypeHealthSettings",
                 "ResourceTypeNotificationsSettings",
+                "ResourceTypePrebuildsSettings",
                 "ResourceTypeWorkspaceProxy",
                 "ResourceTypeOrganization",
                 "ResourceTypeOAuth2ProviderApp",

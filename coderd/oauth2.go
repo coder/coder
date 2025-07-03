@@ -417,3 +417,22 @@ func (api *API) oauth2AuthorizationServerMetadata(rw http.ResponseWriter, r *htt
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, metadata)
 }
+
+// @Summary OAuth2 protected resource metadata.
+// @ID oauth2-protected-resource-metadata
+// @Produce json
+// @Tags Enterprise
+// @Success 200 {object} codersdk.OAuth2ProtectedResourceMetadata
+// @Router /.well-known/oauth-protected-resource [get]
+func (api *API) oauth2ProtectedResourceMetadata(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	metadata := codersdk.OAuth2ProtectedResourceMetadata{
+		Resource:             api.AccessURL.String(),
+		AuthorizationServers: []string{api.AccessURL.String()},
+		// TODO: Implement scope system based on RBAC permissions
+		ScopesSupported: []string{},
+		// RFC 6750 Bearer Token methods supported as fallback methods in api key middleware
+		BearerMethodsSupported: []string{"header", "query"},
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, metadata)
+}

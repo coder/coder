@@ -170,6 +170,53 @@ else
 	echo -e "${RED}✗ Token refresh failed${NC}\n"
 fi
 
+# Test 6: RFC 6750 Bearer Token Authentication
+echo -e "${YELLOW}Test 6: RFC 6750 Bearer Token Authentication${NC}"
+ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token')
+
+# Test Authorization: Bearer header
+echo -e "${BLUE}Testing Authorization: Bearer header...${NC}"
+BEARER_RESPONSE=$(curl -s -w "%{http_code}" "$BASE_URL/api/v2/users/me" \
+	-H "Authorization: Bearer $ACCESS_TOKEN")
+
+HTTP_CODE="${BEARER_RESPONSE: -3}"
+if [ "$HTTP_CODE" = "200" ]; then
+	echo -e "${GREEN}✓ Authorization: Bearer header working${NC}"
+else
+	echo -e "${RED}✗ Authorization: Bearer header failed (HTTP $HTTP_CODE)${NC}"
+fi
+
+# Test access_token query parameter
+echo -e "${BLUE}Testing access_token query parameter...${NC}"
+QUERY_RESPONSE=$(curl -s -w "%{http_code}" "$BASE_URL/api/v2/users/me?access_token=$ACCESS_TOKEN")
+
+HTTP_CODE="${QUERY_RESPONSE: -3}"
+if [ "$HTTP_CODE" = "200" ]; then
+	echo -e "${GREEN}✓ access_token query parameter working${NC}"
+else
+	echo -e "${RED}✗ access_token query parameter failed (HTTP $HTTP_CODE)${NC}"
+fi
+
+# Test WWW-Authenticate header on unauthorized request
+echo -e "${BLUE}Testing WWW-Authenticate header on 401...${NC}"
+UNAUTH_RESPONSE=$(curl -s -I "$BASE_URL/api/v2/users/me")
+if echo "$UNAUTH_RESPONSE" | grep -i "WWW-Authenticate.*Bearer" >/dev/null; then
+	echo -e "${GREEN}✓ WWW-Authenticate header present${NC}"
+else
+	echo -e "${RED}✗ WWW-Authenticate header missing${NC}"
+fi
+
+# Test 7: Protected Resource Metadata
+echo -e "${YELLOW}Test 7: Protected Resource Metadata (RFC 9728)${NC}"
+PROTECTED_METADATA=$(curl -s "$BASE_URL/.well-known/oauth-protected-resource")
+echo "$PROTECTED_METADATA" | jq .
+
+if echo "$PROTECTED_METADATA" | jq -e '.bearer_methods_supported[]' | grep -q "header"; then
+	echo -e "${GREEN}✓ Protected Resource Metadata indicates bearer token support${NC}\n"
+else
+	echo -e "${RED}✗ Protected Resource Metadata missing bearer token support${NC}\n"
+fi
+
 # Cleanup
 echo -e "${YELLOW}Cleaning up...${NC}"
 curl -s -X DELETE "$BASE_URL/api/v2/oauth2-provider/apps/$CLIENT_ID" \
