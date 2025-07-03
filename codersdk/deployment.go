@@ -3341,6 +3341,7 @@ const (
 	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
+	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
 )
 
 // ExperimentsKnown should include all experiments defined above.
@@ -3350,6 +3351,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
 	ExperimentWebPush,
+	ExperimentOAuth2,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
