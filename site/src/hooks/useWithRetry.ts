@@ -8,7 +8,7 @@ const MAX_DELAY_MS = 600_000; // 10 minutes
 const MULTIPLIER = 2;
 
 interface UseWithRetryResult {
-	call: () => Promise<void>;
+	call: () => void;
 	nextRetryAt: Date | undefined;
 	isLoading: boolean;
 }
@@ -40,10 +40,14 @@ export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
 
 	const stableFn = useEffectEvent(fn);
 
-	const call = useCallback(async () => {
+	const call = useCallback(() => {
+		if (state.isLoading) {
+			return;
+		}
+
 		clearTimeout();
 
-		const executeAttempt = async (attempt: number): Promise<void> => {
+		const executeAttempt = async (attempt = 0): Promise<void> => {
 			if (!mountedRef.current) {
 				return;
 			}
@@ -84,8 +88,8 @@ export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
 			}
 		};
 
-		await executeAttempt(0);
-	}, [stableFn, clearTimeout]);
+		executeAttempt();
+	}, [state.isLoading, stableFn, clearTimeout]);
 
 	useEffect(() => {
 		return () => {

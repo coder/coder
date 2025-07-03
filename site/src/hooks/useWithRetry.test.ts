@@ -290,4 +290,40 @@ describe("useWithRetry", () => {
 		// Function should only have been called once (no retries after unmount)
 		expect(mockFn).toHaveBeenCalledTimes(1);
 	});
+
+	it("should do nothing when call() is invoked while function is already loading", async () => {
+		let resolvePromise: () => void;
+		const promise = new Promise<void>((resolve) => {
+			resolvePromise = resolve;
+		});
+		mockFn.mockReturnValue(promise);
+
+		const { result } = renderHook(() => useWithRetry(mockFn));
+
+		// Start the first call - this will set isLoading to true
+		act(() => {
+			result.current.call();
+		});
+
+		expect(result.current.isLoading).toBe(true);
+		expect(mockFn).toHaveBeenCalledTimes(1);
+
+		// Try to call again while loading - should do nothing
+		act(() => {
+			result.current.call();
+		});
+
+		// Function should not have been called again
+		expect(mockFn).toHaveBeenCalledTimes(1);
+		expect(result.current.isLoading).toBe(true);
+
+		// Complete the original promise
+		await act(async () => {
+			resolvePromise!();
+			await promise;
+		});
+
+		expect(result.current.isLoading).toBe(false);
+		expect(mockFn).toHaveBeenCalledTimes(1);
+	});
 });
