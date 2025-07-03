@@ -297,6 +297,7 @@ type data struct {
 	presets                          []database.TemplateVersionPreset
 	presetParameters                 []database.TemplateVersionPresetParameter
 	presetPrebuildSchedules          []database.TemplateVersionPresetPrebuildSchedule
+	prebuildsSettings                []byte
 }
 
 func tryPercentileCont(fs []float64, p float64) float64 {
@@ -2041,6 +2042,38 @@ func (q *FakeQuerier) DeleteLicense(_ context.Context, id int32) (int32, error) 
 		}
 	}
 	return 0, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, app := range q.oauth2ProviderApps {
+		if app.ID == id {
+			q.oauth2ProviderApps = append(q.oauth2ProviderApps[:i], q.oauth2ProviderApps[i+1:]...)
+
+			// Also delete related secrets and tokens
+			for j := len(q.oauth2ProviderAppSecrets) - 1; j >= 0; j-- {
+				if q.oauth2ProviderAppSecrets[j].AppID == id {
+					q.oauth2ProviderAppSecrets = append(q.oauth2ProviderAppSecrets[:j], q.oauth2ProviderAppSecrets[j+1:]...)
+				}
+			}
+
+			// Delete tokens for the app's secrets
+			for j := len(q.oauth2ProviderAppTokens) - 1; j >= 0; j-- {
+				token := q.oauth2ProviderAppTokens[j]
+				for _, secret := range q.oauth2ProviderAppSecrets {
+					if secret.AppID == id && token.AppSecretID == secret.ID {
+						q.oauth2ProviderAppTokens = append(q.oauth2ProviderAppTokens[:j], q.oauth2ProviderAppTokens[j+1:]...)
+						break
+					}
+				}
+			}
+
+			return nil
+		}
+	}
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) DeleteOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) error {
@@ -3966,12 +3999,37 @@ func (q *FakeQuerier) GetOAuth2GithubDefaultEligible(_ context.Context) (bool, e
 	return *q.oauth2GithubDefaultEligible, nil
 }
 
+func (q *FakeQuerier) GetOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, app := range q.oauth2ProviderApps {
+		if app.ID == id {
+			return app, nil
+		}
+	}
+	return database.OAuth2ProviderApp{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	for _, app := range q.oauth2ProviderApps {
 		if app.ID == id {
+			return app, nil
+		}
+	}
+	return database.OAuth2ProviderApp{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken sql.NullString) (database.OAuth2ProviderApp, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, app := range q.data.oauth2ProviderApps {
+		if app.RegistrationAccessToken.Valid && registrationAccessToken.Valid &&
+			app.RegistrationAccessToken.String == registrationAccessToken.String {
 			return app, nil
 		}
 	}
@@ -4054,6 +4112,19 @@ func (q *FakeQuerier) GetOAuth2ProviderAppSecretsByAppID(_ context.Context, appI
 	return []database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetOAuth2ProviderAppTokenByAPIKeyID(_ context.Context, apiKeyID string) (database.OAuth2ProviderAppToken, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, token := range q.oauth2ProviderAppTokens {
+		if token.APIKeyID == apiKeyID {
+			return token, nil
+		}
+	}
+
+	return database.OAuth2ProviderAppToken{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetOAuth2ProviderAppTokenByPrefix(_ context.Context, hashPrefix []byte) (database.OAuth2ProviderAppToken, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -4099,13 +4170,8 @@ func (q *FakeQuerier) GetOAuth2ProviderAppsByUserID(_ context.Context, userID uu
 		}
 		if len(tokens) > 0 {
 			rows = append(rows, database.GetOAuth2ProviderAppsByUserIDRow{
-				OAuth2ProviderApp: database.OAuth2ProviderApp{
-					CallbackURL: app.CallbackURL,
-					ID:          app.ID,
-					Icon:        app.Icon,
-					Name:        app.Name,
-				},
-				TokenCount: int64(len(tokens)),
+				OAuth2ProviderApp: app,
+				TokenCount:        int64(len(tokens)),
 			})
 		}
 	}
@@ -4277,7 +4343,14 @@ func (*FakeQuerier) GetPrebuildMetrics(_ context.Context) ([]database.GetPrebuil
 	return make([]database.GetPrebuildMetricsRow, 0), nil
 }
 
-func (q *FakeQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
+func (q *FakeQuerier) GetPrebuildsSettings(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return string(slices.Clone(q.prebuildsSettings)), nil
+}
+
+func (q *FakeQuerier) GetPresetByID(_ context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -8910,20 +8983,57 @@ func (q *FakeQuerier) InsertOAuth2ProviderApp(_ context.Context, arg database.In
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for _, app := range q.oauth2ProviderApps {
-		if app.Name == arg.Name {
-			return database.OAuth2ProviderApp{}, errUniqueConstraint
-		}
-	}
-
 	//nolint:gosimple // Go wants database.OAuth2ProviderApp(arg), but we cannot be sure the structs will remain identical.
 	app := database.OAuth2ProviderApp{
-		ID:          arg.ID,
-		CreatedAt:   arg.CreatedAt,
-		UpdatedAt:   arg.UpdatedAt,
-		Name:        arg.Name,
-		Icon:        arg.Icon,
-		CallbackURL: arg.CallbackURL,
+		ID:                      arg.ID,
+		CreatedAt:               arg.CreatedAt,
+		UpdatedAt:               arg.UpdatedAt,
+		Name:                    arg.Name,
+		Icon:                    arg.Icon,
+		CallbackURL:             arg.CallbackURL,
+		RedirectUris:            arg.RedirectUris,
+		ClientType:              arg.ClientType,
+		DynamicallyRegistered:   arg.DynamicallyRegistered,
+		ClientIDIssuedAt:        arg.ClientIDIssuedAt,
+		ClientSecretExpiresAt:   arg.ClientSecretExpiresAt,
+		GrantTypes:              arg.GrantTypes,
+		ResponseTypes:           arg.ResponseTypes,
+		TokenEndpointAuthMethod: arg.TokenEndpointAuthMethod,
+		Scope:                   arg.Scope,
+		Contacts:                arg.Contacts,
+		ClientUri:               arg.ClientUri,
+		LogoUri:                 arg.LogoUri,
+		TosUri:                  arg.TosUri,
+		PolicyUri:               arg.PolicyUri,
+		JwksUri:                 arg.JwksUri,
+		Jwks:                    arg.Jwks,
+		SoftwareID:              arg.SoftwareID,
+		SoftwareVersion:         arg.SoftwareVersion,
+		RegistrationAccessToken: arg.RegistrationAccessToken,
+		RegistrationClientUri:   arg.RegistrationClientUri,
+	}
+
+	// Apply RFC-compliant defaults to match database migration defaults
+	if !app.ClientType.Valid {
+		app.ClientType = sql.NullString{String: "confidential", Valid: true}
+	}
+	if !app.DynamicallyRegistered.Valid {
+		app.DynamicallyRegistered = sql.NullBool{Bool: false, Valid: true}
+	}
+	if len(app.GrantTypes) == 0 {
+		app.GrantTypes = []string{"authorization_code", "refresh_token"}
+	}
+	if len(app.ResponseTypes) == 0 {
+		app.ResponseTypes = []string{"code"}
+	}
+	if !app.TokenEndpointAuthMethod.Valid {
+		app.TokenEndpointAuthMethod = sql.NullString{String: "client_secret_basic", Valid: true}
+	}
+	if !app.Scope.Valid {
+		app.Scope = sql.NullString{String: "", Valid: true}
+	}
+	if app.Contacts == nil {
+		app.Contacts = []string{}
 	}
 	q.oauth2ProviderApps = append(q.oauth2ProviderApps, app)
 
@@ -9008,6 +9118,8 @@ func (q *FakeQuerier) InsertOAuth2ProviderAppToken(_ context.Context, arg databa
 				RefreshHash: arg.RefreshHash,
 				APIKeyID:    arg.APIKeyID,
 				AppSecretID: arg.AppSecretID,
+				UserID:      arg.UserID,
+				Audience:    arg.Audience,
 			}
 			q.oauth2ProviderAppTokens = append(q.oauth2ProviderAppTokens, token)
 			return token, nil
@@ -9330,7 +9442,7 @@ func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		AllowUserAutostart:           true,
 		AllowUserAutostop:            true,
 		MaxPortSharingLevel:          arg.MaxPortSharingLevel,
-		UseClassicParameterFlow:      true,
+		UseClassicParameterFlow:      arg.UseClassicParameterFlow,
 	}
 	q.templates = append(q.templates, template)
 	return nil
@@ -10772,6 +10884,66 @@ func (*FakeQuerier) UpdateNotificationTemplateMethodByID(_ context.Context, _ da
 	return database.NotificationTemplate{}, ErrUnimplemented
 }
 
+func (q *FakeQuerier) UpdateOAuth2ProviderAppByClientID(ctx context.Context, arg database.UpdateOAuth2ProviderAppByClientIDParams) (database.OAuth2ProviderApp, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.OAuth2ProviderApp{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, app := range q.oauth2ProviderApps {
+		if app.ID == arg.ID {
+			app.UpdatedAt = arg.UpdatedAt
+			app.Name = arg.Name
+			app.Icon = arg.Icon
+			app.CallbackURL = arg.CallbackURL
+			app.RedirectUris = arg.RedirectUris
+			app.GrantTypes = arg.GrantTypes
+			app.ResponseTypes = arg.ResponseTypes
+			app.TokenEndpointAuthMethod = arg.TokenEndpointAuthMethod
+			app.Scope = arg.Scope
+			app.Contacts = arg.Contacts
+			app.ClientUri = arg.ClientUri
+			app.LogoUri = arg.LogoUri
+			app.TosUri = arg.TosUri
+			app.PolicyUri = arg.PolicyUri
+			app.JwksUri = arg.JwksUri
+			app.Jwks = arg.Jwks
+			app.SoftwareID = arg.SoftwareID
+			app.SoftwareVersion = arg.SoftwareVersion
+
+			// Apply RFC-compliant defaults to match database migration defaults
+			if !app.ClientType.Valid {
+				app.ClientType = sql.NullString{String: "confidential", Valid: true}
+			}
+			if !app.DynamicallyRegistered.Valid {
+				app.DynamicallyRegistered = sql.NullBool{Bool: false, Valid: true}
+			}
+			if len(app.GrantTypes) == 0 {
+				app.GrantTypes = []string{"authorization_code", "refresh_token"}
+			}
+			if len(app.ResponseTypes) == 0 {
+				app.ResponseTypes = []string{"code"}
+			}
+			if !app.TokenEndpointAuthMethod.Valid {
+				app.TokenEndpointAuthMethod = sql.NullString{String: "client_secret_basic", Valid: true}
+			}
+			if !app.Scope.Valid {
+				app.Scope = sql.NullString{String: "", Valid: true}
+			}
+			if app.Contacts == nil {
+				app.Contacts = []string{}
+			}
+
+			q.oauth2ProviderApps[i] = app
+			return app, nil
+		}
+	}
+	return database.OAuth2ProviderApp{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateOAuth2ProviderAppByID(_ context.Context, arg database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -10789,16 +10961,53 @@ func (q *FakeQuerier) UpdateOAuth2ProviderAppByID(_ context.Context, arg databas
 
 	for index, app := range q.oauth2ProviderApps {
 		if app.ID == arg.ID {
-			newApp := database.OAuth2ProviderApp{
-				ID:          arg.ID,
-				CreatedAt:   app.CreatedAt,
-				UpdatedAt:   arg.UpdatedAt,
-				Name:        arg.Name,
-				Icon:        arg.Icon,
-				CallbackURL: arg.CallbackURL,
+			app.UpdatedAt = arg.UpdatedAt
+			app.Name = arg.Name
+			app.Icon = arg.Icon
+			app.CallbackURL = arg.CallbackURL
+			app.RedirectUris = arg.RedirectUris
+			app.ClientType = arg.ClientType
+			app.DynamicallyRegistered = arg.DynamicallyRegistered
+			app.ClientSecretExpiresAt = arg.ClientSecretExpiresAt
+			app.GrantTypes = arg.GrantTypes
+			app.ResponseTypes = arg.ResponseTypes
+			app.TokenEndpointAuthMethod = arg.TokenEndpointAuthMethod
+			app.Scope = arg.Scope
+			app.Contacts = arg.Contacts
+			app.ClientUri = arg.ClientUri
+			app.LogoUri = arg.LogoUri
+			app.TosUri = arg.TosUri
+			app.PolicyUri = arg.PolicyUri
+			app.JwksUri = arg.JwksUri
+			app.Jwks = arg.Jwks
+			app.SoftwareID = arg.SoftwareID
+			app.SoftwareVersion = arg.SoftwareVersion
+
+			// Apply RFC-compliant defaults to match database migration defaults
+			if !app.ClientType.Valid {
+				app.ClientType = sql.NullString{String: "confidential", Valid: true}
 			}
-			q.oauth2ProviderApps[index] = newApp
-			return newApp, nil
+			if !app.DynamicallyRegistered.Valid {
+				app.DynamicallyRegistered = sql.NullBool{Bool: false, Valid: true}
+			}
+			if len(app.GrantTypes) == 0 {
+				app.GrantTypes = []string{"authorization_code", "refresh_token"}
+			}
+			if len(app.ResponseTypes) == 0 {
+				app.ResponseTypes = []string{"code"}
+			}
+			if !app.TokenEndpointAuthMethod.Valid {
+				app.TokenEndpointAuthMethod = sql.NullString{String: "client_secret_basic", Valid: true}
+			}
+			if !app.Scope.Valid {
+				app.Scope = sql.NullString{String: "", Valid: true}
+			}
+			if app.Contacts == nil {
+				app.Contacts = []string{}
+			}
+
+			q.oauth2ProviderApps[index] = app
+			return app, nil
 		}
 	}
 	return database.OAuth2ProviderApp{}, sql.ErrNoRows
@@ -12313,6 +12522,14 @@ func (q *FakeQuerier) UpsertOAuthSigningKey(_ context.Context, value string) err
 	defer q.mutex.Unlock()
 
 	q.oauthSigningKey = value
+	return nil
+}
+
+func (q *FakeQuerier) UpsertPrebuildsSettings(_ context.Context, value string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.prebuildsSettings = []byte(value)
 	return nil
 }
 

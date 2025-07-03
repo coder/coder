@@ -4759,6 +4759,15 @@ func (q *sqlQuerier) UpdateInboxNotificationReadStatus(ctx context.Context, arg 
 	return err
 }
 
+const deleteOAuth2ProviderAppByClientID = `-- name: DeleteOAuth2ProviderAppByClientID :exec
+DELETE FROM oauth2_provider_apps WHERE id = $1
+`
+
+func (q *sqlQuerier) DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteOAuth2ProviderAppByClientID, id)
+	return err
+}
+
 const deleteOAuth2ProviderAppByID = `-- name: DeleteOAuth2ProviderAppByID :exec
 DELETE FROM oauth2_provider_apps WHERE id = $1
 `
@@ -4804,12 +4813,11 @@ const deleteOAuth2ProviderAppTokensByAppAndUserID = `-- name: DeleteOAuth2Provid
 DELETE FROM
   oauth2_provider_app_tokens
 USING
-  oauth2_provider_app_secrets, api_keys
+  oauth2_provider_app_secrets
 WHERE
   oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
-  AND api_keys.id = oauth2_provider_app_tokens.api_key_id
   AND oauth2_provider_app_secrets.app_id = $1
-	AND api_keys.user_id = $2
+  AND oauth2_provider_app_tokens.user_id = $2
 `
 
 type DeleteOAuth2ProviderAppTokensByAppAndUserIDParams struct {
@@ -4822,8 +4830,48 @@ func (q *sqlQuerier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Con
 	return err
 }
 
+const getOAuth2ProviderAppByClientID = `-- name: GetOAuth2ProviderAppByClientID :one
+
+SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps WHERE id = $1
+`
+
+// RFC 7591/7592 Dynamic Client Registration queries
+func (q *sqlQuerier) GetOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppByClientID, id)
+	var i OAuth2ProviderApp
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Icon,
+		&i.CallbackURL,
+		pq.Array(&i.RedirectUris),
+		&i.ClientType,
+		&i.DynamicallyRegistered,
+		&i.ClientIDIssuedAt,
+		&i.ClientSecretExpiresAt,
+		pq.Array(&i.GrantTypes),
+		pq.Array(&i.ResponseTypes),
+		&i.TokenEndpointAuthMethod,
+		&i.Scope,
+		pq.Array(&i.Contacts),
+		&i.ClientUri,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.JwksUri,
+		&i.Jwks,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.RegistrationAccessToken,
+		&i.RegistrationClientUri,
+	)
+	return i, err
+}
+
 const getOAuth2ProviderAppByID = `-- name: GetOAuth2ProviderAppByID :one
-SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered FROM oauth2_provider_apps WHERE id = $1
+SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps WHERE id = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error) {
@@ -4839,6 +4887,61 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID)
 		pq.Array(&i.RedirectUris),
 		&i.ClientType,
 		&i.DynamicallyRegistered,
+		&i.ClientIDIssuedAt,
+		&i.ClientSecretExpiresAt,
+		pq.Array(&i.GrantTypes),
+		pq.Array(&i.ResponseTypes),
+		&i.TokenEndpointAuthMethod,
+		&i.Scope,
+		pq.Array(&i.Contacts),
+		&i.ClientUri,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.JwksUri,
+		&i.Jwks,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.RegistrationAccessToken,
+		&i.RegistrationClientUri,
+	)
+	return i, err
+}
+
+const getOAuth2ProviderAppByRegistrationToken = `-- name: GetOAuth2ProviderAppByRegistrationToken :one
+SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps WHERE registration_access_token = $1
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken sql.NullString) (OAuth2ProviderApp, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppByRegistrationToken, registrationAccessToken)
+	var i OAuth2ProviderApp
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Icon,
+		&i.CallbackURL,
+		pq.Array(&i.RedirectUris),
+		&i.ClientType,
+		&i.DynamicallyRegistered,
+		&i.ClientIDIssuedAt,
+		&i.ClientSecretExpiresAt,
+		pq.Array(&i.GrantTypes),
+		pq.Array(&i.ResponseTypes),
+		&i.TokenEndpointAuthMethod,
+		&i.Scope,
+		pq.Array(&i.Contacts),
+		&i.ClientUri,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.JwksUri,
+		&i.Jwks,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.RegistrationAccessToken,
+		&i.RegistrationClientUri,
 	)
 	return i, err
 }
@@ -4960,8 +5063,29 @@ func (q *sqlQuerier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, app
 	return items, nil
 }
 
+const getOAuth2ProviderAppTokenByAPIKeyID = `-- name: GetOAuth2ProviderAppTokenByAPIKeyID :one
+SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id FROM oauth2_provider_app_tokens WHERE api_key_id = $1
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, apiKeyID string) (OAuth2ProviderAppToken, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppTokenByAPIKeyID, apiKeyID)
+	var i OAuth2ProviderAppToken
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.HashPrefix,
+		&i.RefreshHash,
+		&i.AppSecretID,
+		&i.APIKeyID,
+		&i.Audience,
+		&i.UserID,
+	)
+	return i, err
+}
+
 const getOAuth2ProviderAppTokenByPrefix = `-- name: GetOAuth2ProviderAppTokenByPrefix :one
-SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
+SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (OAuth2ProviderAppToken, error) {
@@ -4976,12 +5100,13 @@ func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hash
 		&i.AppSecretID,
 		&i.APIKeyID,
 		&i.Audience,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderApps = `-- name: GetOAuth2ProviderApps :many
-SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered FROM oauth2_provider_apps ORDER BY (name, id) ASC
+SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps ORDER BY (name, id) ASC
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2ProviderApp, error) {
@@ -5003,6 +5128,23 @@ func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2Provide
 			pq.Array(&i.RedirectUris),
 			&i.ClientType,
 			&i.DynamicallyRegistered,
+			&i.ClientIDIssuedAt,
+			&i.ClientSecretExpiresAt,
+			pq.Array(&i.GrantTypes),
+			pq.Array(&i.ResponseTypes),
+			&i.TokenEndpointAuthMethod,
+			&i.Scope,
+			pq.Array(&i.Contacts),
+			&i.ClientUri,
+			&i.LogoUri,
+			&i.TosUri,
+			&i.PolicyUri,
+			&i.JwksUri,
+			&i.Jwks,
+			&i.SoftwareID,
+			&i.SoftwareVersion,
+			&i.RegistrationAccessToken,
+			&i.RegistrationClientUri,
 		); err != nil {
 			return nil, err
 		}
@@ -5020,16 +5162,14 @@ func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2Provide
 const getOAuth2ProviderAppsByUserID = `-- name: GetOAuth2ProviderAppsByUserID :many
 SELECT
   COUNT(DISTINCT oauth2_provider_app_tokens.id) as token_count,
-  oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.callback_url, oauth2_provider_apps.redirect_uris, oauth2_provider_apps.client_type, oauth2_provider_apps.dynamically_registered
+  oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.callback_url, oauth2_provider_apps.redirect_uris, oauth2_provider_apps.client_type, oauth2_provider_apps.dynamically_registered, oauth2_provider_apps.client_id_issued_at, oauth2_provider_apps.client_secret_expires_at, oauth2_provider_apps.grant_types, oauth2_provider_apps.response_types, oauth2_provider_apps.token_endpoint_auth_method, oauth2_provider_apps.scope, oauth2_provider_apps.contacts, oauth2_provider_apps.client_uri, oauth2_provider_apps.logo_uri, oauth2_provider_apps.tos_uri, oauth2_provider_apps.policy_uri, oauth2_provider_apps.jwks_uri, oauth2_provider_apps.jwks, oauth2_provider_apps.software_id, oauth2_provider_apps.software_version, oauth2_provider_apps.registration_access_token, oauth2_provider_apps.registration_client_uri
 FROM oauth2_provider_app_tokens
   INNER JOIN oauth2_provider_app_secrets
     ON oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
   INNER JOIN oauth2_provider_apps
     ON oauth2_provider_apps.id = oauth2_provider_app_secrets.app_id
-  INNER JOIN api_keys
-    ON api_keys.id = oauth2_provider_app_tokens.api_key_id
 WHERE
-  api_keys.user_id = $1
+  oauth2_provider_app_tokens.user_id = $1
 GROUP BY
   oauth2_provider_apps.id
 `
@@ -5059,6 +5199,23 @@ func (q *sqlQuerier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID u
 			pq.Array(&i.OAuth2ProviderApp.RedirectUris),
 			&i.OAuth2ProviderApp.ClientType,
 			&i.OAuth2ProviderApp.DynamicallyRegistered,
+			&i.OAuth2ProviderApp.ClientIDIssuedAt,
+			&i.OAuth2ProviderApp.ClientSecretExpiresAt,
+			pq.Array(&i.OAuth2ProviderApp.GrantTypes),
+			pq.Array(&i.OAuth2ProviderApp.ResponseTypes),
+			&i.OAuth2ProviderApp.TokenEndpointAuthMethod,
+			&i.OAuth2ProviderApp.Scope,
+			pq.Array(&i.OAuth2ProviderApp.Contacts),
+			&i.OAuth2ProviderApp.ClientUri,
+			&i.OAuth2ProviderApp.LogoUri,
+			&i.OAuth2ProviderApp.TosUri,
+			&i.OAuth2ProviderApp.PolicyUri,
+			&i.OAuth2ProviderApp.JwksUri,
+			&i.OAuth2ProviderApp.Jwks,
+			&i.OAuth2ProviderApp.SoftwareID,
+			&i.OAuth2ProviderApp.SoftwareVersion,
+			&i.OAuth2ProviderApp.RegistrationAccessToken,
+			&i.OAuth2ProviderApp.RegistrationClientUri,
 		); err != nil {
 			return nil, err
 		}
@@ -5083,7 +5240,24 @@ INSERT INTO oauth2_provider_apps (
     callback_url,
     redirect_uris,
     client_type,
-    dynamically_registered
+    dynamically_registered,
+    client_id_issued_at,
+    client_secret_expires_at,
+    grant_types,
+    response_types,
+    token_endpoint_auth_method,
+    scope,
+    contacts,
+    client_uri,
+    logo_uri,
+    tos_uri,
+    policy_uri,
+    jwks_uri,
+    jwks,
+    software_id,
+    software_version,
+    registration_access_token,
+    registration_client_uri
 ) VALUES(
     $1,
     $2,
@@ -5093,20 +5267,54 @@ INSERT INTO oauth2_provider_apps (
     $6,
     $7,
     $8,
-    $9
-) RETURNING id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered
+    $9,
+    $10,
+    $11,
+    $12,
+    $13,
+    $14,
+    $15,
+    $16,
+    $17,
+    $18,
+    $19,
+    $20,
+    $21,
+    $22,
+    $23,
+    $24,
+    $25,
+    $26
+) RETURNING id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri
 `
 
 type InsertOAuth2ProviderAppParams struct {
-	ID                    uuid.UUID      `db:"id" json:"id"`
-	CreatedAt             time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt             time.Time      `db:"updated_at" json:"updated_at"`
-	Name                  string         `db:"name" json:"name"`
-	Icon                  string         `db:"icon" json:"icon"`
-	CallbackURL           string         `db:"callback_url" json:"callback_url"`
-	RedirectUris          []string       `db:"redirect_uris" json:"redirect_uris"`
-	ClientType            sql.NullString `db:"client_type" json:"client_type"`
-	DynamicallyRegistered sql.NullBool   `db:"dynamically_registered" json:"dynamically_registered"`
+	ID                      uuid.UUID             `db:"id" json:"id"`
+	CreatedAt               time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time             `db:"updated_at" json:"updated_at"`
+	Name                    string                `db:"name" json:"name"`
+	Icon                    string                `db:"icon" json:"icon"`
+	CallbackURL             string                `db:"callback_url" json:"callback_url"`
+	RedirectUris            []string              `db:"redirect_uris" json:"redirect_uris"`
+	ClientType              sql.NullString        `db:"client_type" json:"client_type"`
+	DynamicallyRegistered   sql.NullBool          `db:"dynamically_registered" json:"dynamically_registered"`
+	ClientIDIssuedAt        sql.NullTime          `db:"client_id_issued_at" json:"client_id_issued_at"`
+	ClientSecretExpiresAt   sql.NullTime          `db:"client_secret_expires_at" json:"client_secret_expires_at"`
+	GrantTypes              []string              `db:"grant_types" json:"grant_types"`
+	ResponseTypes           []string              `db:"response_types" json:"response_types"`
+	TokenEndpointAuthMethod sql.NullString        `db:"token_endpoint_auth_method" json:"token_endpoint_auth_method"`
+	Scope                   sql.NullString        `db:"scope" json:"scope"`
+	Contacts                []string              `db:"contacts" json:"contacts"`
+	ClientUri               sql.NullString        `db:"client_uri" json:"client_uri"`
+	LogoUri                 sql.NullString        `db:"logo_uri" json:"logo_uri"`
+	TosUri                  sql.NullString        `db:"tos_uri" json:"tos_uri"`
+	PolicyUri               sql.NullString        `db:"policy_uri" json:"policy_uri"`
+	JwksUri                 sql.NullString        `db:"jwks_uri" json:"jwks_uri"`
+	Jwks                    pqtype.NullRawMessage `db:"jwks" json:"jwks"`
+	SoftwareID              sql.NullString        `db:"software_id" json:"software_id"`
+	SoftwareVersion         sql.NullString        `db:"software_version" json:"software_version"`
+	RegistrationAccessToken sql.NullString        `db:"registration_access_token" json:"registration_access_token"`
+	RegistrationClientUri   sql.NullString        `db:"registration_client_uri" json:"registration_client_uri"`
 }
 
 func (q *sqlQuerier) InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAuth2ProviderAppParams) (OAuth2ProviderApp, error) {
@@ -5120,6 +5328,23 @@ func (q *sqlQuerier) InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAut
 		pq.Array(arg.RedirectUris),
 		arg.ClientType,
 		arg.DynamicallyRegistered,
+		arg.ClientIDIssuedAt,
+		arg.ClientSecretExpiresAt,
+		pq.Array(arg.GrantTypes),
+		pq.Array(arg.ResponseTypes),
+		arg.TokenEndpointAuthMethod,
+		arg.Scope,
+		pq.Array(arg.Contacts),
+		arg.ClientUri,
+		arg.LogoUri,
+		arg.TosUri,
+		arg.PolicyUri,
+		arg.JwksUri,
+		arg.Jwks,
+		arg.SoftwareID,
+		arg.SoftwareVersion,
+		arg.RegistrationAccessToken,
+		arg.RegistrationClientUri,
 	)
 	var i OAuth2ProviderApp
 	err := row.Scan(
@@ -5132,6 +5357,23 @@ func (q *sqlQuerier) InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAut
 		pq.Array(&i.RedirectUris),
 		&i.ClientType,
 		&i.DynamicallyRegistered,
+		&i.ClientIDIssuedAt,
+		&i.ClientSecretExpiresAt,
+		pq.Array(&i.GrantTypes),
+		pq.Array(&i.ResponseTypes),
+		&i.TokenEndpointAuthMethod,
+		&i.Scope,
+		pq.Array(&i.Contacts),
+		&i.ClientUri,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.JwksUri,
+		&i.Jwks,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.RegistrationAccessToken,
+		&i.RegistrationClientUri,
 	)
 	return i, err
 }
@@ -5262,6 +5504,7 @@ INSERT INTO oauth2_provider_app_tokens (
     refresh_hash,
     app_secret_id,
     api_key_id,
+    user_id,
     audience
 ) VALUES(
     $1,
@@ -5271,8 +5514,9 @@ INSERT INTO oauth2_provider_app_tokens (
     $5,
     $6,
     $7,
-    $8
-) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience
+    $8,
+    $9
+) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id
 `
 
 type InsertOAuth2ProviderAppTokenParams struct {
@@ -5283,6 +5527,7 @@ type InsertOAuth2ProviderAppTokenParams struct {
 	RefreshHash []byte         `db:"refresh_hash" json:"refresh_hash"`
 	AppSecretID uuid.UUID      `db:"app_secret_id" json:"app_secret_id"`
 	APIKeyID    string         `db:"api_key_id" json:"api_key_id"`
+	UserID      uuid.UUID      `db:"user_id" json:"user_id"`
 	Audience    sql.NullString `db:"audience" json:"audience"`
 }
 
@@ -5295,6 +5540,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		arg.RefreshHash,
 		arg.AppSecretID,
 		arg.APIKeyID,
+		arg.UserID,
 		arg.Audience,
 	)
 	var i OAuth2ProviderAppToken
@@ -5307,11 +5553,12 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		&i.AppSecretID,
 		&i.APIKeyID,
 		&i.Audience,
+		&i.UserID,
 	)
 	return i, err
 }
 
-const updateOAuth2ProviderAppByID = `-- name: UpdateOAuth2ProviderAppByID :one
+const updateOAuth2ProviderAppByClientID = `-- name: UpdateOAuth2ProviderAppByClientID :one
 UPDATE oauth2_provider_apps SET
     updated_at = $2,
     name = $3,
@@ -5319,23 +5566,49 @@ UPDATE oauth2_provider_apps SET
     callback_url = $5,
     redirect_uris = $6,
     client_type = $7,
-    dynamically_registered = $8
-WHERE id = $1 RETURNING id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered
+    client_secret_expires_at = $8,
+    grant_types = $9,
+    response_types = $10,
+    token_endpoint_auth_method = $11,
+    scope = $12,
+    contacts = $13,
+    client_uri = $14,
+    logo_uri = $15,
+    tos_uri = $16,
+    policy_uri = $17,
+    jwks_uri = $18,
+    jwks = $19,
+    software_id = $20,
+    software_version = $21
+WHERE id = $1 RETURNING id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri
 `
 
-type UpdateOAuth2ProviderAppByIDParams struct {
-	ID                    uuid.UUID      `db:"id" json:"id"`
-	UpdatedAt             time.Time      `db:"updated_at" json:"updated_at"`
-	Name                  string         `db:"name" json:"name"`
-	Icon                  string         `db:"icon" json:"icon"`
-	CallbackURL           string         `db:"callback_url" json:"callback_url"`
-	RedirectUris          []string       `db:"redirect_uris" json:"redirect_uris"`
-	ClientType            sql.NullString `db:"client_type" json:"client_type"`
-	DynamicallyRegistered sql.NullBool   `db:"dynamically_registered" json:"dynamically_registered"`
+type UpdateOAuth2ProviderAppByClientIDParams struct {
+	ID                      uuid.UUID             `db:"id" json:"id"`
+	UpdatedAt               time.Time             `db:"updated_at" json:"updated_at"`
+	Name                    string                `db:"name" json:"name"`
+	Icon                    string                `db:"icon" json:"icon"`
+	CallbackURL             string                `db:"callback_url" json:"callback_url"`
+	RedirectUris            []string              `db:"redirect_uris" json:"redirect_uris"`
+	ClientType              sql.NullString        `db:"client_type" json:"client_type"`
+	ClientSecretExpiresAt   sql.NullTime          `db:"client_secret_expires_at" json:"client_secret_expires_at"`
+	GrantTypes              []string              `db:"grant_types" json:"grant_types"`
+	ResponseTypes           []string              `db:"response_types" json:"response_types"`
+	TokenEndpointAuthMethod sql.NullString        `db:"token_endpoint_auth_method" json:"token_endpoint_auth_method"`
+	Scope                   sql.NullString        `db:"scope" json:"scope"`
+	Contacts                []string              `db:"contacts" json:"contacts"`
+	ClientUri               sql.NullString        `db:"client_uri" json:"client_uri"`
+	LogoUri                 sql.NullString        `db:"logo_uri" json:"logo_uri"`
+	TosUri                  sql.NullString        `db:"tos_uri" json:"tos_uri"`
+	PolicyUri               sql.NullString        `db:"policy_uri" json:"policy_uri"`
+	JwksUri                 sql.NullString        `db:"jwks_uri" json:"jwks_uri"`
+	Jwks                    pqtype.NullRawMessage `db:"jwks" json:"jwks"`
+	SoftwareID              sql.NullString        `db:"software_id" json:"software_id"`
+	SoftwareVersion         sql.NullString        `db:"software_version" json:"software_version"`
 }
 
-func (q *sqlQuerier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg UpdateOAuth2ProviderAppByIDParams) (OAuth2ProviderApp, error) {
-	row := q.db.QueryRowContext(ctx, updateOAuth2ProviderAppByID,
+func (q *sqlQuerier) UpdateOAuth2ProviderAppByClientID(ctx context.Context, arg UpdateOAuth2ProviderAppByClientIDParams) (OAuth2ProviderApp, error) {
+	row := q.db.QueryRowContext(ctx, updateOAuth2ProviderAppByClientID,
 		arg.ID,
 		arg.UpdatedAt,
 		arg.Name,
@@ -5343,7 +5616,20 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg Update
 		arg.CallbackURL,
 		pq.Array(arg.RedirectUris),
 		arg.ClientType,
-		arg.DynamicallyRegistered,
+		arg.ClientSecretExpiresAt,
+		pq.Array(arg.GrantTypes),
+		pq.Array(arg.ResponseTypes),
+		arg.TokenEndpointAuthMethod,
+		arg.Scope,
+		pq.Array(arg.Contacts),
+		arg.ClientUri,
+		arg.LogoUri,
+		arg.TosUri,
+		arg.PolicyUri,
+		arg.JwksUri,
+		arg.Jwks,
+		arg.SoftwareID,
+		arg.SoftwareVersion,
 	)
 	var i OAuth2ProviderApp
 	err := row.Scan(
@@ -5356,6 +5642,131 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg Update
 		pq.Array(&i.RedirectUris),
 		&i.ClientType,
 		&i.DynamicallyRegistered,
+		&i.ClientIDIssuedAt,
+		&i.ClientSecretExpiresAt,
+		pq.Array(&i.GrantTypes),
+		pq.Array(&i.ResponseTypes),
+		&i.TokenEndpointAuthMethod,
+		&i.Scope,
+		pq.Array(&i.Contacts),
+		&i.ClientUri,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.JwksUri,
+		&i.Jwks,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.RegistrationAccessToken,
+		&i.RegistrationClientUri,
+	)
+	return i, err
+}
+
+const updateOAuth2ProviderAppByID = `-- name: UpdateOAuth2ProviderAppByID :one
+UPDATE oauth2_provider_apps SET
+    updated_at = $2,
+    name = $3,
+    icon = $4,
+    callback_url = $5,
+    redirect_uris = $6,
+    client_type = $7,
+    dynamically_registered = $8,
+    client_secret_expires_at = $9,
+    grant_types = $10,
+    response_types = $11,
+    token_endpoint_auth_method = $12,
+    scope = $13,
+    contacts = $14,
+    client_uri = $15,
+    logo_uri = $16,
+    tos_uri = $17,
+    policy_uri = $18,
+    jwks_uri = $19,
+    jwks = $20,
+    software_id = $21,
+    software_version = $22
+WHERE id = $1 RETURNING id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri
+`
+
+type UpdateOAuth2ProviderAppByIDParams struct {
+	ID                      uuid.UUID             `db:"id" json:"id"`
+	UpdatedAt               time.Time             `db:"updated_at" json:"updated_at"`
+	Name                    string                `db:"name" json:"name"`
+	Icon                    string                `db:"icon" json:"icon"`
+	CallbackURL             string                `db:"callback_url" json:"callback_url"`
+	RedirectUris            []string              `db:"redirect_uris" json:"redirect_uris"`
+	ClientType              sql.NullString        `db:"client_type" json:"client_type"`
+	DynamicallyRegistered   sql.NullBool          `db:"dynamically_registered" json:"dynamically_registered"`
+	ClientSecretExpiresAt   sql.NullTime          `db:"client_secret_expires_at" json:"client_secret_expires_at"`
+	GrantTypes              []string              `db:"grant_types" json:"grant_types"`
+	ResponseTypes           []string              `db:"response_types" json:"response_types"`
+	TokenEndpointAuthMethod sql.NullString        `db:"token_endpoint_auth_method" json:"token_endpoint_auth_method"`
+	Scope                   sql.NullString        `db:"scope" json:"scope"`
+	Contacts                []string              `db:"contacts" json:"contacts"`
+	ClientUri               sql.NullString        `db:"client_uri" json:"client_uri"`
+	LogoUri                 sql.NullString        `db:"logo_uri" json:"logo_uri"`
+	TosUri                  sql.NullString        `db:"tos_uri" json:"tos_uri"`
+	PolicyUri               sql.NullString        `db:"policy_uri" json:"policy_uri"`
+	JwksUri                 sql.NullString        `db:"jwks_uri" json:"jwks_uri"`
+	Jwks                    pqtype.NullRawMessage `db:"jwks" json:"jwks"`
+	SoftwareID              sql.NullString        `db:"software_id" json:"software_id"`
+	SoftwareVersion         sql.NullString        `db:"software_version" json:"software_version"`
+}
+
+func (q *sqlQuerier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg UpdateOAuth2ProviderAppByIDParams) (OAuth2ProviderApp, error) {
+	row := q.db.QueryRowContext(ctx, updateOAuth2ProviderAppByID,
+		arg.ID,
+		arg.UpdatedAt,
+		arg.Name,
+		arg.Icon,
+		arg.CallbackURL,
+		pq.Array(arg.RedirectUris),
+		arg.ClientType,
+		arg.DynamicallyRegistered,
+		arg.ClientSecretExpiresAt,
+		pq.Array(arg.GrantTypes),
+		pq.Array(arg.ResponseTypes),
+		arg.TokenEndpointAuthMethod,
+		arg.Scope,
+		pq.Array(arg.Contacts),
+		arg.ClientUri,
+		arg.LogoUri,
+		arg.TosUri,
+		arg.PolicyUri,
+		arg.JwksUri,
+		arg.Jwks,
+		arg.SoftwareID,
+		arg.SoftwareVersion,
+	)
+	var i OAuth2ProviderApp
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Icon,
+		&i.CallbackURL,
+		pq.Array(&i.RedirectUris),
+		&i.ClientType,
+		&i.DynamicallyRegistered,
+		&i.ClientIDIssuedAt,
+		&i.ClientSecretExpiresAt,
+		pq.Array(&i.GrantTypes),
+		pq.Array(&i.ResponseTypes),
+		&i.TokenEndpointAuthMethod,
+		&i.Scope,
+		pq.Array(&i.Contacts),
+		&i.ClientUri,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.JwksUri,
+		&i.Jwks,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.RegistrationAccessToken,
+		&i.RegistrationClientUri,
 	)
 	return i, err
 }
@@ -9604,6 +10015,18 @@ func (q *sqlQuerier) GetOAuthSigningKey(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getPrebuildsSettings = `-- name: GetPrebuildsSettings :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'prebuilds_settings'), '{}') :: text AS prebuilds_settings
+`
+
+func (q *sqlQuerier) GetPrebuildsSettings(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getPrebuildsSettings)
+	var prebuilds_settings string
+	err := row.Scan(&prebuilds_settings)
+	return prebuilds_settings, err
+}
+
 const getRuntimeConfig = `-- name: GetRuntimeConfig :one
 SELECT value FROM site_configs WHERE site_configs.key = $1
 `
@@ -9783,6 +10206,16 @@ ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'oauth_signi
 
 func (q *sqlQuerier) UpsertOAuthSigningKey(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertOAuthSigningKey, value)
+	return err
+}
+
+const upsertPrebuildsSettings = `-- name: UpsertPrebuildsSettings :exec
+INSERT INTO site_configs (key, value) VALUES ('prebuilds_settings', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'prebuilds_settings'
+`
+
+func (q *sqlQuerier) UpsertPrebuildsSettings(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertPrebuildsSettings, value)
 	return err
 }
 
@@ -11031,10 +11464,11 @@ INSERT INTO
 		group_acl,
 		display_name,
 		allow_user_cancel_workspace_jobs,
-		max_port_sharing_level
+		max_port_sharing_level,
+		use_classic_parameter_flow
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 `
 
 type InsertTemplateParams struct {
@@ -11053,6 +11487,7 @@ type InsertTemplateParams struct {
 	DisplayName                  string          `db:"display_name" json:"display_name"`
 	AllowUserCancelWorkspaceJobs bool            `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
 	MaxPortSharingLevel          AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
+	UseClassicParameterFlow      bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) error {
@@ -11072,6 +11507,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.DisplayName,
 		arg.AllowUserCancelWorkspaceJobs,
 		arg.MaxPortSharingLevel,
+		arg.UseClassicParameterFlow,
 	)
 	return err
 }

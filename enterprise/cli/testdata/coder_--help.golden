@@ -17,6 +17,7 @@ SUBCOMMANDS:
     features           List Enterprise features
     groups             Manage groups
     licenses           Add, delete, and list licenses
+    prebuilds          Manage Coder prebuilds
     provisioner        View and manage provisioner daemons and jobs
     server             Start a Coder server
 

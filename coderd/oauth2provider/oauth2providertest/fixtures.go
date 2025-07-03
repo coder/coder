@@ -1,4 +1,4 @@
-package identityprovidertest
+package oauth2providertest
 
 import (
 	"crypto/sha256"

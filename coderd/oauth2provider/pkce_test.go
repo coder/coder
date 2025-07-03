@@ -1,4 +1,4 @@
-package identityprovider_test
+package oauth2provider_test
 
 import (
 	"crypto/sha256"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/identityprovider"
+	"github.com/coder/coder/v2/coderd/oauth2provider"
 )
 
 func TestVerifyPKCE(t *testing.T) {
@@ -55,7 +55,7 @@ func TestVerifyPKCE(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := identityprovider.VerifyPKCE(tt.challenge, tt.verifier)
+			result := oauth2provider.VerifyPKCE(tt.challenge, tt.verifier)
 			require.Equal(t, tt.expectValid, result)
 		})
 	}
@@ -73,5 +73,5 @@ func TestPKCES256Generation(t *testing.T) {
 	challenge := base64.RawURLEncoding.EncodeToString(h[:])
 
 	require.Equal(t, expectedChallenge, challenge)
-	require.True(t, identityprovider.VerifyPKCE(challenge, verifier))
+	require.True(t, oauth2provider.VerifyPKCE(challenge, verifier))
 }
