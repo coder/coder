@@ -5102,7 +5102,7 @@ func (q *FakeQuerier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]datab
 }
 
 func (q *FakeQuerier) GetRunningPrebuiltWorkspacesOptimized(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesOptimizedRow, error) {
-	panic("not implemented")
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetRuntimeConfig(_ context.Context, key string) (string, error) {

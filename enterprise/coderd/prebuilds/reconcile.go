@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -944,13 +943,13 @@ func CompareGetRunningPrebuiltWorkspacesResults(
 	original []database.GetRunningPrebuiltWorkspacesRow,
 	optimized []database.GetRunningPrebuiltWorkspacesOptimizedRow,
 ) {
+	if len(original) == 0 && len(optimized) == 0 {
+		return
+	}
 	// Convert optimized results to the same type as original for comparison
-	var optimizedConverted []database.GetRunningPrebuiltWorkspacesRow
-	if original != nil {
-		optimizedConverted = make([]database.GetRunningPrebuiltWorkspacesRow, len(optimized))
-		for i, row := range optimized {
-			optimizedConverted[i] = database.GetRunningPrebuiltWorkspacesRow(row)
-		}
+	optimizedConverted := make([]database.GetRunningPrebuiltWorkspacesRow, len(optimized))
+	for i, row := range optimized {
+		optimizedConverted[i] = database.GetRunningPrebuiltWorkspacesRow(row)
 	}
 
 	// Compare the results and log an error if they differ.

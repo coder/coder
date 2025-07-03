@@ -96,8 +96,7 @@ SELECT
 FROM latest_prebuilds
 LEFT JOIN ready_agents ON ready_agents.job_id = latest_prebuilds.job_id
 LEFT JOIN workspace_latest_presets ON workspace_latest_presets.workspace_id = latest_prebuilds.id
-ORDER BY latest_prebuilds.id
-;
+ORDER BY latest_prebuilds.id;
 
 -- name: GetRunningPrebuiltWorkspaces :many
 SELECT
@@ -113,7 +112,6 @@ FROM workspace_prebuilds p
 WHERE (b.transition = 'start'::workspace_transition
 	AND b.job_status = 'succeeded'::provisioner_job_status)
 ORDER BY p.id;
-;
 
 -- name: CountInProgressPrebuilds :many
 -- CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.

@@ -2406,6 +2406,32 @@ func TestCompareGetRunningPrebuiltWorkspacesResults(t *testing.T) {
 		assert.Contains(t, diffStr, "CurrentPresetID") // Changed preset ID
 	})
 
+	t.Run("count mismatch - other direction", func(t *testing.T) {
+		t.Parallel()
+
+		spy := &logSpy{}
+		logger := slog.Make(spy)
+
+		original := []database.GetRunningPrebuiltWorkspacesRow{}
+
+		optimized := []database.GetRunningPrebuiltWorkspacesOptimizedRow{
+			createOptimizedRow(createWorkspaceRow("550e8400-e29b-41d4-a716-446655440001", "workspace2", false)),
+		}
+
+		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
+
+		// Should log exactly one error for count mismatch
+		require.Len(t, spy.entries, 1)
+		assert.Equal(t, slog.LevelError, spy.entries[0].Level)
+		diff := spy.getField(0, "diff")
+		require.NotNil(t, diff)
+		diffStr := diff.(string)
+
+		// The diff should contain information about the differences we introduced
+		assert.Contains(t, diffStr, "workspace2")      // Original name
+		assert.Contains(t, diffStr, "CurrentPresetID") // Changed preset ID
+	})
+
 	t.Run("field differences - logs errors", func(t *testing.T) {
 		t.Parallel()
 
@@ -2456,6 +2482,22 @@ func TestCompareGetRunningPrebuiltWorkspacesResults(t *testing.T) {
 		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
 
 		// Should not log any errors when both results are empty
+		require.Empty(t, spy.entries)
+	})
+
+	t.Run("nil original", func(t *testing.T) {
+		t.Parallel()
+		spy := &logSpy{}
+		logger := slog.Make(spy)
+		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, nil, []database.GetRunningPrebuiltWorkspacesOptimizedRow{})
+		require.Empty(t, spy.entries)
+	})
+
+	t.Run("nil optimized ", func(t *testing.T) {
+		t.Parallel()
+		spy := &logSpy{}
+		logger := slog.Make(spy)
+		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, []database.GetRunningPrebuiltWorkspacesRow{}, nil)
 		require.Empty(t, spy.entries)
 	})
 }
