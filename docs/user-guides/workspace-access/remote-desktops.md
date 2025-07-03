@@ -127,9 +127,7 @@ Our [Amazon DCV Windows](https://registry.coder.com/modules/amazon-dcv-windows) 
 
 The common way to connect to a desktop session of a Linux workspace is to use a VNC client. The VNC client can be installed on your local machine or accessed through a web browser. There is an additional requirement to install the VNC server on the workspace.
 
-Installation instructions vary depending on your workspace's operating system, platform, and build system. Refer to the [enterprise-desktop](https://github.com/coder/images/tree/main/images/desktop) image for a starting point.
-
-As a starting point, see the enterprise-desktop image. It can be used to provision a Dockerized workspace with the following software:
+Installation instructions vary depending on your workspace's operating system, platform, and build system. Refer to the [enterprise-desktop](https://github.com/coder/images/tree/main/images/desktop) image for a starting point which can be used to provision a Dockerized workspace with the following software:
 
 - Ubuntu 24.04
 - XFCE Desktop
