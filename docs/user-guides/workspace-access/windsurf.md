@@ -24,7 +24,7 @@ Windsurf can connect to your Coder workspaces via SSH:
 
 ![Coder extension in Windsurf](../../images/user-guides/ides/windsurf-coder-extension.png)
 
-1. You can install the Coder extension through the [Marketplace built in to Windsurf](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote) or manually.
+1. You can install the Coder extension through the [Marketplace built in to Windsurf](windsurf:extension/coder.coder-remote) or manually.
 
    <div class="tabs">
 
