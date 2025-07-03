@@ -293,7 +293,7 @@ export const BypassRatelimitHeader = "X-Coder-Bypass-Ratelimit";
 export const CLITelemetryHeader = "Coder-CLI-Telemetry";
 
 // From codersdk/workspacebuilds.go
-export interface CancelWorkspaceBuildRequest {
+export interface CancelWorkspaceBuildParams {
 	readonly expect_status?: CancelWorkspaceBuildStatus;
 }
 
