@@ -310,8 +310,8 @@ func fetch(store database.Store, fileID uuid.UUID) (CacheEntryValue, error) {
 		if err != nil {
 			return CacheEntryValue{}, xerrors.Errorf("failed to read zip file: %w", err)
 		}
-	case "application/x-tar":
 	default:
+		// Assume '"application/x-tar"' as the default mimetype.
 		files = archivefs.FromTarReader(bytes.NewBuffer(file.Data))
 	}
 
