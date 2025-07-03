@@ -2304,6 +2304,116 @@ func (q *FakeQuerier) DeleteOldWorkspaceAgentLogs(_ context.Context, threshold t
 	return nil
 }
 
+func (q *FakeQuerier) DeleteOldProvisionerJobLogs(_ context.Context, oldBuildThreshold time.Time) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	// Find job IDs to purge based on workspace deletion and build age
+	jobIDsToPurge := make(map[uuid.UUID]bool)
+
+	// Get all workspace builds and find which ones to purge
+	for _, build := range q.workspaceBuilds {
+		// Find the workspace for this build
+		var workspace *database.WorkspaceTable
+		for _, ws := range q.workspaces {
+			if ws.ID == build.WorkspaceID {
+				workspace = &ws
+				break
+			}
+		}
+		if workspace == nil {
+			continue
+		}
+
+		// If workspace is deleted, purge all its builds
+		if workspace.Deleted {
+			jobIDsToPurge[build.JobID] = true
+			continue
+		}
+
+		// For non-deleted workspaces, purge old builds (except latest)
+		if build.CreatedAt.Before(oldBuildThreshold) {
+			// Check if this is the latest build for the workspace
+			isLatest := true
+			for _, otherBuild := range q.workspaceBuilds {
+				if otherBuild.WorkspaceID == build.WorkspaceID && otherBuild.BuildNumber > build.BuildNumber {
+					isLatest = false
+					break
+				}
+			}
+			if !isLatest {
+				jobIDsToPurge[build.JobID] = true
+			}
+		}
+	}
+
+	// Delete logs for the identified job IDs
+	var remainingLogs []database.ProvisionerJobLog
+	for _, log := range q.provisionerJobLogs {
+		if !jobIDsToPurge[log.JobID] {
+			remainingLogs = append(remainingLogs, log)
+		}
+	}
+	q.provisionerJobLogs = remainingLogs
+
+	return nil
+}
+
+func (q *FakeQuerier) DeleteOldProvisionerJobTimings(_ context.Context, oldBuildThreshold time.Time) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	// Find job IDs to purge based on workspace deletion and build age
+	jobIDsToPurge := make(map[uuid.UUID]bool)
+
+	// Get all workspace builds and find which ones to purge
+	for _, build := range q.workspaceBuilds {
+		// Find the workspace for this build
+		var workspace *database.WorkspaceTable
+		for _, ws := range q.workspaces {
+			if ws.ID == build.WorkspaceID {
+				workspace = &ws
+				break
+			}
+		}
+		if workspace == nil {
+			continue
+		}
+
+		// If workspace is deleted, purge all its builds
+		if workspace.Deleted {
+			jobIDsToPurge[build.JobID] = true
+			continue
+		}
+
+		// For non-deleted workspaces, purge old builds (except latest)
+		if build.CreatedAt.Before(oldBuildThreshold) {
+			// Check if this is the latest build for the workspace
+			isLatest := true
+			for _, otherBuild := range q.workspaceBuilds {
+				if otherBuild.WorkspaceID == build.WorkspaceID && otherBuild.BuildNumber > build.BuildNumber {
+					isLatest = false
+					break
+				}
+			}
+			if !isLatest {
+				jobIDsToPurge[build.JobID] = true
+			}
+		}
+	}
+
+	// Delete timings for the identified job IDs
+	var remainingTimings []database.ProvisionerJobTiming
+	for _, timing := range q.provisionerJobTimings {
+		if !jobIDsToPurge[timing.JobID] {
+			remainingTimings = append(remainingTimings, timing)
+		}
+	}
+	q.provisionerJobTimings = remainingTimings
+
+	return nil
+}
+
 func (q *FakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -4680,9 +4790,7 @@ func (q *FakeQuerier) GetProvisionerJobTimingsByJobID(_ context.Context, jobID u
 			timings = append(timings, timing)
 		}
 	}
-	if len(timings) == 0 {
-		return nil, sql.ErrNoRows
-	}
+	// Return empty slice if no timings found (don't return error)
 	sort.Slice(timings, func(i, j int) bool {
 		return timings[i].StartedAt.Before(timings[j].StartedAt)
 	})

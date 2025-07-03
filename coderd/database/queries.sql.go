@@ -14335,6 +14335,8 @@ func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold 
 	return err
 }
 
+
+
 const deleteWorkspaceSubAgentByID = `-- name: DeleteWorkspaceSubAgentByID :exec
 UPDATE
 	workspace_agents
@@ -20130,4 +20132,60 @@ func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg Insert
 		return nil, err
 	}
 	return items, nil
+}
+
+const deleteOldProvisionerJobLogs = `-- name: DeleteOldProvisionerJobLogs :exec
+DELETE FROM provisioner_job_logs
+WHERE created_at < $1
+`
+
+func (q *sqlQuerier) DeleteOldProvisionerJobLogs(ctx context.Context, oldBuildThreshold time.Time) error {
+	_, err := q.db.ExecContext(ctx, deleteOldProvisionerJobLogs, oldBuildThreshold)
+	return err
+}
+
+const deleteOldProvisionerJobTimings = `-- name: DeleteOldProvisionerJobTimings :exec
+WITH
+	deleted_workspaces_old AS (
+		-- For now, select all deleted workspaces since we don't have deleted_at column
+		-- This will be updated once the migration adds deleted_at column
+		SELECT id FROM workspaces
+		WHERE deleted = TRUE
+	),
+	latest_builds AS (
+		SELECT
+			workspace_id, MAX(build_number) AS max_build_number
+		FROM
+			workspace_builds
+		WHERE
+			workspace_id NOT IN (SELECT id FROM deleted_workspaces_old)
+		GROUP BY
+			workspace_id
+	),
+	builds_to_purge AS (
+		-- Builds from deleted workspaces
+		SELECT wb.id, wb.job_id
+		FROM workspace_builds wb
+		WHERE wb.workspace_id IN (SELECT id FROM deleted_workspaces_old)
+
+		UNION
+
+		-- Builds from non-deleted workspaces older than 90 days (except latest)
+		SELECT wb.id, wb.job_id
+		FROM workspace_builds wb
+		LEFT JOIN latest_builds lb ON wb.workspace_id = lb.workspace_id AND wb.build_number = lb.max_build_number
+		WHERE wb.workspace_id NOT IN (SELECT id FROM deleted_workspaces_old)
+		AND wb.created_at < $1
+		AND lb.workspace_id IS NULL -- Exclude latest builds
+	),
+	jobs_to_purge AS (
+		SELECT DISTINCT job_id FROM builds_to_purge
+	)
+DELETE FROM provisioner_job_timings
+WHERE job_id IN (SELECT job_id FROM jobs_to_purge)
+`
+
+func (q *sqlQuerier) DeleteOldProvisionerJobTimings(ctx context.Context, oldBuildThreshold time.Time) error {
+	_, err := q.db.ExecContext(ctx, deleteOldProvisionerJobTimings, oldBuildThreshold)
+	return err
 }

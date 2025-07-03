@@ -3356,3 +3356,17 @@ func (m queryMetricsStore) CountAuthorizedAuditLogs(ctx context.Context, arg dat
 	m.queryLatencies.WithLabelValues("CountAuthorizedAuditLogs").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
+
+func (m queryMetricsStore) DeleteOldProvisionerJobLogs(ctx context.Context, oldBuildThreshold time.Time) error {
+	start := time.Now()
+	err := m.s.DeleteOldProvisionerJobLogs(ctx, oldBuildThreshold)
+	m.queryLatencies.WithLabelValues("DeleteOldProvisionerJobLogs").Observe(time.Since(start).Seconds())
+	return err
+}
+
+func (m queryMetricsStore) DeleteOldProvisionerJobTimings(ctx context.Context, oldBuildThreshold time.Time) error {
+	start := time.Now()
+	err := m.s.DeleteOldProvisionerJobTimings(ctx, oldBuildThreshold)
+	m.queryLatencies.WithLabelValues("DeleteOldProvisionerJobTimings").Observe(time.Since(start).Seconds())
+	return err
+}

@@ -388,6 +388,206 @@ func mustCreateAgentLogs(ctx context.Context, t *testing.T, db database.Store, a
 }
 
 //nolint:paralleltest // It uses LockIDDBPurge.
+func TestDeleteOldProvisionerJobLogsAndTimings(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	now := dbtime.Now()
+	db, _ := dbtestutil.NewDB(t)
+
+	// Create test data
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+
+	// Create a deleted workspace
+	deletedWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+	})
+	// Mark the workspace as deleted
+	var err error
+	err = db.UpdateWorkspaceDeletedByID(ctx, database.UpdateWorkspaceDeletedByIDParams{
+		ID:      deletedWorkspace.ID,
+		Deleted: true,
+	})
+	require.NoError(t, err)
+
+	// Create a non-deleted workspace
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Deleted:        false,
+	})
+
+	// Create template version
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+
+	// Create provisioner jobs
+	oldJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		InitiatorID:    user.ID,
+		CreatedAt:      now.Add(-100 * 24 * time.Hour), // 100 days ago
+	})
+
+	recentJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		InitiatorID:    user.ID,
+		CreatedAt:      now.Add(-1 * 24 * time.Hour), // 1 day ago
+	})
+
+	deletedWorkspaceJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		InitiatorID:    user.ID,
+		CreatedAt:      now.Add(-40 * 24 * time.Hour), // 40 days ago
+	})
+
+	// Create workspace builds
+	oldBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: templateVersion.ID,
+		InitiatorID:       user.ID,
+		JobID:             oldJob.ID,
+		BuildNumber:       1,
+		CreatedAt:         now.Add(-100 * 24 * time.Hour), // 100 days ago
+	})
+
+	recentBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: templateVersion.ID,
+		InitiatorID:       user.ID,
+		JobID:             recentJob.ID,
+		BuildNumber:       2, // Latest build
+		CreatedAt:         now.Add(-1 * 24 * time.Hour), // 1 day ago
+	})
+
+	deletedWorkspaceBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       deletedWorkspace.ID,
+		TemplateVersionID: templateVersion.ID,
+		InitiatorID:       user.ID,
+		JobID:             deletedWorkspaceJob.ID,
+		BuildNumber:       1,
+		CreatedAt:         now.Add(-40 * 24 * time.Hour), // 40 days ago
+	})
+
+	// Create provisioner job logs manually
+	_, err = db.InsertProvisionerJobLogs(ctx, database.InsertProvisionerJobLogsParams{
+		JobID:     oldJob.ID,
+		CreatedAt: []time.Time{now.Add(-100 * 24 * time.Hour)},
+		Source:    []database.LogSource{database.LogSourceProvisioner},
+		Level:     []database.LogLevel{database.LogLevelInfo},
+		Stage:     []string{"old job log"},
+		Output:    []string{"old job log output"},
+	})
+	require.NoError(t, err)
+
+	_, err = db.InsertProvisionerJobLogs(ctx, database.InsertProvisionerJobLogsParams{
+		JobID:     recentJob.ID,
+		CreatedAt: []time.Time{now.Add(-1 * 24 * time.Hour)},
+		Source:    []database.LogSource{database.LogSourceProvisioner},
+		Level:     []database.LogLevel{database.LogLevelInfo},
+		Stage:     []string{"recent job log"},
+		Output:    []string{"recent job log output"},
+	})
+	require.NoError(t, err)
+
+	_, err = db.InsertProvisionerJobLogs(ctx, database.InsertProvisionerJobLogsParams{
+		JobID:     deletedWorkspaceJob.ID,
+		CreatedAt: []time.Time{now.Add(-40 * 24 * time.Hour)},
+		Source:    []database.LogSource{database.LogSourceProvisioner},
+		Level:     []database.LogLevel{database.LogLevelInfo},
+		Stage:     []string{"deleted workspace job log"},
+		Output:    []string{"deleted workspace job log output"},
+	})
+	require.NoError(t, err)
+
+	// Create provisioner job timings
+	dbgen.ProvisionerJobTimings(t, db, oldBuild, 1)
+	dbgen.ProvisionerJobTimings(t, db, recentBuild, 1)
+	dbgen.ProvisionerJobTimings(t, db, deletedWorkspaceBuild, 1)
+
+	// Verify initial state
+	allLogs, err := db.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
+		JobID:        oldJob.ID,
+		CreatedAfter: 0,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, allLogs, "old job logs must be present initially")
+
+	allTimings, err := db.GetProvisionerJobTimingsByJobID(ctx, oldJob.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, allTimings, "old job timings must be present initially")
+
+	// Debug workspace state
+	t.Logf("Workspace ID: %v, Deleted: %v", workspace.ID, workspace.Deleted)
+	t.Logf("Deleted Workspace ID: %v, Deleted: %v (should be true)", deletedWorkspace.ID, true)
+	t.Logf("Old build: ID=%v, WorkspaceID=%v, BuildNumber=%d, JobID=%v", oldBuild.ID, oldBuild.WorkspaceID, oldBuild.BuildNumber, oldBuild.JobID)
+	t.Logf("Recent build: ID=%v, WorkspaceID=%v, BuildNumber=%d, JobID=%v", recentBuild.ID, recentBuild.WorkspaceID, recentBuild.BuildNumber, recentBuild.JobID)
+	t.Logf("Deleted workspace build: ID=%v, WorkspaceID=%v, BuildNumber=%d, JobID=%v", deletedWorkspaceBuild.ID, deletedWorkspaceBuild.WorkspaceID, deletedWorkspaceBuild.BuildNumber, deletedWorkspaceBuild.JobID)
+
+	// Run purge directly to test the function
+	threshold := now.Add(-90 * 24 * time.Hour)
+	t.Logf("Purge threshold: %v", threshold)
+	t.Logf("Old build created at: %v (should be purged: %v)", oldBuild.CreatedAt, oldBuild.CreatedAt.Before(threshold))
+	t.Logf("Recent build created at: %v (should be purged: %v)", recentBuild.CreatedAt, recentBuild.CreatedAt.Before(threshold))
+
+
+	t.Logf("Executing DeleteOldProvisionerJobLogs with threshold: %v", threshold)
+	err = db.DeleteOldProvisionerJobLogs(ctx, threshold)
+	if err != nil {
+		t.Logf("DeleteOldProvisionerJobLogs error: %v", err)
+	}
+	require.NoError(t, err)
+	t.Logf("Executing DeleteOldProvisionerJobTimings with threshold: %v", threshold)
+	err = db.DeleteOldProvisionerJobTimings(ctx, threshold)
+	if err != nil {
+		t.Logf("DeleteOldProvisionerJobTimings error: %v", err)
+	}
+	require.NoError(t, err)
+
+	// Verify old build logs/timings were purged (except latest build)
+	oldLogsAfter, err := db.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
+		JobID:        oldJob.ID,
+		CreatedAfter: 0,
+	})
+	require.NoError(t, err)
+	require.Empty(t, oldLogsAfter, "old job logs should be purged")
+
+	oldTimingsAfter, err := db.GetProvisionerJobTimingsByJobID(ctx, oldJob.ID)
+	require.NoError(t, err)
+	require.Empty(t, oldTimingsAfter, "old job timings should be purged")
+
+	// Verify recent build logs/timings were NOT purged (latest build)
+	recentLogsAfter, err := db.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
+		JobID:        recentJob.ID,
+		CreatedAfter: 0,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, recentLogsAfter, "recent job logs should NOT be purged")
+
+	recentTimingsAfter, err := db.GetProvisionerJobTimingsByJobID(ctx, recentJob.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, recentTimingsAfter, "recent job timings should NOT be purged")
+
+	// Verify deleted workspace logs/timings were purged
+	deletedLogsAfter, err := db.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
+		JobID:        deletedWorkspaceJob.ID,
+		CreatedAfter: 0,
+	})
+	require.NoError(t, err)
+	require.Empty(t, deletedLogsAfter, "deleted workspace job logs should be purged")
+
+	deletedTimingsAfter, err := db.GetProvisionerJobTimingsByJobID(ctx, deletedWorkspaceJob.ID)
+	require.NoError(t, err)
+	require.Empty(t, deletedTimingsAfter, "deleted workspace job timings should be purged")
+
+	// Note: purged_at column verification would be added once the migration is applied
+	// For now, we just verify that the purge operation completed without errors
+}
+
+//nolint:paralleltest // It uses LockIDDBPurge.
 func TestDeleteOldProvisionerDaemons(t *testing.T) {
 	// TODO: must refactor DeleteOldProvisionerDaemons to allow passing in cutoff
 	//       before using quartz.NewMock

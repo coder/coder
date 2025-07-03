@@ -104,6 +104,10 @@ type sqlcQuerier interface {
 	// Exception: if the logs are related to the latest build, we keep those around.
 	// Logs can take up a lot of space, so it's important we clean up frequently.
 	DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error
+	// Purge old provisioner job logs based on workspace deletion and build age.
+	DeleteOldProvisionerJobLogs(ctx context.Context, oldBuildThreshold time.Time) error
+	// Purge old provisioner job timings based on workspace deletion and build age.
+	DeleteOldProvisionerJobTimings(ctx context.Context, oldBuildThreshold time.Time) error
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
 	DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error
 	DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error

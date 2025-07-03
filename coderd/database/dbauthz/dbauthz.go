@@ -1510,6 +1510,20 @@ func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold tim
 	return q.db.DeleteOldWorkspaceAgentLogs(ctx, threshold)
 }
 
+func (q *querier) DeleteOldProvisionerJobLogs(ctx context.Context, oldBuildThreshold time.Time) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteOldProvisionerJobLogs(ctx, oldBuildThreshold)
+}
+
+func (q *querier) DeleteOldProvisionerJobTimings(ctx context.Context, oldBuildThreshold time.Time) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteOldProvisionerJobTimings(ctx, oldBuildThreshold)
+}
+
 func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return err

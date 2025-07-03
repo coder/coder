@@ -618,6 +618,34 @@ func (mr *MockStoreMockRecorder) DeleteOldProvisionerDaemons(ctx any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldProvisionerDaemons", reflect.TypeOf((*MockStore)(nil).DeleteOldProvisionerDaemons), ctx)
 }
 
+// DeleteOldProvisionerJobLogs mocks base method.
+func (m *MockStore) DeleteOldProvisionerJobLogs(ctx context.Context, oldBuildThreshold time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldProvisionerJobLogs", ctx, oldBuildThreshold)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteOldProvisionerJobLogs indicates an expected call of DeleteOldProvisionerJobLogs.
+func (mr *MockStoreMockRecorder) DeleteOldProvisionerJobLogs(ctx, oldBuildThreshold any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldProvisionerJobLogs", reflect.TypeOf((*MockStore)(nil).DeleteOldProvisionerJobLogs), ctx, oldBuildThreshold)
+}
+
+// DeleteOldProvisionerJobTimings mocks base method.
+func (m *MockStore) DeleteOldProvisionerJobTimings(ctx context.Context, oldBuildThreshold time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldProvisionerJobTimings", ctx, oldBuildThreshold)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteOldProvisionerJobTimings indicates an expected call of DeleteOldProvisionerJobTimings.
+func (mr *MockStoreMockRecorder) DeleteOldProvisionerJobTimings(ctx, oldBuildThreshold any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldProvisionerJobTimings", reflect.TypeOf((*MockStore)(nil).DeleteOldProvisionerJobTimings), ctx, oldBuildThreshold)
+}
+
 // DeleteOldWorkspaceAgentLogs mocks base method.
 func (m *MockStore) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {
 	m.ctrl.T.Helper()
