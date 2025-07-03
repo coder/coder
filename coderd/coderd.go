@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 
 	"github.com/andybalholm/brotli"
@@ -913,9 +914,9 @@ func New(options *Options) *API {
 	}
 
 	// OAuth2 metadata endpoint for RFC 8414 discovery
-	r.Get("/.well-known/oauth-authorization-server", api.oauth2AuthorizationServerMetadata)
+	r.Get("/.well-known/oauth-authorization-server", api.oauth2AuthorizationServerMetadata())
 	// OAuth2 protected resource metadata endpoint for RFC 9728 discovery
-	r.Get("/.well-known/oauth-protected-resource", api.oauth2ProtectedResourceMetadata)
+	r.Get("/.well-known/oauth-protected-resource", api.oauth2ProtectedResourceMetadata())
 
 	// OAuth2 linking routes do not make sense under the /api/v2 path.  These are
 	// for an external application to use Coder as an OAuth2 provider, not for
@@ -952,17 +953,17 @@ func New(options *Options) *API {
 		})
 
 		// RFC 7591 Dynamic Client Registration - Public endpoint
-		r.Post("/register", api.postOAuth2ClientRegistration)
+		r.Post("/register", api.postOAuth2ClientRegistration())
 
 		// RFC 7592 Client Configuration Management - Protected by registration access token
 		r.Route("/clients/{client_id}", func(r chi.Router) {
 			r.Use(
 				// Middleware to validate registration access token
-				api.requireRegistrationAccessToken,
+				oauth2provider.RequireRegistrationAccessToken(api.Database),
 			)
-			r.Get("/", api.oauth2ClientConfiguration)          // Read client configuration
-			r.Put("/", api.putOAuth2ClientConfiguration)       // Update client configuration
-			r.Delete("/", api.deleteOAuth2ClientConfiguration) // Delete client
+			r.Get("/", api.oauth2ClientConfiguration())          // Read client configuration
+			r.Put("/", api.putOAuth2ClientConfiguration())       // Update client configuration
+			r.Delete("/", api.deleteOAuth2ClientConfiguration()) // Delete client
 		})
 	})
 
@@ -1479,22 +1480,22 @@ func New(options *Options) *API {
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2),
 			)
 			r.Route("/apps", func(r chi.Router) {
-				r.Get("/", api.oAuth2ProviderApps)
-				r.Post("/", api.postOAuth2ProviderApp)
+				r.Get("/", api.oAuth2ProviderApps())
+				r.Post("/", api.postOAuth2ProviderApp())
 
 				r.Route("/{app}", func(r chi.Router) {
 					r.Use(httpmw.ExtractOAuth2ProviderApp(options.Database))
-					r.Get("/", api.oAuth2ProviderApp)
-					r.Put("/", api.putOAuth2ProviderApp)
-					r.Delete("/", api.deleteOAuth2ProviderApp)
+					r.Get("/", api.oAuth2ProviderApp())
+					r.Put("/", api.putOAuth2ProviderApp())
+					r.Delete("/", api.deleteOAuth2ProviderApp())
 
 					r.Route("/secrets", func(r chi.Router) {
-						r.Get("/", api.oAuth2ProviderAppSecrets)
-						r.Post("/", api.postOAuth2ProviderAppSecret)
+						r.Get("/", api.oAuth2ProviderAppSecrets())
+						r.Post("/", api.postOAuth2ProviderAppSecret())
 
 						r.Route("/{secretID}", func(r chi.Router) {
 							r.Use(httpmw.ExtractOAuth2ProviderAppSecret(options.Database))
-							r.Delete("/", api.deleteOAuth2ProviderAppSecret)
+							r.Delete("/", api.deleteOAuth2ProviderAppSecret())
 						})
 					})
 				})
