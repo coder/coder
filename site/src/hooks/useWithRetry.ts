@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const MAX_ATTEMPTS = 10;
 const DELAY_MS = 1_000;
 const MAX_DELAY_MS = 600_000; // 10 minutes
 // Determines how much the delay between retry attempts increases after each
@@ -49,31 +48,21 @@ export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
 				await fn();
 				setState({ isLoading: false, retryAt: undefined, attemptCount: 0 });
 			} catch (error) {
-				// Since attempts start from 0, we need to add +1 to make the condition work
-				// This ensures exactly MAX_ATTEMPTS total attempts (attempt 0, 1, 2, ..., 9)
-				if (attempt + 1 < MAX_ATTEMPTS) {
-					const delayMs = Math.min(
-						DELAY_MS * MULTIPLIER ** attempt,
-						MAX_DELAY_MS,
-					);
+				const delayMs = Math.min(
+					DELAY_MS * MULTIPLIER ** attempt,
+					MAX_DELAY_MS,
+				);
 
-					setState((prev) => ({
-						...prev,
-						isLoading: false,
-						retryAt: new Date(Date.now() + delayMs),
-					}));
+				setState((prev) => ({
+					...prev,
+					isLoading: false,
+					retryAt: new Date(Date.now() + delayMs),
+				}));
 
-					timeoutRef.current = window.setTimeout(() => {
-						setState((prev) => ({ ...prev, retryAt: undefined }));
-						executeAttempt(attempt + 1);
-					}, delayMs);
-				} else {
-					setState((prev) => ({
-						...prev,
-						isLoading: false,
-						retryAt: undefined,
-					}));
-				}
+				timeoutRef.current = window.setTimeout(() => {
+					setState((prev) => ({ ...prev, retryAt: undefined }));
+					executeAttempt(attempt + 1);
+				}, delayMs);
 			}
 		};
 
