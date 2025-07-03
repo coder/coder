@@ -48,6 +48,7 @@ import { ExternalLinkIcon, FileIcon, StarIcon } from "lucide-react";
 import { EllipsisVertical } from "lucide-react";
 import {
 	BanIcon,
+	CloudIcon,
 	PlayIcon,
 	RefreshCcwIcon,
 	SquareIcon,
@@ -557,6 +558,45 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 							onClick={workspaceUpdate.update}
 							isLoading={workspaceUpdate.isUpdating}
 							label="Update and start workspace"
+						>
+							<CloudIcon />
+						</PrimaryAction>
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+					</>
+				)}
+
+				{abilities.actions.includes("updateAndStartRequireActiveVersion") && (
+					<>
+						<PrimaryAction
+							onClick={workspaceUpdate.update}
+							isLoading={workspaceUpdate.isUpdating}
+							label="This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version."
+						>
+							<PlayIcon />
+						</PrimaryAction>
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+					</>
+				)}
+
+				{abilities.actions.includes("updateAndRestart") && (
+					<>
+						<PrimaryAction
+							onClick={workspaceUpdate.update}
+							isLoading={workspaceUpdate.isUpdating}
+							label="Update and restart workspace"
+						>
+							<CloudIcon />
+						</PrimaryAction>
+						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+					</>
+				)}
+
+				{abilities.actions.includes("updateAndRestartRequireActiveVersion") && (
+					<>
+						<PrimaryAction
+							onClick={workspaceUpdate.update}
+							isLoading={workspaceUpdate.isUpdating}
+							label="This template requires automatic updates on workspace restart. Contact your administrator if you want to preserve the template version."
 						>
 							<PlayIcon />
 						</PrimaryAction>

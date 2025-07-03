@@ -242,7 +242,8 @@ CREATE TYPE resource_type AS ENUM (
     'idp_sync_settings_group',
     'idp_sync_settings_role',
     'workspace_agent',
-    'workspace_app'
+    'workspace_app',
+    'prebuilds_settings'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -822,32 +823,6 @@ CREATE TABLE audit_logs (
     resource_icon text NOT NULL
 );
 
-CREATE TABLE chat_messages (
-    id bigint NOT NULL,
-    chat_id uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    model text NOT NULL,
-    provider text NOT NULL,
-    content jsonb NOT NULL
-);
-
-CREATE SEQUENCE chat_messages_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-ALTER SEQUENCE chat_messages_id_seq OWNED BY chat_messages.id;
-
-CREATE TABLE chats (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    owner_id uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    title text NOT NULL
-);
-
 CREATE TABLE crypto_keys (
     feature crypto_key_feature NOT NULL,
     sequence integer NOT NULL,
@@ -1130,10 +1105,19 @@ CREATE TABLE oauth2_provider_app_codes (
     secret_prefix bytea NOT NULL,
     hashed_secret bytea NOT NULL,
     user_id uuid NOT NULL,
-    app_id uuid NOT NULL
+    app_id uuid NOT NULL,
+    resource_uri text,
+    code_challenge text,
+    code_challenge_method text
 );
 
 COMMENT ON TABLE oauth2_provider_app_codes IS 'Codes are meant to be exchanged for access tokens.';
+
+COMMENT ON COLUMN oauth2_provider_app_codes.resource_uri IS 'RFC 8707 resource parameter for audience restriction';
+
+COMMENT ON COLUMN oauth2_provider_app_codes.code_challenge IS 'PKCE code challenge for public clients';
+
+COMMENT ON COLUMN oauth2_provider_app_codes.code_challenge_method IS 'PKCE challenge method (S256)';
 
 CREATE TABLE oauth2_provider_app_secrets (
     id uuid NOT NULL,
@@ -1154,10 +1138,16 @@ CREATE TABLE oauth2_provider_app_tokens (
     hash_prefix bytea NOT NULL,
     refresh_hash bytea NOT NULL,
     app_secret_id uuid NOT NULL,
-    api_key_id text NOT NULL
+    api_key_id text NOT NULL,
+    audience text,
+    user_id uuid NOT NULL
 );
 
 COMMENT ON COLUMN oauth2_provider_app_tokens.refresh_hash IS 'Refresh tokens provide a way to refresh an access token (API key). An expired API key can be refreshed if this token is not yet expired, meaning this expiry can outlive an API key.';
+
+COMMENT ON COLUMN oauth2_provider_app_tokens.audience IS 'Token audience binding from resource parameter';
+
+COMMENT ON COLUMN oauth2_provider_app_tokens.user_id IS 'Denormalized user ID for performance optimization in authorization checks';
 
 CREATE TABLE oauth2_provider_apps (
     id uuid NOT NULL,
@@ -1165,10 +1155,19 @@ CREATE TABLE oauth2_provider_apps (
     updated_at timestamp with time zone NOT NULL,
     name character varying(64) NOT NULL,
     icon character varying(256) NOT NULL,
-    callback_url text NOT NULL
+    callback_url text NOT NULL,
+    redirect_uris text[],
+    client_type text DEFAULT 'confidential'::text,
+    dynamically_registered boolean DEFAULT false
 );
 
 COMMENT ON TABLE oauth2_provider_apps IS 'A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.';
+
+COMMENT ON COLUMN oauth2_provider_apps.redirect_uris IS 'List of valid redirect URIs for the application';
+
+COMMENT ON COLUMN oauth2_provider_apps.client_type IS 'OAuth2 client type: confidential or public';
+
+COMMENT ON COLUMN oauth2_provider_apps.dynamically_registered IS 'Whether this app was created via dynamic client registration';
 
 CREATE TABLE organizations (
     id uuid NOT NULL,
@@ -1513,7 +1512,8 @@ CREATE TABLE template_version_presets (
     desired_instances integer,
     invalidate_after_secs integer DEFAULT 0,
     prebuild_status prebuild_status DEFAULT 'healthy'::prebuild_status NOT NULL,
-    scheduling_timezone text DEFAULT ''::text NOT NULL
+    scheduling_timezone text DEFAULT ''::text NOT NULL,
+    is_default boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE template_version_terraform_values (
@@ -2098,7 +2098,8 @@ CREATE TABLE workspace_builds (
     max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     template_version_preset_id uuid,
     has_ai_task boolean,
-    ai_tasks_sidebar_app_id uuid
+    ai_task_sidebar_app_id uuid,
+    CONSTRAINT workspace_builds_ai_task_sidebar_app_id_required CHECK (((((has_ai_task IS NULL) OR (has_ai_task = false)) AND (ai_task_sidebar_app_id IS NULL)) OR ((has_ai_task = true) AND (ai_task_sidebar_app_id IS NOT NULL))))
 );
 
 CREATE VIEW workspace_build_with_user AS
@@ -2118,7 +2119,7 @@ CREATE VIEW workspace_build_with_user AS
     workspace_builds.max_deadline,
     workspace_builds.template_version_preset_id,
     workspace_builds.has_ai_task,
-    workspace_builds.ai_tasks_sidebar_app_id,
+    workspace_builds.ai_task_sidebar_app_id,
     COALESCE(visible_users.avatar_url, ''::text) AS initiator_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS initiator_by_username,
     COALESCE(visible_users.name, ''::text) AS initiator_by_name
@@ -2340,8 +2341,6 @@ CREATE VIEW workspaces_expanded AS
 
 COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name.';
 
-ALTER TABLE ONLY chat_messages ALTER COLUMN id SET DEFAULT nextval('chat_messages_id_seq'::regclass);
-
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
 ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provisioner_job_logs_id_seq'::regclass);
@@ -2362,12 +2361,6 @@ ALTER TABLE ONLY api_keys
 
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY chat_messages
-    ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY chats
-    ADD CONSTRAINT chats_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_pkey PRIMARY KEY (feature, sequence);
@@ -2690,6 +2683,8 @@ CREATE INDEX idx_tailnet_tunnels_dst_id ON tailnet_tunnels USING hash (dst_id);
 
 CREATE INDEX idx_tailnet_tunnels_src_id ON tailnet_tunnels USING hash (src_id);
 
+CREATE UNIQUE INDEX idx_template_version_presets_default ON template_version_presets USING btree (template_version_id) WHERE (is_default = true);
+
 CREATE INDEX idx_template_versions_has_ai_task ON template_versions USING btree (has_ai_task);
 
 CREATE UNIQUE INDEX idx_unique_preset_name ON template_version_presets USING btree (name, template_version_id);
@@ -2863,14 +2858,11 @@ forward without requiring a migration to clean up historical data.';
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY chat_messages
-    ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY chats
-    ADD CONSTRAINT chats_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
-
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY oauth2_provider_app_tokens
+    ADD CONSTRAINT fk_oauth2_provider_app_tokens_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY external_auth_links
     ADD CONSTRAINT git_auth_links_oauth_access_token_key_id_fkey FOREIGN KEY (oauth_access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
@@ -3092,7 +3084,7 @@ ALTER TABLE ONLY workspace_build_parameters
     ADD CONSTRAINT workspace_build_parameters_workspace_build_id_fkey FOREIGN KEY (workspace_build_id) REFERENCES workspace_builds(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_builds
-    ADD CONSTRAINT workspace_builds_ai_tasks_sidebar_app_id_fkey FOREIGN KEY (ai_tasks_sidebar_app_id) REFERENCES workspace_apps(id);
+    ADD CONSTRAINT workspace_builds_ai_task_sidebar_app_id_fkey FOREIGN KEY (ai_task_sidebar_app_id) REFERENCES workspace_apps(id);
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;

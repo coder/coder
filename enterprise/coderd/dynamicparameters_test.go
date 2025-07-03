@@ -302,6 +302,57 @@ func TestDynamicParameterBuild(t *testing.T) {
 			require.ErrorContains(t, err, "Number must be between 0 and 10")
 		})
 	})
+
+	t.Run("ImmutableValidation", func(t *testing.T) {
+		t.Parallel()
+
+		// NewImmutable tests the case where a new immutable parameter is added to a template
+		// after a workspace has been created with an older version of the template.
+		// The test tries to delete the workspace, which should succeed.
+		t.Run("NewImmutable", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			// Start with a new template that has 0 parameters
+			empty, _ := coderdtest.DynamicParameterTemplate(t, templateAdmin, orgID, coderdtest.DynamicParameterTemplateParams{
+				MainTF: string(must(os.ReadFile("testdata/parameters/none/main.tf"))),
+			})
+
+			// Create the workspace with 0 parameters
+			wrk, err := templateAdmin.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+				TemplateID:          empty.ID,
+				Name:                coderdtest.RandomUsername(t),
+				RichParameterValues: []codersdk.WorkspaceBuildParameter{},
+			})
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, wrk.LatestBuild.ID)
+
+			// Update the template with a new immutable parameter
+			_, immutable := coderdtest.DynamicParameterTemplate(t, templateAdmin, orgID, coderdtest.DynamicParameterTemplateParams{
+				MainTF:     string(must(os.ReadFile("testdata/parameters/immutable/main.tf"))),
+				TemplateID: empty.ID,
+			})
+
+			bld, err := templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+				TemplateVersionID: immutable.ID, // Use the new template version with the immutable parameter
+				Transition:        codersdk.WorkspaceTransitionDelete,
+				DryRun:            false,
+			})
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, bld.ID)
+
+			// Verify the immutable parameter is set on the workspace build
+			params, err := templateAdmin.WorkspaceBuildParameters(ctx, bld.ID)
+			require.NoError(t, err)
+			require.Len(t, params, 1)
+			require.Equal(t, "Hello World", params[0].Value)
+
+			// Verify the workspace is deleted
+			deleted, err := templateAdmin.DeletedWorkspace(ctx, wrk.ID)
+			require.NoError(t, err)
+			require.Equal(t, wrk.ID, deleted.ID, "workspace should be deleted")
+		})
+	})
 }
 
 // TestDynamicParameterTemplate uses a template with some dynamic elements, and

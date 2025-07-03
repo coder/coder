@@ -151,26 +151,28 @@ func (q *querier) authorizeContext(ctx context.Context, action policy.Action, ob
 
 // authorizePrebuiltWorkspace handles authorization for workspace resource types.
 // prebuilt_workspaces are a subset of workspaces, currently limited to
-// supporting delete operations. Therefore, if the action is delete or
-// update and the workspace is a prebuild, a prebuilt-specific authorization
-// is attempted first. If that fails, it falls back to normal workspace
-// authorization.
+// supporting delete operations. This function first attempts normal workspace
+// authorization. If that fails, the action is delete or update and the workspace
+// is a prebuild, a prebuilt-specific authorization is attempted.
 // Note: Delete operations of workspaces requires both update and delete
 // permissions.
 func (q *querier) authorizePrebuiltWorkspace(ctx context.Context, action policy.Action, workspace database.Workspace) error {
-	var prebuiltErr error
-	// Special handling for prebuilt_workspace deletion authorization check
+	// Try default workspace authorization first
+	var workspaceErr error
+	if workspaceErr = q.authorizeContext(ctx, action, workspace); workspaceErr == nil {
+		return nil
+	}
+
+	// Special handling for prebuilt workspace deletion
 	if (action == policy.ActionUpdate || action == policy.ActionDelete) && workspace.IsPrebuild() {
-		// Try prebuilt-specific authorization first
+		var prebuiltErr error
 		if prebuiltErr = q.authorizeContext(ctx, action, workspace.AsPrebuild()); prebuiltErr == nil {
 			return nil
 		}
+		return xerrors.Errorf("authorize context failed for workspace (%v) and prebuilt (%w)", workspaceErr, prebuiltErr)
 	}
-	// Fallback to normal workspace authorization check
-	if err := q.authorizeContext(ctx, action, workspace); err != nil {
-		return xerrors.Errorf("authorize context: %w", errors.Join(prebuiltErr, err))
-	}
-	return nil
+
+	return xerrors.Errorf("authorize context: %w", workspaceErr)
 }
 
 type authContextKey struct{}
@@ -228,6 +230,8 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "autostart"},
 				DisplayName: "Autostart Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceOrganizationMember.Type:  {policy.ActionRead},
+					rbac.ResourceFile.Type:                {policy.ActionRead}, // Required to read terraform files
 					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceSystem.Type:              {policy.WildcardSymbol},
 					rbac.ResourceTemplate.Type:            {policy.ActionRead, policy.ActionUpdate},
@@ -443,6 +447,7 @@ var (
 					},
 					// Should be able to add the prebuilds system user as a member to any organization that needs prebuilds.
 					rbac.ResourceOrganizationMember.Type: {
+						policy.ActionRead,
 						policy.ActionCreate,
 					},
 					// Needs to be able to assign roles to the system user in order to make it a member of an organization.
@@ -454,6 +459,10 @@ var (
 						policy.ActionRead,
 					},
 					rbac.ResourceOrganization.Type: {
+						policy.ActionRead,
+					},
+					// Required to read the terraform files of a template
+					rbac.ResourceFile.Type: {
 						policy.ActionRead,
 					},
 				}),
@@ -1292,6 +1301,22 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 	return q.db.CleanTailnetTunnels(ctx)
 }
 
+func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
+	// Shortcut if the user is an owner. The SQL filter is noticeable,
+	// and this is an easy win for owners. Which is the common case.
+	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog)
+	if err == nil {
+		return q.db.CountAuditLogs(ctx, arg)
+	}
+
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAuditLog.Type)
+	if err != nil {
+		return 0, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+
+	return q.db.CountAuthorizedAuditLogs(ctx, arg, prep)
+}
+
 func (q *querier) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
 		return nil, err
@@ -1362,10 +1387,6 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 		return err
 	}
 	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
-}
-
-func (q *querier) DeleteChat(ctx context.Context, id uuid.UUID) error {
-	return deleteQ(q.log, q.auth, q.db.GetChatByID, q.db.DeleteChat)(ctx, id)
 }
 
 func (q *querier) DeleteCoordinator(ctx context.Context, id uuid.UUID) error {
@@ -1805,22 +1826,6 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
 }
 
-func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
-	return fetch(q.log, q.auth, q.db.GetChatByID)(ctx, id)
-}
-
-func (q *querier) GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
-	c, err := q.GetChatByID(ctx, chatID)
-	if err != nil {
-		return nil, err
-	}
-	return q.db.GetChatMessagesByChatID(ctx, c.ID)
-}
-
-func (q *querier) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.Chat, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByOwnerID)(ctx, ownerID)
-}
-
 func (q *querier) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return "", err
@@ -2176,19 +2181,29 @@ func (q *querier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, appID 
 	return q.db.GetOAuth2ProviderAppSecretsByAppID(ctx, appID)
 }
 
+func (q *querier) GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, apiKeyID string) (database.OAuth2ProviderAppToken, error) {
+	token, err := q.db.GetOAuth2ProviderAppTokenByAPIKeyID(ctx, apiKeyID)
+	if err != nil {
+		return database.OAuth2ProviderAppToken{}, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, token.RBACObject()); err != nil {
+		return database.OAuth2ProviderAppToken{}, err
+	}
+
+	return token, nil
+}
+
 func (q *querier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (database.OAuth2ProviderAppToken, error) {
 	token, err := q.db.GetOAuth2ProviderAppTokenByPrefix(ctx, hashPrefix)
 	if err != nil {
 		return database.OAuth2ProviderAppToken{}, err
 	}
-	// The user ID is on the API key so that has to be fetched.
-	key, err := q.db.GetAPIKeyByID(ctx, token.APIKeyID)
-	if err != nil {
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, token.RBACObject()); err != nil {
 		return database.OAuth2ProviderAppToken{}, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2AppCodeToken.WithOwner(key.UserID.String())); err != nil {
-		return database.OAuth2ProviderAppToken{}, err
-	}
+
 	return token, nil
 }
 
@@ -2297,6 +2312,10 @@ func (q *querier) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuil
 		return nil, err
 	}
 	return q.db.GetPrebuildMetrics(ctx)
+}
+
+func (q *querier) GetPrebuildsSettings(ctx context.Context) (string, error) {
+	return q.db.GetPrebuildsSettings(ctx)
 }
 
 func (q *querier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
@@ -3281,6 +3300,15 @@ func (q *querier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuil
 	return q.db.GetWorkspaceBuildParameters(ctx, workspaceBuildID)
 }
 
+func (q *querier) GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIDs []uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceWorkspace.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+
+	return q.db.GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx, workspaceBuildIDs, prep)
+}
+
 func (q *querier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -3507,21 +3535,6 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 	return insert(q.log, q.auth, rbac.ResourceAuditLog, q.db.InsertAuditLog)(ctx, arg)
 }
 
-func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
-	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()), q.db.InsertChat)(ctx, arg)
-}
-
-func (q *querier) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
-	c, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return nil, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, c); err != nil {
-		return nil, err
-	}
-	return q.db.InsertChatMessages(ctx, arg)
-}
-
 func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -3647,11 +3660,7 @@ func (q *querier) InsertOAuth2ProviderAppSecret(ctx context.Context, arg databas
 }
 
 func (q *querier) InsertOAuth2ProviderAppToken(ctx context.Context, arg database.InsertOAuth2ProviderAppTokenParams) (database.OAuth2ProviderAppToken, error) {
-	key, err := q.db.GetAPIKeyByID(ctx, arg.APIKeyID)
-	if err != nil {
-		return database.OAuth2ProviderAppToken{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceOauth2AppCodeToken.WithOwner(key.UserID.String())); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceOauth2AppCodeToken.WithOwner(arg.UserID.String())); err != nil {
 		return database.OAuth2ProviderAppToken{}, err
 	}
 	return q.db.InsertOAuth2ProviderAppToken(ctx, arg)
@@ -3938,23 +3947,6 @@ func (q *querier) InsertWorkspaceAgentStats(ctx context.Context, arg database.In
 	return q.db.InsertWorkspaceAgentStats(ctx, arg)
 }
 
-func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
-	// NOTE(DanielleMaywood):
-	// It is possible for there to exist an agent without a workspace.
-	// This means that we want to allow execution to continue if
-	// there isn't a workspace found to allow this behavior to continue.
-	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.AgentID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return database.WorkspaceApp{}, err
-	}
-
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
-		return database.WorkspaceApp{}, err
-	}
-
-	return q.db.InsertWorkspaceApp(ctx, arg)
-}
-
 func (q *querier) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return err
@@ -4198,13 +4190,6 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 		return q.db.GetAPIKeyByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateAPIKeyByID)(ctx, arg)
-}
-
-func (q *querier) UpdateChatByID(ctx context.Context, arg database.UpdateChatByIDParams) error {
-	fetch := func(ctx context.Context, arg database.UpdateChatByIDParams) (database.Chat, error) {
-		return q.db.GetChatByID(ctx, arg.ID)
-	}
-	return update(q.log, q.auth, fetch, q.db.UpdateChatByID)(ctx, arg)
 }
 
 func (q *querier) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {
@@ -4533,6 +4518,28 @@ func (q *querier) UpdateTemplateScheduleByID(ctx context.Context, arg database.U
 		return q.db.GetTemplateByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateTemplateScheduleByID)(ctx, arg)
+}
+
+func (q *querier) UpdateTemplateVersionAITaskByJobID(ctx context.Context, arg database.UpdateTemplateVersionAITaskByJobIDParams) error {
+	// An actor is allowed to update the template version AI task flag if they are authorized to update the template.
+	tv, err := q.db.GetTemplateVersionByJobID(ctx, arg.JobID)
+	if err != nil {
+		return err
+	}
+	var obj rbac.Objecter
+	if !tv.TemplateID.Valid {
+		obj = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
+	} else {
+		tpl, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+		if err != nil {
+			return err
+		}
+		obj = tpl
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
+		return err
+	}
+	return q.db.UpdateTemplateVersionAITaskByJobID(ctx, arg)
 }
 
 func (q *querier) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) error {
@@ -4891,6 +4898,24 @@ func (q *querier) UpdateWorkspaceAutostart(ctx context.Context, arg database.Upd
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceAutostart)(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceBuildAITaskByID(ctx context.Context, arg database.UpdateWorkspaceBuildAITaskByIDParams) error {
+	build, err := q.db.GetWorkspaceBuildByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	workspace, err := q.db.GetWorkspaceByID(ctx, build.WorkspaceID)
+	if err != nil {
+		return err
+	}
+
+	err = q.authorizeContext(ctx, policy.ActionUpdate, workspace.RBACObject())
+	if err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceBuildAITaskByID(ctx, arg)
+}
+
 // UpdateWorkspaceBuildCostByID is used by the provisioning system to update the cost of a workspace build.
 func (q *querier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
@@ -5086,6 +5111,13 @@ func (q *querier) UpsertOAuthSigningKey(ctx context.Context, value string) error
 	return q.db.UpsertOAuthSigningKey(ctx, value)
 }
 
+func (q *querier) UpsertPrebuildsSettings(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertPrebuildsSettings(ctx, value)
+}
+
 func (q *querier) UpsertProvisionerDaemon(ctx context.Context, arg database.UpsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
 	res := rbac.ResourceProvisionerDaemon.InOrg(arg.OrganizationID)
 	if arg.Tags[provisionersdk.TagScope] == provisionersdk.ScopeUser {
@@ -5181,6 +5213,23 @@ func (q *querier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg databas
 	return q.db.UpsertWorkspaceAgentPortShare(ctx, arg)
 }
 
+func (q *querier) UpsertWorkspaceApp(ctx context.Context, arg database.UpsertWorkspaceAppParams) (database.WorkspaceApp, error) {
+	// NOTE(DanielleMaywood):
+	// It is possible for there to exist an agent without a workspace.
+	// This means that we want to allow execution to continue if
+	// there isn't a workspace found to allow this behavior to continue.
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.AgentID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return database.WorkspaceApp{}, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
+		return database.WorkspaceApp{}, err
+	}
+
+	return q.db.UpsertWorkspaceApp(ctx, arg)
+}
+
 func (q *querier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (bool, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return false, err
@@ -5226,6 +5275,10 @@ func (q *querier) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Context,
 	return q.GetWorkspacesAndAgentsByOwnerID(ctx, ownerID)
 }
 
+func (q *querier) GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIDs []uuid.UUID, _ rbac.PreparedAuthorized) ([]database.WorkspaceBuildParameter, error) {
+	return q.GetWorkspaceBuildParametersByBuildIDs(ctx, workspaceBuildIDs)
+}
+
 // GetAuthorizedUsers is not required for dbauthz since GetUsers is already
 // authenticated.
 func (q *querier) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersParams, _ rbac.PreparedAuthorized) ([]database.GetUsersRow, error) {
@@ -5235,4 +5288,8 @@ func (q *querier) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersP
 
 func (q *querier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams, _ rbac.PreparedAuthorized) ([]database.GetAuditLogsOffsetRow, error) {
 	return q.GetAuditLogsOffset(ctx, arg)
+}
+
+func (q *querier) CountAuthorizedAuditLogs(ctx context.Context, arg database.CountAuditLogsParams, _ rbac.PreparedAuthorized) (int64, error) {
+	return q.CountAuditLogs(ctx, arg)
 }

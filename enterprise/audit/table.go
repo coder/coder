@@ -195,7 +195,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"initiator_by_name":          ActionIgnore,
 		"template_version_preset_id": ActionIgnore, // Never changes.
 		"has_ai_task":                ActionIgnore, // Never changes.
-		"ai_tasks_sidebar_app_id":    ActionIgnore, // Never changes.
+		"ai_task_sidebar_app_id":     ActionIgnore, // Never changes.
 	},
 	&database.AuditableGroup{}: {
 		"id":              ActionTrack,
@@ -236,6 +236,10 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"id":              ActionIgnore,
 		"notifier_paused": ActionTrack,
 	},
+	&database.PrebuildsSettings{}: {
+		"id":                    ActionIgnore,
+		"reconciliation_paused": ActionTrack,
+	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012
 	&database.License{}: {
@@ -262,12 +266,15 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"version":             ActionTrack,
 	},
 	&database.OAuth2ProviderApp{}: {
-		"id":           ActionIgnore,
-		"created_at":   ActionIgnore,
-		"updated_at":   ActionIgnore,
-		"name":         ActionTrack,
-		"icon":         ActionTrack,
-		"callback_url": ActionTrack,
+		"id":                     ActionIgnore,
+		"created_at":             ActionIgnore,
+		"updated_at":             ActionIgnore,
+		"name":                   ActionTrack,
+		"icon":                   ActionTrack,
+		"callback_url":           ActionTrack,
+		"redirect_uris":          ActionTrack,
+		"client_type":            ActionTrack,
+		"dynamically_registered": ActionTrack,
 	},
 	&database.OAuth2ProviderAppSecret{}: {
 		"id":             ActionIgnore,

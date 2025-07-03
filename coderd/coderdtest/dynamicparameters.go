@@ -22,6 +22,9 @@ type DynamicParameterTemplateParams struct {
 
 	// StaticParams is used if the provisioner daemon version does not support dynamic parameters.
 	StaticParams []*proto.RichParameter
+
+	// TemplateID is used to update an existing template instead of creating a new one.
+	TemplateID uuid.UUID
 }
 
 func DynamicParameterTemplate(t *testing.T, client *codersdk.Client, org uuid.UUID, args DynamicParameterTemplateParams) (codersdk.Template, codersdk.TemplateVersion) {
@@ -40,15 +43,32 @@ func DynamicParameterTemplate(t *testing.T, client *codersdk.Client, org uuid.UU
 		},
 	}}
 
-	version := CreateTemplateVersion(t, client, org, files)
+	version := CreateTemplateVersion(t, client, org, files, func(request *codersdk.CreateTemplateVersionRequest) {
+		if args.TemplateID != uuid.Nil {
+			request.TemplateID = args.TemplateID
+		}
+	})
 	AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	tpl := CreateTemplate(t, client, org, version.ID)
 
+	var tpl codersdk.Template
 	var err error
-	tpl, err = client.UpdateTemplateMeta(t.Context(), tpl.ID, codersdk.UpdateTemplateMeta{
-		UseClassicParameterFlow: ptr.Ref(false),
+
+	if args.TemplateID == uuid.Nil {
+		tpl = CreateTemplate(t, client, org, version.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.UseClassicParameterFlow = ptr.Ref(false)
+		})
+	} else {
+		tpl, err = client.UpdateTemplateMeta(t.Context(), args.TemplateID, codersdk.UpdateTemplateMeta{
+			UseClassicParameterFlow: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+	}
+
+	err = client.UpdateActiveTemplateVersion(t.Context(), tpl.ID, codersdk.UpdateActiveTemplateVersion{
+		ID: version.ID,
 	})
 	require.NoError(t, err)
+	require.Equal(t, tpl.UseClassicParameterFlow, false, "template should use dynamic parameters")
 
 	return tpl, version
 }

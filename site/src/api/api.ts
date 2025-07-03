@@ -411,7 +411,11 @@ export type GetProvisionerDaemonsParams = {
  * lexical scope.
  */
 class ApiMethods {
-	constructor(protected readonly axios: AxiosInstance) {}
+	experimental: ExperimentalApiMethods;
+
+	constructor(protected readonly axios: AxiosInstance) {
+		this.experimental = new ExperimentalApiMethods(this.axios);
+	}
 
 	login = async (
 		email: string,
@@ -810,13 +814,6 @@ class ApiMethods {
 		params.set("claimField", field);
 		const response = await this.axios.get<readonly string[]>(
 			`/api/v2/settings/idpsync/field-values?${params}`,
-		);
-		return response.data;
-	};
-
-	getDeploymentLLMs = async (): Promise<TypesGen.LanguageModelConfig> => {
-		const response = await this.axios.get<TypesGen.LanguageModelConfig>(
-			"/api/v2/deployment/llms",
 		);
 		return response.data;
 	};
@@ -1240,7 +1237,7 @@ class ApiMethods {
 
 	getTemplateVersionPresets = async (
 		templateVersionId: string,
-	): Promise<TypesGen.Preset[]> => {
+	): Promise<TypesGen.Preset[] | null> => {
 		const response = await this.axios.get<TypesGen.Preset[]>(
 			`/api/v2/templateversions/${templateVersionId}/presets`,
 		);
@@ -2580,22 +2577,35 @@ class ApiMethods {
 	markAllInboxNotificationsAsRead = async () => {
 		await this.axios.put<void>("/api/v2/notifications/inbox/mark-all-as-read");
 	};
+}
 
-	createChat = async () => {
-		const res = await this.axios.post<TypesGen.Chat>("/api/v2/chats");
-		return res.data;
-	};
+// Experimental API methods call endpoints under the /api/experimental/ prefix.
+// These endpoints are not stable and may change or be removed at any time.
+//
+// All methods must be defined with arrow function syntax. See the docstring
+// above the ApiMethods class for a full explanation.
+class ExperimentalApiMethods {
+	constructor(protected readonly axios: AxiosInstance) {}
 
-	getChats = async () => {
-		const res = await this.axios.get<TypesGen.Chat[]>("/api/v2/chats");
-		return res.data;
-	};
+	getAITasksPrompts = async (
+		buildIds: TypesGen.WorkspaceBuild["id"][],
+	): Promise<TypesGen.AITasksPromptsResponse> => {
+		if (buildIds.length === 0) {
+			return {
+				prompts: {},
+			};
+		}
 
-	getChatMessages = async (chatId: string) => {
-		const res = await this.axios.get<TypesGen.ChatMessage[]>(
-			`/api/v2/chats/${chatId}/messages`,
+		const response = await this.axios.get<TypesGen.AITasksPromptsResponse>(
+			"/api/experimental/aitasks/prompts",
+			{
+				params: {
+					build_ids: buildIds.join(","),
+				},
+			},
 		);
-		return res.data;
+
+		return response.data;
 	};
 }
 

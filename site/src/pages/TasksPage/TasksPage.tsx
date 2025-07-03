@@ -1,12 +1,13 @@
+import Skeleton from "@mui/material/Skeleton";
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { disabledRefetchOptions } from "api/queries/util";
-import type { Template } from "api/typesGenerated";
+import type { Template, TemplateVersionExternalAuth } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
+import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { Button } from "components/Button/Button";
-import { Form, FormFields, FormSection } from "components/Form/Form";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Margins } from "components/Margins/Margins";
 import {
@@ -30,21 +31,32 @@ import {
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
+import {
+	TableLoaderSkeleton,
+	TableRowSkeleton,
+} from "components/TableLoader/TableLoader";
 
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import { useExternalAuth } from "hooks/useExternalAuth";
-import { ExternalLinkIcon, RotateCcwIcon, SendIcon } from "lucide-react";
+import { RedoIcon, RotateCcwIcon, SendIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { type FC, type ReactNode, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import TextareaAutosize from "react-textarea-autosize";
 import { pageTitle } from "utils/page";
 import { relativeTime } from "utils/time";
-import { ExternalAuthButton } from "../CreateWorkspacePage/ExternalAuthButton";
 import { type UserOption, UsersCombobox } from "./UsersCombobox";
 
 type TasksFilter = {
@@ -52,15 +64,6 @@ type TasksFilter = {
 };
 
 const TasksPage: FC = () => {
-	const {
-		data: templates,
-		error,
-		refetch,
-	} = useQuery({
-		queryKey: ["templates", "ai"],
-		queryFn: data.fetchAITemplates,
-		...disabledRefetchOptions,
-	});
 	const { user, permissions } = useAuthenticated();
 	const [filter, setFilter] = useState<TasksFilter>({
 		user: {
@@ -70,124 +73,183 @@ const TasksPage: FC = () => {
 		},
 	});
 
-	let content: ReactNode = null;
-
-	if (error) {
-		const message = getErrorMessage(error, "Error loading AI templates");
-		const detail = getErrorDetail(error) ?? "Please, try again";
-
-		content = (
-			<div className="border border-solid rounded-lg w-full min-h-80 flex items-center justify-center">
-				<div className="flex flex-col items-center">
-					<h3 className="m-0 font-medium text-content-primary text-base">
-						{message}
-					</h3>
-					<span className="text-content-secondary text-sm">{detail}</span>
-					<Button size="sm" onClick={() => refetch()} className="mt-4">
-						<RotateCcwIcon />
-						Try again
-					</Button>
-				</div>
-			</div>
-		);
-	} else if (templates) {
-		content =
-			templates.length === 0 ? (
-				<div className="rounded-lg border border-solid border-border w-full min-h-80 p-4 flex items-center justify-center">
-					<div className="flex flex-col items-center">
-						<h3 className="m-0 font-medium text-content-primary text-base">
-							No AI templates found
-						</h3>
-						<span className="text-content-secondary text-sm">
-							Create an AI template to get started
-						</span>
-						<Button size="sm" className="mt-4">
-							<ExternalLinkIcon />
-							Read the docs
-						</Button>
-					</div>
-				</div>
-			) : (
-				<>
-					<TaskForm templates={templates} />
-					{permissions.viewDeploymentConfig && (
-						<TasksFilter filter={filter} onFilterChange={setFilter} />
-					)}
-					<TasksTable templates={templates} filter={filter} />
-				</>
-			);
-	} else {
-		content = (
-			<div className="rounded-lg border border-solid border-border w-full min-h-80 p-4 flex items-center justify-center">
-				<div className="flex flex-col items-center">
-					<Spinner loading className="mb-4" />
-					<h3 className="m-0 font-medium text-content-primary text-base">
-						Loading AI templates
-					</h3>
-					<span className="text-content-secondary text-sm">
-						This might take a few minutes
-					</span>
-				</div>
-			</div>
-		);
-	}
-
 	return (
 		<>
 			<Helmet>
 				<title>{pageTitle("AI Tasks")}</title>
 			</Helmet>
 			<Margins>
-				<PageHeader
-					actions={
-						<Button variant="outline">
-							<ExternalLinkIcon />
-							Read the docs
-						</Button>
-					}
-				>
-					<PageHeaderTitle>Tasks</PageHeaderTitle>
+				<PageHeader>
+					<span className="flex flex-row gap-2">
+						<PageHeaderTitle>Tasks</PageHeaderTitle>
+						<FeatureStageBadge contentType={"beta"} size="md" />
+					</span>
 					<PageHeaderSubtitle>Automate tasks with AI</PageHeaderSubtitle>
 				</PageHeader>
 
-				<main className="pb-8">{content}</main>
+				<main className="pb-8">
+					<TaskFormSection
+						showFilter={permissions.viewDeploymentConfig}
+						filter={filter}
+						onFilterChange={setFilter}
+					/>
+					<TasksTable filter={filter} />
+				</main>
 			</Margins>
 		</>
 	);
 };
 
-type CreateTaskMutationFnProps = { prompt: string; templateId: string };
+const textareaPlaceholder = "Prompt your AI agent to start a task...";
+
+const LoadingTemplatesPlaceholder: FC = () => {
+	return (
+		<div className="border border-border border-solid rounded-lg p-4">
+			<div className="space-y-4">
+				{/* Textarea skeleton */}
+				<TextareaAutosize
+					disabled
+					id="prompt"
+					name="prompt"
+					placeholder={textareaPlaceholder}
+					className={`border-0 resize-none w-full h-full bg-transparent rounded-lg outline-none flex min-h-[60px]
+				text-sm shadow-sm text-content-primary placeholder:text-content-secondary md:text-sm`}
+				/>
+
+				{/* Bottom controls skeleton */}
+				<div className="flex items-center justify-between pt-2">
+					<Skeleton variant="rounded" width={208} height={32} />
+					<Skeleton variant="rounded" width={96} height={32} />
+				</div>
+			</div>
+		</div>
+	);
+};
+
+const NoTemplatesPlaceholder: FC = () => {
+	return (
+		<div className="rounded-lg border border-solid border-border w-full min-h-80 p-4 flex items-center justify-center">
+			<div className="flex flex-col items-center">
+				<h3 className="m-0 font-medium text-content-primary text-base">
+					No Task templates found
+				</h3>
+				<span className="text-content-secondary text-sm">
+					Create a Task template to get started
+				</span>
+			</div>
+		</div>
+	);
+};
+
+const ErrorContent: FC<{
+	title: string;
+	detail: string;
+	onRetry: () => void;
+}> = ({ title, detail, onRetry }) => {
+	return (
+		<div className="border border-solid rounded-lg w-full min-h-80 flex items-center justify-center">
+			<div className="flex flex-col items-center">
+				<h3 className="m-0 font-medium text-content-primary text-base">
+					{title}
+				</h3>
+				<span className="text-content-secondary text-sm">{detail}</span>
+				<Button size="sm" onClick={onRetry} className="mt-4">
+					<RotateCcwIcon />
+					Try again
+				</Button>
+			</div>
+		</div>
+	);
+};
+
+const TaskFormSection: FC<{
+	showFilter: boolean;
+	filter: TasksFilter;
+	onFilterChange: (filter: TasksFilter) => void;
+}> = ({ showFilter, filter, onFilterChange }) => {
+	const navigate = useNavigate();
+	const {
+		data: templates,
+		error,
+		refetch,
+	} = useQuery({
+		queryKey: ["templates", "ai"],
+		queryFn: data.fetchAITemplates,
+		...disabledRefetchOptions,
+	});
+
+	if (error) {
+		return (
+			<ErrorContent
+				title={getErrorMessage(error, "Error loading Task templates")}
+				detail={getErrorDetail(error) ?? "Please try again"}
+				onRetry={() => refetch()}
+			/>
+		);
+	}
+	if (templates === undefined) {
+		return <LoadingTemplatesPlaceholder />;
+	}
+	if (templates.length === 0) {
+		return <NoTemplatesPlaceholder />;
+	}
+	return (
+		<>
+			<TaskForm
+				templates={templates}
+				onSuccess={(task) => {
+					navigate(
+						`/tasks/${task.workspace.owner_name}/${task.workspace.name}`,
+					);
+				}}
+			/>
+			{showFilter && (
+				<TasksFilter filter={filter} onFilterChange={onFilterChange} />
+			)}
+		</>
+	);
+};
+
+type CreateTaskMutationFnProps = { prompt: string; templateVersionId: string };
 
 type TaskFormProps = {
 	templates: Template[];
+	onSuccess: (task: Task) => void;
 };
 
-const TaskForm: FC<TaskFormProps> = ({ templates }) => {
+const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 	const { user } = useAuthenticated();
 	const queryClient = useQueryClient();
-
-	const [templateId, setTemplateId] = useState<string>(templates[0].id);
+	const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
+		templates[0].id,
+	);
+	const selectedTemplate = templates.find(
+		(t) => t.id === selectedTemplateId,
+	) as Template;
 	const {
 		externalAuth,
-		externalAuthPollingState,
-		startPollingExternalAuth,
-		isLoadingExternalAuth,
 		externalAuthError,
-	} = useExternalAuth(
-		templates.find((t) => t.id === templateId)?.active_version_id,
+		isPollingExternalAuth,
+		isLoadingExternalAuth,
+	} = useExternalAuth(selectedTemplate.active_version_id);
+	const missedExternalAuth = externalAuth?.filter(
+		(auth) => !auth.optional && !auth.authenticated,
 	);
-
-	const hasAllRequiredExternalAuth = externalAuth?.every(
-		(auth) => auth.optional || auth.authenticated,
-	);
+	const isMissingExternalAuth = missedExternalAuth
+		? missedExternalAuth.length > 0
+		: true;
 
 	const createTaskMutation = useMutation({
-		mutationFn: async ({ prompt, templateId }: CreateTaskMutationFnProps) =>
-			data.createTask(prompt, user.id, templateId),
-		onSuccess: async () => {
+		mutationFn: async ({
+			prompt,
+			templateVersionId,
+		}: CreateTaskMutationFnProps) =>
+			data.createTask(prompt, user.id, templateVersionId),
+		onSuccess: async (task) => {
 			await queryClient.invalidateQueries({
 				queryKey: ["tasks"],
 			});
+			onSuccess(task);
 		},
 	});
 
@@ -199,26 +261,25 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 		const prompt = formData.get("prompt") as string;
 		const templateID = formData.get("templateID") as string;
 
-		if (!prompt || !templateID) {
-			return;
-		}
-
 		try {
 			await createTaskMutation.mutateAsync({
 				prompt,
-				templateId: templateID,
+				templateVersionId: selectedTemplate.active_version_id,
 			});
-			form.reset();
 		} catch (error) {
 			const message = getErrorMessage(error, "Error creating task");
-			const detail = getErrorDetail(error) ?? "Please, try again";
+			const detail = getErrorDetail(error) ?? "Please try again";
 			displayError(message, detail);
 		}
 	};
 
 	return (
-		<Form onSubmit={onSubmit} aria-label="Create AI task">
-			{Boolean(externalAuthError) && <ErrorAlert error={externalAuthError} />}
+		<form
+			onSubmit={onSubmit}
+			aria-label="Create AI task"
+			className="flex flex-col gap-4"
+		>
+			{externalAuthError && <ErrorAlert error={externalAuthError} />}
 
 			<fieldset
 				className="border border-border border-solid rounded-lg p-4"
@@ -231,14 +292,14 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 					required
 					id="prompt"
 					name="prompt"
-					placeholder="Prompt your AI agent to start a task..."
+					placeholder={textareaPlaceholder}
 					className={`border-0 resize-none w-full h-full bg-transparent rounded-lg outline-none flex min-h-[60px]
 						text-sm shadow-sm text-content-primary placeholder:text-content-secondary md:text-sm`}
 				/>
 				<div className="flex items-center justify-between pt-2">
 					<Select
 						name="templateID"
-						onValueChange={(value) => setTemplateId(value)}
+						onValueChange={(value) => setSelectedTemplateId(value)}
 						defaultValue={templates[0].id}
 						required
 					>
@@ -258,43 +319,93 @@ const TaskForm: FC<TaskFormProps> = ({ templates }) => {
 						</SelectContent>
 					</Select>
 
-					<Button
-						size="sm"
-						type="submit"
-						disabled={!hasAllRequiredExternalAuth}
-					>
-						<Spinner
-							loading={createTaskMutation.isPending || isLoadingExternalAuth}
-						>
-							<SendIcon />
-						</Spinner>
-						Run task
-					</Button>
+					<div className="flex items-center gap-2">
+						{missedExternalAuth && (
+							<ExternalAuthButtons
+								template={selectedTemplate}
+								missedExternalAuth={missedExternalAuth}
+							/>
+						)}
+
+						<Button size="sm" type="submit" disabled={isMissingExternalAuth}>
+							<Spinner
+								loading={
+									isLoadingExternalAuth ||
+									isPollingExternalAuth ||
+									createTaskMutation.isPending
+								}
+							>
+								<SendIcon />
+							</Spinner>
+							Run task
+						</Button>
+					</div>
 				</div>
 			</fieldset>
-
-			{!hasAllRequiredExternalAuth &&
-				externalAuth &&
-				externalAuth.length > 0 && (
-					<FormSection
-						title="External Authentication"
-						description="This template uses external services for authentication."
-					>
-						<FormFields>
-							{externalAuth.map((auth) => (
-								<ExternalAuthButton
-									key={auth.id}
-									auth={auth}
-									isLoading={externalAuthPollingState === "polling"}
-									onStartPolling={startPollingExternalAuth}
-									displayRetry={externalAuthPollingState === "abandoned"}
-								/>
-							))}
-						</FormFields>
-					</FormSection>
-				)}
-		</Form>
+		</form>
 	);
+};
+
+type ExternalAuthButtonProps = {
+	template: Template;
+	missedExternalAuth: TemplateVersionExternalAuth[];
+};
+
+const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
+	template,
+	missedExternalAuth,
+}) => {
+	const {
+		startPollingExternalAuth,
+		isPollingExternalAuth,
+		externalAuthPollingState,
+	} = useExternalAuth(template.active_version_id);
+	const shouldRetry = externalAuthPollingState === "abandoned";
+
+	return missedExternalAuth.map((auth) => {
+		return (
+			<div className="flex items-center gap-2" key={auth.id}>
+				<Button
+					variant="outline"
+					size="sm"
+					disabled={isPollingExternalAuth || auth.authenticated}
+					onClick={() => {
+						window.open(
+							auth.authenticate_url,
+							"_blank",
+							"width=900,height=600",
+						);
+						startPollingExternalAuth();
+					}}
+				>
+					<Spinner loading={isPollingExternalAuth}>
+						<ExternalImage src={auth.display_icon} />
+					</Spinner>
+					Connect to {auth.display_name}
+				</Button>
+
+				{shouldRetry && !auth.authenticated && (
+					<TooltipProvider>
+						<Tooltip delayDuration={100}>
+							<TooltipTrigger asChild>
+								<Button
+									variant="outline"
+									size="icon"
+									onClick={startPollingExternalAuth}
+								>
+									<RedoIcon />
+									<span className="sr-only">Refresh external auth</span>
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>
+								Retry connecting to {auth.display_name}
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				)}
+			</div>
+		);
+	});
 };
 
 type TasksFilterProps = {
@@ -322,18 +433,17 @@ const TasksFilter: FC<TasksFilterProps> = ({ filter, onFilterChange }) => {
 };
 
 type TasksTableProps = {
-	templates: Template[];
 	filter: TasksFilter;
 };
 
-const TasksTable: FC<TasksTableProps> = ({ templates, filter }) => {
+const TasksTable: FC<TasksTableProps> = ({ filter }) => {
 	const {
 		data: tasks,
 		error,
 		refetch,
 	} = useQuery({
 		queryKey: ["tasks", filter],
-		queryFn: () => data.fetchTasks(templates, filter),
+		queryFn: () => data.fetchTasks(filter),
 		refetchInterval: 10_000,
 	});
 
@@ -341,7 +451,7 @@ const TasksTable: FC<TasksTableProps> = ({ templates, filter }) => {
 
 	if (error) {
 		const message = getErrorMessage(error, "Error loading tasks");
-		const detail = getErrorDetail(error) ?? "Please, try again";
+		const detail = getErrorDetail(error) ?? "Please try again";
 
 		body = (
 			<TableRow>
@@ -382,11 +492,6 @@ const TasksTable: FC<TasksTableProps> = ({ templates, filter }) => {
 				tasks.map(({ workspace, prompt }) => {
 					const templateDisplayName =
 						workspace.template_display_name ?? workspace.template_name;
-					const status = workspace.latest_app_status;
-					const agent = workspace.latest_build.resources
-						.flatMap((r) => r.agents)
-						.find((a) => a?.id === status?.agent_id);
-					const app = agent?.apps.find((a) => a.id === status?.app_id);
 
 					return (
 						<TableRow key={workspace.id} className="relative" hover>
@@ -439,21 +544,19 @@ const TasksTable: FC<TasksTableProps> = ({ templates, filter }) => {
 			);
 	} else {
 		body = (
-			<TableRow>
-				<TableCell colSpan={4}>
-					<div className="rounded-lg w-full min-h-80 flex items-center justify-center">
-						<div className="flex flex-col items-center">
-							<Spinner loading className="mb-4" />
-							<h3 className="m-0 font-medium text-content-primary text-base">
-								Loading tasks
-							</h3>
-							<span className="text-content-secondary text-sm">
-								This might take a few minutes
-							</span>
-						</div>
-					</div>
-				</TableCell>
-			</TableRow>
+			<TableLoaderSkeleton>
+				<TableRowSkeleton>
+					<TableCell>
+						<AvatarDataSkeleton />
+					</TableCell>
+					<TableCell>
+						<Skeleton variant="rounded" width={100} height={24} />
+					</TableCell>
+					<TableCell>
+						<AvatarDataSkeleton />
+					</TableCell>
+				</TableRowSkeleton>
+			</TableLoaderSkeleton>
 		);
 	}
 
@@ -472,79 +575,46 @@ const TasksTable: FC<TasksTableProps> = ({ templates, filter }) => {
 };
 
 export const data = {
-	// TODO: This function is currently inefficient because it fetches all templates
-	// and their parameters individually, resulting in many API calls and slow
-	// performance. After confirming the requirements, consider adding a backend
-	// endpoint that returns only AI templates (those with an "AI Prompt" parameter)
-	// in a single request.
 	async fetchAITemplates() {
-		const templates = await API.getTemplates();
-		const parameters = await Promise.all(
-			templates.map(async (template) =>
-				API.getTemplateVersionRichParameters(template.active_version_id),
-			),
-		);
-		return templates.filter((_template, index) => {
-			return parameters[index].some((p) => p.name === AI_PROMPT_PARAMETER_NAME);
-		});
+		return API.getTemplates({ q: "has-ai-task:true" });
 	},
 
-	// TODO: This function is inefficient because it fetches workspaces for each
-	// template individually and its build parameters resulting in excessive API
-	// calls and slow performance. Consider implementing a backend endpoint that
-	// returns all AI-related workspaces in a single request to improve efficiency.
-	async fetchTasks(aiTemplates: Template[], filter: TasksFilter) {
-		const workspaces = await Promise.all(
-			aiTemplates.map((template) => {
-				const queryParts = [`template:${template.name}`];
-				if (filter.user) {
-					queryParts.push(`owner:${filter.user.value}`);
-				}
-
-				return API.getWorkspaces({
-					q: queryParts.join(" "),
-					limit: 100,
-				});
-			}),
-		).then((results) =>
-			results
-				.flatMap((r) => r.workspaces)
-				.toSorted((a, b) => {
-					return (
-						new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-					);
-				}),
+	async fetchTasks(filter: TasksFilter) {
+		let filterQuery = "has-ai-task:true";
+		if (filter.user) {
+			filterQuery += ` owner:${filter.user.value}`;
+		}
+		const workspaces = await API.getWorkspaces({
+			q: filterQuery,
+		});
+		const prompts = await API.experimental.getAITasksPrompts(
+			workspaces.workspaces.map((workspace) => workspace.latest_build.id),
 		);
-
-		return Promise.all(
-			workspaces.map(async (workspace) => {
-				const parameters = await API.getWorkspaceBuildParameters(
-					workspace.latest_build.id,
-				);
-				const prompt = parameters.find(
-					(p) => p.name === AI_PROMPT_PARAMETER_NAME,
-				)?.value;
-
-				if (!prompt) {
-					return;
-				}
-
-				return {
-					workspace,
-					prompt,
-				} satisfies Task;
-			}),
-		).then((tasks) => tasks.filter((t) => t !== undefined));
+		return workspaces.workspaces.map((workspace) => {
+			let prompt = prompts.prompts[workspace.latest_build.id];
+			if (prompt === undefined) {
+				prompt = "Unknown prompt";
+			} else if (prompt === "") {
+				prompt = "Empty prompt";
+			}
+			return {
+				workspace,
+				prompt,
+			} satisfies Task;
+		});
 	},
 
 	async createTask(
 		prompt: string,
 		userId: string,
-		templateId: string,
+		templateVersionId: string,
 	): Promise<Task> {
+		const presets = await API.getTemplateVersionPresets(templateVersionId);
+		const defaultPreset = presets?.find((p) => p.Default);
 		const workspace = await API.createWorkspace(userId, {
 			name: `task-${generateWorkspaceName()}`,
-			template_id: templateId,
+			template_version_id: templateVersionId,
+			template_version_preset_id: defaultPreset?.ID,
 			rich_parameter_values: [
 				{ name: AI_PROMPT_PARAMETER_NAME, value: prompt },
 			],

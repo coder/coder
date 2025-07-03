@@ -1,4 +1,4 @@
-import GitHub from "@mui/icons-material/GitHub";
+import type { WorkspaceApp } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -6,7 +6,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -14,46 +13,77 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import {
-	ArrowLeftIcon,
-	BugIcon,
-	EllipsisVerticalIcon,
-	ExternalLinkIcon,
-	GitPullRequestArrowIcon,
-} from "lucide-react";
-import { AppStatusStateIcon } from "modules/apps/AppStatusStateIcon";
+import { ArrowLeftIcon, EllipsisVerticalIcon } from "lucide-react";
 import type { Task } from "modules/tasks/tasks";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
-import { cn } from "utils/cn";
-import { timeFrom } from "utils/time";
-import { truncateURI } from "utils/uri";
 import { TaskAppIFrame } from "./TaskAppIframe";
-import { AI_APP_CHAT_SLUG, AI_APP_CHAT_URL_PATHNAME } from "./constants";
+import { TaskStatusLink } from "./TaskStatusLink";
 
 type TaskSidebarProps = {
 	task: Task;
 };
 
-export const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
-	const chatApp = task.workspace.latest_build.resources
+type SidebarAppStatus = "error" | "loading" | "healthy";
+
+const getSidebarApp = (task: Task): [WorkspaceApp | null, SidebarAppStatus] => {
+	const sidebarAppId = task.workspace.latest_build.ai_task_sidebar_app_id;
+	// a task workspace with a finished build must have a sidebar app id
+	if (!sidebarAppId && task.workspace.latest_build.job.completed_at) {
+		console.error(
+			"Task workspace has a finished build but no sidebar app id",
+			task.workspace,
+		);
+		return [null, "error"];
+	}
+
+	const sidebarApp = task.workspace.latest_build.resources
 		.flatMap((r) => r.agents)
 		.flatMap((a) => a?.apps)
-		.find((a) => a?.slug === AI_APP_CHAT_SLUG);
-	const showChatApp =
-		chatApp && (chatApp.health === "disabled" || chatApp.health === "healthy");
+		.find((a) => a?.id === sidebarAppId);
+
+	if (!task.workspace.latest_build.job.completed_at) {
+		// while the workspace build is running, we don't have a sidebar app yet
+		return [null, "loading"];
+	}
+	if (!sidebarApp) {
+		// The workspace build is complete but the expected sidebar app wasn't found in the resources.
+		// This could happen due to timing issues or temporary inconsistencies in the data.
+		// We return "loading" instead of "error" to avoid showing an error state if the app
+		// becomes available shortly after. The tradeoff is that users may see a loading state
+		// indefinitely if there's a genuine issue, but this is preferable to false error alerts.
+		return [null, "loading"];
+	}
+	// "disabled" means that the health check is disabled, so we assume
+	// that the app is healthy
+	if (sidebarApp.health === "disabled") {
+		return [sidebarApp, "healthy"];
+	}
+	if (sidebarApp.health === "healthy") {
+		return [sidebarApp, "healthy"];
+	}
+	if (sidebarApp.health === "initializing") {
+		return [sidebarApp, "loading"];
+	}
+	if (sidebarApp.health === "unhealthy") {
+		return [sidebarApp, "error"];
+	}
+
+	// exhaustiveness check
+	const _: never = sidebarApp.health;
+	// this should never happen
+	console.error(
+		"Task workspace has a finished build but the sidebar app is in an unknown health state",
+		task.workspace,
+	);
+	return [null, "error"];
+};
+
+export const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
+	const [sidebarApp, sidebarAppStatus] = getSidebarApp(task);
 
 	return (
-		<aside
-			className={cn([
-				[
-					"flex flex-col h-full shrink-0",
-					"border-0 border-r border-solid border-border",
-				],
-				// We want to make the sidebar wider for chat apps
-				showChatApp ? "w-[520px]" : "w-[320px]",
-			])}
-		>
+		<aside className="flex flex-col h-full shrink-0 w-full">
 			<header className="border-0 border-b border-solid border-border p-4 pt-0">
 				<div className="flex items-center justify-between py-1">
 					<TooltipProvider>
@@ -98,7 +128,7 @@ export const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
 				</div>
 
 				<h1 className="m-0 mt-1 text-base font-medium truncate">
-					{task.prompt}
+					{task.prompt || task.workspace.name}
 				</h1>
 
 				{task.workspace.latest_app_status?.uri && (
@@ -108,133 +138,30 @@ export const TaskSidebar: FC<TaskSidebarProps> = ({ task }) => {
 				)}
 			</header>
 
-			{showChatApp ? (
+			{sidebarAppStatus === "healthy" && sidebarApp ? (
 				<TaskAppIFrame
 					active
-					key={chatApp.id}
-					app={chatApp}
+					key={sidebarApp.id}
+					app={sidebarApp}
 					task={task}
-					pathname={AI_APP_CHAT_URL_PATHNAME}
 				/>
+			) : sidebarAppStatus === "loading" ? (
+				<div className="flex-1 flex flex-col items-center justify-center">
+					<Spinner loading className="mb-4" />
+				</div>
 			) : (
-				<TaskStatuses task={task} />
+				<div className="flex-1 flex flex-col items-center justify-center">
+					<h3 className="m-0 font-medium text-content-primary text-base">
+						Error
+					</h3>
+					<span className="text-content-secondary text-sm">
+						<span>Failed to load the sidebar app.</span>
+						{sidebarApp?.health != null && (
+							<span> The app is {sidebarApp.health}.</span>
+						)}
+					</span>
+				</div>
 			)}
 		</aside>
-	);
-};
-
-type TaskStatusesProps = {
-	task: Task;
-};
-
-const TaskStatuses: FC<TaskStatusesProps> = ({ task }) => {
-	let statuses = task.workspace.latest_build.resources
-		.flatMap((r) => r.agents)
-		.flatMap((a) => a?.apps)
-		.flatMap((a) => a?.statuses)
-		.filter((s) => !!s)
-		.sort(
-			(a, b) =>
-				new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-		);
-
-	// This happens when the workspace is not running so it has no resources to
-	// get the statuses so we can fallback to the latest status received from the
-	// workspace.
-	if (statuses.length === 0 && task.workspace.latest_app_status) {
-		statuses = [task.workspace.latest_app_status];
-	}
-
-	return statuses ? (
-		<ScrollArea className="h-full">
-			{statuses.length === 0 && (
-				<article className="px-4 py-2 flex gap-2 first-of-type:pt-4 last-of-type:pb-4">
-					<div className="flex flex-col gap-1 flex-1">
-						<h3 className="m-0 font-medium text-sm leading-normal">
-							Running your task
-						</h3>
-						<time
-							dateTime={task.workspace.latest_build.created_at}
-							className="font-medium text-xs text-content-secondary first-letter:uppercase"
-						>
-							{timeFrom(new Date(task.workspace.latest_build.created_at))}
-						</time>
-					</div>
-
-					<AppStatusStateIcon state="working" latest className="size-5" />
-				</article>
-			)}
-			{statuses.map((status, index) => {
-				return (
-					<article
-						className={cn(
-							["px-4 py-2 flex gap-2 first-of-type:pt-4 last-of-type:pb-4"],
-							{
-								"opacity-50 hover:opacity-100": index !== 0,
-							},
-						)}
-						key={status.id}
-					>
-						<div className="flex flex-col gap-1 flex-1">
-							<h3 className="m-0 font-medium text-sm leading-normal">
-								{status.message}
-							</h3>
-							<time
-								dateTime={status.created_at}
-								className="font-medium text-xs text-content-secondary first-letter:uppercase"
-							>
-								{timeFrom(new Date(status.created_at))}
-							</time>
-						</div>
-
-						<AppStatusStateIcon
-							state={status.state}
-							latest={index === 0}
-							disabled={task.workspace.latest_build.status !== "running"}
-							className={cn(["size-5", { "opacity-0": index !== 0 }])}
-						/>
-					</article>
-				);
-			})}
-		</ScrollArea>
-	) : (
-		<Spinner loading />
-	);
-};
-
-type TaskStatusLinkProps = {
-	uri: string;
-};
-
-const TaskStatusLink: FC<TaskStatusLinkProps> = ({ uri }) => {
-	let icon = <ExternalLinkIcon />;
-	let label = truncateURI(uri);
-
-	if (uri.startsWith("https://github.com")) {
-		const issueNumber = uri.split("/").pop();
-		const [org, repo] = uri.split("/").slice(3, 5);
-		const prefix = `${org}/${repo}`;
-
-		if (uri.includes("pull/")) {
-			icon = <GitPullRequestArrowIcon />;
-			label = issueNumber
-				? `${prefix}#${issueNumber}`
-				: `${prefix} Pull Request`;
-		} else if (uri.includes("issues/")) {
-			icon = <BugIcon />;
-			label = issueNumber ? `${prefix}#${issueNumber}` : `${prefix} Issue`;
-		} else {
-			icon = <GitHub />;
-			label = `${org}/${repo}`;
-		}
-	}
-
-	return (
-		<Button asChild variant="outline" size="sm" className="min-w-0">
-			<a href={uri} target="_blank" rel="noreferrer">
-				{icon}
-				{label}
-			</a>
-		</Button>
 	);
 };

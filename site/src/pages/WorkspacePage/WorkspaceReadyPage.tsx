@@ -1,5 +1,6 @@
 import { API } from "api/api";
-import { getErrorMessage } from "api/errors";
+import { type ApiError, getErrorMessage } from "api/errors";
+import { isApiError } from "api/errors";
 import { templateVersion } from "api/queries/templates";
 import { workspaceBuildTimings } from "api/queries/workspaceBuilds";
 import {
@@ -15,9 +16,10 @@ import {
 	ConfirmDialog,
 	type ConfirmDialogProps,
 } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { EphemeralParametersDialog } from "components/EphemeralParametersDialog/EphemeralParametersDialog";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
+import { EphemeralParametersDialog } from "modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
+import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
 import {
 	WorkspaceUpdateDialogs,
 	useWorkspaceUpdate,
@@ -55,15 +57,35 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		buildParameters?: TypesGen.WorkspaceBuildParameter[];
 	}>({ open: false });
 
+	const [workspaceErrorDialog, setWorkspaceErrorDialog] = useState<{
+		open: boolean;
+		error?: ApiError;
+	}>({ open: false });
+
+	const handleError = (error: unknown) => {
+		if (isApiError(error) && error.code === "ERR_BAD_REQUEST") {
+			setWorkspaceErrorDialog({
+				open: true,
+				error: error,
+			});
+		} else {
+			displayError(getErrorMessage(error, "Failed to build workspace."));
+		}
+	};
+
 	const [ephemeralParametersDialog, setEphemeralParametersDialog] = useState<{
 		open: boolean;
 		action: "start" | "restart";
 		buildParameters?: TypesGen.WorkspaceBuildParameter[];
 		ephemeralParameters: TypesGen.TemplateVersionParameter[];
 	}>({ open: false, action: "start", ephemeralParameters: [] });
+
 	const { mutate: mutateRestartWorkspace, isPending: isRestarting } =
 		useMutation({
 			mutationFn: API.restartWorkspace,
+			onError: (error: unknown) => {
+				handleError(error);
+			},
 		});
 
 	// Favicon
@@ -92,32 +114,52 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	});
 
 	// Delete workspace
-	const deleteWorkspaceMutation = useMutation(
-		deleteWorkspace(workspace, queryClient),
-	);
+	const deleteWorkspaceMutation = useMutation({
+		...deleteWorkspace(workspace, queryClient),
+		onError: (error: unknown) => {
+			handleError(error);
+		},
+	});
 
 	// Activate workspace
-	const activateWorkspaceMutation = useMutation(
-		activate(workspace, queryClient),
-	);
+	const activateWorkspaceMutation = useMutation({
+		...activate(workspace, queryClient),
+		onError: (error: unknown) => {
+			handleError(error);
+		},
+	});
 
 	// Stop workspace
-	const stopWorkspaceMutation = useMutation(
-		stopWorkspace(workspace, queryClient),
-	);
+	const stopWorkspaceMutation = useMutation({
+		...stopWorkspace(workspace, queryClient),
+		onError: (error: unknown) => {
+			handleError(error);
+		},
+	});
 
 	// Start workspace
-	const startWorkspaceMutation = useMutation(
-		startWorkspace(workspace, queryClient),
-	);
+	const startWorkspaceMutation = useMutation({
+		...startWorkspace(workspace, queryClient),
+		onError: (error: unknown) => {
+			handleError(error);
+		},
+	});
 
 	// Toggle workspace favorite
-	const toggleFavoriteMutation = useMutation(
-		toggleFavorite(workspace, queryClient),
-	);
+	const toggleFavoriteMutation = useMutation({
+		...toggleFavorite(workspace, queryClient),
+		onError: (error: unknown) => {
+			handleError(error);
+		},
+	});
 
 	// Cancel build
-	const cancelBuildMutation = useMutation(cancelBuild(workspace, queryClient));
+	const cancelBuildMutation = useMutation({
+		...cancelBuild(workspace, queryClient),
+		onError: (error: unknown) => {
+			handleError(error);
+		},
+	});
 
 	// Workspace Timings.
 	const timingsQuery = useQuery({
@@ -341,6 +383,17 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 			/>
 
 			<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+
+			<WorkspaceErrorDialog
+				open={workspaceErrorDialog.open}
+				error={workspaceErrorDialog.error}
+				onClose={() => setWorkspaceErrorDialog({ open: false })}
+				showDetail={workspace.template_use_classic_parameter_flow}
+				workspaceOwner={workspace.owner_name}
+				workspaceName={workspace.name}
+				templateVersionId={workspace.latest_build.template_version_id}
+				isDeleting={false}
+			/>
 		</>
 	);
 };

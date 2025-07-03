@@ -15,14 +15,13 @@ Installation instructions vary depending on your workspace's operating system,
 platform, and build system.
 
 As a starting point, see the
-[desktop-container](https://github.com/bpmct/coder-templates/tree/main/desktop-container)
-community template. It builds and provisions a Dockerized workspace with the
+[enterprise-desktop](https://github.com/coder/images/tree/main/images/desktop)
+image. It can be used to provision a Dockerized workspace with the
 following software:
 
-- Ubuntu 20.04
-- TigerVNC server
-- noVNC client
+- Ubuntu 24.04
 - XFCE Desktop
+- KasmVNC Server and Web Client
 
 ## RDP Desktop
 
@@ -30,24 +29,20 @@ To use RDP with Coder, you'll need to install an
 [RDP client](https://docs.microsoft.com/en-us/windows-server/remote/remote-desktop-services/clients/remote-desktop-clients)
 on your local machine, and enable RDP on your workspace.
 
+<div class="tabs">
+
+### CLI
+
 Use the following command to forward the RDP port to your local machine:
 
 ```console
 coder port-forward <workspace-name> --tcp 3399:3389
 ```
 
-Then, connect to your workspace via RDP:
-
-```console
-mstsc /v localhost:3399
-```
-
-Or use your favorite RDP client to connect to `localhost:3399`.
+Then, connect to your workspace via RDP at `localhost:3399`.
 ![windows-rdp](../../images/ides/windows_rdp_client.png)
 
-The default username is `Administrator` and password is `coderRDP!`.
-
-### RDP with Coder Desktop (Beta)
+### RDP with Coder Desktop
 
 [Coder Desktop](../desktop/index.md)'s Coder Connect feature creates a connection to your workspaces in the background.
 There is no need for port forwarding when it is enabled.
@@ -57,7 +52,7 @@ Use your favorite RDP client to connect to `<workspace-name>.coder` instead of `
 > [!NOTE]
 > Some versions of Windows, including Windows Server 2022, do not communicate correctly over UDP
 > when using Coder Connect because they do not respect the maximum transmission unit (MTU) of the link.
-> When this happens the RDP client will appear to connect, but displays a blank screen.
+> When this happens, the RDP client will appear to connect, but displays a blank screen.
 >
 > To avoid this error, Coder's [Windows RDP](https://registry.coder.com/modules/windows-rdp) module
 > [disables RDP over UDP automatically](https://github.com/coder/registry/blob/b58bfebcf3bcdcde4f06a183f92eb3e01842d270/registry/coder/modules/windows-rdp/powershell-installation-script.tftpl#L22).
@@ -83,7 +78,7 @@ For example:
 coder://coder.example.com/v0/open/ws/myworkspace/agent/main/rdp?username=Administrator&password=coderRDP!
 ```
 
-To include a Coder Desktop button to the workspace dashboard page, add a `coder_app` resource to the template:
+To include a Coder Desktop button on the workspace dashboard page, add a `coder_app` resource to the template:
 
 ```tf
 locals {
@@ -100,6 +95,11 @@ resource "coder_app" "rdp-coder-desktop" {
 }
 ```
 
+</div>
+
+> [!NOTE]
+> The default username is `Administrator` and the password is `coderRDP!`.
+
 ## RDP Web
 
 Our [Windows RDP](https://registry.coder.com/modules/windows-rdp) module in the Coder
@@ -107,7 +107,7 @@ Registry adds a one-click button to open an RDP session in the browser. This
 requires just a few lines of Terraform in your template, see the documentation
 on our registry for setup.
 
-![Web RDP Module in a Workspace](../../images/user-guides/web-rdp-demo.png)
+![Windows RDP Module in a Workspace](../../images/user-guides/web-rdp-demo.png)
 
 ## Amazon DCV Windows
 

@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -154,6 +156,22 @@ func (e *Executor) runOnce(t time.Time) Stats {
 		e.log.Error(e.ctx, "get workspaces for autostart or autostop", slog.Error(err))
 		return stats
 	}
+
+	// Sort the workspaces by build template version ID so that we can group
+	// identical template versions together. This is a slight (and imperfect)
+	// optimization.
+	//
+	// `wsbuilder` needs to load the terraform files for a given template version
+	// into memory. If 2 workspaces are using the same template version, they will
+	// share the same files in the FileCache. This only happens if the builds happen
+	// in parallel.
+	// TODO: Actually make sure the cache has the files in the cache for the full
+	//  set of identical template versions. Then unload the files when the builds
+	//  are done. Right now, this relies on luck for the 10 goroutine workers to
+	//  overlap and keep the file reference in the cache alive.
+	slices.SortFunc(workspaces, func(a, b database.GetWorkspacesEligibleForTransitionRow) int {
+		return strings.Compare(a.BuildTemplateVersionID.UUID.String(), b.BuildTemplateVersionID.UUID.String())
+	})
 
 	// We only use errgroup here for convenience of API, not for early
 	// cancellation. This means we only return nil errors in th eg.Go.

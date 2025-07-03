@@ -25,10 +25,8 @@ Give your template a name, description, and icon and press `Create template`.
 
 ![Name and icon](../../images/admin/templates/import-template.png)
 
-> [!NOTE]
-> If template creation fails, Coder is likely not authorized to
-> deploy infrastructure in the given location. Learn how to configure
-> [provisioner authentication](./extending-templates/provider-authentication.md).
+If template creation fails, it's likely that Coder is not authorized to deploy infrastructure in the given location.
+Learn how to configure [provisioner authentication](./extending-templates/provider-authentication.md).
 
 ### CLI
 
@@ -65,10 +63,8 @@ Next, push it to Coder with the
 coder templates push
 ```
 
-> [!NOTE]
-> If `template push` fails, Coder is likely not authorized to deploy
-> infrastructure in the given location. Learn how to configure
-> [provisioner authentication](../provisioners/index.md).
+If `template push` fails, it's likely that Coder is not authorized to deploy infrastructure in the given location.
+Learn how to configure [provisioner authentication](../provisioners/index.md).
 
 You can edit the metadata of the template such as the display name with the
 [`templates edit`](../../reference/cli/templates_edit.md) command:

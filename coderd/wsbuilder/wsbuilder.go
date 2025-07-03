@@ -57,12 +57,10 @@ type Builder struct {
 	deploymentValues *codersdk.DeploymentValues
 	experiments      codersdk.Experiments
 
-	richParameterValues []codersdk.WorkspaceBuildParameter
-	// dynamicParametersEnabled is non-nil if set externally
-	dynamicParametersEnabled *bool
-	initiator                uuid.UUID
-	reason                   database.BuildReason
-	templateVersionPresetID  uuid.UUID
+	richParameterValues     []codersdk.WorkspaceBuildParameter
+	initiator               uuid.UUID
+	reason                  database.BuildReason
+	templateVersionPresetID uuid.UUID
 
 	// used during build, makes function arguments less verbose
 	ctx       context.Context
@@ -201,12 +199,6 @@ func (b Builder) MarkPrebuild() Builder {
 func (b Builder) MarkPrebuiltWorkspaceClaim() Builder {
 	// nolint: revive
 	b.prebuiltWorkspaceBuildStage = sdkproto.PrebuiltWorkspaceBuildStage_CLAIM
-	return b
-}
-
-func (b Builder) DynamicParameters(using bool) Builder {
-	// nolint: revive
-	b.dynamicParametersEnabled = ptr.Ref(using)
 	return b
 }
 
@@ -433,12 +425,6 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			TemplateVersionPresetID: uuid.NullUUID{
 				UUID:  b.templateVersionPresetID,
 				Valid: b.templateVersionPresetID != uuid.Nil,
-			},
-			// appease the exhaustruct linter
-			// TODO: set this to whether the build included a `coder_ai_task` tf resource
-			HasAITask: sql.NullBool{
-				Bool:  false,
-				Valid: false,
 			},
 		})
 		if err != nil {
@@ -760,20 +746,12 @@ func (b *Builder) getDynamicParameters() (names, values []string, err error) {
 		return nil, nil, BuildError{http.StatusInternalServerError, "failed to check if first build", err}
 	}
 
-	buildValues, diagnostics := dynamicparameters.ResolveParameters(b.ctx, b.workspace.OwnerID, render, firstBuild,
+	buildValues, err := dynamicparameters.ResolveParameters(b.ctx, b.workspace.OwnerID, render, firstBuild,
 		lastBuildParameters,
 		b.richParameterValues,
 		presetParameterValues)
-
-	if diagnostics.HasErrors() {
-		// TODO: Improve the error response. The response should include the validations for each failed
-		//  parameter. The response should also indicate it's a validation error or a more general form failure.
-		//  For now, any error is sufficient.
-		return nil, nil, BuildError{
-			Status:  http.StatusBadRequest,
-			Message: fmt.Sprintf("%d errors occurred while resolving parameters", len(diagnostics)),
-			Wrapped: diagnostics,
-		}
+	if err != nil {
+		return nil, nil, xerrors.Errorf("resolve parameters: %w", err)
 	}
 
 	names = make([]string, 0, len(buildValues))
@@ -1071,14 +1049,12 @@ func (b *Builder) authorize(authFunc func(action policy.Action, object rbac.Obje
 		return BuildError{http.StatusBadRequest, msg, xerrors.New(msg)}
 	}
 
+	// Try default workspace authorization first
+	authorized := authFunc(action, b.workspace)
+
 	// Special handling for prebuilt workspace deletion
-	authorized := false
-	if action == policy.ActionDelete && b.workspace.IsPrebuild() && authFunc(action, b.workspace.AsPrebuild()) {
-		authorized = true
-	}
-	// Fallback to default authorization
-	if !authorized && authFunc(action, b.workspace) {
-		authorized = true
+	if !authorized && action == policy.ActionDelete && b.workspace.IsPrebuild() {
+		authorized = authFunc(action, b.workspace.AsPrebuild())
 	}
 
 	if !authorized {
@@ -1211,10 +1187,6 @@ func (b *Builder) checkRunningBuild() error {
 }
 
 func (b *Builder) usingDynamicParameters() bool {
-	if b.dynamicParametersEnabled != nil {
-		return *b.dynamicParametersEnabled
-	}
-
 	tpl, err := b.getTemplate()
 	if err != nil {
 		return false // Let another part of the code get this error

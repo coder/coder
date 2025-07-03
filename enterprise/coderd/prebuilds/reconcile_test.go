@@ -853,11 +853,6 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer)
 
-			// Template admin to receive a notification.
-			templateAdmin := dbgen.User(t, db, database.User{
-				RBACRoles: []string{codersdk.RoleTemplateAdmin},
-			})
-
 			// Set up test environment with a template, version, and preset.
 			ownerID := uuid.New()
 			dbgen.User(t, db, database.User{
@@ -938,20 +933,6 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 			require.Equal(t, 1, len(workspaces))
 			require.Equal(t, database.PrebuildStatusHardLimited, updatedPreset.PrebuildStatus)
 
-			// When hard limit is reached, a notification should be sent.
-			matching := fakeEnqueuer.Sent(func(notification *notificationstest.FakeNotification) bool {
-				if !assert.Equal(t, notifications.PrebuildFailureLimitReached, notification.TemplateID, "unexpected template") {
-					return false
-				}
-
-				if !assert.Equal(t, templateAdmin.ID, notification.UserID, "unexpected receiver") {
-					return false
-				}
-
-				return true
-			})
-			require.Len(t, matching, 1)
-
 			// When hard limit is reached, metric is set to 1.
 			mf, err = registry.Gather()
 			require.NoError(t, err)
@@ -1015,11 +996,6 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			registry := prometheus.NewRegistry()
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 			controller := prebuilds.NewStoreReconciler(db, pubSub, cache, cfg, logger, clock, registry, fakeEnqueuer)
-
-			// Template admin to receive a notification.
-			templateAdmin := dbgen.User(t, db, database.User{
-				RBACRoles: []string{codersdk.RoleTemplateAdmin},
-			})
 
 			// Set up test environment with a template, version, and preset.
 			ownerID := uuid.New()
@@ -1124,20 +1100,6 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			updatedPreset, err := db.GetPresetByID(ctx, preset.ID)
 			require.NoError(t, err)
 			require.Equal(t, database.PrebuildStatusHardLimited, updatedPreset.PrebuildStatus)
-
-			// When hard limit is reached, a notification should be sent.
-			matching := fakeEnqueuer.Sent(func(notification *notificationstest.FakeNotification) bool {
-				if !assert.Equal(t, notifications.PrebuildFailureLimitReached, notification.TemplateID, "unexpected template") {
-					return false
-				}
-
-				if !assert.Equal(t, templateAdmin.ID, notification.UserID, "unexpected receiver") {
-					return false
-				}
-
-				return true
-			})
-			require.Len(t, matching, 1)
 
 			// When hard limit is reached, metric is set to 1.
 			mf, err = registry.Gather()
@@ -2180,4 +2142,81 @@ func mustParseTime(t *testing.T, layout, value string) time.Time {
 	parsedTime, err := time.Parse(layout, value)
 	require.NoError(t, err)
 	return parsedTime
+}
+
+func TestReconciliationRespectsPauseSetting(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	clock := quartz.NewMock(t)
+	db, ps := dbtestutil.NewDB(t)
+	cfg := codersdk.PrebuildsConfig{
+		ReconciliationInterval: serpent.Duration(testutil.WaitLong),
+	}
+	logger := testutil.Logger(t)
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, cfg, logger, clock, prometheus.NewRegistry(), newNoopEnqueuer())
+
+	// Setup a template with a preset that should create prebuilds
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, ps, org.ID, user.ID, template.ID)
+	_ = setupTestDBPreset(t, db, templateVersionID, 2, "test")
+
+	// Initially, reconciliation should create prebuilds
+	err := reconciler.ReconcileAll(ctx)
+	require.NoError(t, err)
+
+	// Verify that prebuilds were created
+	workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 2, "should have created 2 prebuilds")
+
+	// Now pause prebuilds reconciliation
+	err = prebuilds.SetPrebuildsReconciliationPaused(ctx, db, true)
+	require.NoError(t, err)
+
+	// Delete the existing prebuilds to simulate a scenario where reconciliation would normally recreate them
+	for _, workspace := range workspaces {
+		err = db.UpdateWorkspaceDeletedByID(ctx, database.UpdateWorkspaceDeletedByIDParams{
+			ID:      workspace.ID,
+			Deleted: true,
+		})
+		require.NoError(t, err)
+	}
+
+	// Verify prebuilds are deleted
+	workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 0, "prebuilds should be deleted")
+
+	// Run reconciliation again - it should be paused and not recreate prebuilds
+	err = reconciler.ReconcileAll(ctx)
+	require.NoError(t, err)
+
+	// Verify that no new prebuilds were created because reconciliation is paused
+	workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 0, "should not create prebuilds when reconciliation is paused")
+
+	// Resume prebuilds reconciliation
+	err = prebuilds.SetPrebuildsReconciliationPaused(ctx, db, false)
+	require.NoError(t, err)
+
+	// Run reconciliation again - it should now recreate the prebuilds
+	err = reconciler.ReconcileAll(ctx)
+	require.NoError(t, err)
+
+	// Verify that prebuilds were recreated
+	workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 2, "should have recreated 2 prebuilds after resuming")
 }

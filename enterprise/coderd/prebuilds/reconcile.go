@@ -3,6 +3,7 @@ package prebuilds
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -14,7 +15,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -256,6 +257,28 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 	logger.Debug(ctx, "starting reconciliation")
 
 	err := c.WithReconciliationLock(ctx, logger, func(ctx context.Context, _ database.Store) error {
+		// Check if prebuilds reconciliation is paused
+		settingsJSON, err := c.store.GetPrebuildsSettings(ctx)
+		if err != nil {
+			return xerrors.Errorf("get prebuilds settings: %w", err)
+		}
+
+		var settings codersdk.PrebuildsSettings
+		if len(settingsJSON) > 0 {
+			if err := json.Unmarshal([]byte(settingsJSON), &settings); err != nil {
+				return xerrors.Errorf("unmarshal prebuilds settings: %w", err)
+			}
+		}
+
+		if c.metrics != nil {
+			c.metrics.setReconciliationPaused(settings.ReconciliationPaused)
+		}
+
+		if settings.ReconciliationPaused {
+			logger.Info(ctx, "prebuilds reconciliation is paused, skipping reconciliation")
+			return nil
+		}
+
 		snapshot, err := c.SnapshotState(ctx, c.store)
 		if err != nil {
 			return xerrors.Errorf("determine current snapshot: %w", err)
@@ -427,7 +450,6 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 
 	// If the preset reached the hard failure limit for the first time during this iteration:
 	// - Mark it as hard-limited in the database
-	// - Send notifications to template admins
 	// - Continue execution, we disallow only creation operation for hard-limited presets. Deletion is allowed.
 	if ps.Preset.PrebuildStatus != database.PrebuildStatusHardLimited && ps.IsHardLimited {
 		logger.Warn(ctx, "preset is hard limited, notifying template admins")
@@ -438,11 +460,6 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		})
 		if err != nil {
 			return xerrors.Errorf("failed to update preset prebuild status: %w", err)
-		}
-
-		err = c.notifyPrebuildFailureLimitReached(ctx, ps)
-		if err != nil {
-			logger.Error(ctx, "failed to notify that number of prebuild failures reached the limit", slog.Error(err))
 		}
 	}
 
@@ -472,49 +489,6 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 		}
 	}
 	return multiErr.ErrorOrNil()
-}
-
-func (c *StoreReconciler) notifyPrebuildFailureLimitReached(ctx context.Context, ps prebuilds.PresetSnapshot) error {
-	// nolint:gocritic // Necessary to query all the required data.
-	ctx = dbauthz.AsSystemRestricted(ctx)
-
-	// Send notification to template admins.
-	if c.notifEnq == nil {
-		c.logger.Warn(ctx, "notification enqueuer not set, cannot send prebuild is hard limited notification(s)")
-		return nil
-	}
-
-	templateAdmins, err := c.store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleTemplateAdmin},
-	})
-	if err != nil {
-		return xerrors.Errorf("fetch template admins: %w", err)
-	}
-
-	for _, templateAdmin := range templateAdmins {
-		if _, err := c.notifEnq.EnqueueWithData(ctx, templateAdmin.ID, notifications.PrebuildFailureLimitReached,
-			map[string]string{
-				"org":              ps.Preset.OrganizationName,
-				"template":         ps.Preset.TemplateName,
-				"template_version": ps.Preset.TemplateVersionName,
-				"preset":           ps.Preset.Name,
-			},
-			map[string]any{},
-			"prebuilds_reconciler",
-			// Associate this notification with all the related entities.
-			ps.Preset.TemplateID, ps.Preset.TemplateVersionID, ps.Preset.ID, ps.Preset.OrganizationID,
-		); err != nil {
-			c.logger.Error(ctx,
-				"failed to send notification",
-				slog.Error(err),
-				slog.F("template_admin_id", templateAdmin.ID.String()),
-			)
-
-			continue
-		}
-	}
-
-	return nil
 }
 
 func (c *StoreReconciler) CalculateActions(ctx context.Context, snapshot prebuilds.PresetSnapshot) ([]*prebuilds.ReconciliationActions, error) {
@@ -932,4 +906,19 @@ func (c *StoreReconciler) trackResourceReplacement(ctx context.Context, workspac
 	}
 
 	return notifErr
+}
+
+type Settings struct {
+	ReconciliationPaused bool `json:"reconciliation_paused"`
+}
+
+func SetPrebuildsReconciliationPaused(ctx context.Context, db database.Store, paused bool) error {
+	settings := Settings{
+		ReconciliationPaused: paused,
+	}
+	settingsJSON, err := json.Marshal(settings)
+	if err != nil {
+		return xerrors.Errorf("marshal settings: %w", err)
+	}
+	return db.UpsertPrebuildsSettings(ctx, string(settingsJSON))
 }

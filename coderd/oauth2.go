@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 
@@ -114,12 +115,21 @@ func (api *API) postOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	app, err := api.Database.InsertOAuth2ProviderApp(ctx, database.InsertOAuth2ProviderAppParams{
-		ID:          uuid.New(),
-		CreatedAt:   dbtime.Now(),
-		UpdatedAt:   dbtime.Now(),
-		Name:        req.Name,
-		Icon:        req.Icon,
-		CallbackURL: req.CallbackURL,
+		ID:           uuid.New(),
+		CreatedAt:    dbtime.Now(),
+		UpdatedAt:    dbtime.Now(),
+		Name:         req.Name,
+		Icon:         req.Icon,
+		CallbackURL:  req.CallbackURL,
+		RedirectUris: []string{},
+		ClientType: sql.NullString{
+			String: "confidential",
+			Valid:  true,
+		},
+		DynamicallyRegistered: sql.NullBool{
+			Bool:  false,
+			Valid: true,
+		},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -161,11 +171,14 @@ func (api *API) putOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	app, err := api.Database.UpdateOAuth2ProviderAppByID(ctx, database.UpdateOAuth2ProviderAppByIDParams{
-		ID:          app.ID,
-		UpdatedAt:   dbtime.Now(),
-		Name:        req.Name,
-		Icon:        req.Icon,
-		CallbackURL: req.CallbackURL,
+		ID:                    app.ID,
+		UpdatedAt:             dbtime.Now(),
+		Name:                  req.Name,
+		Icon:                  req.Icon,
+		CallbackURL:           req.CallbackURL,
+		RedirectUris:          app.RedirectUris,          // Keep existing value
+		ClientType:            app.ClientType,            // Keep existing value
+		DynamicallyRegistered: app.DynamicallyRegistered, // Keep existing value
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -327,8 +340,8 @@ func (api *API) deleteOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Re
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// @Summary OAuth2 authorization request.
-// @ID oauth2-authorization-request
+// @Summary OAuth2 authorization request (GET - show authorization page).
+// @ID oauth2-authorization-request-get
 // @Security CoderSessionToken
 // @Tags Enterprise
 // @Param client_id query string true "Client ID"
@@ -336,10 +349,25 @@ func (api *API) deleteOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Re
 // @Param response_type query codersdk.OAuth2ProviderResponseType true "Response type"
 // @Param redirect_uri query string false "Redirect here after authorization"
 // @Param scope query string false "Token scopes (currently ignored)"
-// @Success 302
-// @Router /oauth2/authorize [post]
+// @Success 200 "Returns HTML authorization page"
+// @Router /oauth2/authorize [get]
 func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
-	return identityprovider.Authorize(api.Database, api.AccessURL)
+	return identityprovider.ShowAuthorizePage(api.Database, api.AccessURL)
+}
+
+// @Summary OAuth2 authorization request (POST - process authorization).
+// @ID oauth2-authorization-request-post
+// @Security CoderSessionToken
+// @Tags Enterprise
+// @Param client_id query string true "Client ID"
+// @Param state query string true "A random unguessable string"
+// @Param response_type query codersdk.OAuth2ProviderResponseType true "Response type"
+// @Param redirect_uri query string false "Redirect here after authorization"
+// @Param scope query string false "Token scopes (currently ignored)"
+// @Success 302 "Returns redirect with authorization code"
+// @Router /oauth2/authorize [post]
+func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
+	return identityprovider.ProcessAuthorize(api.Database, api.AccessURL)
 }
 
 // @Summary OAuth2 token exchange.
@@ -366,4 +394,45 @@ func (api *API) postOAuth2ProviderAppToken() http.HandlerFunc {
 // @Router /oauth2/tokens [delete]
 func (api *API) deleteOAuth2ProviderAppTokens() http.HandlerFunc {
 	return identityprovider.RevokeApp(api.Database)
+}
+
+// @Summary OAuth2 authorization server metadata.
+// @ID oauth2-authorization-server-metadata
+// @Produce json
+// @Tags Enterprise
+// @Success 200 {object} codersdk.OAuth2AuthorizationServerMetadata
+// @Router /.well-known/oauth-authorization-server [get]
+func (api *API) oauth2AuthorizationServerMetadata(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	metadata := codersdk.OAuth2AuthorizationServerMetadata{
+		Issuer:                        api.AccessURL.String(),
+		AuthorizationEndpoint:         api.AccessURL.JoinPath("/oauth2/authorize").String(),
+		TokenEndpoint:                 api.AccessURL.JoinPath("/oauth2/tokens").String(),
+		ResponseTypesSupported:        []string{"code"},
+		GrantTypesSupported:           []string{"authorization_code", "refresh_token"},
+		CodeChallengeMethodsSupported: []string{"S256"},
+		// TODO: Implement scope system
+		ScopesSupported:                   []string{},
+		TokenEndpointAuthMethodsSupported: []string{"client_secret_post"},
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, metadata)
+}
+
+// @Summary OAuth2 protected resource metadata.
+// @ID oauth2-protected-resource-metadata
+// @Produce json
+// @Tags Enterprise
+// @Success 200 {object} codersdk.OAuth2ProtectedResourceMetadata
+// @Router /.well-known/oauth-protected-resource [get]
+func (api *API) oauth2ProtectedResourceMetadata(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	metadata := codersdk.OAuth2ProtectedResourceMetadata{
+		Resource:             api.AccessURL.String(),
+		AuthorizationServers: []string{api.AccessURL.String()},
+		// TODO: Implement scope system based on RBAC permissions
+		ScopesSupported: []string{},
+		// RFC 6750 Bearer Token methods supported as fallback methods in api key middleware
+		BearerMethodsSupported: []string{"header", "query"},
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, metadata)
 }

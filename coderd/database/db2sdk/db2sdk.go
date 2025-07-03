@@ -16,6 +16,8 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
+	previewtypes "github.com/coder/preview/types"
+
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -26,7 +28,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
-	previewtypes "github.com/coder/preview/types"
 )
 
 // List is a helper function to reduce boilerplate when converting slices of
@@ -803,19 +804,6 @@ func AgentProtoConnectionActionToAuditAction(action database.AuditAction) (agent
 	}
 }
 
-func Chat(chat database.Chat) codersdk.Chat {
-	return codersdk.Chat{
-		ID:        chat.ID,
-		Title:     chat.Title,
-		CreatedAt: chat.CreatedAt,
-		UpdatedAt: chat.UpdatedAt,
-	}
-}
-
-func Chats(chats []database.Chat) []codersdk.Chat {
-	return List(chats, Chat)
-}
-
 func PreviewParameter(param previewtypes.Parameter) codersdk.PreviewParameter {
 	return codersdk.PreviewParameter{
 		PreviewParameterData: codersdk.PreviewParameterData{
@@ -828,6 +816,7 @@ func PreviewParameter(param previewtypes.Parameter) codersdk.PreviewParameter {
 				Placeholder: param.Styling.Placeholder,
 				Disabled:    param.Styling.Disabled,
 				Label:       param.Styling.Label,
+				MaskInput:   param.Styling.MaskInput,
 			},
 			Mutable:      param.Mutable,
 			DefaultValue: PreviewHCLString(param.DefaultValue),

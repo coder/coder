@@ -11,14 +11,20 @@ INSERT INTO oauth2_provider_apps (
     updated_at,
     name,
     icon,
-    callback_url
+    callback_url,
+    redirect_uris,
+    client_type,
+    dynamically_registered
 ) VALUES(
     $1,
     $2,
     $3,
     $4,
     $5,
-    $6
+    $6,
+    $7,
+    $8,
+    $9
 ) RETURNING *;
 
 -- name: UpdateOAuth2ProviderAppByID :one
@@ -26,7 +32,10 @@ UPDATE oauth2_provider_apps SET
     updated_at = $2,
     name = $3,
     icon = $4,
-    callback_url = $5
+    callback_url = $5,
+    redirect_uris = $6,
+    client_type = $7,
+    dynamically_registered = $8
 WHERE id = $1 RETURNING *;
 
 -- name: DeleteOAuth2ProviderAppByID :exec
@@ -80,7 +89,10 @@ INSERT INTO oauth2_provider_app_codes (
     secret_prefix,
     hashed_secret,
     app_id,
-    user_id
+    user_id,
+    resource_uri,
+    code_challenge,
+    code_challenge_method
 ) VALUES(
     $1,
     $2,
@@ -88,7 +100,10 @@ INSERT INTO oauth2_provider_app_codes (
     $4,
     $5,
     $6,
-    $7
+    $7,
+    $8,
+    $9,
+    $10
 ) RETURNING *;
 
 -- name: DeleteOAuth2ProviderAppCodeByID :exec
@@ -105,7 +120,9 @@ INSERT INTO oauth2_provider_app_tokens (
     hash_prefix,
     refresh_hash,
     app_secret_id,
-    api_key_id
+    api_key_id,
+    user_id,
+    audience
 ) VALUES(
     $1,
     $2,
@@ -113,11 +130,16 @@ INSERT INTO oauth2_provider_app_tokens (
     $4,
     $5,
     $6,
-    $7
+    $7,
+    $8,
+    $9
 ) RETURNING *;
 
 -- name: GetOAuth2ProviderAppTokenByPrefix :one
 SELECT * FROM oauth2_provider_app_tokens WHERE hash_prefix = $1;
+
+-- name: GetOAuth2ProviderAppTokenByAPIKeyID :one
+SELECT * FROM oauth2_provider_app_tokens WHERE api_key_id = $1;
 
 -- name: GetOAuth2ProviderAppsByUserID :many
 SELECT
@@ -128,10 +150,8 @@ FROM oauth2_provider_app_tokens
     ON oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
   INNER JOIN oauth2_provider_apps
     ON oauth2_provider_apps.id = oauth2_provider_app_secrets.app_id
-  INNER JOIN api_keys
-    ON api_keys.id = oauth2_provider_app_tokens.api_key_id
 WHERE
-  api_keys.user_id = $1
+  oauth2_provider_app_tokens.user_id = $1
 GROUP BY
   oauth2_provider_apps.id;
 
@@ -139,9 +159,8 @@ GROUP BY
 DELETE FROM
   oauth2_provider_app_tokens
 USING
-  oauth2_provider_app_secrets, api_keys
+  oauth2_provider_app_secrets
 WHERE
   oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
-  AND api_keys.id = oauth2_provider_app_tokens.api_key_id
   AND oauth2_provider_app_secrets.app_id = $1
-	AND api_keys.user_id = $2;
+  AND oauth2_provider_app_tokens.user_id = $2;

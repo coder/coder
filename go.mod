@@ -58,7 +58,7 @@ replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0
 // Adds support for a new Listener from a driver.Connector
 // This lets us use rotating authentication tokens for passwords in connection strings
 // which we use in the awsiamrds package.
-replace github.com/lib/pq => github.com/coder/pq v1.10.5-0.20240813183442-0c420cb5a048
+replace github.com/lib/pq => github.com/coder/pq v1.10.5-0.20250630052411-a259f96b6102
 
 // Removes an init() function that causes terminal sequences to be printed to the web terminal when
 // used in conjunction with agent-exec. See https://github.com/coder/coder/pull/15817
@@ -72,13 +72,16 @@ replace github.com/aquasecurity/trivy => github.com/coder/trivy v0.0.0-202505271
 // https://github.com/spf13/afero/pull/487
 replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713-f06e86036696
 
+// TODO: replace once we cut release.
+replace github.com/coder/terraform-provider-coder/v2 => github.com/coder/terraform-provider-coder/v2 v2.7.1-0.20250623193313-e890833351e2
+
 require (
 	cdr.dev/slog v1.6.2-0.20241112041820-0ec81e6e67bb
 	cloud.google.com/go/compute/metadata v0.7.0
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/adrg/xdg v0.5.0
 	github.com/ammario/tlru v0.4.0
-	github.com/andybalholm/brotli v1.1.1
+	github.com/andybalholm/brotli v1.2.0
 	github.com/aquasecurity/trivy-iac v0.8.0
 	github.com/armon/circbuf v0.0.0-20190214190532-5111143e8da2
 	github.com/awalterschulze/gographviz v2.0.3+incompatible
@@ -101,7 +104,7 @@ require (
 	github.com/coder/quartz v0.2.1
 	github.com/coder/retry v1.5.1
 	github.com/coder/serpent v0.10.0
-	github.com/coder/terraform-provider-coder/v2 v2.7.0
+	github.com/coder/terraform-provider-coder/v2 v2.8.0
 	github.com/coder/websocket v1.8.13
 	github.com/coder/wgtunnel v0.1.13-0.20240522110300-ade90dfb2da0
 	github.com/coreos/go-oidc/v3 v3.14.1
@@ -154,7 +157,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
-	github.com/moby/moby v28.2.2+incompatible
+	github.com/moby/moby v28.3.0+incompatible
 	github.com/mocktools/go-smtp-mock/v2 v2.5.0
 	github.com/muesli/termenv v0.16.0
 	github.com/natefinch/atomic v1.0.1
@@ -309,7 +312,7 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/go-test/deep v1.1.0 // indirect
-	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
+	github.com/go-viper/mapstructure/v2 v2.3.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
@@ -478,14 +481,11 @@ require (
 )
 
 require (
-	github.com/anthropics/anthropic-sdk-go v0.2.0-beta.3
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
-	github.com/coder/preview v0.0.2-0.20250611164554-2e5caa65a54a
+	github.com/coder/aisdk-go v0.0.9
+	github.com/coder/preview v1.0.2
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/kylecarbs/aisdk-go v0.0.8
 	github.com/mark3labs/mcp-go v0.32.0
-	github.com/openai/openai-go v0.1.0-beta.10
-	google.golang.org/genai v0.7.0
 )
 
 require (
@@ -502,6 +502,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.50.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.50.0 // indirect
 	github.com/Masterminds/semver/v3 v3.3.1 // indirect
+	github.com/anthropics/anthropic-sdk-go v1.4.0 // indirect
 	github.com/aquasecurity/go-version v0.0.1 // indirect
 	github.com/aquasecurity/trivy v0.58.2 // indirect
 	github.com/aws/aws-sdk-go v1.55.7 // indirect
@@ -519,6 +520,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/moby/sys/user v0.4.0 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
+	github.com/openai/openai-go v1.7.0 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/samber/lo v1.50.0 // indirect
@@ -533,5 +535,6 @@ require (
 	go.opentelemetry.io/contrib/detectors/gcp v1.35.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.35.0 // indirect
+	google.golang.org/genai v1.12.0 // indirect
 	k8s.io/utils v0.0.0-20241210054802-24370beab758 // indirect
 )

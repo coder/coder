@@ -45,7 +45,6 @@ import (
 
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 
-	"github.com/coder/coder/v2/coderd/ai"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/files"
@@ -160,7 +159,6 @@ type Options struct {
 	Authorizer                     rbac.Authorizer
 	AzureCertificates              x509.VerifyOptions
 	GoogleTokenValidator           *idtoken.Validator
-	LanguageModels                 ai.LanguageModels
 	GithubOAuth2Config             *GithubOAuth2Config
 	OIDCConfig                     *OIDCConfig
 	PrometheusRegistry             *prometheus.Registry
@@ -783,6 +781,7 @@ func New(options *Options) *API {
 		Optional:                      false,
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
+		Logger:                        options.Logger,
 	})
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -793,6 +792,7 @@ func New(options *Options) *API {
 		Optional:                      false,
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
+		Logger:                        options.Logger,
 	})
 	// Same as the first but it's optional.
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -803,6 +803,7 @@ func New(options *Options) *API {
 		Optional:                      true,
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
+		Logger:                        options.Logger,
 	})
 
 	workspaceAgentInfo := httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
@@ -911,21 +912,33 @@ func New(options *Options) *API {
 		})
 	}
 
+	// OAuth2 metadata endpoint for RFC 8414 discovery
+	r.Get("/.well-known/oauth-authorization-server", api.oauth2AuthorizationServerMetadata)
+	// OAuth2 protected resource metadata endpoint for RFC 9728 discovery
+	r.Get("/.well-known/oauth-protected-resource", api.oauth2ProtectedResourceMetadata)
+
 	// OAuth2 linking routes do not make sense under the /api/v2 path.  These are
 	// for an external application to use Coder as an OAuth2 provider, not for
 	// logging into Coder with an external OAuth2 provider.
 	r.Route("/oauth2", func(r chi.Router) {
 		r.Use(
 			api.oAuth2ProviderMiddleware,
-			// Fetch the app as system because in the /tokens route there will be no
-			// authenticated user.
-			httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderApp(options.Database)),
 		)
 		r.Route("/authorize", func(r chi.Router) {
-			r.Use(apiKeyMiddlewareRedirect)
+			r.Use(
+				// Fetch the app as system for the authorize endpoint
+				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
+				apiKeyMiddlewareRedirect,
+			)
+			// GET shows the consent page, POST processes the consent
 			r.Get("/", api.getOAuth2ProviderAppAuthorize())
+			r.Post("/", api.postOAuth2ProviderAppAuthorize())
 		})
 		r.Route("/tokens", func(r chi.Router) {
+			r.Use(
+				// Use OAuth2-compliant error responses for the tokens endpoint
+				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
+			)
 			r.Group(func(r chi.Router) {
 				r.Use(apiKeyMiddleware)
 				// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
@@ -936,6 +949,14 @@ func New(options *Options) *API {
 			// The POST /tokens endpoint will be called from an unauthorized client so
 			// we cannot require an API key.
 			r.Post("/", api.postOAuth2ProviderAppToken())
+		})
+	})
+
+	// Experimental routes are not guaranteed to be stable and may change at any time.
+	r.Route("/api/experimental", func(r chi.Router) {
+		r.Use(apiKeyMiddleware)
+		r.Route("/aitasks", func(r chi.Router) {
+			r.Get("/prompts", api.aiTasksPrompts)
 		})
 	})
 
@@ -968,11 +989,10 @@ func New(options *Options) *API {
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
 			r.Get("/ssh", api.sshConfig)
-			r.Get("/llms", api.deploymentLLMs)
 		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Get("/available", handleExperimentsSafe)
+			r.Get("/available", handleExperimentsAvailable)
 			r.Get("/", api.handleExperimentsGet)
 		})
 		r.Get("/updatecheck", api.updateCheck)
@@ -1010,21 +1030,6 @@ func New(options *Options) *API {
 			)
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
-		})
-		// Chats are an experimental feature
-		r.Route("/chats", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentAgenticChat),
-			)
-			r.Get("/", api.listChats)
-			r.Post("/", api.postChats)
-			r.Route("/{chat}", func(r chi.Router) {
-				r.Use(httpmw.ExtractChatParam(options.Database))
-				r.Get("/", api.chat)
-				r.Get("/messages", api.chatMessages)
-				r.Post("/messages", api.postChatMessages)
-			})
 		})
 		r.Route("/external-auth", func(r chi.Router) {
 			r.Use(
@@ -1324,7 +1329,7 @@ func New(options *Options) *API {
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)
 				r.Get("/containers", api.workspaceAgentListContainers)
-				r.Post("/containers/devcontainers/container/{container}/recreate", api.workspaceAgentRecreateDevcontainer)
+				r.Post("/containers/devcontainers/{devcontainer}/recreate", api.workspaceAgentRecreateDevcontainer)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
 
 				// PTY is part of workspaceAppServer.
@@ -1536,7 +1541,6 @@ func New(options *Options) *API {
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
 	cspMW := httpmw.CSPHeaders(
-		api.Experiments,
 		options.Telemetry.Enabled(), func() []*proxyhealth.ProxyHost {
 			if api.DeploymentValues.Dangerous.AllowAllCors {
 				// In this mode, allow all external requests.
@@ -1895,7 +1899,9 @@ func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 			exps = append(exps, codersdk.ExperimentsSafe...)
 		default:
 			ex := codersdk.Experiment(strings.ToLower(v))
-			if !slice.Contains(codersdk.ExperimentsSafe, ex) {
+			if !slice.Contains(codersdk.ExperimentsKnown, ex) {
+				log.Warn(context.Background(), "ignoring unknown experiment", slog.F("experiment", ex))
+			} else if !slice.Contains(codersdk.ExperimentsSafe, ex) {
 				log.Warn(context.Background(), "🐉 HERE BE DRAGONS: opting into hidden experiment", slog.F("experiment", ex))
 			}
 			exps = append(exps, ex)

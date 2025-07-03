@@ -215,8 +215,6 @@ type data struct {
 
 	// New tables
 	auditLogs                            []database.AuditLog
-	chats                                []database.Chat
-	chatMessages                         []database.ChatMessage
 	cryptoKeys                           []database.CryptoKey
 	dbcryptKeys                          []database.DBCryptKey
 	files                                []database.File
@@ -299,6 +297,7 @@ type data struct {
 	presets                          []database.TemplateVersionPreset
 	presetParameters                 []database.TemplateVersionPresetParameter
 	presetPrebuildSchedules          []database.TemplateVersionPresetPrebuildSchedule
+	prebuildsSettings                []byte
 }
 
 func tryPercentileCont(fs []float64, p float64) float64 {
@@ -1781,6 +1780,10 @@ func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
 	return ErrUnimplemented
 }
 
+func (q *FakeQuerier) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
+	return q.CountAuthorizedAuditLogs(ctx, arg, nil)
+}
+
 func (q *FakeQuerier) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
 	return nil, ErrUnimplemented
 }
@@ -1907,19 +1910,6 @@ func (q *FakeQuerier) DeleteApplicationConnectAPIKeysByUserID(_ context.Context,
 	}
 
 	return nil
-}
-
-func (q *FakeQuerier) DeleteChat(ctx context.Context, id uuid.UUID) error {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i, chat := range q.chats {
-		if chat.ID == id {
-			q.chats = append(q.chats[:i], q.chats[i+1:]...)
-			return nil
-		}
-	}
-	return sql.ErrNoRows
 }
 
 func (*FakeQuerier) DeleteCoordinator(context.Context, uuid.UUID) error {
@@ -2953,47 +2943,6 @@ func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 		Roles:    roles,
 		Groups:   groups,
 	}, nil
-}
-
-func (q *FakeQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, chat := range q.chats {
-		if chat.ID == id {
-			return chat, nil
-		}
-	}
-	return database.Chat{}, sql.ErrNoRows
-}
-
-func (q *FakeQuerier) GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	messages := []database.ChatMessage{}
-	for _, chatMessage := range q.chatMessages {
-		if chatMessage.ChatID == chatID {
-			messages = append(messages, chatMessage)
-		}
-	}
-	return messages, nil
-}
-
-func (q *FakeQuerier) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.Chat, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	chats := []database.Chat{}
-	for _, chat := range q.chats {
-		if chat.OwnerID == ownerID {
-			chats = append(chats, chat)
-		}
-	}
-	sort.Slice(chats, func(i, j int) bool {
-		return chats[i].CreatedAt.After(chats[j].CreatedAt)
-	})
-	return chats, nil
 }
 
 func (q *FakeQuerier) GetCoordinatorResumeTokenSigningKey(_ context.Context) (string, error) {
@@ -4106,6 +4055,19 @@ func (q *FakeQuerier) GetOAuth2ProviderAppSecretsByAppID(_ context.Context, appI
 	return []database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetOAuth2ProviderAppTokenByAPIKeyID(_ context.Context, apiKeyID string) (database.OAuth2ProviderAppToken, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, token := range q.oauth2ProviderAppTokens {
+		if token.APIKeyID == apiKeyID {
+			return token, nil
+		}
+	}
+
+	return database.OAuth2ProviderAppToken{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetOAuth2ProviderAppTokenByPrefix(_ context.Context, hashPrefix []byte) (database.OAuth2ProviderAppToken, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -4151,13 +4113,8 @@ func (q *FakeQuerier) GetOAuth2ProviderAppsByUserID(_ context.Context, userID uu
 		}
 		if len(tokens) > 0 {
 			rows = append(rows, database.GetOAuth2ProviderAppsByUserIDRow{
-				OAuth2ProviderApp: database.OAuth2ProviderApp{
-					CallbackURL: app.CallbackURL,
-					ID:          app.ID,
-					Icon:        app.Icon,
-					Name:        app.Name,
-				},
-				TokenCount: int64(len(tokens)),
+				OAuth2ProviderApp: app,
+				TokenCount:        int64(len(tokens)),
 			})
 		}
 	}
@@ -4326,10 +4283,17 @@ func (q *FakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 }
 
 func (*FakeQuerier) GetPrebuildMetrics(_ context.Context) ([]database.GetPrebuildMetricsRow, error) {
-	return nil, ErrUnimplemented
+	return make([]database.GetPrebuildMetricsRow, 0), nil
 }
 
-func (q *FakeQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
+func (q *FakeQuerier) GetPrebuildsSettings(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return string(slices.Clone(q.prebuildsSettings)), nil
+}
+
+func (q *FakeQuerier) GetPresetByID(_ context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -7960,6 +7924,11 @@ func (q *FakeQuerier) GetWorkspaceBuildParameters(_ context.Context, workspaceBu
 	return q.getWorkspaceBuildParametersNoLock(workspaceBuildID)
 }
 
+func (q *FakeQuerier) GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIDs []uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
+	// No auth filter.
+	return q.GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx, workspaceBuildIDs, nil)
+}
+
 func (q *FakeQuerier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -8625,66 +8594,6 @@ func (q *FakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAudit
 	return alog, nil
 }
 
-func (q *FakeQuerier) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.Chat{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	chat := database.Chat{
-		ID:        uuid.New(),
-		CreatedAt: arg.CreatedAt,
-		UpdatedAt: arg.UpdatedAt,
-		OwnerID:   arg.OwnerID,
-		Title:     arg.Title,
-	}
-	q.chats = append(q.chats, chat)
-
-	return chat, nil
-}
-
-func (q *FakeQuerier) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return nil, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	id := int64(0)
-	if len(q.chatMessages) > 0 {
-		id = q.chatMessages[len(q.chatMessages)-1].ID
-	}
-
-	messages := make([]database.ChatMessage, 0)
-
-	rawMessages := make([]json.RawMessage, 0)
-	err = json.Unmarshal(arg.Content, &rawMessages)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, content := range rawMessages {
-		id++
-		_ = content
-		messages = append(messages, database.ChatMessage{
-			ID:        id,
-			ChatID:    arg.ChatID,
-			CreatedAt: arg.CreatedAt,
-			Model:     arg.Model,
-			Provider:  arg.Provider,
-			Content:   content,
-		})
-	}
-
-	q.chatMessages = append(q.chatMessages, messages...)
-	return messages, nil
-}
-
 func (q *FakeQuerier) InsertCryptoKey(_ context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -9025,12 +8934,15 @@ func (q *FakeQuerier) InsertOAuth2ProviderApp(_ context.Context, arg database.In
 
 	//nolint:gosimple // Go wants database.OAuth2ProviderApp(arg), but we cannot be sure the structs will remain identical.
 	app := database.OAuth2ProviderApp{
-		ID:          arg.ID,
-		CreatedAt:   arg.CreatedAt,
-		UpdatedAt:   arg.UpdatedAt,
-		Name:        arg.Name,
-		Icon:        arg.Icon,
-		CallbackURL: arg.CallbackURL,
+		ID:                    arg.ID,
+		CreatedAt:             arg.CreatedAt,
+		UpdatedAt:             arg.UpdatedAt,
+		Name:                  arg.Name,
+		Icon:                  arg.Icon,
+		CallbackURL:           arg.CallbackURL,
+		RedirectUris:          arg.RedirectUris,
+		ClientType:            arg.ClientType,
+		DynamicallyRegistered: arg.DynamicallyRegistered,
 	}
 	q.oauth2ProviderApps = append(q.oauth2ProviderApps, app)
 
@@ -9049,13 +8961,16 @@ func (q *FakeQuerier) InsertOAuth2ProviderAppCode(_ context.Context, arg databas
 	for _, app := range q.oauth2ProviderApps {
 		if app.ID == arg.AppID {
 			code := database.OAuth2ProviderAppCode{
-				ID:           arg.ID,
-				CreatedAt:    arg.CreatedAt,
-				ExpiresAt:    arg.ExpiresAt,
-				SecretPrefix: arg.SecretPrefix,
-				HashedSecret: arg.HashedSecret,
-				UserID:       arg.UserID,
-				AppID:        arg.AppID,
+				ID:                  arg.ID,
+				CreatedAt:           arg.CreatedAt,
+				ExpiresAt:           arg.ExpiresAt,
+				SecretPrefix:        arg.SecretPrefix,
+				HashedSecret:        arg.HashedSecret,
+				UserID:              arg.UserID,
+				AppID:               arg.AppID,
+				ResourceUri:         arg.ResourceUri,
+				CodeChallenge:       arg.CodeChallenge,
+				CodeChallengeMethod: arg.CodeChallengeMethod,
 			}
 			q.oauth2ProviderAppCodes = append(q.oauth2ProviderAppCodes, code)
 			return code, nil
@@ -9112,6 +9027,8 @@ func (q *FakeQuerier) InsertOAuth2ProviderAppToken(_ context.Context, arg databa
 				RefreshHash: arg.RefreshHash,
 				APIKeyID:    arg.APIKeyID,
 				AppSecretID: arg.AppSecretID,
+				UserID:      arg.UserID,
+				Audience:    arg.Audience,
 			}
 			q.oauth2ProviderAppTokens = append(q.oauth2ProviderAppTokens, token)
 			return token, nil
@@ -9198,6 +9115,7 @@ func (q *FakeQuerier) InsertPreset(_ context.Context, arg database.InsertPresetP
 			Valid: true,
 		},
 		PrebuildStatus: database.PrebuildStatusHealthy,
+		IsDefault:      arg.IsDefault,
 	}
 	q.presets = append(q.presets, preset)
 	return preset, nil
@@ -9433,7 +9351,7 @@ func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		AllowUserAutostart:           true,
 		AllowUserAutostop:            true,
 		MaxPortSharingLevel:          arg.MaxPortSharingLevel,
-		UseClassicParameterFlow:      true,
+		UseClassicParameterFlow:      arg.UseClassicParameterFlow,
 	}
 	q.templates = append(q.templates, template)
 	return nil
@@ -9464,7 +9382,6 @@ func (q *FakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 		JobID:           arg.JobID,
 		CreatedBy:       arg.CreatedBy,
 		SourceExampleID: arg.SourceExampleID,
-		HasAITask:       arg.HasAITask,
 	}
 	q.templateVersions = append(q.templateVersions, version)
 	return nil
@@ -10018,48 +9935,6 @@ func (q *FakeQuerier) InsertWorkspaceAgentStats(_ context.Context, arg database.
 	return nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.WorkspaceApp{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	if arg.SharingLevel == "" {
-		arg.SharingLevel = database.AppSharingLevelOwner
-	}
-
-	if arg.OpenIn == "" {
-		arg.OpenIn = database.WorkspaceAppOpenInSlimWindow
-	}
-
-	// nolint:gosimple
-	workspaceApp := database.WorkspaceApp{
-		ID:                   arg.ID,
-		AgentID:              arg.AgentID,
-		CreatedAt:            arg.CreatedAt,
-		Slug:                 arg.Slug,
-		DisplayName:          arg.DisplayName,
-		Icon:                 arg.Icon,
-		Command:              arg.Command,
-		Url:                  arg.Url,
-		External:             arg.External,
-		Subdomain:            arg.Subdomain,
-		SharingLevel:         arg.SharingLevel,
-		HealthcheckUrl:       arg.HealthcheckUrl,
-		HealthcheckInterval:  arg.HealthcheckInterval,
-		HealthcheckThreshold: arg.HealthcheckThreshold,
-		Health:               arg.Health,
-		Hidden:               arg.Hidden,
-		DisplayOrder:         arg.DisplayOrder,
-		OpenIn:               arg.OpenIn,
-		DisplayGroup:         arg.DisplayGroup,
-	}
-	q.workspaceApps = append(q.workspaceApps, workspaceApp)
-	return workspaceApp, nil
-}
-
 func (q *FakeQuerier) InsertWorkspaceAppStats(_ context.Context, arg database.InsertWorkspaceAppStatsParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -10144,7 +10019,6 @@ func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		MaxDeadline:             arg.MaxDeadline,
 		Reason:                  arg.Reason,
 		TemplateVersionPresetID: arg.TemplateVersionPresetID,
-		HasAITask:               arg.HasAITask,
 	}
 	q.workspaceBuilds = append(q.workspaceBuilds, workspaceBuild)
 	return nil
@@ -10676,27 +10550,6 @@ func (q *FakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateChatByID(ctx context.Context, arg database.UpdateChatByIDParams) error {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i, chat := range q.chats {
-		if chat.ID == arg.ID {
-			q.chats[i].Title = arg.Title
-			q.chats[i].UpdatedAt = arg.UpdatedAt
-			q.chats[i] = chat
-			return nil
-		}
-	}
-
-	return sql.ErrNoRows
-}
-
 func (q *FakeQuerier) UpdateCryptoKeyDeletesAt(_ context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -10958,12 +10811,15 @@ func (q *FakeQuerier) UpdateOAuth2ProviderAppByID(_ context.Context, arg databas
 	for index, app := range q.oauth2ProviderApps {
 		if app.ID == arg.ID {
 			newApp := database.OAuth2ProviderApp{
-				ID:          arg.ID,
-				CreatedAt:   app.CreatedAt,
-				UpdatedAt:   arg.UpdatedAt,
-				Name:        arg.Name,
-				Icon:        arg.Icon,
-				CallbackURL: arg.CallbackURL,
+				ID:                    arg.ID,
+				CreatedAt:             app.CreatedAt,
+				UpdatedAt:             arg.UpdatedAt,
+				Name:                  arg.Name,
+				Icon:                  arg.Icon,
+				CallbackURL:           arg.CallbackURL,
+				RedirectUris:          arg.RedirectUris,
+				ClientType:            arg.ClientType,
+				DynamicallyRegistered: arg.DynamicallyRegistered,
 			}
 			q.oauth2ProviderApps[index] = newApp
 			return newApp, nil
@@ -11346,6 +11202,26 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		return nil
 	}
 
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateTemplateVersionAITaskByJobID(_ context.Context, arg database.UpdateTemplateVersionAITaskByJobIDParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, templateVersion := range q.templateVersions {
+		if templateVersion.JobID != arg.JobID {
+			continue
+		}
+		templateVersion.HasAITask = arg.HasAITask
+		templateVersion.UpdatedAt = arg.UpdatedAt
+		q.templateVersions[index] = templateVersion
+		return nil
+	}
 	return sql.ErrNoRows
 }
 
@@ -12044,6 +11920,35 @@ func (q *FakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.U
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateWorkspaceBuildAITaskByID(_ context.Context, arg database.UpdateWorkspaceBuildAITaskByIDParams) error {
+	if arg.HasAITask.Bool && !arg.SidebarAppID.Valid {
+		return xerrors.Errorf("ai_task_sidebar_app_id is required when has_ai_task is true")
+	}
+	if !arg.HasAITask.Valid && arg.SidebarAppID.Valid {
+		return xerrors.Errorf("ai_task_sidebar_app_id is can only be set when has_ai_task is true")
+	}
+
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, workspaceBuild := range q.workspaceBuilds {
+		if workspaceBuild.ID != arg.ID {
+			continue
+		}
+		workspaceBuild.HasAITask = arg.HasAITask
+		workspaceBuild.AITaskSidebarAppID = arg.SidebarAppID
+		workspaceBuild.UpdatedAt = dbtime.Now()
+		q.workspaceBuilds[index] = workspaceBuild
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -12432,6 +12337,14 @@ func (q *FakeQuerier) UpsertOAuthSigningKey(_ context.Context, value string) err
 	defer q.mutex.Unlock()
 
 	q.oauthSigningKey = value
+	return nil
+}
+
+func (q *FakeQuerier) UpsertPrebuildsSettings(_ context.Context, value string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.prebuildsSettings = []byte(value)
 	return nil
 }
 
@@ -13192,6 +13105,58 @@ func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(_ context.Context, arg datab
 	return psl, nil
 }
 
+func (q *FakeQuerier) UpsertWorkspaceApp(ctx context.Context, arg database.UpsertWorkspaceAppParams) (database.WorkspaceApp, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceApp{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	if arg.SharingLevel == "" {
+		arg.SharingLevel = database.AppSharingLevelOwner
+	}
+	if arg.OpenIn == "" {
+		arg.OpenIn = database.WorkspaceAppOpenInSlimWindow
+	}
+
+	buildApp := func(id uuid.UUID, createdAt time.Time) database.WorkspaceApp {
+		return database.WorkspaceApp{
+			ID:                   id,
+			CreatedAt:            createdAt,
+			AgentID:              arg.AgentID,
+			Slug:                 arg.Slug,
+			DisplayName:          arg.DisplayName,
+			Icon:                 arg.Icon,
+			Command:              arg.Command,
+			Url:                  arg.Url,
+			External:             arg.External,
+			Subdomain:            arg.Subdomain,
+			SharingLevel:         arg.SharingLevel,
+			HealthcheckUrl:       arg.HealthcheckUrl,
+			HealthcheckInterval:  arg.HealthcheckInterval,
+			HealthcheckThreshold: arg.HealthcheckThreshold,
+			Health:               arg.Health,
+			Hidden:               arg.Hidden,
+			DisplayOrder:         arg.DisplayOrder,
+			OpenIn:               arg.OpenIn,
+			DisplayGroup:         arg.DisplayGroup,
+		}
+	}
+
+	for i, app := range q.workspaceApps {
+		if app.ID == arg.ID {
+			q.workspaceApps[i] = buildApp(app.ID, app.CreatedAt)
+			return q.workspaceApps[i], nil
+		}
+	}
+
+	workspaceApp := buildApp(arg.ID, arg.CreatedAt)
+	q.workspaceApps = append(q.workspaceApps, workspaceApp)
+	return workspaceApp, nil
+}
+
 func (q *FakeQuerier) UpsertWorkspaceAppAuditSession(_ context.Context, arg database.UpsertWorkspaceAppAuditSessionParams) (bool, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -13843,6 +13808,30 @@ func (q *FakeQuerier) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Cont
 	return out, nil
 }
 
+func (q *FakeQuerier) GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIDs []uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.WorkspaceBuildParameter, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if prepared != nil {
+		// Call this to match the same function calls as the SQL implementation.
+		_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	filteredParameters := make([]database.WorkspaceBuildParameter, 0)
+	for _, buildID := range workspaceBuildIDs {
+		parameters, err := q.GetWorkspaceBuildParameters(ctx, buildID)
+		if err != nil {
+			return nil, err
+		}
+		filteredParameters = append(filteredParameters, parameters...)
+	}
+
+	return filteredParameters, nil
+}
+
 func (q *FakeQuerier) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersParams, prepared rbac.PreparedAuthorized) ([]database.GetUsersRow, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
@@ -13980,7 +13969,6 @@ func (q *FakeQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg data
 			UserQuietHoursSchedule:  sql.NullString{String: user.QuietHoursSchedule, Valid: userValid},
 			UserStatus:              database.NullUserStatus{UserStatus: user.Status, Valid: userValid},
 			UserRoles:               user.RBACRoles,
-			Count:                   0,
 		})
 
 		if len(logs) >= int(arg.LimitOpt) {
@@ -13988,10 +13976,82 @@ func (q *FakeQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg data
 		}
 	}
 
-	count := int64(len(logs))
-	for i := range logs {
-		logs[i].Count = count
+	return logs, nil
+}
+
+func (q *FakeQuerier) CountAuthorizedAuditLogs(ctx context.Context, arg database.CountAuditLogsParams, prepared rbac.PreparedAuthorized) (int64, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return 0, err
 	}
 
-	return logs, nil
+	// Call this to match the same function calls as the SQL implementation.
+	// It functionally does nothing for filtering.
+	if prepared != nil {
+		_, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+			VariableConverter: regosql.AuditLogConverter(),
+		})
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var count int64
+
+	// q.auditLogs are already sorted by time DESC, so no need to sort after the fact.
+	for _, alog := range q.auditLogs {
+		if arg.RequestID != uuid.Nil && arg.RequestID != alog.RequestID {
+			continue
+		}
+		if arg.OrganizationID != uuid.Nil && arg.OrganizationID != alog.OrganizationID {
+			continue
+		}
+		if arg.Action != "" && string(alog.Action) != arg.Action {
+			continue
+		}
+		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
+			continue
+		}
+		if arg.ResourceID != uuid.Nil && alog.ResourceID != arg.ResourceID {
+			continue
+		}
+		if arg.Username != "" {
+			user, err := q.getUserByIDNoLock(alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Username, user.Username) {
+				continue
+			}
+		}
+		if arg.Email != "" {
+			user, err := q.getUserByIDNoLock(alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
+				continue
+			}
+		}
+		if !arg.DateFrom.IsZero() {
+			if alog.Time.Before(arg.DateFrom) {
+				continue
+			}
+		}
+		if !arg.DateTo.IsZero() {
+			if alog.Time.After(arg.DateTo) {
+				continue
+			}
+		}
+		if arg.BuildReason != "" {
+			workspaceBuild, err := q.getWorkspaceBuildByIDNoLock(context.Background(), alog.ResourceID)
+			if err == nil && !strings.EqualFold(arg.BuildReason, string(workspaceBuild.Reason)) {
+				continue
+			}
+		}
+		// If the filter exists, ensure the object is authorized.
+		if prepared != nil && prepared.Authorize(ctx, alog.RBACObject()) != nil {
+			continue
+		}
+
+		count++
+	}
+
+	return count, nil
 }

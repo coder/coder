@@ -100,6 +100,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		DisplayName:                  takeFirst(seed.DisplayName, testutil.GetRandomName(t)),
 		AllowUserCancelWorkspaceJobs: seed.AllowUserCancelWorkspaceJobs,
 		MaxPortSharingLevel:          takeFirst(seed.MaxPortSharingLevel, database.AppSharingLevelOwner),
+		UseClassicParameterFlow:      takeFirst(seed.UseClassicParameterFlow, true),
 	})
 	require.NoError(t, err, "insert template")
 
@@ -141,30 +142,6 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 	})
 	require.NoError(t, err, "insert api key")
 	return key, fmt.Sprintf("%s-%s", key.ID, secret)
-}
-
-func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
-	chat, err := db.InsertChat(genCtx, database.InsertChatParams{
-		OwnerID:   takeFirst(seed.OwnerID, uuid.New()),
-		CreatedAt: takeFirst(seed.CreatedAt, dbtime.Now()),
-		UpdatedAt: takeFirst(seed.UpdatedAt, dbtime.Now()),
-		Title:     takeFirst(seed.Title, "Test Chat"),
-	})
-	require.NoError(t, err, "insert chat")
-	return chat
-}
-
-func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) database.ChatMessage {
-	msg, err := db.InsertChatMessages(genCtx, database.InsertChatMessagesParams{
-		CreatedAt: takeFirst(seed.CreatedAt, dbtime.Now()),
-		ChatID:    takeFirst(seed.ChatID, uuid.New()),
-		Model:     takeFirst(seed.Model, "train"),
-		Provider:  takeFirst(seed.Provider, "thomas"),
-		Content:   takeFirstSlice(seed.Content, []byte(`[{"text": "Choo choo!"}]`)),
-	})
-	require.NoError(t, err, "insert chat message")
-	require.Len(t, msg, 1, "insert one chat message did not return exactly one message")
-	return msg[0]
 }
 
 func WorkspaceAgentPortShare(t testing.TB, db database.Store, orig database.WorkspaceAgentPortShare) database.WorkspaceAgentPortShare {
@@ -390,6 +367,9 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 	t.Helper()
 
 	buildID := takeFirst(orig.ID, uuid.New())
+	jobID := takeFirst(orig.JobID, uuid.New())
+	hasAITask := takeFirst(orig.HasAITask, sql.NullBool{})
+	sidebarAppID := takeFirst(orig.AITaskSidebarAppID, uuid.NullUUID{})
 	var build database.WorkspaceBuild
 	err := db.InTx(func(db database.Store) error {
 		err := db.InsertWorkspaceBuild(genCtx, database.InsertWorkspaceBuildParams{
@@ -401,7 +381,7 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 			BuildNumber:       takeFirst(orig.BuildNumber, 1),
 			Transition:        takeFirst(orig.Transition, database.WorkspaceTransitionStart),
 			InitiatorID:       takeFirst(orig.InitiatorID, uuid.New()),
-			JobID:             takeFirst(orig.JobID, uuid.New()),
+			JobID:             jobID,
 			ProvisionerState:  takeFirstSlice(orig.ProvisionerState, []byte{}),
 			Deadline:          takeFirst(orig.Deadline, dbtime.Now().Add(time.Hour)),
 			MaxDeadline:       takeFirst(orig.MaxDeadline, time.Time{}),
@@ -410,7 +390,6 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 				UUID:  uuid.UUID{},
 				Valid: false,
 			}),
-			HasAITask: orig.HasAITask,
 		})
 		if err != nil {
 			return err
@@ -422,6 +401,15 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 				DailyCost: orig.DailyCost,
 			})
 			require.NoError(t, err)
+		}
+
+		if hasAITask.Valid {
+			require.NoError(t, db.UpdateWorkspaceBuildAITaskByID(genCtx, database.UpdateWorkspaceBuildAITaskByIDParams{
+				HasAITask:    hasAITask,
+				SidebarAppID: sidebarAppID,
+				UpdatedAt:    dbtime.Now(),
+				ID:           buildID,
+			}))
 		}
 
 		build, err = db.GetWorkspaceBuildByID(genCtx, buildID)
@@ -778,7 +766,7 @@ func ProvisionerKey(t testing.TB, db database.Store, orig database.ProvisionerKe
 }
 
 func WorkspaceApp(t testing.TB, db database.Store, orig database.WorkspaceApp) database.WorkspaceApp {
-	resource, err := db.InsertWorkspaceApp(genCtx, database.InsertWorkspaceAppParams{
+	resource, err := db.UpsertWorkspaceApp(genCtx, database.UpsertWorkspaceAppParams{
 		ID:          takeFirst(orig.ID, uuid.New()),
 		CreatedAt:   takeFirst(orig.CreatedAt, dbtime.Now()),
 		AgentID:     takeFirst(orig.AgentID, uuid.New()),
@@ -971,6 +959,8 @@ func ExternalAuthLink(t testing.TB, db database.Store, orig database.ExternalAut
 
 func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVersion) database.TemplateVersion {
 	var version database.TemplateVersion
+	hasAITask := takeFirst(orig.HasAITask, sql.NullBool{})
+	jobID := takeFirst(orig.JobID, uuid.New())
 	err := db.InTx(func(db database.Store) error {
 		versionID := takeFirst(orig.ID, uuid.New())
 		err := db.InsertTemplateVersion(genCtx, database.InsertTemplateVersionParams{
@@ -982,13 +972,20 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 			Name:            takeFirst(orig.Name, testutil.GetRandomName(t)),
 			Message:         orig.Message,
 			Readme:          takeFirst(orig.Readme, testutil.GetRandomName(t)),
-			JobID:           takeFirst(orig.JobID, uuid.New()),
+			JobID:           jobID,
 			CreatedBy:       takeFirst(orig.CreatedBy, uuid.New()),
 			SourceExampleID: takeFirst(orig.SourceExampleID, sql.NullString{}),
-			HasAITask:       orig.HasAITask,
 		})
 		if err != nil {
 			return err
+		}
+
+		if hasAITask.Valid {
+			require.NoError(t, db.UpdateTemplateVersionAITaskByJobID(genCtx, database.UpdateTemplateVersionAITaskByJobIDParams{
+				JobID:     jobID,
+				HasAITask: hasAITask,
+				UpdatedAt: dbtime.Now(),
+			}))
 		}
 
 		version, err = db.GetTemplateVersionByID(genCtx, versionID)
@@ -1135,12 +1132,21 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 
 func OAuth2ProviderApp(t testing.TB, db database.Store, seed database.OAuth2ProviderApp) database.OAuth2ProviderApp {
 	app, err := db.InsertOAuth2ProviderApp(genCtx, database.InsertOAuth2ProviderAppParams{
-		ID:          takeFirst(seed.ID, uuid.New()),
-		Name:        takeFirst(seed.Name, testutil.GetRandomName(t)),
-		CreatedAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
-		UpdatedAt:   takeFirst(seed.UpdatedAt, dbtime.Now()),
-		Icon:        takeFirst(seed.Icon, ""),
-		CallbackURL: takeFirst(seed.CallbackURL, "http://localhost"),
+		ID:           takeFirst(seed.ID, uuid.New()),
+		Name:         takeFirst(seed.Name, testutil.GetRandomName(t)),
+		CreatedAt:    takeFirst(seed.CreatedAt, dbtime.Now()),
+		UpdatedAt:    takeFirst(seed.UpdatedAt, dbtime.Now()),
+		Icon:         takeFirst(seed.Icon, ""),
+		CallbackURL:  takeFirst(seed.CallbackURL, "http://localhost"),
+		RedirectUris: takeFirstSlice(seed.RedirectUris, []string{}),
+		ClientType: takeFirst(seed.ClientType, sql.NullString{
+			String: "confidential",
+			Valid:  true,
+		}),
+		DynamicallyRegistered: takeFirst(seed.DynamicallyRegistered, sql.NullBool{
+			Bool:  false,
+			Valid: true,
+		}),
 	})
 	require.NoError(t, err, "insert oauth2 app")
 	return app
@@ -1161,13 +1167,16 @@ func OAuth2ProviderAppSecret(t testing.TB, db database.Store, seed database.OAut
 
 func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2ProviderAppCode) database.OAuth2ProviderAppCode {
 	code, err := db.InsertOAuth2ProviderAppCode(genCtx, database.InsertOAuth2ProviderAppCodeParams{
-		ID:           takeFirst(seed.ID, uuid.New()),
-		CreatedAt:    takeFirst(seed.CreatedAt, dbtime.Now()),
-		ExpiresAt:    takeFirst(seed.CreatedAt, dbtime.Now()),
-		SecretPrefix: takeFirstSlice(seed.SecretPrefix, []byte("prefix")),
-		HashedSecret: takeFirstSlice(seed.HashedSecret, []byte("hashed-secret")),
-		AppID:        takeFirst(seed.AppID, uuid.New()),
-		UserID:       takeFirst(seed.UserID, uuid.New()),
+		ID:                  takeFirst(seed.ID, uuid.New()),
+		CreatedAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
+		ExpiresAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
+		SecretPrefix:        takeFirstSlice(seed.SecretPrefix, []byte("prefix")),
+		HashedSecret:        takeFirstSlice(seed.HashedSecret, []byte("hashed-secret")),
+		AppID:               takeFirst(seed.AppID, uuid.New()),
+		UserID:              takeFirst(seed.UserID, uuid.New()),
+		ResourceUri:         seed.ResourceUri,
+		CodeChallenge:       seed.CodeChallenge,
+		CodeChallengeMethod: seed.CodeChallengeMethod,
 	})
 	require.NoError(t, err, "insert oauth2 app code")
 	return code
@@ -1182,6 +1191,8 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 		RefreshHash: takeFirstSlice(seed.RefreshHash, []byte("hashed-secret")),
 		AppSecretID: takeFirst(seed.AppSecretID, uuid.New()),
 		APIKeyID:    takeFirst(seed.APIKeyID, uuid.New().String()),
+		UserID:      takeFirst(seed.UserID, uuid.New()),
+		Audience:    seed.Audience,
 	})
 	require.NoError(t, err, "insert oauth2 app token")
 	return token
@@ -1303,6 +1314,7 @@ func Preset(t testing.TB, db database.Store, seed database.InsertPresetParams) d
 		DesiredInstances:    seed.DesiredInstances,
 		InvalidateAfterSecs: seed.InvalidateAfterSecs,
 		SchedulingTimezone:  seed.SchedulingTimezone,
+		IsDefault:           seed.IsDefault,
 	})
 	require.NoError(t, err, "insert preset")
 	return preset

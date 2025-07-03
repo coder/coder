@@ -45,6 +45,46 @@ const docTemplate = `{
                 }
             }
         },
+        "/.well-known/oauth-authorization-server": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "OAuth2 authorization server metadata.",
+                "operationId": "oauth2-authorization-server-metadata",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2AuthorizationServerMetadata"
+                        }
+                    }
+                }
+            }
+        },
+        "/.well-known/oauth-protected-resource": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "OAuth2 protected resource metadata.",
+                "operationId": "oauth2-protected-resource-metadata",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2ProtectedResourceMetadata"
+                        }
+                    }
+                }
+            }
+        },
         "/appearance": {
             "get": {
                 "security": [
@@ -338,173 +378,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.BuildInfoResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/chats": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chat"
-                ],
-                "summary": "List chats",
-                "operationId": "list-chats",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.Chat"
-                            }
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chat"
-                ],
-                "summary": "Create a chat",
-                "operationId": "create-a-chat",
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Chat"
-                        }
-                    }
-                }
-            }
-        },
-        "/chats/{chat}": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chat"
-                ],
-                "summary": "Get a chat",
-                "operationId": "get-a-chat",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Chat"
-                        }
-                    }
-                }
-            }
-        },
-        "/chats/{chat}/messages": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chat"
-                ],
-                "summary": "Get chat messages",
-                "operationId": "get-chat-messages",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/aisdk.Message"
-                            }
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chat"
-                ],
-                "summary": "Create a chat message",
-                "operationId": "create-a-chat-message",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Request body",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CreateChatMessageRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {}
                         }
                     }
                 }
@@ -821,31 +694,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.DeploymentConfig"
-                        }
-                    }
-                }
-            }
-        },
-        "/deployment/llms": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "General"
-                ],
-                "summary": "Get language models",
-                "operationId": "get-language-models",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.LanguageModelConfig"
                         }
                     }
                 }
@@ -2365,6 +2213,61 @@ const docTemplate = `{
             }
         },
         "/oauth2/authorize": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "OAuth2 authorization request (GET - show authorization page).",
+                "operationId": "oauth2-authorization-request-get",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "client_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "A random unguessable string",
+                        "name": "state",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "code"
+                        ],
+                        "type": "string",
+                        "description": "Response type",
+                        "name": "response_type",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Redirect here after authorization",
+                        "name": "redirect_uri",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Token scopes (currently ignored)",
+                        "name": "scope",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Returns HTML authorization page"
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {
@@ -2374,8 +2277,8 @@ const docTemplate = `{
                 "tags": [
                     "Enterprise"
                 ],
-                "summary": "OAuth2 authorization request.",
-                "operationId": "oauth2-authorization-request",
+                "summary": "OAuth2 authorization request (POST - process authorization).",
+                "operationId": "oauth2-authorization-request-post",
                 "parameters": [
                     {
                         "type": "string",
@@ -2416,7 +2319,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "302": {
-                        "description": "Found"
+                        "description": "Returns redirect with authorization code"
                     }
                 }
             }
@@ -4407,6 +4310,71 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.TemplateVersion"
                         }
+                    }
+                }
+            }
+        },
+        "/prebuilds/settings": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Prebuilds"
+                ],
+                "summary": "Get prebuilds settings",
+                "operationId": "get-prebuilds-settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PrebuildsSettings"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Prebuilds"
+                ],
+                "summary": "Update prebuilds settings",
+                "operationId": "update-prebuilds-settings",
+                "parameters": [
+                    {
+                        "description": "Prebuilds settings request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PrebuildsSettings"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PrebuildsSettings"
+                        }
+                    },
+                    "304": {
+                        "description": "Not Modified"
                     }
                 }
             }
@@ -8645,7 +8613,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/{workspaceagent}/containers/devcontainers/container/{container}/recreate": {
+        "/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate": {
             "post": {
                 "security": [
                     {
@@ -8671,8 +8639,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Container ID or name",
-                        "name": "container",
+                        "description": "Devcontainer ID",
+                        "name": "devcontainer",
                         "in": "path",
                         "required": true
                     }
@@ -10617,190 +10585,6 @@ const docTemplate = `{
                 "ReinitializeReasonPrebuildClaimed"
             ]
         },
-        "aisdk.Attachment": {
-            "type": "object",
-            "properties": {
-                "contentType": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "url": {
-                    "type": "string"
-                }
-            }
-        },
-        "aisdk.Message": {
-            "type": "object",
-            "properties": {
-                "annotations": {
-                    "type": "array",
-                    "items": {}
-                },
-                "content": {
-                    "type": "string"
-                },
-                "createdAt": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "experimental_attachments": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/aisdk.Attachment"
-                    }
-                },
-                "id": {
-                    "type": "string"
-                },
-                "parts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/aisdk.Part"
-                    }
-                },
-                "role": {
-                    "type": "string"
-                }
-            }
-        },
-        "aisdk.Part": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "details": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/aisdk.ReasoningDetail"
-                    }
-                },
-                "mimeType": {
-                    "description": "Type: \"file\"",
-                    "type": "string"
-                },
-                "reasoning": {
-                    "description": "Type: \"reasoning\"",
-                    "type": "string"
-                },
-                "source": {
-                    "description": "Type: \"source\"",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/aisdk.SourceInfo"
-                        }
-                    ]
-                },
-                "text": {
-                    "description": "Type: \"text\"",
-                    "type": "string"
-                },
-                "toolInvocation": {
-                    "description": "Type: \"tool-invocation\"",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/aisdk.ToolInvocation"
-                        }
-                    ]
-                },
-                "type": {
-                    "$ref": "#/definitions/aisdk.PartType"
-                }
-            }
-        },
-        "aisdk.PartType": {
-            "type": "string",
-            "enum": [
-                "text",
-                "reasoning",
-                "tool-invocation",
-                "source",
-                "file",
-                "step-start"
-            ],
-            "x-enum-varnames": [
-                "PartTypeText",
-                "PartTypeReasoning",
-                "PartTypeToolInvocation",
-                "PartTypeSource",
-                "PartTypeFile",
-                "PartTypeStepStart"
-            ]
-        },
-        "aisdk.ReasoningDetail": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "string"
-                },
-                "signature": {
-                    "type": "string"
-                },
-                "text": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "aisdk.SourceInfo": {
-            "type": "object",
-            "properties": {
-                "contentType": {
-                    "type": "string"
-                },
-                "data": {
-                    "type": "string"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "uri": {
-                    "type": "string"
-                }
-            }
-        },
-        "aisdk.ToolInvocation": {
-            "type": "object",
-            "properties": {
-                "args": {},
-                "result": {},
-                "state": {
-                    "$ref": "#/definitions/aisdk.ToolInvocationState"
-                },
-                "step": {
-                    "type": "integer"
-                },
-                "toolCallId": {
-                    "type": "string"
-                },
-                "toolName": {
-                    "type": "string"
-                }
-            }
-        },
-        "aisdk.ToolInvocationState": {
-            "type": "string",
-            "enum": [
-                "call",
-                "partial-call",
-                "result"
-            ],
-            "x-enum-varnames": [
-                "ToolInvocationStateCall",
-                "ToolInvocationStatePartialCall",
-                "ToolInvocationStateResult"
-            ]
-        },
         "coderd.SCIMUser": {
             "type": "object",
             "properties": {
@@ -10889,37 +10673,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ReducedUser"
                     }
-                }
-            }
-        },
-        "codersdk.AIConfig": {
-            "type": "object",
-            "properties": {
-                "providers": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIProviderConfig"
-                    }
-                }
-            }
-        },
-        "codersdk.AIProviderConfig": {
-            "type": "object",
-            "properties": {
-                "base_url": {
-                    "description": "BaseURL is the base URL to use for the API provider.",
-                    "type": "string"
-                },
-                "models": {
-                    "description": "Models is the list of models to use for the API provider.",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "type": {
-                    "description": "Type is the type of the API provider.",
-                    "type": "string"
                 }
             }
         },
@@ -11508,62 +11261,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.Chat": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string",
-                    "format": "date-time"
-                }
-            }
-        },
-        "codersdk.ChatMessage": {
-            "type": "object",
-            "properties": {
-                "annotations": {
-                    "type": "array",
-                    "items": {}
-                },
-                "content": {
-                    "type": "string"
-                },
-                "createdAt": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "experimental_attachments": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/aisdk.Attachment"
-                    }
-                },
-                "id": {
-                    "type": "string"
-                },
-                "parts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/aisdk.Part"
-                    }
-                },
-                "role": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.ConnectionLatency": {
             "type": "object",
             "properties": {
@@ -11594,20 +11291,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.LoginType"
                         }
                     ]
-                }
-            }
-        },
-        "codersdk.CreateChatMessageRequest": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "$ref": "#/definitions/codersdk.ChatMessage"
-                },
-                "model": {
-                    "type": "string"
-                },
-                "thinking": {
-                    "type": "boolean"
                 }
             }
         },
@@ -11814,6 +11497,10 @@ const docTemplate = `{
                     "description": "RequireActiveVersion mandates that workspaces are built with the active\ntemplate version.",
                     "type": "boolean"
                 },
+                "template_use_classic_parameter_flow": {
+                    "description": "UseClassicParameterFlow allows optionally specifying whether\nthe template should use the classic parameter flow. The default if unset is\ntrue, and is why ` + "`" + `*bool` + "`" + ` is used here. When dynamic parameters becomes\nthe default, this will default to false.",
+                    "type": "boolean"
+                },
                 "template_version_id": {
                     "description": "VersionID is an in-progress or completed job to use as an initial version\nof the template.\n\nThis is required on creation to enable a user-flow of validating a\ntemplate works. There is no reason the data-model cannot support empty\ntemplates, but it doesn't make sense for users.",
                     "type": "string",
@@ -11898,73 +11585,7 @@ const docTemplate = `{
             }
         },
         "codersdk.CreateTestAuditLogRequest": {
-            "type": "object",
-            "properties": {
-                "action": {
-                    "enum": [
-                        "create",
-                        "write",
-                        "delete",
-                        "start",
-                        "stop"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AuditAction"
-                        }
-                    ]
-                },
-                "additional_fields": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "build_reason": {
-                    "enum": [
-                        "autostart",
-                        "autostop",
-                        "initiator"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.BuildReason"
-                        }
-                    ]
-                },
-                "organization_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "request_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "resource_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "resource_type": {
-                    "enum": [
-                        "template",
-                        "template_version",
-                        "user",
-                        "workspace",
-                        "workspace_build",
-                        "git_ssh_key",
-                        "auditable_group"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ResourceType"
-                        }
-                    ]
-                },
-                "time": {
-                    "type": "string",
-                    "format": "date-time"
-                }
-            }
+            "type": "object"
         },
         "codersdk.CreateTokenRequest": {
             "type": "object",
@@ -12041,10 +11662,6 @@ const docTemplate = `{
             ],
             "properties": {
                 "dry_run": {
-                    "type": "boolean"
-                },
-                "enable_dynamic_parameters": {
-                    "description": "EnableDynamicParameters skips some of the static parameter checking.\nIt will default to whatever the template has marked as the default experience.\nRequires the \"dynamic-experiment\" to be used.",
                     "type": "boolean"
                 },
                 "log_level": {
@@ -12127,9 +11744,6 @@ const docTemplate = `{
                 },
                 "autostart_schedule": {
                     "type": "string"
-                },
-                "enable_dynamic_parameters": {
-                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
@@ -12416,9 +12030,6 @@ const docTemplate = `{
                 },
                 "agent_stat_refresh_interval": {
                     "type": "integer"
-                },
-                "ai": {
-                    "$ref": "#/definitions/serpent.Struct-codersdk_AIConfig"
                 },
                 "allow_workspace_renames": {
                     "type": "boolean"
@@ -12747,19 +12358,13 @@ const docTemplate = `{
                 "auto-fill-parameters",
                 "notifications",
                 "workspace-usage",
-                "web-push",
-                "workspace-prebuilds",
-                "agentic-chat",
-                "ai-tasks"
+                "web-push"
             ],
             "x-enum-comments": {
-                "ExperimentAITasks": "Enables the new AI tasks feature.",
-                "ExperimentAgenticChat": "Enables the new agentic AI chat feature.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
-                "ExperimentWorkspacePrebuilds": "Enables the new workspace prebuilds feature.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-varnames": [
@@ -12767,10 +12372,7 @@ const docTemplate = `{
                 "ExperimentAutoFillParameters",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
-                "ExperimentWebPush",
-                "ExperimentWorkspacePrebuilds",
-                "ExperimentAgenticChat",
-                "ExperimentAITasks"
+                "ExperimentWebPush"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -13298,33 +12900,6 @@ const docTemplate = `{
                 "RequiredTemplateVariables"
             ]
         },
-        "codersdk.LanguageModel": {
-            "type": "object",
-            "properties": {
-                "display_name": {
-                    "type": "string"
-                },
-                "id": {
-                    "description": "ID is used by the provider to identify the LLM.",
-                    "type": "string"
-                },
-                "provider": {
-                    "description": "Provider is the provider of the LLM. e.g. openai, anthropic, etc.",
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.LanguageModelConfig": {
-            "type": "object",
-            "properties": {
-                "models": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.LanguageModel"
-                    }
-                }
-            }
-        },
         "codersdk.License": {
             "type": "object",
             "properties": {
@@ -13802,6 +13377,53 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OAuth2AuthorizationServerMetadata": {
+            "type": "object",
+            "properties": {
+                "authorization_endpoint": {
+                    "type": "string"
+                },
+                "code_challenge_methods_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "grant_types_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "issuer": {
+                    "type": "string"
+                },
+                "registration_endpoint": {
+                    "type": "string"
+                },
+                "response_types_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "scopes_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "token_endpoint": {
+                    "type": "string"
+                },
+                "token_endpoint_auth_methods_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "codersdk.OAuth2Config": {
             "type": "object",
             "properties": {
@@ -13845,6 +13467,32 @@ const docTemplate = `{
                 },
                 "enterprise_base_url": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.OAuth2ProtectedResourceMetadata": {
+            "type": "object",
+            "properties": {
+                "authorization_servers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "bearer_methods_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "scopes_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -14523,9 +14171,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.PrebuildsSettings": {
+            "type": "object",
+            "properties": {
+                "reconciliation_paused": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.Preset": {
             "type": "object",
             "properties": {
+                "default": {
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -14639,6 +14298,9 @@ const docTemplate = `{
                 },
                 "label": {
                     "type": "string"
+                },
+                "mask_input": {
+                    "type": "boolean"
                 },
                 "placeholder": {
                     "type": "string"
@@ -15240,7 +14902,6 @@ const docTemplate = `{
                 "assign_org_role",
                 "assign_role",
                 "audit_log",
-                "chat",
                 "crypto_key",
                 "debug_info",
                 "deployment_config",
@@ -15280,7 +14941,6 @@ const docTemplate = `{
                 "ResourceAssignOrgRole",
                 "ResourceAssignRole",
                 "ResourceAuditLog",
-                "ResourceChat",
                 "ResourceCryptoKey",
                 "ResourceDebugInfo",
                 "ResourceDeploymentConfig",
@@ -15506,6 +15166,7 @@ const docTemplate = `{
                 "convert_login",
                 "health_settings",
                 "notifications_settings",
+                "prebuilds_settings",
                 "workspace_proxy",
                 "organization",
                 "oauth2_provider_app",
@@ -15532,6 +15193,7 @@ const docTemplate = `{
                 "ResourceTypeConvertLogin",
                 "ResourceTypeHealthSettings",
                 "ResourceTypeNotificationsSettings",
+                "ResourceTypePrebuildsSettings",
                 "ResourceTypeWorkspaceProxy",
                 "ResourceTypeOrganization",
                 "ResourceTypeOAuth2ProviderApp",
@@ -17585,6 +17247,9 @@ const docTemplate = `{
                 "dirty": {
                     "type": "boolean"
                 },
+                "error": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -19346,14 +19011,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.LinkConfig"
                     }
-                }
-            }
-        },
-        "serpent.Struct-codersdk_AIConfig": {
-            "type": "object",
-            "properties": {
-                "value": {
-                    "$ref": "#/definitions/codersdk.AIConfig"
                 }
             }
         },

@@ -1,5 +1,88 @@
 # Enterprise
 
+## OAuth2 authorization server metadata
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/.well-known/oauth-authorization-server \
+  -H 'Accept: application/json'
+```
+
+`GET /.well-known/oauth-authorization-server`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "authorization_endpoint": "string",
+  "code_challenge_methods_supported": [
+    "string"
+  ],
+  "grant_types_supported": [
+    "string"
+  ],
+  "issuer": "string",
+  "registration_endpoint": "string",
+  "response_types_supported": [
+    "string"
+  ],
+  "scopes_supported": [
+    "string"
+  ],
+  "token_endpoint": "string",
+  "token_endpoint_auth_methods_supported": [
+    "string"
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                             |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2AuthorizationServerMetadata](schemas.md#codersdkoauth2authorizationservermetadata) |
+
+## OAuth2 protected resource metadata
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/.well-known/oauth-protected-resource \
+  -H 'Accept: application/json'
+```
+
+`GET /.well-known/oauth-protected-resource`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "authorization_servers": [
+    "string"
+  ],
+  "bearer_methods_supported": [
+    "string"
+  ],
+  "resource": "string",
+  "scopes_supported": [
+    "string"
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                         |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2ProtectedResourceMetadata](schemas.md#codersdkoauth2protectedresourcemetadata) |
+
 ## Get appearance
 
 ### Code samples
@@ -967,7 +1050,43 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secret
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## OAuth2 authorization request
+## OAuth2 authorization request (GET - show authorization page)
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/oauth2/authorize?client_id=string&state=string&response_type=code \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /oauth2/authorize`
+
+### Parameters
+
+| Name            | In    | Type   | Required | Description                       |
+|-----------------|-------|--------|----------|-----------------------------------|
+| `client_id`     | query | string | true     | Client ID                         |
+| `state`         | query | string | true     | A random unguessable string       |
+| `response_type` | query | string | true     | Response type                     |
+| `redirect_uri`  | query | string | false    | Redirect here after authorization |
+| `scope`         | query | string | false    | Token scopes (currently ignored)  |
+
+#### Enumerated Values
+
+| Parameter       | Value  |
+|-----------------|--------|
+| `response_type` | `code` |
+
+### Responses
+
+| Status | Meaning                                                 | Description                     | Schema |
+|--------|---------------------------------------------------------|---------------------------------|--------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | Returns HTML authorization page |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## OAuth2 authorization request (POST - process authorization)
 
 ### Code samples
 
@@ -997,9 +1116,9 @@ curl -X POST http://coder-server:8080/api/v2/oauth2/authorize?client_id=string&s
 
 ### Responses
 
-| Status | Meaning                                                    | Description | Schema |
-|--------|------------------------------------------------------------|-------------|--------|
-| 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3) | Found       |        |
+| Status | Meaning                                                    | Description                              | Schema |
+|--------|------------------------------------------------------------|------------------------------------------|--------|
+| 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3) | Returns redirect with authorization code |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

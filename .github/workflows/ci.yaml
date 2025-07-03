@@ -34,7 +34,7 @@ jobs:
       tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -154,7 +154,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -226,7 +226,7 @@ jobs:
     if: ${{ !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -281,7 +281,7 @@ jobs:
     timeout-minutes: 7
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -327,7 +327,7 @@ jobs:
       - name: Harden Runner
         # Harden Runner is only supported on Ubuntu runners.
         if: runner.os == 'Linux'
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -418,7 +418,7 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -473,6 +473,17 @@ jobs:
         with:
           key-prefix: test-go-pg-${{ runner.os }}-${{ runner.arch }}
 
+      - name: Setup Embedded Postgres Cache Paths
+        id: embedded-pg-cache
+        uses: ./.github/actions/setup-embedded-pg-cache-paths
+
+      - name: Download Embedded Postgres Cache
+        id: download-embedded-pg-cache
+        uses: ./.github/actions/embedded-pg-cache/download
+        with:
+          key-prefix: embedded-pg-${{ runner.os }}-${{ runner.arch }}
+          cache-path: ${{ steps.embedded-pg-cache.outputs.cached-dirs }}
+
       - name: Normalize File and Directory Timestamps
         shell: bash
         # Normalize file modification timestamps so that go test can use the
@@ -497,12 +508,12 @@ jobs:
             # Create a temp dir on the R: ramdisk drive for Windows. The default
             # C: drive is extremely slow: https://github.com/actions/runner-images/issues/8755
             mkdir -p "R:/temp/embedded-pg"
-            go run scripts/embedded-pg/main.go -path "R:/temp/embedded-pg"
+            go run scripts/embedded-pg/main.go -path "R:/temp/embedded-pg" -cache "${EMBEDDED_PG_CACHE_DIR}"
           elif [ "${{ runner.os }}" == "macOS" ]; then
             # Postgres runs faster on a ramdisk on macOS too
             mkdir -p /tmp/tmpfs
             sudo mount_tmpfs -o noowners -s 8g /tmp/tmpfs
-            go run scripts/embedded-pg/main.go -path /tmp/tmpfs/embedded-pg
+            go run scripts/embedded-pg/main.go -path /tmp/tmpfs/embedded-pg -cache "${EMBEDDED_PG_CACHE_DIR}"
           elif [ "${{ runner.os }}" == "Linux" ]; then
             make test-postgres-docker
           fi
@@ -571,6 +582,14 @@ jobs:
         with:
           cache-key: ${{ steps.download-cache.outputs.cache-key }}
 
+      - name: Upload Embedded Postgres Cache
+        uses: ./.github/actions/embedded-pg-cache/upload
+        # We only use the embedded Postgres cache on macOS and Windows runners.
+        if: runner.OS == 'macOS' || runner.OS == 'Windows'
+        with:
+          cache-key: ${{ steps.download-embedded-pg-cache.outputs.cache-key }}
+          cache-path: "${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}"
+
       - name: Upload test stats to Datadog
         timeout-minutes: 1
         continue-on-error: true
@@ -594,7 +613,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -643,7 +662,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -692,7 +711,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -751,7 +770,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -777,7 +796,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -809,7 +828,7 @@ jobs:
     name: ${{ matrix.variant.name }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -882,7 +901,7 @@ jobs:
     if: needs.changes.outputs.site == 'true' || needs.changes.outputs.ci == 'true'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -962,7 +981,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -1031,7 +1050,7 @@ jobs:
     if: always()
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -1161,7 +1180,7 @@ jobs:
       IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -1507,7 +1526,7 @@ jobs:
       id-token: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -1526,7 +1545,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
 
       - name: Set up Flux CLI
-        uses: fluxcd/flux2/action@a48f81a66c4ca9fbd993233ab99dd03a7cfbe09a # v2.6.2
+        uses: fluxcd/flux2/action@bda4c8187e436462be0d072e728b67afa215c593 # v2.6.3
         with:
           # Keep this and the github action up to date with the version of flux installed in dogfood cluster
           version: "2.5.1"
@@ -1571,7 +1590,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -1606,7 +1625,7 @@ jobs:
     if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 

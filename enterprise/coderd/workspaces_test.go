@@ -287,11 +287,9 @@ func TestCreateUserWorkspace(t *testing.T) {
 			OrganizationID: first.OrganizationID,
 		})
 
-		version := coderdtest.CreateTemplateVersion(t, admin, first.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, admin, version.ID)
-		template := coderdtest.CreateTemplate(t, admin, first.OrganizationID, version.ID)
+		template, _ := coderdtest.DynamicParameterTemplate(t, admin, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{})
 
-		ctx = testutil.Context(t, testutil.WaitLong*1000) // Reset the context to avoid timeouts.
+		ctx = testutil.Context(t, testutil.WaitLong)
 
 		wrk, err := creator.CreateUserWorkspace(ctx, adminID.ID.String(), codersdk.CreateWorkspaceRequest{
 			TemplateID: template.ID,
@@ -301,6 +299,66 @@ func TestCreateUserWorkspace(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, admin, wrk.LatestBuild.ID)
 
 		_, err = creator.WorkspaceByOwnerAndName(ctx, adminID.Username, wrk.Name, codersdk.WorkspaceOptions{
+			IncludeDeleted: false,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("ForANonOrgMember", func(t *testing.T) {
+		t.Parallel()
+
+		owner, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:           1,
+					codersdk.FeatureTemplateRBAC:          1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // using owner to setup roles
+		r, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
+			Name:           "creator",
+			OrganizationID: first.OrganizationID.String(),
+			DisplayName:    "Creator",
+			OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace:          {codersdk.ActionCreate, codersdk.ActionWorkspaceStart, codersdk.ActionUpdate, codersdk.ActionRead},
+				codersdk.ResourceOrganizationMember: {codersdk.ActionRead},
+			}),
+		})
+		require.NoError(t, err)
+
+		// user to make the workspace for, **note** the user is not a member of the first org.
+		// This is strange, but technically valid. The creator can create a workspace for
+		// this user in this org, even though the user cannot access the workspace.
+		secondOrg := coderdenttest.CreateOrganization(t, owner, coderdenttest.CreateOrganizationOptions{})
+		_, forUser := coderdtest.CreateAnotherUser(t, owner, secondOrg.ID)
+
+		// try the test action with this user & custom role
+		creator, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleMember(),
+			rbac.RoleTemplateAdmin(), // Need site wide access to make workspace for non-org
+			rbac.RoleIdentifier{
+				Name:           r.Name,
+				OrganizationID: first.OrganizationID,
+			},
+		)
+
+		template, _ := coderdtest.DynamicParameterTemplate(t, creator, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{})
+
+		ctx = testutil.Context(t, testutil.WaitLong)
+
+		wrk, err := creator.CreateUserWorkspace(ctx, forUser.ID.String(), codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "workspace",
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, creator, wrk.LatestBuild.ID)
+
+		_, err = creator.WorkspaceByOwnerAndName(ctx, forUser.Username, wrk.Name, codersdk.WorkspaceOptions{
 			IncludeDeleted: false,
 		})
 		require.NoError(t, err)
@@ -473,10 +531,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 
 		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					err := dv.Experiments.Append(string(codersdk.ExperimentWorkspacePrebuilds))
-					require.NoError(t, err)
-				}),
+				DeploymentValues: coderdtest.DeploymentValues(t),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -1759,7 +1814,6 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 				Value: "7",
 			},
 		},
-		EnableDynamicParameters: true,
 	})
 
 	// Then: the build should succeed. The updated value of param_min should be

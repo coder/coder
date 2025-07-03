@@ -226,6 +226,7 @@ func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([
 type workspaceQuerier interface {
 	GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]GetWorkspacesRow, error)
 	GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID, prepared rbac.PreparedAuthorized) ([]GetWorkspacesAndAgentsByOwnerIDRow, error)
+	GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIDs []uuid.UUID, prepared rbac.PreparedAuthorized) ([]WorkspaceBuildParameter, error)
 }
 
 // GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.
@@ -372,6 +373,35 @@ func (q *sqlQuerier) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Conte
 	return items, nil
 }
 
+func (q *sqlQuerier) GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIDs []uuid.UUID, prepared rbac.PreparedAuthorized) ([]WorkspaceBuildParameter, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigWorkspaces())
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+
+	filtered, err := insertAuthorizedFilter(getWorkspaceBuildParametersByBuildIDs, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaceBuildParametersByBuildIDs :many\n%s", filtered)
+	rows, err := q.db.QueryContext(ctx, query, pq.Array(workspaceBuildIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []WorkspaceBuildParameter
+	for rows.Next() {
+		var i WorkspaceBuildParameter
+		if err := rows.Scan(&i.WorkspaceBuildID, &i.Name, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	return items, nil
+}
+
 type userQuerier interface {
 	GetAuthorizedUsers(ctx context.Context, arg GetUsersParams, prepared rbac.PreparedAuthorized) ([]GetUsersRow, error)
 }
@@ -448,6 +478,7 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 
 type auditLogQuerier interface {
 	GetAuthorizedAuditLogsOffset(ctx context.Context, arg GetAuditLogsOffsetParams, prepared rbac.PreparedAuthorized) ([]GetAuditLogsOffsetRow, error)
+	CountAuthorizedAuditLogs(ctx context.Context, arg CountAuditLogsParams, prepared rbac.PreparedAuthorized) (int64, error)
 }
 
 func (q *sqlQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg GetAuditLogsOffsetParams, prepared rbac.PreparedAuthorized) ([]GetAuditLogsOffsetRow, error) {
@@ -518,7 +549,6 @@ func (q *sqlQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg GetAu
 			&i.OrganizationName,
 			&i.OrganizationDisplayName,
 			&i.OrganizationIcon,
-			&i.Count,
 		); err != nil {
 			return nil, err
 		}
@@ -531,6 +561,54 @@ func (q *sqlQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg GetAu
 		return nil, err
 	}
 	return items, nil
+}
+
+func (q *sqlQuerier) CountAuthorizedAuditLogs(ctx context.Context, arg CountAuditLogsParams, prepared rbac.PreparedAuthorized) (int64, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+		VariableConverter: regosql.AuditLogConverter(),
+	})
+	if err != nil {
+		return 0, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+
+	filtered, err := insertAuthorizedFilter(countAuditLogs, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return 0, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	query := fmt.Sprintf("-- name: CountAuthorizedAuditLogs :one\n%s", filtered)
+
+	rows, err := q.db.QueryContext(ctx, query,
+		arg.ResourceType,
+		arg.ResourceID,
+		arg.OrganizationID,
+		arg.ResourceTarget,
+		arg.Action,
+		arg.UserID,
+		arg.Username,
+		arg.Email,
+		arg.DateFrom,
+		arg.DateTo,
+		arg.BuildReason,
+		arg.RequestID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	var count int64
+	for rows.Next() {
+		if err := rows.Scan(&count); err != nil {
+			return 0, err
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return 0, err
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func insertAuthorizedFilter(query string, replaceWith string) (string, error) {

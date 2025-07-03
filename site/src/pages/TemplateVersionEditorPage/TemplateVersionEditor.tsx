@@ -1,5 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import { getErrorDetail, getErrorMessage } from "api/errors";
@@ -12,6 +11,7 @@ import type {
 	WorkspaceResource,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { Button } from "components/Button/Button";
 import { Sidebar } from "components/FullPageLayout/Sidebar";
 import {
 	Topbar,
@@ -25,7 +25,7 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { TriangleAlertIcon } from "lucide-react";
 import { ChevronLeftIcon } from "lucide-react";
-import { PlayIcon, PlusIcon, XIcon } from "lucide-react";
+import { ExternalLinkIcon, PlayIcon, PlusIcon, XIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
 import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
@@ -255,6 +255,20 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							paddingRight: 16,
 						}}
 					>
+						<span className="mr-2">
+							<Button asChild size="sm" variant="outline">
+								<a
+									href="https://registry.coder.com"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="flex items-center"
+								>
+									Browse the Coder Registry
+									<ExternalLinkIcon className="size-icon-sm ml-1" />
+								</a>
+							</Button>
+						</span>
+
 						<TemplateVersionStatusBadge version={templateVersion} />
 
 						<div className="flex gap-1 items-center">
@@ -312,8 +326,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 								dismissible
 								actions={
 									<Button
-										variant="text"
-										size="small"
+										variant="subtle"
+										size="sm"
 										onClick={onCreateWorkspace}
 									>
 										Create a workspace

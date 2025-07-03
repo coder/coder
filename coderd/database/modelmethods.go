@@ -199,6 +199,13 @@ func (gm GroupMember) RBACObject() rbac.Object {
 	return rbac.ResourceGroupMember.WithID(gm.UserID).InOrg(gm.OrganizationID).WithOwner(gm.UserID.String())
 }
 
+// PrebuiltWorkspaceResource defines the interface for types that can be identified as prebuilt workspaces
+// and converted to their corresponding prebuilt workspace RBAC object.
+type PrebuiltWorkspaceResource interface {
+	IsPrebuild() bool
+	AsPrebuild() rbac.Object
+}
+
 // WorkspaceTable converts a Workspace to it's reduced version.
 // A more generalized solution is to use json marshaling to
 // consistently keep these two structs in sync.
@@ -374,6 +381,10 @@ func (l License) RBACObject() rbac.Object {
 
 func (c OAuth2ProviderAppCode) RBACObject() rbac.Object {
 	return rbac.ResourceOauth2AppCodeToken.WithOwner(c.UserID.String())
+}
+
+func (t OAuth2ProviderAppToken) RBACObject() rbac.Object {
+	return rbac.ResourceOauth2AppCodeToken.WithOwner(t.UserID.String()).WithID(t.ID)
 }
 
 func (OAuth2ProviderAppSecret) RBACObject() rbac.Object {
@@ -603,9 +614,4 @@ func (m WorkspaceAgentVolumeResourceMonitor) Debounce(
 	}
 
 	return m.DebouncedUntil, false
-}
-
-func (c Chat) RBACObject() rbac.Object {
-	return rbac.ResourceChat.WithID(c.ID).
-		WithOwner(c.OwnerID.String())
 }

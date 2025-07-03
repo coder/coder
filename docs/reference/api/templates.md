@@ -193,6 +193,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "max_port_share_level": "owner",
   "name": "string",
   "require_active_version": true,
+  "template_use_classic_parameter_flow": true,
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
 }
 ```
@@ -2697,6 +2698,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
       "styling": {
         "disabled": true,
         "label": "string",
+        "mask_input": true,
         "placeholder": "string"
       },
       "type": "string",
@@ -2911,6 +2913,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
 ```json
 [
   {
+    "default": true,
     "id": "string",
     "name": "string",
     "parameters": [
@@ -2933,14 +2936,15 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
 
 Status Code **200**
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `[array item]` | array  | false    |              |             |
-| `» id`         | string | false    |              |             |
-| `» name`       | string | false    |              |             |
-| `» parameters` | array  | false    |              |             |
-| `»» name`      | string | false    |              |             |
-| `»» value`     | string | false    |              |             |
+| Name           | Type    | Required | Restrictions | Description |
+|----------------|---------|----------|--------------|-------------|
+| `[array item]` | array   | false    |              |             |
+| `» default`    | boolean | false    |              |             |
+| `» id`         | string  | false    |              |             |
+| `» name`       | string  | false    |              |             |
+| `» parameters` | array   | false    |              |             |
+| `»» name`      | string  | false    |              |             |
+| `»» value`     | string  | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
