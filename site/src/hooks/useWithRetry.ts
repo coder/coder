@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffectEvent } from "./hookPolyfills";
 
 const DELAY_MS = 1_000;
 const MAX_DELAY_MS = 600_000; // 10 minutes
@@ -36,6 +37,8 @@ export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
 		}
 	}, []);
 
+	const stableFn = useEffectEvent(fn)
+
 	const call = useCallback(async () => {
 		clearTimeout();
 
@@ -46,7 +49,7 @@ export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
 			});
 
 			try {
-				await fn();
+				await stableFn();
 				setState({ isLoading: false, nextRetryAt: undefined });
 			} catch (error) {
 				const delayMs = Math.min(
@@ -70,7 +73,7 @@ export function useWithRetry(fn: () => Promise<void>): UseWithRetryResult {
 		};
 
 		await executeAttempt(0);
-	}, [fn, clearTimeout]);
+	}, [stableFn, clearTimeout]);
 
 	useEffect(() => {
 		return () => {
