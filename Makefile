@@ -460,7 +460,7 @@ ifdef FILE
 	# Format single file
 	if [[ -f "$(FILE)" ]] && [[ "$(FILE)" == *.go ]] && ! grep -q "DO NOT EDIT" "$(FILE)"; then \
 		echo "$(GREEN)==>$(RESET) $(BOLD)fmt/go$(RESET) $(FILE)"; \
-		go run mvdan.cc/gofumpt@v0.4.0 -w -l "$(FILE)"; \
+		go run mvdan.cc/gofumpt@v0.8.0 -w -l "$(FILE)"; \
 	fi
 else
 	go mod tidy
@@ -470,6 +470,7 @@ else
 	find . $(FIND_EXCLUSIONS) -type f -name '*.go' -print0 | \
 		xargs -0 grep -E --null -L '^// Code generated .* DO NOT EDIT\.$$' | \
 		xargs -0 go run mvdan.cc/gofumpt@v0.8.0 -w -l
+endif
 .PHONY: fmt/go
 
 fmt/ts: site/node_modules/.installed
