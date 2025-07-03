@@ -12551,11 +12551,13 @@ const docTemplate = `{
                 "notifications",
                 "workspace-usage",
                 "web-push",
-                "oauth2"
+                "oauth2",
+                "mcp-server-http"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
+                "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
@@ -12567,7 +12569,8 @@ const docTemplate = `{
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
                 "ExperimentWebPush",
-                "ExperimentOAuth2"
+                "ExperimentOAuth2",
+                "ExperimentMCPServerHTTP"
             ]
         },
         "codersdk.ExternalAuth": {

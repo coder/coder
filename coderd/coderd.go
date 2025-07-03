@@ -922,7 +922,7 @@ func New(options *Options) *API {
 	// logging into Coder with an external OAuth2 provider.
 	r.Route("/oauth2", func(r chi.Router) {
 		r.Use(
-			api.oAuth2ProviderMiddleware,
+			httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2),
 		)
 		r.Route("/authorize", func(r chi.Router) {
 			r.Use(
@@ -973,6 +973,9 @@ func New(options *Options) *API {
 			r.Get("/prompts", api.aiTasksPrompts)
 		})
 		r.Route("/mcp", func(r chi.Router) {
+			r.Use(
+				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP),
+			)
 			// MCP HTTP transport endpoint with mandatory authentication
 			r.Mount("/http", api.mcpHTTPHandler())
 		})
@@ -1473,7 +1476,7 @@ func New(options *Options) *API {
 		r.Route("/oauth2-provider", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				api.oAuth2ProviderMiddleware,
+				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2),
 			)
 			r.Route("/apps", func(r chi.Router) {
 				r.Get("/", api.oAuth2ProviderApps)

@@ -16,7 +16,6 @@ import (
 
 	"github.com/sqlc-dev/pqtype"
 
-	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -36,19 +35,6 @@ const (
 	secretPrefixLength  = 10 // Length of the prefix for database lookup
 	displaySecretLength = 6  // Length of visible part in UI (last 6 characters)
 )
-
-func (api *API) oAuth2ProviderMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		if !api.Experiments.Enabled(codersdk.ExperimentOAuth2) && !buildinfo.IsDev() {
-			httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
-				Message: "OAuth2 provider functionality requires enabling the 'oauth2' experiment.",
-			})
-			return
-		}
-
-		next.ServeHTTP(rw, r)
-	})
-}
 
 // @Summary Get OAuth2 applications.
 // @ID get-oauth2-applications
