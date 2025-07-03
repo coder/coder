@@ -119,7 +119,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
 
-	paginationParams, ok := parsePagination(rw, r)
+	paginationParams, ok := ParsePagination(rw, r)
 	if !ok {
 		return
 	}
