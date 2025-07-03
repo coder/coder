@@ -488,6 +488,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 				value: opt.value.value,
 				label: opt.name,
 				icon: opt.icon,
+				description: opt.description,
 				disable: false,
 			}));
 

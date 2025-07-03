@@ -15,6 +15,8 @@ interface VSCodeDevContainerButtonProps {
 	agentName?: string;
 	devContainerName: string;
 	devContainerFolder: string;
+	localWorkspaceFolder: string;
+	localConfigFile: string;
 	displayApps: readonly DisplayApp[];
 }
 
@@ -112,6 +114,8 @@ const VSCodeButton: FC<VSCodeDevContainerButtonProps> = ({
 	agentName,
 	devContainerName,
 	devContainerFolder,
+	localWorkspaceFolder,
+	localConfigFile,
 }) => {
 	const [loading, setLoading] = useState(false);
 
@@ -129,6 +133,8 @@ const VSCodeButton: FC<VSCodeDevContainerButtonProps> = ({
 							token: key,
 							devContainerName,
 							devContainerFolder,
+							localWorkspaceFolder,
+							localConfigFile,
 						});
 						if (agentName) {
 							query.set("agent", agentName);
@@ -156,6 +162,8 @@ const VSCodeInsidersButton: FC<VSCodeDevContainerButtonProps> = ({
 	agentName,
 	devContainerName,
 	devContainerFolder,
+	localWorkspaceFolder,
+	localConfigFile,
 }) => {
 	const [loading, setLoading] = useState(false);
 
@@ -173,6 +181,8 @@ const VSCodeInsidersButton: FC<VSCodeDevContainerButtonProps> = ({
 							token: key,
 							devContainerName,
 							devContainerFolder,
+							localWorkspaceFolder,
+							localConfigFile,
 						});
 						if (agentName) {
 							query.set("agent", agentName);

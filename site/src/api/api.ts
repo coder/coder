@@ -1237,7 +1237,7 @@ class ApiMethods {
 
 	getTemplateVersionPresets = async (
 		templateVersionId: string,
-	): Promise<TypesGen.Preset[]> => {
+	): Promise<TypesGen.Preset[] | null> => {
 		const response = await this.axios.get<TypesGen.Preset[]>(
 			`/api/v2/templateversions/${templateVersionId}/presets`,
 		);
