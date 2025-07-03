@@ -11,8 +11,14 @@ import {
 	CommandItem,
 	CommandList,
 } from "components/Command/Command";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useDebouncedValue } from "hooks/debounce";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, Info, X } from "lucide-react";
 import {
 	type ComponentProps,
 	type ComponentPropsWithoutRef,
@@ -33,6 +39,7 @@ export interface Option {
 	label: string;
 	icon?: string;
 	disable?: boolean;
+	description?: string;
 	/** fixed option that can't be removed. */
 	fixed?: boolean;
 	/** Group the options by providing key. */
@@ -662,6 +669,23 @@ export const MultiSelectCombobox = forwardRef<
 																	/>
 																)}
 																{option.label}
+																{option.description && (
+																	<TooltipProvider delayDuration={100}>
+																		<Tooltip>
+																			<TooltipTrigger asChild>
+																				<span className="flex items-center pointer-events-auto">
+																					<Info className="!w-3.5 !h-3.5 text-content-secondary" />
+																				</span>
+																			</TooltipTrigger>
+																			<TooltipContent
+																				side="right"
+																				sideOffset={10}
+																			>
+																				{option.description}
+																			</TooltipContent>
+																		</Tooltip>
+																	</TooltipProvider>
+																)}
 															</div>
 														</CommandItem>
 													);
