@@ -48,94 +48,6 @@ const mockTextareaParameter = createMockParameter({
 	default_value: { value: "default\nmultiline\nvalue", valid: true },
 });
 
-const mockSelectParameter = createMockParameter({
-	name: "select_param",
-	display_name: "Select Parameter",
-	description: "A select parameter with options",
-	type: "string",
-	form_type: "dropdown",
-	default_value: { value: "option1", valid: true },
-	options: [
-		{
-			name: "Option 1",
-			description: "First option",
-			value: { value: "option1", valid: true },
-			icon: "",
-		},
-		{
-			name: "Option 2",
-			description: "Second option",
-			value: { value: "option2", valid: true },
-			icon: "/icon2.png",
-		},
-		{
-			name: "Option 3",
-			description: "Third option",
-			value: { value: "option3", valid: true },
-			icon: "",
-		},
-	],
-});
-
-const mockRadioParameter = createMockParameter({
-	name: "radio_param",
-	display_name: "Radio Parameter",
-	description: "A radio button parameter",
-	type: "string",
-	form_type: "radio",
-	default_value: { value: "radio1", valid: true },
-	options: [
-		{
-			name: "Radio 1",
-			description: "First radio option",
-			value: { value: "radio1", valid: true },
-			icon: "",
-		},
-		{
-			name: "Radio 2",
-			description: "Second radio option",
-			value: { value: "radio2", valid: true },
-			icon: "",
-		},
-	],
-});
-
-const mockCheckboxParameter = createMockParameter({
-	name: "checkbox_param",
-	display_name: "Checkbox Parameter",
-	description: "A checkbox parameter",
-	type: "bool",
-	form_type: "checkbox",
-	default_value: { value: "true", valid: true },
-});
-
-const mockSwitchParameter = createMockParameter({
-	name: "switch_param",
-	display_name: "Switch Parameter",
-	description: "A switch parameter",
-	type: "bool",
-	form_type: "switch",
-	default_value: { value: "false", valid: true },
-});
-
-const mockSliderParameter = createMockParameter({
-	name: "slider_param",
-	display_name: "Slider Parameter",
-	description: "A slider parameter",
-	type: "number",
-	form_type: "slider",
-	default_value: { value: "50", valid: true },
-	validations: [
-		{
-			validation_min: 0,
-			validation_max: 100,
-			validation_error: "Value must be between 0 and 100",
-			validation_regex: null,
-			validation_monotonic: null,
-		},
-	],
-});
-
 const mockTagsParameter = createMockParameter({
 	name: "tags_param",
 	display_name: "Tags Parameter",
@@ -143,59 +55,6 @@ const mockTagsParameter = createMockParameter({
 	type: "list(string)",
 	form_type: "tag-select",
 	default_value: { value: '["tag1", "tag2"]', valid: true },
-});
-
-const mockMultiSelectParameter = createMockParameter({
-	name: "multiselect_param",
-	display_name: "Multi-Select Parameter",
-	description: "A multi-select parameter",
-	type: "list(string)",
-	form_type: "multi-select",
-	default_value: { value: '["option1", "option3"]', valid: true },
-	options: [
-		{
-			name: "Option 1",
-			description: "First option",
-			value: { value: "option1", valid: true },
-			icon: "",
-		},
-		{
-			name: "Option 2",
-			description: "Second option",
-			value: { value: "option2", valid: true },
-			icon: "",
-		},
-		{
-			name: "Option 3",
-			description: "Third option",
-			value: { value: "option3", valid: true },
-			icon: "",
-		},
-		{
-			name: "Option 4",
-			description: "Fourth option",
-			value: { value: "option4", valid: true },
-			icon: "",
-		},
-	],
-});
-
-const mockErrorParameter = createMockParameter({
-	name: "error_param",
-	display_name: "Error Parameter",
-	description: "A parameter with validation error",
-	type: "string",
-	form_type: "error",
-	diagnostics: [
-		{
-			severity: "error",
-			summary: "Validation Error",
-			detail: "This parameter has a validation error",
-			extra: {
-				code: "validation_error",
-			},
-		},
-	],
 });
 
 const mockRequiredParameter = createMockParameter({
@@ -207,82 +66,6 @@ const mockRequiredParameter = createMockParameter({
 	required: true,
 });
 
-const mockImmutableParameter = createMockParameter({
-	name: "immutable_param",
-	display_name: "Immutable Parameter",
-	description: "An immutable parameter",
-	type: "string",
-	form_type: "input",
-	mutable: false,
-	default_value: { value: "immutable_value", valid: true },
-});
-
-const mockEphemeralParameter = createMockParameter({
-	name: "ephemeral_param",
-	display_name: "Ephemeral Parameter",
-	description: "An ephemeral parameter",
-	type: "string",
-	form_type: "input",
-	ephemeral: true,
-});
-
-const mockParameterWithIcon = createMockParameter({
-	name: "icon_param",
-	display_name: "Parameter with Icon",
-	description: "A parameter with an icon",
-	type: "string",
-	form_type: "input",
-	icon: "/test-icon.png",
-});
-
-const mockNumberInputParameter = createMockParameter({
-	name: "number_input_param",
-	display_name: "Number Input Parameter",
-	description: "A numeric input parameter with min/max validations",
-	type: "number",
-	form_type: "input",
-	default_value: { value: "5", valid: true },
-	validations: [
-		{
-			validation_min: 1,
-			validation_max: 10,
-			validation_error: "Value must be between 1 and 10",
-			validation_regex: null,
-			validation_monotonic: null,
-		},
-	],
-});
-
-// Mock for a masked input parameter (e.g. secrets)
-const mockMaskedInputParameter = createMockParameter({
-	name: "masked_input_param",
-	display_name: "Masked Input Parameter",
-	type: "string",
-	form_type: "input",
-	styling: {
-		placeholder: "********",
-		disabled: false,
-		label: "",
-		mask_input: true,
-	},
-});
-
-// Mock parameter that contains a warning diagnostic
-const mockWarningParameter = createMockParameter({
-	name: "warning_param",
-	display_name: "Warning Parameter",
-	description: "Parameter with a warning diagnostic",
-	form_type: "input",
-	diagnostics: [
-		{
-			severity: "warning",
-			summary: "This is a warning",
-			detail: "Something might be wrong",
-			extra: { code: "warning" },
-		},
-	],
-});
-
 describe("DynamicParameter", () => {
 	const mockOnChange = jest.fn();
 
@@ -291,6 +74,15 @@ describe("DynamicParameter", () => {
 	});
 
 	describe("Input Parameter", () => {
+		const mockParameterWithIcon = createMockParameter({
+			name: "icon_param",
+			display_name: "Parameter with Icon",
+			description: "A parameter with an icon",
+			type: "string",
+			form_type: "input",
+			icon: "/test-icon.png",
+		});
+
 		it("renders string input parameter correctly", () => {
 			render(
 				<DynamicParameter
@@ -400,6 +192,35 @@ describe("DynamicParameter", () => {
 	});
 
 	describe("Select Parameter", () => {
+		const mockSelectParameter = createMockParameter({
+			name: "select_param",
+			display_name: "Select Parameter",
+			description: "A select parameter with options",
+			type: "string",
+			form_type: "dropdown",
+			default_value: { value: "option1", valid: true },
+			options: [
+				{
+					name: "Option 1",
+					description: "First option",
+					value: { value: "option1", valid: true },
+					icon: "",
+				},
+				{
+					name: "Option 2",
+					description: "Second option",
+					value: { value: "option2", valid: true },
+					icon: "/icon2.png",
+				},
+				{
+					name: "Option 3",
+					description: "Third option",
+					value: { value: "option3", valid: true },
+					icon: "",
+				},
+			],
+		});
+
 		it("renders select parameter with options", () => {
 			render(
 				<DynamicParameter
@@ -477,6 +298,29 @@ describe("DynamicParameter", () => {
 	});
 
 	describe("Radio Parameter", () => {
+		const mockRadioParameter = createMockParameter({
+			name: "radio_param",
+			display_name: "Radio Parameter",
+			description: "A radio button parameter",
+			type: "string",
+			form_type: "radio",
+			default_value: { value: "radio1", valid: true },
+			options: [
+				{
+					name: "Radio 1",
+					description: "First radio option",
+					value: { value: "radio1", valid: true },
+					icon: "",
+				},
+				{
+					name: "Radio 2",
+					description: "Second radio option",
+					value: { value: "radio2", valid: true },
+					icon: "",
+				},
+			],
+		});
+
 		it("renders radio parameter with options", () => {
 			render(
 				<DynamicParameter
@@ -511,6 +355,15 @@ describe("DynamicParameter", () => {
 	});
 
 	describe("Checkbox Parameter", () => {
+		const mockCheckboxParameter = createMockParameter({
+			name: "checkbox_param",
+			display_name: "Checkbox Parameter",
+			description: "A checkbox parameter",
+			type: "bool",
+			form_type: "checkbox",
+			default_value: { value: "true", valid: true },
+		});
+
 		it("Renders checkbox parameter correctly and handles unchecked to checked transition", async () => {
 			render(
 				<DynamicParameter
@@ -533,6 +386,15 @@ describe("DynamicParameter", () => {
 	});
 
 	describe("Switch Parameter", () => {
+		const mockSwitchParameter = createMockParameter({
+			name: "switch_param",
+			display_name: "Switch Parameter",
+			description: "A switch parameter",
+			type: "bool",
+			form_type: "switch",
+			default_value: { value: "false", valid: true },
+		});
+
 		it("renders switch parameter correctly", () => {
 			render(
 				<DynamicParameter
@@ -565,6 +427,24 @@ describe("DynamicParameter", () => {
 	});
 
 	describe("Slider Parameter", () => {
+		const mockSliderParameter = createMockParameter({
+			name: "slider_param",
+			display_name: "Slider Parameter",
+			description: "A slider parameter",
+			type: "number",
+			form_type: "slider",
+			default_value: { value: "50", valid: true },
+			validations: [
+				{
+					validation_min: 0,
+					validation_max: 100,
+					validation_error: "Value must be between 0 and 100",
+					validation_regex: null,
+					validation_monotonic: null,
+				},
+			],
+		});
+
 		it("renders slider parameter correctly", () => {
 			render(
 				<DynamicParameter
@@ -646,6 +526,41 @@ describe("DynamicParameter", () => {
 	});
 
 	describe("Multi-Select Parameter", () => {
+		const mockMultiSelectParameter = createMockParameter({
+			name: "multiselect_param",
+			display_name: "Multi-Select Parameter",
+			description: "A multi-select parameter",
+			type: "list(string)",
+			form_type: "multi-select",
+			default_value: { value: '["option1", "option3"]', valid: true },
+			options: [
+				{
+					name: "Option 1",
+					description: "First option",
+					value: { value: "option1", valid: true },
+					icon: "",
+				},
+				{
+					name: "Option 2",
+					description: "Second option",
+					value: { value: "option2", valid: true },
+					icon: "",
+				},
+				{
+					name: "Option 3",
+					description: "Third option",
+					value: { value: "option3", valid: true },
+					icon: "",
+				},
+				{
+					name: "Option 4",
+					description: "Fourth option",
+					value: { value: "option4", valid: true },
+					icon: "",
+				},
+			],
+		});
+
 		it("renders multi-select parameter correctly", () => {
 			render(
 				<DynamicParameter
@@ -713,6 +628,24 @@ describe("DynamicParameter", () => {
 	});
 
 	describe("Error Parameter", () => {
+		const mockErrorParameter = createMockParameter({
+			name: "error_param",
+			display_name: "Error Parameter",
+			description: "A parameter with validation error",
+			type: "string",
+			form_type: "error",
+			diagnostics: [
+				{
+					severity: "error",
+					summary: "Validation Error",
+					detail: "This parameter has a validation error",
+					extra: {
+						code: "validation_error",
+					},
+				},
+			],
+		});
+
 		it("renders error parameter with validation message", () => {
 			render(
 				<DynamicParameter
@@ -730,6 +663,25 @@ describe("DynamicParameter", () => {
 	});
 
 	describe("Parameter Badges", () => {
+		const mockEphemeralParameter = createMockParameter({
+			name: "ephemeral_param",
+			display_name: "Ephemeral Parameter",
+			description: "An ephemeral parameter",
+			type: "string",
+			form_type: "input",
+			ephemeral: true,
+		});
+
+		const mockImmutableParameter = createMockParameter({
+			name: "immutable_param",
+			display_name: "Immutable Parameter",
+			description: "An immutable parameter",
+			type: "string",
+			form_type: "input",
+			mutable: false,
+			default_value: { value: "immutable_value", valid: true },
+		});
+
 		it("shows immutable indicator for immutable parameters", () => {
 			render(
 				<DynamicParameter
@@ -941,6 +893,24 @@ describe("DynamicParameter", () => {
 	});
 
 	describe("Number Input Parameter", () => {
+		const mockNumberInputParameter = createMockParameter({
+			name: "number_input_param",
+			display_name: "Number Input Parameter",
+			description: "A numeric input parameter with min/max validations",
+			type: "number",
+			form_type: "input",
+			default_value: { value: "5", valid: true },
+			validations: [
+				{
+					validation_min: 1,
+					validation_max: 10,
+					validation_error: "Value must be between 1 and 10",
+					validation_regex: null,
+					validation_monotonic: null,
+				},
+			],
+		});
+
 		it("renders number input with correct min/max attributes", () => {
 			render(
 				<DynamicParameter
@@ -978,6 +948,19 @@ describe("DynamicParameter", () => {
 	});
 
 	describe("Masked Input Parameter", () => {
+		const mockMaskedInputParameter = createMockParameter({
+			name: "masked_input_param",
+			display_name: "Masked Input Parameter",
+			type: "string",
+			form_type: "input",
+			styling: {
+				placeholder: "********",
+				disabled: false,
+				label: "",
+				mask_input: true,
+			},
+		});
+
 		it("renders a password field by default and toggles visibility on mouse events", async () => {
 			render(
 				<DynamicParameter
@@ -1000,6 +983,21 @@ describe("DynamicParameter", () => {
 	});
 
 	describe("Parameter Diagnostics", () => {
+		const mockWarningParameter = createMockParameter({
+			name: "warning_param",
+			display_name: "Warning Parameter",
+			description: "Parameter with a warning diagnostic",
+			form_type: "input",
+			diagnostics: [
+				{
+					severity: "warning",
+					summary: "This is a warning",
+					detail: "Something might be wrong",
+					extra: { code: "warning" },
+				},
+			],
+		});
+
 		it("renders warning diagnostics for non-error parameters", () => {
 			render(
 				<DynamicParameter
