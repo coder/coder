@@ -459,7 +459,7 @@ func TestDeleteOldProvisionerJobLogsAndTimings(t *testing.T) {
 		TemplateVersionID: templateVersion.ID,
 		InitiatorID:       user.ID,
 		JobID:             recentJob.ID,
-		BuildNumber:       2, // Latest build
+		BuildNumber:       2,                            // Latest build
 		CreatedAt:         now.Add(-1 * 24 * time.Hour), // 1 day ago
 	})
 
@@ -532,7 +532,6 @@ func TestDeleteOldProvisionerJobLogsAndTimings(t *testing.T) {
 	t.Logf("Purge threshold: %v", threshold)
 	t.Logf("Old build created at: %v (should be purged: %v)", oldBuild.CreatedAt, oldBuild.CreatedAt.Before(threshold))
 	t.Logf("Recent build created at: %v (should be purged: %v)", recentBuild.CreatedAt, recentBuild.CreatedAt.Before(threshold))
-
 
 	t.Logf("Executing DeleteOldProvisionerJobLogs with threshold: %v", threshold)
 	err = db.DeleteOldProvisionerJobLogs(ctx, threshold)
