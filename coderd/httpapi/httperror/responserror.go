@@ -6,12 +6,12 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-type CoderSDKError interface {
+type Responder interface {
 	Response() (int, codersdk.Response)
 }
 
-func IsCoderSDKError(err error) (CoderSDKError, bool) {
-	var responseErr CoderSDKError
+func IsResponder(err error) (Responder, bool) {
+	var responseErr Responder
 	if errors.As(err, &responseErr) {
 		return responseErr, true
 	}

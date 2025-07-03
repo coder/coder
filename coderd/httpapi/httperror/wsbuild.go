@@ -9,7 +9,7 @@ import (
 )
 
 func WriteWorkspaceBuildError(ctx context.Context, rw http.ResponseWriter, err error) {
-	if responseErr, ok := IsCoderSDKError(err); ok {
+	if responseErr, ok := IsResponder(err); ok {
 		code, resp := responseErr.Response()
 
 		httpapi.Write(ctx, rw, code, resp)

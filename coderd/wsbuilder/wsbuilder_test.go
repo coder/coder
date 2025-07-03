@@ -1010,7 +1010,7 @@ func TestWsbuildError(t *testing.T) {
 		Message: msg,
 	}
 
-	respErr, ok := httperror.IsCoderSDKError(buildErr)
+	respErr, ok := httperror.IsResponder(buildErr)
 	require.True(t, ok, "should be a Coder SDK error")
 
 	code, resp := respErr.Response()

@@ -27,8 +27,13 @@ func TagValidationError(diags hcl.Diagnostics) *DiagnosticError {
 }
 
 type DiagnosticError struct {
-	Message          string
-	Diagnostics      hcl.Diagnostics
+	// Message is the human-readable message that will be returned to the user.
+	Message string
+	// Diagnostics are top level diagnostics that will be returned as "Detail" in the response.
+	Diagnostics hcl.Diagnostics
+	// KeyedDiagnostics translate to Validation errors in the response. A key could
+	// be a parameter name, or a tag name. This allows diagnostics to be more closely
+	// associated with a specific index/parameter/tag.
 	KeyedDiagnostics map[string]hcl.Diagnostics
 }
 
