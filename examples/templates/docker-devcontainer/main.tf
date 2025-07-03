@@ -256,6 +256,8 @@ resource "docker_container" "workspace" {
   # that the devcontainer can run Docker commands in some other way.
   # Mounting the host Docker socket is strongly discouraged because
   # workspaces will then compete for control of the devcontainers.
+  # For more information, see:
+  # https://coder.com/docs/admin/templates/extending-templates/docker-in-workspaces
   privileged = true
 
   # Uses lower() to avoid Docker restriction on container names.
