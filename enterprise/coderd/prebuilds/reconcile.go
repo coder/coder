@@ -947,7 +947,7 @@ func CompareGetRunningPrebuiltWorkspacesResults(
 	// Convert optimized results to the same type as original for comparison
 	var optimizedConverted []database.GetRunningPrebuiltWorkspacesRow
 	if original != nil {
-		optimizedConverted := make([]database.GetRunningPrebuiltWorkspacesRow, len(optimized))
+		optimizedConverted = make([]database.GetRunningPrebuiltWorkspacesRow, len(optimized))
 		for i, row := range optimized {
 			optimizedConverted[i] = database.GetRunningPrebuiltWorkspacesRow(row)
 		}

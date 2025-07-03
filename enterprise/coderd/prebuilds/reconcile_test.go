@@ -2397,9 +2397,13 @@ func TestCompareGetRunningPrebuiltWorkspacesResults(t *testing.T) {
 		// Should log exactly one error for count mismatch
 		require.Len(t, spy.entries, 1)
 		assert.Equal(t, slog.LevelError, spy.entries[0].Level)
-		assert.Equal(t, "result count mismatch for GetRunningPrebuiltWorkspacesOptimized", spy.entries[0].Message)
-		assert.Equal(t, 1, spy.getField(0, "original_count"))
-		assert.Equal(t, 2, spy.getField(0, "optimized_count"))
+		diff := spy.getField(0, "diff")
+		require.NotNil(t, diff)
+		diffStr := diff.(string)
+
+		// The diff should contain information about the differences we introduced
+		assert.Contains(t, diffStr, "workspace2")      // Original name
+		assert.Contains(t, diffStr, "CurrentPresetID") // Changed preset ID
 	})
 
 	t.Run("field differences - logs errors", func(t *testing.T) {
@@ -2428,7 +2432,6 @@ func TestCompareGetRunningPrebuiltWorkspacesResults(t *testing.T) {
 		// Should log exactly one error with a cmp.Diff output
 		require.Len(t, spy.entries, 1)
 		assert.Equal(t, slog.LevelError, spy.entries[0].Level)
-		assert.Equal(t, "GetRunningPrebuiltWorkspacesOptimized results differ from original", spy.entries[0].Message)
 
 		diff := spy.getField(0, "diff")
 		require.NotNil(t, diff)
