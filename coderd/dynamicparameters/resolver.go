@@ -73,7 +73,7 @@ func ResolveParameters(
 		// always be valid. If there is a case where this is not true, then this has to
 		// be changed to allow the build to continue with a different set of values.
 
-		return nil, ParameterValidationError(diags)
+		return nil, parameterValidationError(diags)
 	}
 
 	// The user's input now needs to be validated against the parameters.
@@ -113,13 +113,13 @@ func ResolveParameters(
 	// are fatal. Additional validation for immutability has to be done manually.
 	output, diags = renderer.Render(ctx, ownerID, values.ValuesMap())
 	if diags.HasErrors() {
-		return nil, ParameterValidationError(diags)
+		return nil, parameterValidationError(diags)
 	}
 
 	// parameterNames is going to be used to remove any excess values that were left
 	// around without a parameter.
 	parameterNames := make(map[string]struct{}, len(output.Parameters))
-	parameterError := ParameterValidationError(nil)
+	parameterError := parameterValidationError(nil)
 	for _, parameter := range output.Parameters {
 		parameterNames[parameter.Name] = struct{}{}
 
