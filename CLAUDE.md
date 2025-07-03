@@ -196,6 +196,32 @@ The frontend is contained in the site folder.
 
 For building Frontend refer to [this document](docs/about/contributing/frontend.md)
 
+## RFC Compliance Development
+
+### Implementing Standard Protocols
+
+When implementing standard protocols (OAuth2, OpenID Connect, etc.):
+
+1. **Fetch and Analyze Official RFCs**:
+   - Always read the actual RFC specifications before implementation
+   - Use WebFetch tool to get current RFC content for compliance verification
+   - Document RFC requirements in code comments
+
+2. **Default Values Matter**:
+   - Pay close attention to RFC-specified default values
+   - Example: RFC 7591 specifies `client_secret_basic` as default, not `client_secret_post`
+   - Ensure consistency between database migrations and application code
+
+3. **Security Requirements**:
+   - Follow RFC security considerations precisely
+   - Example: RFC 7592 prohibits returning registration access tokens in GET responses
+   - Implement proper error responses per protocol specifications
+
+4. **Validation Compliance**:
+   - Implement comprehensive validation per RFC requirements
+   - Support protocol-specific features (e.g., custom schemes for native OAuth2 apps)
+   - Test edge cases defined in specifications
+
 ## Common Patterns
 
 ### OAuth2/Authentication Work
@@ -269,6 +295,32 @@ if errors.Is(err, errInvalidPKCE) {
 - Mock external dependencies
 - Test both positive and negative cases
 - Use `testutil.WaitLong` for timeouts in tests
+
+## Testing Best Practices
+
+### Avoiding Race Conditions
+
+1. **Unique Test Identifiers**:
+   - Never use hardcoded names in concurrent tests
+   - Use `time.Now().UnixNano()` or similar for unique identifiers
+   - Example: `fmt.Sprintf("test-client-%s-%d", t.Name(), time.Now().UnixNano())`
+
+2. **Database Constraint Awareness**:
+   - Understand unique constraints that can cause test conflicts
+   - Generate unique values for all constrained fields
+   - Test name isolation prevents cross-test interference
+
+### RFC Protocol Testing
+
+1. **Compliance Test Coverage**:
+   - Test all RFC-defined error codes and responses
+   - Validate proper HTTP status codes for different scenarios
+   - Test protocol-specific edge cases (URI formats, token formats, etc.)
+
+2. **Security Boundary Testing**:
+   - Test client isolation and privilege separation
+   - Verify information disclosure protections
+   - Test token security and proper invalidation
 
 ## Code Navigation and Investigation
 
@@ -409,3 +461,67 @@ Always run the full test suite after OAuth2 changes:
 7. **OAuth2 tests failing but scripts working** - Check in-memory database implementations in `dbmem.go`
 8. **Resource indicator validation failing** - Ensure database stores and retrieves resource parameters correctly
 9. **PKCE tests failing** - Verify both authorization code storage and token exchange handle PKCE fields
+10. **Race conditions in tests** - Use unique identifiers instead of hardcoded names
+11. **RFC compliance failures** - Verify against actual RFC specifications, not assumptions
+12. **Authorization context errors in public endpoints** - Use `dbauthz.AsSystemRestricted(ctx)` pattern
+13. **Default value mismatches** - Ensure database migrations match application code defaults
+14. **Bearer token authentication issues** - Check token extraction precedence and format validation
+15. **URI validation failures** - Support both standard schemes and custom schemes per protocol requirements
+16. **Log message formatting errors** - Use lowercase, descriptive messages without special characters
+
+## Systematic Debugging Approach
+
+### Multi-Issue Problem Solving
+
+When facing multiple failing tests or complex integration issues:
+
+1. **Identify Root Causes**:
+   - Run failing tests individually to isolate issues
+   - Use LSP tools to trace through call chains
+   - Check both compilation and runtime errors
+
+2. **Fix in Logical Order**:
+   - Address compilation issues first (imports, syntax)
+   - Fix authorization and RBAC issues next
+   - Resolve business logic and validation issues
+   - Handle edge cases and race conditions last
+
+3. **Verification Strategy**:
+   - Test each fix individually before moving to next issue
+   - Use `make lint` and `make gen` after database changes
+   - Verify RFC compliance with actual specifications
+   - Run comprehensive test suites before considering complete
+
+### Authorization Context Patterns
+
+Common patterns for different endpoint types:
+
+```go
+// Public endpoints needing system access (OAuth2 registration)
+app, err := api.Database.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemRestricted(ctx), clientID)
+
+// Authenticated endpoints with user context
+app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
+
+// System operations in middleware
+roles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), userID)
+```
+
+## Protocol Implementation Checklist
+
+### OAuth2/Authentication Protocol Implementation
+
+Before completing OAuth2 or authentication feature work:
+
+- [ ] Verify RFC compliance by reading actual specifications
+- [ ] Implement proper error response formats per protocol
+- [ ] Add comprehensive validation for all protocol fields
+- [ ] Test security boundaries and token handling
+- [ ] Update RBAC permissions for new resources
+- [ ] Add audit logging support if applicable
+- [ ] Create database migrations with proper defaults
+- [ ] Update in-memory database implementations
+- [ ] Add comprehensive test coverage including edge cases
+- [ ] Verify linting and formatting compliance
+- [ ] Test both positive and negative scenarios
+- [ ] Document protocol-specific patterns and requirements

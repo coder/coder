@@ -950,6 +950,20 @@ func New(options *Options) *API {
 			// we cannot require an API key.
 			r.Post("/", api.postOAuth2ProviderAppToken())
 		})
+
+		// RFC 7591 Dynamic Client Registration - Public endpoint
+		r.Post("/register", api.postOAuth2ClientRegistration)
+
+		// RFC 7592 Client Configuration Management - Protected by registration access token
+		r.Route("/clients/{client_id}", func(r chi.Router) {
+			r.Use(
+				// Middleware to validate registration access token
+				api.requireRegistrationAccessToken,
+			)
+			r.Get("/", api.oauth2ClientConfiguration)          // Read client configuration
+			r.Put("/", api.putOAuth2ClientConfiguration)       // Update client configuration
+			r.Delete("/", api.deleteOAuth2ClientConfiguration) // Delete client
+		})
 	})
 
 	// Experimental routes are not guaranteed to be stable and may change at any time.
