@@ -240,11 +240,21 @@ type BuildError struct {
 }
 
 func (e BuildError) Error() string {
+	if e.Wrapped == nil {
+		return e.Message
+	}
 	return e.Wrapped.Error()
 }
 
 func (e BuildError) Unwrap() error {
 	return e.Wrapped
+}
+
+func (e BuildError) Response() (int, codersdk.Response) {
+	return e.Status, codersdk.Response{
+		Message: e.Message,
+		Detail:  e.Error(),
+	}
 }
 
 // Build computes and inserts a new workspace build into the database.  If authFunc is provided, it also performs
