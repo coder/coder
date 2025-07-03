@@ -130,11 +130,11 @@ const (
 	CancelWorkspaceBuildStatusPending CancelWorkspaceBuildStatus = "pending"
 )
 
-type CancelWorkspaceBuildRequest struct {
+type CancelWorkspaceBuildParams struct {
 	ExpectStatus CancelWorkspaceBuildStatus `json:"expect_status,omitempty"`
 }
 
-func (c *CancelWorkspaceBuildRequest) asRequestOption() RequestOption {
+func (c *CancelWorkspaceBuildParams) asRequestOption() RequestOption {
 	return func(r *http.Request) {
 		q := r.URL.Query()
 		q.Set("expect_status", string(c.ExpectStatus))
@@ -143,7 +143,7 @@ func (c *CancelWorkspaceBuildRequest) asRequestOption() RequestOption {
 }
 
 // CancelWorkspaceBuild marks a workspace build job as canceled.
-func (c *Client) CancelWorkspaceBuild(ctx context.Context, id uuid.UUID, req CancelWorkspaceBuildRequest) error {
+func (c *Client) CancelWorkspaceBuild(ctx context.Context, id uuid.UUID, req CancelWorkspaceBuildParams) error {
 	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/workspacebuilds/%s/cancel", id), nil, req.asRequestOption())
 	if err != nil {
 		return err

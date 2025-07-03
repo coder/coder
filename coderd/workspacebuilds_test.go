@@ -573,7 +573,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 			build, err = client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
 			return assert.NoError(t, err) && build.Job.Status == codersdk.ProvisionerJobRunning
 		}, testutil.WaitShort, testutil.IntervalFast)
-		err := client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildRequest{})
+		err := client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
 			var err error
@@ -618,7 +618,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 			build, err = userClient.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
 			return assert.NoError(t, err) && build.Job.Status == codersdk.ProvisionerJobRunning
 		}, testutil.WaitShort, testutil.IntervalFast)
-		err := userClient.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildRequest{})
+		err := userClient.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
@@ -671,7 +671,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		}
 
 		// When: the workspace build is canceled
-		err = client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildRequest{
+		err = client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{
 			ExpectStatus: codersdk.CancelWorkspaceBuildStatusPending,
 		})
 		require.NoError(t, err)
@@ -711,7 +711,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		}, testutil.WaitShort, testutil.IntervalFast)
 
 		// When: a cancel request is made with expect_state=pending
-		err := client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildRequest{
+		err := client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{
 			ExpectStatus: codersdk.CancelWorkspaceBuildStatusPending,
 		})
 		// Then: the request should fail with 412.
@@ -744,7 +744,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// When: a cancel request is made with invalid expect_state
-		err := client.CancelWorkspaceBuild(ctx, workspace.LatestBuild.ID, codersdk.CancelWorkspaceBuildRequest{
+		err := client.CancelWorkspaceBuild(ctx, workspace.LatestBuild.ID, codersdk.CancelWorkspaceBuildParams{
 			ExpectStatus: "invalid_status",
 		})
 		// Then: the request should fail with 400.
@@ -1098,7 +1098,7 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	_ = closeDaemon.Close()
 	// after successful cancel is "canceled"
 	build = coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
-	err = client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildRequest{})
+	err = client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
 	require.NoError(t, err)
 
 	workspace, err = client.Workspace(ctx, workspace.ID)
