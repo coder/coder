@@ -28,8 +28,10 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/quartz"
+	"github.com/coder/websocket"
 )
 
 const (
@@ -74,6 +76,7 @@ type API struct {
 
 	mu                       sync.RWMutex  // Protects the following fields.
 	initDone                 chan struct{} // Closed by Init.
+	updateChans              []chan struct{}
 	closed                   bool
 	containers               codersdk.WorkspaceAgentListContainersResponse  // Output from the last list operation.
 	containersErr            error                                          // Error from the last list operation.
@@ -535,6 +538,7 @@ func (api *API) Routes() http.Handler {
 	r.Use(ensureInitDoneMW)
 
 	r.Get("/", api.handleList)
+	r.Get("/watch", api.watchContainers)
 	// TODO(mafredri): Simplify this route as the previous /devcontainers
 	// /-route was dropped. We can drop the /devcontainers prefix here too.
 	r.Route("/devcontainers/{devcontainer}", func(r chi.Router) {
@@ -542,6 +546,60 @@ func (api *API) Routes() http.Handler {
 	})
 
 	return r
+}
+
+func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx = r.Context()
+	)
+
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to upgrade connection to websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	go httpapi.Heartbeat(ctx, conn)
+	defer conn.Close(websocket.StatusNormalClosure, "connection closed")
+
+	encoder := wsjson.NewEncoder[codersdk.WorkspaceAgentListContainersResponse](conn, websocket.MessageText)
+	defer encoder.Close(websocket.StatusNormalClosure)
+
+	updateCh := make(chan struct{})
+	defer close(updateCh)
+
+	api.mu.Lock()
+	api.updateChans = append(api.updateChans, updateCh)
+	api.mu.Unlock()
+
+	defer func() {
+		api.mu.Lock()
+		api.updateChans = slices.DeleteFunc(api.updateChans, func(ch chan struct{}) bool {
+			return ch == updateCh
+		})
+		api.mu.Unlock()
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+
+		case <-updateCh:
+			ct, err := api.getContainers()
+			if err != nil {
+				api.logger.Error(ctx, "get containers", slog.Error(err))
+			} else {
+				if err := encoder.Encode(ct); err != nil {
+					api.logger.Error(ctx, "encode container list", slog.Error(err))
+				}
+			}
+
+		}
+	}
 }
 
 // handleList handles the HTTP request to list containers.
@@ -584,6 +642,11 @@ func (api *API) updateContainers(ctx context.Context) error {
 	defer api.mu.Unlock()
 
 	api.processUpdatedContainersLocked(ctx, updated)
+
+	// Broadcast our updates
+	for _, ch := range api.updateChans {
+		ch <- struct{}{}
+	}
 
 	api.logger.Debug(ctx, "containers updated successfully", slog.F("container_count", len(api.containers.Containers)), slog.F("warning_count", len(api.containers.Warnings)), slog.F("devcontainer_count", len(api.knownDevcontainers)))
 

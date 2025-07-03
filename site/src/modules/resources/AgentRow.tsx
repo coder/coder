@@ -2,11 +2,12 @@ import type { Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
-import { API } from "api/api";
+import { API, watchAgentContainers } from "api/api";
 import type {
 	Template,
 	Workspace,
 	WorkspaceAgent,
+	WorkspaceAgentDevcontainer,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
 import { isAxiosError } from "axios";
@@ -25,7 +26,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useQuery } from "react-query";
+import { useQuery, useQueryClient } from "react-query";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
@@ -42,6 +43,9 @@ import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { useAgentLogs } from "./useAgentLogs";
+import { OneWayWebSocket } from "utils/OneWayWebSocket";
+import { displayError } from "components/GlobalSnackbar/utils";
+import { useEffectEvent } from "hooks/hookPolyfills";
 
 interface AgentRowProps {
 	agent: WorkspaceAgent;
@@ -73,6 +77,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const showVSCode = hasVSCodeApp && !browser_only;
 
 	const hasStartupFeatures = Boolean(agent.logs_length);
+	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
 	const [showLogs, setShowLogs] = useState(
 		["starting", "start_timeout"].includes(agent.lifecycle_state) &&
@@ -138,15 +143,39 @@ export const AgentRow: FC<AgentRowProps> = ({
 		queryFn: () => API.getAgentContainers(agent.id),
 		enabled: agent.status === "connected",
 		select: (res) => res.devcontainers,
-		// TODO: Implement a websocket connection to get updates on containers
-		// without having to poll.
-		refetchInterval: ({ state }) => {
-			const { error } = state;
-			return isAxiosError(error) && error.response?.status === 403
-				? false
-				: 10_000;
-		},
 	});
+
+	const updateDevcontainersCache = useEffectEvent(
+		async (devcontainers: WorkspaceAgentDevcontainer[]) => {
+			const queryKey = ["agents", agent.id, "containers"];
+
+			queryClient.setQueryData(queryKey, devcontainers);
+			await queryClient.invalidateQueries({ queryKey });
+		},
+	);
+
+	useEffect(() => {
+		const socket = watchAgentContainers(agent.id);
+
+		socket.addEventListener("message", (event) => {
+			if (event.parseError) {
+				displayError(
+					"Unable to process latest data from the server. Please try refreshing the page.",
+				);
+				return;
+			}
+
+			updateDevcontainersCache(event.parsedMessage);
+		});
+
+		socket.addEventListener("error", () => {
+			displayError(
+				"Unable to get workspace containers. Connection has been closed.",
+			);
+		});
+
+		return () => socket.close();
+	}, [agent.id, updateDevcontainersCache]);
 
 	// This is used to show the parent apps of the devcontainer.
 	const [showParentApps, setShowParentApps] = useState(false);

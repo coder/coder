@@ -801,6 +801,90 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 	httpapi.Write(ctx, rw, http.StatusOK, portsResponse)
 }
 
+// @Summary Watch agent for container updates.
+func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx            = r.Context()
+		workspaceAgent = httpmw.WorkspaceAgentParam(r)
+	)
+
+	// If the agent is unreachable, the request will hang. Assume that if we
+	// don't get a response after 30s that the agent is unreachable.
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	apiAgent, err := db2sdk.WorkspaceAgent(
+		api.DERPMap(),
+		*api.TailnetCoordinator.Load(),
+		workspaceAgent,
+		nil,
+		nil,
+		nil,
+		api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
+		})
+		return
+	}
+
+	agentConn, release, err := api.agentProvider.AgentConn(ctx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error dialing workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer release()
+
+	containersCh, closer, err := agentConn.WatchContainers(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error watching agent's containers.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer closer.Close()
+
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to upgrade connection to websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	go httpapi.Heartbeat(ctx, conn)
+	defer conn.Close(websocket.StatusNormalClosure, "connection closed")
+
+	encoder := wsjson.NewEncoder[codersdk.WorkspaceAgentListContainersResponse](conn, websocket.MessageText)
+	defer encoder.Close(websocket.StatusNormalClosure)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+
+		case containers := <-containersCh:
+			if err := encoder.Encode(containers); err != nil {
+				api.Logger.Error(ctx, "encode containers", slog.Error(err))
+				return
+			}
+		}
+	}
+}
+
 // @Summary Get running containers for workspace agent
 // @ID get-running-containers-for-workspace-agent
 // @Security CoderSessionToken

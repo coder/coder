@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"cdr.dev/slog"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/crypto/ssh"
@@ -23,7 +24,9 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
+	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/websocket"
 )
 
 // NewAgentConn creates a new WorkspaceAgentConn. `conn` may be unique
@@ -385,6 +388,27 @@ func (c *AgentConn) ListContainers(ctx context.Context) (codersdk.WorkspaceAgent
 	}
 	var resp codersdk.WorkspaceAgentListContainersResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+func (c *AgentConn) WatchContainers(ctx context.Context) (<-chan codersdk.WorkspaceAgentListContainersResponse, io.Closer, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
+	url := fmt.Sprintf("http://%s%s", host, "/api/v0/containers/watch")
+
+	conn, res, err := websocket.Dial(ctx, url, &websocket.DialOptions{
+		HTTPClient: c.apiClient(),
+	})
+	if err != nil {
+		if res != nil {
+			return nil, nil, codersdk.ReadBodyAsError(res)
+		}
+		return nil, nil, err
+	}
+
+	d := wsjson.NewDecoder[codersdk.WorkspaceAgentListContainersResponse](conn, websocket.MessageText, slog.Logger{})
+	return d.Chan(), d, nil
 }
 
 // RecreateDevcontainer recreates a devcontainer with the given container.
