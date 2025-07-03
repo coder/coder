@@ -4225,6 +4225,180 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `token_endpoint`                        | string          | false    |              |             |
 | `token_endpoint_auth_methods_supported` | array of string | false    |              |             |
 
+## codersdk.OAuth2ClientConfiguration
+
+```json
+{
+  "client_id": "string",
+  "client_id_issued_at": 0,
+  "client_name": "string",
+  "client_secret_expires_at": 0,
+  "client_uri": "string",
+  "contacts": [
+    "string"
+  ],
+  "grant_types": [
+    "string"
+  ],
+  "jwks": {},
+  "jwks_uri": "string",
+  "logo_uri": "string",
+  "policy_uri": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "registration_access_token": "string",
+  "registration_client_uri": "string",
+  "response_types": [
+    "string"
+  ],
+  "scope": "string",
+  "software_id": "string",
+  "software_version": "string",
+  "token_endpoint_auth_method": "string",
+  "tos_uri": "string"
+}
+```
+
+### Properties
+
+| Name                         | Type            | Required | Restrictions | Description |
+|------------------------------|-----------------|----------|--------------|-------------|
+| `client_id`                  | string          | false    |              |             |
+| `client_id_issued_at`        | integer         | false    |              |             |
+| `client_name`                | string          | false    |              |             |
+| `client_secret_expires_at`   | integer         | false    |              |             |
+| `client_uri`                 | string          | false    |              |             |
+| `contacts`                   | array of string | false    |              |             |
+| `grant_types`                | array of string | false    |              |             |
+| `jwks`                       | object          | false    |              |             |
+| `jwks_uri`                   | string          | false    |              |             |
+| `logo_uri`                   | string          | false    |              |             |
+| `policy_uri`                 | string          | false    |              |             |
+| `redirect_uris`              | array of string | false    |              |             |
+| `registration_access_token`  | string          | false    |              |             |
+| `registration_client_uri`    | string          | false    |              |             |
+| `response_types`             | array of string | false    |              |             |
+| `scope`                      | string          | false    |              |             |
+| `software_id`                | string          | false    |              |             |
+| `software_version`           | string          | false    |              |             |
+| `token_endpoint_auth_method` | string          | false    |              |             |
+| `tos_uri`                    | string          | false    |              |             |
+
+## codersdk.OAuth2ClientRegistrationRequest
+
+```json
+{
+  "client_name": "string",
+  "client_uri": "string",
+  "contacts": [
+    "string"
+  ],
+  "grant_types": [
+    "string"
+  ],
+  "jwks": {},
+  "jwks_uri": "string",
+  "logo_uri": "string",
+  "policy_uri": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "response_types": [
+    "string"
+  ],
+  "scope": "string",
+  "software_id": "string",
+  "software_statement": "string",
+  "software_version": "string",
+  "token_endpoint_auth_method": "string",
+  "tos_uri": "string"
+}
+```
+
+### Properties
+
+| Name                         | Type            | Required | Restrictions | Description |
+|------------------------------|-----------------|----------|--------------|-------------|
+| `client_name`                | string          | false    |              |             |
+| `client_uri`                 | string          | false    |              |             |
+| `contacts`                   | array of string | false    |              |             |
+| `grant_types`                | array of string | false    |              |             |
+| `jwks`                       | object          | false    |              |             |
+| `jwks_uri`                   | string          | false    |              |             |
+| `logo_uri`                   | string          | false    |              |             |
+| `policy_uri`                 | string          | false    |              |             |
+| `redirect_uris`              | array of string | false    |              |             |
+| `response_types`             | array of string | false    |              |             |
+| `scope`                      | string          | false    |              |             |
+| `software_id`                | string          | false    |              |             |
+| `software_statement`         | string          | false    |              |             |
+| `software_version`           | string          | false    |              |             |
+| `token_endpoint_auth_method` | string          | false    |              |             |
+| `tos_uri`                    | string          | false    |              |             |
+
+## codersdk.OAuth2ClientRegistrationResponse
+
+```json
+{
+  "client_id": "string",
+  "client_id_issued_at": 0,
+  "client_name": "string",
+  "client_secret": "string",
+  "client_secret_expires_at": 0,
+  "client_uri": "string",
+  "contacts": [
+    "string"
+  ],
+  "grant_types": [
+    "string"
+  ],
+  "jwks": {},
+  "jwks_uri": "string",
+  "logo_uri": "string",
+  "policy_uri": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "registration_access_token": "string",
+  "registration_client_uri": "string",
+  "response_types": [
+    "string"
+  ],
+  "scope": "string",
+  "software_id": "string",
+  "software_version": "string",
+  "token_endpoint_auth_method": "string",
+  "tos_uri": "string"
+}
+```
+
+### Properties
+
+| Name                         | Type            | Required | Restrictions | Description |
+|------------------------------|-----------------|----------|--------------|-------------|
+| `client_id`                  | string          | false    |              |             |
+| `client_id_issued_at`        | integer         | false    |              |             |
+| `client_name`                | string          | false    |              |             |
+| `client_secret`              | string          | false    |              |             |
+| `client_secret_expires_at`   | integer         | false    |              |             |
+| `client_uri`                 | string          | false    |              |             |
+| `contacts`                   | array of string | false    |              |             |
+| `grant_types`                | array of string | false    |              |             |
+| `jwks`                       | object          | false    |              |             |
+| `jwks_uri`                   | string          | false    |              |             |
+| `logo_uri`                   | string          | false    |              |             |
+| `policy_uri`                 | string          | false    |              |             |
+| `redirect_uris`              | array of string | false    |              |             |
+| `registration_access_token`  | string          | false    |              |             |
+| `registration_client_uri`    | string          | false    |              |             |
+| `response_types`             | array of string | false    |              |             |
+| `scope`                      | string          | false    |              |             |
+| `software_id`                | string          | false    |              |             |
+| `software_version`           | string          | false    |              |             |
+| `token_endpoint_auth_method` | string          | false    |              |             |
+| `tos_uri`                    | string          | false    |              |             |
+
 ## codersdk.OAuth2Config
 
 ```json

@@ -1459,6 +1459,75 @@ export interface OAuth2AuthorizationServerMetadata {
 	readonly token_endpoint_auth_methods_supported?: readonly string[];
 }
 
+// From codersdk/oauth2.go
+export interface OAuth2ClientConfiguration {
+	readonly client_id: string;
+	readonly client_id_issued_at: number;
+	readonly client_secret_expires_at?: number;
+	readonly redirect_uris?: readonly string[];
+	readonly client_name?: string;
+	readonly client_uri?: string;
+	readonly logo_uri?: string;
+	readonly tos_uri?: string;
+	readonly policy_uri?: string;
+	readonly jwks_uri?: string;
+	readonly jwks?: Record<string, string>;
+	readonly software_id?: string;
+	readonly software_version?: string;
+	readonly grant_types: readonly string[];
+	readonly response_types: readonly string[];
+	readonly token_endpoint_auth_method: string;
+	readonly scope?: string;
+	readonly contacts?: readonly string[];
+	readonly registration_access_token: string;
+	readonly registration_client_uri: string;
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2ClientRegistrationRequest {
+	readonly redirect_uris?: readonly string[];
+	readonly client_name?: string;
+	readonly client_uri?: string;
+	readonly logo_uri?: string;
+	readonly tos_uri?: string;
+	readonly policy_uri?: string;
+	readonly jwks_uri?: string;
+	readonly jwks?: Record<string, string>;
+	readonly software_id?: string;
+	readonly software_version?: string;
+	readonly software_statement?: string;
+	readonly grant_types?: readonly string[];
+	readonly response_types?: readonly string[];
+	readonly token_endpoint_auth_method?: string;
+	readonly scope?: string;
+	readonly contacts?: readonly string[];
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2ClientRegistrationResponse {
+	readonly client_id: string;
+	readonly client_secret?: string;
+	readonly client_id_issued_at: number;
+	readonly client_secret_expires_at?: number;
+	readonly redirect_uris?: readonly string[];
+	readonly client_name?: string;
+	readonly client_uri?: string;
+	readonly logo_uri?: string;
+	readonly tos_uri?: string;
+	readonly policy_uri?: string;
+	readonly jwks_uri?: string;
+	readonly jwks?: Record<string, string>;
+	readonly software_id?: string;
+	readonly software_version?: string;
+	readonly grant_types: readonly string[];
+	readonly response_types: readonly string[];
+	readonly token_endpoint_auth_method: string;
+	readonly scope?: string;
+	readonly contacts?: readonly string[];
+	readonly registration_access_token: string;
+	readonly registration_client_uri: string;
+}
+
 // From codersdk/deployment.go
 export interface OAuth2Config {
 	readonly github: OAuth2GithubConfig;

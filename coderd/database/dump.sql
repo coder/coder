@@ -1158,7 +1158,24 @@ CREATE TABLE oauth2_provider_apps (
     callback_url text NOT NULL,
     redirect_uris text[],
     client_type text DEFAULT 'confidential'::text,
-    dynamically_registered boolean DEFAULT false
+    dynamically_registered boolean DEFAULT false,
+    client_id_issued_at timestamp with time zone DEFAULT now(),
+    client_secret_expires_at timestamp with time zone,
+    grant_types text[] DEFAULT '{authorization_code,refresh_token}'::text[],
+    response_types text[] DEFAULT '{code}'::text[],
+    token_endpoint_auth_method text DEFAULT 'client_secret_basic'::text,
+    scope text DEFAULT ''::text,
+    contacts text[],
+    client_uri text,
+    logo_uri text,
+    tos_uri text,
+    policy_uri text,
+    jwks_uri text,
+    jwks jsonb,
+    software_id text,
+    software_version text,
+    registration_access_token text,
+    registration_client_uri text
 );
 
 COMMENT ON TABLE oauth2_provider_apps IS 'A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.';
@@ -1168,6 +1185,40 @@ COMMENT ON COLUMN oauth2_provider_apps.redirect_uris IS 'List of valid redirect 
 COMMENT ON COLUMN oauth2_provider_apps.client_type IS 'OAuth2 client type: confidential or public';
 
 COMMENT ON COLUMN oauth2_provider_apps.dynamically_registered IS 'Whether this app was created via dynamic client registration';
+
+COMMENT ON COLUMN oauth2_provider_apps.client_id_issued_at IS 'RFC 7591: Timestamp when client_id was issued';
+
+COMMENT ON COLUMN oauth2_provider_apps.client_secret_expires_at IS 'RFC 7591: Timestamp when client_secret expires (null for non-expiring)';
+
+COMMENT ON COLUMN oauth2_provider_apps.grant_types IS 'RFC 7591: Array of grant types the client is allowed to use';
+
+COMMENT ON COLUMN oauth2_provider_apps.response_types IS 'RFC 7591: Array of response types the client supports';
+
+COMMENT ON COLUMN oauth2_provider_apps.token_endpoint_auth_method IS 'RFC 7591: Authentication method for token endpoint';
+
+COMMENT ON COLUMN oauth2_provider_apps.scope IS 'RFC 7591: Space-delimited scope values the client can request';
+
+COMMENT ON COLUMN oauth2_provider_apps.contacts IS 'RFC 7591: Array of email addresses for responsible parties';
+
+COMMENT ON COLUMN oauth2_provider_apps.client_uri IS 'RFC 7591: URL of the client home page';
+
+COMMENT ON COLUMN oauth2_provider_apps.logo_uri IS 'RFC 7591: URL of the client logo image';
+
+COMMENT ON COLUMN oauth2_provider_apps.tos_uri IS 'RFC 7591: URL of the client terms of service';
+
+COMMENT ON COLUMN oauth2_provider_apps.policy_uri IS 'RFC 7591: URL of the client privacy policy';
+
+COMMENT ON COLUMN oauth2_provider_apps.jwks_uri IS 'RFC 7591: URL of the client JSON Web Key Set';
+
+COMMENT ON COLUMN oauth2_provider_apps.jwks IS 'RFC 7591: JSON Web Key Set document value';
+
+COMMENT ON COLUMN oauth2_provider_apps.software_id IS 'RFC 7591: Identifier for the client software';
+
+COMMENT ON COLUMN oauth2_provider_apps.software_version IS 'RFC 7591: Version of the client software';
+
+COMMENT ON COLUMN oauth2_provider_apps.registration_access_token IS 'RFC 7592: Hashed registration access token for client management';
+
+COMMENT ON COLUMN oauth2_provider_apps.registration_client_uri IS 'RFC 7592: URI for client configuration endpoint';
 
 CREATE TABLE organizations (
     id uuid NOT NULL,
