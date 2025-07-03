@@ -2188,6 +2188,27 @@ func (q *FakeQuerier) DeleteOAuth2ProviderAppTokensByAppAndUserID(_ context.Cont
 	return nil
 }
 
+func (q *FakeQuerier) DeleteOldAuditLogConnectionEvents(ctx context.Context, params database.DeleteOldAuditLogConnectionEventsParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	deleted := 0
+	newAuditLogs := make([]database.AuditLog, 0, len(q.auditLogs))
+	for _, auditLog := range q.auditLogs {
+		isConnectionEvent := auditLog.Action == database.AuditActionConnect ||
+			auditLog.Action == database.AuditActionDisconnect ||
+			auditLog.Action == database.AuditActionOpen ||
+			auditLog.Action == database.AuditActionClose
+		if isConnectionEvent && auditLog.Time.Before(params.BeforeTime) && deleted < int(params.LimitCount) {
+			deleted++
+			continue
+		}
+		newAuditLogs = append(newAuditLogs, auditLog)
+	}
+	q.auditLogs = newAuditLogs
+	return nil
+}
+
 func (*FakeQuerier) DeleteOldNotificationMessages(_ context.Context) error {
 	return nil
 }

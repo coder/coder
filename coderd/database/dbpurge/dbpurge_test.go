@@ -490,3 +490,148 @@ func containsProvisionerDaemon(daemons []database.ProvisionerDaemon, name string
 		return d.Name == name
 	})
 }
+
+//nolint:paralleltest // It uses LockIDDBPurge.
+func TestDeleteOldAuditLogConnectionEvents(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	clk := quartz.NewMock(t)
+	now := dbtime.Now()
+	afterThreshold := now.Add(-91 * 24 * time.Hour)       // 91 days ago (older than 90 day threshold)
+	beforeThreshold := now.Add(-30 * 24 * time.Hour)      // 30 days ago (newer than 90 day threshold)
+	closeBeforeThreshold := now.Add(-89 * 24 * time.Hour) // 89 days ago
+	clk.Set(now).MustWait(ctx)
+
+	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+
+	oldConnectLog := dbgen.AuditLog(t, db, database.AuditLog{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+		Time:           afterThreshold,
+		Action:         database.AuditActionConnect,
+		ResourceType:   database.ResourceTypeWorkspace,
+	})
+
+	oldDisconnectLog := dbgen.AuditLog(t, db, database.AuditLog{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+		Time:           afterThreshold,
+		Action:         database.AuditActionDisconnect,
+		ResourceType:   database.ResourceTypeWorkspace,
+	})
+
+	oldOpenLog := dbgen.AuditLog(t, db, database.AuditLog{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+		Time:           afterThreshold,
+		Action:         database.AuditActionOpen,
+		ResourceType:   database.ResourceTypeWorkspace,
+	})
+
+	oldCloseLog := dbgen.AuditLog(t, db, database.AuditLog{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+		Time:           afterThreshold,
+		Action:         database.AuditActionClose,
+		ResourceType:   database.ResourceTypeWorkspace,
+	})
+
+	recentConnectLog := dbgen.AuditLog(t, db, database.AuditLog{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+		Time:           beforeThreshold,
+		Action:         database.AuditActionConnect,
+		ResourceType:   database.ResourceTypeWorkspace,
+	})
+
+	oldNonConnectionLog := dbgen.AuditLog(t, db, database.AuditLog{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+		Time:           afterThreshold,
+		Action:         database.AuditActionCreate,
+		ResourceType:   database.ResourceTypeWorkspace,
+	})
+
+	nearThresholdConnectLog := dbgen.AuditLog(t, db, database.AuditLog{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+		Time:           closeBeforeThreshold,
+		Action:         database.AuditActionConnect,
+		ResourceType:   database.ResourceTypeWorkspace,
+	})
+
+	// Run the purge
+	done := awaitDoTick(ctx, t, clk)
+	closer := dbpurge.New(ctx, logger, db, clk)
+	defer closer.Close()
+	// Wait for tick
+	testutil.TryReceive(ctx, t, done)
+
+	// Verify results by querying all audit logs
+	logs, err := db.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{})
+	require.NoError(t, err)
+
+	// Extract log IDs for comparison
+	logIDs := make([]uuid.UUID, len(logs))
+	for i, log := range logs {
+		logIDs[i] = log.AuditLog.ID
+	}
+
+	require.NotContains(t, logIDs, oldConnectLog.ID, "old connect log should be deleted")
+	require.NotContains(t, logIDs, oldDisconnectLog.ID, "old disconnect log should be deleted")
+	require.NotContains(t, logIDs, oldOpenLog.ID, "old open log should be deleted")
+	require.NotContains(t, logIDs, oldCloseLog.ID, "old close log should be deleted")
+	require.Contains(t, logIDs, recentConnectLog.ID, "recent connect log should be kept")
+	require.Contains(t, logIDs, nearThresholdConnectLog.ID, "near threshold connect log should be kept")
+	require.Contains(t, logIDs, oldNonConnectionLog.ID, "old non-connection log should be kept")
+}
+
+func TestDeleteOldAuditLogConnectionEventsLimit(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+
+	now := dbtime.Now()
+	threshold := now.Add(-90 * 24 * time.Hour)
+
+	for i := 0; i < 5; i++ {
+		dbgen.AuditLog(t, db, database.AuditLog{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+			Time:           threshold.Add(-time.Duration(i+1) * time.Hour),
+			Action:         database.AuditActionConnect,
+			ResourceType:   database.ResourceTypeWorkspace,
+		})
+	}
+
+	err := db.DeleteOldAuditLogConnectionEvents(ctx, database.DeleteOldAuditLogConnectionEventsParams{
+		BeforeTime: threshold,
+		LimitCount: 1,
+	})
+	require.NoError(t, err)
+
+	logs, err := db.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{})
+	require.NoError(t, err)
+
+	require.Len(t, logs, 4)
+
+	err = db.DeleteOldAuditLogConnectionEvents(ctx, database.DeleteOldAuditLogConnectionEventsParams{
+		BeforeTime: threshold,
+		LimitCount: 100,
+	})
+	require.NoError(t, err)
+
+	logs, err = db.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{})
+	require.NoError(t, err)
+
+	require.Len(t, logs, 0)
+}

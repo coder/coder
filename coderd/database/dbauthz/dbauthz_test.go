@@ -327,6 +327,10 @@ func (s *MethodTestSuite) TestAuditLogs() {
 			LimitOpt: 10,
 		}, emptyPreparedAuthorized{}).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
 	}))
+	s.Run("DeleteOldAuditLogConnectionEvents", s.Subtest(func(db database.Store, check *expects) {
+		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
+		check.Args(database.DeleteOldAuditLogConnectionEventsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
 }
 
 func (s *MethodTestSuite) TestConnectionLogs() {
