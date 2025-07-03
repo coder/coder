@@ -19,7 +19,7 @@ const (
 	delay          = 10 * time.Minute
 	maxAgentLogAge = 7 * 24 * time.Hour
 	// Connection events are now inserted into the `connection_logs` table.
-	// We'll slowly remove old connection events from the `audit_log` table,
+	// We'll slowly remove old connection events from the `audit_logs` table,
 	// but we won't touch the `connection_logs` table.
 	maxAuditLogConnectionEventAge    = 90 * 24 * time.Hour // 90 days
 	auditLogConnectionEventBatchSize = 1000
