@@ -1894,6 +1894,7 @@ const (
 	ResourceTypeIdpSyncSettingsRole         ResourceType = "idp_sync_settings_role"
 	ResourceTypeWorkspaceAgent              ResourceType = "workspace_agent"
 	ResourceTypeWorkspaceApp                ResourceType = "workspace_app"
+	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1956,7 +1957,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeIdpSyncSettingsGroup,
 		ResourceTypeIdpSyncSettingsRole,
 		ResourceTypeWorkspaceAgent,
-		ResourceTypeWorkspaceApp:
+		ResourceTypeWorkspaceApp,
+		ResourceTypePrebuildsSettings:
 		return true
 	}
 	return false
@@ -1988,6 +1990,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeIdpSyncSettingsRole,
 		ResourceTypeWorkspaceAgent,
 		ResourceTypeWorkspaceApp,
+		ResourceTypePrebuildsSettings,
 	}
 }
 
@@ -2986,6 +2989,40 @@ type OAuth2ProviderApp struct {
 	ClientType sql.NullString `db:"client_type" json:"client_type"`
 	// Whether this app was created via dynamic client registration
 	DynamicallyRegistered sql.NullBool `db:"dynamically_registered" json:"dynamically_registered"`
+	// RFC 7591: Timestamp when client_id was issued
+	ClientIDIssuedAt sql.NullTime `db:"client_id_issued_at" json:"client_id_issued_at"`
+	// RFC 7591: Timestamp when client_secret expires (null for non-expiring)
+	ClientSecretExpiresAt sql.NullTime `db:"client_secret_expires_at" json:"client_secret_expires_at"`
+	// RFC 7591: Array of grant types the client is allowed to use
+	GrantTypes []string `db:"grant_types" json:"grant_types"`
+	// RFC 7591: Array of response types the client supports
+	ResponseTypes []string `db:"response_types" json:"response_types"`
+	// RFC 7591: Authentication method for token endpoint
+	TokenEndpointAuthMethod sql.NullString `db:"token_endpoint_auth_method" json:"token_endpoint_auth_method"`
+	// RFC 7591: Space-delimited scope values the client can request
+	Scope sql.NullString `db:"scope" json:"scope"`
+	// RFC 7591: Array of email addresses for responsible parties
+	Contacts []string `db:"contacts" json:"contacts"`
+	// RFC 7591: URL of the client home page
+	ClientUri sql.NullString `db:"client_uri" json:"client_uri"`
+	// RFC 7591: URL of the client logo image
+	LogoUri sql.NullString `db:"logo_uri" json:"logo_uri"`
+	// RFC 7591: URL of the client terms of service
+	TosUri sql.NullString `db:"tos_uri" json:"tos_uri"`
+	// RFC 7591: URL of the client privacy policy
+	PolicyUri sql.NullString `db:"policy_uri" json:"policy_uri"`
+	// RFC 7591: URL of the client JSON Web Key Set
+	JwksUri sql.NullString `db:"jwks_uri" json:"jwks_uri"`
+	// RFC 7591: JSON Web Key Set document value
+	Jwks pqtype.NullRawMessage `db:"jwks" json:"jwks"`
+	// RFC 7591: Identifier for the client software
+	SoftwareID sql.NullString `db:"software_id" json:"software_id"`
+	// RFC 7591: Version of the client software
+	SoftwareVersion sql.NullString `db:"software_version" json:"software_version"`
+	// RFC 7592: Hashed registration access token for client management
+	RegistrationAccessToken sql.NullString `db:"registration_access_token" json:"registration_access_token"`
+	// RFC 7592: URI for client configuration endpoint
+	RegistrationClientUri sql.NullString `db:"registration_client_uri" json:"registration_client_uri"`
 }
 
 // Codes are meant to be exchanged for access tokens.
@@ -3027,6 +3064,8 @@ type OAuth2ProviderAppToken struct {
 	APIKeyID    string    `db:"api_key_id" json:"api_key_id"`
 	// Token audience binding from resource parameter
 	Audience sql.NullString `db:"audience" json:"audience"`
+	// Denormalized user ID for performance optimization in authorization checks
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
 }
 
 type Organization struct {
