@@ -797,6 +797,12 @@
 							"state": ["premium"]
 						},
 						{
+							"title": "Connection Logs",
+							"description": "Monitor connections to workspaces",
+							"path": "./admin/security/connection-logs.md",
+							"state": ["premium"]
+						},
+						{
 							"title": "Secrets",
 							"description": "Use sensitive variables in your workspaces",
 							"path": "./admin/security/secrets.md"
