@@ -461,7 +461,7 @@ fmt/go:
 	# VS Code users should check out
 	# https://github.com/mvdan/gofumpt#visual-studio-code
 	find . $(FIND_EXCLUSIONS) -type f -name '*.go' -print0 | \
-		xargs -0 grep --null -L "DO NOT EDIT" | \
+		xargs -0 grep -E --null -L '^// Code generated .* DO NOT EDIT\.$$' | \
 		xargs -0 go run mvdan.cc/gofumpt@v0.8.0 -w -l
 .PHONY: fmt/go
 
