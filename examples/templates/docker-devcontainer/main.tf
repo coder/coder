@@ -105,8 +105,9 @@ resource "coder_agent" "main" {
       sudo apt-get update -y
       sudo apt-get install -y dnsmasq
 
-      echo "resolv-file=/etc/resolv.conf" | sudo tee /etc/dnsmasq.conf
+      echo "no-hosts" | sudo tee /etc/dnsmasq.conf
       echo "address=/host.docker.internal/$dns_ip" | sudo tee -a /etc/dnsmasq.conf
+      echo "resolv-file=/etc/resolv.conf" | sudo tee -a /etc/dnsmasq.conf
       echo "no-dhcp-interface=" | sudo tee -a /etc/dnsmasq.conf
       echo "bind-interfaces" | sudo tee -a /etc/dnsmasq.conf
       echo "listen-address=127.0.0.1,$dns_ip" | sudo tee -a /etc/dnsmasq.conf
