@@ -1,16 +1,13 @@
-package identityprovider
+package oauth2provider
 
 import (
 	"fmt"
-	"strings"
-
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/cryptorand"
 )
 
-type OAuth2ProviderAppSecret struct {
+type AppSecret struct {
 	// Formatted contains the secret. This value is owned by the client, not the
 	// server.  It is formatted to include the prefix.
 	Formatted string
@@ -26,11 +23,11 @@ type OAuth2ProviderAppSecret struct {
 
 // GenerateSecret generates a secret to be used as a client secret, refresh
 // token, or authorization code.
-func GenerateSecret() (OAuth2ProviderAppSecret, error) {
+func GenerateSecret() (AppSecret, error) {
 	// 40 characters matches the length of GitHub's client secrets.
 	secret, err := cryptorand.String(40)
 	if err != nil {
-		return OAuth2ProviderAppSecret{}, err
+		return AppSecret{}, err
 	}
 
 	// This ID is prefixed to the secret so it can be used to look up the secret
@@ -38,40 +35,17 @@ func GenerateSecret() (OAuth2ProviderAppSecret, error) {
 	// will not have the salt.
 	prefix, err := cryptorand.String(10)
 	if err != nil {
-		return OAuth2ProviderAppSecret{}, err
+		return AppSecret{}, err
 	}
 
 	hashed, err := userpassword.Hash(secret)
 	if err != nil {
-		return OAuth2ProviderAppSecret{}, err
+		return AppSecret{}, err
 	}
 
-	return OAuth2ProviderAppSecret{
+	return AppSecret{
 		Formatted: fmt.Sprintf("coder_%s_%s", prefix, secret),
 		Prefix:    prefix,
 		Hashed:    hashed,
 	}, nil
-}
-
-type parsedSecret struct {
-	prefix string
-	secret string
-}
-
-// parseSecret extracts the ID and original secret from a secret.
-func parseSecret(secret string) (parsedSecret, error) {
-	parts := strings.Split(secret, "_")
-	if len(parts) != 3 {
-		return parsedSecret{}, xerrors.Errorf("incorrect number of parts: %d", len(parts))
-	}
-	if parts[0] != "coder" {
-		return parsedSecret{}, xerrors.Errorf("incorrect scheme: %s", parts[0])
-	}
-	if len(parts[1]) == 0 {
-		return parsedSecret{}, xerrors.Errorf("prefix is invalid")
-	}
-	if len(parts[2]) == 0 {
-		return parsedSecret{}, xerrors.Errorf("invalid")
-	}
-	return parsedSecret{parts[1], parts[2]}, nil
 }

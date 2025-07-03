@@ -22,7 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/identityprovider"
+	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -865,7 +865,7 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 			newKey, err := db.InsertAPIKey(ctx, key)
 			require.NoError(t, err)
 
-			token, err := identityprovider.GenerateSecret()
+			token, err := oauth2provider.GenerateSecret()
 			require.NoError(t, err)
 
 			expires := test.expires
