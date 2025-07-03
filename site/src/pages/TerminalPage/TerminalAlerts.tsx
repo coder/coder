@@ -4,18 +4,30 @@ import { Alert, type AlertProps } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
 import { type FC, useEffect, useRef, useState } from "react";
 import { docs } from "utils/docs";
+import { TerminalRetryConnection } from "./TerminalRetryConnection";
 import type { ConnectionStatus } from "./types";
 
 type TerminalAlertsProps = {
 	agent: WorkspaceAgent | undefined;
 	status: ConnectionStatus;
 	onAlertChange: () => void;
+	// Retry connection props
+	isRetrying?: boolean;
+	timeUntilNextRetry?: number | null;
+	attemptCount?: number;
+	maxAttempts?: number;
+	onRetryNow?: () => void;
 };
 
 export const TerminalAlerts = ({
 	agent,
 	status,
 	onAlertChange,
+	isRetrying = false,
+	timeUntilNextRetry = null,
+	attemptCount = 0,
+	maxAttempts = 10,
+	onRetryNow,
 }: TerminalAlertsProps) => {
 	const lifecycleState = agent?.lifecycle_state;
 	const prevLifecycleState = useRef(lifecycleState);
@@ -49,7 +61,13 @@ export const TerminalAlerts = ({
 	return (
 		<div ref={wrapperRef}>
 			{status === "disconnected" ? (
-				<DisconnectedAlert />
+				<DisconnectedAlert
+					isRetrying={isRetrying}
+					timeUntilNextRetry={timeUntilNextRetry}
+					attemptCount={attemptCount}
+					maxAttempts={maxAttempts}
+					onRetryNow={onRetryNow || (() => {})}
+				/>
 			) : lifecycleState === "start_error" ? (
 				<ErrorScriptAlert />
 			) : lifecycleState === "starting" ? (
@@ -170,12 +188,35 @@ const TerminalAlert: FC<AlertProps> = (props) => {
 	);
 };
 
-const DisconnectedAlert: FC<AlertProps> = (props) => {
+interface DisconnectedAlertProps extends AlertProps {
+	isRetrying?: boolean;
+	timeUntilNextRetry?: number | null;
+	attemptCount?: number;
+	maxAttempts?: number;
+	onRetryNow?: () => void;
+}
+
+const DisconnectedAlert: FC<DisconnectedAlertProps> = ({
+	isRetrying = false,
+	timeUntilNextRetry = null,
+	attemptCount = 0,
+	maxAttempts = 10,
+	onRetryNow,
+	...props
+}) => {
 	return (
 		<TerminalAlert
 			{...props}
 			severity="warning"
-			actions={<RefreshSessionButton />}
+			actions={
+				<TerminalRetryConnection
+					isRetrying={isRetrying}
+					timeUntilNextRetry={timeUntilNextRetry}
+					attemptCount={attemptCount}
+					maxAttempts={maxAttempts}
+					onRetryNow={onRetryNow || (() => {})}
+				/>
+			}
 		>
 			Disconnected
 		</TerminalAlert>
