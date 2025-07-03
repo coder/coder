@@ -536,12 +536,13 @@ func (api *API) postOAuth2ClientRegistration(rw http.ResponseWriter, r *http.Req
 
 	// Store in database - use system context since this is a public endpoint
 	now := dbtime.Now()
+	clientName := req.GenerateClientName()
 	//nolint:gocritic // Dynamic client registration is a public endpoint, system access required
 	app, err := api.Database.InsertOAuth2ProviderApp(dbauthz.AsSystemRestricted(ctx), database.InsertOAuth2ProviderAppParams{
 		ID:                      clientID,
 		CreatedAt:               now,
 		UpdatedAt:               now,
-		Name:                    req.GenerateClientName(),
+		Name:                    clientName,
 		Icon:                    req.LogoURI,
 		CallbackURL:             req.RedirectURIs[0], // Primary redirect URI
 		RedirectUris:            req.RedirectURIs,
@@ -566,7 +567,11 @@ func (api *API) postOAuth2ClientRegistration(rw http.ResponseWriter, r *http.Req
 		RegistrationClientUri:   sql.NullString{String: fmt.Sprintf("%s/oauth2/clients/%s", api.AccessURL.String(), clientID), Valid: true},
 	})
 	if err != nil {
-		api.Logger.Error(ctx, "failed to store oauth2 client registration", slog.Error(err))
+		api.Logger.Error(ctx, "failed to store oauth2 client registration",
+			slog.Error(err),
+			slog.F("client_name", clientName),
+			slog.F("client_id", clientID.String()),
+			slog.F("redirect_uris", req.RedirectURIs))
 		writeOAuth2RegistrationError(ctx, rw, http.StatusInternalServerError,
 			"server_error", "Failed to store client registration")
 		return
