@@ -684,56 +684,34 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 
 	t.Run("Cancel with expect_state=pending - should fail with 412", func(t *testing.T) {
 		t.Parallel()
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("this test requires postgres")
-		}
 
-		// Given: a coderd instance with a provisioner daemon
-		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
-		client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database:                 store,
-			Pubsub:                   ps,
-			IncludeProvisionerDaemon: true,
-		})
-		defer closeDaemon.Close()
-
-		// Given: a user, template, and workspace
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Log{
+					Log: &proto.Log{},
+				},
+			}},
+			ProvisionPlan: echo.PlanComplete,
+		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		var build codersdk.WorkspaceBuild
 
-		// Stop the provisioner daemon.
-		require.NoError(t, closeDaemon.Close())
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 
-		// Given: no provisioner daemons exist.
-		_, err := db.ExecContext(ctx, `DELETE FROM provisioner_daemons;`)
-		require.NoError(t, err)
-
-		// When: a new workspace build is created
-		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			TemplateVersionID: template.ActiveVersionID,
-			Transition:        codersdk.WorkspaceTransitionStart,
-		})
-		// Then: the request should succeed.
-		require.NoError(t, err)
-		// Then: the provisioner job should remain pending.
-		require.Equal(t, codersdk.ProvisionerJobPending, build.Job.Status)
-
-		// When: a provisioner daemon is started
-		daemon := coderdtest.NewProvisionerDaemon(t, api)
-		defer daemon.Close()
-		// Then: the job should be acquired (status changes from pending)
 		require.Eventually(t, func() bool {
-			build, err = client.WorkspaceBuild(ctx, build.ID)
-			return err == nil && build.Job.Status != codersdk.ProvisionerJobPending
+			var err error
+			build, err = client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
+			return assert.NoError(t, err) && build.Job.Status == codersdk.ProvisionerJobRunning
 		}, testutil.WaitShort, testutil.IntervalFast)
 
 		// When: a cancel request is made with expect_state=pending
-		err = client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildRequest{
+		err := client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildRequest{
 			ExpectStatus: codersdk.CancelWorkspaceBuildStatusPending,
 		})
 		// Then: the request should fail with 412.
