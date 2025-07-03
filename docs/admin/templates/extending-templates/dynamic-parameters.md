@@ -13,7 +13,7 @@ Administrators can now:
 
 You can try the dynamic parameter syntax and any of the code examples below in the [Parameters Playground](https://playground.coder.app/parameters) today. We advise experimenting here before upgrading templates.
 
-### When you should upgrade to Dynamic Parameters
+## When you should upgrade to Dynamic Parameters
 
 While Dynamic parameters introduce a variety of new powerful tools, all functionality is **backwards compatible** with existing coder templates. When opting-in to the new experience, no functional changes will be applied to your production parameters.
 
@@ -29,7 +29,7 @@ Dynamic Parameters help you reduce template duplication by setting conditions on
 
 Read on for setup steps and code examples.
 
-### How to enable Dynamic Parameters
+## How to enable Dynamic Parameters
 
 In v2.24.0, you can opt-in to Dynamic Parameters on a per-template basis. To use dynamic parameters, go to your template settings and toggle the "Enable Dynamic Parameters Beta" option.
 
@@ -157,7 +157,7 @@ data "coder_parameter" "text_area" {
   name = "text_area"
   description  = "Enter mutli-line text."
   mutable      = true
-  display_name = "Select mutliple IDEs"
+  display_name = "Textarea"
 
   form_type = "textarea"
   type      = "string"
@@ -297,7 +297,7 @@ data "coder_parameter" "private_api_key" {
   name         = "private_api_key"
   display_name = "Your super secret API key"
   type         = "string"
-    
+
   form_type = "input" # | "textarea"
 
   # Will render as "**********"
@@ -476,9 +476,30 @@ data "coder_parameter" "cpu_cores" {
 
 ## Daisy Chaining
 
-You can daisy-chain the conditionals shown here to create a dynamically expanding form. Note that parameters must be indexed when using the `count` attribute. 
+You can daisy-chain the conditionals shown here to create a dynamically expanding form. Note that parameters must be indexed when using the `count` attribute.
+
+[Try daisy-chaining parameters in the Parameter Playground](https://playground.coder.app/parameters/jLUUhoDLIa).
 
 ```terraform
+
+locals {
+  ides = [
+    "VS Code",
+    "JetBrains IntelliJ",
+    "GoLand",
+    "WebStorm",
+    "PyCharm",
+    "Databricks",
+    "Jupyter Notebook",
+  ]
+
+  is_ml_repo = data.coder_parameter.git_repo == "coder/mlkit"
+
+  selected = jsondecode(data.coder_parameter.ide_selector[0].value)
+
+  # selected = try(jsondecode(data.coder_parameter.ide_selector[0].value), [])
+}
+
 
 data "coder_parameter" "git_repo" {
   name = "git_repo"
@@ -490,31 +511,29 @@ data "coder_parameter" "git_repo" {
   form_type = "dropdown"
 
   option {
-    # A Go-heavy repository
     name = "coder/coder"
     value = "coder/coder"
   }
 
   option {
-    # A python-heavy repository
     name = "coder/mlkit"
     value = "coder/mlkit"
   }
 }
 
 data "coder_parameter" "ide_selector" {
-  # Conditionally expose this parameter
+  # Only show this parameter if a git repo has been selected.
   count = try(data.coder_parameter.git_repo.value, "") != "" ? 1 : 0
-
   name = "ide_selector"
   description  = "Choose any IDEs for your workspace."
-  order        = 2
   mutable      = true
+  display_name = "Select mutliple IDEs"
+  order = 1
+  default = "[]"
 
-  display_name = "Select IDEs"
+  # Allows users to select multiple IDEs from the list.
   form_type = "multi-select"
   type      = "list(string)"
-  default   = try(data.coder_parameter.git_repo.value, "") == "coder/mlkit" ? local.mlkit_ides : local.core_ides
 
 
   dynamic "option" {
@@ -526,27 +545,22 @@ data "coder_parameter" "ide_selector" {
   }
 }
 
-data "coder_parameter" "region" {
-  # Only show this parameter if any IDEs are selected.
-  count = try(data.coder_parameter.ide_selector.value,) ? 1 : 0
 
-  name         = "region"
-  display_name = "Select a Region"
+data "coder_parameter" "cpu_cores" {
+  # Only show this parameter if the IDEs have been selected.
+  count = length(local.selected) > 0 ? 1 : 0
+
+  name         = "cpu_cores"
+  display_name = "CPU Cores"
   type         = "number"
   form_type    = "slider"
+  default      = local.is_ml_repo ? 12 : 6
   order        = 2
-
-  # Dynamically set default
-  default      = try(data.coder_parameter.git_repo.value, "") == "coder/mlkit" ? 12 : 6
-
   validation {
     min = 1
-
-    # Dynamically set max validation
-    max = try(data.coder_parameter.git_repo.value, "") == "coder/mlkit" ? 16 : 8
+    max = local.is_ml_repo ? 16 : 8
   }
 }
-
 ```
 
 </div>
@@ -559,9 +573,9 @@ User identity is referenced in Terraform by reading the [`coder_workspace_owner`
 
 <div class="tabs">
 
-## Admin Options
+## Role-aware Options
 
-Template administrators often want to expose certain experimental or unstable options only to those with elevated roles. You can now do this by setting `count` based on a user's group or role, referencing the [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) data source. 
+Template administrators often want to expose certain experimental or unstable options only to those with elevated roles. You can now do this by setting `count` based on a user's group or role, referencing the [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) data source.
 
 [Try out admin-only options in the Playground](https://playground.coder.app/parameters/5Gn9W3hYs7).
 
@@ -578,12 +592,12 @@ data "coder_workspace_owner" "me" {}
 data "coder_parameter" "advanced_settings" {
   # This parameter is only visible when the user is an administrator
   count = local.is_admin ? 1 : 0
-  
+
   name         = "advanced_settings"
   display_name = "Add an arbitrary script"
   description  = "An advanced configuration option only available to admins."
   type         = "string"
-  form_type    = "textarea" 
+  form_type    = "textarea"
   mutable      = true
   order        = 5
 
@@ -600,51 +614,9 @@ data "coder_parameter" "advanced_settings" {
 
 ```
 
-## Role-specific options
+### Group-aware Regions
 
-Similarly to the above example, you can show certain options to specific roles on the platform. This allows you to restrict resources for those who may not need them.
-
-```terraform
-locals {
-  roles = [for r in data.coder_workspace_owner.me.rbac_roles: r.name]
-  is_admin = contains(data.coder_workspace_owner.me.groups, "admin")
-  has_admin_role = contains(roles, "owner")
-
-
-
-  non_admin_desc = "YOU ARE NOT AN ADMIN! Set user to 'Administrator' in the top right."
-  admin_desc     = "You are an administrator! You now have access to the secret advanced option."
-}
-
-data "coder_workspace_owner" "me" {}
-
-data "coder_parameter" "advanced_settings" {
-  # This parameter is only visible when show_advanced is true
-  count = local.is_admin ? 1 : 0
-  name         = "advanced_settings"
-  display_name = "Add an arbitrary script"
-  description  = "An advanced configuration option only available to admins."
-  type         = "string"
-  form_type    = "textarea" 
-
-  styling = jsonencode({
-    placeholder = <<-EOT
-  #!/usr/bin/env bash
-  while true; do
-    echo "hello world"
-    sleep 1
-  done
-  EOT
-  })
-
-  mutable      = true
-  order        = 5
-}
-```
-
-### User-aware Regions
-
-You can expose regions depending on which group a user belongs to. This way developers can't incidentally induce low-latency with world-spanning connections. 
+You can expose regions depending on which group a user belongs to. This way developers can't incidentally induce low-latency with world-spanning connections.
 
 [Try user-aware regions in the parameter playground](https://playground.coder.app/parameters/tBD-mbZRGm)
 
@@ -697,160 +669,66 @@ data "coder_parameter" "region" {
 
 A slightly unorthodox way to leverage this is filling the selections of a parameter from the user's groups. Some users associate groups with namespaces (E.G. Kubernetes), then allow users to target that namespace with a parameter like so.
 
+[Try groups as options in the Parameter Playground](https://playground.coder.app/parameters/lKbU53nYjl).
 
 ```terraform
+locals {
+  groups = data.coder_workspace_owner.me.groups
+}
 
+data "coder_workspace_owner" "me" {}
 
+data "coder_parameter" "your_groups" {
+  type         = "string"
+  name         = "your_groups"
+  display_name = "Your Coder Groups"
+  description  = "Select your namespace..."
+  default      = "target-${local.groups[0]}"
+  mutable      = true
+  form_type = "dropdown"
+
+  dynamic "option" {
+    # options populated directly from groups
+    for_each = local.groups
+    content {
+      name  = option.value
+      # Native terraform be used to decorate output
+      value = "target-${option.value}"
+    }
+  }
+}
 ```
 
 </div>
 
-This example shows instance types based on the selected region:
-
-```tf
-data "coder_parameter" "region" {
-  name        = "region"
-  display_name = "Region"
-  description = "Select a region for your workspace"
-  type        = "string"
-  default     = "us-east-1"
-
-  option {
-    name  = "US East (N. Virginia)"
-    value = "us-east-1"
-  }
-
-  option {
-    name  = "US West (Oregon)"
-    value = "us-west-2"
-  }
-}
-
-data "coder_parameter" "instance_type" {
-  name         = "instance_type"
-  display_name = "Instance Type"
-  description  = "Select an instance type available in the selected region"
-  type         = "string"
-
-  # This option will only appear when us-east-1 is selected
-  dynamic "option" {
-    for_each = data.coder_parameter.region.value == "us-east-1" ? [1] : []
-    content {
-      name  = "t3.large (US East)"
-      value = "t3.large"
-    }
-  }
-
-  # This option will only appear when us-west-2 is selected
-  dynamic "option" {
-    for_each = data.coder_parameter.region.value == "us-west-2" ? [1] : []
-    content {
-      name  = "t3.medium (US West)"
-      value = "t3.medium"
-    }
-  }
-}
-```
-
-This example filters resources based on user group membership:
-
-```tf
-data "coder_parameter" "instance_type" {
-  name        = "instance_type"
-  display_name = "Instance Type"
-  description = "Select an instance type for your workspace"
-  type        = "string"
-
-  # Show GPU options only if user belongs to the "data-science" group
-  dynamic "option" {
-    for_each = contains(data.coder_workspace_owner.me.groups, "data-science") ? [1] : []
-    content {
-      name  = "p3.2xlarge (GPU)"
-      value = "p3.2xlarge"
-    }
-  }
-
-  # Standard options for all users
-  option {
-    name  = "t3.medium (Standard)"
-    value = "t3.medium"
-  }
-}
-```
-
-### 
-
-For templates serving multiple teams or use cases, you can create comprehensive branching paths:
-
-```tf
-data "coder_parameter" "environment_type" {
-  name         = "environment_type"
-  display_name = "Environment Type"
-  description  = "Select your preferred development environment"
-  type         = "string"
-  default      = "container"
-
-  option {
-    name  = "Container"
-    value = "container"
-  }
-
-  option {
-    name  = "Virtual Machine"
-    value = "vm"
-  }
-}
-
-# Container-specific parameters
-data "coder_parameter" "container_image" {
-  name         = "container_image"
-  display_name = "Container Image"
-  description  = "Select a container image for your environment"
-  type         = "string"
-  default      = "ubuntu:latest"
-
-  # Only show when container environment is selected
-  condition {
-    field = data.coder_parameter.environment_type.name
-    value = "container"
-  }
-
-  option {
-    name  = "Ubuntu"
-    value = "ubuntu:latest"
-  }
-
-  option {
-    name  = "Python"
-    value = "python:3.9"
-  }
-}
-
-# VM-specific parameters
-data "coder_parameter" "vm_image" {
-  name         = "vm_image"
-  display_name = "VM Image"
-  description  = "Select a VM image for your environment"
-  type         = "string"
-  default      = "ubuntu-20.04"
-
-  # Only show when VM environment is selected
-  condition {
-    field = data.coder_parameter.environment_type.name
-    value = "vm"
-  }
-
-  option {
-    name  = "Ubuntu 20.04"
-    value = "ubuntu-20.04"
-  }
-
-  option {
-    name  = "Debian 11"
-    value = "debian-11"
-  }
-}
-```
-
 ## Troubleshooting
 
+Dynamic Parameters is still in Beta as we continue to polish and improve the workflow. If you have any issues during upgrade, please file an issue in our [Github](https://github.com/coder/coder/issues/new) with the [`parameters`](https://github.com/coder/coder/issues?q=is%3Aissue%20state%3Aopen%20label%3Aparameters) label and a [Playground link](https://playground.coder.app/parameters) where applicable. We appreciate the feedback and look forward to what the community creates with this system!
+
+You can track a list of known issues here.
+
+You can share anything you build with Dynamic Parameters in our Discord.
+
+### Enabled Dynamic Parameters, but my template looks the same
+
+First, ensure that the following version requirements are met:
+- `coder/coder`: >= [v2.24.0](https://github.com/coder/coder/releases/tag/v2.24.0)
+- `coder/terraform-provider-coder`: >= [v2.5.3](https://github.com/coder/terraform-provider-coder/releases/tag/v2.5.3)
+
+Enabling Dynamic Parameters on an existing template requires administrators to **publish a new template version**. This will resolve the necessary template metadata to render the form.
+
+
+### Reverting to classic parameters
+
+To revert the beta on a template:
+1. Prepare your template by removing any conditional logic or user data references in parameters.
+2. As a template administrator or owner, go to your template settings **Templates** -> **Your template** -> **Settings**.
+3. Uncheck the "Dynamic Parameters Beta" option.
+4. Create a new template version and publish to the active version.
+
+
+### Can I use registry modules with Dynamic Parameters?
+
+**Yes**, registry modules are supported with dynamic parameters. Unless explicitly mentioned, no registry modules _require_ Dynamic Parameters. Later in 2025, more registry modules will be converted to Dynamic Parameters to improve their UX.
+
+In the meantime, you can safely convert existing templates and build new parameters on top of the functionality provided in the registry.
