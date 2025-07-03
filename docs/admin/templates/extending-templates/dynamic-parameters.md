@@ -309,7 +309,6 @@ data "coder_parameter" "private_api_key" {
 }
 ```
 
-
 </div>
 
 ### Conditional Parameters
@@ -664,7 +663,6 @@ data "coder_parameter" "region" {
 }
 ```
 
-
 ### Groups as namespaces
 
 A slightly unorthodox way to leverage this is filling the selections of a parameter from the user's groups. Some users associate groups with namespaces (E.G. Kubernetes), then allow users to target that namespace with a parameter like so.
@@ -712,20 +710,24 @@ You can share anything you build with Dynamic Parameters in our Discord.
 ### Enabled Dynamic Parameters, but my template looks the same
 
 First, ensure that the following version requirements are met:
+
 - `coder/coder`: >= [v2.24.0](https://github.com/coder/coder/releases/tag/v2.24.0)
 - `coder/terraform-provider-coder`: >= [v2.5.3](https://github.com/coder/terraform-provider-coder/releases/tag/v2.5.3)
 
 Enabling Dynamic Parameters on an existing template requires administrators to **publish a new template version**. This will resolve the necessary template metadata to render the form.
 
-
 ### Reverting to classic parameters
 
 To revert the beta on a template:
+
 1. Prepare your template by removing any conditional logic or user data references in parameters.
 2. As a template administrator or owner, go to your template settings **Templates** -> **Your template** -> **Settings**.
 3. Uncheck the "Dynamic Parameters Beta" option.
 4. Create a new template version and publish to the active version.
 
+### Template variables not showing up
+
+In beta, **Template variables are not supported in Dynamic Parameters**. This issue will be resolved by the next minor release of `coder/coder`. If this is issue is blocking your usage of Dynamic Parameters, please let us know in [this thread](http://github.com/orgs/coder/projects/54/views/1?pane=issue&itemId=117802472&issue=coder%7Ccoder%7C18671).
 
 ### Can I use registry modules with Dynamic Parameters?
 
