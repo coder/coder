@@ -1,7 +1,11 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as apiModule from "api/api";
-import type { TemplateVersionParameter, Workspace } from "api/typesGenerated";
+import type {
+	BuildInfoResponse,
+	TemplateVersionParameter,
+	Workspace,
+} from "api/typesGenerated";
 import MockServerSocket from "jest-websocket-mock";
 import {
 	DashboardContext,
@@ -554,6 +558,7 @@ describe("WorkspacePage", () => {
 						appearance: MockAppearanceConfig,
 						entitlements: MockEntitlements,
 						experiments: [],
+						buildInfo: { version: "v0.0.0-test" } as BuildInfoResponse,
 						organizations: [MockOrganization],
 						showOrganizations: true,
 						canViewOrganizationSettings: true,
