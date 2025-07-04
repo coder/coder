@@ -164,7 +164,7 @@ func TestTools(t *testing.T) {
 
 			// Important: cancel the build. We don't run any provisioners, so this
 			// will remain in the 'pending' state indefinitely.
-			require.NoError(t, client.CancelWorkspaceBuild(ctx, result.ID))
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, result.ID, codersdk.CancelWorkspaceBuildParams{}))
 		})
 
 		t.Run("Start", func(t *testing.T) {
@@ -184,7 +184,7 @@ func TestTools(t *testing.T) {
 
 			// Important: cancel the build. We don't run any provisioners, so this
 			// will remain in the 'pending' state indefinitely.
-			require.NoError(t, client.CancelWorkspaceBuild(ctx, result.ID))
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, result.ID, codersdk.CancelWorkspaceBuildParams{}))
 		})
 
 		t.Run("TemplateVersionChange", func(t *testing.T) {
@@ -216,7 +216,7 @@ func TestTools(t *testing.T) {
 			require.Equal(t, r.Workspace.ID.String(), updateBuild.WorkspaceID.String())
 			require.Equal(t, newVersion.TemplateVersion.ID.String(), updateBuild.TemplateVersionID.String())
 			// Cancel the build so it doesn't remain in the 'pending' state indefinitely.
-			require.NoError(t, client.CancelWorkspaceBuild(ctx, updateBuild.ID))
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, updateBuild.ID, codersdk.CancelWorkspaceBuildParams{}))
 
 			// Roll back to the original version
 			rollbackBuild, err := testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
@@ -229,7 +229,7 @@ func TestTools(t *testing.T) {
 			require.Equal(t, r.Workspace.ID.String(), rollbackBuild.WorkspaceID.String())
 			require.Equal(t, originalVersionID.String(), rollbackBuild.TemplateVersionID.String())
 			// Cancel the build so it doesn't remain in the 'pending' state indefinitely.
-			require.NoError(t, client.CancelWorkspaceBuild(ctx, rollbackBuild.ID))
+			require.NoError(t, client.CancelWorkspaceBuild(ctx, rollbackBuild.ID, codersdk.CancelWorkspaceBuildParams{}))
 		})
 	})
 

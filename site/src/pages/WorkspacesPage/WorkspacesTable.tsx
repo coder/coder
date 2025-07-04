@@ -497,6 +497,8 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 
 	// State for stop confirmation dialog
 	const [isStopConfirmOpen, setIsStopConfirmOpen] = useState(false);
+	// State for cancel confirmation dialog
+	const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
 
 	const isRetrying =
 		startWorkspaceMutation.isPending ||
@@ -606,7 +608,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 
 				{abilities.canCancel && (
 					<PrimaryAction
-						onClick={cancelBuildMutation.mutate}
+						onClick={() => setIsCancelConfirmOpen(true)}
 						isLoading={cancelBuildMutation.isPending}
 						label="Cancel build"
 					>
@@ -640,6 +642,21 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 				onConfirm={() => {
 					stopWorkspaceMutation.mutate({});
 					setIsStopConfirmOpen(false);
+				}}
+				type="delete"
+			/>
+
+			{/* Cancel workspace build confirmation dialog */}
+			<ConfirmDialog
+				open={isCancelConfirmOpen}
+				title="Cancel workspace build"
+				description={`Are you sure you want to cancel the build for workspace "${workspace.name}"? This will stop the current build process.`}
+				confirmText="Confirm"
+				cancelText="Discard"
+				onClose={() => setIsCancelConfirmOpen(false)}
+				onConfirm={() => {
+					cancelBuildMutation.mutate();
+					setIsCancelConfirmOpen(false);
 				}}
 				type="delete"
 			/>

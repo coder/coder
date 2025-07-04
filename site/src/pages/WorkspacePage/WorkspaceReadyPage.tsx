@@ -80,6 +80,8 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		ephemeralParameters: TypesGen.TemplateVersionParameter[];
 	}>({ open: false, action: "start", ephemeralParameters: [] });
 
+	const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+
 	const { mutate: mutateRestartWorkspace, isPending: isRestarting } =
 		useMutation({
 			mutationFn: API.restartWorkspace,
@@ -316,7 +318,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 					}
 				}}
 				handleUpdate={workspaceUpdate.update}
-				handleCancel={cancelBuildMutation.mutate}
+				handleCancel={() => setIsCancelConfirmOpen(true)}
 				handleRetry={handleRetry}
 				handleDebug={handleDebug}
 				handleDormantActivate={async () => {
@@ -350,6 +352,21 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 						<strong>delete non-persistent data</strong>.
 					</>
 				}
+			/>
+
+			{/* Cancel confirmation dialog */}
+			<ConfirmDialog
+				open={isCancelConfirmOpen}
+				title="Cancel workspace build"
+				description={`Are you sure you want to cancel the build for workspace "${workspace.name}"? This will stop the current build process.`}
+				confirmText="Confirm"
+				cancelText="Discard"
+				onClose={() => setIsCancelConfirmOpen(false)}
+				onConfirm={() => {
+					cancelBuildMutation.mutate();
+					setIsCancelConfirmOpen(false);
+				}}
+				type="delete"
 			/>
 
 			<EphemeralParametersDialog

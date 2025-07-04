@@ -581,10 +581,12 @@ func (api *API) notifyWorkspaceUpdated(
 // @Produce json
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
+// @Param expect_status query string false "Expected status of the job" Enums(running, pending)
 // @Success 200 {object} codersdk.Response
 // @Router /workspacebuilds/{workspacebuild}/cancel [patch]
 func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	expectStatus := r.URL.Query().Get("expect_status")
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 	if err != nil {
@@ -594,58 +596,85 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	valid, err := api.verifyUserCanCancelWorkspaceBuilds(ctx, httpmw.APIKey(r).UserID, workspace.TemplateID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error verifying permission to cancel workspace build.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if !valid {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "User is not allowed to cancel workspace builds. Owner role is required.",
-		})
-		return
-	}
+	code := http.StatusOK
+	resp := codersdk.Response{}
+	err = api.Database.InTx(func(db database.Store) error {
+		valid, err := verifyUserCanCancelWorkspaceBuilds(ctx, db, httpmw.APIKey(r).UserID, workspace.TemplateID, expectStatus)
+		if err != nil {
+			code = http.StatusInternalServerError
+			resp.Message = "Internal error verifying permission to cancel workspace build."
+			resp.Detail = err.Error()
 
-	job, err := api.Database.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
+			return xerrors.Errorf("verify user can cancel workspace builds: %w", err)
+		}
+		if !valid {
+			code = http.StatusForbidden
+			resp.Message = "User is not allowed to cancel workspace builds. Owner role is required."
+
+			return xerrors.New("user is not allowed to cancel workspace builds")
+		}
+
+		job, err := db.GetProvisionerJobByIDForUpdate(ctx, workspaceBuild.JobID)
+		if err != nil {
+			code = http.StatusInternalServerError
+			resp.Message = "Internal error fetching provisioner job."
+			resp.Detail = err.Error()
+
+			return xerrors.Errorf("get provisioner job: %w", err)
+		}
+		if job.CompletedAt.Valid {
+			code = http.StatusBadRequest
+			resp.Message = "Job has already completed!"
+
+			return xerrors.New("job has already completed")
+		}
+		if job.CanceledAt.Valid {
+			code = http.StatusBadRequest
+			resp.Message = "Job has already been marked as canceled!"
+
+			return xerrors.New("job has already been marked as canceled")
+		}
+
+		if expectStatus != "" {
+			if expectStatus != "running" && expectStatus != "pending" {
+				code = http.StatusBadRequest
+				resp.Message = fmt.Sprintf("Invalid expect_status %q. Only 'running' or 'pending' are allowed.", expectStatus)
+
+				return xerrors.Errorf("invalid expect_status %q", expectStatus)
+			}
+
+			if job.JobStatus != database.ProvisionerJobStatus(expectStatus) {
+				code = http.StatusPreconditionFailed
+				resp.Message = "Job is not in the expected state."
+
+				return xerrors.Errorf("job is not in the expected state: expected: %q, got %q", expectStatus, job.JobStatus)
+			}
+		}
+
+		err = db.UpdateProvisionerJobWithCancelByID(ctx, database.UpdateProvisionerJobWithCancelByIDParams{
+			ID: job.ID,
+			CanceledAt: sql.NullTime{
+				Time:  dbtime.Now(),
+				Valid: true,
+			},
+			CompletedAt: sql.NullTime{
+				Time: dbtime.Now(),
+				// If the job is running, don't mark it completed!
+				Valid: !job.WorkerID.Valid,
+			},
+		})
+		if err != nil {
+			code = http.StatusInternalServerError
+			resp.Message = "Internal error updating provisioner job."
+			resp.Detail = err.Error()
+
+			return xerrors.Errorf("update provisioner job: %w", err)
+		}
+
+		return nil
+	}, nil)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Job has already completed!",
-		})
-		return
-	}
-	if job.CanceledAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Job has already been marked as canceled!",
-		})
-		return
-	}
-	err = api.Database.UpdateProvisionerJobWithCancelByID(ctx, database.UpdateProvisionerJobWithCancelByIDParams{
-		ID: job.ID,
-		CanceledAt: sql.NullTime{
-			Time:  dbtime.Now(),
-			Valid: true,
-		},
-		CompletedAt: sql.NullTime{
-			Time: dbtime.Now(),
-			// If the job is running, don't mark it completed!
-			Valid: !job.WorkerID.Valid,
-		},
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating provisioner job.",
-			Detail:  err.Error(),
-		})
+		httpapi.Write(ctx, rw, code, resp)
 		return
 	}
 
@@ -659,8 +688,13 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
-func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID uuid.UUID, templateID uuid.UUID) (bool, error) {
-	template, err := api.Database.GetTemplateByID(ctx, templateID)
+func verifyUserCanCancelWorkspaceBuilds(ctx context.Context, store database.Store, userID uuid.UUID, templateID uuid.UUID, expectStatus string) (bool, error) {
+	// If the expectStatus is pending, we can cancel it.
+	if expectStatus == "pending" {
+		return true, nil
+	}
+
+	template, err := store.GetTemplateByID(ctx, templateID)
 	if err != nil {
 		return false, xerrors.New("no template exists for this workspace")
 	}
@@ -669,7 +703,7 @@ func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID u
 		return true, nil // all users can cancel workspace builds
 	}
 
-	user, err := api.Database.GetUserByID(ctx, userID)
+	user, err := store.GetUserByID(ctx, userID)
 	if err != nil {
 		return false, xerrors.New("user does not exist")
 	}

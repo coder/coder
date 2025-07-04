@@ -9125,6 +9125,16 @@ const docTemplate = `{
                         "name": "workspacebuild",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "enum": [
+                            "running",
+                            "pending"
+                        ],
+                        "type": "string",
+                        "description": "Expected status of the job",
+                        "name": "expect_status",
+                        "in": "query"
                     }
                 ],
                 "responses": {
