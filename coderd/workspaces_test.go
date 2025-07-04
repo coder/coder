@@ -4508,7 +4508,7 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	// Helper function to create workspace with AI task configuration
-	createWorkspaceWithAIConfig := func(hasAITask sql.NullBool, jobCompleted bool, aiTaskPrompt *string) database.WorkspaceTable {
+	createWorkspaceWithAIConfig := func(hasAITask sql.NullBool, jobCompleted bool, aiTaskPrompt *string, conf *database.WorkspaceTable) database.WorkspaceTable {
 		// When a provisioner job uses these tags, no provisioner will match it.
 		// We do this so jobs will always be stuck in "pending", allowing us to exercise the intermediary state when
 		// has_ai_task is nil and we compensate by looking at pending provisioning jobs.
@@ -4516,9 +4516,22 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 		unpickableTags := database.StringMap{"custom": "true"}
 
 		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
-			OwnerID:        user.UserID,
-			OrganizationID: user.OrganizationID,
-			TemplateID:     template.ID,
+			OwnerID:           user.UserID,
+			OrganizationID:    user.OrganizationID,
+			TemplateID:        template.ID,
+			ID:                conf.ID,
+			CreatedAt:         conf.CreatedAt,
+			UpdatedAt:         conf.UpdatedAt,
+			Deleted:           conf.Deleted,
+			Name:              conf.Name,
+			AutostartSchedule: conf.AutostartSchedule,
+			Ttl:               conf.Ttl,
+			LastUsedAt:        conf.LastUsedAt,
+			DormantAt:         conf.DormantAt,
+			DeletingAt:        conf.DeletingAt,
+			AutomaticUpdates:  conf.AutomaticUpdates,
+			Favorite:          conf.Favorite,
+			NextStartAt:       conf.NextStartAt,
 		})
 
 		jobConfig := database.ProvisionerJob{
@@ -4563,18 +4576,49 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 		return ws
 	}
 
+	expectWorkspaces := func(workspaces []codersdk.Workspace, order []uuid.UUID) {
+		ids := make([]uuid.UUID, len(workspaces))
+		for i, ws := range workspaces {
+			t.Logf("Workspace %d: ID=%s, Name=%s, Status=%s", i, ws.ID, ws.Name, ws.LatestBuild.Status)
+			ids[i] = ws.ID
+		}
+		t.Logf("Expected IDs: %s", order)
+		require.Len(t, workspaces, len(order))
+		require.Equal(t, order, ids)
+	}
+
 	// Create test workspaces with different AI task configurations
-	wsWithAITask := createWorkspaceWithAIConfig(sql.NullBool{Bool: true, Valid: true}, true, nil)
-	wsWithoutAITask := createWorkspaceWithAIConfig(sql.NullBool{Bool: false, Valid: true}, false, nil)
+	wsWithAITask := createWorkspaceWithAIConfig(sql.NullBool{Bool: true, Valid: true}, true, nil, &database.WorkspaceTable{
+		Name:      "alpha",
+		CreatedAt: time.Now().Add(-30 * time.Minute),
+	})
+	wsWithoutAITask := createWorkspaceWithAIConfig(sql.NullBool{Bool: false, Valid: true}, false, nil, &database.WorkspaceTable{
+		Name:      "beta",
+		CreatedAt: time.Now().Add(-20 * time.Minute),
+	})
 
 	aiTaskPrompt := "Build me a web app"
-	wsWithAITaskParam := createWorkspaceWithAIConfig(sql.NullBool{Valid: false}, false, &aiTaskPrompt)
+	wsWithAITaskParam := createWorkspaceWithAIConfig(sql.NullBool{Valid: false}, false, &aiTaskPrompt, &database.WorkspaceTable{
+		Name:      "gamma",
+		CreatedAt: time.Now().Add(-10 * time.Minute),
+	})
 
 	anotherTaskPrompt := "Another task"
-	wsCompletedWithAITaskParam := createWorkspaceWithAIConfig(sql.NullBool{Valid: false}, true, &anotherTaskPrompt)
+	wsCompletedWithAITaskParam := createWorkspaceWithAIConfig(sql.NullBool{Valid: false}, true, &anotherTaskPrompt, &database.WorkspaceTable{
+		Name:      "delta",
+		CreatedAt: time.Now().Add(-5 * time.Minute),
+	})
 
 	emptyPrompt := ""
-	wsWithEmptyAITaskParam := createWorkspaceWithAIConfig(sql.NullBool{Valid: false}, false, &emptyPrompt)
+	wsWithEmptyAITaskParam := createWorkspaceWithAIConfig(sql.NullBool{Valid: false}, false, &emptyPrompt, &database.WorkspaceTable{
+		Name:      "epsilon",
+		CreatedAt: time.Now(),
+	})
+
+	// Expected orders.
+	orderByWithAITask := []uuid.UUID{wsWithAITaskParam.ID, wsWithAITask.ID}
+	orderByWithoutAITask := []uuid.UUID{wsCompletedWithAITaskParam.ID, wsWithoutAITask.ID, wsWithEmptyAITaskParam.ID}
+	orderByAll := []uuid.UUID{wsWithAITask.ID, wsCompletedWithAITaskParam.ID, wsWithoutAITask.ID, wsWithEmptyAITaskParam.ID, wsWithAITaskParam.ID}
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -4594,14 +4638,8 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Logf("Expected 2 workspaces for has-ai-task:true, got %d", len(res.Workspaces))
-	t.Logf("Expected workspaces: %s, %s", wsWithAITask.ID, wsWithAITaskParam.ID)
-	for i, ws := range res.Workspaces {
-		t.Logf("AI Task True Workspace %d: ID=%s, Name=%s", i, ws.ID, ws.Name)
-	}
-	require.Len(t, res.Workspaces, 2)
-	workspaceIDs := []uuid.UUID{res.Workspaces[0].ID, res.Workspaces[1].ID}
-	require.Contains(t, workspaceIDs, wsWithAITask.ID)
-	require.Contains(t, workspaceIDs, wsWithAITaskParam.ID)
+	// Should be ordered by starting/running then created date.
+	expectWorkspaces(res.Workspaces, orderByWithAITask)
 
 	// Test filtering for workspaces without AI tasks
 	// Should include: wsWithoutAITask, wsCompletedWithAITaskParam, wsWithEmptyAITaskParam
@@ -4612,21 +4650,15 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 
 	// Debug: print what we got
 	t.Logf("Expected 3 workspaces for has-ai-task:false, got %d", len(res.Workspaces))
-	for i, ws := range res.Workspaces {
-		t.Logf("Workspace %d: ID=%s, Name=%s", i, ws.ID, ws.Name)
-	}
-	t.Logf("Expected IDs: %s, %s, %s", wsWithoutAITask.ID, wsCompletedWithAITaskParam.ID, wsWithEmptyAITaskParam.ID)
-
-	require.Len(t, res.Workspaces, 3)
-	workspaceIDs = []uuid.UUID{res.Workspaces[0].ID, res.Workspaces[1].ID, res.Workspaces[2].ID}
-	require.Contains(t, workspaceIDs, wsWithoutAITask.ID)
-	require.Contains(t, workspaceIDs, wsCompletedWithAITaskParam.ID)
-	require.Contains(t, workspaceIDs, wsWithEmptyAITaskParam.ID)
+	// Should be ordered by running then name.
+	expectWorkspaces(res.Workspaces, orderByWithoutAITask)
 
 	// Test no filter returns all
 	res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	t.Logf("Expected 5 workspaces without filter, got %d", len(res.Workspaces))
 	require.NoError(t, err)
-	require.Len(t, res.Workspaces, 5)
+	// Should be ordered by running then name.
+	expectWorkspaces(res.Workspaces, orderByAll)
 }
 
 func TestWorkspaceAppUpsertRestart(t *testing.T) {
