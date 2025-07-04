@@ -179,7 +179,8 @@ func TestDBAuthzRecursive(t *testing.T) {
 		if method.Name == "InTx" ||
 			method.Name == "Ping" ||
 			method.Name == "Wrappers" ||
-			method.Name == "PGLocks" {
+			method.Name == "PGLocks" ||
+			method.Name == "GetRunningPrebuiltWorkspacesOptimized" {
 			continue
 		}
 		// easy to know which method failed.

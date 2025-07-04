@@ -370,6 +370,8 @@ func TestPrebuildReconciliation(t *testing.T) {
 									templateVersionID,
 								)
 
+								setupTestDBPrebuildAntagonists(t, db, pubSub, org)
+
 								if !templateVersionActive {
 									// Create a new template version and mark it as active
 									// This marks the template version that we care about as inactive
@@ -2116,6 +2118,115 @@ func setupTestDBWorkspaceAgent(t *testing.T, db database.Store, workspaceID uuid
 	return agent
 }
 
+// setupTestDBAntagonists creates test antagonists that should not influence running prebuild workspace tests.
+//  1. A stopped prebuilt workspace (STOP then START transitions, owned by
+//     prebuilds system user).
+//  2. A running regular workspace (not owned by the prebuilds system user).
+func setupTestDBPrebuildAntagonists(t *testing.T, db database.Store, ps pubsub.Pubsub, org database.Organization) {
+	t.Helper()
+
+	templateAdmin := dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         templateAdmin.ID,
+	})
+	member := dbgen.User(t, db, database.User{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         member.ID,
+	})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      templateAdmin.ID,
+	})
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      templateAdmin.ID,
+	})
+
+	// 1) Stopped prebuilt workspace (owned by prebuilds system user)
+	stoppedPrebuild := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:    database.PrebuildsSystemUserID,
+		TemplateID: tpl.ID,
+		Name:       "prebuild-antagonist-stopped",
+		Deleted:    false,
+	})
+
+	// STOP build (build number 2, most recent)
+	stoppedJob2 := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		InitiatorID:    database.PrebuildsSystemUserID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		StartedAt:      sql.NullTime{Time: dbtime.Now().Add(-30 * time.Second), Valid: true},
+		CompletedAt:    sql.NullTime{Time: dbtime.Now().Add(-20 * time.Second), Valid: true},
+		Error:          sql.NullString{},
+		ErrorCode:      sql.NullString{},
+	})
+	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       stoppedPrebuild.ID,
+		TemplateVersionID: tv.ID,
+		JobID:             stoppedJob2.ID,
+		BuildNumber:       2,
+		Transition:        database.WorkspaceTransitionStop,
+		InitiatorID:       database.PrebuildsSystemUserID,
+		Reason:            database.BuildReasonInitiator,
+		// Explicitly not using a preset here. This shouldn't normally be possible,
+		// but without this the reconciler will try to create a new prebuild for
+		// this preset, which will affect the tests.
+		TemplateVersionPresetID: uuid.NullUUID{},
+	})
+
+	// START build (build number 1, older)
+	stoppedJob1 := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		InitiatorID:    database.PrebuildsSystemUserID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		StartedAt:      sql.NullTime{Time: dbtime.Now().Add(-60 * time.Second), Valid: true},
+		CompletedAt:    sql.NullTime{Time: dbtime.Now().Add(-50 * time.Second), Valid: true},
+		Error:          sql.NullString{},
+		ErrorCode:      sql.NullString{},
+	})
+	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       stoppedPrebuild.ID,
+		TemplateVersionID: tv.ID,
+		JobID:             stoppedJob1.ID,
+		BuildNumber:       1,
+		Transition:        database.WorkspaceTransitionStart,
+		InitiatorID:       database.PrebuildsSystemUserID,
+		Reason:            database.BuildReasonInitiator,
+	})
+
+	// 2) Running regular workspace (not owned by prebuilds system user)
+	regularWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:    member.ID,
+		TemplateID: tpl.ID,
+		Name:       "antagonist-regular-workspace",
+		Deleted:    false,
+	})
+	regularJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		InitiatorID:    member.ID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		StartedAt:      sql.NullTime{Time: dbtime.Now().Add(-40 * time.Second), Valid: true},
+		CompletedAt:    sql.NullTime{Time: dbtime.Now().Add(-30 * time.Second), Valid: true},
+		Error:          sql.NullString{},
+		ErrorCode:      sql.NullString{},
+	})
+	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       regularWorkspace.ID,
+		TemplateVersionID: tv.ID,
+		JobID:             regularJob.ID,
+		BuildNumber:       1,
+		Transition:        database.WorkspaceTransitionStart,
+		InitiatorID:       member.ID,
+		Reason:            database.BuildReasonInitiator,
+	})
+}
+
 var allTransitions = []database.WorkspaceTransition{
 	database.WorkspaceTransitionStart,
 	database.WorkspaceTransitionStop,
@@ -2219,4 +2330,197 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
 	require.NoError(t, err)
 	require.Len(t, workspaces, 2, "should have recreated 2 prebuilds after resuming")
+}
+
+func TestCompareGetRunningPrebuiltWorkspacesResults(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	// Helper to create test data
+	createWorkspaceRow := func(id string, name string, ready bool) database.GetRunningPrebuiltWorkspacesRow {
+		uid := uuid.MustParse(id)
+		return database.GetRunningPrebuiltWorkspacesRow{
+			ID:                uid,
+			Name:              name,
+			TemplateID:        uuid.New(),
+			TemplateVersionID: uuid.New(),
+			CurrentPresetID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			Ready:             ready,
+			CreatedAt:         time.Now(),
+		}
+	}
+
+	createOptimizedRow := func(row database.GetRunningPrebuiltWorkspacesRow) database.GetRunningPrebuiltWorkspacesOptimizedRow {
+		return database.GetRunningPrebuiltWorkspacesOptimizedRow(row)
+	}
+
+	t.Run("identical results - no logging", func(t *testing.T) {
+		t.Parallel()
+
+		spy := &logSpy{}
+		logger := slog.Make(spy)
+
+		original := []database.GetRunningPrebuiltWorkspacesRow{
+			createWorkspaceRow("550e8400-e29b-41d4-a716-446655440000", "workspace1", true),
+			createWorkspaceRow("550e8400-e29b-41d4-a716-446655440001", "workspace2", false),
+		}
+
+		optimized := []database.GetRunningPrebuiltWorkspacesOptimizedRow{
+			createOptimizedRow(original[0]),
+			createOptimizedRow(original[1]),
+		}
+
+		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
+
+		// Should not log any errors when results are identical
+		require.Empty(t, spy.entries)
+	})
+
+	t.Run("count mismatch - logs error", func(t *testing.T) {
+		t.Parallel()
+
+		spy := &logSpy{}
+		logger := slog.Make(spy)
+
+		original := []database.GetRunningPrebuiltWorkspacesRow{
+			createWorkspaceRow("550e8400-e29b-41d4-a716-446655440000", "workspace1", true),
+		}
+
+		optimized := []database.GetRunningPrebuiltWorkspacesOptimizedRow{
+			createOptimizedRow(original[0]),
+			createOptimizedRow(createWorkspaceRow("550e8400-e29b-41d4-a716-446655440001", "workspace2", false)),
+		}
+
+		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
+
+		// Should log exactly one error for count mismatch
+		require.Len(t, spy.entries, 1)
+		assert.Equal(t, slog.LevelError, spy.entries[0].Level)
+		diff := spy.getField(0, "diff")
+		require.NotNil(t, diff)
+		diffStr := diff.(string)
+
+		// The diff should contain information about the differences we introduced
+		assert.Contains(t, diffStr, "workspace2")      // Original name
+		assert.Contains(t, diffStr, "CurrentPresetID") // Changed preset ID
+	})
+
+	t.Run("count mismatch - other direction", func(t *testing.T) {
+		t.Parallel()
+
+		spy := &logSpy{}
+		logger := slog.Make(spy)
+
+		original := []database.GetRunningPrebuiltWorkspacesRow{}
+
+		optimized := []database.GetRunningPrebuiltWorkspacesOptimizedRow{
+			createOptimizedRow(createWorkspaceRow("550e8400-e29b-41d4-a716-446655440001", "workspace2", false)),
+		}
+
+		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
+
+		// Should log exactly one error for count mismatch
+		require.Len(t, spy.entries, 1)
+		assert.Equal(t, slog.LevelError, spy.entries[0].Level)
+		diff := spy.getField(0, "diff")
+		require.NotNil(t, diff)
+		diffStr := diff.(string)
+
+		// The diff should contain information about the differences we introduced
+		assert.Contains(t, diffStr, "workspace2")      // Original name
+		assert.Contains(t, diffStr, "CurrentPresetID") // Changed preset ID
+	})
+
+	t.Run("field differences - logs errors", func(t *testing.T) {
+		t.Parallel()
+
+		spy := &logSpy{}
+		logger := slog.Make(spy)
+
+		workspace1 := createWorkspaceRow("550e8400-e29b-41d4-a716-446655440000", "workspace1", true)
+		workspace2 := createWorkspaceRow("550e8400-e29b-41d4-a716-446655440001", "workspace2", false)
+
+		original := []database.GetRunningPrebuiltWorkspacesRow{workspace1, workspace2}
+
+		// Create optimized with different values
+		optimized1 := createOptimizedRow(workspace1)
+		optimized1.Name = "different-name" // Different name
+		optimized1.Ready = false           // Different ready status
+
+		optimized2 := createOptimizedRow(workspace2)
+		optimized2.CurrentPresetID = uuid.NullUUID{Valid: false} // Different preset ID (NULL)
+
+		optimized := []database.GetRunningPrebuiltWorkspacesOptimizedRow{optimized1, optimized2}
+
+		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
+
+		// Should log exactly one error with a cmp.Diff output
+		require.Len(t, spy.entries, 1)
+		assert.Equal(t, slog.LevelError, spy.entries[0].Level)
+
+		diff := spy.getField(0, "diff")
+		require.NotNil(t, diff)
+		diffStr := diff.(string)
+
+		// The diff should contain information about the differences we introduced
+		assert.Contains(t, diffStr, "different-name")  // Changed name
+		assert.Contains(t, diffStr, "workspace1")      // Original name
+		assert.Contains(t, diffStr, "Ready")           // Changed ready status
+		assert.Contains(t, diffStr, "CurrentPresetID") // Changed preset ID
+	})
+
+	t.Run("empty results - no logging", func(t *testing.T) {
+		t.Parallel()
+
+		spy := &logSpy{}
+		logger := slog.Make(spy)
+
+		original := []database.GetRunningPrebuiltWorkspacesRow{}
+		optimized := []database.GetRunningPrebuiltWorkspacesOptimizedRow{}
+
+		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
+
+		// Should not log any errors when both results are empty
+		require.Empty(t, spy.entries)
+	})
+
+	t.Run("nil original", func(t *testing.T) {
+		t.Parallel()
+		spy := &logSpy{}
+		logger := slog.Make(spy)
+		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, nil, []database.GetRunningPrebuiltWorkspacesOptimizedRow{})
+		require.Empty(t, spy.entries)
+	})
+
+	t.Run("nil optimized ", func(t *testing.T) {
+		t.Parallel()
+		spy := &logSpy{}
+		logger := slog.Make(spy)
+		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, []database.GetRunningPrebuiltWorkspacesRow{}, nil)
+		require.Empty(t, spy.entries)
+	})
+}
+
+// logSpy captures log entries for testing
+type logSpy struct {
+	entries []slog.SinkEntry
+}
+
+func (s *logSpy) LogEntry(_ context.Context, e slog.SinkEntry) {
+	s.entries = append(s.entries, e)
+}
+
+func (*logSpy) Sync() {}
+
+func (s *logSpy) getField(entryIndex int, fieldName string) interface{} {
+	if entryIndex >= len(s.entries) {
+		return nil
+	}
+	for _, field := range s.entries[entryIndex].Fields {
+		if field.Name == fieldName {
+			return field.Value
+		}
+	}
+	return nil
 }

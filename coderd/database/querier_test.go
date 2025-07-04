@@ -5021,3 +5021,145 @@ func requireUsersMatch(t testing.TB, expected []database.User, found []database.
 	t.Helper()
 	require.ElementsMatch(t, expected, database.ConvertUserRows(found), msg)
 }
+
+// TestGetRunningPrebuiltWorkspaces ensures the correct behavior of the
+// GetRunningPrebuiltWorkspaces query.
+func TestGetRunningPrebuiltWorkspaces(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("Test requires PostgreSQL for complex queries")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+
+	// Given: a prebuilt workspace with a successful start build and a stop build.
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	preset := dbgen.Preset(t, db, database.InsertPresetParams{
+		TemplateVersionID: templateVersion.ID,
+		DesiredInstances:  sql.NullInt32{Int32: 1, Valid: true},
+	})
+
+	// Create a prebuild workspace (owned by system user)
+	prebuildSystemUser := uuid.MustParse("c42fdf75-3097-471c-8c33-fb52454d81c0")
+	stoppedPrebuild := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:    prebuildSystemUser,
+		TemplateID: template.ID,
+		Name:       "test-prebuild",
+		Deleted:    false,
+	})
+
+	// Create a successful START build
+	stoppedPrebuildJob1 := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		InitiatorID:    database.PrebuildsSystemUserID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		StartedAt:      sql.NullTime{Time: dbtime.Now().Add(-time.Minute), Valid: true},
+		CompletedAt:    sql.NullTime{Time: dbtime.Now(), Valid: true},
+		Error:          sql.NullString{},
+		ErrorCode:      sql.NullString{},
+	})
+	stoppedPrebuiltWorkspaceBuild1 := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:             stoppedPrebuild.ID,
+		TemplateVersionID:       templateVersion.ID,
+		TemplateVersionPresetID: uuid.NullUUID{UUID: preset.ID, Valid: true},
+		JobID:                   stoppedPrebuildJob1.ID,
+		BuildNumber:             1,
+		Transition:              database.WorkspaceTransitionStart,
+		InitiatorID:             database.PrebuildsSystemUserID,
+		Reason:                  database.BuildReasonInitiator,
+	})
+
+	// Create a STOP build (making this prebuild "not running")
+	stoppedPrebuildWorkspaceJob2 := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		InitiatorID:    database.PrebuildsSystemUserID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		StartedAt:      sql.NullTime{Time: dbtime.Now().Add(-time.Minute), Valid: true},
+		CompletedAt:    sql.NullTime{Time: dbtime.Now(), Valid: true},
+		Error:          sql.NullString{},
+		ErrorCode:      sql.NullString{},
+	})
+	stoppedPrebuiltWorkspaceBuild2 := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:             stoppedPrebuild.ID,
+		TemplateVersionID:       templateVersion.ID,
+		TemplateVersionPresetID: uuid.NullUUID{UUID: preset.ID, Valid: true},
+		JobID:                   stoppedPrebuildWorkspaceJob2.ID,
+		BuildNumber:             2,
+		Transition:              database.WorkspaceTransitionStop,
+		InitiatorID:             database.PrebuildsSystemUserID,
+		Reason:                  database.BuildReasonInitiator,
+	})
+
+	// Create a second running prebuild workspace with a successful start build
+	// and no stop build.
+	runningPrebuild := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:    prebuildSystemUser,
+		TemplateID: template.ID,
+		Name:       "test-running-prebuild",
+		Deleted:    false,
+	})
+	// Create a successful START build for the running prebuild workspace
+	runningPrebuildJob1 := dbgen.ProvisionerJob(t, db, nil,
+		database.ProvisionerJob{
+			OrganizationID: org.ID,
+			InitiatorID:    user.ID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			StartedAt:      sql.NullTime{Time: dbtime.Now().Add(-time.Minute), Valid: true},
+			CompletedAt:    sql.NullTime{Time: dbtime.Now(), Valid: true},
+			Error:          sql.NullString{},
+			ErrorCode:      sql.NullString{},
+		})
+	runningPrebuiltWorkspaceBuild1 := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:             runningPrebuild.ID,
+		TemplateVersionID:       templateVersion.ID,
+		TemplateVersionPresetID: uuid.NullUUID{UUID: preset.ID, Valid: true},
+		JobID:                   runningPrebuildJob1.ID,
+		BuildNumber:             1,
+		Transition:              database.WorkspaceTransitionStart,
+		InitiatorID:             database.PrebuildsSystemUserID,
+		Reason:                  database.BuildReasonInitiator,
+	})
+
+	// Create a third running regular workspace (not a prebuild) with a successful
+	// start build.
+	_ = dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:    user.ID,
+		TemplateID: template.ID,
+		Name:       "test-running-regular-workspace",
+		Deleted:    false,
+	})
+
+	// Given: assert test invariants.
+	require.Equal(t, database.WorkspaceTransitionStart, stoppedPrebuiltWorkspaceBuild1.Transition)
+	require.Equal(t, int32(1), stoppedPrebuiltWorkspaceBuild1.BuildNumber)
+	require.Equal(t, database.ProvisionerJobStatusSucceeded, stoppedPrebuildJob1.JobStatus)
+	require.Equal(t, database.WorkspaceTransitionStop, stoppedPrebuiltWorkspaceBuild2.Transition)
+	require.Equal(t, int32(2), stoppedPrebuiltWorkspaceBuild2.BuildNumber)
+	require.Equal(t, database.ProvisionerJobStatusSucceeded, stoppedPrebuildWorkspaceJob2.JobStatus)
+	require.Equal(t, database.WorkspaceTransitionStart, runningPrebuiltWorkspaceBuild1.Transition)
+	require.Equal(t, int32(1), runningPrebuiltWorkspaceBuild1.BuildNumber)
+	require.Equal(t, database.ProvisionerJobStatusSucceeded, runningPrebuildJob1.JobStatus)
+
+	// When: we query for running prebuild workspaces
+	runningPrebuilds, err := db.GetRunningPrebuiltWorkspaces(ctx)
+	require.NoError(t, err)
+
+	// Then: the stopped prebuild workspace should not be returned.
+	require.Len(t, runningPrebuilds, 1, "expected only one running prebuilt workspace")
+	require.Equal(t, runningPrebuild.ID, runningPrebuilds[0].ID, "expected the running prebuilt workspace to be returned")
+}
