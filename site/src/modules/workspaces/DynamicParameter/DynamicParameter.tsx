@@ -17,12 +17,12 @@ import {
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
 import { RadioGroup, RadioGroupItem } from "components/RadioGroup/RadioGroup";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "components/Select/Select";
+	SearchableSelect,
+	SearchableSelectContent,
+	SearchableSelectItem,
+	SearchableSelectTrigger,
+	SearchableSelectValue,
+} from "components/SearchableSelect";
 import { Slider } from "components/Slider/Slider";
 import { Stack } from "components/Stack/Stack";
 import { Switch } from "components/Switch/Switch";
@@ -441,36 +441,35 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			};
 
 			return (
-				<Select
-					onValueChange={handleSelectChange}
+				<SearchableSelect
 					value={selectValue}
+					onValueChange={handleSelectChange}
 					disabled={disabled}
 					required={parameter.required}
+					placeholder={parameter.styling?.placeholder || "Select option"}
 				>
-					<SelectTrigger id={id}>
-						<SelectValue
-							placeholder={parameter.styling?.placeholder || "Select option"}
-						/>
-					</SelectTrigger>
-					<SelectContent>
+					<SearchableSelectTrigger id={id}>
+						<SearchableSelectValue />
+					</SearchableSelectTrigger>
+					<SearchableSelectContent>
 						{parameter.options.map((option, index) => {
 							const optionValue =
 								option.value.value === ""
 									? EMPTY_VALUE_PLACEHOLDER
 									: option.value.value;
 							return (
-								<SelectItem
+								<SearchableSelectItem
 									key={
 										option.value.value || `${EMPTY_VALUE_PLACEHOLDER}:${index}`
 									}
 									value={optionValue}
 								>
 									<OptionDisplay option={option} />
-								</SelectItem>
+								</SearchableSelectItem>
 							);
 						})}
-					</SelectContent>
-				</Select>
+					</SearchableSelectContent>
+				</SearchableSelect>
 			);
 		}
 
