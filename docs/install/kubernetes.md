@@ -49,7 +49,7 @@ helm install coder-db bitnami/postgresql \
     --set auth.username=coder \
     --set auth.password=coder \
     --set auth.database=coder \
-    --set persistence.size=10Gi
+    --set primary.persistence.size=10Gi
 ```
 
 The cluster-internal DB URL for the above database is:
@@ -117,7 +117,7 @@ coder:
 ```
 
 You can view our
-[Helm README](https://github.com/coder/coder/blob/main/helm#readme) for
+[Helm README](https://github.com/coder/coder/blob/main/helm/coder#readme) for
 details on the values that are available, or you can view the
 [values.yaml](https://github.com/coder/coder/blob/main/helm/coder/values.yaml)
 file directly.

@@ -397,6 +397,8 @@ var (
 					rbac.ResourceCryptoKey.Type:              {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceFile.Type:                   {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceProvisionerJobs.Type:        {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
+					rbac.ResourceOauth2App.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceOauth2AppSecret.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -1301,6 +1303,22 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 	return q.db.CleanTailnetTunnels(ctx)
 }
 
+func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
+	// Shortcut if the user is an owner. The SQL filter is noticeable,
+	// and this is an easy win for owners. Which is the common case.
+	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog)
+	if err == nil {
+		return q.db.CountAuditLogs(ctx, arg)
+	}
+
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAuditLog.Type)
+	if err != nil {
+		return 0, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+
+	return q.db.CountAuthorizedAuditLogs(ctx, arg, prep)
+}
+
 func (q *querier) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
 		return nil, err
@@ -1430,6 +1448,13 @@ func (q *querier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 		return -1, err
 	}
 	return id, nil
+}
+
+func (q *querier) DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceOauth2App); err != nil {
+		return err
+	}
+	return q.db.DeleteOAuth2ProviderAppByClientID(ctx, id)
 }
 
 func (q *querier) DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error {
@@ -2132,11 +2157,25 @@ func (q *querier) GetOAuth2GithubDefaultEligible(ctx context.Context) (bool, err
 	return q.db.GetOAuth2GithubDefaultEligible(ctx)
 }
 
+func (q *querier) GetOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2App); err != nil {
+		return database.OAuth2ProviderApp{}, err
+	}
+	return q.db.GetOAuth2ProviderAppByClientID(ctx, id)
+}
+
 func (q *querier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2App); err != nil {
 		return database.OAuth2ProviderApp{}, err
 	}
 	return q.db.GetOAuth2ProviderAppByID(ctx, id)
+}
+
+func (q *querier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken sql.NullString) (database.OAuth2ProviderApp, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2App); err != nil {
+		return database.OAuth2ProviderApp{}, err
+	}
+	return q.db.GetOAuth2ProviderAppByRegistrationToken(ctx, registrationAccessToken)
 }
 
 func (q *querier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppCode, error) {
@@ -2165,19 +2204,29 @@ func (q *querier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, appID 
 	return q.db.GetOAuth2ProviderAppSecretsByAppID(ctx, appID)
 }
 
+func (q *querier) GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, apiKeyID string) (database.OAuth2ProviderAppToken, error) {
+	token, err := q.db.GetOAuth2ProviderAppTokenByAPIKeyID(ctx, apiKeyID)
+	if err != nil {
+		return database.OAuth2ProviderAppToken{}, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, token.RBACObject()); err != nil {
+		return database.OAuth2ProviderAppToken{}, err
+	}
+
+	return token, nil
+}
+
 func (q *querier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (database.OAuth2ProviderAppToken, error) {
 	token, err := q.db.GetOAuth2ProviderAppTokenByPrefix(ctx, hashPrefix)
 	if err != nil {
 		return database.OAuth2ProviderAppToken{}, err
 	}
-	// The user ID is on the API key so that has to be fetched.
-	key, err := q.db.GetAPIKeyByID(ctx, token.APIKeyID)
-	if err != nil {
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, token.RBACObject()); err != nil {
 		return database.OAuth2ProviderAppToken{}, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2AppCodeToken.WithOwner(key.UserID.String())); err != nil {
-		return database.OAuth2ProviderAppToken{}, err
-	}
+
 	return token, nil
 }
 
@@ -2286,6 +2335,10 @@ func (q *querier) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuil
 		return nil, err
 	}
 	return q.db.GetPrebuildMetrics(ctx)
+}
+
+func (q *querier) GetPrebuildsSettings(ctx context.Context) (string, error) {
+	return q.db.GetPrebuildsSettings(ctx)
 }
 
 func (q *querier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (database.GetPresetByIDRow, error) {
@@ -3630,11 +3683,7 @@ func (q *querier) InsertOAuth2ProviderAppSecret(ctx context.Context, arg databas
 }
 
 func (q *querier) InsertOAuth2ProviderAppToken(ctx context.Context, arg database.InsertOAuth2ProviderAppTokenParams) (database.OAuth2ProviderAppToken, error) {
-	key, err := q.db.GetAPIKeyByID(ctx, arg.APIKeyID)
-	if err != nil {
-		return database.OAuth2ProviderAppToken{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceOauth2AppCodeToken.WithOwner(key.UserID.String())); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceOauth2AppCodeToken.WithOwner(arg.UserID.String())); err != nil {
 		return database.OAuth2ProviderAppToken{}, err
 	}
 	return q.db.InsertOAuth2ProviderAppToken(ctx, arg)
@@ -4289,6 +4338,13 @@ func (q *querier) UpdateNotificationTemplateMethodByID(ctx context.Context, arg 
 		return database.NotificationTemplate{}, err
 	}
 	return q.db.UpdateNotificationTemplateMethodByID(ctx, arg)
+}
+
+func (q *querier) UpdateOAuth2ProviderAppByClientID(ctx context.Context, arg database.UpdateOAuth2ProviderAppByClientIDParams) (database.OAuth2ProviderApp, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceOauth2App); err != nil {
+		return database.OAuth2ProviderApp{}, err
+	}
+	return q.db.UpdateOAuth2ProviderAppByClientID(ctx, arg)
 }
 
 func (q *querier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {
@@ -5085,6 +5141,13 @@ func (q *querier) UpsertOAuthSigningKey(ctx context.Context, value string) error
 	return q.db.UpsertOAuthSigningKey(ctx, value)
 }
 
+func (q *querier) UpsertPrebuildsSettings(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertPrebuildsSettings(ctx, value)
+}
+
 func (q *querier) UpsertProvisionerDaemon(ctx context.Context, arg database.UpsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
 	res := rbac.ResourceProvisionerDaemon.InOrg(arg.OrganizationID)
 	if arg.Tags[provisionersdk.TagScope] == provisionersdk.ScopeUser {
@@ -5255,4 +5318,8 @@ func (q *querier) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersP
 
 func (q *querier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams, _ rbac.PreparedAuthorized) ([]database.GetAuditLogsOffsetRow, error) {
 	return q.GetAuditLogsOffset(ctx, arg)
+}
+
+func (q *querier) CountAuthorizedAuditLogs(ctx context.Context, arg database.CountAuditLogsParams, _ rbac.PreparedAuthorized) (int64, error) {
+	return q.CountAuditLogs(ctx, arg)
 }
