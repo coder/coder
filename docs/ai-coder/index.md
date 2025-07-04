@@ -6,7 +6,7 @@ Learn how to run & manage coding agents with Coder, both alongside existing work
 
 Coder [integrates with IDEs](../user-guides/workspace-access/index.md) such as Cursor, Windsurf, and Zed that include built-in coding agents to work alongside developers. Additionally, template admins can [pre-install extensions](https://registry.coder.com/modules/coder/vscode-web) for agents such as GitHub Copilot and Roo Code.
 
-These agents work well inside existing Coder workspaces as they can simply be enabled via an extension or are built-into the editor. 
+These agents work well inside existing Coder workspaces as they can simply be enabled via an extension or are built-into the editor.
 
 ## Agents with Coder Tasks (Beta)
 

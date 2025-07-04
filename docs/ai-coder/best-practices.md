@@ -19,7 +19,7 @@ Below are common scenarios where AI coding agents provide the most impact, along
 
 While LLMs are trained on general knowledge, it's important to provide additional context to help agents understand your codebase and organization.
 
-### Memory 
+### Memory
 
 Coding Agents like Claude Code often refer to a [memory file](https://docs.anthropic.com/en/docs/claude-code/memory) in order to gain context about your repository or organization.
 
@@ -31,7 +31,7 @@ Agents can also use tools, often via [Model Context Protocol](https://modelconte
 
 Look up the docs for the specific agent you're using to learn more about how to provide tools to your agents.
 
-####  Our Favorite MCP Servers
+#### Our Favorite MCP Servers
 
 In internal testing, we have seen significant improvements in agent performance when these tools are added via MCP.
 
@@ -47,6 +47,6 @@ LLMs and agents can be dangerous if not ran with proper boundaries. Be sure not 
 
 [Learn more about securing agents with Coder Tasks](./security.md)
 
-## Keep it Simple!
+## Keep it Simple
 
 Today's LLMs and AI agents are not going to refactor entire codebases with production-grade code on their own! Using coding agents can be extremely fun and productive, but it is important to keep the scope of your use cases small and simple, and grow them over time.
