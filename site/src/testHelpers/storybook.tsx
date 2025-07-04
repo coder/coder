@@ -2,7 +2,7 @@ import type { StoryContext } from "@storybook/react";
 import { withDefaultFeatures } from "api/api";
 import { getAuthorizationKey } from "api/queries/authCheck";
 import { hasFirstUserKey, meKey } from "api/queries/users";
-import type { Entitlements } from "api/typesGenerated";
+import type { BuildInfoResponse, Entitlements } from "api/typesGenerated";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import {
 	ProxyContext,
@@ -56,6 +56,7 @@ export const withDashboardProvider = (
 				entitlements,
 				experiments,
 				appearance: MockAppearanceConfig,
+				buildInfo: { version: "v0.0.0-test" } as BuildInfoResponse,
 				organizations,
 				showOrganizations,
 				canViewOrganizationSettings,

@@ -13,17 +13,19 @@ import {
 	FingerprintIcon,
 	KeyIcon,
 	LockIcon,
+	ShieldIcon,
 	UserIcon,
 } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
+import { isDevBuild } from "utils/buildInfo";
 
 interface SidebarProps {
 	user: User;
 }
 
 export const Sidebar: FC<SidebarProps> = ({ user }) => {
-	const { entitlements } = useDashboard();
+	const { entitlements, experiments, buildInfo } = useDashboard();
 	const showSchedulePage =
 		entitlements.features.advanced_template_scheduling.enabled;
 
@@ -43,6 +45,11 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 			<SidebarNavItem href="external-auth" icon={GitIcon}>
 				External Authentication
 			</SidebarNavItem>
+			{(experiments.includes("oauth2") || isDevBuild(buildInfo)) && (
+				<SidebarNavItem href="oauth2-provider" icon={ShieldIcon}>
+					OAuth2 Applications
+				</SidebarNavItem>
+			)}
 			{showSchedulePage && (
 				<SidebarNavItem href="schedule" icon={CalendarCogIcon}>
 					Schedule
