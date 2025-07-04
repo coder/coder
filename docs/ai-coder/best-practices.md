@@ -43,7 +43,7 @@ In internal testing, we have seen significant improvements in agent performance 
 
 ## Security & Permissions
 
-LLMs and agents can be dangerous if not ran with proper boundaries. Be sure not to give agents full permissions on behalf of a user, and instead use separate identities with limited scope whenever interacting autonomously.
+LLMs and agents can be dangerous if not run with proper boundaries. Be sure not to give agents full permissions on behalf of a user, and instead use separate identities with limited scope whenever interacting autonomously.
 
 [Learn more about securing agents with Coder Tasks](./security.md)
 
