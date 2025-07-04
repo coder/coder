@@ -20,6 +20,8 @@ on your local machine, and enable RDP on your workspace.
 
 You can use the [RDP Desktop](https://registry.coder.com/modules/coder/local-windows-rdp) module to add a single-click button to open an RDP session in the browser.
 
+![RDP Desktop Button](../../images/user-guides/remote-desktops/rdp-desktop-button.png)
+
 You can also use a URI handler to launch an RDP session directly.
 
 The URI format is:
@@ -60,9 +62,9 @@ coder port-forward <workspace-name> --tcp 3399:3389
 ```
 
 Then, connect to your workspace via RDP at `localhost:3399`.
-![windows-rdp](../../images/ides/windows_rdp_client.png)
+![windows-rdp](../../images/user-guides/remote-desktops/windows_rdp_client.png)
 
-</div>
+</div>s
 
 > [!NOTE]
 > Some versions of Windows, including Windows Server 2022, do not communicate correctly over UDP when using Coder Connect because they do not respect the maximum transmission unit (MTU) of the link. When this happens, the RDP client will appear to connect, but displays a blank screen.
@@ -80,7 +82,7 @@ Then, connect to your workspace via RDP at `localhost:3399`.
 
 Our [RDP Web](https://registry.coder.com/modules/windows-rdp) module in the Coder Registry adds a one-click button to open an RDP session in the browser. This requires just a few lines of Terraform in your template, see the documentation on our registry for setup.
 
-![Windows RDP Web](../../images/user-guides/web-rdp-demo.png)
+![Windows RDP Web](../../images/user-guides/remote-desktops/web-rdp-demo.png)
 
 </div>
 
@@ -119,7 +121,7 @@ Our [Amazon DCV Windows](https://registry.coder.com/modules/amazon-dcv-windows) 
 
 </div>
 
-![Amazon DCV](../../images/user-guides/amazon-dcv-windows-demo.png)
+![Amazon DCV](../../images/user-guides/remote-desktops/amazon-dcv-windows-demo.png)
 
 ## VNC
 
@@ -161,4 +163,4 @@ The [KasmVNC module](https://registry.coder.com/modules/coder/kasmvnc) allows br
 
 </div>
 
-![VNC Desktop in Coder](../../images/vnc-desktop.png)
+![VNC Desktop in Coder](../../images/user-guides/remote-desktops/vnc-desktop.png)
