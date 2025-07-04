@@ -5,7 +5,7 @@ Custom agents beyond the ones listed in the [Coder registry](https://registry.co
 ## Prerequisites
 
 - A Coder deployment with v2.21 or later
-- A [Coder workspace / template](./create-template.md)
+- A [Coder workspace / template](../admin/templates/creating-templates.md)
 - A custom agent that supports Model Context Protocol (MCP)
 
 ## Getting Started
