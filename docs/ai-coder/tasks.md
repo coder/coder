@@ -39,7 +39,7 @@ Try prompts such as:
 - "document the project structure"
 - "change the primary color theme to purple"
 
-To import the template and begin configuring it, follow the [documentation in the Coder Registry](https://comingsoon.com)
+To import the template and begin configuring it, follow the [documentation in the Coder Registry](https://registry.coder.com#coming-soon)
 
 ### Option 2&rpar; Create or Duplicate Your Own Template
 
