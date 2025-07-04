@@ -129,7 +129,7 @@
             "type": "coder_parameter",
             "name": "prompt",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 1,
+            "schema_version": 0,
             "values": {
               "default": null,
               "description": null,
@@ -158,7 +158,7 @@
             "type": "coder_provisioner",
             "name": "me",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 1,
+            "schema_version": 0,
             "values": {
               "arch": "amd64",
               "id": "6b538d81-f0db-4e2b-8d85-4b87a1563d89",
@@ -172,14 +172,14 @@
             "type": "coder_workspace",
             "name": "me",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 1,
+            "schema_version": 0,
             "values": {
               "access_port": 443,
-              "access_url": "https://dev.coder.com/",
+              "access_url": "https://mydeployment.coder.com",
               "id": "344575c1-55b9-43bb-89b5-35f547e2cf08",
               "is_prebuild": false,
               "is_prebuild_claim": false,
-              "name": "sebenza-nonix",
+              "name": "default",
               "prebuild_count": 0,
               "start_count": 1,
               "template_id": "",
@@ -283,7 +283,7 @@
               "constant_value": "string"
             }
           },
-          "schema_version": 1
+          "schema_version": 0
         },
         {
           "address": "data.coder_provisioner.me",
@@ -291,7 +291,7 @@
           "type": "coder_provisioner",
           "name": "me",
           "provider_config_key": "coder",
-          "schema_version": 1
+          "schema_version": 0
         },
         {
           "address": "data.coder_workspace.me",
@@ -299,7 +299,7 @@
           "type": "coder_workspace",
           "name": "me",
           "provider_config_key": "coder",
-          "schema_version": 1
+          "schema_version": 0
         },
         {
           "address": "data.coder_workspace_owner.me",
@@ -312,8 +312,5 @@
       ]
     }
   },
-  "timestamp": "2025-06-19T14:30:00Z",
-  "applyable": true,
-  "complete": true,
-  "errored": false
+  "timestamp": "2025-06-19T14:30:00Z"
 }

@@ -24,3 +24,4 @@ digraph {
 		"[root] root" -> "[root] provider[\"registry.terraform.io/coder/coder\"] (close)"
 	}
 }
+

@@ -31,8 +31,7 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
-            "token": true
+            "resources_monitoring": []
           }
         },
         {
@@ -62,8 +61,7 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
-            "token": true
+            "resources_monitoring": []
           }
         },
         {
@@ -525,20 +523,17 @@
   },
   "relevant_attributes": [
     {
-      "resource": "coder_agent.dev1",
+      "resource": "coder_agent.dev2",
       "attribute": [
         "id"
       ]
     },
     {
-      "resource": "coder_agent.dev2",
+      "resource": "coder_agent.dev1",
       "attribute": [
         "id"
       ]
     }
   ],
-  "timestamp": "2025-03-03T20:39:59Z",
-  "applyable": true,
-  "complete": true,
-  "errored": false
+  "timestamp": "2025-03-03T20:39:59Z"
 }
