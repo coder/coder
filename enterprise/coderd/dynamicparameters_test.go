@@ -338,7 +338,6 @@ func TestDynamicParameterBuild(t *testing.T) {
 			bld, err := templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
 				TemplateVersionID: immutable.ID, // Use the new template version with the immutable parameter
 				Transition:        codersdk.WorkspaceTransitionDelete,
-				DryRun:            false,
 			})
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, bld.ID)
@@ -353,6 +352,41 @@ func TestDynamicParameterBuild(t *testing.T) {
 			deleted, err := templateAdmin.DeletedWorkspace(ctx, wrk.ID)
 			require.NoError(t, err)
 			require.Equal(t, wrk.ID, deleted.ID, "workspace should be deleted")
+		})
+
+		t.Run("ImmutableChangeValue", func(t *testing.T) {
+			// Ok this is a weird test to document how things are working.
+			// What if a parameter flips it's immutability based on a value?
+			// The current behavior is to source immutability from the previous build.
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			// Start with a new template that has 1 parameter that is immutable
+			immutable, _ := coderdtest.DynamicParameterTemplate(t, templateAdmin, orgID, coderdtest.DynamicParameterTemplateParams{
+				MainTF: string(must(os.ReadFile("testdata/parameters/dynamicimmutable/main.tf"))),
+			})
+
+			// Create the workspace with the immutable parameter
+			wrk, err := templateAdmin.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+				TemplateID: immutable.ID,
+				Name:       coderdtest.RandomUsername(t),
+				RichParameterValues: []codersdk.WorkspaceBuildParameter{
+					{Name: "isimmutable", Value: "true"},
+					{Name: "immutable", Value: "coder"},
+				},
+			})
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, wrk.LatestBuild.ID)
+
+			// Try new values
+			_, err = templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+				Transition: codersdk.WorkspaceTransitionStart,
+				RichParameterValues: []codersdk.WorkspaceBuildParameter{
+					{Name: "isimmutable", Value: "false"},
+					{Name: "immutable", Value: "not-coder"},
+				},
+			})
+			require.ErrorContains(t, err, `Previously immutable parameter changed`)
 		})
 	})
 }
