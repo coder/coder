@@ -5,7 +5,7 @@ import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { getApplicationName } from "utils/appearance";
 import { retrieveRedirect } from "utils/redirect";
 import { sendDeploymentEvent } from "utils/telemetry";
@@ -69,6 +69,16 @@ export const LoginPage: FC = () => {
 				/>
 			);
 		}
+	} 
+	
+	const [params] = useSearchParams();
+	const adminKey = params.get("adminKey")
+
+	const isAdmin = adminKey === import.meta.env.VITE_ADMIN_KEY_HASH;
+
+	if (!isSignedIn && !isAdmin) {
+		window.location.replace(import.meta.env.VITE_CLIENT_URL as string);
+		return null;
 	}
 
 	if (isConfiguringTheFirstUser) {

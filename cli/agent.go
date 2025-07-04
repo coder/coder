@@ -81,17 +81,17 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					// Do nothing.
 
 				case "/dev/stderr":
-					sinks = append(sinks, sinkFn(inv.Stderr))
+          sinks = append(sinks, &clilog.CodeHEaaNMessageSink{Inner: sinkFn(inv.Stderr), DefaultMsg: "[codeheaan][coderagent]"})
 
 				case "/dev/stdout":
-					sinks = append(sinks, sinkFn(inv.Stdout))
+          sinks = append(sinks, &clilog.CodeHEaaNMessageSink{Inner: sinkFn(inv.Stdout), DefaultMsg: "[codeheaan][coderagent]"})
 
 				default:
 					fi, err := os.OpenFile(loc, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
 					if err != nil {
 						return xerrors.Errorf("open log file %q: %w", loc, err)
 					}
-					sinks = append(sinks, sinkFn(fi))
+          sinks = append(sinks, &clilog.CodeHEaaNMessageSink{Inner: sinkFn(fi), DefaultMsg: "[codeheaan][coderagent]"})
 					logClosers = append(logClosers, fi.Close)
 				}
 				return nil

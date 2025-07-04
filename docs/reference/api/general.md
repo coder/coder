@@ -365,6 +365,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "ignore_email_verified": true,
       "ignore_user_info": true,
       "issuer_url": "string",
+      "logout_endpoint": "string",
+      "logout_redirect_uri": "string",
       "name_field": "string",
       "organization_assign_default": true,
       "organization_field": "string",

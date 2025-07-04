@@ -190,13 +190,13 @@ export const AgentRow: FC<AgentRowProps> = ({
 
 				{showBuiltinApps && (
 					<div css={{ display: "flex" }}>
-						{!hideSSHButton && agent.display_apps.includes("ssh_helper") && (
+						{/*{!hideSSHButton && agent.display_apps.includes("ssh_helper") && (
 							<SSHButton
 								workspaceName={workspace.name}
 								agentName={agent.name}
 								sshPrefix={sshPrefix}
 							/>
-						)}
+						)}*/}
 						{proxy.preferredWildcardHostname &&
 							proxy.preferredWildcardHostname !== "" &&
 							agent.display_apps.includes("port_forwarding_helper") && (

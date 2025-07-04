@@ -9,6 +9,7 @@ import { DeploymentDropdown } from "./DeploymentDropdown";
 import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
+import { useTheme } from "@emotion/react";
 
 export interface NavbarViewProps {
 	logo_url?: string;
@@ -41,15 +42,30 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	canViewAuditLog,
 	proxyContextValue,
 }) => {
+	const theme = useTheme();
+	
+	const colorTheme = theme.palette.mode;
+  const LogoHEaaNDark = "/favicons/heaan-dark.svg";
+  const LogoHEaaNLight = "/favicons/heaan-light.svg";
+
+	const landingURL = "https://heaan.io";
+
 	return (
 		<div className="border-0 border-b border-solid h-[72px] flex items-center leading-none px-6">
-			<NavLink to="/workspaces">
-				{logo_url ? (
+			{/*<NavLink to="/workspaces">*/}
+			<a href={landingURL}> 
+				<img
+        	src={colorTheme === "light" ? LogoHEaaNLight : LogoHEaaNDark}
+          alt="HEaaN-logo"
+					className="w-8 h-8"
+          />
+			</a>
+				{/*{logo_url ? (
 					<ExternalImage className="h-7" src={logo_url} alt="Custom Logo" />
 				) : (
 					<CoderIcon className="h-7 w-7 fill-content-primary" />
-				)}
-			</NavLink>
+				)}*/}
+			{/*</NavLink>*/}
 
 			<NavItems className="ml-4" />
 

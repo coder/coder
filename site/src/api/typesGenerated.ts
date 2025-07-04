@@ -1407,6 +1407,13 @@ export interface OIDCConfig {
 	readonly icon_url: string;
 	readonly signups_disabled_text: string;
 	readonly skip_issuer_checks: boolean;
+	readonly logout_endpoint: string;
+	readonly logout_redirect_uri: string;
+}
+
+// From codersdk/users.go
+export interface OIDCLogoutResponse {
+	readonly oidc_logout_url: string;
 }
 
 // From codersdk/organizations.go
