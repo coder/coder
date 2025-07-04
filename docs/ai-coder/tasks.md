@@ -39,7 +39,7 @@ Try prompts such as:
 - "document the project structure"
 - "change the primary color theme to purple"
 
-To import the template and begin configuring it, follow the [documentation in the Coder Registry](https://comingsoon.com)
+To import the template and begin configuring it, follow the [documentation in the Coder Registry](https://registry.coder.com#coming-soon)
 
 > [!NOTE]
 > The Tasks tab will appear automatically after you add a Tasks-compatible template and refresh the page.
@@ -70,9 +70,7 @@ resource "coder_ai_task" "claude-code" {
 > [!NOTE]
 > This definition is not final and may change while Tasks is in beta. After any changes, we guarantee backwards compatibility for one minor Coder version. After that, you may need to update your template to continue using it with Tasks.
 
-Because Tasks run unpredictable AI agents, often for background tasks, we recommend creating a separate template for Coder Tasks with limited permissions.
-
-You can always duplicate your existing template, then apply seperate network policies/firewalls/permissions to the template. From there, follow the docs for one of our [built-in modules for agents](https://registry.coder.com/modules?search=tag%3Aagent) in order to add it to your template, configure your LLM provider.
+Because Tasks run unpredictable AI agents, often for background tasks, we recommend creating a separate template for Coder Tasks with limited permissions. You can always duplicate your existing template, then apply separate network policies/firewalls/permissions to the template. From there, follow the docs for one of our [built-in modules for agents](https://registry.coder.com/modules?search=tag%3Aagent) in order to add it to your template, configure your LLM provider.
 
 Alternatively, follow our guide for [custom agents](./custom-agents.md)
 

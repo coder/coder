@@ -19,7 +19,7 @@ Running coding agents in Coder workspaces provides several advantages over runni
 
 ## IDE Support
 
-Follow the Coder Documentation for [Connecting to Workspaces](./user-guides/workspace-access/index.md) to connect to your Coder Workspaces with your favorite IDEs.
+Follow the Coder Documentation for [Connecting to Workspaces](../user-guides/workspace-access/index.md) to connect to your Coder Workspaces with your favorite IDEs.
 
 ## Pre-Configuring Extensions &amp; Plugins
 

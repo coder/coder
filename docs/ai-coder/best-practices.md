@@ -8,12 +8,12 @@ To successfully implement AI coding agents, identify 3-5 practical use cases whe
 
 Below are common scenarios where AI coding agents provide the most impact, along with the right tools for each use case:
 
-| Scenario                                       | Description                                                                                                               | Examples                                                                                                             | Tools                                                                 |
-|------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|
-| **Automating actions in the IDE**              | Supplement tedious development with agents                                                                                | Small refactors, generating unit tests, writing inline documentation, code search and navigation                     | [IDE Agents](./ide-agents.md) in Workspaces                           |
-| **Developer-led investigation and setup**      | Developers delegate research and initial implementation to AI, then take over in their preferred IDE to complete the work | Bug triage and analysis, exploring technical approaches, understanding legacy code, creating starter implementations | [Tasks](./tasks.md), to a full IDE with [Workspaces](./workspaces.md) |
-| **Prototyping & Business Applications**        | User-friendly interface for engineers and non-technical users to build and prototype within new or existing codebases     | Creating dashboards, building simple web apps, data analysis workflows, proof-of-concept development                 | [Tasks](./tasks.md)                                                   |
-| **Full background jobs & long-running agents** | Agents that run independently without user interaction for extended periods of time                                       | Automated code reviews, scheduled data processing, continuous integration tasks, monitoring and alerting             | [Tasks](./tasks.md) API *(in development)*                            |
+| Scenario                                       | Description                                                                                                               | Examples                                                                                                             | Tools                                                                                          |
+|------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------|
+| **Automating actions in the IDE**              | Supplement tedious development with agents                                                                                | Small refactors, generating unit tests, writing inline documentation, code search and navigation                     | [IDE Agents](./ide-agents.md) in Workspaces                                                    |
+| **Developer-led investigation and setup**      | Developers delegate research and initial implementation to AI, then take over in their preferred IDE to complete the work | Bug triage and analysis, exploring technical approaches, understanding legacy code, creating starter implementations | [Tasks](./tasks.md), to a full IDE with [Workspaces](../user-guides/workspace-access/index.md) |
+| **Prototyping & Business Applications**        | User-friendly interface for engineers and non-technical users to build and prototype within new or existing codebases     | Creating dashboards, building simple web apps, data analysis workflows, proof-of-concept development                 | [Tasks](./tasks.md)                                                                            |
+| **Full background jobs & long-running agents** | Agents that run independently without user interaction for extended periods of time                                       | Automated code reviews, scheduled data processing, continuous integration tasks, monitoring and alerting             | [Tasks](./tasks.md) API *(in development)*                                                     |
 
 ## Provide Agents with Proper Context
 
@@ -43,7 +43,7 @@ In internal testing, we have seen significant improvements in agent performance 
 
 ## Security & Permissions
 
-LLMs and agents can be dangerous if not ran with proper boundaries. Be sure not to give agents full permissions on behalf of a user, and instead use seperate identities with limited scope whenever interacting autonomously.
+LLMs and agents can be dangerous if not ran with proper boundaries. Be sure not to give agents full permissions on behalf of a user, and instead use separate identities with limited scope whenever interacting autonomously.
 
 [Learn more about securing agents with Coder Tasks](./security.md)
 
