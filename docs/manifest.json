@@ -1,7 +1,5 @@
 {
-	"versions": [
-		"main"
-	],
+	"versions": ["main"],
 	"routes": [
 		{
 			"title": "About",
@@ -212,9 +210,7 @@
 									"title": "JetBrains Toolbox",
 									"description": "Access Coder workspaces from JetBrains Toolbox",
 									"path": "./user-guides/workspace-access/jetbrains/toolbox.md",
-									"state": [
-										"beta"
-									]
+									"state": ["beta"]
 								}
 							]
 						},
@@ -265,17 +261,13 @@
 					"description": "Use Coder Desktop to access your workspace like it's a local machine",
 					"path": "./user-guides/desktop/index.md",
 					"icon_path": "./images/icons/computer-code.svg",
-					"state": [
-						"beta"
-					],
+					"state": ["beta"],
 					"children": [
 						{
 							"title": "Coder Desktop connect and sync",
 							"description": "Use Coder Desktop to manage your workspace code and files locally",
 							"path": "./user-guides/desktop/desktop-connect-sync.md",
-							"state": [
-								"beta"
-							]
+							"state": ["beta"]
 						}
 					]
 				},
@@ -302,25 +294,19 @@
 					"description": "Run containerized development environments in your Coder workspace using the dev containers specification.",
 					"path": "./user-guides/devcontainers/index.md",
 					"icon_path": "./images/icons/container.svg",
-					"state": [
-						"early access"
-					],
+					"state": ["early access"],
 					"children": [
 						{
 							"title": "Working with dev containers",
 							"description": "Access dev containers via SSH, your IDE, or web terminal.",
 							"path": "./user-guides/devcontainers/working-with-dev-containers.md",
-							"state": [
-								"early access"
-							]
+							"state": ["early access"]
 						},
 						{
 							"title": "Troubleshooting dev containers",
 							"description": "Diagnose and resolve common issues with dev containers in your Coder workspace.",
 							"path": "./user-guides/devcontainers/troubleshooting-dev-containers.md",
-							"state": [
-								"early access"
-							]
+							"state": ["early access"]
 						}
 					]
 				},
@@ -348,9 +334,7 @@
 							"title": "Appearance",
 							"description": "Learn how to configure the appearance of Coder",
 							"path": "./admin/setup/appearance.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "Telemetry",
@@ -446,33 +430,25 @@
 							"title": "Groups \u0026 Roles",
 							"description": "Manage access control with user groups and role-based permissions for Coder resources",
 							"path": "./admin/users/groups-roles.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "IdP Sync",
 							"description": "Synchronize user groups, roles, and organizations from your identity provider to Coder",
 							"path": "./admin/users/idp-sync.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "Organizations",
 							"description": "Segment and isolate resources by creating separate organizations for different teams or projects",
 							"path": "./admin/users/organizations.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "Quotas",
 							"description": "Control resource usage by implementing workspace budgets and credit-based cost management",
 							"path": "./admin/users/quotas.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "Sessions \u0026 API Tokens",
@@ -560,10 +536,7 @@
 									"title": "Prebuilt workspaces",
 									"description": "Pre-provision a ready-to-deploy workspace with a defined set of parameters",
 									"path": "./admin/templates/extending-templates/prebuilt-workspaces.md",
-									"state": [
-										"premium",
-										"beta"
-									]
+									"state": ["premium", "beta"]
 								},
 								{
 									"title": "Icons",
@@ -634,17 +607,13 @@
 									"title": "Configure a template for dev containers",
 									"description": "How to use configure your template for dev containers",
 									"path": "./admin/templates/extending-templates/devcontainers.md",
-									"state": [
-										"early access"
-									]
+									"state": ["early access"]
 								},
 								{
 									"title": "Process Logging",
 									"description": "Log workspace processes",
 									"path": "./admin/templates/extending-templates/process-logging.md",
-									"state": [
-										"premium"
-									]
+									"state": ["premium"]
 								}
 							]
 						},
@@ -657,9 +626,7 @@
 							"title": "Permissions \u0026 Policies",
 							"description": "Learn how to create templates with Terraform",
 							"path": "./admin/templates/template-permissions.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "Troubleshooting Templates",
@@ -673,17 +640,13 @@
 					"description": "Learn how to run external provisioners with Coder",
 					"path": "./admin/provisioners/index.md",
 					"icon_path": "./images/icons/key.svg",
-					"state": [
-						"premium"
-					],
+					"state": ["premium"],
 					"children": [
 						{
 							"title": "Manage Provisioner Jobs",
 							"description": "Learn how to run external provisioners with Coder",
 							"path": "./admin/provisioners/manage-provisioner-jobs.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						}
 					]
 				},
@@ -766,17 +729,13 @@
 							"title": "Workspace Proxies",
 							"description": "Run geo distributed workspace proxies",
 							"path": "./admin/networking/workspace-proxies.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "High Availability",
 							"description": "Learn how to configure Coder for High Availability",
 							"path": "./admin/networking/high-availability.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "Troubleshooting",
@@ -835,9 +794,7 @@
 							"title": "Audit Logs",
 							"description": "Audit actions taken inside Coder",
 							"path": "./admin/security/audit-logs.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "Secrets",
@@ -848,9 +805,7 @@
 							"title": "Database Encryption",
 							"description": "Encrypt the database to prevent unauthorized access",
 							"path": "./admin/security/database-encryption.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						}
 					]
 				},
@@ -882,20 +837,16 @@
 					"title": "Coder Tasks",
 					"description": "./tasks.md",
 					"path": "./ai-coder/tasks.md",
-					"state": [
-						"beta"
-					],
+					"state": ["beta"],
 					"children": [
 						{
 							"title": "Custom Agents",
 							"description": "Run custom agents with Coder Tasks",
 							"path": "./ai-coder/custom-agents.md",
-							"state": [
-								"beta"
-							]
+							"state": ["beta"]
 						},
 						{
-							"title": "Security & Boundaries",
+							"title": "Security \u0026 Boundaries",
 							"description": "Learn about security and boundaries when running AI coding agents in Coder",
 							"path": "./ai-coder/security.md"
 						}
