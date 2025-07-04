@@ -16,15 +16,16 @@ import (
 	"sync"
 	"time"
 
+	"cdr.dev/slog"
 	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/option"
+	"github.com/anthropics/anthropic-sdk-go/packages/param"
 	ant_ssestream "github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 	ant_constant "github.com/anthropics/anthropic-sdk-go/shared/constant"
 	"github.com/google/uuid"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/shared/constant"
 	"golang.org/x/xerrors"
-
-	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
@@ -401,6 +402,26 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	in.Tools = tools
 
+	// TODO: fetch instead with lib and inject into tools since OAI doesn't support MCP.
+	in.MCPServers = []anthropic.BetaRequestMCPServerURLDefinitionParam{
+		{
+			URL:                "https://api.githubcopilot.com/mcp/",
+			Name:               "github",
+			AuthorizationToken: param.NewOpt(os.Getenv("GITHUB_MCP_TOKEN")),
+			ToolConfiguration: anthropic.BetaRequestMCPServerToolConfigurationParam{
+				Enabled: anthropic.Bool(true),
+			},
+		},
+		{
+			URL:                "https://dev.coder.com/api/experimental/mcp/http",
+			Name:               "coder",
+			AuthorizationToken: param.NewOpt(os.Getenv("CODER_MCP_TOKEN")),
+			ToolConfiguration: anthropic.BetaRequestMCPServerToolConfigurationParam{
+				Enabled: anthropic.Bool(true),
+			},
+		},
+	}
+
 	// Claude Code uses the 3.5 Haiku model to do autocomplete and other small tasks. (see ANTHROPIC_SMALL_FAST_MODEL).
 	isSmallFastModel := strings.Contains(string(in.Model), "3-5-haiku")
 
@@ -418,7 +439,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// looks up API key with os.LookupEnv("ANTHROPIC_API_KEY")
-	client := anthropic.NewClient()
+	client := anthropic.NewClient(option.WithHeader("anthropic-beta", anthropic.AnthropicBetaMCPClient2025_04_04))
 	if !in.UseStreaming() {
 		msg, err := client.Beta.Messages.New(ctx, in.BetaMessageNewParams)
 		if err != nil {
@@ -478,32 +499,36 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 		event := stream.Current()
 		events = append(events, event)
 
+		fmt.Printf("[provider] %s\n", event.RawJSON())
+
 		if err := message.Accumulate(event); err != nil {
 			b.logger.Error(ctx, "failed to accumulate streaming events", slog.Error(err), slog.F("event", event), slog.F("msg", message.RawJSON()))
 			http.Error(w, "failed to proxy request", http.StatusInternalServerError)
 			return
 		}
 
+		// Regular tool call:
 		// [zero] {"type":"content_block_stop"}
 		//[zero] {"content_block":{"id":"toolu_015YCpDbjWuSbcKGfDRWR1bD","name":"get_coordinates","type":"tool_use"},"index":1,"type":"content_block_start"}
 		//[zero] {"delta":{"type":"input_json_delta"},"index":1,"type":"content_block_delta"}
 
-		switch e := event.AsAny().(type) {
-		case anthropic.BetaRawContentBlockStartEvent:
-			switch e.ContentBlock.AsAny().(type) {
-			case anthropic.BetaToolUseBlock:
-				foundToolCall = true // Ensure no more events get sent after this point since our injected tool needs to be called.
-				// TODO: ensure ONLY our injected tools cause this.
-			}
+		//switch e := event.AsAny().(type) {
+		//case anthropic.BetaRawContentBlockStartEvent:
+		//	switch block := e.ContentBlock.AsAny().(type) {
+		//	case anthropic.BetaToolUseBlock:
+		//		if block.Name == "get_coordinates" {
+		//			foundToolCall = true // Ensure no more events get sent after this point since our injected tool needs to be called.
+		//		}
+		//	}
+		//}
+		//
+		//if !foundToolCall {
+		if err := es.TrySend(streamCtx, event); err != nil {
+			b.logger.Error(ctx, "failed to send event", slog.Error(err))
 		}
-
-		if !foundToolCall {
-			if err := es.TrySend(streamCtx, event); err != nil {
-				b.logger.Error(ctx, "failed to send event", slog.Error(err))
-			}
-		} else {
-			fmt.Printf("[ignored, tool call found] %s\n", event.RawJSON())
-		}
+		//} else {
+		//	fmt.Printf("[ignored, tool call found] %s\n", event.RawJSON())
+		//}
 	}
 
 	if foundToolCall {
@@ -572,8 +597,34 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 outer:
+	for _, c := range message.Content {
+		switch block := c.AsAny().(type) {
+		case anthropic.BetaMCPToolUseBlock:
+
+			var input map[string]string
+			if err := json.Unmarshal([]byte(block.JSON.Input.Raw()), &input); err != nil {
+				b.logger.Error(ctx, "failed to marshal tool input", slog.Error(err))
+				continue
+			}
+
+			if _, err = coderdClient.TrackToolUse(streamCtx, &proto.TrackToolUseRequest{
+				Tool:  block.Name,
+				Model: string(message.Model),
+				Input: input,
+			}); err != nil {
+				b.logger.Error(ctx, "failed to track tool usage", slog.Error(err))
+			}
+		case anthropic.BetaMCPToolResultBlock:
+			for _, res := range block.Content.AsBetaMCPToolResultBlockContent() {
+				// TODO: store results?
+				x := res.Text
+				fmt.Println(x)
+			}
+		}
+	}
+
 	// TODO: these figures don't seem to exactly match what Claude Code reports. Find the source of inconsistency!
-	_, err = coderdClient.TrackTokenUsage(streamCtx, &proto.TrackTokenUsageRequest{
+	if _, err = coderdClient.TrackTokenUsage(streamCtx, &proto.TrackTokenUsageRequest{
 		MsgId:        message.ID,
 		Model:        string(message.Model),
 		InputTokens:  message.Usage.InputTokens,
@@ -585,9 +636,8 @@ outer:
 			"cache_ephemeral_1h_input": message.Usage.CacheCreation.Ephemeral1hInputTokens,
 			"cache_ephemeral_5m_input": message.Usage.CacheCreation.Ephemeral5mInputTokens,
 		},
-	})
-	if err != nil {
-		b.logger.Error(ctx, "failed to track usage", slog.Error(err))
+	}); err != nil {
+		b.logger.Error(ctx, "failed to track token usage", slog.Error(err))
 	}
 
 	var streamErr error
