@@ -43,9 +43,9 @@ To import the template and begin configuring it, follow the [documentation in th
 
 ### Option 2&rpar; Create or Duplicate Your Own Template
 
-Because Tasks run unpredictable AI agents, often for background tasks, we recommend creating a seperate template for Coder Tasks with limited permissions.
+Because Tasks run unpredictable AI agents, often for background tasks, we recommend creating a separate template for Coder Tasks with limited permissions.
 
-You can always duplicate your existing template, then apply seperate network policies/firewalls/permissions to the template. From there, follow the docs for one of our [built-in modules for agents](https://registry.coder.com/modules?search=tag%3Aagent) in order to add it to your template, configure your LLM provider.
+You can always duplicate your existing template, then apply separate network policies/firewalls/permissions to the template. From there, follow the docs for one of our [built-in modules for agents](https://registry.coder.com/modules?search=tag%3Aagent) in order to add it to your template, configure your LLM provider.
 
 Alternatively, follow our guide for [custom agents](./custom-agents.md)
 
