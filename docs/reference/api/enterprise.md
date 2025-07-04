@@ -289,7 +289,7 @@ curl -X GET http://coder-server:8080/api/v2/groups?organization=string&has_membe
 ```json
 [
   {
-    "avatar_url": "string",
+    "avatar_url": "http://example.com",
     "display_name": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "members": [
@@ -331,7 +331,7 @@ Status Code **200**
 | Name                          | Type                                                   | Required | Restrictions | Description                                                                                                                                                           |
 |-------------------------------|--------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `[array item]`                | array                                                  | false    |              |                                                                                                                                                                       |
-| `» avatar_url`                | string                                                 | false    |              |                                                                                                                                                                       |
+| `» avatar_url`                | string(uri)                                            | false    |              |                                                                                                                                                                       |
 | `» display_name`              | string                                                 | false    |              |                                                                                                                                                                       |
 | `» id`                        | string(uuid)                                           | false    |              |                                                                                                                                                                       |
 | `» members`                   | array                                                  | false    |              |                                                                                                                                                                       |
@@ -396,7 +396,7 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
 
 ```json
 {
-  "avatar_url": "string",
+  "avatar_url": "http://example.com",
   "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
@@ -457,7 +457,7 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
 
 ```json
 {
-  "avatar_url": "string",
+  "avatar_url": "http://example.com",
   "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
@@ -537,7 +537,7 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
 
 ```json
 {
-  "avatar_url": "string",
+  "avatar_url": "http://example.com",
   "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
@@ -1508,7 +1508,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
 ```json
 [
   {
-    "avatar_url": "string",
+    "avatar_url": "http://example.com",
     "display_name": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "members": [
@@ -1550,7 +1550,7 @@ Status Code **200**
 | Name                          | Type                                                   | Required | Restrictions | Description                                                                                                                                                           |
 |-------------------------------|--------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `[array item]`                | array                                                  | false    |              |                                                                                                                                                                       |
-| `» avatar_url`                | string                                                 | false    |              |                                                                                                                                                                       |
+| `» avatar_url`                | string(uri)                                            | false    |              |                                                                                                                                                                       |
 | `» display_name`              | string                                                 | false    |              |                                                                                                                                                                       |
 | `» id`                        | string(uuid)                                           | false    |              |                                                                                                                                                                       |
 | `» members`                   | array                                                  | false    |              |                                                                                                                                                                       |
@@ -1628,7 +1628,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
 
 ```json
 {
-  "avatar_url": "string",
+  "avatar_url": "http://example.com",
   "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
@@ -1690,7 +1690,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
 
 ```json
 {
-  "avatar_url": "string",
+  "avatar_url": "http://example.com",
   "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
@@ -3379,79 +3379,71 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
 > 200 Response
 
 ```json
-[
-  {
-    "avatar_url": "http://example.com",
-    "created_at": "2019-08-24T14:15:22Z",
-    "email": "user@example.com",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "last_seen_at": "2019-08-24T14:15:22Z",
-    "login_type": "",
-    "name": "string",
-    "organization_ids": [
-      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-    ],
-    "role": "admin",
-    "roles": [
-      {
-        "display_name": "string",
-        "name": "string",
-        "organization_id": "string"
-      }
-    ],
-    "status": "active",
-    "theme_preference": "string",
-    "updated_at": "2019-08-24T14:15:22Z",
-    "username": "string"
-  }
-]
+{
+  "group": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "admin",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "organization_ids": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "role": "admin",
+      "roles": [
+        {
+          "display_name": "string",
+          "name": "string",
+          "organization_id": "string"
+        }
+      ],
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ]
+}
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                            |
-|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.TemplateUser](schemas.md#codersdktemplateuser) |
-
-<h3 id="get-template-acls-responseschema">Response Schema</h3>
-
-Status Code **200**
-
-| Name                 | Type                                                     | Required | Restrictions | Description                                                                                |
-|----------------------|----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------|
-| `[array item]`       | array                                                    | false    |              |                                                                                            |
-| `» avatar_url`       | string(uri)                                              | false    |              |                                                                                            |
-| `» created_at`       | string(date-time)                                        | true     |              |                                                                                            |
-| `» email`            | string(email)                                            | true     |              |                                                                                            |
-| `» id`               | string(uuid)                                             | true     |              |                                                                                            |
-| `» last_seen_at`     | string(date-time)                                        | false    |              |                                                                                            |
-| `» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)       | false    |              |                                                                                            |
-| `» name`             | string                                                   | false    |              |                                                                                            |
-| `» organization_ids` | array                                                    | false    |              |                                                                                            |
-| `» role`             | [codersdk.TemplateRole](schemas.md#codersdktemplaterole) | false    |              |                                                                                            |
-| `» roles`            | array                                                    | false    |              |                                                                                            |
-| `»» display_name`    | string                                                   | false    |              |                                                                                            |
-| `»» name`            | string                                                   | false    |              |                                                                                            |
-| `»» organization_id` | string                                                   | false    |              |                                                                                            |
-| `» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)     | false    |              |                                                                                            |
-| `» theme_preference` | string                                                   | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead. |
-| `» updated_at`       | string(date-time)                                        | false    |              |                                                                                            |
-| `» username`         | string                                                   | true     |              |                                                                                            |
-
-#### Enumerated Values
-
-| Property     | Value       |
-|--------------|-------------|
-| `login_type` | ``          |
-| `login_type` | `password`  |
-| `login_type` | `github`    |
-| `login_type` | `oidc`      |
-| `login_type` | `token`     |
-| `login_type` | `none`      |
-| `role`       | `admin`     |
-| `role`       | `use`       |
-| `status`     | `active`    |
-| `status`     | `suspended` |
+| Status | Meaning                                                 | Description | Schema                                                 |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateACL](schemas.md#codersdktemplateacl) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3475,11 +3467,11 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/acl \
 {
   "group_perms": {
     "8bd26b20-f3e8-48be-a903-46bb920cf671": "use",
-    "<user_id>>": "admin"
+    "<group_id>": "admin"
   },
   "user_perms": {
     "4df59e74-c027-470b-ab4d-cbba8963a5e9": "use",
-    "<group_id>": "admin"
+    "<user_id>": "admin"
   }
 }
 ```
@@ -3544,7 +3536,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
   {
     "groups": [
       {
-        "avatar_url": "string",
+        "avatar_url": "http://example.com",
         "display_name": "string",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "members": [
@@ -3604,7 +3596,7 @@ Status Code **200**
 |--------------------------------|--------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `[array item]`                 | array                                                  | false    |              |                                                                                                                                                                       |
 | `» groups`                     | array                                                  | false    |              |                                                                                                                                                                       |
-| `»» avatar_url`                | string                                                 | false    |              |                                                                                                                                                                       |
+| `»» avatar_url`                | string(uri)                                            | false    |              |                                                                                                                                                                       |
 | `»» display_name`              | string                                                 | false    |              |                                                                                                                                                                       |
 | `»» id`                        | string(uuid)                                           | false    |              |                                                                                                                                                                       |
 | `»» members`                   | array                                                  | false    |              |                                                                                                                                                                       |
