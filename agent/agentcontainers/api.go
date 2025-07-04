@@ -211,6 +211,25 @@ func WithDevcontainers(devcontainers []codersdk.WorkspaceAgentDevcontainer, scri
 			if dc.Status == "" {
 				dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
 			}
+			logger := api.logger.With(
+				slog.F("devcontainer_id", dc.ID),
+				slog.F("devcontainer_name", dc.Name),
+				slog.F("workspace_folder", dc.WorkspaceFolder),
+				slog.F("config_path", dc.ConfigPath),
+			)
+
+			// Devcontainers have a name originating from Terraform, but
+			// we need to ensure that the name is unique. We will use
+			// the workspace folder name to generate a unique agent name,
+			// and if that fails, we will fall back to the devcontainers
+			// original name.
+			name, usingWorkspaceFolder := api.makeAgentName(dc.WorkspaceFolder, dc.Name)
+			if name != dc.Name {
+				logger = logger.With(slog.F("devcontainer_name", name))
+				logger.Debug(api.ctx, "updating devcontainer name", slog.F("devcontainer_old_name", dc.Name))
+				dc.Name = name
+				api.usingWorkspaceFolderName[dc.WorkspaceFolder] = usingWorkspaceFolder
+			}
 
 			api.knownDevcontainers[dc.WorkspaceFolder] = dc
 			api.devcontainerNames[dc.Name] = true
@@ -223,12 +242,7 @@ func WithDevcontainers(devcontainers []codersdk.WorkspaceAgentDevcontainer, scri
 				}
 			}
 			if api.devcontainerLogSourceIDs[dc.WorkspaceFolder] == uuid.Nil {
-				api.logger.Error(api.ctx, "devcontainer log source ID not found for devcontainer",
-					slog.F("devcontainer_id", dc.ID),
-					slog.F("devcontainer_name", dc.Name),
-					slog.F("workspace_folder", dc.WorkspaceFolder),
-					slog.F("config_path", dc.ConfigPath),
-				)
+				logger.Error(api.ctx, "devcontainer log source ID not found for devcontainer")
 			}
 		}
 	}
@@ -435,6 +449,7 @@ func (api *API) updaterLoop() {
 	// We utilize a TickerFunc here instead of a regular Ticker so that
 	// we can guarantee execution of the updateContainers method after
 	// advancing the clock.
+	var prevErr error
 	ticker := api.clock.TickerFunc(api.ctx, api.updateInterval, func() error {
 		done := make(chan error, 1)
 		var sent bool
@@ -452,9 +467,15 @@ func (api *API) updaterLoop() {
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
 					api.logger.Warn(api.ctx, "updater loop ticker canceled", slog.Error(err))
-				} else {
+					return nil
+				}
+				// Avoid excessive logging of the same error.
+				if prevErr == nil || prevErr.Error() != err.Error() {
 					api.logger.Error(api.ctx, "updater loop ticker failed", slog.Error(err))
 				}
+				prevErr = err
+			} else {
+				prevErr = nil
 			}
 		default:
 			api.logger.Debug(api.ctx, "updater loop ticker skipped, update in progress")
@@ -703,6 +724,9 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 				err := api.maybeInjectSubAgentIntoContainerLocked(ctx, dc)
 				if err != nil {
 					logger.Error(ctx, "inject subagent into container failed", slog.Error(err))
+					dc.Error = err.Error()
+				} else {
+					dc.Error = ""
 				}
 			}
 
@@ -872,7 +896,7 @@ func (api *API) getContainers() (codersdk.WorkspaceAgentListContainersResponse, 
 			devcontainers = append(devcontainers, dc)
 		}
 		slices.SortFunc(devcontainers, func(a, b codersdk.WorkspaceAgentDevcontainer) int {
-			return strings.Compare(a.Name, b.Name)
+			return strings.Compare(a.WorkspaceFolder, b.WorkspaceFolder)
 		})
 	}
 
@@ -929,6 +953,7 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	// devcontainer multiple times in parallel.
 	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
 	dc.Container = nil
+	dc.Error = ""
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	go func() {
 		_ = api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath, WithRemoveExistingContainer())
@@ -1018,6 +1043,7 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 		api.mu.Lock()
 		dc = api.knownDevcontainers[dc.WorkspaceFolder]
 		dc.Status = codersdk.WorkspaceAgentDevcontainerStatusError
+		dc.Error = err.Error()
 		api.knownDevcontainers[dc.WorkspaceFolder] = dc
 		api.recreateErrorTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "errorTimes")
 		api.mu.Unlock()
@@ -1041,6 +1067,7 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 		}
 	}
 	dc.Dirty = false
+	dc.Error = ""
 	api.recreateSuccessTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "successTimes")
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	api.mu.Unlock()

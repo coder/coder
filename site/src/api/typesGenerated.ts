@@ -394,6 +394,7 @@ export interface CreateTemplateRequest {
 	readonly disable_everyone_group_access: boolean;
 	readonly require_active_version: boolean;
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel | null;
+	readonly template_use_classic_parameter_flow?: boolean;
 }
 
 // From codersdk/templateversions.go
@@ -793,14 +794,18 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 export type Experiment =
 	| "auto-fill-parameters"
 	| "example"
+	| "mcp-server-http"
 	| "notifications"
+	| "oauth2"
 	| "web-push"
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
 	"auto-fill-parameters",
 	"example",
+	"mcp-server-http",
 	"notifications",
+	"oauth2",
 	"web-push",
 	"workspace-usage",
 ];
@@ -1445,6 +1450,88 @@ export interface OAuth2AppEndpoints {
 	readonly device_authorization: string;
 }
 
+// From codersdk/oauth2.go
+export interface OAuth2AuthorizationServerMetadata {
+	readonly issuer: string;
+	readonly authorization_endpoint: string;
+	readonly token_endpoint: string;
+	readonly registration_endpoint?: string;
+	readonly response_types_supported: readonly string[];
+	readonly grant_types_supported: readonly string[];
+	readonly code_challenge_methods_supported: readonly string[];
+	readonly scopes_supported?: readonly string[];
+	readonly token_endpoint_auth_methods_supported?: readonly string[];
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2ClientConfiguration {
+	readonly client_id: string;
+	readonly client_id_issued_at: number;
+	readonly client_secret_expires_at?: number;
+	readonly redirect_uris?: readonly string[];
+	readonly client_name?: string;
+	readonly client_uri?: string;
+	readonly logo_uri?: string;
+	readonly tos_uri?: string;
+	readonly policy_uri?: string;
+	readonly jwks_uri?: string;
+	readonly jwks?: Record<string, string>;
+	readonly software_id?: string;
+	readonly software_version?: string;
+	readonly grant_types: readonly string[];
+	readonly response_types: readonly string[];
+	readonly token_endpoint_auth_method: string;
+	readonly scope?: string;
+	readonly contacts?: readonly string[];
+	readonly registration_access_token: string;
+	readonly registration_client_uri: string;
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2ClientRegistrationRequest {
+	readonly redirect_uris?: readonly string[];
+	readonly client_name?: string;
+	readonly client_uri?: string;
+	readonly logo_uri?: string;
+	readonly tos_uri?: string;
+	readonly policy_uri?: string;
+	readonly jwks_uri?: string;
+	readonly jwks?: Record<string, string>;
+	readonly software_id?: string;
+	readonly software_version?: string;
+	readonly software_statement?: string;
+	readonly grant_types?: readonly string[];
+	readonly response_types?: readonly string[];
+	readonly token_endpoint_auth_method?: string;
+	readonly scope?: string;
+	readonly contacts?: readonly string[];
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2ClientRegistrationResponse {
+	readonly client_id: string;
+	readonly client_secret?: string;
+	readonly client_id_issued_at: number;
+	readonly client_secret_expires_at?: number;
+	readonly redirect_uris?: readonly string[];
+	readonly client_name?: string;
+	readonly client_uri?: string;
+	readonly logo_uri?: string;
+	readonly tos_uri?: string;
+	readonly policy_uri?: string;
+	readonly jwks_uri?: string;
+	readonly jwks?: Record<string, string>;
+	readonly software_id?: string;
+	readonly software_version?: string;
+	readonly grant_types: readonly string[];
+	readonly response_types: readonly string[];
+	readonly token_endpoint_auth_method: string;
+	readonly scope?: string;
+	readonly contacts?: readonly string[];
+	readonly registration_access_token: string;
+	readonly registration_client_uri: string;
+}
+
 // From codersdk/deployment.go
 export interface OAuth2Config {
 	readonly github: OAuth2GithubConfig;
@@ -1466,6 +1553,14 @@ export interface OAuth2GithubConfig {
 	readonly allow_signups: boolean;
 	readonly allow_everyone: boolean;
 	readonly enterprise_base_url: string;
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2ProtectedResourceMetadata {
+	readonly resource: string;
+	readonly authorization_servers: readonly string[];
+	readonly scopes_supported?: readonly string[];
+	readonly bearer_methods_supported?: readonly string[];
 }
 
 // From codersdk/oauth2.go
@@ -1772,6 +1867,11 @@ export interface PrebuildsConfig {
 	readonly failure_hard_limit: number;
 }
 
+// From codersdk/prebuilds.go
+export interface PrebuildsSettings {
+	readonly reconciliation_paused: boolean;
+}
+
 // From codersdk/presets.go
 export interface Preset {
 	readonly ID: string;
@@ -1823,6 +1923,7 @@ export interface PreviewParameterStyling {
 	readonly placeholder?: string;
 	readonly disabled?: boolean;
 	readonly label?: string;
+	readonly mask_input?: boolean;
 }
 
 // From codersdk/parameters.go
@@ -2277,6 +2378,7 @@ export type ResourceType =
 	| "oauth2_provider_app_secret"
 	| "organization"
 	| "organization_member"
+	| "prebuilds_settings"
 	| "template"
 	| "template_version"
 	| "user"
@@ -2303,6 +2405,7 @@ export const ResourceTypes: ResourceType[] = [
 	"oauth2_provider_app_secret",
 	"organization",
 	"organization_member",
+	"prebuilds_settings",
 	"template",
 	"template_version",
 	"user",
@@ -3329,6 +3432,7 @@ export interface WorkspaceAgentDevcontainer {
 	readonly dirty: boolean;
 	readonly container?: WorkspaceAgentContainer;
 	readonly agent?: WorkspaceAgentDevcontainerAgent;
+	readonly error?: string;
 }
 
 // From codersdk/workspaceagents.go

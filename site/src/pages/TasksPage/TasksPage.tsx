@@ -37,6 +37,7 @@ import {
 } from "components/TableLoader/TableLoader";
 
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	Tooltip,
 	TooltipContent,
@@ -79,7 +80,10 @@ const TasksPage: FC = () => {
 			</Helmet>
 			<Margins>
 				<PageHeader>
-					<PageHeaderTitle>Tasks</PageHeaderTitle>
+					<span className="flex flex-row gap-2">
+						<PageHeaderTitle>Tasks</PageHeaderTitle>
+						<FeatureStageBadge contentType={"beta"} size="md" />
+					</span>
 					<PageHeaderSubtitle>Automate tasks with AI</PageHeaderSubtitle>
 				</PageHeader>
 
@@ -606,7 +610,7 @@ export const data = {
 		templateVersionId: string,
 	): Promise<Task> {
 		const presets = await API.getTemplateVersionPresets(templateVersionId);
-		const defaultPreset = presets.find((p) => p.Default);
+		const defaultPreset = presets?.find((p) => p.Default);
 		const workspace = await API.createWorkspace(userId, {
 			name: `task-${generateWorkspaceName()}`,
 			template_version_id: templateVersionId,
