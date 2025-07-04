@@ -54,7 +54,7 @@ Use your favorite RDP client to connect to `<workspace-name>.coder` instead of `
 > when using Coder Connect because they do not respect the maximum transmission unit (MTU) of the link.
 > When this happens, the RDP client will appear to connect, but displays a blank screen.
 >
-> To avoid this error, Coder's [Windows RDP](https://registry.coder.com/modules/windows-rdp) module
+> To avoid this error, Coder's [Windows RDP](https://registry.coder.com/modules/coder/windows-rdp) module
 > [disables RDP over UDP automatically](https://github.com/coder/registry/blob/b58bfebcf3bcdcde4f06a183f92eb3e01842d270/registry/coder/modules/windows-rdp/powershell-installation-script.tftpl#L22).
 >
 > To disable RDP over UDP, run the following in PowerShell:
@@ -102,7 +102,7 @@ resource "coder_app" "rdp-coder-desktop" {
 
 ## RDP Web
 
-Our [Windows RDP](https://registry.coder.com/modules/windows-rdp) module in the Coder
+Our [Windows RDP](https://registry.coder.com/modules/coder/windows-rdp) module in the Coder
 Registry adds a one-click button to open an RDP session in the browser. This
 requires just a few lines of Terraform in your template, see the documentation
 on our registry for setup.
@@ -111,7 +111,7 @@ on our registry for setup.
 
 ## Amazon DCV Windows
 
-Our [Amazon DCV Windows](https://registry.coder.com/modules/amazon-dcv-windows)
+Our [Amazon DCV Windows](https://registry.coder.com/modules/coder/amazon-dcv-windows)
 module adds a one-click button to open an Amazon DCV session in the browser.
 This requires just a few lines of Terraform in your template, see the
 documentation on our registry for setup.
