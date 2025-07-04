@@ -1946,6 +1946,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "user": {}
     },
     "enable_terraform_debug_mode": true,
+    "enable_terraform_plan_logging": true,
     "ephemeral_deployment": true,
     "experiments": [
       "string"
@@ -2434,6 +2435,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "user": {}
   },
   "enable_terraform_debug_mode": true,
+  "enable_terraform_plan_logging": true,
   "ephemeral_deployment": true,
   "experiments": [
     "string"
@@ -2763,6 +2765,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_path_apps`                  | boolean                                                                                              | false    |              |                                                                    |
 | `docs_url`                           | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `enable_terraform_debug_mode`        | boolean                                                                                              | false    |              |                                                                    |
+| `enable_terraform_plan_logging`      | boolean                                                                                              | false    |              |                                                                    |
 | `ephemeral_deployment`               | boolean                                                                                              | false    |              |                                                                    |
 | `experiments`                        | array of string                                                                                      | false    |              |                                                                    |
 | `external_auth`                      | [serpent.Struct-array_codersdk_ExternalAuthConfig](#serpentstruct-array_codersdk_externalauthconfig) | false    |              |                                                                    |

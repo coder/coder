@@ -63,6 +63,14 @@ export enum PrebuiltWorkspaceBuildStage {
   UNRECOGNIZED = -1,
 }
 
+export enum PlanType {
+  UNKNOWN = 0,
+  WORKSPACE_BUILD = 1,
+  TEMPLATE_IMPORT = 2,
+  TEMPLATE_DRY_RUN = 3,
+  UNRECOGNIZED = -1,
+}
+
 export enum TimingState {
   STARTED = 0,
   COMPLETED = 1,
@@ -436,6 +444,8 @@ export interface PlanRequest {
    * behavior of downloading the module files.
    */
   omitModuleFiles: boolean;
+  /** Type of plan operation being requested */
+  planType: PlanType;
 }
 
 /** PlanComplete indicates a request to plan completed. */
@@ -1341,6 +1351,9 @@ export const PlanRequest = {
     }
     if (message.omitModuleFiles === true) {
       writer.uint32(48).bool(message.omitModuleFiles);
+    }
+    if (message.planType !== 0) {
+      writer.uint32(56).int32(message.planType);
     }
     return writer;
   },

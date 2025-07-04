@@ -12265,6 +12265,9 @@ const docTemplate = `{
                 "enable_terraform_debug_mode": {
                     "type": "boolean"
                 },
+                "enable_terraform_plan_logging": {
+                    "type": "boolean"
+                },
                 "ephemeral_deployment": {
                     "type": "boolean"
                 },
