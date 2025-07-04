@@ -206,6 +206,18 @@ coder:
     #  cpu: 2000m
     #  memory: 4096Mi
 
+  # coder.readinessProbe -- Readiness probe configuration for the Coder container.
+  readinessProbe:
+    # coder.readinessProbe.initialDelaySeconds -- Number of seconds after the container
+    # has started before readiness probes are initiated.
+    initialDelaySeconds: 0
+
+  # coder.livenessProbe -- Liveness probe configuration for the Coder container.
+  livenessProbe:
+    # coder.livenessProbe.initialDelaySeconds -- Number of seconds after the container
+    # has started before liveness probes are initiated.
+    initialDelaySeconds: 0
+
   # coder.certs -- CA bundles to mount inside the Coder pod.
   certs:
     # coder.certs.secrets -- A list of CA bundle secrets to mount into the Coder
