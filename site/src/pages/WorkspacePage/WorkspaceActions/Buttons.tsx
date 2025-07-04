@@ -128,12 +128,12 @@ export const RestartButton: FC<ActionButtonPropsWithWorkspace> = ({
 				<RotateCcwIcon />
 				{loading ? <>Restarting&hellip;</> : <>Restart&hellip;</>}
 			</TopbarButton>
-			<BuildParametersPopover
+			{/* <BuildParametersPopover
 				label="Restart with build parameters"
 				workspace={workspace}
 				disabled={loading}
 				onSubmit={handleAction}
-			/>
+			/> */}
 		</div>
 	);
 };
