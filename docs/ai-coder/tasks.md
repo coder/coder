@@ -39,7 +39,7 @@ Try prompts such as:
 - "document the project structure"
 - "change the primary color theme to purple"
 
-To import the template and begin configuring it, follow the [documentation in the Coder Registry](https://registry.coder.com#coming-soon)
+To import the template and begin configuring it, follow the [documentation in the Coder Registry](https://registry.coder.com/templates/coder-labs/tasks-docker)
 
 > [!NOTE]
 > The Tasks tab will appear automatically after you add a Tasks-compatible template and refresh the page.
