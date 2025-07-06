@@ -354,7 +354,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				}
 			/>
 
-			{/* Cancel confirmation dialog */}
 			<ConfirmDialog
 				open={isCancelConfirmOpen}
 				title="Cancel workspace build"

@@ -495,9 +495,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 		onError: onActionError,
 	});
 
-	// State for stop confirmation dialog
 	const [isStopConfirmOpen, setIsStopConfirmOpen] = useState(false);
-	// State for cancel confirmation dialog
 	const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
 
 	const isRetrying =
