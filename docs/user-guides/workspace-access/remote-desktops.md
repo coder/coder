@@ -20,7 +20,7 @@ on your local machine, and enable RDP on your workspace.
 
 You can use the [RDP Desktop](https://registry.coder.com/modules/coder/local-windows-rdp) module to add a single-click button to open an RDP session in the browser.
 
-![RDP Desktop Button](../../images/user-guides/remote-desktops/rdp-button-and-window.png)
+![RDP Desktop Button](../../images/user-guides/remote-desktops/rdp-button.gif)
 
 You can also use a URI handler to launch an RDP session directly.
 
