@@ -131,6 +131,7 @@ const (
 )
 
 type CancelWorkspaceBuildParams struct {
+	// ExpectStatus ensures the build is in the expected status before canceling.
 	ExpectStatus CancelWorkspaceBuildStatus `json:"expect_status,omitempty"`
 }
 
