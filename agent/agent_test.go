@@ -2441,7 +2441,8 @@ func TestAgent_DevcontainersDisabledForSubAgent(t *testing.T) {
 
 	// Setup the agent with devcontainers enabled initially.
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, manifest, 0, func(*agenttest.Client, *agent.Options) {
+	conn, _, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.Devcontainers = true
 	})
 
 	// Query the containers API endpoint. This should fail because
