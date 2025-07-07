@@ -394,7 +394,7 @@ parameters in one of two ways:
 
 ## Dynamic Parameters (beta)
 
-Coder v2.24.0 introduces [Dynamic Parameters](./dynamic-parameters.md) to extend the existing parameter system with conditional form controls, enriched input types, and user idenitity awareness. 
-This feature allows template authors to create interactive workspace creation forms, meaning more environment customization and fewer templates to maintain. 
+Coder v2.24.0 introduces [Dynamic Parameters](./dynamic-parameters.md) to extend the existing parameter system with conditional form controls, enriched input types, and user idenitity awareness.
+This feature allows template authors to create interactive workspace creation forms, meaning more environment customization and fewer templates to maintain.
 
 You can read more in the [Dynamic Parameters documentation](./dynamic-parameters.md) and try it out in the [Parameters Playground](https://playground.coder.app/parameters).

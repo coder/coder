@@ -1,6 +1,6 @@
-# Dynamic Parameters (Beta)
+# Dynamic Parameters
 
-Coder v2.24.0 introduces Dynamic Parameters to extend the existing parameter system with conditional form controls, enriched input types, and user idenitity awareness.
+Coder v2.24.0 introduces Dynamic Parameters to extend the existing parameter system with conditional form controls, enriched input types, and user identity awareness.
 This feature allows template authors to create interactive workspace creation forms, meaning more environment customization and fewer templates to maintain.
 
 ![Dynamic Parameters in Action](https://i.imgur.com/uR8mpRJ.gif)
@@ -22,7 +22,7 @@ While Dynamic parameters introduce a variety of new powerful tools, all function
 There are three reasons for users to try Dynamic Parameters:
 
 - You maintain support many templates for teams with unique expectations or use cases
-- You want to selectively expose privledged workspace options to admins, power users, or personas
+- You want to selectively expose privileged workspace options to admins, power users, or personas
 - You want to make the workspace creation flow more ergonomic for developers.
 
 Dynamic Parameters help you reduce template duplication by setting conditions on which users may see which parameters. They increase the potential complexity of user-facing configuration by allowing administrators to organize a long list of options into interactive, branching paths for workspace customization. They allow you to set resource guardrails by referencing coder identity in the `coder_workspace_owner` data source.
@@ -78,12 +78,11 @@ Dynamic Parameters introduces three primary enhancements to the standard paramet
   - Slider input for disk size, model temperature
   - Disabled parameters to display immutable data
 
-
 > [!NOTE]
-> Dynamic Parameters **does not support external data fetching** via HTTP endpoints at workspace build time. 
-> Doing so would introduce inpredictability in workspace builds after publishing a template.
+> Dynamic Parameters **does not support external data fetching** via HTTP endpoints at workspace build time.
+> Doing so would introduce unpredictability in workspace builds after publishing a template.
 > We instead advise template administrators to pull in any required data for a workspace build as locals or a JSON file, then reference that data in Terraform.
-> 
+>
 > If you have a use case for external data fetching, please file an issue or create a discussion in our [Github](https://github.com/coder/coder).
 
 ## Available Form Input Types
@@ -108,11 +107,9 @@ The "Options" column in the table below indicates whether the form type supports
 | `slider`       | `number`                                   | No      | Slider selection with min/max validation for numeric values.                                                                 |
 | `checkbox`     | `bool`                                     | No      | A single checkbox for boolean parameters. Default for boolean parameters.                                                    |
 
-
 ### Available styling options
 
 The `coder_parameter` resource now supports an additional `styling` attribute for special cosmetic changes that can be used to further customize the workspace creation form. This can be used for masking private inputs, marking inputs as read-only, or setting placeholder text. Note that the `styling` attribute should not be used as a governance tool, since it only changes how the interactive form is displayed. Restrictions like `disabled` may be circumnavigated by users if they create a workspace via the CLI.
-
 
 This attribute accepts JSON like so:
 
@@ -125,15 +122,13 @@ data "coder_parameter" "styled_parameter" {
 }
 ```
 
-
 Not all styling attributes are supported by all form types, use the reference below for syntax:
 
 | Styling Option | Compatible parameter types | Compatible form types | Notes                                                                               |
 |----------------|----------------------------|-----------------------|-------------------------------------------------------------------------------------|
 | `disabled`     | All parameter types        | All form types        | Disables the form control when true.                                                |
 | `placeholder`  | `string`                   | `input`, `textarea`   | Sets placeholder text, will be overwritten by user entry.                           |
-| `mask_input`   | `string`, `number`         | `input`, `textarea`   | Masks inputs as asterisks (`*`). Used to comsetically hide token or password entry. |
-
+| `mask_input`   | `string`, `number`         | `input`, `textarea`   | Masks inputs as asterisks (`*`). Used to cosmetically hide token or password entry. |
 
 ## Use case examples
 
@@ -164,7 +159,7 @@ locals {
 }
 
 data "coder_parameter" "ides_dropdown" {
-  name = "ides_dropdow"
+  name = "ides_dropdown"
   display_name = "Select your IDEs"
   type = "string"
 
@@ -190,7 +185,7 @@ The large text entry option can be used to enter long strings like AI prompts, s
 
 data "coder_parameter" "text_area" {
   name = "text_area"
-  description  = "Enter mutli-line text."
+  description  = "Enter multi-line text."
   mutable      = true
   display_name = "Textarea"
 
@@ -198,7 +193,7 @@ data "coder_parameter" "text_area" {
   type      = "string"
 
   default = <<-EOT
-    This is an example of mult-line text entry.
+    This is an example of multi-line text entry.
 
     The 'textarea' form_type is useful for
     - AI prompts
@@ -285,7 +280,7 @@ data "coder_parameter" "environment" {
 
 ### Checkboxes
 
-Checkbox: A single checkbox for boolean values. This can be used for a TOS confirmation or to expose advanced options. 
+Checkbox: A single checkbox for boolean values. This can be used for a TOS confirmation or to expose advanced options.
 
 [Try checkbox parameters on the Parameters Playground](https://playground.coder.app/parameters/ycWuQJk2Py).
 
@@ -534,7 +529,6 @@ locals {
   # selected = try(jsondecode(data.coder_parameter.ide_selector[0].value), [])
 }
 
-
 data "coder_parameter" "git_repo" {
   name = "git_repo"
   display_name = "Git repo"
@@ -568,7 +562,6 @@ data "coder_parameter" "ide_selector" {
   # Allows users to select multiple IDEs from the list.
   form_type = "multi-select"
   type      = "list(string)"
-
 
   dynamic "option" {
     for_each = local.ides
