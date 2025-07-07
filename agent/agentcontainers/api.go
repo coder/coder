@@ -549,9 +549,7 @@ func (api *API) Routes() http.Handler {
 }
 
 func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx = r.Context()
-	)
+	ctx := r.Context()
 
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
@@ -592,12 +590,13 @@ func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
 			ct, err := api.getContainers()
 			if err != nil {
 				api.logger.Error(ctx, "get containers", slog.Error(err))
-			} else {
-				if err := encoder.Encode(ct); err != nil {
-					api.logger.Error(ctx, "encode container list", slog.Error(err))
-				}
+				continue
 			}
 
+			if err := encoder.Encode(ct); err != nil {
+				api.logger.Error(ctx, "encode container list", slog.Error(err))
+				return
+			}
 		}
 	}
 }
