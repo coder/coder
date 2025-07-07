@@ -128,11 +128,11 @@ data "coder_parameter" "styled_parameter" {
 
 Not all styling attributes are supported by all form types, use the reference below for syntax:
 
-| Styling Option | Compatible parameter types | Compatible form types | Notes |
-| -------------- | -------------------------- | --------------------- | ----- |
-| `disabled`     | All parameter types        | All form types        | Disables the form control when true. |
-| `placeholder`  | `string`                   | `input`, `textarea` | Sets placeholder text, will be overwritten by user entry. |
-| `mask_input`    | `string`, `number`         | `input`, `textarea` | Masks inputs as asterisks (`*`). Used to comsetically hide token or password entry. |
+| Styling Option | Compatible parameter types | Compatible form types | Notes                                                                               |
+|----------------|----------------------------|-----------------------|-------------------------------------------------------------------------------------|
+| `disabled`     | All parameter types        | All form types        | Disables the form control when true.                                                |
+| `placeholder`  | `string`                   | `input`, `textarea`   | Sets placeholder text, will be overwritten by user entry.                           |
+| `mask_input`   | `string`, `number`         | `input`, `textarea`   | Masks inputs as asterisks (`*`). Used to comsetically hide token or password entry. |
 
 
 ## Use case examples
