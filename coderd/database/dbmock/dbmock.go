@@ -248,6 +248,36 @@ func (mr *MockStoreMockRecorder) CleanTailnetTunnels(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanTailnetTunnels", reflect.TypeOf((*MockStore)(nil).CleanTailnetTunnels), ctx)
 }
 
+// ConsumeOAuth2ProviderAppCodeByPrefix mocks base method.
+func (m *MockStore) ConsumeOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (database.OAuth2ProviderAppCode, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConsumeOAuth2ProviderAppCodeByPrefix", ctx, secretPrefix)
+	ret0, _ := ret[0].(database.OAuth2ProviderAppCode)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ConsumeOAuth2ProviderAppCodeByPrefix indicates an expected call of ConsumeOAuth2ProviderAppCodeByPrefix.
+func (mr *MockStoreMockRecorder) ConsumeOAuth2ProviderAppCodeByPrefix(ctx, secretPrefix any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsumeOAuth2ProviderAppCodeByPrefix", reflect.TypeOf((*MockStore)(nil).ConsumeOAuth2ProviderAppCodeByPrefix), ctx, secretPrefix)
+}
+
+// ConsumeOAuth2ProviderDeviceCodeByPrefix mocks base method.
+func (m *MockStore) ConsumeOAuth2ProviderDeviceCodeByPrefix(ctx context.Context, deviceCodePrefix string) (database.OAuth2ProviderDeviceCode, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConsumeOAuth2ProviderDeviceCodeByPrefix", ctx, deviceCodePrefix)
+	ret0, _ := ret[0].(database.OAuth2ProviderDeviceCode)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ConsumeOAuth2ProviderDeviceCodeByPrefix indicates an expected call of ConsumeOAuth2ProviderDeviceCodeByPrefix.
+func (mr *MockStoreMockRecorder) ConsumeOAuth2ProviderDeviceCodeByPrefix(ctx, deviceCodePrefix any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsumeOAuth2ProviderDeviceCodeByPrefix", reflect.TypeOf((*MockStore)(nil).ConsumeOAuth2ProviderDeviceCodeByPrefix), ctx, deviceCodePrefix)
+}
+
 // CountAuditLogs mocks base method.
 func (m *MockStore) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
 	m.ctrl.T.Helper()

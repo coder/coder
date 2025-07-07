@@ -102,6 +102,39 @@ export STATE="your-state"
 go run ./scripts/oauth2/oauth2-test-server.go
 ```
 
+### `test-device-flow.sh`
+
+Tests the OAuth2 Device Authorization Flow (RFC 8628) using the golang.org/x/oauth2 library. This flow is designed for devices that either lack a web browser or have limited input capabilities.
+
+Usage:
+
+```bash
+# First set up an app
+eval $(./scripts/oauth2/setup-test-app.sh)
+
+# Run the device flow test
+./scripts/oauth2/test-device-flow.sh
+```
+
+Features:
+
+- Implements the complete device authorization flow
+- Uses the `/x/oauth2` library for OAuth2 operations
+- Displays user code and verification URL
+- Automatically polls for token completion
+- Tests the access token with an API call
+- Colored output for better readability
+
+### `oauth2-device-flow.go`
+
+A Go program that implements the OAuth2 device authorization flow. Used internally by `test-device-flow.sh` but can also be run standalone:
+
+```bash
+export CLIENT_ID="your-client-id"
+export CLIENT_SECRET="your-client-secret"
+go run ./scripts/oauth2/oauth2-device-flow.go
+```
+
 ## Example Workflow
 
 1. **Run automated tests:**
@@ -126,7 +159,23 @@ go run ./scripts/oauth2/oauth2-test-server.go
    ./scripts/oauth2/cleanup-test-app.sh
    ```
 
-3. **Generate PKCE for custom testing:**
+3. **Device authorization flow testing:**
+
+   ```bash
+   # Create app
+   eval $(./scripts/oauth2/setup-test-app.sh)
+
+   # Run the device flow test
+   ./scripts/oauth2/test-device-flow.sh
+   # - Shows device code and verification URL
+   # - Polls for authorization completion
+   # - Tests access token
+
+   # Clean up when done
+   ./scripts/oauth2/cleanup-test-app.sh
+   ```
+
+4. **Generate PKCE for custom testing:**
 
    ```bash
    ./scripts/oauth2/generate-pkce.sh
@@ -147,4 +196,5 @@ All scripts respect these environment variables:
 - Metadata: `GET /.well-known/oauth-authorization-server`
 - Authorization: `GET/POST /oauth2/authorize`
 - Token: `POST /oauth2/token`
+- Device Authorization: `POST /oauth2/device`
 - Apps API: `/api/v2/oauth2-provider/apps`

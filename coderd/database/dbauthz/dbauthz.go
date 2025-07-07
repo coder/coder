@@ -399,6 +399,7 @@ var (
 					rbac.ResourceProvisionerJobs.Type:        {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
 					rbac.ResourceOauth2App.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceOauth2AppSecret.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceOauth2AppCodeToken.Type:     {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -1322,6 +1323,14 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 		return err
 	}
 	return q.db.CleanTailnetTunnels(ctx)
+}
+
+func (q *querier) ConsumeOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (database.OAuth2ProviderAppCode, error) {
+	return updateWithReturn(q.log, q.auth, q.db.GetOAuth2ProviderAppCodeByPrefix, q.db.ConsumeOAuth2ProviderAppCodeByPrefix)(ctx, secretPrefix)
+}
+
+func (q *querier) ConsumeOAuth2ProviderDeviceCodeByPrefix(ctx context.Context, deviceCodePrefix string) (database.OAuth2ProviderDeviceCode, error) {
+	return updateWithReturn(q.log, q.auth, q.db.GetOAuth2ProviderDeviceCodeByPrefix, q.db.ConsumeOAuth2ProviderDeviceCodeByPrefix)(ctx, deviceCodePrefix)
 }
 
 func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
@@ -2301,8 +2310,8 @@ func (q *querier) GetOAuth2ProviderDeviceCodeByUserCode(ctx context.Context, use
 }
 
 func (q *querier) GetOAuth2ProviderDeviceCodesByClientID(ctx context.Context, clientID uuid.UUID) ([]database.OAuth2ProviderDeviceCode, error) {
-	// This requires access to read the OAuth2 app
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2App); err != nil {
+	// This requires access to read OAuth2 app code tokens
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2AppCodeToken); err != nil {
 		return []database.OAuth2ProviderDeviceCode{}, err
 	}
 	return q.db.GetOAuth2ProviderDeviceCodesByClientID(ctx, clientID)
@@ -3752,8 +3761,8 @@ func (q *querier) InsertOAuth2ProviderAppToken(ctx context.Context, arg database
 }
 
 func (q *querier) InsertOAuth2ProviderDeviceCode(ctx context.Context, arg database.InsertOAuth2ProviderDeviceCodeParams) (database.OAuth2ProviderDeviceCode, error) {
-	// Creating device codes requires OAuth2 app access
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceOauth2App); err != nil {
+	// Creating device codes requires OAuth2 app code token creation access
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceOauth2AppCodeToken); err != nil {
 		return database.OAuth2ProviderDeviceCode{}, err
 	}
 	return q.db.InsertOAuth2ProviderDeviceCode(ctx, arg)
@@ -4432,13 +4441,10 @@ func (q *querier) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg dat
 }
 
 func (q *querier) UpdateOAuth2ProviderDeviceCodeAuthorization(ctx context.Context, arg database.UpdateOAuth2ProviderDeviceCodeAuthorizationParams) (database.OAuth2ProviderDeviceCode, error) {
-	// Verify the user is authenticated for device code authorization
-	_, ok := ActorFromContext(ctx)
-	if !ok {
-		return database.OAuth2ProviderDeviceCode{}, ErrNoActor
+	fetch := func(ctx context.Context, arg database.UpdateOAuth2ProviderDeviceCodeAuthorizationParams) (database.OAuth2ProviderDeviceCode, error) {
+		return q.db.GetOAuth2ProviderDeviceCodeByID(ctx, arg.ID)
 	}
-
-	return q.db.UpdateOAuth2ProviderDeviceCodeAuthorization(ctx, arg)
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateOAuth2ProviderDeviceCodeAuthorization)(ctx, arg)
 }
 
 func (q *querier) UpdateOrganization(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
