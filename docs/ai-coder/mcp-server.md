@@ -21,8 +21,11 @@ coder login <https://coder.example.com>
 # Configure your client with the Coder MCP
 coder exp mcp configure claude-desktop # Configure Claude Desktop to interact with Coder
 coder exp mcp configure cursor # Configure Cursor to interact with Coder
+```
 
-# Or just run the server manually
+For other agents, the MCP server can be run with this command:
+
+```sh
 coder exp mcp server
 ```
 
