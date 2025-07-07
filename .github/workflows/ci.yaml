@@ -1285,6 +1285,24 @@ jobs:
           GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
           JSIGN_PATH: /tmp/jsign-6.0.jar
 
+      - name: Sign binaries with GPG
+        run: |
+          set -euo pipefail
+
+          for binary in ./build/coder_{darwin,linux,windows}*; do
+            if [[ -f "$binary" ]]; then
+              ./scripts/sign_with_gpg.sh "$binary"
+            fi
+          done
+        env:
+          CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.CODER_GPG_RELEASE_KEY_BASE64 }}
+
+      - name: Insert signatures
+        run: |
+          for sigfile in ./build/*.sig; do
+            mv "$sigfile" ./site/out/bin/
+          done
+
       - name: Build Linux Docker images
         id: build-docker
         env:
