@@ -2,7 +2,7 @@
 
 > [!WARNING]
 > Prebuilds Compatibility Limitations:
-> Prebuilds currently do not work reliably with [DevContainers feature](../managing-templates/devcontainers/index.md).
+> Prebuilt workspaces currently do not work reliably with [DevContainers feature](../managing-templates/devcontainers/index.md).
 > If your project relies on DevContainer configuration, we recommend disabling prebuilds or carefully testing behavior before enabling them.
 >
 > We’re actively working to improve compatibility, but for now, please avoid using prebuilds with this feature to ensure stability and expected behavior.
