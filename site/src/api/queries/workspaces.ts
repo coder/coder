@@ -268,10 +268,10 @@ export const cancelBuild = (workspace: Workspace, queryClient: QueryClient) => {
 	return {
 		mutationFn: () => {
 			const { status } = workspace.latest_build;
-			const params: CancelWorkspaceBuildParams = {
-				expect_status:
-					status === "pending" || status === "running" ? status : undefined,
-			};
+			const params =
+				status === "pending" || status === "running"
+					? { expect_status: status }
+					: undefined;
 			return API.cancelWorkspaceBuild(workspace.latest_build.id, params);
 		},
 		onSuccess: async () => {

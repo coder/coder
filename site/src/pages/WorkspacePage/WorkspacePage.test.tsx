@@ -244,6 +244,7 @@ describe("WorkspacePage", () => {
 
 		expect(cancelWorkspaceMock).toHaveBeenCalledWith(
 			MockStartingWorkspace.latest_build.id,
+			undefined,
 		);
 	});
 
