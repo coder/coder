@@ -69,7 +69,7 @@ func TestResolveParameters(t *testing.T) {
 			Name:         "immutable",
 			Type:         previewtypes.ParameterTypeString,
 			FormType:     provider.ParameterFormTypeInput,
-			Mutable:      false,
+			Mutable:      true,
 			DefaultValue: previewtypes.StringLiteral("foo"),
 			Required:     true,
 		}
