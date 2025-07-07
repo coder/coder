@@ -20,6 +20,7 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { EphemeralParametersDialog } from "modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
 import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
+import { WorkspaceBuildCancelDialog } from "modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
 import {
 	WorkspaceUpdateDialogs,
 	useWorkspaceUpdate,
@@ -354,18 +355,14 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				}
 			/>
 
-			<ConfirmDialog
+			<WorkspaceBuildCancelDialog
 				open={isCancelConfirmOpen}
-				title="Cancel workspace build"
-				description={`Are you sure you want to cancel the build for workspace "${workspace.name}"? This will stop the current build process.`}
-				confirmText="Confirm"
-				cancelText="Discard"
 				onClose={() => setIsCancelConfirmOpen(false)}
 				onConfirm={() => {
 					cancelBuildMutation.mutate();
 					setIsCancelConfirmOpen(false);
 				}}
-				type="delete"
+				workspace={workspace}
 			/>
 
 			<EphemeralParametersDialog

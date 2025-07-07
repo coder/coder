@@ -695,7 +695,7 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 
 func verifyUserCanCancelWorkspaceBuilds(ctx context.Context, store database.Store, userID uuid.UUID, templateID uuid.UUID, jobStatus database.ProvisionerJobStatus) (bool, error) {
 	// If the jobStatus is pending, we always allow cancellation regardless of
- 	// the template setting as it's non-destructive to Terraform resources.
+	// the template setting as it's non-destructive to Terraform resources.
 	if jobStatus == database.ProvisionerJobStatusPending {
 		return true, nil
 	}

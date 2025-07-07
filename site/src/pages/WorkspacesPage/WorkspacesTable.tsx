@@ -62,6 +62,7 @@ import {
 import { useAppLink } from "modules/apps/useAppLink";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
+import { WorkspaceBuildCancelDialog } from "modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
 import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
@@ -644,19 +645,14 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 				type="delete"
 			/>
 
-			{/* Cancel workspace build confirmation dialog */}
-			<ConfirmDialog
+			<WorkspaceBuildCancelDialog
 				open={isCancelConfirmOpen}
-				title="Cancel workspace build"
-				description={`Are you sure you want to cancel the build for workspace "${workspace.name}"? This will stop the current build process.`}
-				confirmText="Confirm"
-				cancelText="Discard"
 				onClose={() => setIsCancelConfirmOpen(false)}
 				onConfirm={() => {
 					cancelBuildMutation.mutate();
 					setIsCancelConfirmOpen(false);
 				}}
-				type="delete"
+				workspace={workspace}
 			/>
 		</TableCell>
 	);
