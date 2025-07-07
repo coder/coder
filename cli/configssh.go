@@ -112,14 +112,19 @@ func (o sshConfigOptions) equal(other sshConfigOptions) bool {
 }
 
 func (o sshConfigOptions) writeToBuffer(buf *bytes.Buffer) error {
-	escapedCoderBinary, err := sshConfigExecEscape(o.coderBinaryPath, o.forceUnixSeparators)
+	escapedCoderBinaryProxy, err := sshConfigProxyCommandEscape(o.coderBinaryPath, o.forceUnixSeparators)
 	if err != nil {
-		return xerrors.Errorf("escape coder binary for ssh failed: %w", err)
+		return xerrors.Errorf("escape coder binary for ProxyCommand failed: %w", err)
 	}
 
-	escapedGlobalConfig, err := sshConfigExecEscape(o.globalConfigPath, o.forceUnixSeparators)
+	escapedCoderBinaryMatchExec, err := sshConfigMatchExecEscape(o.coderBinaryPath)
 	if err != nil {
-		return xerrors.Errorf("escape global config for ssh failed: %w", err)
+		return xerrors.Errorf("escape coder binary for Match exec failed: %w", err)
+	}
+
+	escapedGlobalConfig, err := sshConfigProxyCommandEscape(o.globalConfigPath, o.forceUnixSeparators)
+	if err != nil {
+		return xerrors.Errorf("escape global config for ProxyCommand failed: %w", err)
 	}
 
 	rootFlags := fmt.Sprintf("--global-config %s", escapedGlobalConfig)
@@ -155,7 +160,7 @@ func (o sshConfigOptions) writeToBuffer(buf *bytes.Buffer) error {
 			_, _ = buf.WriteString("\t")
 			_, _ = fmt.Fprintf(buf,
 				"ProxyCommand %s %s ssh --stdio%s --ssh-host-prefix %s %%h",
-				escapedCoderBinary, rootFlags, flags, o.userHostPrefix,
+				escapedCoderBinaryProxy, rootFlags, flags, o.userHostPrefix,
 			)
 			_, _ = buf.WriteString("\n")
 		}
@@ -174,11 +179,11 @@ func (o sshConfigOptions) writeToBuffer(buf *bytes.Buffer) error {
 	// the ^^ options should always apply, but we only want to use the proxy command if Coder Connect is not running.
 	if !o.skipProxyCommand {
 		_, _ = fmt.Fprintf(buf, "\nMatch host *.%s !exec \"%s connect exists %%h\"\n",
-			o.hostnameSuffix, escapedCoderBinary)
+			o.hostnameSuffix, escapedCoderBinaryMatchExec)
 		_, _ = buf.WriteString("\t")
 		_, _ = fmt.Fprintf(buf,
 			"ProxyCommand %s %s ssh --stdio%s --hostname-suffix %s %%h",
-			escapedCoderBinary, rootFlags, flags, o.hostnameSuffix,
+			escapedCoderBinaryProxy, rootFlags, flags, o.hostnameSuffix,
 		)
 		_, _ = buf.WriteString("\n")
 	}
@@ -759,7 +764,8 @@ func sshConfigSplitOnCoderSection(data []byte) (before, section []byte, after []
 	return data, nil, nil, nil
 }
 
-// sshConfigExecEscape quotes the string if it contains spaces, as per
+// sshConfigProxyCommandEscape prepares the path for use in ProxyCommand.
+// It quotes the string if it contains spaces, as per
 // `man 5 ssh_config`. However, OpenSSH uses exec in the users shell to
 // run the command, and as such the formatting/escape requirements
 // cannot simply be covered by `fmt.Sprintf("%q", path)`.
@@ -804,7 +810,7 @@ func sshConfigSplitOnCoderSection(data []byte) (before, section []byte, after []
 // This is a control flag, and that is ok. It is a control flag
 // based on the OS of the user. Making this a different file is excessive.
 // nolint:revive
-func sshConfigExecEscape(path string, forceUnixPath bool) (string, error) {
+func sshConfigProxyCommandEscape(path string, forceUnixPath bool) (string, error) {
 	if forceUnixPath {
 		// This is a workaround for #7639, where the filepath separator is
 		// incorrectly the Windows separator (\) instead of the unix separator (/).
@@ -814,9 +820,9 @@ func sshConfigExecEscape(path string, forceUnixPath bool) (string, error) {
 	// This is unlikely to ever happen, but newlines are allowed on
 	// certain filesystems, but cannot be used inside ssh config.
 	if strings.ContainsAny(path, "\n") {
-		return "", xerrors.Errorf("invalid path: %s", path)
+		return "", xerrors.Errorf("invalid path: %q", path)
 	}
-	// In the unlikely even that a path contains quotes, they must be
+	// In the unlikely event that a path contains quotes, they must be
 	// escaped so that they are not interpreted as shell quotes.
 	if strings.Contains(path, "\"") {
 		path = strings.ReplaceAll(path, "\"", "\\\"")
