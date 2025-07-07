@@ -2716,6 +2716,7 @@ const (
 	ResourceTypeWorkspaceAgent              ResourceType = "workspace_agent"
 	ResourceTypeWorkspaceApp                ResourceType = "workspace_app"
 	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
+	ResourceTypeOauth2ProviderDeviceCode    ResourceType = "oauth2_provider_device_code"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -2779,7 +2780,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeIdpSyncSettingsRole,
 		ResourceTypeWorkspaceAgent,
 		ResourceTypeWorkspaceApp,
-		ResourceTypePrebuildsSettings:
+		ResourceTypePrebuildsSettings,
+		ResourceTypeOauth2ProviderDeviceCode:
 		return true
 	}
 	return false
@@ -2812,6 +2814,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeWorkspaceAgent,
 		ResourceTypeWorkspaceApp,
 		ResourceTypePrebuildsSettings,
+		ResourceTypeOauth2ProviderDeviceCode,
 	}
 }
 

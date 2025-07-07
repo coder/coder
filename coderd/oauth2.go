@@ -162,7 +162,7 @@ func (api *API) postOAuth2ProviderAppToken() http.HandlerFunc {
 // @Success 200 "Token successfully revoked"
 // @Router /oauth2/revoke [post]
 func (api *API) revokeOAuth2Token() http.HandlerFunc {
-	return oauth2provider.RevokeToken(api.Database)
+	return oauth2provider.RevokeToken(api.Database, api.Logger)
 }
 
 // @Summary OAuth2 authorization server metadata.

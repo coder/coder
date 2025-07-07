@@ -6,13 +6,15 @@ type CheckConstraint string
 
 // CheckConstraint enums.
 const (
-	CheckOneTimePasscodeSet                        CheckConstraint = "one_time_passcode_set"                            // users
-	CheckUsersUsernameMinLength                    CheckConstraint = "users_username_min_length"                        // users
-	CheckMaxProvisionerLogsLength                  CheckConstraint = "max_provisioner_logs_length"                      // provisioner_jobs
-	CheckValidationMonotonicOrder                  CheckConstraint = "validation_monotonic_order"                       // template_version_parameters
-	CheckUsageEventTypeCheck                       CheckConstraint = "usage_event_type_check"                           // usage_events
-	CheckMaxLogsLength                             CheckConstraint = "max_logs_length"                                  // workspace_agents
-	CheckSubsystemsNotNone                         CheckConstraint = "subsystems_not_none"                              // workspace_agents
-	CheckWorkspaceBuildsAiTaskSidebarAppIDRequired CheckConstraint = "workspace_builds_ai_task_sidebar_app_id_required" // workspace_builds
-	CheckWorkspaceBuildsDeadlineBelowMaxDeadline   CheckConstraint = "workspace_builds_deadline_below_max_deadline"     // workspace_builds
+	CheckOneTimePasscodeSet                             CheckConstraint = "one_time_passcode_set"                                 // users
+	CheckOauth2ProviderDeviceCodesDeviceCodePrefixCheck CheckConstraint = "oauth2_provider_device_codes_device_code_prefix_check" // oauth2_provider_device_codes
+	CheckOauth2ProviderDeviceCodesUserCodeCheck         CheckConstraint = "oauth2_provider_device_codes_user_code_check"          // oauth2_provider_device_codes
+	CheckUsersUsernameMinLength                         CheckConstraint = "users_username_min_length"                             // users
+	CheckMaxProvisionerLogsLength                       CheckConstraint = "max_provisioner_logs_length"                           // provisioner_jobs
+	CheckValidationMonotonicOrder                       CheckConstraint = "validation_monotonic_order"                            // template_version_parameters
+	CheckUsageEventTypeCheck                            CheckConstraint = "usage_event_type_check"                                // usage_events
+	CheckMaxLogsLength                                  CheckConstraint = "max_logs_length"                                       // workspace_agents
+	CheckSubsystemsNotNone                              CheckConstraint = "subsystems_not_none"                                   // workspace_agents
+	CheckWorkspaceBuildsAiTaskSidebarAppIDRequired      CheckConstraint = "workspace_builds_ai_task_sidebar_app_id_required"      // workspace_builds
+	CheckWorkspaceBuildsDeadlineBelowMaxDeadline        CheckConstraint = "workspace_builds_deadline_below_max_deadline"          // workspace_builds
 )

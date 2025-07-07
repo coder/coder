@@ -7,7 +7,6 @@ import (
 	"encoding/base32"
 	"errors"
 	"fmt"
-	"math/big"
 	"mime"
 	"net/http"
 	"net/url"
@@ -24,14 +23,13 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/site"
 )
 
 const (
 	// RFC 8628 recommends device codes be at least 160 bits of entropy
 	deviceCodeLength = 32 // 256 bits when base32 encoded
-	// User codes should be short and human-readable
-	userCodeLength = 8 // 6-8 characters as recommended by RFC 8628
 	// Default device code expiration time (RFC 8628 suggests 10-15 minutes)
 	deviceCodeExpiration = 15 * time.Minute
 	// Default polling interval in seconds
@@ -69,8 +67,8 @@ func DeviceAuthorization(db database.Store, accessURL *url.URL) http.HandlerFunc
 		}
 
 		// Check if client exists - use system context for public endpoint
-		//nolint:gocritic // Public endpoint needs system access
-		app, err := db.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemRestricted(ctx), clientID)
+		//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public endpoint
+		app, err := db.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemOAuth2(ctx), clientID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_client", "Client not found")
@@ -109,8 +107,8 @@ func DeviceAuthorization(db database.Store, accessURL *url.URL) http.HandlerFunc
 		// Store device authorization in database
 		expiresAt := dbtime.Now().Add(deviceCodeExpiration)
 
-		//nolint:gocritic // Public endpoint needs system access
-		deviceCodeRecord, err := db.InsertOAuth2ProviderDeviceCode(dbauthz.AsSystemRestricted(ctx), database.InsertOAuth2ProviderDeviceCodeParams{
+		//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public endpoint
+		deviceCodeRecord, err := db.InsertOAuth2ProviderDeviceCode(dbauthz.AsSystemOAuth2(ctx), database.InsertOAuth2ProviderDeviceCodeParams{
 			ID:                      uuid.New(),
 			CreatedAt:               dbtime.Now(),
 			ExpiresAt:               expiresAt,
@@ -184,8 +182,8 @@ func processDeviceVerification(ctx context.Context, rw http.ResponseWriter, r *h
 	}
 
 	// Find device code by user code
-	//nolint:gocritic // System access needed for device verification
-	deviceCode, err := db.GetOAuth2ProviderDeviceCodeByUserCode(dbauthz.AsSystemRestricted(ctx), userCode)
+	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 device verification
+	deviceCode, err := db.GetOAuth2ProviderDeviceCodeByUserCode(dbauthz.AsSystemOAuth2(ctx), userCode)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(rw, "Invalid or expired user code", http.StatusBadRequest)
@@ -221,8 +219,8 @@ func processDeviceVerification(ctx context.Context, rw http.ResponseWriter, r *h
 	}
 
 	// Update device code authorization status
-	//nolint:gocritic // System access needed for device verification
-	updatedCode, err := db.UpdateOAuth2ProviderDeviceCodeAuthorization(dbauthz.AsSystemRestricted(ctx), database.UpdateOAuth2ProviderDeviceCodeAuthorizationParams{
+	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 device verification
+	updatedCode, err := db.UpdateOAuth2ProviderDeviceCodeAuthorization(dbauthz.AsSystemOAuth2(ctx), database.UpdateOAuth2ProviderDeviceCodeAuthorizationParams{
 		ID:     deviceCode.ID,
 		UserID: uuid.NullUUID{UUID: apiKey.UserID, Valid: true},
 		Status: status,
@@ -245,8 +243,8 @@ func processDeviceVerification(ctx context.Context, rw http.ResponseWriter, r *h
 
 	// Get app information for display
 	var appName string
-	//nolint:gocritic // System access needed for device verification
-	app, err := db.GetOAuth2ProviderAppByID(dbauthz.AsSystemRestricted(ctx), deviceCode.ClientID)
+	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 device verification
+	app, err := db.GetOAuth2ProviderAppByID(dbauthz.AsSystemOAuth2(ctx), deviceCode.ClientID)
 	if err == nil {
 		appName = app.Name
 	}
@@ -266,11 +264,11 @@ func showDeviceVerificationPage(ctx context.Context, db database.Store, rw http.
 
 	// Try to get app information if user code is provided
 	if userCode != "" {
-		//nolint:gocritic // System access needed for device verification
-		deviceCode, err := db.GetOAuth2ProviderDeviceCodeByUserCode(dbauthz.AsSystemRestricted(ctx), userCode)
+		//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 device verification
+		deviceCode, err := db.GetOAuth2ProviderDeviceCodeByUserCode(dbauthz.AsSystemOAuth2(ctx), userCode)
 		if err == nil {
-			//nolint:gocritic // System access needed for device verification
-			app, err := db.GetOAuth2ProviderAppByID(dbauthz.AsSystemRestricted(ctx), deviceCode.ClientID)
+			//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 device verification
+			app, err := db.GetOAuth2ProviderAppByID(dbauthz.AsSystemOAuth2(ctx), deviceCode.ClientID)
 			if err == nil {
 				data.AppName = app.Name
 				if app.Icon != "" {
@@ -327,17 +325,11 @@ func generateDeviceCode() (AppSecret, error) {
 
 // generateUserCode generates a human-readable user code.
 func generateUserCode() (string, error) {
-	// Use a character set that avoids confusing characters (0, O, I, 1, etc.)
-	const charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-	code := make([]byte, userCodeLength)
-	for i := 0; i < userCodeLength; i++ {
-		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
-		if err != nil {
-			return "", xerrors.Errorf("generate user code: %w", err)
-		}
-		code[i] = charset[num.Int64()]
+	code, err := cryptorand.StringCharset(cryptorand.Human, 8)
+	if err != nil {
+		return "", xerrors.Errorf("generate user code: %w", err)
 	}
 
 	// Format as XXXX-XXXX for better readability.
-	return fmt.Sprintf("%s-%s", string(code[:4]), string(code[4:])), nil
+	return fmt.Sprintf("%s-%s", code[:4], code[4:]), nil
 }

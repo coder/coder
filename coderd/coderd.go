@@ -1005,7 +1005,7 @@ func New(options *Options) *API {
 		r.Route("/device", func(r chi.Router) {
 			r.Post("/", api.postOAuth2DeviceAuthorization()) // RFC 8628 compliant endpoint
 			r.Route("/verify", func(r chi.Router) {
-				r.Use(apiKeyMiddleware)
+				r.Use(apiKeyMiddlewareRedirect)
 				r.Get("/", api.getOAuth2DeviceVerification())
 				r.Post("/", api.postOAuth2DeviceVerification())
 			})

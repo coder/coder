@@ -9,6 +9,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -17,8 +19,15 @@ import (
 	"github.com/google/uuid"
 )
 
+var (
+	// ErrTokenNotBelongsToClient is returned when a token does not belong to the requesting client
+	ErrTokenNotBelongsToClient = xerrors.New("token does not belong to requesting client")
+	// ErrInvalidTokenFormat is returned when a token has an invalid format
+	ErrInvalidTokenFormat = xerrors.New("invalid token format")
+)
+
 // RevokeToken implements RFC 7009 OAuth2 Token Revocation
-func RevokeToken(db database.Store) http.HandlerFunc {
+func RevokeToken(db database.Store, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		app := httpmw.OAuth2ProviderApp(r)
@@ -62,22 +71,32 @@ func RevokeToken(db database.Store) http.HandlerFunc {
 		err := db.InTx(func(tx database.Store) error {
 			if isRefreshToken {
 				// Handle refresh token revocation
-				return revokeRefreshToken(ctx, tx, token, app.ID)
+				return revokeRefreshTokenInTx(ctx, tx, token, app.ID)
 			}
 			// Handle API key revocation
-			return revokeAPIKey(ctx, tx, token, app.ID)
+			return revokeAPIKeyInTx(ctx, tx, token, app.ID)
 		}, nil)
 		if err != nil {
-			if strings.Contains(err.Error(), "does not belong to requesting client") {
+			if errors.Is(err, ErrTokenNotBelongsToClient) {
 				// RFC 7009: Return success even if token doesn't belong to client (don't reveal token existence)
+				logger.Debug(ctx, "token revocation failed: token does not belong to requesting client",
+					slog.F("client_id", app.ID.String()),
+					slog.F("app_name", app.Name))
 				rw.WriteHeader(http.StatusOK)
 				return
 			}
-			if strings.Contains(err.Error(), "invalid") && strings.Contains(err.Error(), "format") {
+			if errors.Is(err, ErrInvalidTokenFormat) {
 				// Invalid token format should return 400 bad request
+				logger.Debug(ctx, "token revocation failed: invalid token format",
+					slog.F("client_id", app.ID.String()),
+					slog.F("app_name", app.Name))
 				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_request", "Invalid token format")
 				return
 			}
+			logger.Error(ctx, "token revocation failed with internal server error",
+				slog.Error(err),
+				slog.F("client_id", app.ID.String()),
+				slog.F("app_name", app.Name))
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError, "server_error", "Internal server error")
 			return
 		}
@@ -87,64 +106,83 @@ func RevokeToken(db database.Store) http.HandlerFunc {
 	}
 }
 
-func revokeRefreshToken(ctx context.Context, db database.Store, token string, appID uuid.UUID) error {
+func revokeRefreshTokenInTx(ctx context.Context, db database.Store, token string, appID uuid.UUID) error {
 	// Parse the refresh token using the existing function
 	parsedToken, err := parseFormattedSecret(token)
 	if err != nil {
-		return xerrors.New("invalid refresh token format")
+		return ErrInvalidTokenFormat
 	}
 
 	// Try to find refresh token by prefix
-	// nolint:gocritic // Using AsSystemRestricted is necessary for OAuth2 public token revocation endpoint
-	dbToken, err := db.GetOAuth2ProviderAppTokenByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(parsedToken.prefix))
+	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
+	dbToken, err := db.GetOAuth2ProviderAppTokenByPrefix(dbauthz.AsSystemOAuth2(ctx), []byte(parsedToken.prefix))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// Token not found - return success per RFC 7009 (don't reveal token existence)
 			return nil
 		}
-		return err
+		return xerrors.Errorf("get oauth2 provider app token by prefix: %w", err)
 	}
 
 	// Verify ownership
-	// nolint:gocritic // Using AsSystemRestricted is necessary for OAuth2 public token revocation endpoint
-	appSecret, err := db.GetOAuth2ProviderAppSecretByID(dbauthz.AsSystemRestricted(ctx), dbToken.AppSecretID)
+	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
+	appSecret, err := db.GetOAuth2ProviderAppSecretByID(dbauthz.AsSystemOAuth2(ctx), dbToken.AppSecretID)
 	if err != nil {
-		return err
+		return xerrors.Errorf("get oauth2 provider app secret: %w", err)
 	}
 	if appSecret.AppID != appID {
-		return xerrors.New("token does not belong to requesting client")
+		return ErrTokenNotBelongsToClient
 	}
 
 	// Delete the associated API key, which should cascade to remove the refresh token
 	// According to RFC 7009, when a refresh token is revoked, associated access tokens should be invalidated
-	// nolint:gocritic // Using AsSystemRestricted is necessary for OAuth2 public token revocation endpoint
-	err = db.DeleteAPIKeyByID(dbauthz.AsSystemRestricted(ctx), dbToken.APIKeyID)
+	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
+	err = db.DeleteAPIKeyByID(dbauthz.AsSystemOAuth2(ctx), dbToken.APIKeyID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return err
+		return xerrors.Errorf("delete api key: %w", err)
 	}
 
 	return nil
 }
 
-func revokeAPIKey(ctx context.Context, db database.Store, token string, appID uuid.UUID) error {
-	// Parse the API key ID from the token (format: <id>-<secret>)
+// parsedAPIKey represents the components of an API key token
+type parsedAPIKey struct {
+	keyID  string // The API key ID for database lookup
+	secret string // The secret part for verification
+}
+
+// parseAPIKeyToken parses an API key token following the encoder/decoder pattern
+func parseAPIKeyToken(token string) (parsedAPIKey, error) {
 	parts := strings.SplitN(token, "-", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return xerrors.New("invalid API key format")
+	if len(parts) != 2 {
+		return parsedAPIKey{}, xerrors.Errorf("incorrect number of parts: %d", len(parts))
+	}
+	if parts[0] == "" || parts[1] == "" {
+		return parsedAPIKey{}, xerrors.New("empty key ID or secret")
+	}
+	return parsedAPIKey{
+		keyID:  parts[0],
+		secret: parts[1],
+	}, nil
+}
+
+func revokeAPIKeyInTx(ctx context.Context, db database.Store, token string, appID uuid.UUID) error {
+	// Parse the API key using the structured decoder
+	parsedKey, err := parseAPIKeyToken(token)
+	if err != nil {
+		return ErrInvalidTokenFormat
 	}
 
-	keyID := parts[0]
-
 	// Get the API key
-	// nolint:gocritic // Using AsSystemRestricted is necessary for OAuth2 public token revocation endpoint
-	apiKey, err := db.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), keyID)
+	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
+	apiKey, err := db.GetAPIKeyByID(dbauthz.AsSystemOAuth2(ctx), parsedKey.keyID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// API key not found - return success per RFC 7009 (don't reveal token existence)
 			// Note: This covers both non-existent keys and invalid key ID formats
 			return nil
 		}
-		return err
+		return xerrors.Errorf("get api key by id: %w", err)
 	}
 
 	// Verify the API key was created by OAuth2
@@ -153,32 +191,32 @@ func revokeAPIKey(ctx context.Context, db database.Store, token string, appID uu
 	}
 
 	// Find the associated OAuth2 token to verify ownership
-	// nolint:gocritic // Using AsSystemRestricted is necessary for OAuth2 public token revocation endpoint
-	dbToken, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(dbauthz.AsSystemRestricted(ctx), apiKey.ID)
+	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
+	dbToken, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(dbauthz.AsSystemOAuth2(ctx), apiKey.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// No associated OAuth2 token - return success per RFC 7009
 			return nil
 		}
-		return err
+		return xerrors.Errorf("get oauth2 provider app token by api key id: %w", err)
 	}
 
 	// Verify the token belongs to the requesting app
-	// nolint:gocritic // Using AsSystemRestricted is necessary for OAuth2 public token revocation endpoint
-	appSecret, err := db.GetOAuth2ProviderAppSecretByID(dbauthz.AsSystemRestricted(ctx), dbToken.AppSecretID)
+	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
+	appSecret, err := db.GetOAuth2ProviderAppSecretByID(dbauthz.AsSystemOAuth2(ctx), dbToken.AppSecretID)
 	if err != nil {
-		return err
+		return xerrors.Errorf("get oauth2 provider app secret for api key verification: %w", err)
 	}
 
 	if appSecret.AppID != appID {
-		return xerrors.New("API key does not belong to requesting client")
+		return ErrTokenNotBelongsToClient
 	}
 
 	// Delete the API key
-	// nolint:gocritic // Using AsSystemRestricted is necessary for OAuth2 public token revocation endpoint
-	err = db.DeleteAPIKeyByID(dbauthz.AsSystemRestricted(ctx), apiKey.ID)
+	//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 public token revocation endpoint
+	err = db.DeleteAPIKeyByID(dbauthz.AsSystemOAuth2(ctx), apiKey.ID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return err
+		return xerrors.Errorf("delete api key for revocation: %w", err)
 	}
 
 	return nil

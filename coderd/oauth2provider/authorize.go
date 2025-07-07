@@ -19,6 +19,12 @@ import (
 	"github.com/coder/coder/v2/site"
 )
 
+// OAuth2 access_type parameter values
+const (
+	AccessTypeOnline  = "online"
+	AccessTypeOffline = "offline"
+)
+
 type authorizeParams struct {
 	clientID            string
 	redirectURL         *url.URL
@@ -57,10 +63,10 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 	}
 
 	// Validate access_type parameter (OAuth2 specification)
-	if params.accessType != "" && params.accessType != "online" && params.accessType != "offline" {
+	if params.accessType != "" && params.accessType != AccessTypeOnline && params.accessType != AccessTypeOffline {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  "access_type",
-			Detail: "must be 'online' or 'offline'",
+			Detail: "must be '" + AccessTypeOnline + "' or '" + AccessTypeOffline + "'",
 		})
 	}
 

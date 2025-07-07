@@ -28,17 +28,17 @@ import (
 
 var (
 	// errBadSecret means the user provided a bad secret.
-	errBadSecret = xerrors.New("Invalid client secret")
+	errBadSecret = xerrors.New("invalid client secret")
 	// errBadCode means the user provided a bad code.
-	errBadCode = xerrors.New("Invalid code")
+	errBadCode = xerrors.New("invalid code")
 	// errBadToken means the user provided a bad token.
-	errBadToken = xerrors.New("Invalid token")
+	errBadToken = xerrors.New("invalid token")
 	// errInvalidPKCE means the PKCE verification failed.
 	errInvalidPKCE = xerrors.New("invalid code_verifier")
 	// errInvalidResource means the resource parameter validation failed.
 	errInvalidResource = xerrors.New("invalid resource parameter")
 	// errBadDeviceCode means the user provided a bad device code.
-	errBadDeviceCode = xerrors.New("Invalid device code")
+	errBadDeviceCode = xerrors.New("invalid device code")
 	// errAuthorizationPending means the user hasn't authorized the device yet.
 	errAuthorizationPending = xerrors.New("authorization pending")
 	// errSlowDown means the client is polling too frequently.
@@ -224,10 +224,10 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	}
 	//nolint:gocritic // Users cannot read secrets so we must use the system.
 	dbSecret, err := db.GetOAuth2ProviderAppSecretByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(secret.prefix))
-	if errors.Is(err, sql.ErrNoRows) {
-		return oauth2.Token{}, errBadSecret
-	}
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return oauth2.Token{}, errBadSecret
+		}
 		return oauth2.Token{}, err
 	}
 	equal, err := userpassword.Compare(string(dbSecret.HashedSecret), secret.secret)
@@ -238,29 +238,26 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		return oauth2.Token{}, errBadSecret
 	}
 
-	// Validate the authorization code.
+	// Atomically consume the authorization code (handles expiry check).
 	code, err := parseFormattedSecret(params.code)
 	if err != nil {
 		return oauth2.Token{}, errBadCode
 	}
 	//nolint:gocritic // There is no user yet so we must use the system.
-	dbCode, err := db.GetOAuth2ProviderAppCodeByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(code.prefix))
-	if errors.Is(err, sql.ErrNoRows) {
-		return oauth2.Token{}, errBadCode
-	}
+	dbCode, err := db.ConsumeOAuth2ProviderAppCodeByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(code.prefix))
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return oauth2.Token{}, errBadCode
+		}
 		return oauth2.Token{}, err
 	}
+
+	// Validate the code hash after atomic consumption.
 	equal, err = userpassword.Compare(string(dbCode.HashedSecret), code.secret)
 	if err != nil {
 		return oauth2.Token{}, xerrors.Errorf("unable to compare code: %w", err)
 	}
 	if !equal {
-		return oauth2.Token{}, errBadCode
-	}
-
-	// Ensure the code has not expired.
-	if dbCode.ExpiresAt.Before(dbtime.Now()) {
 		return oauth2.Token{}, errBadCode
 	}
 
@@ -324,10 +321,6 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 
 	err = db.InTx(func(tx database.Store) error {
 		ctx := dbauthz.As(ctx, actor)
-		err = tx.DeleteOAuth2ProviderAppCodeByID(ctx, dbCode.ID)
-		if err != nil {
-			return xerrors.Errorf("delete oauth2 app code: %w", err)
-		}
 
 		// Delete the previous key, if any.
 		prevKey, err := tx.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
@@ -383,10 +376,10 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	}
 	//nolint:gocritic // There is no user yet so we must use the system.
 	dbToken, err := db.GetOAuth2ProviderAppTokenByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(token.prefix))
-	if errors.Is(err, sql.ErrNoRows) {
-		return oauth2.Token{}, errBadToken
-	}
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return oauth2.Token{}, errBadToken
+		}
 		return oauth2.Token{}, err
 	}
 	equal, err := userpassword.Compare(string(dbToken.RefreshHash), token.secret)
@@ -418,7 +411,6 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 		if errors.Is(err, sql.ErrNoRows) {
 			return oauth2.Token{}, errBadToken
 		}
-
 		return oauth2.Token{}, err
 	}
 
@@ -541,17 +533,22 @@ func deviceCodeGrant(ctx context.Context, db database.Store, app database.OAuth2
 		return oauth2.Token{}, errBadDeviceCode
 	}
 
-	// Look up the device code in the database
+	// First, look up the device code to check its status (non-consuming)
 	//nolint:gocritic // System access needed for device code lookup
 	dbDeviceCode, err := db.GetOAuth2ProviderDeviceCodeByPrefix(dbauthz.AsSystemRestricted(ctx), deviceCode.prefix)
-	if errors.Is(err, sql.ErrNoRows) {
-		return oauth2.Token{}, errBadDeviceCode
-	}
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return oauth2.Token{}, errBadDeviceCode
+		}
 		return oauth2.Token{}, err
 	}
 
-	// Verify the device code hash
+	// Check if the device code has expired
+	if dbDeviceCode.ExpiresAt.Before(dbtime.Now()) {
+		return oauth2.Token{}, errExpiredToken
+	}
+
+	// Verify the device code hash before checking authorization status
 	equal, err := userpassword.Compare(string(dbDeviceCode.DeviceCodeHash), deviceCode.secret)
 	if err != nil {
 		return oauth2.Token{}, xerrors.Errorf("unable to compare device code: %w", err)
@@ -560,25 +557,29 @@ func deviceCodeGrant(ctx context.Context, db database.Store, app database.OAuth2
 		return oauth2.Token{}, errBadDeviceCode
 	}
 
-	// Check if the device code has expired
-	if dbDeviceCode.ExpiresAt.Before(dbtime.Now()) {
-		return oauth2.Token{}, errExpiredToken
-	}
-
 	// Security: Make sure the app requesting the token is the same one that
 	// initiated the device flow.
 	if dbDeviceCode.ClientID != app.ID {
 		return oauth2.Token{}, errBadDeviceCode
 	}
 
-	// Check authorization status
+	// Check authorization status before consuming
 	switch dbDeviceCode.Status {
 	case database.OAuth2DeviceStatusDenied:
 		return oauth2.Token{}, errAccessDenied
 	case database.OAuth2DeviceStatusPending:
 		return oauth2.Token{}, errAuthorizationPending
 	case database.OAuth2DeviceStatusAuthorized:
-		// Continue with token generation
+		// Continue with token generation - now atomically consume the device code
+		//nolint:gocritic // System access needed for atomic device code consumption
+		dbDeviceCode, err = db.ConsumeOAuth2ProviderDeviceCodeByPrefix(dbauthz.AsSystemRestricted(ctx), deviceCode.prefix)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				// Device code was consumed by another request between our check and consumption
+				return oauth2.Token{}, errBadDeviceCode
+			}
+			return oauth2.Token{}, err
+		}
 	default:
 		return oauth2.Token{}, errAuthorizationPending
 	}
@@ -629,12 +630,6 @@ func deviceCodeGrant(ctx context.Context, db database.Store, app database.OAuth2
 	// Do the actual token exchange in the database
 	err = db.InTx(func(tx database.Store) error {
 		ctx := dbauthz.As(ctx, actor)
-
-		// Delete the device code (one-time use)
-		err = tx.DeleteOAuth2ProviderDeviceCodeByID(ctx, dbDeviceCode.ID)
-		if err != nil {
-			return xerrors.Errorf("delete device code: %w", err)
-		}
 
 		// Delete any previous API key for this app/user combination
 		prevKey, err := tx.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{

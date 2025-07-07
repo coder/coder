@@ -1,5 +1,8 @@
 -- Add OAuth2 Device Authorization Grant support (RFC 8628)
 
+-- Add resource type for audit logging
+ALTER TYPE resource_type ADD VALUE IF NOT EXISTS 'oauth2_provider_device_code';
+
 -- Create the status enum type
 CREATE TYPE oauth2_device_status AS ENUM ('pending', 'authorized', 'denied');
 
@@ -9,11 +12,12 @@ CREATE TABLE oauth2_provider_device_codes (
     expires_at timestamptz NOT NULL,
 
     -- Device code (hashed for security)
-    device_code_hash bytea NOT NULL,
-    device_code_prefix text NOT NULL UNIQUE,
+    device_code_hash bytea NOT NULL UNIQUE,
+    -- Device code prefix: 8 chars for efficient lookup while maintaining security
+    device_code_prefix text NOT NULL UNIQUE CHECK (length(device_code_prefix) = 8),
 
-    -- User code (human-readable, 6-8 chars)
-    user_code text NOT NULL,
+    -- User code: RFC 8628 recommends 6-8 characters, formatted as XXXX-XXXX for readability (9 chars)
+    user_code text NOT NULL CHECK (length(user_code) >= 6 AND length(user_code) <= 9),
 
     -- Client and authorization info
     client_id uuid NOT NULL REFERENCES oauth2_provider_apps(id) ON DELETE CASCADE,
@@ -36,7 +40,7 @@ CREATE INDEX idx_oauth2_provider_device_codes_expires_at ON oauth2_provider_devi
 CREATE INDEX idx_oauth2_provider_device_codes_device_code_hash ON oauth2_provider_device_codes(device_code_hash);
 
 -- Cleanup expired device codes (for background cleanup job)
-CREATE INDEX idx_oauth2_provider_device_codes_cleanup ON oauth2_provider_device_codes(expires_at) WHERE status = 'pending';
+CREATE INDEX idx_oauth2_provider_device_codes_cleanup ON oauth2_provider_device_codes(expires_at);
 
 -- RFC 8628: Enforce case-insensitive uniqueness on user_code
 CREATE UNIQUE INDEX oauth2_device_codes_user_code_ci_idx
@@ -52,10 +56,3 @@ COMMENT ON COLUMN oauth2_provider_device_codes.verification_uri_complete IS 'Opt
 COMMENT ON COLUMN oauth2_provider_device_codes.polling_interval IS 'Minimum polling interval in seconds (RFC 8628)';
 COMMENT ON COLUMN oauth2_provider_device_codes.resource_uri IS 'RFC 8707 resource parameter for audience restriction';
 COMMENT ON COLUMN oauth2_provider_device_codes.status IS 'Current authorization status: pending (awaiting user action), authorized (user approved), or denied (user rejected)';
-
--- Additional constraints for data integrity
-
--- Ensure device_code_hash is unique to prevent duplicates and enable fast lookups
-ALTER TABLE ONLY oauth2_provider_device_codes
-    ADD CONSTRAINT oauth2_provider_device_codes_device_code_hash_key
-        UNIQUE (device_code_hash);

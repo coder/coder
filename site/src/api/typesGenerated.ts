@@ -3073,6 +3073,7 @@ export type ResourceType =
 	| "notifications_settings"
 	| "oauth2_provider_app"
 	| "oauth2_provider_app_secret"
+	| "oauth2_provider_device_code"
 	| "organization"
 	| "organization_member"
 	| "prebuilds_settings"
@@ -3100,6 +3101,7 @@ export const ResourceTypes: ResourceType[] = [
 	"notifications_settings",
 	"oauth2_provider_app",
 	"oauth2_provider_app_secret",
+	"oauth2_provider_device_code",
 	"organization",
 	"organization_member",
 	"prebuilds_settings",

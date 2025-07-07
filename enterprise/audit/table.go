@@ -18,15 +18,16 @@ import (
 // AuditableResources map (below) as our documentation - generated in scripts/auditdocgen/main.go -
 // depends upon it.
 var AuditActionMap = map[string][]codersdk.AuditAction{
-	"GitSSHKey":       {codersdk.AuditActionCreate},
-	"Template":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"TemplateVersion": {codersdk.AuditActionCreate, codersdk.AuditActionWrite},
-	"User":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"Workspace":       {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"WorkspaceBuild":  {codersdk.AuditActionStart, codersdk.AuditActionStop},
-	"Group":           {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"APIKey":          {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionRegister, codersdk.AuditActionCreate, codersdk.AuditActionDelete},
-	"License":         {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"GitSSHKey":                {codersdk.AuditActionCreate},
+	"Template":                 {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"TemplateVersion":          {codersdk.AuditActionCreate, codersdk.AuditActionWrite},
+	"User":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"Workspace":                {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"WorkspaceBuild":           {codersdk.AuditActionStart, codersdk.AuditActionStop},
+	"Group":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"APIKey":                   {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionRegister, codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"License":                  {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"OAuth2ProviderDeviceCode": {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 }
 
 type Action string
@@ -307,6 +308,21 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"display_secret": ActionIgnore,
 		"app_id":         ActionIgnore,
 		"secret_prefix":  ActionIgnore,
+	},
+	&database.OAuth2ProviderDeviceCode{}: {
+		"id":                        ActionIgnore,
+		"created_at":                ActionIgnore,
+		"expires_at":                ActionIgnore,
+		"device_code_prefix":        ActionSecret, // Sensitive data
+		"user_code":                 ActionTrack,  // User-facing code
+		"client_id":                 ActionTrack,  // App reference
+		"user_id":                   ActionTrack,  // User who authorized
+		"status":                    ActionTrack,  // Authorization status
+		"verification_uri":          ActionTrack,  // Public verification URL
+		"verification_uri_complete": ActionTrack,  // Complete verification URL
+		"scope":                     ActionTrack,  // Requested permissions
+		"resource_uri":              ActionTrack,  // RFC 8707 resource parameter
+		"polling_interval":          ActionIgnore, // Technical parameter
 	},
 	&database.Organization{}: {
 		"id":           ActionIgnore,
