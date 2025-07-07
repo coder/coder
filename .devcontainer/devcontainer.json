@@ -24,7 +24,7 @@
 				{
 					"slug": "cursor",
 					"displayName": "Cursor Desktop",
-					"url": "cursor://coder.coder-remote/openDevContainer?owner=${localEnv:CODER_WORKSPACE_OWNER_NAME}&workspace=${localEnv:CODER_WORKSPACE_NAME}&agent=${localEnv:CODER_WORKSPACE_PARENT_AGENT_NAME}&url=${localEnv:CODER_URL}&token=$SESSION_TOKEN&devContainerName=${localEnv:CONTAINER_ID}&devContainerFolder=${containerWorkspaceFolder}",
+					"url": "cursor://coder.coder-remote/openDevContainer?owner=${localEnv:CODER_WORKSPACE_OWNER_NAME}&workspace=${localEnv:CODER_WORKSPACE_NAME}&agent=${localEnv:CODER_WORKSPACE_PARENT_AGENT_NAME}&url=${localEnv:CODER_URL}&token=$SESSION_TOKEN&devContainerName=${localEnv:CONTAINER_ID}&devContainerFolder=${containerWorkspaceFolder}&localWorkspaceFolder=${localWorkspaceFolder}",
 					"external": true,
 					"icon": "/icon/cursor.svg",
 					"order": 1
@@ -32,7 +32,7 @@
 				{
 					"slug": "windsurf",
 					"displayName": "Windsurf Editor",
-					"url": "windsurf://coder.coder-remote/openDevContainer?owner=${localEnv:CODER_WORKSPACE_OWNER_NAME}&workspace=${localEnv:CODER_WORKSPACE_NAME}&agent=${localEnv:CODER_WORKSPACE_PARENT_AGENT_NAME}&url=${localEnv:CODER_URL}&token=$SESSION_TOKEN&devContainerName=${localEnv:CONTAINER_ID}&devContainerFolder=${containerWorkspaceFolder}",
+					"url": "windsurf://coder.coder-remote/openDevContainer?owner=${localEnv:CODER_WORKSPACE_OWNER_NAME}&workspace=${localEnv:CODER_WORKSPACE_NAME}&agent=${localEnv:CODER_WORKSPACE_PARENT_AGENT_NAME}&url=${localEnv:CODER_URL}&token=$SESSION_TOKEN&devContainerName=${localEnv:CONTAINER_ID}&devContainerFolder=${containerWorkspaceFolder}&localWorkspaceFolder=${localWorkspaceFolder}",
 					"external": true,
 					"icon": "/icon/windsurf.svg",
 					"order": 4

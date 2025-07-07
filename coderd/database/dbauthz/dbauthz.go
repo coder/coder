@@ -397,6 +397,8 @@ var (
 					rbac.ResourceCryptoKey.Type:              {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceFile.Type:                   {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceProvisionerJobs.Type:        {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
+					rbac.ResourceOauth2App.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceOauth2AppSecret.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -1448,6 +1450,13 @@ func (q *querier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 	return id, nil
 }
 
+func (q *querier) DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceOauth2App); err != nil {
+		return err
+	}
+	return q.db.DeleteOAuth2ProviderAppByClientID(ctx, id)
+}
+
 func (q *querier) DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceOauth2App); err != nil {
 		return err
@@ -2148,11 +2157,25 @@ func (q *querier) GetOAuth2GithubDefaultEligible(ctx context.Context) (bool, err
 	return q.db.GetOAuth2GithubDefaultEligible(ctx)
 }
 
+func (q *querier) GetOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2App); err != nil {
+		return database.OAuth2ProviderApp{}, err
+	}
+	return q.db.GetOAuth2ProviderAppByClientID(ctx, id)
+}
+
 func (q *querier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2App); err != nil {
 		return database.OAuth2ProviderApp{}, err
 	}
 	return q.db.GetOAuth2ProviderAppByID(ctx, id)
+}
+
+func (q *querier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken sql.NullString) (database.OAuth2ProviderApp, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2App); err != nil {
+		return database.OAuth2ProviderApp{}, err
+	}
+	return q.db.GetOAuth2ProviderAppByRegistrationToken(ctx, registrationAccessToken)
 }
 
 func (q *querier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppCode, error) {
@@ -4315,6 +4338,13 @@ func (q *querier) UpdateNotificationTemplateMethodByID(ctx context.Context, arg 
 		return database.NotificationTemplate{}, err
 	}
 	return q.db.UpdateNotificationTemplateMethodByID(ctx, arg)
+}
+
+func (q *querier) UpdateOAuth2ProviderAppByClientID(ctx context.Context, arg database.UpdateOAuth2ProviderAppByClientIDParams) (database.OAuth2ProviderApp, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceOauth2App); err != nil {
+		return database.OAuth2ProviderApp{}, err
+	}
+	return q.db.UpdateOAuth2ProviderAppByClientID(ctx, arg)
 }
 
 func (q *querier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {

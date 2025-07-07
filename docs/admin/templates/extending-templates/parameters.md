@@ -315,7 +315,7 @@ data "coder_parameter" "project_id" {
 }
 ```
 
-## Workspace presets (beta)
+## Workspace presets
 
 Workspace presets allow you to configure commonly used combinations of parameters
 into a single option, which makes it easier for developers to pick one that fits
@@ -392,7 +392,7 @@ parameters in one of two ways:
 
   Or set the [environment variable](../../setup/index.md), `CODER_EXPERIMENTS=auto-fill-parameters`
 
-## Dynamic Parameters (Early Access)
+## Dynamic Parameters (beta)
 
 Dynamic Parameters enhances Coder's existing parameter system with real-time validation,
 conditional parameter behavior, and richer input types.

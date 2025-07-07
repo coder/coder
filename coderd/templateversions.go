@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -8,6 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
+	stdslog "log/slog"
 	"net/http"
 	"os"
 
@@ -18,6 +21,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	archivefs "github.com/coder/coder/v2/archive/fs"
+	"github.com/coder/coder/v2/coderd/dynamicparameters"
+	"github.com/coder/preview"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -1464,8 +1470,9 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
+	var dynamicTemplate bool
 	if req.TemplateID != uuid.Nil {
-		_, err := api.Database.GetTemplateByID(ctx, req.TemplateID)
+		tpl, err := api.Database.GetTemplateByID(ctx, req.TemplateID)
 		if httpapi.Is404Error(err) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Template does not exist.",
@@ -1479,6 +1486,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			})
 			return
 		}
+		dynamicTemplate = !tpl.UseClassicParameterFlow
 	}
 
 	if req.ExampleID != "" && req.FileID != uuid.Nil {
@@ -1574,45 +1582,18 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		}
 	}
 
-	// Try to parse template tags from the given file.
-	tempDir, err := os.MkdirTemp(api.Options.CacheDir, "tfparse-*")
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error checking workspace tags",
-			Detail:  "create tempdir: " + err.Error(),
-		})
-		return
-	}
-	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			api.Logger.Error(ctx, "failed to remove temporary tfparse dir", slog.Error(err))
+	var parsedTags map[string]string
+	var ok bool
+	if dynamicTemplate {
+		parsedTags, ok = api.dynamicTemplateVersionTags(ctx, rw, organization.ID, apiKey.UserID, file)
+		if !ok {
+			return
 		}
-	}()
-
-	if err := tfparse.WriteArchive(file.Data, file.Mimetype, tempDir); err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error checking workspace tags",
-			Detail:  "extract archive to tempdir: " + err.Error(),
-		})
-		return
-	}
-
-	parser, diags := tfparse.New(tempDir, tfparse.WithLogger(api.Logger.Named("tfparse")))
-	if diags.HasErrors() {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error checking workspace tags",
-			Detail:  "parse module: " + diags.Error(),
-		})
-		return
-	}
-
-	parsedTags, err := parser.WorkspaceTagDefaults(ctx)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error checking workspace tags",
-			Detail:  "evaluate default values of workspace tags: " + err.Error(),
-		})
-		return
+	} else {
+		parsedTags, ok = api.classicTemplateVersionTags(ctx, rw, file)
+		if !ok {
+			return
+		}
 	}
 
 	// Ensure the "owner" tag is properly applied in addition to request tags and coder_workspace_tags.
@@ -1779,6 +1760,105 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		}),
 		&matchedProvisioners,
 		warnings))
+}
+
+func (api *API) dynamicTemplateVersionTags(ctx context.Context, rw http.ResponseWriter, orgID uuid.UUID, owner uuid.UUID, file database.File) (map[string]string, bool) {
+	ownerData, err := dynamicparameters.WorkspaceOwner(ctx, api.Database, orgID, owner)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Internal error checking workspace tags",
+				Detail:  fmt.Sprintf("Owner not found, uuid=%s", owner.String()),
+			})
+			return nil, false
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace tags",
+			Detail:  "fetch owner data: " + err.Error(),
+		})
+		return nil, false
+	}
+
+	var files fs.FS
+	switch file.Mimetype {
+	case "application/x-tar":
+		files = archivefs.FromTarReader(bytes.NewBuffer(file.Data))
+	case "application/zip":
+		files, err = archivefs.FromZipReader(bytes.NewReader(file.Data), int64(len(file.Data)))
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error checking workspace tags",
+				Detail:  "extract zip archive: " + err.Error(),
+			})
+			return nil, false
+		}
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Unsupported file type for dynamic template version tags",
+			Detail:  fmt.Sprintf("Mimetype %q is not supported for dynamic template version tags", file.Mimetype),
+		})
+		return nil, false
+	}
+
+	output, diags := preview.Preview(ctx, preview.Input{
+		PlanJSON:        nil, // Template versions are before `terraform plan`
+		ParameterValues: nil, // No user-specified parameters
+		Owner:           *ownerData,
+		Logger:          stdslog.New(stdslog.DiscardHandler),
+	}, files)
+	tagErr := dynamicparameters.CheckTags(output, diags)
+	if tagErr != nil {
+		code, resp := tagErr.Response()
+		httpapi.Write(ctx, rw, code, resp)
+		return nil, false
+	}
+
+	return output.WorkspaceTags.Tags(), true
+}
+
+func (api *API) classicTemplateVersionTags(ctx context.Context, rw http.ResponseWriter, file database.File) (map[string]string, bool) {
+	// Try to parse template tags from the given file.
+	tempDir, err := os.MkdirTemp(api.Options.CacheDir, "tfparse-*")
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace tags",
+			Detail:  "create tempdir: " + err.Error(),
+		})
+		return nil, false
+	}
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			api.Logger.Error(ctx, "failed to remove temporary tfparse dir", slog.Error(err))
+		}
+	}()
+
+	if err := tfparse.WriteArchive(file.Data, file.Mimetype, tempDir); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace tags",
+			Detail:  "extract archive to tempdir: " + err.Error(),
+		})
+		return nil, false
+	}
+
+	parser, diags := tfparse.New(tempDir, tfparse.WithLogger(api.Logger.Named("tfparse")))
+	if diags.HasErrors() {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace tags",
+			Detail:  "parse module: " + diags.Error(),
+		})
+		return nil, false
+	}
+
+	parsedTags, err := parser.WorkspaceTagDefaults(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace tags",
+			Detail:  "evaluate default values of workspace tags: " + err.Error(),
+		})
+		return nil, false
+	}
+
+	return parsedTags, true
 }
 
 // templateVersionResources returns the workspace agent resources associated
