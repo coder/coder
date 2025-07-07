@@ -42,8 +42,7 @@
               {}
             ],
             "metadata": [],
-            "resources_monitoring": [],
-            "token": true
+            "resources_monitoring": []
           }
         },
         {
@@ -205,8 +204,5 @@
       ]
     }
   },
-  "timestamp": "2025-03-03T20:39:59Z",
-  "applyable": true,
-  "complete": true,
-  "errored": false
+  "timestamp": "2025-03-03T20:39:59Z"
 }

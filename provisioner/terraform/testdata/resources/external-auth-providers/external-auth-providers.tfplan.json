@@ -31,8 +31,7 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
-            "token": true
+            "resources_monitoring": []
           }
         },
         {
@@ -130,7 +129,7 @@
             "type": "coder_external_auth",
             "name": "github",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 1,
+            "schema_version": 0,
             "values": {
               "access_token": "",
               "id": "github",
@@ -144,7 +143,7 @@
             "type": "coder_external_auth",
             "name": "gitlab",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 1,
+            "schema_version": 0,
             "values": {
               "access_token": "",
               "id": "gitlab",
@@ -208,7 +207,7 @@
               "constant_value": "github"
             }
           },
-          "schema_version": 1
+          "schema_version": 0
         },
         {
           "address": "data.coder_external_auth.gitlab",
@@ -224,13 +223,10 @@
               "constant_value": true
             }
           },
-          "schema_version": 1
+          "schema_version": 0
         }
       ]
     }
   },
-  "timestamp": "2025-03-03T20:39:59Z",
-  "applyable": true,
-  "complete": true,
-  "errored": false
+  "timestamp": "2025-03-03T20:39:59Z"
 }

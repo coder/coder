@@ -31,8 +31,7 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
-            "token": true
+            "resources_monitoring": []
           }
         },
         {
@@ -149,7 +148,7 @@
             "type": "coder_provisioner",
             "name": "me",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 1,
+            "schema_version": 0,
             "values": {
               "arch": "amd64",
               "id": "5a6ecb8b-fd26-4cfc-91b1-651d06bee98c",
@@ -163,14 +162,14 @@
             "type": "coder_workspace",
             "name": "me",
             "provider_name": "registry.terraform.io/coder/coder",
-            "schema_version": 1,
+            "schema_version": 0,
             "values": {
               "access_port": 443,
-              "access_url": "https://dev.coder.com/",
+              "access_url": "https://mydeployment.coder.com",
               "id": "bf9ee323-4f3a-4d45-9841-2dcd6265e830",
               "is_prebuild": false,
               "is_prebuild_claim": false,
-              "name": "sebenza-nonix",
+              "name": "default",
               "prebuild_count": 0,
               "start_count": 1,
               "template_id": "",
@@ -265,7 +264,7 @@
           "type": "coder_provisioner",
           "name": "me",
           "provider_config_key": "coder",
-          "schema_version": 1
+          "schema_version": 0
         },
         {
           "address": "data.coder_workspace.me",
@@ -273,7 +272,7 @@
           "type": "coder_workspace",
           "name": "me",
           "provider_config_key": "coder",
-          "schema_version": 1
+          "schema_version": 0
         },
         {
           "address": "data.coder_workspace_owner.me",
@@ -290,18 +289,15 @@
     {
       "resource": "data.coder_provisioner.me",
       "attribute": [
-        "arch"
+        "os"
       ]
     },
     {
       "resource": "data.coder_provisioner.me",
       "attribute": [
-        "os"
+        "arch"
       ]
     }
   ],
-  "timestamp": "2025-06-19T14:30:00Z",
-  "applyable": true,
-  "complete": true,
-  "errored": false
+  "timestamp": "2025-06-19T14:30:00Z"
 }
