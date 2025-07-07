@@ -1279,9 +1279,10 @@ class ApiMethods {
 		workspaceBuildId: TypesGen.WorkspaceBuild["id"],
 		params?: TypesGen.CancelWorkspaceBuildParams,
 	): Promise<TypesGen.Response> => {
-		const queryParams = new URLSearchParams({ ...params });
 		const response = await this.axios.patch(
-			`/api/v2/workspacebuilds/${workspaceBuildId}/cancel${queryParams}`,
+			`/api/v2/workspacebuilds/${workspaceBuildId}/cancel`,
+			null,
+			{ params },
 		);
 
 		return response.data;

@@ -581,12 +581,24 @@ func (api *API) notifyWorkspaceUpdated(
 // @Produce json
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
-// @Param expect_status query string false "Expected status of the job" Enums(running, pending)
+// @Param expect_status query string false "Expected status of the job. If expect_status is supplied, the request will be rejected with 412 Precondition Failed if the job doesn't match the state when performing the cancellation." Enums(running, pending)
 // @Success 200 {object} codersdk.Response
 // @Router /workspacebuilds/{workspacebuild}/cancel [patch]
 func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	expectStatus := r.URL.Query().Get("expect_status")
+
+	var expectStatus database.ProvisionerJobStatus
+	expectStatusParam := r.URL.Query().Get("expect_status")
+	if expectStatusParam != "" {
+		if expectStatusParam != "running" && expectStatusParam != "pending" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Invalid expect_status %q. Only 'running' or 'pending' are allowed.", expectStatusParam),
+			})
+			return
+		}
+		expectStatus = database.ProvisionerJobStatus(expectStatusParam)
+	}
+
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 	if err != nil {
@@ -596,8 +608,10 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	code := http.StatusOK
-	resp := codersdk.Response{}
+	code := http.StatusInternalServerError
+	resp := codersdk.Response{
+		Message: "Internal error canceling workspace build.",
+	}
 	err = api.Database.InTx(func(db database.Store) error {
 		valid, err := verifyUserCanCancelWorkspaceBuilds(ctx, db, httpmw.APIKey(r).UserID, workspace.TemplateID, expectStatus)
 		if err != nil {
@@ -635,20 +649,11 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 			return xerrors.New("job has already been marked as canceled")
 		}
 
-		if expectStatus != "" {
-			if expectStatus != "running" && expectStatus != "pending" {
-				code = http.StatusBadRequest
-				resp.Message = fmt.Sprintf("Invalid expect_status %q. Only 'running' or 'pending' are allowed.", expectStatus)
+		if expectStatus != "" && job.JobStatus != expectStatus {
+			code = http.StatusPreconditionFailed
+			resp.Message = "Job is not in the expected state."
 
-				return xerrors.Errorf("invalid expect_status %q", expectStatus)
-			}
-
-			if job.JobStatus != database.ProvisionerJobStatus(expectStatus) {
-				code = http.StatusPreconditionFailed
-				resp.Message = "Job is not in the expected state."
-
-				return xerrors.Errorf("job is not in the expected state: expected: %q, got %q", expectStatus, job.JobStatus)
-			}
+			return xerrors.Errorf("job is not in the expected state: expected: %q, got %q", expectStatus, job.JobStatus)
 		}
 
 		err = db.UpdateProvisionerJobWithCancelByID(ctx, database.UpdateProvisionerJobWithCancelByIDParams{
@@ -688,9 +693,9 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
-func verifyUserCanCancelWorkspaceBuilds(ctx context.Context, store database.Store, userID uuid.UUID, templateID uuid.UUID, expectStatus string) (bool, error) {
-	// If the expectStatus is pending, we can cancel it.
-	if expectStatus == "pending" {
+func verifyUserCanCancelWorkspaceBuilds(ctx context.Context, store database.Store, userID uuid.UUID, templateID uuid.UUID, jobStatus database.ProvisionerJobStatus) (bool, error) {
+	// If the jobStatus is pending, we can cancel it.
+	if jobStatus == database.ProvisionerJobStatusPending {
 		return true, nil
 	}
 

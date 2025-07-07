@@ -1,6 +1,7 @@
 import { API, type DeleteWorkspaceOptions } from "api/api";
 import { DetailedError, isApiValidationError } from "api/errors";
 import type {
+	CancelWorkspaceBuildParams,
 	CreateWorkspaceRequest,
 	ProvisionerLogLevel,
 	UsageAppName,
@@ -266,12 +267,12 @@ export const startWorkspace = (
 export const cancelBuild = (workspace: Workspace, queryClient: QueryClient) => {
 	return {
 		mutationFn: () => {
-			if (workspace.latest_build.status === "pending") {
-				return API.cancelWorkspaceBuild(workspace.latest_build.id, {
-					expect_status: "pending",
-				});
-			}
-			return API.cancelWorkspaceBuild(workspace.latest_build.id);
+			const { status } = workspace.latest_build;
+			const params: CancelWorkspaceBuildParams = {
+				expect_status:
+					status === "pending" || status === "running" ? status : undefined,
+			};
+			return API.cancelWorkspaceBuild(workspace.latest_build.id, params);
 		},
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({
