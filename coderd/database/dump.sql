@@ -1289,7 +1289,8 @@ CREATE TABLE oauth2_provider_device_codes (
     verification_uri_complete text,
     scope text DEFAULT ''::text,
     resource_uri text,
-    polling_interval integer DEFAULT 5 NOT NULL
+    polling_interval integer DEFAULT 5 NOT NULL,
+    CONSTRAINT oauth2_provider_device_codes_device_code_prefix_check CHECK ((length(device_code_prefix) = 8))
 );
 
 COMMENT ON TABLE oauth2_provider_device_codes IS 'RFC 8628: OAuth2 Device Authorization Grant device codes';
@@ -2823,7 +2824,7 @@ CREATE INDEX idx_inbox_notifications_user_id_template_id_targets ON inbox_notifi
 
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
 
-CREATE INDEX idx_oauth2_provider_device_codes_cleanup ON oauth2_provider_device_codes USING btree (expires_at) WHERE (status = 'pending'::oauth2_device_status);
+CREATE INDEX idx_oauth2_provider_device_codes_cleanup ON oauth2_provider_device_codes USING btree (expires_at);
 
 CREATE INDEX idx_oauth2_provider_device_codes_client_id ON oauth2_provider_device_codes USING btree (client_id);
 

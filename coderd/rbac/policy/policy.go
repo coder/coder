@@ -291,6 +291,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef("create an OAuth2 app code token"),
 			ActionRead:   actDef("read an OAuth2 app code token"),
+			ActionUpdate: actDef("update an OAuth2 app code token"),
 			ActionDelete: actDef("delete an OAuth2 app code token"),
 		},
 	},

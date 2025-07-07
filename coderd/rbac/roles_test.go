@@ -643,7 +643,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "Oauth2Token",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceOauth2AppCodeToken,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
