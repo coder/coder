@@ -4213,17 +4213,19 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "authorization": "string",
   "device_authorization": "string",
+  "revocation": "string",
   "token": "string"
 }
 ```
 
 ### Properties
 
-| Name                   | Type   | Required | Restrictions | Description                       |
-|------------------------|--------|----------|--------------|-----------------------------------|
-| `authorization`        | string | false    |              |                                   |
-| `device_authorization` | string | false    |              | Device authorization is optional. |
-| `token`                | string | false    |              |                                   |
+| Name                   | Type   | Required | Restrictions | Description                                                             |
+|------------------------|--------|----------|--------------|-------------------------------------------------------------------------|
+| `authorization`        | string | false    |              |                                                                         |
+| `device_authorization` | string | false    |              | Device authorization is the device authorization endpoint for RFC 8628. |
+| `revocation`           | string | false    |              |                                                                         |
+| `token`                | string | false    |              |                                                                         |
 
 ## codersdk.OAuth2AuthorizationServerMetadata
 
@@ -4233,6 +4235,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "code_challenge_methods_supported": [
     "string"
   ],
+  "device_authorization_endpoint": "string",
   "grant_types_supported": [
     "string"
   ],
@@ -4253,17 +4256,18 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                                    | Type            | Required | Restrictions | Description |
-|-----------------------------------------|-----------------|----------|--------------|-------------|
-| `authorization_endpoint`                | string          | false    |              |             |
-| `code_challenge_methods_supported`      | array of string | false    |              |             |
-| `grant_types_supported`                 | array of string | false    |              |             |
-| `issuer`                                | string          | false    |              |             |
-| `registration_endpoint`                 | string          | false    |              |             |
-| `response_types_supported`              | array of string | false    |              |             |
-| `scopes_supported`                      | array of string | false    |              |             |
-| `token_endpoint`                        | string          | false    |              |             |
-| `token_endpoint_auth_methods_supported` | array of string | false    |              |             |
+| Name                                    | Type            | Required | Restrictions | Description                        |
+|-----------------------------------------|-----------------|----------|--------------|------------------------------------|
+| `authorization_endpoint`                | string          | false    |              |                                    |
+| `code_challenge_methods_supported`      | array of string | false    |              |                                    |
+| `device_authorization_endpoint`         | string          | false    |              | Device authorization endpoint 8628 |
+| `grant_types_supported`                 | array of string | false    |              |                                    |
+| `issuer`                                | string          | false    |              |                                    |
+| `registration_endpoint`                 | string          | false    |              |                                    |
+| `response_types_supported`              | array of string | false    |              |                                    |
+| `scopes_supported`                      | array of string | false    |              |                                    |
+| `token_endpoint`                        | string          | false    |              |                                    |
+| `token_endpoint_auth_methods_supported` | array of string | false    |              |                                    |
 
 ## codersdk.OAuth2ClientConfiguration
 
@@ -4467,6 +4471,48 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------|------------------------------------------------------------|----------|--------------|-------------|
 | `github` | [codersdk.OAuth2GithubConfig](#codersdkoauth2githubconfig) | false    |              |             |
 
+## codersdk.OAuth2DeviceAuthorizationRequest
+
+```json
+{
+  "client_id": "string",
+  "resource": "string",
+  "scope": "string"
+}
+```
+
+### Properties
+
+| Name        | Type   | Required | Restrictions | Description                      |
+|-------------|--------|----------|--------------|----------------------------------|
+| `client_id` | string | true     |              |                                  |
+| `resource`  | string | false    |              | Resource 8707 resource parameter |
+| `scope`     | string | false    |              |                                  |
+
+## codersdk.OAuth2DeviceAuthorizationResponse
+
+```json
+{
+  "device_code": "string",
+  "expires_in": 0,
+  "interval": 0,
+  "user_code": "string",
+  "verification_uri": "string",
+  "verification_uri_complete": "string"
+}
+```
+
+### Properties
+
+| Name                        | Type    | Required | Restrictions | Description |
+|-----------------------------|---------|----------|--------------|-------------|
+| `device_code`               | string  | false    |              |             |
+| `expires_in`                | integer | false    |              |             |
+| `interval`                  | integer | false    |              |             |
+| `user_code`                 | string  | false    |              |             |
+| `verification_uri`          | string  | false    |              |             |
+| `verification_uri_complete` | string  | false    |              |             |
+
 ## codersdk.OAuth2GithubConfig
 
 ```json
@@ -4535,6 +4581,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
+    "revocation": "string",
     "token": "string"
   },
   "icon": "string",
