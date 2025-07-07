@@ -825,9 +825,7 @@ If this is issue is blocking your usage of Dynamic Parameters, please let us kno
 
 ### Can I use registry modules with Dynamic Parameters?
 
-**Yes**
-
-Registry modules are supported with dynamic parameters.
+Yes, registry modules are supported with Dynamic Parameters.
 
 Unless explicitly mentioned, no registry modules require Dynamic Parameters.
 Later in 2025, more registry modules will be converted to Dynamic Parameters to improve their UX.
