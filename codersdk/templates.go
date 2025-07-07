@@ -194,9 +194,9 @@ type TemplateUser struct {
 type UpdateTemplateACL struct {
 	// UserPerms should be a mapping of user id to role. The user id must be the
 	// uuid of the user, not a username or email address.
-	UserPerms map[string]TemplateRole `json:"user_perms,omitempty" example:"<group_id>:admin,4df59e74-c027-470b-ab4d-cbba8963a5e9:use"`
+	UserPerms map[string]TemplateRole `json:"user_perms,omitempty" example:"<user_id>:admin,4df59e74-c027-470b-ab4d-cbba8963a5e9:use"`
 	// GroupPerms should be a mapping of group id to role.
-	GroupPerms map[string]TemplateRole `json:"group_perms,omitempty" example:"<user_id>>:admin,8bd26b20-f3e8-48be-a903-46bb920cf671:use"`
+	GroupPerms map[string]TemplateRole `json:"group_perms,omitempty" example:"<group_id>:admin,8bd26b20-f3e8-48be-a903-46bb920cf671:use"`
 }
 
 // ACLAvailable is a list of users and groups that can be added to a template
