@@ -31,7 +31,7 @@ any-custom-agent configure-mcp --name "coder" --command "coder exp mcp server"
 This will start the MCP server and report activity back to the Coder control plane on behalf of the coder_app resource.
 
 > [!NOTE]
-> See [this version of the Goose module](https://github.com/coder/registry/blob/release/coder/goose/v1.3.0/registry/coder/modules/goose/main.tf) source code for a real world example.
+> See [this version of the Goose module](https://github.com/coder/registry/blob/release/coder/goose/v1.3.0/registry/coder/modules/goose/main.tf) source code for a real-world example of configuring reporting via MCP. Note that in addition to setting up reporting, you'll need to make your template [compatible with Tasks](./tasks.md#option-2-create-or-duplicate-your-own-template), which is not shown in the example.
 
 ## Contributing
 
