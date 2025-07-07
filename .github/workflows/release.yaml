@@ -323,6 +323,7 @@ jobs:
         env:
           CODER_SIGN_WINDOWS: "1"
           CODER_SIGN_DARWIN: "1"
+          CODER_SIGN_GPG: "1"
           CODER_WINDOWS_RESOURCES: "1"
           AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
           AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
