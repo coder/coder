@@ -1352,6 +1352,19 @@ func PresetParameter(t testing.TB, db database.Store, seed database.InsertPreset
 	return parameters
 }
 
+func UserSecret(t testing.TB, db database.Store, seed database.InsertUserSecretParams) database.UserSecret {
+	schedule, err := db.InsertUserSecret(genCtx, database.InsertUserSecretParams{
+		ID:          takeFirst(seed.ID, uuid.New()),
+		UserID:      takeFirst(seed.UserID, uuid.New()),
+		Name:        takeFirst(seed.Name, "secret-name"),
+		Description: takeFirst(seed.Description, "secret description"),
+		Value:       takeFirst(seed.Value, "secret value"),
+		ValueKeyID:  takeFirst(seed.ValueKeyID, sql.NullString{}),
+	})
+	require.NoError(t, err, "insert preset prebuild schedule")
+	return schedule
+}
+
 func provisionerJobTiming(t testing.TB, db database.Store, seed database.ProvisionerJobTiming) database.ProvisionerJobTiming {
 	timing, err := db.InsertProvisionerJobTimings(genCtx, database.InsertProvisionerJobTimingsParams{
 		JobID:     takeFirst(seed.JobID, uuid.New()),

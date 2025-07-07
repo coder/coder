@@ -163,6 +163,12 @@ export const RBACResourceActions: Partial<
 		update: "update an existing user",
 		update_personal: "update personal data",
 	},
+	user_secret: {
+		create: "create a user secret",
+		delete: "delete a user secret",
+		read: "read a user secret",
+		update: "update a user secret",
+	},
 	webpush_subscription: {
 		create: "create webpush subscriptions",
 		delete: "delete webpush subscriptions",

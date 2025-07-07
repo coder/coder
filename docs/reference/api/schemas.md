@@ -6080,6 +6080,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `tailnet_coordinator`              |
 | `template`                         |
 | `user`                             |
+| `user_secret`                      |
 | `webpush_subscription`             |
 | `workspace`                        |
 | `workspace_agent_devcontainers`    |

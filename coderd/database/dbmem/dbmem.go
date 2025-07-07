@@ -9710,6 +9710,15 @@ func (q *FakeQuerier) InsertUserLink(_ context.Context, args database.InsertUser
 	return link, nil
 }
 
+func (q *FakeQuerier) InsertUserSecret(ctx context.Context, arg database.InsertUserSecretParams) (database.UserSecret, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.UserSecret{}, err
+	}
+
+	return database.UserSecret{}, ErrUnimplemented
+}
+
 func (q *FakeQuerier) InsertVolumeResourceMonitor(_ context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {

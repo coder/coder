@@ -5718,3 +5718,15 @@ func (s *MethodTestSuite) TestAuthorizePrebuiltWorkspace() {
 			}).Asserts(w, policy.ActionUpdate, w.AsPrebuild(), policy.ActionUpdate)
 	}))
 }
+
+func (s *MethodTestSuite) TestUserSecrets() {
+	s.Run("InsertUserSecret", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		arg := database.InsertUserSecretParams{
+			UserID: user.ID,
+		}
+		check.Args(arg).
+			Asserts(rbac.ResourceUserSecret.WithOwner(arg.UserID.String()), policy.ActionCreate).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
+	}))
+}

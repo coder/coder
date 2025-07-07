@@ -5033,6 +5033,21 @@ func (mr *MockStoreMockRecorder) InsertUserLink(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertUserLink", reflect.TypeOf((*MockStore)(nil).InsertUserLink), ctx, arg)
 }
 
+// InsertUserSecret mocks base method.
+func (m *MockStore) InsertUserSecret(ctx context.Context, arg database.InsertUserSecretParams) (database.UserSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertUserSecret", ctx, arg)
+	ret0, _ := ret[0].(database.UserSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertUserSecret indicates an expected call of InsertUserSecret.
+func (mr *MockStoreMockRecorder) InsertUserSecret(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertUserSecret", reflect.TypeOf((*MockStore)(nil).InsertUserSecret), ctx, arg)
+}
+
 // InsertVolumeResourceMonitor mocks base method.
 func (m *MockStore) InsertVolumeResourceMonitor(ctx context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {
 	m.ctrl.T.Helper()

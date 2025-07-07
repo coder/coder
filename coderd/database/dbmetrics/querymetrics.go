@@ -2371,6 +2371,13 @@ func (m queryMetricsStore) InsertUserLink(ctx context.Context, arg database.Inse
 	return link, err
 }
 
+func (m queryMetricsStore) InsertUserSecret(ctx context.Context, arg database.InsertUserSecretParams) (database.UserSecret, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertUserSecret(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertUserSecret").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertVolumeResourceMonitor(ctx context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertVolumeResourceMonitor(ctx, arg)

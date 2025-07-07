@@ -3871,6 +3871,15 @@ func (q *querier) InsertUserLink(ctx context.Context, arg database.InsertUserLin
 	return q.db.InsertUserLink(ctx, arg)
 }
 
+func (q *querier) InsertUserSecret(ctx context.Context, arg database.InsertUserSecretParams) (database.UserSecret, error) {
+	obj := rbac.ResourceUserSecret.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionCreate, obj); err != nil {
+		return database.UserSecret{}, err
+	}
+
+	return q.db.InsertUserSecret(ctx, arg)
+}
+
 func (q *querier) InsertVolumeResourceMonitor(ctx context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
 		return database.WorkspaceAgentVolumeResourceMonitor{}, err
