@@ -1,56 +1,73 @@
 # Dynamic Parameters
 
-Coder v2.24.0 introduces Dynamic Parameters to extend the existing parameter system with conditional form controls, enriched input types, and user identity awareness.
-This feature allows template authors to create interactive workspace creation forms, meaning more environment customization and fewer templates to maintain.
+Coder v2.24.0 introduces Dynamic Parameters to extend Coder [parameters](./parameters.md) with conditional form controls,
+enriched input types, and user identity awareness.
+This allows template authors to create interactive workspace creation forms with more environment customization,
+and that means fewer templates to maintain.
 
 ![Dynamic Parameters in Action](https://i.imgur.com/uR8mpRJ.gif)
 
-All parameters are parsed from Terraform, meaning your workspace creation forms live in the same location as your provisioning code. You can use all the native Terraform functions and conditionality to create a self-service tooling catalog for every template.
+All parameters are parsed from Terraform, so your workspace creation forms live in the same location as your provisioning code.
+You can use all the native Terraform functions and conditionality to create a self-service tooling catalog for every template.
 
-Administrators can now:
+Administrators can use Dynamic Parameters to:
 
-- Create parameters which respond to the inputs of others
-- Only show parameters when other input criteria is met
-- Only show select parameters to target Coder roles or groups
+- Create parameters which respond to the inputs of others.
+- Only show parameters when other input criteria are met.
+- Only show select parameters to target Coder roles or groups.
 
-You can try the dynamic parameter syntax and any of the code examples below in the [Parameters Playground](https://playground.coder.app/parameters) today. We advise experimenting here before upgrading templates.
+You can try the Dynamic Parameter syntax and any of the code examples below in the
+[Parameters Playground](https://playground.coder.app/parameters).
+You should experiment with parameters in the playground before you upgrade live templates.
 
-## When you should upgrade to Dynamic Parameters
+## When You Should Upgrade to Dynamic Parameters
 
-While Dynamic parameters introduce a variety of new powerful tools, all functionality is **backwards compatible** with existing coder templates. When opting-in to the new experience, no functional changes will be applied to your production parameters.
+While Dynamic parameters introduce a variety of new powerful tools, all functionality is backwards compatible with
+existing coder templates.
+When you opt-in to the new experience, no functional changes will be applied to your production parameters.
 
-There are three reasons for users to try Dynamic Parameters:
+Some reasons Coder template admins should try Dynamic Parameters:
 
-- You maintain support many templates for teams with unique expectations or use cases
-- You want to selectively expose privileged workspace options to admins, power users, or personas
+- You maintain or support many templates for teams with unique expectations or use cases.
+- You want to selectively expose privileged workspace options to admins, power users, or personas.
 - You want to make the workspace creation flow more ergonomic for developers.
 
-Dynamic Parameters help you reduce template duplication by setting conditions on which users may see which parameters. They increase the potential complexity of user-facing configuration by allowing administrators to organize a long list of options into interactive, branching paths for workspace customization. They allow you to set resource guardrails by referencing coder identity in the `coder_workspace_owner` data source.
-
-Read on for setup steps and code examples.
+Dynamic Parameters help you reduce template duplication by setting the conditions for which users should see specific parameters.
+They reduce the potential complexity of user-facing configuration by allowing administrators to organize a long list of options into interactive, branching paths for workspace customization.
+They allow you to set resource guardrails by referencing Coder identity in the `coder_workspace_owner` data source.
 
 ## How to enable Dynamic Parameters
 
-In v2.24.0, you can opt-in to Dynamic Parameters on a per-template basis. To use dynamic parameters, go to your template settings and toggle the "Enable Dynamic Parameters Beta" option.
+In Coder v2.24.0, you can opt-in to Dynamic Parameters on a per-template basis.
 
-[Image of template settings with dynamic parameters beta option]
+1. Go to your template's settings and enable the **Enable dynamic parameters for workspace creation** option.
 
-Next, update your template to use version >=2.4.0 of the Coder provider with the following Terraform block.
+   [Enable dynamic parameters for workspace creation](../../../images/admin/templates/extend-templates/dyn-params/enable-dynamic-parameters.png)
 
-```terraform
-terraform {
-  required_providers {
-    coder = {
-      source = "coder/coder"
-      version = ">=2.4.0"
-    }
-  }
-}
-```
+1. Update your template to use version >=2.4.0 of the Coder provider with the following Terraform block.
 
-Once configured, users should see the updated workspace creation form. Then you are ready to start leveraging the new conditionality system and new input types. Note that these new features must be declared in your Terraform to start leveraging Dynamic Parameters. Note that dynamic parameters is backwards compatible, so all existing templates may be upgraded in-place.
+   ```terraform
+   terraform {
+     required_providers {
+       coder = {
+         source = "coder/coder"
+         version = ">=2.4.0"
+       }
+     }
+   }
+   ```
 
-If you decide later to revert to the legacy flow, Dynamic Parameters may be disabled in the template settings.
+1. This enables Dynamic Parameters in the template.
+   Add some [conditional parameters](#available-form-input-types).
+
+   Note that these new features must be declared in your Terraform to start leveraging Dynamic Parameters.
+
+1. Save and publish the template.
+
+1. Users should see the updated workspace creation form.
+
+Dynamic Parameters features are backwards compatible, so all existing templates may be upgraded in-place.
+If you decide to revert to the legacy flow later, disable Dynamic Parameters in the template's settings.
 
 ## Features and Capabilities
 
@@ -78,38 +95,56 @@ Dynamic Parameters introduces three primary enhancements to the standard paramet
   - Slider input for disk size, model temperature
   - Disabled parameters to display immutable data
 
-> [!NOTE]
-> Dynamic Parameters **does not support external data fetching** via HTTP endpoints at workspace build time.
-> Doing so would introduce unpredictability in workspace builds after publishing a template.
-> We instead advise template administrators to pull in any required data for a workspace build as locals or a JSON file, then reference that data in Terraform.
+> [!IMPORTANT]
+> Dynamic Parameters does not support external data fetching via HTTP endpoints at workspace build time.
 >
-> If you have a use case for external data fetching, please file an issue or create a discussion in our [Github](https://github.com/coder/coder).
+> External fetching would introduce unpredictability in workspace builds after publishing a template.
+> Instead, we recommend that template administrators pull in any required data for a workspace build as a
+> [locals](https://developer.hashicorp.com/terraform/tutorials/configuration-language/locals) or JSON file,
+> then reference that data in Terraform.
+>
+> If you have a use case for external data fetching, please file an issue or create a discussion in the
+> [Coder GitHub repository](https://github.com/coder/coder).
 
 ## Available Form Input Types
 
 Dynamic Parameters supports a variety of form types to create rich, interactive user experiences.
 
-![Old vs New Parameters](https://i.imgur.com/DiWyL9b.png)
+![Old vs New Parameters](../../../images/admin/templates/extend-templates/dyn-params/dynamic-params-compare.png)
 
-You can specify the form type using the [`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute.
 Different parameter types support different form types.
+You can specify the form type using the
+[`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute.
 
-The "Options" column in the table below indicates whether the form type supports options (Yes) or doesn't support them (No). When supported, options may be specified using one or more `option` blocks in your parameter definition, where each option has a `name` (displayed to the user) and a `value` (used in your template logic).
+The **Options** column in the table below indicates whether the form type supports options (**Yes**) or doesn't support them (**No**).
+When supported, you can specify options using one or more `option` blocks in your parameter definition,
+where each option has a `name` (displayed to the user) and a `value` (used in your template logic).
 
-| Form Type      | Parameter Types                            | Options | Notes                                                                                                                        |
-|----------------|--------------------------------------------|---------|------------------------------------------------------------------------------------------------------------------------------|
-| `radio`        | `string`, `number`, `bool`, `list(string)` | Yes     | Radio buttons for selecting a single option with all choices visible at once. (The classic parameter option)                 |
-| `dropdown`     | `string`, `number`                         | Yes     | Searchable dropdown list for choosing a single option from a list. Default for `string` or `number` parameters with options. |
-| `multi-select` | `list(string)`                             | Yes     | Select multiple items from a list with checkboxes.                                                                           |
-| `tag-select`   | `list(string)`                             | No      | Default for list(string) parameters without options.                                                                         |
-| `input`        | `string`, `number`                         | No      | Standard single-line text input field. Default for string/number parameters without options.                                 |
-| `textarea`     | `string`                                   | No      | Multi-line text input field for longer content.                                                                              |
-| `slider`       | `number`                                   | No      | Slider selection with min/max validation for numeric values.                                                                 |
-| `checkbox`     | `bool`                                     | No      | A single checkbox for boolean parameters. Default for boolean parameters.                                                    |
+| Form Type      | Parameter Types                            | Options | Notes                                                                                                                  |
+|----------------|--------------------------------------------|---------|------------------------------------------------------------------------------------------------------------------------|
+| `radio`        | `string`, `number`, `bool`, `list(string)` | Yes     | Radio buttons for selecting a single option with all choices visible at once. </br>The classic parameter option.       |
+| `dropdown`     | `string`, `number`                         | Yes     | Choose a single option from a searchable dropdown list. </br>Default for `string` or `number` parameters with options. |
+| `multi-select` | `list(string)`                             | Yes     | Select multiple items from a list with checkboxes.                                                                     |
+| `tag-select`   | `list(string)`                             | No      | Default for `list(string)` parameters without options.                                                                 |
+| `input`        | `string`, `number`                         | No      | Standard single-line text input field. </br>Default for `string/number` parameters without options.                    |
+| `textarea`     | `string`                                   | No      | Multi-line text input field for longer content.                                                                        |
+| `slider`       | `number`                                   | No      | Slider selection with min/max validation for numeric values.                                                           |
+| `checkbox`     | `bool`                                     | No      | A single checkbox for boolean parameters. </br>Default for boolean parameters.                                         |
 
-### Available styling options
+### Available Styling Options
 
-The `coder_parameter` resource now supports an additional `styling` attribute for special cosmetic changes that can be used to further customize the workspace creation form. This can be used for masking private inputs, marking inputs as read-only, or setting placeholder text. Note that the `styling` attribute should not be used as a governance tool, since it only changes how the interactive form is displayed. Restrictions like `disabled` may be circumnavigated by users if they create a workspace via the CLI.
+The `coder_parameter` resource supports an additional `styling` attribute for special cosmetic changes that can be used
+to further customize the workspace creation form.
+
+This can be used for:
+
+- Masking private inputs
+- Marking inputs as read-only
+- Setting placeholder text
+
+Note that the `styling` attribute should not be used as a governance tool, since it only changes how the interactive
+form is displayed.
+Users can avoid restrictions like `disabled` if they create a workspace via the CLI.
 
 This attribute accepts JSON like so:
 
@@ -126,21 +161,24 @@ Not all styling attributes are supported by all form types, use the reference be
 
 | Styling Option | Compatible parameter types | Compatible form types | Notes                                                                               |
 |----------------|----------------------------|-----------------------|-------------------------------------------------------------------------------------|
-| `disabled`     | All parameter types        | All form types        | Disables the form control when true.                                                |
-| `placeholder`  | `string`                   | `input`, `textarea`   | Sets placeholder text, will be overwritten by user entry.                           |
+| `disabled`     | All parameter types        | All form types        | Disables the form control when `true`.                                              |
+| `placeholder`  | `string`                   | `input`, `textarea`   | Sets placeholder text. </br>This is overwritten by user entry.                      |
 | `mask_input`   | `string`, `number`         | `input`, `textarea`   | Masks inputs as asterisks (`*`). Used to cosmetically hide token or password entry. |
 
-## Use case examples
+## Use Case Examples
 
 ### New Form Types
 
-The following examples show some basic usage of the [`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute explained above. These are used to change the input style of form controls in the create workspace form.
+The following examples show some basic usage of the
+[`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1)
+attribute [explained above](#available-form-input-types).
+These are used to change the input style of form controls in the create workspace form.
 
 <div class="tabs">
 
 ### Dropdowns
 
-Single-select parameters with options may now use the `form_type="dropdown"` attribute for better organization.
+Single-select parameters with options can use the `form_type="dropdown"` attribute for better organization.
 
 [Try dropdown lists on the Parameter Playground](https://playground.coder.app/parameters/kgNBpjnz7x)
 
@@ -175,7 +213,7 @@ data "coder_parameter" "ides_dropdown" {
 }
 ```
 
-### Text area
+### Text Area
 
 The large text entry option can be used to enter long strings like AI prompts, scripts, or natural language.
 
@@ -206,7 +244,8 @@ data "coder_parameter" "text_area" {
 
 ### Multi-select
 
-Multi-select parameters allow users to select one or many options from a single list of options. For example, adding multiple IDEs with a single parameter.
+Multi-select parameters allow users to select one or many options from a single list of options.
+For example, adding multiple IDEs with a single parameter.
 
 [Try multi-select parameters on the Parameter Playground](https://playground.coder.app/parameters/XogX54JV_f)
 
@@ -245,7 +284,8 @@ data "coder_parameter" "ide_selector" {
 
 ### Radio
 
-Radio buttons are used to select a single option with high visibility. This is the original styling for list parameters.
+Radio buttons are used to select a single option with high visibility.
+This is the original styling for list parameters.
 
 [Try radio parameters on the Parameter Playground](https://playground.coder.app/parameters/3OMDp5ANZI).
 
@@ -280,7 +320,8 @@ data "coder_parameter" "environment" {
 
 ### Checkboxes
 
-Checkbox: A single checkbox for boolean values. This can be used for a TOS confirmation or to expose advanced options.
+A single checkbox for boolean values.
+This can be used for a TOS confirmation or to expose advanced options.
 
 [Try checkbox parameters on the Parameters Playground](https://playground.coder.app/parameters/ycWuQJk2Py).
 
@@ -296,7 +337,8 @@ data "coder_parameter" "enable_gpu" {
 
 ### Slider
 
-Sliders can be used for configuration on a linear scale, like resource allocation. The `validation` block is used to clamp the minimum and maximum values for the parameter.
+Sliders can be used for configuration on a linear scale, like resource allocation.
+The `validation` block is used to constrain (or clamp) the minimum and maximum values for the parameter.
 
 [Try slider parameters on the Parameters Playground](https://playground.coder.app/parameters/RsBNcWVvfm).
 
@@ -316,11 +358,13 @@ data "coder_parameter" "cpu_cores" {
 
 ### Masked Input
 
-Masked input parameters can be used to visually hide secret values in the workspace creation form. Note that this does not secure information on the backend and is purely cosmetic.
+Masked input parameters can be used to visually hide secret values in the workspace creation form.
+Note that this does not secure information on the backend and is purely cosmetic.
 
 [Try private parameters on the Parameters Playground](https://playground.coder.app/parameters/wmiP7FM3Za).
 
-Note: this text may not be properly hidden in the Playground. The `mask_input` styling attribute is supported in v2.24.0 and onward.
+Note: This text may not be properly hidden in the Playground.
+The `mask_input` styling attribute is supported in v2.24.0 and later.
 
 ```terraform
 data "coder_parameter" "private_api_key" {
@@ -343,19 +387,21 @@ data "coder_parameter" "private_api_key" {
 
 ### Conditional Parameters
 
-Using native Terraform syntax and parameter attributes like `count`, we can allow some parameters to react to user inputs. This means:
+Using native Terraform syntax and parameter attributes like `count`, we can allow some parameters to react to user inputs.
+
+This means:
 
 - Hiding parameters unless activated
 - Conditionally setting default values
 - Changing available options based on other parameter inputs
 
-Using these in conjunction, administrators can build intuitive, reactive forms for workspace creation
+Use these in conjunction to build intuitive, reactive forms for workspace creation.
 
 <div class="tabs">
 
-### Hide/show options
+### Hide/Show Options
 
-Using Terraform conditionals and the `count` block, we can allow a checkbox to expose or hide a subsequent parameter.
+Use Terraform conditionals and the `count` block to allow a checkbox to expose or hide a subsequent parameter.
 
 [Try conditional parameters on the Parameter Playground](https://playground.coder.app/parameters/xmG5MKEGNM).
 
@@ -389,7 +435,8 @@ data "coder_parameter" "cpu_cores" {
 
 ### Dynamic Defaults
 
-For a given parameter, we can influence which option is selected by default based on the selection of another. This allows us to suggest an option dynamically without strict enforcement.
+Influence which option is selected by default for one parameter based on the selection of another.
+This allows you to suggest an option dynamically without strict enforcement.
 
 [Try dynamic defaults in the Parameter Playground](https://playground.coder.app/parameters/DEi-Bi6DVe).
 
@@ -454,7 +501,7 @@ data "coder_parameter" "ide_selector" {
 
 ## Dynamic Validation
 
-Parameters' validation block can also leverage inputs from other parameters.
+A parameter's validation block can leverage inputs from other parameters.
 
 [Try dynamic validation in the Parameter Playground](https://playground.coder.app/parameters/sdbzXxagJ4).
 
@@ -505,7 +552,8 @@ data "coder_parameter" "cpu_cores" {
 
 <!-- ## Daisy Chaining
 
-You can daisy-chain the conditionals shown here to create a dynamically expanding form. Note that parameters must be indexed when using the `count` attribute.
+You can daisy-chain the conditionals shown here to create a dynamically expanding form.
+Note that parameters must be indexed when using the `count` attribute.
 
 [Try daisy-chaining parameters in the Parameter Playground](https://playground.coder.app/parameters/jLUUhoDLIa).
 
@@ -591,17 +639,23 @@ data "coder_parameter" "cpu_cores" {
 
 </div>
 
-## Identity-aware parameters (Premium)
+## Identity-Aware Parameters (Premium)
 
-Premium users can leverage our roles and groups to conditionally expose or change parameters based on user identity. This is helpful for establishing governance policy directly in the workspace creation form, rather than creating multiple templates to manage RBAC.
+Premium users can leverage our roles and groups to conditionally expose or change parameters based on user identity.
+This is helpful for establishing governance policy directly in the workspace creation form,
+rather than creating multiple templates to manage RBAC.
 
-User identity is referenced in Terraform by reading the [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) data source.
+User identity is referenced in Terraform by reading the
+[`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) data source.
 
 <div class="tabs">
 
 ### Role-aware Options
 
-Template administrators often want to expose certain experimental or unstable options only to those with elevated roles. You can now do this by setting `count` based on a user's group or role, referencing the [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) data source.
+Template administrators often want to expose certain experimental or unstable options only to those with elevated roles.
+You can now do this by setting `count` based on a user's group or role, referencing the
+[`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner)
+data source.
 
 [Try out admin-only options in the Playground](https://playground.coder.app/parameters/5Gn9W3hYs7).
 
@@ -642,7 +696,8 @@ data "coder_parameter" "advanced_settings" {
 
 ### Group-aware Regions
 
-You can expose regions depending on which group a user belongs to. This way developers can't incidentally induce low-latency with world-spanning connections.
+You can expose regions depending on which group a user belongs to.
+This way developers can't accidentally induce low-latency with world-spanning connections.
 
 [Try user-aware regions in the parameter playground](https://playground.coder.app/parameters/tBD-mbZRGm)
 
@@ -690,9 +745,10 @@ data "coder_parameter" "region" {
 }
 ```
 
-### Groups as namespaces
+### Groups As Namespaces
 
-A slightly unorthodox way to leverage this is filling the selections of a parameter from the user's groups. Some users associate groups with namespaces (E.G. Kubernetes), then allow users to target that namespace with a parameter like so.
+A slightly unorthodox way to leverage this is by filling the selections of a parameter from the user's groups.
+Some users associate groups with namespaces, such as Kubernetes, then allow users to target that namespace with a parameter.
 
 [Try groups as options in the Parameter Playground](https://playground.coder.app/parameters/lKbU53nYjl).
 
@@ -728,36 +784,52 @@ data "coder_parameter" "your_groups" {
 
 ## Troubleshooting
 
-Dynamic Parameters is still in Beta as we continue to polish and improve the workflow. If you have any issues during upgrade, please file an issue in our [Github](https://github.com/coder/coder/issues/new) with the [`parameters`](https://github.com/coder/coder/issues?q=is%3Aissue%20state%3Aopen%20label%3Aparameters) label and a [Playground link](https://playground.coder.app/parameters) where applicable. We appreciate the feedback and look forward to what the community creates with this system!
+Dynamic Parameters is still in Beta as we continue to polish and improve the workflow.
+If you have any issues during upgrade, please file an issue in our
+[GitHub repository](https://github.com/coder/coder/issues/new?labels=parameters) and include a
+[Playground link](https://playground.coder.app/parameters) where applicable.
+We appreciate the feedback and look forward to what the community creates with this system!
 
-You can track a list of known issues here.
+You can also [search or track the list of known issues](https://github.com/coder/coder/issues?q=is%3Aissue%20state%3Aopen%20label%3Aparameters).
 
-You can share anything you build with Dynamic Parameters in our Discord.
+You can share anything you build with Dynamic Parameters in our [Discord](https://coder.com/chat).
 
 ### Enabled Dynamic Parameters, but my template looks the same
 
-First, ensure that the following version requirements are met:
+Ensure that the following version requirements are met:
 
 - `coder/coder`: >= [v2.24.0](https://github.com/coder/coder/releases/tag/v2.24.0)
 - `coder/terraform-provider-coder`: >= [v2.5.3](https://github.com/coder/terraform-provider-coder/releases/tag/v2.5.3)
 
-Enabling Dynamic Parameters on an existing template requires administrators to **publish a new template version**. This will resolve the necessary template metadata to render the form.
+Enabling Dynamic Parameters on an existing template requires administrators to publish a new template version.
+This will resolve the necessary template metadata to render the form.
 
 ### Reverting to classic parameters
 
-To revert the beta on a template:
+To revert Dynamic Parameters on a template:
 
 1. Prepare your template by removing any conditional logic or user data references in parameters.
-2. As a template administrator or owner, go to your template settings **Templates** -> **Your template** -> **Settings**.
-3. Uncheck the "Dynamic Parameters Beta" option.
-4. Create a new template version and publish to the active version.
+1. As a template administrator or owner, go to your template's settings:
+
+   **Templates** > **Your template** > **Settings**
+
+1. Uncheck the **Enable dynamic parameters for workspace creation** option.
+1. Create a new template version and publish to the active version.
 
 ### Template variables not showing up
 
-In beta, **Template variables are not supported in Dynamic Parameters**. This issue will be resolved by the next minor release of `coder/coder`. If this is issue is blocking your usage of Dynamic Parameters, please let us know in [this thread](https://github.com/coder/coder/issues/18671).
+In beta, template variables are not supported in Dynamic Parameters.
+
+This issue will be resolved by the next minor release of `coder/coder`.
+If this is issue is blocking your usage of Dynamic Parameters, please let us know in [this thread](https://github.com/coder/coder/issues/18671).
 
 ### Can I use registry modules with Dynamic Parameters?
 
-**Yes**, registry modules are supported with dynamic parameters. Unless explicitly mentioned, no registry modules _require_ Dynamic Parameters. Later in 2025, more registry modules will be converted to Dynamic Parameters to improve their UX.
+**Yes**
+
+Registry modules are supported with dynamic parameters.
+
+Unless explicitly mentioned, no registry modules require Dynamic Parameters.
+Later in 2025, more registry modules will be converted to Dynamic Parameters to improve their UX.
 
 In the meantime, you can safely convert existing templates and build new parameters on top of the functionality provided in the registry.
