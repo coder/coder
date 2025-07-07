@@ -1,7 +1,6 @@
 import { API, type DeleteWorkspaceOptions } from "api/api";
 import { DetailedError, isApiValidationError } from "api/errors";
 import type {
-	CancelWorkspaceBuildParams,
 	CreateWorkspaceRequest,
 	ProvisionerLogLevel,
 	UsageAppName,
