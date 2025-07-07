@@ -300,7 +300,7 @@
 						{
 							"title": "Working with dev containers",
 							"description": "Access dev containers via SSH, your IDE, or web terminal.",
-							"path": "./user-guides/devcontainers/working-with-dev-containers.md",
+							"path": "./user-guides/devcontainers/working-with-dev-containers.md"
 						},
 						{
 							"title": "Troubleshooting dev containers",
