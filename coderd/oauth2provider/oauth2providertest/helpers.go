@@ -1,7 +1,7 @@
-// Package identityprovidertest provides comprehensive testing utilities for OAuth2 identity provider functionality.
+// Package oauth2providertest provides comprehensive testing utilities for OAuth2 identity provider functionality.
 // It includes helpers for creating OAuth2 apps, performing authorization flows, token exchanges,
 // PKCE challenge generation and verification, and testing error scenarios.
-package identityprovidertest
+package oauth2providertest
 
 import (
 	"crypto/rand"
