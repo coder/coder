@@ -23,7 +23,7 @@ coder exp mcp configure claude-desktop # Configure Claude Desktop to interact wi
 coder exp mcp configure cursor # Configure Cursor to interact with Coder
 ```
 
-For other agents, the MCP server can be run with this command:
+For other agents, run the MCP server with this command:
 
 ```sh
 coder exp mcp server
