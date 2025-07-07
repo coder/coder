@@ -2453,8 +2453,8 @@ func TestAgent_DevcontainersDisabledForSubAgent(t *testing.T) {
 	require.Error(t, err)
 
 	// Verify the error message contains the expected text.
-	require.Contains(t, err.Error(), "The agent dev containers feature is experimental and not enabled by default.")
-	require.Contains(t, err.Error(), "To enable this feature, set CODER_AGENT_DEVCONTAINERS_ENABLE=true in your template.")
+	require.Contains(t, err.Error(), "Dev Container feature not supported.")
+	require.Contains(t, err.Error(), "Dev Container integration inside of Dev Containers are explicitly not supported.")
 }
 
 func TestAgent_Dial(t *testing.T) {
