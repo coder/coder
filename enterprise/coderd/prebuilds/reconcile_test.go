@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"tailscale.com/types/ptr"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogjson"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/quartz"
 
@@ -2358,8 +2360,8 @@ func TestCompareGetRunningPrebuiltWorkspacesResults(t *testing.T) {
 	t.Run("identical results - no logging", func(t *testing.T) {
 		t.Parallel()
 
-		spy := &logSpy{}
-		logger := slog.Make(spy)
+		var sb strings.Builder
+		logger := slog.Make(slogjson.Sink(&sb))
 
 		original := []database.GetRunningPrebuiltWorkspacesRow{
 			createWorkspaceRow("550e8400-e29b-41d4-a716-446655440000", "workspace1", true),
@@ -2374,14 +2376,14 @@ func TestCompareGetRunningPrebuiltWorkspacesResults(t *testing.T) {
 		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
 
 		// Should not log any errors when results are identical
-		require.Empty(t, spy.entries)
+		require.Empty(t, strings.TrimSpace(sb.String()))
 	})
 
 	t.Run("count mismatch - logs error", func(t *testing.T) {
 		t.Parallel()
 
-		spy := &logSpy{}
-		logger := slog.Make(spy)
+		var sb strings.Builder
+		logger := slog.Make(slogjson.Sink(&sb))
 
 		original := []database.GetRunningPrebuiltWorkspacesRow{
 			createWorkspaceRow("550e8400-e29b-41d4-a716-446655440000", "workspace1", true),
@@ -2394,23 +2396,20 @@ func TestCompareGetRunningPrebuiltWorkspacesResults(t *testing.T) {
 
 		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
 
-		// Should log exactly one error for count mismatch
-		require.Len(t, spy.entries, 1)
-		assert.Equal(t, slog.LevelError, spy.entries[0].Level)
-		diff := spy.getField(0, "diff")
-		require.NotNil(t, diff)
-		diffStr := diff.(string)
-
-		// The diff should contain information about the differences we introduced
-		assert.Contains(t, diffStr, "workspace2")      // Original name
-		assert.Contains(t, diffStr, "CurrentPresetID") // Changed preset ID
+		// Should log exactly one error.
+		if lines := strings.Split(strings.TrimSpace(sb.String()), "\n"); assert.NotEmpty(t, lines) {
+			require.Len(t, lines, 1)
+			assert.Contains(t, lines[0], "ERROR")
+			assert.Contains(t, lines[0], "workspace2")
+			assert.Contains(t, lines[0], "CurrentPresetID")
+		}
 	})
 
 	t.Run("count mismatch - other direction", func(t *testing.T) {
 		t.Parallel()
 
-		spy := &logSpy{}
-		logger := slog.Make(spy)
+		var sb strings.Builder
+		logger := slog.Make(slogjson.Sink(&sb))
 
 		original := []database.GetRunningPrebuiltWorkspacesRow{}
 
@@ -2420,23 +2419,19 @@ func TestCompareGetRunningPrebuiltWorkspacesResults(t *testing.T) {
 
 		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
 
-		// Should log exactly one error for count mismatch
-		require.Len(t, spy.entries, 1)
-		assert.Equal(t, slog.LevelError, spy.entries[0].Level)
-		diff := spy.getField(0, "diff")
-		require.NotNil(t, diff)
-		diffStr := diff.(string)
-
-		// The diff should contain information about the differences we introduced
-		assert.Contains(t, diffStr, "workspace2")      // Original name
-		assert.Contains(t, diffStr, "CurrentPresetID") // Changed preset ID
+		if lines := strings.Split(strings.TrimSpace(sb.String()), "\n"); assert.NotEmpty(t, lines) {
+			require.Len(t, lines, 1)
+			assert.Contains(t, lines[0], "ERROR")
+			assert.Contains(t, lines[0], "workspace2")
+			assert.Contains(t, lines[0], "CurrentPresetID")
+		}
 	})
 
 	t.Run("field differences - logs errors", func(t *testing.T) {
 		t.Parallel()
 
-		spy := &logSpy{}
-		logger := slog.Make(spy)
+		var sb strings.Builder
+		logger := slog.Make(slogjson.Sink(&sb))
 
 		workspace1 := createWorkspaceRow("550e8400-e29b-41d4-a716-446655440000", "workspace1", true)
 		workspace2 := createWorkspaceRow("550e8400-e29b-41d4-a716-446655440001", "workspace2", false)
@@ -2456,25 +2451,21 @@ func TestCompareGetRunningPrebuiltWorkspacesResults(t *testing.T) {
 		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
 
 		// Should log exactly one error with a cmp.Diff output
-		require.Len(t, spy.entries, 1)
-		assert.Equal(t, slog.LevelError, spy.entries[0].Level)
-
-		diff := spy.getField(0, "diff")
-		require.NotNil(t, diff)
-		diffStr := diff.(string)
-
-		// The diff should contain information about the differences we introduced
-		assert.Contains(t, diffStr, "different-name")  // Changed name
-		assert.Contains(t, diffStr, "workspace1")      // Original name
-		assert.Contains(t, diffStr, "Ready")           // Changed ready status
-		assert.Contains(t, diffStr, "CurrentPresetID") // Changed preset ID
+		if lines := strings.Split(strings.TrimSpace(sb.String()), "\n"); assert.NotEmpty(t, lines) {
+			require.Len(t, lines, 1)
+			assert.Contains(t, lines[0], "ERROR")
+			assert.Contains(t, lines[0], "different-name")
+			assert.Contains(t, lines[0], "workspace1")
+			assert.Contains(t, lines[0], "Ready")
+			assert.Contains(t, lines[0], "CurrentPresetID")
+		}
 	})
 
 	t.Run("empty results - no logging", func(t *testing.T) {
 		t.Parallel()
 
-		spy := &logSpy{}
-		logger := slog.Make(spy)
+		var sb strings.Builder
+		logger := slog.Make(slogjson.Sink(&sb))
 
 		original := []database.GetRunningPrebuiltWorkspacesRow{}
 		optimized := []database.GetRunningPrebuiltWorkspacesOptimizedRow{}
@@ -2482,45 +2473,24 @@ func TestCompareGetRunningPrebuiltWorkspacesResults(t *testing.T) {
 		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, original, optimized)
 
 		// Should not log any errors when both results are empty
-		require.Empty(t, spy.entries)
+		require.Empty(t, strings.TrimSpace(sb.String()))
 	})
 
 	t.Run("nil original", func(t *testing.T) {
 		t.Parallel()
-		spy := &logSpy{}
-		logger := slog.Make(spy)
+		var sb strings.Builder
+		logger := slog.Make(slogjson.Sink(&sb))
 		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, nil, []database.GetRunningPrebuiltWorkspacesOptimizedRow{})
-		require.Empty(t, spy.entries)
+		// Should not log any errors when original is nil
+		require.Empty(t, strings.TrimSpace(sb.String()))
 	})
 
 	t.Run("nil optimized ", func(t *testing.T) {
 		t.Parallel()
-		spy := &logSpy{}
-		logger := slog.Make(spy)
+		var sb strings.Builder
+		logger := slog.Make(slogjson.Sink(&sb))
 		prebuilds.CompareGetRunningPrebuiltWorkspacesResults(ctx, logger, []database.GetRunningPrebuiltWorkspacesRow{}, nil)
-		require.Empty(t, spy.entries)
+		// Should not log any errors when optimized is nil
+		require.Empty(t, strings.TrimSpace(sb.String()))
 	})
-}
-
-// logSpy captures log entries for testing
-type logSpy struct {
-	entries []slog.SinkEntry
-}
-
-func (s *logSpy) LogEntry(_ context.Context, e slog.SinkEntry) {
-	s.entries = append(s.entries, e)
-}
-
-func (*logSpy) Sync() {}
-
-func (s *logSpy) getField(entryIndex int, fieldName string) interface{} {
-	if entryIndex >= len(s.entries) {
-		return nil
-	}
-	for _, field := range s.entries[entryIndex].Fields {
-		if field.Name == fieldName {
-			return field.Value
-		}
-	}
-	return nil
 }
