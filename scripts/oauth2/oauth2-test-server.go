@@ -181,7 +181,7 @@ func exchangeToken(config *Config, code string) (*TokenResponse, error) {
 	data.Set("redirect_uri", config.RedirectURI)
 
 	ctx := context.Background()
-	req, err := http.NewRequestWithContext(ctx, "POST", config.BaseURL+"/oauth2/tokens", strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(ctx, "POST", config.BaseURL+"/oauth2/token", strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, err
 	}

@@ -452,11 +452,11 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 	// Test 1: OAuth2 Token Endpoint Error Format
 	t.Run("OAuth2TokenEndpointErrorFormat", func(t *testing.T) {
 		t.Parallel()
-		// Test that the /oauth2/tokens endpoint responds with proper OAuth2 error format
-		// Note: The endpoint is /oauth2/tokens (plural), not /oauth2/token (singular)
+		// Test that the /oauth2/token endpoint responds with proper OAuth2 error format
+		// Note: The endpoint is /oauth2/token (singular) per RFC 6749
 		req := &http.Request{
 			Method: "POST",
-			URL:    mustParseURL(t, api.AccessURL.String()+"/oauth2/tokens"),
+			URL:    mustParseURL(t, api.AccessURL.String()+"/oauth2/token"),
 			Header: map[string][]string{
 				"Content-Type": {"application/x-www-form-urlencoded"},
 			},
@@ -608,7 +608,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 			"redirect_uri":  {"http://localhost:3000/callback"},
 		}
 
-		tokenReq, err := http.NewRequestWithContext(ctx, "POST", api.AccessURL.String()+"/oauth2/tokens",
+		tokenReq, err := http.NewRequestWithContext(ctx, "POST", api.AccessURL.String()+"/oauth2/token",
 			strings.NewReader(tokenRequestBody.Encode()))
 		require.NoError(t, err)
 		tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -706,7 +706,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 			"refresh_token": {refreshToken},
 		}
 
-		refreshReq, err := http.NewRequestWithContext(ctx, "POST", api.AccessURL.String()+"/oauth2/tokens",
+		refreshReq, err := http.NewRequestWithContext(ctx, "POST", api.AccessURL.String()+"/oauth2/token",
 			strings.NewReader(refreshRequestBody.Encode()))
 		require.NoError(t, err)
 		refreshReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -931,7 +931,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 			"redirect_uri":  {"http://localhost:3000/callback"},
 		}
 
-		tokenReq, err := http.NewRequestWithContext(ctx, "POST", api.AccessURL.String()+"/oauth2/tokens",
+		tokenReq, err := http.NewRequestWithContext(ctx, "POST", api.AccessURL.String()+"/oauth2/token",
 			strings.NewReader(tokenRequestBody.Encode()))
 		require.NoError(t, err)
 		tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -1032,7 +1032,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 			"refresh_token": {refreshToken},
 		}
 
-		refreshReq, err := http.NewRequestWithContext(ctx, "POST", api.AccessURL.String()+"/oauth2/tokens",
+		refreshReq, err := http.NewRequestWithContext(ctx, "POST", api.AccessURL.String()+"/oauth2/token",
 			strings.NewReader(refreshRequestBody.Encode()))
 		require.NoError(t, err)
 		refreshReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")

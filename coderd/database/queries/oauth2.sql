@@ -247,3 +247,61 @@ DELETE FROM oauth2_provider_apps WHERE id = $1;
 
 -- name: GetOAuth2ProviderAppByRegistrationToken :one
 SELECT * FROM oauth2_provider_apps WHERE registration_access_token = $1;
+
+-- RFC 8628 Device Authorization Grant queries
+
+-- name: InsertOAuth2ProviderDeviceCode :one
+INSERT INTO oauth2_provider_device_codes (
+    id,
+    created_at,
+    expires_at,
+    device_code_hash,
+    device_code_prefix,
+    user_code,
+    client_id,
+    verification_uri,
+    verification_uri_complete,
+    scope,
+    resource_uri,
+    polling_interval
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11,
+    $12
+) RETURNING *;
+
+-- name: GetOAuth2ProviderDeviceCodeByPrefix :one
+SELECT * FROM oauth2_provider_device_codes WHERE device_code_prefix = $1;
+
+-- name: GetOAuth2ProviderDeviceCodeByUserCode :one
+SELECT * FROM oauth2_provider_device_codes WHERE user_code = $1;
+
+-- name: GetOAuth2ProviderDeviceCodeByID :one
+SELECT * FROM oauth2_provider_device_codes WHERE id = $1;
+
+-- name: UpdateOAuth2ProviderDeviceCodeAuthorization :one
+UPDATE oauth2_provider_device_codes SET
+    user_id = $2,
+    status = $3
+WHERE id = $1 AND status = 'pending' RETURNING *;
+
+-- name: DeleteOAuth2ProviderDeviceCodeByID :exec
+DELETE FROM oauth2_provider_device_codes WHERE id = $1;
+
+-- name: DeleteExpiredOAuth2ProviderDeviceCodes :exec
+DELETE FROM oauth2_provider_device_codes
+WHERE expires_at < NOW() AND status = 'pending';
+
+-- name: GetOAuth2ProviderDeviceCodesByClientID :many
+SELECT * FROM oauth2_provider_device_codes
+WHERE client_id = $1
+ORDER BY created_at DESC;

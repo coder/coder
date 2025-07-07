@@ -28,6 +28,7 @@ type authorizeParams struct {
 	resource            string // RFC 8707 resource indicator
 	codeChallenge       string // PKCE code challenge
 	codeChallengeMethod string // PKCE challenge method
+	accessType          string // OAuth2 access type (online/offline)
 }
 
 func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizeParams, []codersdk.ValidationError, error) {
@@ -45,12 +46,21 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 		resource:            p.String(vals, "", "resource"),
 		codeChallenge:       p.String(vals, "", "code_challenge"),
 		codeChallengeMethod: p.String(vals, "", "code_challenge_method"),
+		accessType:          p.String(vals, "", "access_type"),
 	}
 	// Validate resource indicator syntax (RFC 8707): must be absolute URI without fragment
 	if err := validateResourceParameter(params.resource); err != nil {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  "resource",
 			Detail: "must be an absolute URI without fragment",
+		})
+	}
+
+	// Validate access_type parameter (OAuth2 specification)
+	if params.accessType != "" && params.accessType != "online" && params.accessType != "offline" {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  "access_type",
+			Detail: "must be 'online' or 'offline'",
 		})
 	}
 

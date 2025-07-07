@@ -107,6 +107,7 @@ func (api *API) deleteOAuth2ProviderAppSecret() http.HandlerFunc {
 // @Summary OAuth2 authorization request (GET - show authorization page).
 // @ID oauth2-authorization-request-get
 // @Security CoderSessionToken
+// @Produce text/html
 // @Tags Enterprise
 // @Param client_id query string true "Client ID"
 // @Param state query string true "A random unguessable string"
@@ -122,6 +123,8 @@ func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Summary OAuth2 authorization request (POST - process authorization).
 // @ID oauth2-authorization-request-post
 // @Security CoderSessionToken
+// @Accept application/x-www-form-urlencoded
+// @Produce text/html
 // @Tags Enterprise
 // @Param client_id query string true "Client ID"
 // @Param state query string true "A random unguessable string"
@@ -144,20 +147,22 @@ func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Param refresh_token formData string false "Refresh token, required if grant_type=refresh_token"
 // @Param grant_type formData codersdk.OAuth2ProviderGrantType true "Grant type"
 // @Success 200 {object} oauth2.Token
-// @Router /oauth2/tokens [post]
+// @Router /oauth2/token [post]
 func (api *API) postOAuth2ProviderAppToken() http.HandlerFunc {
 	return oauth2provider.Tokens(api.Database, api.DeploymentValues.Sessions)
 }
 
-// @Summary Delete OAuth2 application tokens.
-// @ID delete-oauth2-application-tokens
-// @Security CoderSessionToken
+// @Summary Revoke OAuth2 tokens (RFC 7009).
+// @ID oauth2-token-revocation
+// @Accept x-www-form-urlencoded
 // @Tags Enterprise
-// @Param client_id query string true "Client ID"
-// @Success 204
-// @Router /oauth2/tokens [delete]
-func (api *API) deleteOAuth2ProviderAppTokens() http.HandlerFunc {
-	return oauth2provider.RevokeApp(api.Database)
+// @Param client_id formData string true "Client ID for authentication"
+// @Param token formData string true "The token to revoke"
+// @Param token_type_hint formData string false "Hint about token type (access_token or refresh_token)"
+// @Success 200 "Token successfully revoked"
+// @Router /oauth2/revoke [post]
+func (api *API) revokeOAuth2Token() http.HandlerFunc {
+	return oauth2provider.RevokeToken(api.Database)
 }
 
 // @Summary OAuth2 authorization server metadata.
@@ -225,4 +230,42 @@ func (api *API) putOAuth2ClientConfiguration() http.HandlerFunc {
 // @Router /oauth2/clients/{client_id} [delete]
 func (api *API) deleteOAuth2ClientConfiguration() http.HandlerFunc {
 	return oauth2provider.DeleteClientConfiguration(api.Database, api.Auditor.Load(), api.Logger)
+}
+
+// @Summary OAuth2 device authorization request (RFC 8628).
+// @ID oauth2-device-authorization-request
+// @Accept json
+// @Produce json
+// @Tags Enterprise
+// @Param request body codersdk.OAuth2DeviceAuthorizationRequest true "Device authorization request"
+// @Success 200 {object} codersdk.OAuth2DeviceAuthorizationResponse
+// @Router /oauth2/device [post]
+func (api *API) postOAuth2DeviceAuthorization() http.HandlerFunc {
+	return oauth2provider.DeviceAuthorization(api.Database, api.AccessURL)
+}
+
+// @Summary OAuth2 device verification page (GET - show verification form).
+// @ID oauth2-device-verification-get
+// @Security CoderSessionToken
+// @Produce text/html
+// @Tags Enterprise
+// @Param user_code query string false "Pre-filled user code"
+// @Success 200 "Returns HTML device verification page"
+// @Router /oauth2/device/verify [get]
+func (api *API) getOAuth2DeviceVerification() http.HandlerFunc {
+	return oauth2provider.DeviceVerification(api.Database)
+}
+
+// @Summary OAuth2 device verification request (POST - process verification).
+// @ID oauth2-device-verification-post
+// @Security CoderSessionToken
+// @Accept application/x-www-form-urlencoded
+// @Produce text/html
+// @Tags Enterprise
+// @Param user_code formData string true "Device verification code"
+// @Param action formData string true "Action to take: authorize or deny"
+// @Success 200 "Returns HTML success/denial page"
+// @Router /oauth2/device/verify [post]
+func (api *API) postOAuth2DeviceVerification() http.HandlerFunc {
+	return oauth2provider.DeviceVerification(api.Database)
 }

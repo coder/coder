@@ -1252,6 +1252,67 @@ func AllNotificationTemplateKindValues() []NotificationTemplateKind {
 	}
 }
 
+type OAuth2DeviceStatus string
+
+const (
+	OAuth2DeviceStatusPending    OAuth2DeviceStatus = "pending"
+	OAuth2DeviceStatusAuthorized OAuth2DeviceStatus = "authorized"
+	OAuth2DeviceStatusDenied     OAuth2DeviceStatus = "denied"
+)
+
+func (e *OAuth2DeviceStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OAuth2DeviceStatus(s)
+	case string:
+		*e = OAuth2DeviceStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OAuth2DeviceStatus: %T", src)
+	}
+	return nil
+}
+
+type NullOAuth2DeviceStatus struct {
+	OAuth2DeviceStatus OAuth2DeviceStatus `json:"oauth2_device_status"`
+	Valid              bool               `json:"valid"` // Valid is true if OAuth2DeviceStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOAuth2DeviceStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.OAuth2DeviceStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OAuth2DeviceStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOAuth2DeviceStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OAuth2DeviceStatus), nil
+}
+
+func (e OAuth2DeviceStatus) Valid() bool {
+	switch e {
+	case OAuth2DeviceStatusPending,
+		OAuth2DeviceStatusAuthorized,
+		OAuth2DeviceStatusDenied:
+		return true
+	}
+	return false
+}
+
+func AllOAuth2DeviceStatusValues() []OAuth2DeviceStatus {
+	return []OAuth2DeviceStatus{
+		OAuth2DeviceStatusPending,
+		OAuth2DeviceStatusAuthorized,
+		OAuth2DeviceStatusDenied,
+	}
+}
+
 type ParameterDestinationScheme string
 
 const (
@@ -3294,6 +3355,32 @@ type OAuth2ProviderAppToken struct {
 	Audience sql.NullString `db:"audience" json:"audience"`
 	// Denormalized user ID for performance optimization in authorization checks
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+// RFC 8628: OAuth2 Device Authorization Grant device codes
+type OAuth2ProviderDeviceCode struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	ExpiresAt time.Time `db:"expires_at" json:"expires_at"`
+	// Hashed device code for security
+	DeviceCodeHash []byte `db:"device_code_hash" json:"-"`
+	// Device code prefix for lookup (first 8 chars)
+	DeviceCodePrefix string `db:"device_code_prefix" json:"device_code_prefix"`
+	// Human-readable code shown to user (6-8 characters)
+	UserCode string        `db:"user_code" json:"user_code"`
+	ClientID uuid.UUID     `db:"client_id" json:"client_id"`
+	UserID   uuid.NullUUID `db:"user_id" json:"user_id"`
+	// Current authorization status: pending (awaiting user action), authorized (user approved), or denied (user rejected)
+	Status OAuth2DeviceStatus `db:"status" json:"status"`
+	// URI where user enters user_code
+	VerificationUri string `db:"verification_uri" json:"verification_uri"`
+	// Optional complete URI with user_code embedded
+	VerificationUriComplete sql.NullString `db:"verification_uri_complete" json:"verification_uri_complete"`
+	Scope                   sql.NullString `db:"scope" json:"scope"`
+	// RFC 8707 resource parameter for audience restriction
+	ResourceUri sql.NullString `db:"resource_uri" json:"resource_uri"`
+	// Minimum polling interval in seconds (RFC 8628)
+	PollingInterval int32 `db:"polling_interval" json:"polling_interval"`
 }
 
 type Organization struct {

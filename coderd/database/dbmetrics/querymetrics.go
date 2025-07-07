@@ -292,6 +292,13 @@ func (m queryMetricsStore) DeleteCustomRole(ctx context.Context, arg database.De
 	return r0
 }
 
+func (m queryMetricsStore) DeleteExpiredOAuth2ProviderDeviceCodes(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.DeleteExpiredOAuth2ProviderDeviceCodes(ctx)
+	m.queryLatencies.WithLabelValues("DeleteExpiredOAuth2ProviderDeviceCodes").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteExternalAuthLink(ctx, arg)
@@ -373,6 +380,13 @@ func (m queryMetricsStore) DeleteOldAuditLogConnectionEvents(ctx context.Context
 	start := time.Now()
 	r0 := m.s.DeleteOldAuditLogConnectionEvents(ctx, threshold)
 	m.queryLatencies.WithLabelValues("DeleteOldAuditLogConnectionEvents").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) DeleteOAuth2ProviderDeviceCodeByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteOAuth2ProviderDeviceCodeByID(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteOAuth2ProviderDeviceCodeByID").Observe(time.Since(start).Seconds())
 	return r0
 }
 
@@ -1101,6 +1115,34 @@ func (m queryMetricsStore) GetOAuth2ProviderAppsByUserID(ctx context.Context, us
 	start := time.Now()
 	r0, r1 := m.s.GetOAuth2ProviderAppsByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetOAuth2ProviderAppsByUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOAuth2ProviderDeviceCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderDeviceCode, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuth2ProviderDeviceCodeByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetOAuth2ProviderDeviceCodeByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOAuth2ProviderDeviceCodeByPrefix(ctx context.Context, deviceCodePrefix string) (database.OAuth2ProviderDeviceCode, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuth2ProviderDeviceCodeByPrefix(ctx, deviceCodePrefix)
+	m.queryLatencies.WithLabelValues("GetOAuth2ProviderDeviceCodeByPrefix").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOAuth2ProviderDeviceCodeByUserCode(ctx context.Context, userCode string) (database.OAuth2ProviderDeviceCode, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuth2ProviderDeviceCodeByUserCode(ctx, userCode)
+	m.queryLatencies.WithLabelValues("GetOAuth2ProviderDeviceCodeByUserCode").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOAuth2ProviderDeviceCodesByClientID(ctx context.Context, clientID uuid.UUID) ([]database.OAuth2ProviderDeviceCode, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuth2ProviderDeviceCodesByClientID(ctx, clientID)
+	m.queryLatencies.WithLabelValues("GetOAuth2ProviderDeviceCodesByClientID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -2273,6 +2315,13 @@ func (m queryMetricsStore) InsertOAuth2ProviderAppToken(ctx context.Context, arg
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertOAuth2ProviderDeviceCode(ctx context.Context, arg database.InsertOAuth2ProviderDeviceCodeParams) (database.OAuth2ProviderDeviceCode, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertOAuth2ProviderDeviceCode(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertOAuth2ProviderDeviceCode").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
 	start := time.Now()
 	organization, err := m.s.InsertOrganization(ctx, arg)
@@ -2774,6 +2823,13 @@ func (m queryMetricsStore) UpdateOAuth2ProviderAppSecretByID(ctx context.Context
 	start := time.Now()
 	r0, r1 := m.s.UpdateOAuth2ProviderAppSecretByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateOAuth2ProviderAppSecretByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateOAuth2ProviderDeviceCodeAuthorization(ctx context.Context, arg database.UpdateOAuth2ProviderDeviceCodeAuthorizationParams) (database.OAuth2ProviderDeviceCode, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateOAuth2ProviderDeviceCodeAuthorization(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateOAuth2ProviderDeviceCodeAuthorization").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

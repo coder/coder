@@ -58,6 +58,21 @@ var (
 	oauthHTML string
 
 	oauthTemplate *htmltemplate.Template
+
+	//go:embed static/oauth2device.html
+	oauthDeviceHTML string
+
+	oauthDeviceTemplate *htmltemplate.Template
+
+	//go:embed static/oauth2device_success.html
+	oauthDeviceSuccessHTML string
+
+	oauthDeviceSuccessTemplate *htmltemplate.Template
+
+	//go:embed static/oauth2device_denied.html
+	oauthDeviceDeniedHTML string
+
+	oauthDeviceDeniedTemplate *htmltemplate.Template
 )
 
 func init() {
@@ -67,7 +82,22 @@ func init() {
 		panic(err)
 	}
 
-	oauthTemplate, err = htmltemplate.New("error").Parse(oauthHTML)
+	oauthTemplate, err = htmltemplate.New("oauth2allow").Parse(oauthHTML)
+	if err != nil {
+		panic(err)
+	}
+
+	oauthDeviceTemplate, err = htmltemplate.New("oauth2device").Parse(oauthDeviceHTML)
+	if err != nil {
+		panic(err)
+	}
+
+	oauthDeviceSuccessTemplate, err = htmltemplate.New("oauth2device_success").Parse(oauthDeviceSuccessHTML)
+	if err != nil {
+		panic(err)
+	}
+
+	oauthDeviceDeniedTemplate, err = htmltemplate.New("oauth2device_denied").Parse(oauthDeviceDeniedHTML)
 	if err != nil {
 		panic(err)
 	}
@@ -1130,6 +1160,59 @@ func RenderOAuthAllowPage(rw http.ResponseWriter, r *http.Request, data RenderOA
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
 			Message: "Failed to render oauth page: " + err.Error(),
+		})
+		return
+	}
+}
+
+// RenderOAuthDeviceData contains the variables that are found in
+// site/static/oauth2device.html.
+type RenderOAuthDeviceData struct {
+	AppIcon  string
+	AppName  string
+	UserCode string
+}
+
+// RenderOAuthDevicePage renders the static page for OAuth2 device authorization.
+func RenderOAuthDevicePage(rw http.ResponseWriter, r *http.Request, data RenderOAuthDeviceData) {
+	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	err := oauthDeviceTemplate.Execute(rw, data)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
+			Message: "Failed to render oauth device page: " + err.Error(),
+		})
+		return
+	}
+}
+
+// RenderOAuthDeviceResultData contains the variables that are found in
+// site/static/oauth2device_success.html and site/static/oauth2device_denied.html.
+type RenderOAuthDeviceResultData struct {
+	AppName string
+}
+
+// RenderOAuthDeviceSuccessPage renders the static page for successful OAuth2 device authorization.
+func RenderOAuthDeviceSuccessPage(rw http.ResponseWriter, r *http.Request, data RenderOAuthDeviceResultData) {
+	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	err := oauthDeviceSuccessTemplate.Execute(rw, data)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
+			Message: "Failed to render oauth device success page: " + err.Error(),
+		})
+		return
+	}
+}
+
+// RenderOAuthDeviceDeniedPage renders the static page for denied OAuth2 device authorization.
+func RenderOAuthDeviceDeniedPage(rw http.ResponseWriter, r *http.Request, data RenderOAuthDeviceResultData) {
+	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	err := oauthDeviceDeniedTemplate.Execute(rw, data)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
+			Message: "Failed to render oauth device denied page: " + err.Error(),
 		})
 		return
 	}

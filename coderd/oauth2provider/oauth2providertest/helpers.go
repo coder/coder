@@ -208,7 +208,7 @@ func ExchangeCodeForToken(t *testing.T, baseURL string, params TokenExchangePara
 	}
 
 	// Create request
-	req, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/oauth2/tokens", strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/oauth2/token", strings.NewReader(data.Encode()))
 	require.NoError(t, err, "failed to create token request")
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -275,7 +275,7 @@ func PerformTokenExchangeExpectingError(t *testing.T, baseURL string, params Tok
 	}
 
 	// Create request
-	req, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/oauth2/tokens", strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/oauth2/token", strings.NewReader(data.Encode()))
 	require.NoError(t, err, "failed to create token request")
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

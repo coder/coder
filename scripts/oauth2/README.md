@@ -146,5 +146,5 @@ All scripts respect these environment variables:
 
 - Metadata: `GET /.well-known/oauth-authorization-server`
 - Authorization: `GET/POST /oauth2/authorize`
-- Token: `POST /oauth2/tokens`
+- Token: `POST /oauth2/token`
 - Apps API: `/api/v2/oauth2-provider/apps`

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -36,6 +37,16 @@ var (
 	errInvalidPKCE = xerrors.New("invalid code_verifier")
 	// errInvalidResource means the resource parameter validation failed.
 	errInvalidResource = xerrors.New("invalid resource parameter")
+	// errBadDeviceCode means the user provided a bad device code.
+	errBadDeviceCode = xerrors.New("Invalid device code")
+	// errAuthorizationPending means the user hasn't authorized the device yet.
+	errAuthorizationPending = xerrors.New("authorization pending")
+	// errSlowDown means the client is polling too frequently.
+	errSlowDown = xerrors.New("slow down")
+	// errAccessDenied means the user denied the authorization.
+	errAccessDenied = xerrors.New("access denied")
+	// errExpiredToken means the device code has expired.
+	errExpiredToken = xerrors.New("expired token")
 )
 
 type tokenParams struct {
@@ -47,12 +58,12 @@ type tokenParams struct {
 	refreshToken string
 	codeVerifier string // PKCE verifier
 	resource     string // RFC 8707 resource for token binding
+	deviceCode   string // RFC 8628 device code
 }
 
 func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []codersdk.ValidationError, error) {
 	p := httpapi.NewQueryParamParser()
-	err := r.ParseForm()
-	if err != nil {
+	if err := r.ParseForm(); err != nil {
 		return tokenParams{}, nil, xerrors.Errorf("parse form: %w", err)
 	}
 
@@ -64,6 +75,8 @@ func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []c
 		p.RequiredNotEmpty("refresh_token")
 	case codersdk.OAuth2ProviderGrantTypeAuthorizationCode:
 		p.RequiredNotEmpty("client_secret", "client_id", "code")
+	case codersdk.OAuth2ProviderGrantTypeDeviceCode:
+		p.RequiredNotEmpty("client_id", "device_code")
 	}
 
 	params := tokenParams{
@@ -75,6 +88,7 @@ func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []c
 		refreshToken: p.String(vals, "", "refresh_token"),
 		codeVerifier: p.String(vals, "", "code_verifier"),
 		resource:     p.String(vals, "", "resource"),
+		deviceCode:   p.String(vals, "", "device_code"),
 	}
 	// Validate resource parameter syntax (RFC 8707): must be absolute URI without fragment
 	if err := validateResourceParameter(params.resource); err != nil {
@@ -119,8 +133,9 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 				return
 			}
 
-			// Check for missing required parameters for authorization_code grant
-			for _, field := range []string{"code", "client_id", "client_secret"} {
+			// Check for missing required parameters for different grant types
+			missingParams := []string{"code", "client_id", "client_secret", "device_code", "refresh_token"}
+			for _, field := range missingParams {
 				if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
 					return validationError.Field == field
 				}) {
@@ -136,11 +151,12 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 		var token oauth2.Token
 		//nolint:gocritic,revive // More cases will be added later.
 		switch params.grantType {
-		// TODO: Client creds, device code.
 		case codersdk.OAuth2ProviderGrantTypeRefreshToken:
 			token, err = refreshTokenGrant(ctx, db, app, lifetimes, params)
 		case codersdk.OAuth2ProviderGrantTypeAuthorizationCode:
 			token, err = authorizationCodeGrant(ctx, db, app, lifetimes, params)
+		case codersdk.OAuth2ProviderGrantTypeDeviceCode:
+			token, err = deviceCodeGrant(ctx, db, app, lifetimes, params)
 		default:
 			// This should handle truly invalid grant types
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "unsupported_grant_type", fmt.Sprintf("The grant type %q is not supported", params.grantType))
@@ -165,6 +181,26 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 		}
 		if errors.Is(err, errBadToken) {
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_grant", "The refresh token is invalid or expired")
+			return
+		}
+		if errors.Is(err, errBadDeviceCode) {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_grant", "The device code is invalid")
+			return
+		}
+		if errors.Is(err, errAuthorizationPending) {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "authorization_pending", "The authorization request is still pending")
+			return
+		}
+		if errors.Is(err, errSlowDown) {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "slow_down", "The client is polling too frequently")
+			return
+		}
+		if errors.Is(err, errAccessDenied) {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "access_denied", "The authorization was denied by the user")
+			return
+		}
+		if errors.Is(err, errExpiredToken) {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "expired_token", "The device authorization has expired")
 			return
 		}
 		if err != nil {
@@ -372,6 +408,11 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	//nolint:gocritic // There is no user yet so we must use the system.
 	prevKey, err := db.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), dbToken.APIKeyID)
 	if err != nil {
+		// API key was deleted (e.g., by token revocation), so token is invalid
+		if errors.Is(err, sql.ErrNoRows) {
+			return oauth2.Token{}, errBadToken
+		}
+
 		return oauth2.Token{}, err
 	}
 
@@ -463,4 +504,180 @@ func validateResourceParameter(resource string) error {
 	}
 
 	return nil
+}
+
+// parseDeviceCode parses a device code formatted like "cdr_device_prefix_secret"
+func parseDeviceCode(deviceCode string) (parsedSecret, error) {
+	parts := strings.Split(deviceCode, "_")
+	if len(parts) != 4 {
+		return parsedSecret{}, xerrors.Errorf("incorrect number of parts: %d", len(parts))
+	}
+	if parts[0] != "cdr" || parts[1] != "device" {
+		return parsedSecret{}, xerrors.Errorf("incorrect scheme: %s_%s", parts[0], parts[1])
+	}
+	return parsedSecret{
+		prefix: parts[2],
+		secret: parts[3],
+	}, nil
+}
+
+func deviceCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, params tokenParams) (oauth2.Token, error) {
+	// Parse the device code
+	deviceCode, err := parseDeviceCode(params.deviceCode)
+	if err != nil {
+		return oauth2.Token{}, errBadDeviceCode
+	}
+
+	// Look up the device code in the database
+	//nolint:gocritic // System access needed for device code lookup
+	dbDeviceCode, err := db.GetOAuth2ProviderDeviceCodeByPrefix(dbauthz.AsSystemRestricted(ctx), deviceCode.prefix)
+	if errors.Is(err, sql.ErrNoRows) {
+		return oauth2.Token{}, errBadDeviceCode
+	}
+	if err != nil {
+		return oauth2.Token{}, err
+	}
+
+	// Verify the device code hash
+	equal, err := userpassword.Compare(string(dbDeviceCode.DeviceCodeHash), deviceCode.secret)
+	if err != nil {
+		return oauth2.Token{}, xerrors.Errorf("unable to compare device code: %w", err)
+	}
+	if !equal {
+		return oauth2.Token{}, errBadDeviceCode
+	}
+
+	// Check if the device code has expired
+	if dbDeviceCode.ExpiresAt.Before(dbtime.Now()) {
+		return oauth2.Token{}, errExpiredToken
+	}
+
+	// Security: Make sure the app requesting the token is the same one that
+	// initiated the device flow.
+	if dbDeviceCode.ClientID != app.ID {
+		return oauth2.Token{}, errBadDeviceCode
+	}
+
+	// Check authorization status
+	switch dbDeviceCode.Status {
+	case database.OAuth2DeviceStatusDenied:
+		return oauth2.Token{}, errAccessDenied
+	case database.OAuth2DeviceStatusPending:
+		return oauth2.Token{}, errAuthorizationPending
+	case database.OAuth2DeviceStatusAuthorized:
+		// Continue with token generation
+	default:
+		return oauth2.Token{}, errAuthorizationPending
+	}
+
+	// Check that we have a user_id (should be set when authorized)
+	if !dbDeviceCode.UserID.Valid {
+		return oauth2.Token{}, errAuthorizationPending
+	}
+
+	// Verify resource parameter consistency (RFC 8707)
+	if dbDeviceCode.ResourceUri.Valid && dbDeviceCode.ResourceUri.String != "" {
+		// Resource was specified during device authorization
+		if params.resource == "" {
+			return oauth2.Token{}, errInvalidResource
+		}
+		if params.resource != dbDeviceCode.ResourceUri.String {
+			return oauth2.Token{}, errInvalidResource
+		}
+	} else if params.resource != "" {
+		// Resource was not specified during device authorization but is now provided
+		return oauth2.Token{}, errInvalidResource
+	}
+
+	// Generate a refresh token
+	refreshToken, err := GenerateSecret()
+	if err != nil {
+		return oauth2.Token{}, err
+	}
+
+	// Generate the API key we will swap for the device code
+	tokenName := fmt.Sprintf("%s_%s_oauth_device_token", dbDeviceCode.UserID.UUID, app.ID)
+	key, sessionToken, err := apikey.Generate(apikey.CreateParams{
+		UserID:          dbDeviceCode.UserID.UUID,
+		LoginType:       database.LoginTypeOAuth2ProviderApp,
+		DefaultLifetime: lifetimes.DefaultDuration.Value(),
+		TokenName:       tokenName,
+	})
+	if err != nil {
+		return oauth2.Token{}, err
+	}
+
+	// Get user roles for authorization context
+	actor, _, err := httpmw.UserRBACSubject(ctx, db, dbDeviceCode.UserID.UUID, rbac.ScopeAll)
+	if err != nil {
+		return oauth2.Token{}, xerrors.Errorf("fetch user actor: %w", err)
+	}
+
+	// Do the actual token exchange in the database
+	err = db.InTx(func(tx database.Store) error {
+		ctx := dbauthz.As(ctx, actor)
+
+		// Delete the device code (one-time use)
+		err = tx.DeleteOAuth2ProviderDeviceCodeByID(ctx, dbDeviceCode.ID)
+		if err != nil {
+			return xerrors.Errorf("delete device code: %w", err)
+		}
+
+		// Delete any previous API key for this app/user combination
+		prevKey, err := tx.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
+			UserID:    dbDeviceCode.UserID.UUID,
+			TokenName: tokenName,
+		})
+		if err == nil {
+			err = tx.DeleteAPIKeyByID(ctx, prevKey.ID)
+		}
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("delete previous API key: %w", err)
+		}
+
+		// Insert the new API key
+		newKey, err := tx.InsertAPIKey(ctx, key)
+		if err != nil {
+			return xerrors.Errorf("insert oauth2 access token: %w", err)
+		}
+
+		// Find the app secret for token binding
+		//nolint:gocritic // System access needed to find app secret
+		appSecrets, err := tx.GetOAuth2ProviderAppSecretsByAppID(dbauthz.AsSystemRestricted(ctx), app.ID)
+		if err != nil || len(appSecrets) == 0 {
+			return xerrors.Errorf("no app secrets found for client")
+		}
+
+		// Use the first (most recent) app secret
+		appSecret := appSecrets[0]
+
+		// Insert the OAuth2 token record
+		_, err = tx.InsertOAuth2ProviderAppToken(ctx, database.InsertOAuth2ProviderAppTokenParams{
+			ID:          uuid.New(),
+			CreatedAt:   dbtime.Now(),
+			ExpiresAt:   key.ExpiresAt,
+			HashPrefix:  []byte(refreshToken.Prefix),
+			RefreshHash: []byte(refreshToken.Hashed),
+			AppSecretID: appSecret.ID,
+			APIKeyID:    newKey.ID,
+			UserID:      dbDeviceCode.UserID.UUID,
+			Audience:    dbDeviceCode.ResourceUri,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert oauth2 refresh token: %w", err)
+		}
+
+		return nil
+	}, nil)
+	if err != nil {
+		return oauth2.Token{}, err
+	}
+
+	return oauth2.Token{
+		AccessToken:  sessionToken,
+		TokenType:    "Bearer",
+		RefreshToken: refreshToken.Formatted,
+		Expiry:       key.ExpiresAt,
+		ExpiresIn:    int64(time.Until(key.ExpiresAt).Seconds()),
+	}, nil
 }

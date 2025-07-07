@@ -5358,6 +5358,16 @@ func (q *sqlQuerier) UpdateInboxNotificationReadStatus(ctx context.Context, arg 
 	return err
 }
 
+const deleteExpiredOAuth2ProviderDeviceCodes = `-- name: DeleteExpiredOAuth2ProviderDeviceCodes :exec
+DELETE FROM oauth2_provider_device_codes
+WHERE expires_at < NOW() AND status = 'pending'
+`
+
+func (q *sqlQuerier) DeleteExpiredOAuth2ProviderDeviceCodes(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteExpiredOAuth2ProviderDeviceCodes)
+	return err
+}
+
 const deleteOAuth2ProviderAppByClientID = `-- name: DeleteOAuth2ProviderAppByClientID :exec
 DELETE FROM oauth2_provider_apps WHERE id = $1
 `
@@ -5426,6 +5436,15 @@ type DeleteOAuth2ProviderAppTokensByAppAndUserIDParams struct {
 
 func (q *sqlQuerier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppTokensByAppAndUserIDParams) error {
 	_, err := q.db.ExecContext(ctx, deleteOAuth2ProviderAppTokensByAppAndUserID, arg.AppID, arg.UserID)
+	return err
+}
+
+const deleteOAuth2ProviderDeviceCodeByID = `-- name: DeleteOAuth2ProviderDeviceCodeByID :exec
+DELETE FROM oauth2_provider_device_codes WHERE id = $1
+`
+
+func (q *sqlQuerier) DeleteOAuth2ProviderDeviceCodeByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteOAuth2ProviderDeviceCodeByID, id)
 	return err
 }
 
@@ -5829,6 +5848,128 @@ func (q *sqlQuerier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID u
 	return items, nil
 }
 
+const getOAuth2ProviderDeviceCodeByID = `-- name: GetOAuth2ProviderDeviceCodeByID :one
+SELECT id, created_at, expires_at, device_code_hash, device_code_prefix, user_code, client_id, user_id, status, verification_uri, verification_uri_complete, scope, resource_uri, polling_interval FROM oauth2_provider_device_codes WHERE id = $1
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderDeviceCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderDeviceCode, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderDeviceCodeByID, id)
+	var i OAuth2ProviderDeviceCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.DeviceCodeHash,
+		&i.DeviceCodePrefix,
+		&i.UserCode,
+		&i.ClientID,
+		&i.UserID,
+		&i.Status,
+		&i.VerificationUri,
+		&i.VerificationUriComplete,
+		&i.Scope,
+		&i.ResourceUri,
+		&i.PollingInterval,
+	)
+	return i, err
+}
+
+const getOAuth2ProviderDeviceCodeByPrefix = `-- name: GetOAuth2ProviderDeviceCodeByPrefix :one
+SELECT id, created_at, expires_at, device_code_hash, device_code_prefix, user_code, client_id, user_id, status, verification_uri, verification_uri_complete, scope, resource_uri, polling_interval FROM oauth2_provider_device_codes WHERE device_code_prefix = $1
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderDeviceCodeByPrefix(ctx context.Context, deviceCodePrefix string) (OAuth2ProviderDeviceCode, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderDeviceCodeByPrefix, deviceCodePrefix)
+	var i OAuth2ProviderDeviceCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.DeviceCodeHash,
+		&i.DeviceCodePrefix,
+		&i.UserCode,
+		&i.ClientID,
+		&i.UserID,
+		&i.Status,
+		&i.VerificationUri,
+		&i.VerificationUriComplete,
+		&i.Scope,
+		&i.ResourceUri,
+		&i.PollingInterval,
+	)
+	return i, err
+}
+
+const getOAuth2ProviderDeviceCodeByUserCode = `-- name: GetOAuth2ProviderDeviceCodeByUserCode :one
+SELECT id, created_at, expires_at, device_code_hash, device_code_prefix, user_code, client_id, user_id, status, verification_uri, verification_uri_complete, scope, resource_uri, polling_interval FROM oauth2_provider_device_codes WHERE user_code = $1
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderDeviceCodeByUserCode(ctx context.Context, userCode string) (OAuth2ProviderDeviceCode, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderDeviceCodeByUserCode, userCode)
+	var i OAuth2ProviderDeviceCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.DeviceCodeHash,
+		&i.DeviceCodePrefix,
+		&i.UserCode,
+		&i.ClientID,
+		&i.UserID,
+		&i.Status,
+		&i.VerificationUri,
+		&i.VerificationUriComplete,
+		&i.Scope,
+		&i.ResourceUri,
+		&i.PollingInterval,
+	)
+	return i, err
+}
+
+const getOAuth2ProviderDeviceCodesByClientID = `-- name: GetOAuth2ProviderDeviceCodesByClientID :many
+SELECT id, created_at, expires_at, device_code_hash, device_code_prefix, user_code, client_id, user_id, status, verification_uri, verification_uri_complete, scope, resource_uri, polling_interval FROM oauth2_provider_device_codes
+WHERE client_id = $1
+ORDER BY created_at DESC
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderDeviceCodesByClientID(ctx context.Context, clientID uuid.UUID) ([]OAuth2ProviderDeviceCode, error) {
+	rows, err := q.db.QueryContext(ctx, getOAuth2ProviderDeviceCodesByClientID, clientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OAuth2ProviderDeviceCode
+	for rows.Next() {
+		var i OAuth2ProviderDeviceCode
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+			&i.DeviceCodeHash,
+			&i.DeviceCodePrefix,
+			&i.UserCode,
+			&i.ClientID,
+			&i.UserID,
+			&i.Status,
+			&i.VerificationUri,
+			&i.VerificationUriComplete,
+			&i.Scope,
+			&i.ResourceUri,
+			&i.PollingInterval,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertOAuth2ProviderApp = `-- name: InsertOAuth2ProviderApp :one
 INSERT INTO oauth2_provider_apps (
     id,
@@ -6157,6 +6298,88 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 	return i, err
 }
 
+const insertOAuth2ProviderDeviceCode = `-- name: InsertOAuth2ProviderDeviceCode :one
+
+INSERT INTO oauth2_provider_device_codes (
+    id,
+    created_at,
+    expires_at,
+    device_code_hash,
+    device_code_prefix,
+    user_code,
+    client_id,
+    verification_uri,
+    verification_uri_complete,
+    scope,
+    resource_uri,
+    polling_interval
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11,
+    $12
+) RETURNING id, created_at, expires_at, device_code_hash, device_code_prefix, user_code, client_id, user_id, status, verification_uri, verification_uri_complete, scope, resource_uri, polling_interval
+`
+
+type InsertOAuth2ProviderDeviceCodeParams struct {
+	ID                      uuid.UUID      `db:"id" json:"id"`
+	CreatedAt               time.Time      `db:"created_at" json:"created_at"`
+	ExpiresAt               time.Time      `db:"expires_at" json:"expires_at"`
+	DeviceCodeHash          []byte         `db:"device_code_hash" json:"-"`
+	DeviceCodePrefix        string         `db:"device_code_prefix" json:"device_code_prefix"`
+	UserCode                string         `db:"user_code" json:"user_code"`
+	ClientID                uuid.UUID      `db:"client_id" json:"client_id"`
+	VerificationUri         string         `db:"verification_uri" json:"verification_uri"`
+	VerificationUriComplete sql.NullString `db:"verification_uri_complete" json:"verification_uri_complete"`
+	Scope                   sql.NullString `db:"scope" json:"scope"`
+	ResourceUri             sql.NullString `db:"resource_uri" json:"resource_uri"`
+	PollingInterval         int32          `db:"polling_interval" json:"polling_interval"`
+}
+
+// RFC 8628 Device Authorization Grant queries
+func (q *sqlQuerier) InsertOAuth2ProviderDeviceCode(ctx context.Context, arg InsertOAuth2ProviderDeviceCodeParams) (OAuth2ProviderDeviceCode, error) {
+	row := q.db.QueryRowContext(ctx, insertOAuth2ProviderDeviceCode,
+		arg.ID,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+		arg.DeviceCodeHash,
+		arg.DeviceCodePrefix,
+		arg.UserCode,
+		arg.ClientID,
+		arg.VerificationUri,
+		arg.VerificationUriComplete,
+		arg.Scope,
+		arg.ResourceUri,
+		arg.PollingInterval,
+	)
+	var i OAuth2ProviderDeviceCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.DeviceCodeHash,
+		&i.DeviceCodePrefix,
+		&i.UserCode,
+		&i.ClientID,
+		&i.UserID,
+		&i.Status,
+		&i.VerificationUri,
+		&i.VerificationUriComplete,
+		&i.Scope,
+		&i.ResourceUri,
+		&i.PollingInterval,
+	)
+	return i, err
+}
+
 const updateOAuth2ProviderAppByClientID = `-- name: UpdateOAuth2ProviderAppByClientID :one
 UPDATE oauth2_provider_apps SET
     updated_at = $2,
@@ -6392,6 +6615,41 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg 
 		&i.DisplaySecret,
 		&i.AppID,
 		&i.SecretPrefix,
+	)
+	return i, err
+}
+
+const updateOAuth2ProviderDeviceCodeAuthorization = `-- name: UpdateOAuth2ProviderDeviceCodeAuthorization :one
+UPDATE oauth2_provider_device_codes SET
+    user_id = $2,
+    status = $3
+WHERE id = $1 AND status = 'pending' RETURNING id, created_at, expires_at, device_code_hash, device_code_prefix, user_code, client_id, user_id, status, verification_uri, verification_uri_complete, scope, resource_uri, polling_interval
+`
+
+type UpdateOAuth2ProviderDeviceCodeAuthorizationParams struct {
+	ID     uuid.UUID          `db:"id" json:"id"`
+	UserID uuid.NullUUID      `db:"user_id" json:"user_id"`
+	Status OAuth2DeviceStatus `db:"status" json:"status"`
+}
+
+func (q *sqlQuerier) UpdateOAuth2ProviderDeviceCodeAuthorization(ctx context.Context, arg UpdateOAuth2ProviderDeviceCodeAuthorizationParams) (OAuth2ProviderDeviceCode, error) {
+	row := q.db.QueryRowContext(ctx, updateOAuth2ProviderDeviceCodeAuthorization, arg.ID, arg.UserID, arg.Status)
+	var i OAuth2ProviderDeviceCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.DeviceCodeHash,
+		&i.DeviceCodePrefix,
+		&i.UserCode,
+		&i.ClientID,
+		&i.UserID,
+		&i.Status,
+		&i.VerificationUri,
+		&i.VerificationUriComplete,
+		&i.Scope,
+		&i.ResourceUri,
+		&i.PollingInterval,
 	)
 	return i, err
 }
