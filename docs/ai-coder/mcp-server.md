@@ -30,4 +30,4 @@ coder exp mcp server
 ```
 
 > [!NOTE]
-> The MCP server is authenticated with the same identity as your Coder CLI and can perform any action on the user's behalf. Fine-grained permissions and a remote MCP server are in development. [Contact us](https://coder.com/contact) if this use case is impoortant to you.
+> The MCP server is authenticated with the same identity as your Coder CLI and can perform any action on the user's behalf. Fine-grained permissions and a remote MCP server are in development. [Contact us](https://coder.com/contact) if this use case is important to you.
