@@ -78,6 +78,14 @@ Dynamic Parameters introduces three primary enhancements to the standard paramet
   - Slider input for disk size, model temperature
   - Disabled parameters to display immutable data
 
+
+> [!NOTE]
+> Dynamic Parameters **does not support external data fetching** via HTTP endpoints at workspace build time. 
+> Doing so would introduce inpredictability in workspace builds after publishing a template.
+> We instead advise template administrators to pull in any required data for a workspace build as locals or a JSON file, then reference that data in Terraform.
+> 
+> If you have a use case for external data fetching, please file an issue or create a discussion in our [Github](https://github.com/coder/coder).
+
 ## Available Form Input Types
 
 Dynamic Parameters supports a variety of form types to create rich, interactive user experiences.
@@ -85,20 +93,45 @@ Dynamic Parameters supports a variety of form types to create rich, interactive 
 You can specify the form type using the [`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute.
 Different parameter types support different form types.
 
-The "Options" column in the table below indicates whether the form type requires options to be defined (Yes) or doesn't support/require them (No). When required, options are specified using one or more `option` blocks in your parameter definition, where each option has a `name` (displayed to the user) and a `value` (used in your template logic).
+The "Options" column in the table below indicates whether the form type supports options (Yes) or doesn't support them (No). When supported, options may be specified using one or more `option` blocks in your parameter definition, where each option has a `name` (displayed to the user) and a `value` (used in your template logic).
 
 | Form Type      | Parameter Types                            | Options | Notes                                                                                                                        |
 |----------------|--------------------------------------------|---------|------------------------------------------------------------------------------------------------------------------------------|
-| `checkbox`     | `bool`                                     | No      | A single checkbox for boolean parameters. Default for boolean parameters.                                                    |
+| `radio`        | `string`, `number`, `bool`, `list(string)` | Yes     | Radio buttons for selecting a single option with all choices visible at once. (The classic parameter option)                 |
 | `dropdown`     | `string`, `number`                         | Yes     | Searchable dropdown list for choosing a single option from a list. Default for `string` or `number` parameters with options. |
-| `input`        | `string`, `number`                         | No      | Standard single-line text input field. Default for string/number parameters without options.                                 |
 | `multi-select` | `list(string)`                             | Yes     | Select multiple items from a list with checkboxes.                                                                           |
-| `radio`        | `string`, `number`, `bool`, `list(string)` | Yes     | Radio buttons for selecting a single option with all choices visible at once.                                                |
-| `slider`       | `number`                                   | No      | Slider selection with min/max validation for numeric values.                                                                 |
-| `switch`       | `bool`                                     | No      | Toggle switch alternative for boolean parameters.                                                                            |
 | `tag-select`   | `list(string)`                             | No      | Default for list(string) parameters without options.                                                                         |
+| `input`        | `string`, `number`                         | No      | Standard single-line text input field. Default for string/number parameters without options.                                 |
 | `textarea`     | `string`                                   | No      | Multi-line text input field for longer content.                                                                              |
-| `error`        |                                            | No      | Used to display an error message when a parameter  form_type is unknown                                                      |
+| `slider`       | `number`                                   | No      | Slider selection with min/max validation for numeric values.                                                                 |
+| `checkbox`     | `bool`                                     | No      | A single checkbox for boolean parameters. Default for boolean parameters.                                                    |
+
+
+### Available styling options
+
+The `coder_parameter` resource now supports an additional `styling` attribute for special cosmetic changes that can be used to further customize the workspace creation form. This can be used for masking private inputs, marking inputs as read-only, or setting placeholder text. Note that the `styling` attribute should not be used as a governance tool, since it only changes how the interactive form is displayed. Restrictions like `disabled` may be circumnavigated by users if they create a workspace via the CLI.
+
+
+This attribute accepts JSON like so:
+
+```terraform
+data "coder_parameter" "styled_parameter" {
+  ...
+  styling = jsonencode({
+    disabled = true
+  })
+}
+```
+
+
+Not all styling attributes are supported by all form types, use the reference below for syntax:
+
+| Styling Option | Compatible parameter types | Compatible form types | Notes |
+| -------------- | -------------------------- | --------------------- | ----- |
+| `disabled`     | All parameter types        | All form types        | Disables the form control when true. |
+| `placeholder`  | `string`                   | `input`, `textarea` | Sets placeholder text, will be overwritten by user entry. |
+| `mask_input`    | `string`, `number`         | `input`, `textarea` | Masks inputs as asterisks (`*`). Used to comsetically hide token or password entry. |
+
 
 ## Use case examples
 
@@ -110,7 +143,7 @@ The following examples show some basic usage of the [`form_type`](https://regist
 
 ### Dropdowns
 
-Single-select parameters with options may now use the `form_type=\"dropdown\"` attribute for better organization.
+Single-select parameters with options may now use the `form_type="dropdown"` attribute for better organization.
 
 [Try dropdown lists on the Parameter Playground](https://playground.coder.app/parameters/kgNBpjnz7x)
 
@@ -213,7 +246,7 @@ data "coder_parameter" "ide_selector" {
 }
 ```
 
-### Radio (classic)
+### Radio
 
 Radio buttons are used to select a single option with high visibility. This is the original styling for list parameters.
 
@@ -250,7 +283,7 @@ data "coder_parameter" "environment" {
 
 ### Checkboxes
 
-Checkbox: A single checkbox for boolean values
+Checkbox: A single checkbox for boolean values. This can be used for a TOS confirmation or to expose advanced options. 
 
 [Try checkbox parameters on the Parameters Playground](https://playground.coder.app/parameters/ycWuQJk2Py).
 
@@ -284,11 +317,11 @@ data "coder_parameter" "cpu_cores" {
 }
 ```
 
-### Secrets
+### Masked Input
 
-Sliders can be used for configuration on a linear scale, like resource allocation. The `validation` block is used to clamp the minimum and maximum values for the parameter.
+Masked input parameters can be used to visually hide secret values in the workspace creation form. Note that this does not secure information on the backend and is purely cosmetic.
 
-[Try secret parameters on the Parameters Playground](https://playground.coder.app/parameters/wmiP7FM3Za).
+[Try private parameters on the Parameters Playground](https://playground.coder.app/parameters/wmiP7FM3Za).
 
 Note: this text may not be properly hidden in the Playground. The `mask_input` styling attribute is supported in v2.24.0 and onward.
 
@@ -473,7 +506,7 @@ data "coder_parameter" "cpu_cores" {
 }
 ```
 
-## Daisy Chaining
+<!-- ## Daisy Chaining
 
 You can daisy-chain the conditionals shown here to create a dynamically expanding form. Note that parameters must be indexed when using the `count` attribute.
 
@@ -526,7 +559,7 @@ data "coder_parameter" "ide_selector" {
   name = "ide_selector"
   description  = "Choose any IDEs for your workspace."
   mutable      = true
-  display_name = "Select mutliple IDEs"
+  display_name = "Select multiple IDEs"
   order = 1
   default = "[]"
 
@@ -544,7 +577,6 @@ data "coder_parameter" "ide_selector" {
   }
 }
 
-
 data "coder_parameter" "cpu_cores" {
   # Only show this parameter if the IDEs have been selected.
   count = length(local.selected) > 0 ? 1 : 0
@@ -560,7 +592,7 @@ data "coder_parameter" "cpu_cores" {
     max = local.is_ml_repo ? 16 : 8
   }
 }
-```
+``` -->
 
 </div>
 
@@ -572,7 +604,7 @@ User identity is referenced in Terraform by reading the [`coder_workspace_owner`
 
 <div class="tabs">
 
-## Role-aware Options
+### Role-aware Options
 
 Template administrators often want to expose certain experimental or unstable options only to those with elevated roles. You can now do this by setting `count` based on a user's group or role, referencing the [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) data source.
 
@@ -727,7 +759,7 @@ To revert the beta on a template:
 
 ### Template variables not showing up
 
-In beta, **Template variables are not supported in Dynamic Parameters**. This issue will be resolved by the next minor release of `coder/coder`. If this is issue is blocking your usage of Dynamic Parameters, please let us know in [this thread](http://github.com/orgs/coder/projects/54/views/1?pane=issue&itemId=117802472&issue=coder%7Ccoder%7C18671).
+In beta, **Template variables are not supported in Dynamic Parameters**. This issue will be resolved by the next minor release of `coder/coder`. If this is issue is blocking your usage of Dynamic Parameters, please let us know in [this thread](https://github.com/coder/coder/issues/18671).
 
 ### Can I use registry modules with Dynamic Parameters?
 
