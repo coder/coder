@@ -97,9 +97,8 @@ func TestResolveParameters(t *testing.T) {
 				Parameters: []previewtypes.Parameter{
 					{
 						ParameterData: immutable,
-						// User changes the value to 'bar'
-						Value:       previewtypes.StringLiteral("bar"),
-						Diagnostics: nil,
+						Value:         previewtypes.StringLiteral("foo"),
+						Diagnostics:   nil,
 					},
 				},
 			}, nil)
