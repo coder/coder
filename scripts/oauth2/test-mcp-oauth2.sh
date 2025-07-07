@@ -87,7 +87,7 @@ else
 fi
 
 # Exchange with PKCE
-TOKEN_RESPONSE=$(curl -s -X POST "$BASE_URL/oauth2/tokens" \
+TOKEN_RESPONSE=$(curl -s -X POST "$BASE_URL/oauth2/token" \
 	-H "Content-Type: application/x-www-form-urlencoded" \
 	-d "grant_type=authorization_code" \
 	-d "code=$CODE" \
@@ -112,7 +112,7 @@ REDIRECT_URL=$(curl -s -X POST "$AUTH_URL" \
 	-o /dev/null)
 CODE=$(echo "$REDIRECT_URL" | grep -oP 'code=\K[^&]+')
 
-ERROR_RESPONSE=$(curl -s -X POST "$BASE_URL/oauth2/tokens" \
+ERROR_RESPONSE=$(curl -s -X POST "$BASE_URL/oauth2/token" \
 	-H "Content-Type: application/x-www-form-urlencoded" \
 	-d "grant_type=authorization_code" \
 	-d "code=$CODE" \
@@ -139,7 +139,7 @@ REDIRECT_URL=$(curl -s -X POST "$RESOURCE_AUTH_URL" \
 
 CODE=$(echo "$REDIRECT_URL" | grep -oP 'code=\K[^&]+')
 
-TOKEN_RESPONSE=$(curl -s -X POST "$BASE_URL/oauth2/tokens" \
+TOKEN_RESPONSE=$(curl -s -X POST "$BASE_URL/oauth2/token" \
 	-H "Content-Type: application/x-www-form-urlencoded" \
 	-d "grant_type=authorization_code" \
 	-d "code=$CODE" \
@@ -157,7 +157,7 @@ fi
 echo -e "${YELLOW}Test 5: Token Refresh${NC}"
 REFRESH_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.refresh_token')
 
-REFRESH_RESPONSE=$(curl -s -X POST "$BASE_URL/oauth2/tokens" \
+REFRESH_RESPONSE=$(curl -s -X POST "$BASE_URL/oauth2/token" \
 	-H "Content-Type: application/x-www-form-urlencoded" \
 	-d "grant_type=refresh_token" \
 	-d "refresh_token=$REFRESH_TOKEN" \

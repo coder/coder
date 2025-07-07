@@ -339,6 +339,12 @@ CREATE TYPE notification_template_kind AS ENUM (
     'custom'
 );
 
+CREATE TYPE oauth2_device_status AS ENUM (
+    'pending',
+    'authorized',
+    'denied'
+);
+
 CREATE TYPE parameter_destination_scheme AS ENUM (
     'none',
     'environment_variable',
@@ -1564,6 +1570,41 @@ COMMENT ON COLUMN oauth2_provider_apps.software_version IS 'RFC 7591: Version of
 COMMENT ON COLUMN oauth2_provider_apps.registration_access_token IS 'RFC 7592: Hashed registration access token for client management';
 
 COMMENT ON COLUMN oauth2_provider_apps.registration_client_uri IS 'RFC 7592: URI for client configuration endpoint';
+
+CREATE TABLE oauth2_provider_device_codes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    device_code_hash bytea NOT NULL,
+    device_code_prefix text NOT NULL,
+    user_code text NOT NULL,
+    client_id uuid NOT NULL,
+    user_id uuid,
+    status oauth2_device_status DEFAULT 'pending'::oauth2_device_status NOT NULL,
+    verification_uri text NOT NULL,
+    verification_uri_complete text,
+    scope text DEFAULT ''::text,
+    resource_uri text,
+    polling_interval integer DEFAULT 5 NOT NULL
+);
+
+COMMENT ON TABLE oauth2_provider_device_codes IS 'RFC 8628: OAuth2 Device Authorization Grant device codes';
+
+COMMENT ON COLUMN oauth2_provider_device_codes.device_code_hash IS 'Hashed device code for security';
+
+COMMENT ON COLUMN oauth2_provider_device_codes.device_code_prefix IS 'Device code prefix for lookup (first 8 chars)';
+
+COMMENT ON COLUMN oauth2_provider_device_codes.user_code IS 'Human-readable code shown to user (6-8 characters)';
+
+COMMENT ON COLUMN oauth2_provider_device_codes.status IS 'Current authorization status: pending (awaiting user action), authorized (user approved), or denied (user rejected)';
+
+COMMENT ON COLUMN oauth2_provider_device_codes.verification_uri IS 'URI where user enters user_code';
+
+COMMENT ON COLUMN oauth2_provider_device_codes.verification_uri_complete IS 'Optional complete URI with user_code embedded';
+
+COMMENT ON COLUMN oauth2_provider_device_codes.resource_uri IS 'RFC 8707 resource parameter for audience restriction';
+
+COMMENT ON COLUMN oauth2_provider_device_codes.polling_interval IS 'Minimum polling interval in seconds (RFC 8628)';
 
 CREATE TABLE organizations (
     id uuid NOT NULL,
@@ -2951,6 +2992,15 @@ ALTER TABLE ONLY oauth2_provider_app_tokens
 ALTER TABLE ONLY oauth2_provider_apps
     ADD CONSTRAINT oauth2_provider_apps_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY oauth2_provider_device_codes
+    ADD CONSTRAINT oauth2_provider_device_codes_device_code_hash_key UNIQUE (device_code_hash);
+
+ALTER TABLE ONLY oauth2_provider_device_codes
+    ADD CONSTRAINT oauth2_provider_device_codes_device_code_prefix_key UNIQUE (device_code_prefix);
+
+ALTER TABLE ONLY oauth2_provider_device_codes
+    ADD CONSTRAINT oauth2_provider_device_codes_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_pkey PRIMARY KEY (organization_id, user_id);
 
@@ -3211,6 +3261,14 @@ CREATE INDEX idx_inbox_notifications_user_id_template_id_targets ON inbox_notifi
 
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
 
+CREATE INDEX idx_oauth2_provider_device_codes_cleanup ON oauth2_provider_device_codes USING btree (expires_at) WHERE (status = 'pending'::oauth2_device_status);
+
+CREATE INDEX idx_oauth2_provider_device_codes_client_id ON oauth2_provider_device_codes USING btree (client_id);
+
+CREATE INDEX idx_oauth2_provider_device_codes_device_code_hash ON oauth2_provider_device_codes USING btree (device_code_hash);
+
+CREATE INDEX idx_oauth2_provider_device_codes_expires_at ON oauth2_provider_device_codes USING btree (expires_at);
+
 CREATE INDEX idx_organization_member_organization_id_uuid ON organization_members USING btree (organization_id);
 
 CREATE INDEX idx_organization_member_user_id_uuid ON organization_members USING btree (user_id);
@@ -3254,6 +3312,8 @@ CREATE INDEX idx_workspace_app_statuses_workspace_id_created_at ON workspace_app
 CREATE INDEX idx_workspace_builds_initiator_id ON workspace_builds USING btree (initiator_id);
 
 CREATE UNIQUE INDEX notification_messages_dedupe_hash_idx ON notification_messages USING btree (dedupe_hash);
+
+CREATE UNIQUE INDEX oauth2_device_codes_user_code_ci_idx ON oauth2_provider_device_codes USING btree (upper(user_code));
 
 CREATE UNIQUE INDEX organizations_single_default_org ON organizations USING btree (is_default) WHERE (is_default = true);
 
@@ -3495,6 +3555,12 @@ ALTER TABLE ONLY oauth2_provider_app_tokens
 
 ALTER TABLE ONLY oauth2_provider_app_tokens
     ADD CONSTRAINT oauth2_provider_app_tokens_app_secret_id_fkey FOREIGN KEY (app_secret_id) REFERENCES oauth2_provider_app_secrets(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY oauth2_provider_device_codes
+    ADD CONSTRAINT oauth2_provider_device_codes_client_id_fkey FOREIGN KEY (client_id) REFERENCES oauth2_provider_apps(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY oauth2_provider_device_codes
+    ADD CONSTRAINT oauth2_provider_device_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_organization_id_uuid_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

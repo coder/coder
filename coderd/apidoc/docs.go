@@ -2713,6 +2713,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "produces": [
+                    "text/html"
+                ],
                 "tags": [
                     "Enterprise"
                 ],
@@ -2767,6 +2770,12 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
+                ],
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "produces": [
+                    "text/html"
                 ],
                 "tags": [
                     "Enterprise"
@@ -2910,6 +2919,109 @@ const docTemplate = `{
                 }
             }
         },
+        "/oauth2/device": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "OAuth2 device authorization request (RFC 8628).",
+                "operationId": "oauth2-device-authorization-request",
+                "parameters": [
+                    {
+                        "description": "Device authorization request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2DeviceAuthorizationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2DeviceAuthorizationResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/oauth2/device/verify": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "OAuth2 device verification page (GET - show verification form).",
+                "operationId": "oauth2-device-verification-get",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Pre-filled user code",
+                        "name": "user_code",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Returns HTML device verification page"
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "OAuth2 device verification request (POST - process verification).",
+                "operationId": "oauth2-device-verification-post",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Device verification code",
+                        "name": "user_code",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Action to take: authorize or deny",
+                        "name": "action",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Returns HTML success/denial page"
+                    }
+                }
+            }
+        },
         "/oauth2/register": {
             "post": {
                 "consumes": [
@@ -2944,7 +3056,46 @@ const docTemplate = `{
                 }
             }
         },
-        "/oauth2/tokens": {
+        "/oauth2/revoke": {
+            "post": {
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Revoke OAuth2 tokens (RFC 7009).",
+                "operationId": "oauth2-token-revocation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID for authentication",
+                        "name": "client_id",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The token to revoke",
+                        "name": "token",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Hint about token type (access_token or refresh_token)",
+                        "name": "token_type_hint",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Token successfully revoked"
+                    }
+                }
+            }
+        },
+        "/oauth2/token": {
             "post": {
                 "produces": [
                     "application/json"
@@ -2982,7 +3133,8 @@ const docTemplate = `{
                     {
                         "enum": [
                             "authorization_code",
-                            "refresh_token"
+                            "refresh_token",
+                            "urn:ietf:params:oauth:grant-type:device_code"
                         ],
                         "type": "string",
                         "description": "Grant type",
@@ -2997,32 +3149,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/oauth2.Token"
                         }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Delete OAuth2 application tokens.",
-                "operationId": "delete-oauth2-application-tokens",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Client ID",
-                        "name": "client_id",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
                     }
                 }
             }
@@ -15180,7 +15306,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "device_authorization": {
-                    "description": "DeviceAuth is optional.",
+                    "description": "DeviceAuth is the device authorization endpoint for RFC 8628.",
+                    "type": "string"
+                },
+                "revocation": {
                     "type": "string"
                 },
                 "token": {
@@ -15199,6 +15328,10 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "device_authorization_endpoint": {
+                    "description": "RFC 8628",
+                    "type": "string"
                 },
                 "grant_types_supported": {
                     "type": "array",
@@ -15462,6 +15595,47 @@ const docTemplate = `{
             "properties": {
                 "github": {
                     "$ref": "#/definitions/codersdk.OAuth2GithubConfig"
+                }
+            }
+        },
+        "codersdk.OAuth2DeviceAuthorizationRequest": {
+            "type": "object",
+            "required": [
+                "client_id"
+            ],
+            "properties": {
+                "client_id": {
+                    "type": "string"
+                },
+                "resource": {
+                    "description": "RFC 8707 resource parameter",
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.OAuth2DeviceAuthorizationResponse": {
+            "type": "object",
+            "properties": {
+                "device_code": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "interval": {
+                    "type": "integer"
+                },
+                "user_code": {
+                    "type": "string"
+                },
+                "verification_uri": {
+                    "type": "string"
+                },
+                "verification_uri_complete": {
+                    "type": "string"
                 }
             }
         },

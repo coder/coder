@@ -966,21 +966,25 @@ func New(options *Options) *API {
 			r.Get("/", api.getOAuth2ProviderAppAuthorize())
 			r.Post("/", api.postOAuth2ProviderAppAuthorize())
 		})
-		r.Route("/tokens", func(r chi.Router) {
+		// RFC 6749 Token Endpoint - Standard OAuth2 token endpoint
+		r.Route("/token", func(r chi.Router) {
 			r.Use(
-				// Use OAuth2-compliant error responses for the tokens endpoint
+				// Use OAuth2-compliant error responses for the token endpoint
 				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
 			)
-			r.Group(func(r chi.Router) {
-				r.Use(apiKeyMiddleware)
-				// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
-				// route used to revoke permissions from an application.  It is here for
-				// parity with POST on /tokens.
-				r.Delete("/", api.deleteOAuth2ProviderAppTokens())
-			})
-			// The POST /tokens endpoint will be called from an unauthorized client so
+			// The POST /token endpoint will be called from an unauthorized client so
 			// we cannot require an API key.
 			r.Post("/", api.postOAuth2ProviderAppToken())
+		})
+
+		// RFC 7009 Token Revocation Endpoint
+		r.Route("/revoke", func(r chi.Router) {
+			r.Use(
+				// RFC 7009 endpoint uses OAuth2 client authentication, not API key
+				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
+			)
+			// POST /revoke is the standard OAuth2 token revocation endpoint per RFC 7009
+			r.Post("/", api.revokeOAuth2Token())
 		})
 
 		// RFC 7591 Dynamic Client Registration - Public endpoint
@@ -995,6 +999,16 @@ func New(options *Options) *API {
 			r.Get("/", api.oauth2ClientConfiguration())          // Read client configuration
 			r.Put("/", api.putOAuth2ClientConfiguration())       // Update client configuration
 			r.Delete("/", api.deleteOAuth2ClientConfiguration()) // Delete client
+		})
+
+		// RFC 8628 Device Authorization Grant endpoints
+		r.Route("/device", func(r chi.Router) {
+			r.Post("/", api.postOAuth2DeviceAuthorization()) // RFC 8628 compliant endpoint
+			r.Route("/verify", func(r chi.Router) {
+				r.Use(apiKeyMiddleware)
+				r.Get("/", api.getOAuth2DeviceVerification())
+				r.Post("/", api.postOAuth2DeviceVerification())
+			})
 		})
 	})
 

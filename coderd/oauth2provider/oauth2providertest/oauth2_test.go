@@ -48,7 +48,7 @@ func TestOAuth2AuthorizationServerMetadata(t *testing.T) {
 
 	tokenEndpoint, ok := metadata["token_endpoint"].(string)
 	require.True(t, ok, "token_endpoint should be a string")
-	require.Contains(t, tokenEndpoint, "/oauth2/tokens", "token endpoint should be /oauth2/tokens")
+	require.Contains(t, tokenEndpoint, "/oauth2/token", "token endpoint should be /oauth2/token")
 }
 
 func TestOAuth2PKCEFlow(t *testing.T) {

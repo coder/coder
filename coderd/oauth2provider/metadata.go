@@ -16,10 +16,11 @@ func GetAuthorizationServerMetadata(accessURL *url.URL) http.HandlerFunc {
 		metadata := codersdk.OAuth2AuthorizationServerMetadata{
 			Issuer:                            accessURL.String(),
 			AuthorizationEndpoint:             accessURL.JoinPath("/oauth2/authorize").String(),
-			TokenEndpoint:                     accessURL.JoinPath("/oauth2/tokens").String(),
+			TokenEndpoint:                     accessURL.JoinPath("/oauth2/token").String(),
+			DeviceAuthorizationEndpoint:       accessURL.JoinPath("/oauth2/device").String(),   // RFC 8628
 			RegistrationEndpoint:              accessURL.JoinPath("/oauth2/register").String(), // RFC 7591
 			ResponseTypesSupported:            []string{"code"},
-			GrantTypesSupported:               []string{"authorization_code", "refresh_token"},
+			GrantTypesSupported:               []string{"authorization_code", "refresh_token", string(codersdk.OAuth2ProviderGrantTypeDeviceCode)},
 			CodeChallengeMethodsSupported:     []string{"S256"},
 			ScopesSupported:                   rbac.ExternalScopeNames(),
 			TokenEndpointAuthMethodsSupported: []string{"client_secret_post"},

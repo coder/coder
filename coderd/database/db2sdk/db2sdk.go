@@ -370,10 +370,11 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 				Path: "/oauth2/authorize",
 			}).String(),
 			Token: accessURL.ResolveReference(&url.URL{
-				Path: "/oauth2/tokens",
+				Path: "/oauth2/token",
 			}).String(),
-			// We do not currently support DeviceAuth.
-			DeviceAuth: "",
+			DeviceAuth: accessURL.ResolveReference(&url.URL{
+				Path: "/oauth2/device/authorize",
+			}).String(),
 		},
 	}
 }
