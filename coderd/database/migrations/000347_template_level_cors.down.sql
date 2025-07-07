@@ -28,7 +28,7 @@ CREATE VIEW template_with_names AS
     templates.deprecated,
     templates.activity_bump,
     templates.max_port_sharing_level,
-	templates.use_classic_parameter_flow,
+		templates.use_classic_parameter_flow,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name,
@@ -42,3 +42,5 @@ CREATE VIEW template_with_names AS
 COMMENT ON VIEW template_with_names IS 'Joins in the display name information such as username, avatar, and organization name.';
 
 ALTER TABLE templates DROP COLUMN cors_behavior;
+
+DROP TYPE IF EXISTS cors_behavior;

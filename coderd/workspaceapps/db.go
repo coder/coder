@@ -152,6 +152,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	if dbReq.AppURL != nil {
 		token.AppURL = dbReq.AppURL.String()
 	}
+	token.CORSBehavior = codersdk.CORSBehavior(dbReq.CorsBehavior)
 
 	// Verify the user has access to the app.
 	authed, warnings, err := p.authorizeRequest(r.Context(), authz, dbReq)

@@ -352,12 +352,12 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	if createTemplate.CORSBehavior != nil {
-		val := codersdk.CORSBehavior(*createTemplate.CORSBehavior)
+	if createTemplate.CORSBehavior != nil && *createTemplate.CORSBehavior != "" {
+		val := createTemplate.CORSBehavior
 		if err := val.Validate(); err != nil {
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "cors_behavior", Detail: err.Error()})
 		} else {
-			corsBehavior = database.CorsBehavior(val)
+			corsBehavior = database.CorsBehavior(*val)
 		}
 	}
 
@@ -664,7 +664,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		validErrs                            []codersdk.ValidationError
 		autostopRequirementDaysOfWeekParsed  uint8
 		autostartRequirementDaysOfWeekParsed uint8
-		corsBehavior                         database.CorsBehavior
 	)
 	if req.DefaultTTLMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
@@ -737,12 +736,13 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if req.CORSBehavior != nil {
-		val := codersdk.CORSBehavior(*req.CORSBehavior)
+	corsBehavior := template.CorsBehavior
+	if req.CORSBehavior != nil && *req.CORSBehavior != "" {
+		val := req.CORSBehavior
 		if err := val.Validate(); err != nil {
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "cors_behavior", Detail: err.Error()})
 		} else {
-			corsBehavior = database.CorsBehavior(val)
+			corsBehavior = database.CorsBehavior(*val)
 		}
 	}
 
@@ -1107,7 +1107,7 @@ func (api *API) convertTemplate(
 		DeprecationMessage:      templateAccessControl.Deprecated,
 		MaxPortShareLevel:       maxPortShareLevel,
 		UseClassicParameterFlow: template.UseClassicParameterFlow,
-		CORSBehavior:            (*codersdk.CORSBehavior)(&template.CorsBehavior),
+		CORSBehavior:            codersdk.CORSBehavior(template.CorsBehavior),
 	}
 }
 

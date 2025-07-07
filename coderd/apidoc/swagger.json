@@ -10109,7 +10109,7 @@
 		"codersdk.CORSBehavior": {
 			"type": "string",
 			"enum": ["simple", "passthru"],
-			"x-enum-varnames": ["AppCORSBehaviorSimple", "AppCORSBehaviorPassthru"]
+			"x-enum-varnames": ["CORSBehaviorSimple", "CORSBehaviorPassthru"]
 		},
 		"codersdk.ChangePasswordWithOneTimePasscodeRequest": {
 			"type": "object",

@@ -11371,8 +11371,8 @@ const docTemplate = `{
                 "passthru"
             ],
             "x-enum-varnames": [
-                "AppCORSBehaviorSimple",
-                "AppCORSBehaviorPassthru"
+                "CORSBehaviorSimple",
+                "CORSBehaviorPassthru"
             ]
         },
         "codersdk.ChangePasswordWithOneTimePasscodeRequest": {

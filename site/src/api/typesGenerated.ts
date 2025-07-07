@@ -2701,7 +2701,7 @@ export interface Template {
 	readonly time_til_dormant_autodelete_ms: number;
 	readonly require_active_version: boolean;
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel;
-	readonly cors_behavior: CORSBehavior | null;
+	readonly cors_behavior: CORSBehavior;
 	readonly use_classic_parameter_flow: boolean;
 }
 
@@ -3074,7 +3074,7 @@ export interface UpdateTemplateMeta {
 	readonly deprecation_message?: string;
 	readonly disable_everyone_group_access: boolean;
 	readonly max_port_share_level?: WorkspaceAgentPortShareLevel;
-	readonly cors_behavior: CORSBehavior | null;
+	readonly cors_behavior?: CORSBehavior;
 	readonly use_classic_parameter_flow?: boolean;
 }
 
