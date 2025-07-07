@@ -3,6 +3,8 @@
 Coder v2.24.0 introduces Dynamic Parameters to extend the existing parameter system with conditional form controls, enriched input types, and user idenitity awareness.
 This feature allows template authors to create interactive workspace creation forms, meaning more environment customization and fewer templates to maintain.
 
+![Dynamic Parameters in Action](https://i.imgur.com/uR8mpRJ.gif)
+
 All parameters are parsed from Terraform, meaning your workspace creation forms live in the same location as your provisioning code. You can use all the native Terraform functions and conditionality to create a self-service tooling catalog for every template.
 
 Administrators can now:
@@ -16,8 +18,6 @@ You can try the dynamic parameter syntax and any of the code examples below in t
 ## When you should upgrade to Dynamic Parameters
 
 While Dynamic parameters introduce a variety of new powerful tools, all functionality is **backwards compatible** with existing coder templates. When opting-in to the new experience, no functional changes will be applied to your production parameters.
-
-[Screenshot of before and after dynamic parameters on a "legacy" template]
 
 There are three reasons for users to try Dynamic Parameters:
 
@@ -89,6 +89,8 @@ Dynamic Parameters introduces three primary enhancements to the standard paramet
 ## Available Form Input Types
 
 Dynamic Parameters supports a variety of form types to create rich, interactive user experiences.
+
+![Old vs New Parameters](https://i.imgur.com/DiWyL9b.png)
 
 You can specify the form type using the [`form_type`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#form_type-1) attribute.
 Different parameter types support different form types.
