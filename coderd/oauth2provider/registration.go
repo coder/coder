@@ -80,8 +80,8 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 		// Store in database - use system context since this is a public endpoint
 		now := dbtime.Now()
 		clientName := req.GenerateClientName()
-		//nolint:gocritic // Dynamic client registration is a public endpoint, system access required
-		app, err := db.InsertOAuth2ProviderApp(dbauthz.AsSystemRestricted(ctx), database.InsertOAuth2ProviderAppParams{
+		//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 dynamic client registration
+		app, err := db.InsertOAuth2ProviderApp(dbauthz.AsSystemOAuth2(ctx), database.InsertOAuth2ProviderAppParams{
 			ID:                      clientID,
 			CreatedAt:               now,
 			UpdatedAt:               now,
@@ -128,8 +128,8 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 			return
 		}
 
-		//nolint:gocritic // Dynamic client registration is a public endpoint, system access required
-		_, err = db.InsertOAuth2ProviderAppSecret(dbauthz.AsSystemRestricted(ctx), database.InsertOAuth2ProviderAppSecretParams{
+		//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 dynamic client registration
+		_, err = db.InsertOAuth2ProviderAppSecret(dbauthz.AsSystemOAuth2(ctx), database.InsertOAuth2ProviderAppSecretParams{
 			ID:            uuid.New(),
 			CreatedAt:     now,
 			SecretPrefix:  []byte(parsedSecret.prefix),
@@ -190,8 +190,8 @@ func GetClientConfiguration(db database.Store) http.HandlerFunc {
 		}
 
 		// Get app by client ID
-		//nolint:gocritic // RFC 7592 endpoints need system access to retrieve dynamically registered clients
-		app, err := db.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemRestricted(ctx), clientID)
+		//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 dynamic client registration (RFC 7592)
+		app, err := db.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemOAuth2(ctx), clientID)
 		if err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
 				writeOAuth2RegistrationError(ctx, rw, http.StatusUnauthorized,
@@ -276,8 +276,8 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 		req = req.ApplyDefaults()
 
 		// Get existing app to verify it exists and is dynamically registered
-		//nolint:gocritic // RFC 7592 endpoints need system access to retrieve dynamically registered clients
-		existingApp, err := db.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemRestricted(ctx), clientID)
+		//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 dynamic client registration (RFC 7592)
+		existingApp, err := db.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemOAuth2(ctx), clientID)
 		if err == nil {
 			aReq.Old = existingApp
 		}
@@ -301,8 +301,8 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 
 		// Update app in database
 		now := dbtime.Now()
-		//nolint:gocritic // RFC 7592 endpoints need system access to update dynamically registered clients
-		updatedApp, err := db.UpdateOAuth2ProviderAppByClientID(dbauthz.AsSystemRestricted(ctx), database.UpdateOAuth2ProviderAppByClientIDParams{
+		//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 dynamic client registration (RFC 7592)
+		updatedApp, err := db.UpdateOAuth2ProviderAppByClientID(dbauthz.AsSystemOAuth2(ctx), database.UpdateOAuth2ProviderAppByClientIDParams{
 			ID:                      clientID,
 			UpdatedAt:               now,
 			Name:                    req.GenerateClientName(),
@@ -384,8 +384,8 @@ func DeleteClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 		}
 
 		// Get existing app to verify it exists and is dynamically registered
-		//nolint:gocritic // RFC 7592 endpoints need system access to retrieve dynamically registered clients
-		existingApp, err := db.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemRestricted(ctx), clientID)
+		//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 dynamic client registration (RFC 7592)
+		existingApp, err := db.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemOAuth2(ctx), clientID)
 		if err == nil {
 			aReq.Old = existingApp
 		}
@@ -408,8 +408,8 @@ func DeleteClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 		}
 
 		// Delete the client and all associated data (tokens, secrets, etc.)
-		//nolint:gocritic // RFC 7592 endpoints need system access to delete dynamically registered clients
-		err = db.DeleteOAuth2ProviderAppByClientID(dbauthz.AsSystemRestricted(ctx), clientID)
+		//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 dynamic client registration (RFC 7592)
+		err = db.DeleteOAuth2ProviderAppByClientID(dbauthz.AsSystemOAuth2(ctx), clientID)
 		if err != nil {
 			writeOAuth2RegistrationError(ctx, rw, http.StatusInternalServerError,
 				"server_error", "Failed to delete client")
@@ -460,8 +460,8 @@ func RequireRegistrationAccessToken(db database.Store) func(http.Handler) http.H
 			}
 
 			// Get the client and verify the registration access token
-			//nolint:gocritic // RFC 7592 endpoints need system access to validate dynamically registered clients
-			app, err := db.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemRestricted(ctx), clientID)
+			//nolint:gocritic // Using AsSystemOAuth2 for OAuth2 dynamic client registration (RFC 7592)
+			app, err := db.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemOAuth2(ctx), clientID)
 			if err != nil {
 				if xerrors.Is(err, sql.ErrNoRows) {
 					// Return 401 for authentication-related issues, not 404

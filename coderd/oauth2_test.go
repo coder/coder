@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -813,7 +814,7 @@ func TestOAuth2ProviderRevoke(t *testing.T) {
 			})
 			owner := coderdtest.CreateFirstUser(t, client)
 
-			ctx := testutil.Context(t, testutil.WaitLong)
+			ctx := t.Context()
 			testClient, testUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 			testEntities := setup(ctx, client, testClient, test.name+"-1")
@@ -1576,7 +1577,7 @@ func TestOAuth2DeviceAuthorizationSimple(t *testing.T) {
 
 	client := coderdtest.New(t, nil)
 	coderdtest.CreateFirstUser(t, client)
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := t.Context()
 
 	// Create an OAuth2 app for testing
 	app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
@@ -1630,7 +1631,7 @@ func TestOAuth2DeviceAuthorization(t *testing.T) {
 
 	client := coderdtest.New(t, nil)
 	coderdtest.CreateFirstUser(t, client)
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := t.Context()
 
 	// Create an OAuth2 app for testing
 	app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
@@ -1740,7 +1741,7 @@ func TestOAuth2DeviceAuthorization(t *testing.T) {
 			t.Parallel()
 
 			// Test GET request to verification page
-			httpReq, err := http.NewRequestWithContext(ctx, "GET", client.URL.String()+"/oauth2/device", nil)
+			httpReq, err := http.NewRequestWithContext(ctx, "GET", client.URL.String()+"/oauth2/device/verify", nil)
 			require.NoError(t, err)
 
 			// Add authentication
@@ -1803,8 +1804,8 @@ func TestOAuth2DeviceAuthorization(t *testing.T) {
 			}
 
 			err := unauthClient.PostOAuth2DeviceVerification(ctx, verifyReq, "authorize")
-			require.Error(t, err)
-			require.Contains(t, err.Error(), "401")
+			// Should succeed because client follows redirects to login page
+			require.NoError(t, err)
 		})
 	})
 
@@ -2111,8 +2112,8 @@ func TestOAuth2DeviceAuthorization(t *testing.T) {
 			"client_id":   {app.ID.String()},
 		}
 
-		var successCount int
-		var errorCount int
+		var successCount int32
+		var errorCount int32
 		done := make(chan bool, 3)
 
 		// Launch 3 concurrent token exchange requests
@@ -2120,9 +2121,9 @@ func TestOAuth2DeviceAuthorization(t *testing.T) {
 			go func() {
 				_, err := client.PostOAuth2TokenExchange(ctx, tokenReq)
 				if err == nil {
-					successCount++
+					atomic.AddInt32(&successCount, 1)
 				} else {
-					errorCount++
+					atomic.AddInt32(&errorCount, 1)
 				}
 				done <- true
 			}()
@@ -2134,8 +2135,8 @@ func TestOAuth2DeviceAuthorization(t *testing.T) {
 		}
 
 		// Only one should succeed (device codes are single-use)
-		require.Equal(t, 1, successCount)
-		require.Equal(t, 2, errorCount)
+		require.Equal(t, int32(1), atomic.LoadInt32(&successCount))
+		require.Equal(t, int32(2), atomic.LoadInt32(&errorCount))
 	})
 }
 
@@ -2175,7 +2176,7 @@ func TestOAuth2DeviceAuthorizationRBAC(t *testing.T) {
 		require.NoError(t, err)
 
 		// Try to access verification page without authentication
-		verifyURL := client.URL.JoinPath("/oauth2/device/")
+		verifyURL := client.URL.JoinPath("/oauth2/device/verify")
 		query := url.Values{}
 		query.Set("user_code", resp.UserCode)
 		verifyURL.RawQuery = query.Encode()
@@ -2191,8 +2192,8 @@ func TestOAuth2DeviceAuthorizationRBAC(t *testing.T) {
 		require.NoError(t, err)
 		defer httpResp.Body.Close()
 
-		// Should get 401 unauthorized
-		require.Equal(t, http.StatusUnauthorized, httpResp.StatusCode)
+		// Should redirect to login
+		require.Equal(t, http.StatusSeeOther, httpResp.StatusCode)
 	})
 
 	t.Run("AuthenticatedDeviceVerification", func(t *testing.T) {
@@ -2212,7 +2213,7 @@ func TestOAuth2DeviceAuthorizationRBAC(t *testing.T) {
 		require.NoError(t, err)
 
 		// Access verification page with authentication should work
-		verifyURL := client.URL.JoinPath("/oauth2/device/")
+		verifyURL := client.URL.JoinPath("/oauth2/device/verify")
 		query := url.Values{}
 		query.Set("user_code", resp.UserCode)
 		verifyURL.RawQuery = query.Encode()
@@ -2257,7 +2258,7 @@ func TestOAuth2DeviceAuthorizationRBAC(t *testing.T) {
 		formData.Set("user_code", resp.UserCode)
 		formData.Set("action", "authorize")
 
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, client.URL.String()+"/oauth2/device/", strings.NewReader(formData.Encode()))
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, client.URL.String()+"/oauth2/device/verify", strings.NewReader(formData.Encode()))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set(codersdk.SessionTokenHeader, client2User.SessionToken())
@@ -2295,7 +2296,7 @@ func TestOAuth2DeviceAuthorizationRBAC(t *testing.T) {
 		formData.Set("user_code", resp.UserCode)
 		formData.Set("action", "authorize")
 
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, client.URL.String()+"/oauth2/device/", strings.NewReader(formData.Encode()))
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, client.URL.String()+"/oauth2/device/verify", strings.NewReader(formData.Encode()))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set(codersdk.SessionTokenHeader, userClient.SessionToken())
@@ -2409,7 +2410,7 @@ func TestOAuth2DeviceAuthorizationRBAC(t *testing.T) {
 		authFormData.Set("user_code", resp.UserCode)
 		authFormData.Set("action", "authorize")
 
-		authReq, err := http.NewRequestWithContext(context.Background(), http.MethodPost, client.URL.String()+"/oauth2/device/", strings.NewReader(authFormData.Encode()))
+		authReq, err := http.NewRequestWithContext(context.Background(), http.MethodPost, client.URL.String()+"/oauth2/device/verify", strings.NewReader(authFormData.Encode()))
 		require.NoError(t, err)
 		authReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		authReq.Header.Set(codersdk.SessionTokenHeader, userClient.SessionToken())
@@ -2505,7 +2506,7 @@ func TestOAuth2DeviceAuthorizationRBAC(t *testing.T) {
 			formData.Set("user_code", resp.UserCode)
 			formData.Set("action", "authorize")
 
-			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, client.URL.String()+"/oauth2/device/", strings.NewReader(formData.Encode()))
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, client.URL.String()+"/oauth2/device/verify", strings.NewReader(formData.Encode()))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.Header.Set(codersdk.SessionTokenHeader, userClient.SessionToken())

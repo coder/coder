@@ -5358,6 +5358,62 @@ func (q *sqlQuerier) UpdateInboxNotificationReadStatus(ctx context.Context, arg 
 	return err
 }
 
+const consumeOAuth2ProviderAppCodeByPrefix = `-- name: ConsumeOAuth2ProviderAppCodeByPrefix :one
+DELETE FROM oauth2_provider_app_codes
+WHERE id = (
+    SELECT c.id FROM oauth2_provider_app_codes c
+    WHERE c.secret_prefix = $1 AND c.expires_at > NOW()
+    LIMIT 1
+)
+RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method
+`
+
+func (q *sqlQuerier) ConsumeOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppCode, error) {
+	row := q.db.QueryRowContext(ctx, consumeOAuth2ProviderAppCodeByPrefix, secretPrefix)
+	var i OAuth2ProviderAppCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.SecretPrefix,
+		&i.HashedSecret,
+		&i.UserID,
+		&i.AppID,
+		&i.ResourceUri,
+		&i.CodeChallenge,
+		&i.CodeChallengeMethod,
+	)
+	return i, err
+}
+
+const consumeOAuth2ProviderDeviceCodeByPrefix = `-- name: ConsumeOAuth2ProviderDeviceCodeByPrefix :one
+DELETE FROM oauth2_provider_device_codes
+WHERE device_code_prefix = $1 AND expires_at > NOW() AND status = 'authorized'
+RETURNING id, created_at, expires_at, device_code_hash, device_code_prefix, user_code, client_id, user_id, status, verification_uri, verification_uri_complete, scope, resource_uri, polling_interval
+`
+
+func (q *sqlQuerier) ConsumeOAuth2ProviderDeviceCodeByPrefix(ctx context.Context, deviceCodePrefix string) (OAuth2ProviderDeviceCode, error) {
+	row := q.db.QueryRowContext(ctx, consumeOAuth2ProviderDeviceCodeByPrefix, deviceCodePrefix)
+	var i OAuth2ProviderDeviceCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.DeviceCodeHash,
+		&i.DeviceCodePrefix,
+		&i.UserCode,
+		&i.ClientID,
+		&i.UserID,
+		&i.Status,
+		&i.VerificationUri,
+		&i.VerificationUriComplete,
+		&i.Scope,
+		&i.ResourceUri,
+		&i.PollingInterval,
+	)
+	return i, err
+}
+
 const deleteExpiredOAuth2ProviderDeviceCodes = `-- name: DeleteExpiredOAuth2ProviderDeviceCodes :exec
 DELETE FROM oauth2_provider_device_codes
 WHERE expires_at < NOW() AND status = 'pending'
@@ -6623,7 +6679,8 @@ const updateOAuth2ProviderDeviceCodeAuthorization = `-- name: UpdateOAuth2Provid
 UPDATE oauth2_provider_device_codes SET
     user_id = $2,
     status = $3
-WHERE id = $1 AND status = 'pending' RETURNING id, created_at, expires_at, device_code_hash, device_code_prefix, user_code, client_id, user_id, status, verification_uri, verification_uri_complete, scope, resource_uri, polling_interval
+WHERE id = $1 AND status = 'pending'
+RETURNING id, created_at, expires_at, device_code_hash, device_code_prefix, user_code, client_id, user_id, status, verification_uri, verification_uri_complete, scope, resource_uri, polling_interval
 `
 
 type UpdateOAuth2ProviderDeviceCodeAuthorizationParams struct {

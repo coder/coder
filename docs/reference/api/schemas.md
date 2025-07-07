@@ -6666,6 +6666,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `organization`                   |
 | `oauth2_provider_app`            |
 | `oauth2_provider_app_secret`     |
+| `oauth2_provider_device_code`    |
 | `custom_role`                    |
 | `organization_member`            |
 | `notification_template`          |

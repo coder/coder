@@ -102,6 +102,7 @@ export const RBACResourceActions: Partial<
 		create: "create an OAuth2 app code token",
 		delete: "delete an OAuth2 app code token",
 		read: "read an OAuth2 app code token",
+		update: "update an OAuth2 app code token",
 	},
 	oauth2_app_secret: {
 		create: "create an OAuth2 app secret",

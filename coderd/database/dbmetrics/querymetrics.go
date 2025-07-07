@@ -187,6 +187,20 @@ func (m queryMetricsStore) CleanTailnetTunnels(ctx context.Context) error {
 	return r0
 }
 
+func (m queryMetricsStore) ConsumeOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (database.OAuth2ProviderAppCode, error) {
+	start := time.Now()
+	r0, r1 := m.s.ConsumeOAuth2ProviderAppCodeByPrefix(ctx, secretPrefix)
+	m.queryLatencies.WithLabelValues("ConsumeOAuth2ProviderAppCodeByPrefix").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) ConsumeOAuth2ProviderDeviceCodeByPrefix(ctx context.Context, deviceCodePrefix string) (database.OAuth2ProviderDeviceCode, error) {
+	start := time.Now()
+	r0, r1 := m.s.ConsumeOAuth2ProviderDeviceCodeByPrefix(ctx, deviceCodePrefix)
+	m.queryLatencies.WithLabelValues("ConsumeOAuth2ProviderDeviceCodeByPrefix").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountAuditLogs(ctx, arg)
@@ -376,17 +390,17 @@ func (m queryMetricsStore) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx conte
 	return r0
 }
 
-func (m queryMetricsStore) DeleteOldAuditLogConnectionEvents(ctx context.Context, threshold database.DeleteOldAuditLogConnectionEventsParams) error {
-	start := time.Now()
-	r0 := m.s.DeleteOldAuditLogConnectionEvents(ctx, threshold)
-	m.queryLatencies.WithLabelValues("DeleteOldAuditLogConnectionEvents").Observe(time.Since(start).Seconds())
-	return r0
-}
-
 func (m queryMetricsStore) DeleteOAuth2ProviderDeviceCodeByID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteOAuth2ProviderDeviceCodeByID(ctx, id)
 	m.queryLatencies.WithLabelValues("DeleteOAuth2ProviderDeviceCodeByID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) DeleteOldAuditLogConnectionEvents(ctx context.Context, threshold database.DeleteOldAuditLogConnectionEventsParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteOldAuditLogConnectionEvents(ctx, threshold)
+	m.queryLatencies.WithLabelValues("DeleteOldAuditLogConnectionEvents").Observe(time.Since(start).Seconds())
 	return r0
 }
 

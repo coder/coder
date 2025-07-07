@@ -5503,6 +5503,19 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppCodes() {
 			UserID: user.ID,
 		}).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionDelete)
 	}))
+	s.Run("ConsumeOAuth2ProviderAppCodeByPrefix", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		// Use unique prefix to avoid test isolation issues
+		uniquePrefix := fmt.Sprintf("prefix-%s-%d", s.T().Name(), time.Now().UnixNano())
+		code := dbgen.OAuth2ProviderAppCode(s.T(), db, database.OAuth2ProviderAppCode{
+			SecretPrefix: []byte(uniquePrefix),
+			UserID:       user.ID,
+			AppID:        app.ID,
+			ExpiresAt:    time.Now().Add(24 * time.Hour), // Extended expiry for test stability
+		})
+		check.Args(code.SecretPrefix).Asserts(code, policy.ActionUpdate).Returns(code)
+	}))
 }
 
 func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
@@ -5575,6 +5588,115 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 			AppID:  app.ID,
 			UserID: user.ID,
 		}).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionDelete)
+	}))
+}
+
+func (s *MethodTestSuite) TestOAuth2ProviderDeviceCodes() {
+	s.Run("InsertOAuth2ProviderDeviceCode", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		check.Args(database.InsertOAuth2ProviderDeviceCodeParams{
+			ClientID:         app.ID,
+			DeviceCodePrefix: "testpref",
+			DeviceCodeHash:   []byte("hash"),
+			UserCode:         "TEST1234",
+			VerificationUri:  "http://example.com/device",
+		}).Asserts(rbac.ResourceOauth2AppCodeToken, policy.ActionCreate)
+	}))
+	s.Run("GetOAuth2ProviderDeviceCodeByID", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		deviceCode, err := db.InsertOAuth2ProviderDeviceCode(context.Background(), database.InsertOAuth2ProviderDeviceCodeParams{
+			ClientID:         app.ID,
+			DeviceCodePrefix: "testpref",
+			UserCode:         "TEST1234",
+			VerificationUri:  "http://example.com/device",
+		})
+		require.NoError(s.T(), err)
+		check.Args(deviceCode.ID).Asserts(deviceCode, policy.ActionRead).Returns(deviceCode)
+	}))
+	s.Run("GetOAuth2ProviderDeviceCodeByPrefix", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		deviceCode, err := db.InsertOAuth2ProviderDeviceCode(context.Background(), database.InsertOAuth2ProviderDeviceCodeParams{
+			ClientID:         app.ID,
+			DeviceCodePrefix: "testpref",
+			UserCode:         "TEST1234",
+			VerificationUri:  "http://example.com/device",
+		})
+		require.NoError(s.T(), err)
+		check.Args(deviceCode.DeviceCodePrefix).Asserts(deviceCode, policy.ActionRead).Returns(deviceCode)
+	}))
+	s.Run("GetOAuth2ProviderDeviceCodeByUserCode", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		deviceCode, err := db.InsertOAuth2ProviderDeviceCode(context.Background(), database.InsertOAuth2ProviderDeviceCodeParams{
+			ClientID:         app.ID,
+			DeviceCodePrefix: "testpref",
+			UserCode:         "TEST1234",
+			VerificationUri:  "http://example.com/device",
+		})
+		require.NoError(s.T(), err)
+		check.Args(deviceCode.UserCode).Asserts(deviceCode, policy.ActionRead).Returns(deviceCode)
+	}))
+	s.Run("GetOAuth2ProviderDeviceCodesByClientID", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		deviceCode, err := db.InsertOAuth2ProviderDeviceCode(context.Background(), database.InsertOAuth2ProviderDeviceCodeParams{
+			ClientID:         app.ID,
+			DeviceCodePrefix: "testpref",
+			UserCode:         "TEST1234",
+			VerificationUri:  "http://example.com/device",
+		})
+		require.NoError(s.T(), err)
+		check.Args(app.ID).Asserts(rbac.ResourceOauth2AppCodeToken, policy.ActionRead).Returns([]database.OAuth2ProviderDeviceCode{deviceCode})
+	}))
+	s.Run("ConsumeOAuth2ProviderDeviceCodeByPrefix", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		user := dbgen.User(s.T(), db, database.User{})
+		// Use unique identifiers to avoid test isolation issues
+		// Device code prefix must be exactly 8 characters
+		uniquePrefix := fmt.Sprintf("t%07d", time.Now().UnixNano()%10000000)
+		uniqueUserCode := fmt.Sprintf("USER%04d", time.Now().UnixNano()%10000)
+		// Create device code using dbgen (now available!)
+		deviceCode := dbgen.OAuth2ProviderDeviceCode(s.T(), db, database.OAuth2ProviderDeviceCode{
+			DeviceCodePrefix: uniquePrefix,
+			UserCode:         uniqueUserCode,
+			ClientID:         app.ID,
+			ExpiresAt:        time.Now().Add(24 * time.Hour), // Extended expiry for test stability
+		})
+		// Authorize the device code so it can be consumed
+		deviceCode, err := db.UpdateOAuth2ProviderDeviceCodeAuthorization(s.T().Context(), database.UpdateOAuth2ProviderDeviceCodeAuthorizationParams{
+			ID:     deviceCode.ID,
+			UserID: uuid.NullUUID{UUID: user.ID, Valid: true},
+			Status: database.OAuth2DeviceStatusAuthorized,
+		})
+		require.NoError(s.T(), err)
+		require.Equal(s.T(), database.OAuth2DeviceStatusAuthorized, deviceCode.Status)
+		check.Args(uniquePrefix).Asserts(deviceCode, policy.ActionUpdate).Returns(deviceCode)
+	}))
+	s.Run("UpdateOAuth2ProviderDeviceCodeAuthorization", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		user := dbgen.User(s.T(), db, database.User{})
+		// Create device code using dbgen
+		deviceCode := dbgen.OAuth2ProviderDeviceCode(s.T(), db, database.OAuth2ProviderDeviceCode{
+			ClientID: app.ID,
+		})
+		require.Equal(s.T(), database.OAuth2DeviceStatusPending, deviceCode.Status)
+		check.Args(database.UpdateOAuth2ProviderDeviceCodeAuthorizationParams{
+			ID:     deviceCode.ID,
+			UserID: uuid.NullUUID{UUID: user.ID, Valid: true},
+			Status: database.OAuth2DeviceStatusAuthorized,
+		}).Asserts(deviceCode, policy.ActionUpdate)
+	}))
+	s.Run("DeleteOAuth2ProviderDeviceCodeByID", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		deviceCode, err := db.InsertOAuth2ProviderDeviceCode(context.Background(), database.InsertOAuth2ProviderDeviceCodeParams{
+			ClientID:         app.ID,
+			DeviceCodePrefix: "testpref",
+			UserCode:         "TEST1234",
+			VerificationUri:  "http://example.com/device",
+		})
+		require.NoError(s.T(), err)
+		check.Args(deviceCode.ID).Asserts(deviceCode, policy.ActionDelete)
+	}))
+	s.Run("DeleteExpiredOAuth2ProviderDeviceCodes", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 }
 
