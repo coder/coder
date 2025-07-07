@@ -1736,7 +1736,7 @@ func TestExecutorPrebuilds(t *testing.T) {
 		t.Helper()
 
 		var runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow
-		require.Eventually(t, func() bool {
+		testutil.Eventually(ctx, t, func(context.Context) bool {
 			rows, err := db.GetRunningPrebuiltWorkspaces(ctx)
 			if err != nil {
 				return false
@@ -1765,7 +1765,7 @@ func TestExecutorPrebuilds(t *testing.T) {
 
 			t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), prebuildInstances)
 			return len(runningPrebuilds) == prebuildInstances
-		}, testutil.WaitSuperLong, testutil.IntervalSlow)
+		}, testutil.IntervalSlow, "prebuilds not running")
 
 		return runningPrebuilds
 	}
