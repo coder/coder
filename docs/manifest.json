@@ -292,19 +292,16 @@
 					"description": "Run containerized development environments in your Coder workspace using the dev containers specification.",
 					"path": "./user-guides/devcontainers/index.md",
 					"icon_path": "./images/icons/container.svg",
-					"state": ["early access"],
 					"children": [
 						{
 							"title": "Working with dev containers",
 							"description": "Access dev containers via SSH, your IDE, or web terminal.",
-							"path": "./user-guides/devcontainers/working-with-dev-containers.md",
-							"state": ["early access"]
+							"path": "./user-guides/devcontainers/working-with-dev-containers.md"
 						},
 						{
 							"title": "Troubleshooting dev containers",
 							"description": "Diagnose and resolve common issues with dev containers in your Coder workspace.",
-							"path": "./user-guides/devcontainers/troubleshooting-dev-containers.md",
-							"state": ["early access"]
+							"path": "./user-guides/devcontainers/troubleshooting-dev-containers.md"
 						}
 					]
 				},
@@ -534,7 +531,7 @@
 									"title": "Prebuilt workspaces",
 									"description": "Pre-provision a ready-to-deploy workspace with a defined set of parameters",
 									"path": "./admin/templates/extending-templates/prebuilt-workspaces.md",
-									"state": ["premium", "beta"]
+									"state": ["premium"]
 								},
 								{
 									"title": "Icons",
@@ -604,8 +601,7 @@
 								{
 									"title": "Configure a template for dev containers",
 									"description": "How to use configure your template for dev containers",
-									"path": "./admin/templates/extending-templates/devcontainers.md",
-									"state": ["early access"]
+									"path": "./admin/templates/extending-templates/devcontainers.md"
 								},
 								{
 									"title": "Process Logging",
@@ -820,59 +816,40 @@
 			"description": "Learn how to run and integrate agentic AI coding agents like GPT-Code, OpenDevin, or SWE-Agent in Coder workspaces to boost developer productivity.",
 			"path": "./ai-coder/index.md",
 			"icon_path": "./images/icons/wand.svg",
-			"state": ["beta"],
 			"children": [
 				{
-					"title": "Learn about coding agents",
-					"description": "Learn about the different agentic AI agents and their tradeoffs",
-					"path": "./ai-coder/agents.md"
+					"title": "Best Practices",
+					"description": "Best Practices running Coding Agents",
+					"path": "./ai-coder/best-practices.md"
 				},
 				{
-					"title": "Create a Coder template for agents",
-					"description": "Create a purpose-built template for your agentic AI agents",
-					"path": "./ai-coder/create-template.md",
-					"state": ["beta"]
+					"title": "In the IDE",
+					"description": "Run IDE agents with Coder",
+					"path": "./ai-coder/ide-agents.md"
 				},
 				{
-					"title": "Integrate with your issue tracker",
-					"description": "Assign tickets to agentic AI agents and interact via code reviews",
-					"path": "./ai-coder/issue-tracker.md",
-					"state": ["beta"]
+					"title": "Coder Tasks",
+					"description": "Run Coding Agents on your Own Infrastructure",
+					"path": "./ai-coder/tasks.md",
+					"state": ["beta"],
+					"children": [
+						{
+							"title": "Custom Agents",
+							"description": "Run custom agents with Coder Tasks",
+							"path": "./ai-coder/custom-agents.md",
+							"state": ["beta"]
+						},
+						{
+							"title": "Security \u0026 Boundaries",
+							"description": "Learn about security and boundaries when running AI coding agents in Coder",
+							"path": "./ai-coder/security.md"
+						}
+					]
 				},
 				{
-					"title": "Model Context Protocols (MCP) and adding AI tools",
-					"description": "Improve results by adding tools to your agentic AI agents",
-					"path": "./ai-coder/best-practices.md",
-					"state": ["beta"]
-				},
-				{
-					"title": "Supervise agents via Coder UI",
-					"description": "Interact with agentic agents via the Coder UI",
-					"path": "./ai-coder/coder-dashboard.md",
-					"state": ["beta"]
-				},
-				{
-					"title": "Supervise agents via the IDE",
-					"description": "Interact with agentic agents via VS Code or Cursor",
-					"path": "./ai-coder/ide-integration.md",
-					"state": ["beta"]
-				},
-				{
-					"title": "Programmatically manage agents",
-					"description": "Manage agentic agents via MCP, the Coder CLI, and/or REST API",
-					"path": "./ai-coder/headless.md",
-					"state": ["beta"]
-				},
-				{
-					"title": "Securing agents in Coder",
-					"description": "Learn how to secure agentic agents with boundaries",
-					"path": "./ai-coder/securing.md",
-					"state": ["early access"]
-				},
-				{
-					"title": "Custom agents",
-					"description": "Learn how to use custom agentic agents with Coder",
-					"path": "./ai-coder/custom-agents.md",
+					"title": "MCP Server",
+					"description": "Connect to agents Coder with a MCP server",
+					"path": "./ai-coder/mcp-server.md",
 					"state": ["beta"]
 				}
 			]
@@ -1394,6 +1371,21 @@
 							"title": "port-forward",
 							"description": "Forward ports from a workspace to the local machine. For reverse port forwarding, use \"coder ssh -R\".",
 							"path": "reference/cli/port-forward.md"
+						},
+						{
+							"title": "prebuilds",
+							"description": "Manage Coder prebuilds",
+							"path": "reference/cli/prebuilds.md"
+						},
+						{
+							"title": "prebuilds pause",
+							"description": "Pause prebuilds",
+							"path": "reference/cli/prebuilds_pause.md"
+						},
+						{
+							"title": "prebuilds resume",
+							"description": "Resume prebuilds",
+							"path": "reference/cli/prebuilds_resume.md"
 						},
 						{
 							"title": "provisioner",

@@ -8,18 +8,16 @@ const meta: Meta<typeof DynamicParameter> = {
 	parameters: {
 		layout: "centered",
 	},
+	args: {
+		parameter: MockPreviewParameter,
+		onChange: () => {},
+	},
 };
 
 export default meta;
 type Story = StoryObj<typeof DynamicParameter>;
 
-export const TextInput: Story = {
-	args: {
-		parameter: {
-			...MockPreviewParameter,
-		},
-	},
-};
+export const TextInput: Story = {};
 
 export const TextArea: Story = {
 	args: {
@@ -228,5 +226,32 @@ export const AllBadges: Story = {
 			mutable: false,
 		},
 		isPreset: true,
+	},
+};
+
+export const MaskedInput: Story = {
+	args: {
+		parameter: {
+			...MockPreviewParameter,
+			form_type: "input",
+			styling: {
+				...MockPreviewParameter.styling,
+				placeholder: "Tell me a secret",
+				mask_input: true,
+			},
+		},
+	},
+};
+
+export const MaskedTextArea: Story = {
+	args: {
+		parameter: {
+			...MockPreviewParameter,
+			form_type: "textarea",
+			styling: {
+				...MockPreviewParameter.styling,
+				mask_input: true,
+			},
+		},
 	},
 };

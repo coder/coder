@@ -91,6 +91,7 @@ type PreviewParameterStyling struct {
 	Placeholder *string `json:"placeholder,omitempty"`
 	Disabled    *bool   `json:"disabled,omitempty"`
 	Label       *string `json:"label,omitempty"`
+	MaskInput   *bool   `json:"mask_input,omitempty"`
 }
 
 type PreviewParameterOption struct {
