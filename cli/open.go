@@ -80,6 +80,15 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 			workspaceName := workspace.Name + "." + workspaceAgent.Name
 			insideThisWorkspace := insideAWorkspace && inWorkspaceName == workspaceName
 
+			// To properly work with devcontainers, VS Code has to connect to
+			// parent workspace agent. It will then proceed to enter the
+			// container given the correct parameters. There is inherently no
+			// dependency on the devcontainer agent in this scenario, but
+			// relying on it simplifies the logic and ensures the devcontainer
+			// is ready. To eliminate the dependency we would need to know that
+			// a sub-agent that hasn't been created yet may be a devcontainer,
+			// and thus will be created at a later time as well as expose the
+			// container folder on the API response.
 			var parentWorkspaceAgent codersdk.WorkspaceAgent
 			var devcontainer codersdk.WorkspaceAgentDevcontainer
 			if workspaceAgent.ParentID.Valid {
@@ -109,7 +118,7 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 						}
 					}
 					if devcontainer.ID == uuid.Nil {
-						cliui.Warnf(inv.Stderr, "Devcontainer for agent %q not found, opening as a regular workspace", workspaceAgent.Name)
+						cliui.Warnf(inv.Stderr, "Devcontainer %q not found, opening as a regular workspace...", workspaceAgent.Name)
 						parentWorkspaceAgent = codersdk.WorkspaceAgent{} // Reset to empty, so we don't use it later.
 						break
 					}
