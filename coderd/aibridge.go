@@ -8,8 +8,28 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/aibridged"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
+
+type rt struct {
+	http.RoundTripper
+
+	server *aibridged.Server
+}
+
+func (r *rt) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := r.RoundTripper.RoundTrip(req)
+
+	if err != nil || resp.StatusCode == aibridged.ProxyErrCode {
+		lastErr := r.server.BridgeErr()
+		if lastErr != nil {
+			return resp, lastErr
+		}
+	}
+
+	return resp, err
+}
 
 func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -39,9 +59,9 @@ func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rp := httputil.NewSingleHostReverseProxy(u)
+	rp.Transport = &rt{RoundTripper: http.DefaultTransport, server: server}
 	rp.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		api.Logger.Error(ctx, "aibridge reverse proxy error", slog.Error(err))
-		http.Error(w, "aibridge internal error", http.StatusBadGateway)
 	}
 	http.StripPrefix("/api/v2/aibridge", rp).ServeHTTP(rw, r)
 }

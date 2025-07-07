@@ -255,6 +255,10 @@ func (s *Server) BridgeAddr() string {
 	return s.bridge.Addr()
 }
 
+func (s *Server) BridgeErr() error {
+	return s.bridge.lastErr
+}
+
 // TODO: direct copy/paste from provisionerd, abstract into common util.
 func retryable(err error) bool {
 	return xerrors.Is(err, yamux.ErrSessionShutdown) || xerrors.Is(err, io.EOF) || xerrors.Is(err, fasthttputil.ErrInmemoryListenerClosed) ||

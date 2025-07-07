@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -16,6 +20,26 @@ import (
 
 	"github.com/coder/coder/v2/aibridged/util"
 )
+
+// isConnectionError checks if an error is related to client disconnection
+func isConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if errors.Is(err, io.EOF) {
+		return true
+	}
+
+	if errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE) {
+		return true
+	}
+
+	errStr := err.Error()
+	return strings.Contains(errStr, "broken pipe") ||
+		strings.Contains(errStr, "connection reset by peer") ||
+		strings.Contains(errStr, "use of closed network connection")
+}
 
 // BasicSSESender was implemented to overcome httpapi.ServerSentEventSender's odd design choices. For example, it doesn't
 // write "event: data" for every data event (it's unnecessary, and breaks some AI tools' parsing of the SSE stream).
@@ -50,7 +74,11 @@ func BasicSSESender(outerCtx context.Context, sessionID uuid.UUID, stream EventS
 
 				_, err := w.Write(payload)
 				if err != nil {
-					logger.Error(ctx, "failed to write SSE event", slog.Error(err))
+					if isConnectionError(err) {
+						logger.Debug(ctx, "client disconnected during SSE write", slog.Error(err))
+					} else {
+						logger.Error(ctx, "failed to write SSE event", slog.Error(err))
+					}
 					return
 				}
 				flush(w)

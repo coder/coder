@@ -1,15 +1,13 @@
 package aibridged
 
 import (
-	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
 	"strings"
@@ -20,7 +18,6 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/packages/param"
-	ant_ssestream "github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 	ant_constant "github.com/anthropics/anthropic-sdk-go/shared/constant"
 	"github.com/google/uuid"
 	"github.com/openai/openai-go"
@@ -33,6 +30,33 @@ import (
 	"github.com/invopop/jsonschema"
 )
 
+// Error type constants for structured error reporting
+const (
+	ErrorTypeRequestCanceled     = "request_canceled"
+	ErrorTypeConnectionError     = "connection_error"
+	ErrorTypeUnexpectedError     = "unexpected_error"
+	ErrorTypeAnthropicAPIError   = "anthropic_api_error"
+	ErrorTypeOpenAIAPIError      = "openai_api_error"
+	ErrorTypeInternalError       = "internal_error"
+	ErrorTypeValidationError     = "validation_error"
+	ErrorTypeAuthenticationError = "authentication_error"
+	ErrorTypeRateLimitError      = "rate_limit_error"
+	ErrorTypeTimeoutError        = "timeout_error"
+)
+
+// BridgeError represents a structured error from the bridge that can carry
+// specific error information back to the client.
+type BridgeError struct {
+	Code       string            `json:"code"`
+	Message    string            `json:"message"`
+	StatusCode int               `json:"status_code"`
+	Details    map[string]string `json:"details,omitempty"`
+}
+
+func (e *BridgeError) Error() string {
+	return e.Message
+}
+
 type Bridge struct {
 	cfg codersdk.AIBridgeConfig
 
@@ -40,6 +64,8 @@ type Bridge struct {
 	addr     string
 	clientFn func() (proto.DRPCAIBridgeDaemonClient, bool)
 	logger   slog.Logger
+
+	lastErr error
 }
 
 func NewBridge(cfg codersdk.AIBridgeConfig, addr string, logger slog.Logger, clientFn func() (proto.DRPCAIBridgeDaemonClient, bool)) *Bridge {
@@ -68,15 +94,20 @@ func (b *Bridge) openAITarget() *url.URL {
 	target, err := url.Parse(u)
 	if err != nil {
 		panic(fmt.Sprintf("failed to parse %q", u))
-
 	}
 	return target
 }
 
 func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 	sessionID := uuid.New()
+	b.logger.Info(r.Context(), "OpenAI request started", slog.F("sessionID", sessionID), slog.F("method", r.Method), slog.F("path", r.URL.Path))
 	_, _ = fmt.Fprintf(os.Stderr, "[%s] new chat session started\n\n", sessionID)
+
+	// Clear any previous error state
+	b.clearError()
+
 	defer func() {
+		b.logger.Info(r.Context(), "OpenAI request ended", slog.F("sessionID", sessionID))
 		_, _ = fmt.Fprintf(os.Stderr, "[%s] chat session ended\n\n", sessionID)
 	}()
 
@@ -104,6 +135,10 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		if isConnectionError(err) {
+			b.logger.Debug(r.Context(), "client disconnected during request body read", slog.Error(err))
+			return // Don't send error response if client already disconnected
+		}
 		b.logger.Error(r.Context(), "failed to read body", slog.Error(err))
 		http.Error(w, "failed to read body", http.StatusInternalServerError)
 		return
@@ -267,7 +302,10 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 					}
 
 					if err := es.TrySend(streamCtx, toolChunk); err != nil {
-						b.logger.Error(ctx, "failed to send tool chunk", slog.Error(err))
+						b.logConnectionError(ctx, err, "sending tool chunk")
+						if isConnectionError(err) {
+							return // Stop processing if client disconnected
+						}
 					}
 
 					finishChunk := openai.ChatCompletionChunk{
@@ -290,7 +328,10 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 					}
 
 					if err := es.TrySend(streamCtx, finishChunk, "choices[].delta.content"); err != nil {
-						b.logger.Error(ctx, "failed to send finish chunk", slog.Error(err))
+						b.logConnectionError(ctx, err, "sending finish chunk")
+						if isConnectionError(err) {
+							return // Stop processing if client disconnected
+						}
 					}
 				}
 				continue
@@ -302,7 +343,10 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 			//		 is appended as if it came from the assistant.
 			if _, ok := ignoreSubsequent[acc.ID]; !ok {
 				if err := es.TrySend(streamCtx, chunk); err != nil {
-					b.logger.Error(ctx, "failed to send reflected chunk", slog.Error(err))
+					b.logConnectionError(ctx, err, "sending reflected chunk")
+					if isConnectionError(err) {
+						return // Stop processing if client disconnected
+					}
 				}
 			}
 		}
@@ -312,8 +356,14 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := stream.Err(); err != nil {
-			// TODO: handle error.
-			b.logger.Error(ctx, "server stream error", slog.Error(err))
+			if isConnectionError(err) {
+				b.logger.Debug(ctx, "upstream connection closed", slog.Error(err))
+			} else {
+				b.logger.Error(ctx, "server stream error", slog.Error(err))
+				b.setError(err)
+			}
+
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 
 		wg.Wait()
@@ -330,6 +380,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 		completion, err := client.Chat.Completions.New(ctx, in.ChatCompletionNewParams)
 		if err != nil {
 			b.logger.Error(ctx, "chat completion failed", slog.Error(err))
+			b.setError(err)
 			http.Error(w, "chat completion failed", http.StatusInternalServerError)
 			return
 		}
@@ -341,8 +392,14 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 
 func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	sessionID := uuid.New()
+	b.logger.Info(r.Context(), "Anthropic request started", slog.F("sessionID", sessionID), slog.F("method", r.Method), slog.F("path", r.URL.Path))
 	_, _ = fmt.Fprintf(os.Stderr, "[%s] new chat session started\n\n", sessionID)
+
+	// Clear any previous error state
+	b.clearError()
+
 	defer func() {
+		b.logger.Info(r.Context(), "Anthropic request ended", slog.F("sessionID", sessionID))
 		_, _ = fmt.Fprintf(os.Stderr, "[%s] chat session ended\n\n", sessionID)
 	}()
 
@@ -443,7 +500,14 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	if !in.UseStreaming() {
 		msg, err := client.Beta.Messages.New(ctx, in.BetaMessageNewParams)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			if antErr := getAnthropicErrorResponse(err); antErr != nil {
+				b.setError(antErr)
+				http.Error(w, antErr.Error.Message, antErr.StatusCode)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				b.setError(err)
+			}
+			return
 		}
 
 		// TODO: these figures don't seem to exactly match what Claude Code reports. Find the source of inconsistency!
@@ -524,7 +588,10 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 		//
 		//if !foundToolCall {
 		if err := es.TrySend(streamCtx, event); err != nil {
-			b.logger.Error(ctx, "failed to send event", slog.Error(err))
+			b.logConnectionError(ctx, err, "sending event")
+			if isConnectionError(err) {
+				return // Stop processing if client disconnected
+			}
 		}
 		//} else {
 		//	fmt.Printf("[ignored, tool call found] %s\n", event.RawJSON())
@@ -642,7 +709,22 @@ outer:
 
 	var streamErr error
 	if streamErr = stream.Err(); streamErr != nil {
-		http.Error(w, stream.Err().Error(), http.StatusInternalServerError)
+		if isConnectionError(streamErr) {
+			b.logger.Warn(ctx, "upstream connection closed", slog.Error(streamErr))
+		}
+
+		b.logger.Error(ctx, "anthropic stream error", slog.Error(streamErr))
+		b.setError(streamErr)
+		if antErr := getAnthropicErrorResponse(streamErr); antErr != nil {
+			err = es.TrySend(streamCtx, antErr)
+			if err != nil {
+				b.logger.Error(ctx, "failed to send error", slog.Error(err))
+			}
+
+			http.Error(w, antErr.Error.Message, ProxyErrCode)
+		} else {
+			http.Error(w, streamErr.Error(), ProxyErrCode)
+		}
 	}
 
 	err = es.Close(streamCtx)
@@ -664,6 +746,40 @@ outer:
 	select {
 	case <-streamCtx.Done():
 	}
+}
+
+func getAnthropicErrorResponse(err error) *AnthropicErrorResponse {
+	var apierr *anthropic.Error
+	if !errors.As(err, &apierr) {
+		return nil
+	}
+
+	msg := apierr.Error()
+
+	var detail *anthropic.BetaAPIError
+	if field, ok := apierr.JSON.ExtraFields["error"]; ok {
+		_ = json.Unmarshal([]byte(field.Raw()), &detail)
+	}
+	if detail != nil {
+		msg = detail.Message
+	}
+
+	return &AnthropicErrorResponse{
+		BetaErrorResponse: &anthropic.BetaErrorResponse{
+			Error: anthropic.BetaErrorUnion{
+				Message: msg,
+				Type:    string(detail.Type),
+			},
+			Type: ant_constant.ValueOf[ant_constant.Error](),
+		},
+		StatusCode: apierr.StatusCode,
+	}
+}
+
+type AnthropicErrorResponse struct {
+	*anthropic.BetaErrorResponse
+
+	StatusCode int `json:"-"`
 }
 
 type GetCoordinatesInput struct {
@@ -698,139 +814,6 @@ func GenerateSchema[T any]() anthropic.BetaToolInputSchemaParam {
 	}
 }
 
-func (b *Bridge) proxyAnthropicRequestPrev(w http.ResponseWriter, r *http.Request) {
-	coderdClient, ok := b.clientFn()
-	if !ok {
-		// TODO: log issue.
-		http.Error(w, "could not acquire coderd client", http.StatusInternalServerError)
-		return
-	}
-
-	target, err := url.Parse("https://api.anthropic.com")
-	if err != nil {
-		http.Error(w, "failed to parse Anthropic URL", http.StatusInternalServerError)
-		return
-	}
-
-	proxy := httputil.NewSingleHostReverseProxy(target)
-	originalDirector := proxy.Director
-	proxy.Director = func(req *http.Request) {
-		originalDirector(req)
-
-		// Add Anthropic-specific headers
-		if strings.TrimSpace(req.Header.Get("x-api-key")) == "" {
-			req.Header.Set("x-api-key", os.Getenv("ANTHROPIC_API_KEY"))
-		}
-		req.Header.Set("anthropic-version", "2023-06-01")
-
-		if req.Header.Get("Content-Type") == "" {
-			req.Header.Set("Content-Type", "application/json")
-		}
-
-		req.Host = target.Host
-		req.URL.Scheme = target.Scheme
-		req.URL.Host = target.Host
-
-		body, err := io.ReadAll(req.Body)
-		if err != nil {
-			http.Error(w, "could not ready request body", http.StatusBadRequest)
-			return
-		}
-		_ = req.Body.Close()
-
-		var msg anthropic.MessageNewParams
-		err = json.NewDecoder(bytes.NewReader(body)).Decode(&msg)
-		if err != nil {
-			http.Error(w, "could not unmarshal request body", http.StatusBadRequest)
-			return
-		}
-
-		// TODO: robustness
-		if len(msg.Messages) > 0 {
-			latest := msg.Messages[len(msg.Messages)-1]
-			if len(latest.Content) > 0 {
-				if latest.Content[0].OfText != nil {
-					_, _ = coderdClient.TrackUserPrompts(r.Context(), &proto.TrackUserPromptsRequest{
-						Prompt: latest.Content[0].OfText.Text,
-					})
-				} else {
-					fmt.Println()
-				}
-			}
-		}
-
-		req.Body = io.NopCloser(bytes.NewReader(body))
-
-		fmt.Printf("Proxying %s request to: %s\n", req.Method, req.URL.String())
-	}
-	proxy.ModifyResponse = func(response *http.Response) error {
-		body, err := io.ReadAll(response.Body)
-		if err != nil {
-			return xerrors.Errorf("read response body: %w", err)
-		}
-		if err = response.Body.Close(); err != nil {
-			return xerrors.Errorf("close body: %w", err)
-		}
-
-		if !strings.Contains(response.Header.Get("Content-Type"), "text/event-stream") {
-			var msg anthropic.Message
-
-			// TODO: check content-encoding to handle others.
-			gr, err := gzip.NewReader(bytes.NewReader(body))
-			if err != nil {
-				return xerrors.Errorf("parse gzip-encoded body: %w", err)
-			}
-
-			err = json.NewDecoder(gr).Decode(&msg)
-			if err != nil {
-				return xerrors.Errorf("parse non-streaming body: %w", err)
-			}
-
-			_, _ = coderdClient.TrackTokenUsage(r.Context(), &proto.TrackTokenUsageRequest{
-				MsgId:        msg.ID,
-				InputTokens:  msg.Usage.InputTokens,
-				OutputTokens: msg.Usage.OutputTokens,
-			})
-
-			response.Body = io.NopCloser(bytes.NewReader(body))
-			return nil
-		}
-
-		response.Body = io.NopCloser(bytes.NewReader(body))
-		stream := ant_ssestream.NewStream[anthropic.MessageStreamEventUnion](ant_ssestream.NewDecoder(response), nil)
-
-		var (
-			inputToks, outputToks int64
-		)
-
-		var msg anthropic.Message
-		for stream.Next() {
-			event := stream.Current()
-			err = msg.Accumulate(event)
-			if err != nil {
-				// TODO: don't panic.
-				panic(err)
-			}
-
-			if msg.Usage.InputTokens+msg.Usage.OutputTokens > 0 {
-				inputToks = msg.Usage.InputTokens
-				outputToks = msg.Usage.OutputTokens
-			}
-		}
-
-		_, _ = coderdClient.TrackTokenUsage(r.Context(), &proto.TrackTokenUsageRequest{
-			MsgId:        msg.ID,
-			InputTokens:  inputToks,
-			OutputTokens: outputToks,
-		})
-
-		response.Body = io.NopCloser(bytes.NewReader(body))
-
-		return nil
-	}
-	proxy.ServeHTTP(w, r)
-}
-
 func (b *Bridge) Serve() error {
 	list, err := net.Listen("tcp", b.httpSrv.Addr)
 	if err != nil {
@@ -844,4 +827,52 @@ func (b *Bridge) Serve() error {
 
 func (b *Bridge) Addr() string {
 	return b.addr
+}
+
+// setError sets a structured error with appropriate context
+func (b *Bridge) setError(val any) {
+	switch err := val.(type) {
+	case error:
+		switch {
+		case errors.Is(err, context.Canceled):
+			b.lastErr = &BridgeError{
+				Code:       ErrorTypeRequestCanceled,
+				Message:    "Request was canceled",
+				StatusCode: http.StatusRequestTimeout,
+			}
+		case isConnectionError(err):
+			b.lastErr = &BridgeError{
+				Code:       ErrorTypeConnectionError,
+				Message:    "Connection to upstream service failed",
+				StatusCode: http.StatusBadGateway,
+			}
+		default:
+			b.lastErr = &BridgeError{
+				Code:       ErrorTypeUnexpectedError,
+				Message:    err.Error(),
+				StatusCode: http.StatusInternalServerError,
+			}
+		}
+	case AnthropicErrorResponse:
+		b.lastErr = &BridgeError{
+			Code:       ErrorTypeAnthropicAPIError,
+			Message:    err.Error.Message,
+			Details:    map[string]string{"type": err.Error.Type},
+			StatusCode: err.StatusCode,
+		}
+	}
+}
+
+// clearError clears the error state when a new request starts
+func (b *Bridge) clearError() {
+	b.lastErr = nil
+}
+
+// logConnectionError logs connection errors with appropriate severity
+func (b *Bridge) logConnectionError(ctx context.Context, err error, operation string) {
+	if isConnectionError(err) {
+		b.logger.Debug(ctx, "client disconnected during "+operation, slog.Error(err))
+	} else {
+		b.logger.Error(ctx, "error during "+operation, slog.Error(err))
+	}
 }
