@@ -10,13 +10,13 @@ or join the [Coder Discord](https://discord.gg/coder).
 
 ## Feature stages
 
-| Feature stage                             | Stable | Production-ready | Support                                 | Description                                                                                                                                                                             |
-|-------------------------------------------|--------|------------------|-----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Experiment](#experiment-hidden)          | No     | No               | N/A                                     | For staging and testing only. Not feature-complete or stable.</br>Hidden and disabled by default.                                                                                       |
-| [Early Access](#early-access-features)    | No     | No               | Limited documentation</br>GitHub issues | For staging only. Functional, but not feature-complete or stable.</br>Disabled by default.                                                                                              |
-| [Beta](#beta)                             | No     | Not fully        | Documentation</br>Discord</br>GitHub    | Publicly available on an opt-in basis. In active development with minor bugs. Suitable for staging; optional for production.                                                            |
-| [GA](#general-availability-ga)            | Yes    | Yes              | License-based / SLA                     | Stable and tested. Enabled by default. Fully documented.                                                                                                                                |
-| [Legacy (Deprecated)](#legacy-deprecated) | Yes*   | Yes*             | Best-effort security updates            | Legacy features continue to function, but will not be updated outside of the limits defined in a customer's license or agreement.</br>They will be removed in future versions of Coder. |
+| Feature stage                             | Stable | Production-ready | Support                             | Description                                                                                                                                                                         |
+|-------------------------------------------|--------|------------------|-------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Experiment](#experiment-hidden)          | No     | No               | N/A                                 | For staging and testing only. Not feature-complete or stable. Hidden and disabled by default.                                                                                       |
+| [Early Access](#early-access-features)    | No     | No               | Limited documentation GitHub issues | For staging only. Functional, but not feature-complete or stable. Disabled by default.                                                                                              |
+| [Beta](#beta)                             | No     | Not fully        | Documentation Discord GitHub        | Publicly available on an opt-in basis. In active development with minor bugs. Suitable for staging; may be acceptable for some production deployments.                              |
+| [GA](#general-availability-ga)            | Yes    | Yes              | License-based / SLA                 | Stable and tested. Enabled by default. Fully documented.                                                                                                                            |
+| [Legacy (Deprecated)](#legacy-deprecated) | Yes*   | Yes*             | Best-effort security updates        | Legacy features continue to function, but will not be updated outside of the limits defined in a customer's license or agreement. They will be removed in future versions of Coder. |
 
 ## Experiment (Hidden)
 
@@ -48,7 +48,7 @@ coder server --experiments=featureName
 Early access features are neither feature-complete nor stable.
 We do not recommend using early access features in production deployments.
 
-Coder sometimes releases early access features that are available for use, but are disabled by default.
+Early access features are available for use, but are disabled by default.
 
 You shouldn't use early access features in production because they might cause performance or stability issues.
 Early access features can be mostly feature-complete, but require further internal testing and remain in the early access stage for at least one month.
@@ -76,9 +76,9 @@ Use the [Coder CLI](../../install/cli.md) `--experiments` flag to enable early a
 You can also use the `CODER_EXPERIMENTS`
 [environment variable](../../admin/setup/index.md).
 
-You can opt-out of a feature after you've enabled it.
-
 </details>
+
+You can opt-out of a feature after you've enabled it.
 
 ### Available early access features
 
