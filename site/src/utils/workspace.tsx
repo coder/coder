@@ -75,7 +75,7 @@ export const getDisplayWorkspaceBuildStatus = (
 
 export const getDisplayWorkspaceBuildInitiatedBy = (
 	build: TypesGen.WorkspaceBuild,
-): string => {
+): string | undefined => {
 	switch (build.reason) {
 		case "initiator":
 			return build.initiator_name;
@@ -83,6 +83,7 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
 		case "autostop":
 			return "Coder";
 	}
+	return undefined;
 };
 
 const getWorkspaceBuildDurationInSeconds = (
