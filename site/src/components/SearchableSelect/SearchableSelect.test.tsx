@@ -1,13 +1,12 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
 import {
 	SearchableSelect,
 	SearchableSelectContent,
 	SearchableSelectItem,
 	SearchableSelectTrigger,
 	SearchableSelectValue,
-} from "../SearchableSelect";
+} from "./SearchableSelect";
 
 describe("SearchableSelect", () => {
 	it("renders with placeholder", () => {
@@ -77,7 +76,7 @@ describe("SearchableSelect", () => {
 
 	it("selects an option when clicked", async () => {
 		const user = userEvent.setup();
-		const onValueChange = vi.fn();
+		const onValueChange = jest.fn();
 
 		render(
 			<SearchableSelect onValueChange={onValueChange}>
@@ -205,7 +204,7 @@ describe("SearchableSelect", () => {
 
 	it("respects disabled state", async () => {
 		const user = userEvent.setup();
-		const onValueChange = vi.fn();
+		const onValueChange = jest.fn();
 
 		render(
 			<SearchableSelect disabled onValueChange={onValueChange}>

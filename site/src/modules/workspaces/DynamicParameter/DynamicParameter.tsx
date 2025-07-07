@@ -22,7 +22,7 @@ import {
 	SearchableSelectItem,
 	SearchableSelectTrigger,
 	SearchableSelectValue,
-} from "components/SearchableSelect";
+} from "components/SearchableSelect/SearchableSelect";
 import { Slider } from "components/Slider/Slider";
 import { Stack } from "components/Stack/Stack";
 import { Switch } from "components/Switch/Switch";
@@ -83,7 +83,7 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 			/>
 			<div className="max-w-lg">
 				{parameter.form_type === "input" ||
-				parameter.form_type === "textarea" ? (
+					parameter.form_type === "textarea" ? (
 					<DebouncedParameterField
 						id={id}
 						parameter={parameter}
@@ -322,8 +322,8 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 						className={cn(
 							"overflow-y-auto max-h-[500px]",
 							parameter.styling?.mask_input &&
-								!showMaskedInput &&
-								"[-webkit-text-security:disc]",
+							!showMaskedInput &&
+							"[-webkit-text-security:disc]",
 						)}
 						value={localValue}
 						onChange={(e) => {
@@ -691,11 +691,10 @@ const ParameterDiagnostics: FC<ParameterDiagnosticsProps> = ({
 				return (
 					<div
 						key={`parameter-diagnostic-${diagnostic.summary}-${index}`}
-						className={`text-xs px-1 ${
-							diagnostic.severity === "error"
+						className={`text-xs px-1 ${diagnostic.severity === "error"
 								? "text-content-destructive"
 								: "text-content-warning"
-						}`}
+							}`}
 					>
 						<p className="font-medium">{diagnostic.summary}</p>
 						{diagnostic.detail && <p className="m-0">{diagnostic.detail}</p>}
