@@ -126,7 +126,7 @@ func ResolveParameters(
 		parameterNames[parameter.Name] = struct{}{}
 
 		if !firstBuild && !parameter.Mutable {
-			originalValue, ok := originalInputValues[parameter.Name]
+			originalValue, ok := previousValuesMap[parameter.Name]
 			// Immutable parameters should not be changed after the first build.
 			// If the value matches the original input value, that is fine.
 			//
@@ -134,7 +134,7 @@ func ResolveParameters(
 			// immutable parameters are allowed. This is an opinionated choice to prevent
 			// workspaces failing to update or delete. Ideally we would block this, as
 			// immutable parameters should only be able to be set at creation time.
-			if ok && parameter.Value.AsString() != originalValue.Value {
+			if ok && parameter.Value.AsString() != originalValue {
 				var src *hcl.Range
 				if parameter.Source != nil {
 					src = &parameter.Source.HCLBlock().TypeRange

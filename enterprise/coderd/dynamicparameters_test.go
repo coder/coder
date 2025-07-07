@@ -364,7 +364,7 @@ func TestDynamicParameterBuild(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			// Start with a new template that has 1 parameter that is immutable
 			immutable, _ := coderdtest.DynamicParameterTemplate(t, templateAdmin, orgID, coderdtest.DynamicParameterTemplateParams{
-				MainTF: string(must(os.ReadFile("testdata/parameters/dynamicimmutable/main.tf"))),
+				MainTF: "# PreviouslyImmutable\n" + string(must(os.ReadFile("testdata/parameters/dynamicimmutable/main.tf"))),
 			})
 
 			// Create the workspace with the immutable parameter
@@ -396,7 +396,7 @@ func TestDynamicParameterBuild(t *testing.T) {
 
 			ctx := testutil.Context(t, testutil.WaitShort)
 			immutable, _ := coderdtest.DynamicParameterTemplate(t, templateAdmin, orgID, coderdtest.DynamicParameterTemplateParams{
-				MainTF: string(must(os.ReadFile("testdata/parameters/dynamicimmutable/main.tf"))),
+				MainTF: "# PreviouslyMutable\n" + string(must(os.ReadFile("testdata/parameters/dynamicimmutable/main.tf"))),
 			})
 
 			// Create the workspace with the mutable parameter
