@@ -42,7 +42,7 @@ In Coder v2.24.0, you can opt-in to Dynamic Parameters on a per-template basis.
 
 1. Go to your template's settings and enable the **Enable dynamic parameters for workspace creation** option.
 
-   [Enable dynamic parameters for workspace creation](../../../images/admin/templates/extend-templates/dyn-params/enable-dynamic-parameters.png)
+   ![Enable dynamic parameters for workspace creation](../../../images/admin/templates/extend-templates/dyn-params/enable-dynamic-parameters.png)
 
 1. Update your template to use version >=2.4.0 of the Coder provider with the following Terraform block.
 
