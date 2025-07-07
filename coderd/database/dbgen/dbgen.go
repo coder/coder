@@ -65,7 +65,7 @@ func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.
 		Action:           takeFirst(seed.Action, database.AuditActionCreate),
 		Diff:             takeFirstSlice(seed.Diff, []byte("{}")),
 		StatusCode:       takeFirst(seed.StatusCode, 200),
-		AdditionalFields: takeFirstSlice(seed.Diff, []byte("{}")),
+		AdditionalFields: takeFirstSlice(seed.AdditionalFields, []byte("{}")),
 		RequestID:        takeFirst(seed.RequestID, uuid.New()),
 		ResourceIcon:     takeFirst(seed.ResourceIcon, ""),
 	})
