@@ -2455,7 +2455,7 @@ func TestAgent_DevcontainersDisabledForSubAgent(t *testing.T) {
 
 	// Verify the error message contains the expected text.
 	require.Contains(t, err.Error(), "Dev Container feature not supported.")
-	require.Contains(t, err.Error(), "Dev Container integration inside of Dev Containers are explicitly not supported.")
+	require.Contains(t, err.Error(), "Dev Container integration inside other Dev Containers is explicitly not supported.")
 }
 
 func TestAgent_Dial(t *testing.T) {

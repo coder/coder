@@ -43,7 +43,7 @@ func (a *agent) apiHandler() http.Handler {
 		r.HandleFunc("/api/v0/containers", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(r.Context(), w, http.StatusForbidden, codersdk.Response{
 				Message: "Dev Container feature not supported.",
-				Detail:  "Dev Container integration inside of Dev Containers are explicitly not supported.",
+				Detail:  "Dev Container integration inside other Dev Containers is explicitly not supported.",
 			})
 		})
 	} else {
