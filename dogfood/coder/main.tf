@@ -315,7 +315,7 @@ module "jetbrains" {
 module "filebrowser" {
   count      = data.coder_workspace.me.start_count
   source     = "dev.registry.coder.com/coder/filebrowser/coder"
-  version    = "1.0.31"
+  version    = "1.1.1"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
 }
@@ -495,6 +495,10 @@ resource "coder_agent" "dev" {
   shutdown_script = <<-EOT
     #!/usr/bin/env bash
     set -eux -o pipefail
+
+    # Clean up the Go build cache to prevent the home volume from
+    # accumulating waste and growing too large.
+    go clean -cache
 
     # Clean up the unused resources to keep storage usage low.
     #

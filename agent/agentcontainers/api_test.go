@@ -26,6 +26,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
@@ -69,7 +70,7 @@ func (f *fakeContainerCLI) ExecAs(ctx context.Context, name, user string, args .
 type fakeDevcontainerCLI struct {
 	upID           string
 	upErr          error
-	upErrC         chan error // If set, send to return err, close to return upErr.
+	upErrC         chan func() error // If set, send to return err, close to return upErr.
 	execErr        error
 	execErrC       chan func(cmd string, args ...string) error // If set, send fn to return err, nil or close to return execErr.
 	readConfig     agentcontainers.DevcontainerConfig
@@ -82,9 +83,9 @@ func (f *fakeDevcontainerCLI) Up(ctx context.Context, _, _ string, _ ...agentcon
 		select {
 		case <-ctx.Done():
 			return "", ctx.Err()
-		case err, ok := <-f.upErrC:
+		case fn, ok := <-f.upErrC:
 			if ok {
-				return f.upID, err
+				return f.upID, fn()
 			}
 		}
 	}
@@ -341,6 +342,104 @@ func (f *fakeExecer) getLastCommand() *exec.Cmd {
 
 func TestAPI(t *testing.T) {
 	t.Parallel()
+
+	t.Run("NoUpdaterLoopLogspam", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx        = testutil.Context(t, testutil.WaitShort)
+			logbuf     strings.Builder
+			logger     = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).AppendSinks(sloghuman.Sink(&logbuf))
+			mClock     = quartz.NewMock(t)
+			tickerTrap = mClock.Trap().TickerFunc("updaterLoop")
+			firstErr   = xerrors.New("first error")
+			secondErr  = xerrors.New("second error")
+			fakeCLI    = &fakeContainerCLI{
+				listErr: firstErr,
+			}
+		)
+
+		api := agentcontainers.NewAPI(logger,
+			agentcontainers.WithClock(mClock),
+			agentcontainers.WithContainerCLI(fakeCLI),
+		)
+		api.Start()
+		defer api.Close()
+
+		// Make sure the ticker function has been registered
+		// before advancing the clock.
+		tickerTrap.MustWait(ctx).MustRelease(ctx)
+		tickerTrap.Close()
+
+		logbuf.Reset()
+
+		// First tick should handle the error.
+		_, aw := mClock.AdvanceNext()
+		aw.MustWait(ctx)
+
+		// Verify first error is logged.
+		got := logbuf.String()
+		t.Logf("got log: %q", got)
+		require.Contains(t, got, "updater loop ticker failed", "first error should be logged")
+		require.Contains(t, got, "first error", "should contain first error message")
+		logbuf.Reset()
+
+		// Second tick should handle the same error without logging it again.
+		_, aw = mClock.AdvanceNext()
+		aw.MustWait(ctx)
+
+		// Verify same error is not logged again.
+		got = logbuf.String()
+		t.Logf("got log: %q", got)
+		require.Empty(t, got, "same error should not be logged again")
+
+		// Change to a different error.
+		fakeCLI.listErr = secondErr
+
+		// Third tick should handle the different error and log it.
+		_, aw = mClock.AdvanceNext()
+		aw.MustWait(ctx)
+
+		// Verify different error is logged.
+		got = logbuf.String()
+		t.Logf("got log: %q", got)
+		require.Contains(t, got, "updater loop ticker failed", "different error should be logged")
+		require.Contains(t, got, "second error", "should contain second error message")
+		logbuf.Reset()
+
+		// Clear the error to simulate success.
+		fakeCLI.listErr = nil
+
+		// Fourth tick should succeed.
+		_, aw = mClock.AdvanceNext()
+		aw.MustWait(ctx)
+
+		// Fifth tick should continue to succeed.
+		_, aw = mClock.AdvanceNext()
+		aw.MustWait(ctx)
+
+		// Verify successful operations are logged properly.
+		got = logbuf.String()
+		t.Logf("got log: %q", got)
+		gotSuccessCount := strings.Count(got, "containers updated successfully")
+		require.GreaterOrEqual(t, gotSuccessCount, 2, "should have successful update got")
+		require.NotContains(t, got, "updater loop ticker failed", "no errors should be logged during success")
+		logbuf.Reset()
+
+		// Reintroduce the original error.
+		fakeCLI.listErr = firstErr
+
+		// Sixth tick should handle the error after success and log it.
+		_, aw = mClock.AdvanceNext()
+		aw.MustWait(ctx)
+
+		// Verify error after success is logged.
+		got = logbuf.String()
+		t.Logf("got log: %q", got)
+		require.Contains(t, got, "updater loop ticker failed", "error after success should be logged")
+		require.Contains(t, got, "first error", "should contain first error message")
+		logbuf.Reset()
+	})
 
 	// List tests the API.getContainers method using a mock
 	// implementation. It specifically tests caching behavior.
@@ -613,7 +712,7 @@ func TestAPI(t *testing.T) {
 				nowRecreateErrorTrap := mClock.Trap().Now("recreate", "errorTimes")
 				nowRecreateSuccessTrap := mClock.Trap().Now("recreate", "successTimes")
 
-				tt.devcontainerCLI.upErrC = make(chan error)
+				tt.devcontainerCLI.upErrC = make(chan func() error)
 
 				// Setup router with the handler under test.
 				r := chi.NewRouter()
@@ -1665,7 +1764,7 @@ func TestAPI(t *testing.T) {
 				mClock = quartz.NewMock(t)
 				fCCLI  = &fakeContainerCLI{arch: "<none>"}
 				fDCCLI = &fakeDevcontainerCLI{
-					upErrC: make(chan error, 1),
+					upErrC: make(chan func() error, 1),
 				}
 				fSAC = &fakeSubAgentClient{
 					logger: logger.Named("fakeSubAgentClient"),
@@ -1717,7 +1816,7 @@ func TestAPI(t *testing.T) {
 
 			// Given: We simulate an error running `devcontainer up`
 			simulatedError := xerrors.New("simulated error")
-			testutil.RequireSend(ctx, t, fDCCLI.upErrC, simulatedError)
+			testutil.RequireSend(ctx, t, fDCCLI.upErrC, func() error { return simulatedError })
 
 			nowRecreateErrorTrap.MustWait(ctx).MustRelease(ctx)
 			nowRecreateErrorTrap.Close()
@@ -1742,7 +1841,22 @@ func TestAPI(t *testing.T) {
 			require.Equal(t, http.StatusAccepted, rec.Code)
 
 			// Given: We allow `devcontainer up` to succeed.
-			testutil.RequireSend(ctx, t, fDCCLI.upErrC, nil)
+			testutil.RequireSend(ctx, t, fDCCLI.upErrC, func() error {
+				req = httptest.NewRequest(http.MethodGet, "/", nil)
+				rec = httptest.NewRecorder()
+				r.ServeHTTP(rec, req)
+				require.Equal(t, http.StatusOK, rec.Code)
+
+				response = codersdk.WorkspaceAgentListContainersResponse{}
+				err = json.NewDecoder(rec.Body).Decode(&response)
+				require.NoError(t, err)
+
+				// Then: We make sure that the error has been cleared before running up.
+				require.Len(t, response.Devcontainers, 1)
+				require.Equal(t, "", response.Devcontainers[0].Error)
+
+				return nil
+			})
 
 			nowRecreateSuccessTrap.MustWait(ctx).MustRelease(ctx)
 			nowRecreateSuccessTrap.Close()
@@ -1756,7 +1870,7 @@ func TestAPI(t *testing.T) {
 			err = json.NewDecoder(rec.Body).Decode(&response)
 			require.NoError(t, err)
 
-			// Then: We expect that there will be no error associated with the devcontainer.
+			// Then: We also expect no error after running up..
 			require.Len(t, response.Devcontainers, 1)
 			require.Equal(t, "", response.Devcontainers[0].Error)
 		})

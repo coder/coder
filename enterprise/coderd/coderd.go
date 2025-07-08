@@ -474,6 +474,14 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.userQuietHoursSchedule)
 			r.Put("/", api.putUserQuietHoursSchedule)
 		})
+		r.Route("/prebuilds", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureWorkspacePrebuilds),
+			)
+			r.Get("/settings", api.prebuildsSettings)
+			r.Put("/settings", api.putPrebuildsSettings)
+		})
 		// The /notifications base route is mounted by the AGPL router, so we can't group it here.
 		// Additionally, because we have a static route for /notifications/templates/system which conflicts
 		// with the below route, we need to register this route without any mounts or groups to make both work.

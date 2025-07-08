@@ -24,6 +24,7 @@ type Auditable interface {
 		database.NotificationsSettings |
 		database.OAuth2ProviderApp |
 		database.OAuth2ProviderAppSecret |
+		database.PrebuildsSettings |
 		database.CustomRole |
 		database.AuditableOrganizationMember |
 		database.Organization |

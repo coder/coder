@@ -1237,7 +1237,7 @@ class ApiMethods {
 
 	getTemplateVersionPresets = async (
 		templateVersionId: string,
-	): Promise<TypesGen.Preset[]> => {
+	): Promise<TypesGen.Preset[] | null> => {
 		const response = await this.axios.get<TypesGen.Preset[]>(
 			`/api/v2/templateversions/${templateVersionId}/presets`,
 		);
@@ -1277,9 +1277,12 @@ class ApiMethods {
 
 	cancelWorkspaceBuild = async (
 		workspaceBuildId: TypesGen.WorkspaceBuild["id"],
+		params?: TypesGen.CancelWorkspaceBuildParams,
 	): Promise<TypesGen.Response> => {
 		const response = await this.axios.patch(
 			`/api/v2/workspacebuilds/${workspaceBuildId}/cancel`,
+			null,
+			{ params },
 		);
 
 		return response.data;

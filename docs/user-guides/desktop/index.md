@@ -34,10 +34,6 @@ You can install Coder Desktop on macOS or Windows.
 
 1. Continue to the [configuration section](#configure).
 
-> Do not install more than one copy of Coder Desktop.
->
-> To avoid system VPN configuration conflicts, only one copy of `Coder Desktop.app` should exist on your Mac, and it must remain in `/Applications`.
-
 ### Windows
 
 If you use [WinGet](https://github.com/microsoft/winget-cli), run `winget install Coder.CoderDesktop`.
@@ -122,6 +118,10 @@ Before you can use Coder Desktop, you will need to sign in.
 1. macOS: You may be prompted to enter your password to allow Coder Connect to start.
 
 1. Coder Connect is now running!
+
+## Troubleshooting
+
+Do not install more than one copy of Coder Desktop. To avoid system VPN configuration conflicts, only one copy of `Coder Desktop.app` should exist on your Mac, and it must remain in `/Applications`.
 
 ## Next Steps
 

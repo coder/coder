@@ -1,5 +1,12 @@
 # Prebuilt workspaces
 
+> [!WARNING]
+> Prebuilds Compatibility Limitations:
+> Prebuilt workspaces currently do not work reliably with [DevContainers feature](../managing-templates/devcontainers/index.md).
+> If your project relies on DevContainer configuration, we recommend disabling prebuilds or carefully testing behavior before enabling them.
+>
+> We’re actively working to improve compatibility, but for now, please avoid using prebuilds with this feature to ensure stability and expected behavior.
+
 Prebuilt workspaces allow template administrators to improve the developer experience by reducing workspace
 creation time with an automatically maintained pool of ready-to-use workspaces for specific parameter presets.
 
@@ -16,7 +23,7 @@ Prebuilt workspaces are:
 
 ## Relationship to workspace presets
 
-Prebuilt workspaces are tightly integrated with [workspace presets](./parameters.md#workspace-presets-beta):
+Prebuilt workspaces are tightly integrated with [workspace presets](./parameters.md#workspace-presets):
 
 1. Each prebuilt workspace is associated with a specific template preset.
 1. The preset must define all required parameters needed to build the workspace.

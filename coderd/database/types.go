@@ -35,6 +35,11 @@ type NotificationsSettings struct {
 	NotifierPaused bool      `db:"notifier_paused" json:"notifier_paused"`
 }
 
+type PrebuildsSettings struct {
+	ID                   uuid.UUID `db:"id" json:"id"`
+	ReconciliationPaused bool      `db:"reconciliation_paused" json:"reconciliation_paused"`
+}
+
 type Actions []policy.Action
 
 func (a *Actions) Scan(src interface{}) error {

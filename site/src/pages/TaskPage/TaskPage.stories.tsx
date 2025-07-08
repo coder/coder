@@ -113,7 +113,7 @@ export const TerminatedBuildWithStatus: Story = {
 	},
 };
 
-export const SidebarAppDisabled: Story = {
+export const SidebarAppHealthDisabled: Story = {
 	beforeEach: () => {
 		spyOn(data, "fetchTask").mockResolvedValue({
 			prompt: "Create competitors page",

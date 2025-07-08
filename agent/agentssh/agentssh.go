@@ -609,7 +609,9 @@ func (s *Server) startNonPTYSession(logger slog.Logger, session ssh.Session, mag
 	// and SSH server close may be delayed.
 	cmd.SysProcAttr = cmdSysProcAttr()
 
-	// to match OpenSSH, we don't actually tear a non-TTY command down, even if the session ends.
+	// to match OpenSSH, we don't actually tear a non-TTY command down, even if the session ends. OpenSSH closes the
+	// pipes to the process when the session ends; which is what happens here since we wire the command up to the
+	// session for I/O.
 	// c.f. https://github.com/coder/coder/issues/18519#issuecomment-3019118271
 	cmd.Cancel = nil
 

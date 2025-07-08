@@ -16,6 +16,8 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"golang.org/x/xerrors"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -3066,7 +3068,7 @@ Write out the current server config as YAML to stdout.`,
 			Flag:        "workspace-prebuilds-reconciliation-interval",
 			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL",
 			Value:       &c.Prebuilds.ReconciliationInterval,
-			Default:     (time.Second * 15).String(),
+			Default:     time.Minute.String(),
 			Group:       &deploymentGroupPrebuilds,
 			YAML:        "reconciliation_interval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
@@ -3077,7 +3079,7 @@ Write out the current server config as YAML to stdout.`,
 			Flag:        "workspace-prebuilds-reconciliation-backoff-interval",
 			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_BACKOFF_INTERVAL",
 			Value:       &c.Prebuilds.ReconciliationBackoffInterval,
-			Default:     (time.Second * 15).String(),
+			Default:     time.Minute.String(),
 			Group:       &deploymentGroupPrebuilds,
 			YAML:        "reconciliation_backoff_interval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
@@ -3341,7 +3343,33 @@ const (
 	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
+	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
+	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
 )
+
+func (e Experiment) DisplayName() string {
+	switch e {
+	case ExperimentExample:
+		return "Example Experiment"
+	case ExperimentAutoFillParameters:
+		return "Auto-fill Template Parameters"
+	case ExperimentNotifications:
+		return "SMTP and Webhook Notifications"
+	case ExperimentWorkspaceUsage:
+		return "Workspace Usage Tracking"
+	case ExperimentWebPush:
+		return "Browser Push Notifications"
+	case ExperimentOAuth2:
+		return "OAuth2 Provider Functionality"
+	case ExperimentMCPServerHTTP:
+		return "MCP HTTP Server Functionality"
+	default:
+		// Split on hyphen and convert to title case
+		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
+		caser := cases.Title(language.English)
+		return caser.String(strings.ReplaceAll(string(e), "-", " "))
+	}
+}
 
 // ExperimentsKnown should include all experiments defined above.
 var ExperimentsKnown = Experiments{
@@ -3350,6 +3378,8 @@ var ExperimentsKnown = Experiments{
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
 	ExperimentWebPush,
+	ExperimentOAuth2,
+	ExperimentMCPServerHTTP,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
@@ -3367,14 +3397,9 @@ var ExperimentsSafe = Experiments{}
 // @typescript-ignore Experiments
 type Experiments []Experiment
 
-// Returns a list of experiments that are enabled for the deployment.
+// Enabled returns a list of experiments that are enabled for the deployment.
 func (e Experiments) Enabled(ex Experiment) bool {
-	for _, v := range e {
-		if v == ex {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(e, ex)
 }
 
 func (c *Client) Experiments(ctx context.Context) (Experiments, error) {
