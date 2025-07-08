@@ -81,11 +81,6 @@
    - Add each new field with appropriate action (ActionTrack, ActionIgnore, ActionSecret)
    - Run `make gen` to verify no audit errors
 
-6. **In-memory database (dbmem) updates**:
-   - When adding new fields to database structs, ensure `dbmem` implementation copies all fields
-   - Check `coderd/database/dbmem/dbmem.go` for Insert/Update methods
-   - Missing fields in dbmem can cause tests to fail even if main implementation is correct
-
 ### Database Generation Process
 
 1. Modify SQL files in `coderd/database/queries/`
@@ -164,9 +159,8 @@
 
 1. **Development server won't start** - Use `./scripts/develop.sh` instead of manual commands
 2. **Database migration errors** - Check migration file format and use helper scripts
-3. **Test failures after database changes** - Update `dbmem` implementations
-4. **Audit table errors** - Update `enterprise/audit/table.go` with new fields
-5. **OAuth2 compliance issues** - Ensure RFC-compliant error responses
+3. **Audit table errors** - Update `enterprise/audit/table.go` with new fields
+4. **OAuth2 compliance issues** - Ensure RFC-compliant error responses
 
 ### Debug Commands
 

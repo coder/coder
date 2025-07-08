@@ -39,31 +39,6 @@
 2. **Verify information disclosure protections**
 3. **Test token security and proper invalidation**
 
-## Database Testing
-
-### In-Memory Database Testing
-
-When adding new database fields:
-
-- **CRITICAL**: Update `coderd/database/dbmem/dbmem.go` in-memory implementations
-- The `Insert*` functions must include ALL new fields, not just basic ones
-- Common issue: Tests pass with real database but fail with in-memory database due to missing field mappings
-- Always verify in-memory database functions match the real database schema after migrations
-
-Example pattern:
-
-```go
-// In dbmem.go - ensure ALL fields are included
-code := database.OAuth2ProviderAppCode{
-    ID:                  arg.ID,
-    CreatedAt:           arg.CreatedAt,
-    // ... existing fields ...
-    ResourceUri:         arg.ResourceUri,         // New field
-    CodeChallenge:       arg.CodeChallenge,       // New field
-    CodeChallengeMethod: arg.CodeChallengeMethod, // New field
-}
-```
-
 ## Test Organization
 
 ### Test File Structure
@@ -107,15 +82,13 @@ coderd/
 
 ### Database-Related
 
-1. **Tests passing locally but failing in CI** - Check if `dbmem` implementation needs updating
-2. **SQL type errors** - Use `sql.Null*` types for nullable fields
-3. **Race conditions in tests** - Use unique identifiers instead of hardcoded names
+1. **SQL type errors** - Use `sql.Null*` types for nullable fields
+2. **Race conditions in tests** - Use unique identifiers instead of hardcoded names
 
 ### OAuth2 Testing
 
-1. **OAuth2 tests failing but scripts working** - Check in-memory database implementations in `dbmem.go`
-2. **PKCE tests failing** - Verify both authorization code storage and token exchange handle PKCE fields
-3. **Resource indicator validation failing** - Ensure database stores and retrieves resource parameters correctly
+1. **PKCE tests failing** - Verify both authorization code storage and token exchange handle PKCE fields
+2. **Resource indicator validation failing** - Ensure database stores and retrieves resource parameters correctly
 
 ### General Issues
 
