@@ -937,6 +937,7 @@ func SetPrebuildsReconciliationPaused(ctx context.Context, db database.Store, pa
 // CompareGetRunningPrebuiltWorkspacesResults compares the original and optimized
 // query results and logs any differences found. This function can be easily
 // removed once we're confident the optimized query works correctly.
+// TODO(Cian): Remove this function once the optimized query is stable and correct.
 func CompareGetRunningPrebuiltWorkspacesResults(
 	ctx context.Context,
 	logger slog.Logger,
