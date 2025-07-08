@@ -491,9 +491,17 @@ curl -X PATCH http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/c
 
 ### Parameters
 
-| Name             | In   | Type   | Required | Description        |
-|------------------|------|--------|----------|--------------------|
-| `workspacebuild` | path | string | true     | Workspace build ID |
+| Name             | In    | Type   | Required | Description                                                                                                                                                                              |
+|------------------|-------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `workspacebuild` | path  | string | true     | Workspace build ID                                                                                                                                                                       |
+| `expect_status`  | query | string | false    | Expected status of the job. If expect_status is supplied, the request will be rejected with 412 Precondition Failed if the job doesn't match the state when performing the cancellation. |
+
+#### Enumerated Values
+
+| Parameter       | Value     |
+|-----------------|-----------|
+| `expect_status` | `running` |
+| `expect_status` | `pending` |
 
 ### Example responses
 

@@ -283,7 +283,7 @@
 {
   "groups": [
     {
-      "avatar_url": "string",
+      "avatar_url": "http://example.com",
       "display_name": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "members": [
@@ -1366,12 +1366,52 @@ This is required on creation to enable a user-flow of validating a template work
 ## codersdk.CreateTestAuditLogRequest
 
 ```json
-{}
+{
+  "action": "create",
+  "additional_fields": [
+    0
+  ],
+  "build_reason": "autostart",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+  "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+  "resource_type": "template",
+  "time": "2019-08-24T14:15:22Z"
+}
 ```
 
 ### Properties
 
-None
+| Name                | Type                                           | Required | Restrictions | Description |
+|---------------------|------------------------------------------------|----------|--------------|-------------|
+| `action`            | [codersdk.AuditAction](#codersdkauditaction)   | false    |              |             |
+| `additional_fields` | array of integer                               | false    |              |             |
+| `build_reason`      | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
+| `organization_id`   | string                                         | false    |              |             |
+| `request_id`        | string                                         | false    |              |             |
+| `resource_id`       | string                                         | false    |              |             |
+| `resource_type`     | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
+| `time`              | string                                         | false    |              |             |
+
+#### Enumerated Values
+
+| Property        | Value              |
+|-----------------|--------------------|
+| `action`        | `create`           |
+| `action`        | `write`            |
+| `action`        | `delete`           |
+| `action`        | `start`            |
+| `action`        | `stop`             |
+| `build_reason`  | `autostart`        |
+| `build_reason`  | `autostop`         |
+| `build_reason`  | `initiator`        |
+| `resource_type` | `template`         |
+| `resource_type` | `template_version` |
+| `resource_type` | `user`             |
+| `resource_type` | `workspace`        |
+| `resource_type` | `workspace_build`  |
+| `resource_type` | `git_ssh_key`      |
+| `resource_type` | `auditable_group`  |
 
 ## codersdk.CreateTokenRequest
 
@@ -2999,6 +3039,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `notifications`        |
 | `workspace-usage`      |
 | `web-push`             |
+| `oauth2`               |
+| `mcp-server-http`      |
 
 ## codersdk.ExternalAuth
 
@@ -3381,7 +3423,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
-  "avatar_url": "string",
+  "avatar_url": "http://example.com",
   "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
@@ -4224,6 +4266,180 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `scopes_supported`                      | array of string | false    |              |             |
 | `token_endpoint`                        | string          | false    |              |             |
 | `token_endpoint_auth_methods_supported` | array of string | false    |              |             |
+
+## codersdk.OAuth2ClientConfiguration
+
+```json
+{
+  "client_id": "string",
+  "client_id_issued_at": 0,
+  "client_name": "string",
+  "client_secret_expires_at": 0,
+  "client_uri": "string",
+  "contacts": [
+    "string"
+  ],
+  "grant_types": [
+    "string"
+  ],
+  "jwks": {},
+  "jwks_uri": "string",
+  "logo_uri": "string",
+  "policy_uri": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "registration_access_token": "string",
+  "registration_client_uri": "string",
+  "response_types": [
+    "string"
+  ],
+  "scope": "string",
+  "software_id": "string",
+  "software_version": "string",
+  "token_endpoint_auth_method": "string",
+  "tos_uri": "string"
+}
+```
+
+### Properties
+
+| Name                         | Type            | Required | Restrictions | Description |
+|------------------------------|-----------------|----------|--------------|-------------|
+| `client_id`                  | string          | false    |              |             |
+| `client_id_issued_at`        | integer         | false    |              |             |
+| `client_name`                | string          | false    |              |             |
+| `client_secret_expires_at`   | integer         | false    |              |             |
+| `client_uri`                 | string          | false    |              |             |
+| `contacts`                   | array of string | false    |              |             |
+| `grant_types`                | array of string | false    |              |             |
+| `jwks`                       | object          | false    |              |             |
+| `jwks_uri`                   | string          | false    |              |             |
+| `logo_uri`                   | string          | false    |              |             |
+| `policy_uri`                 | string          | false    |              |             |
+| `redirect_uris`              | array of string | false    |              |             |
+| `registration_access_token`  | string          | false    |              |             |
+| `registration_client_uri`    | string          | false    |              |             |
+| `response_types`             | array of string | false    |              |             |
+| `scope`                      | string          | false    |              |             |
+| `software_id`                | string          | false    |              |             |
+| `software_version`           | string          | false    |              |             |
+| `token_endpoint_auth_method` | string          | false    |              |             |
+| `tos_uri`                    | string          | false    |              |             |
+
+## codersdk.OAuth2ClientRegistrationRequest
+
+```json
+{
+  "client_name": "string",
+  "client_uri": "string",
+  "contacts": [
+    "string"
+  ],
+  "grant_types": [
+    "string"
+  ],
+  "jwks": {},
+  "jwks_uri": "string",
+  "logo_uri": "string",
+  "policy_uri": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "response_types": [
+    "string"
+  ],
+  "scope": "string",
+  "software_id": "string",
+  "software_statement": "string",
+  "software_version": "string",
+  "token_endpoint_auth_method": "string",
+  "tos_uri": "string"
+}
+```
+
+### Properties
+
+| Name                         | Type            | Required | Restrictions | Description |
+|------------------------------|-----------------|----------|--------------|-------------|
+| `client_name`                | string          | false    |              |             |
+| `client_uri`                 | string          | false    |              |             |
+| `contacts`                   | array of string | false    |              |             |
+| `grant_types`                | array of string | false    |              |             |
+| `jwks`                       | object          | false    |              |             |
+| `jwks_uri`                   | string          | false    |              |             |
+| `logo_uri`                   | string          | false    |              |             |
+| `policy_uri`                 | string          | false    |              |             |
+| `redirect_uris`              | array of string | false    |              |             |
+| `response_types`             | array of string | false    |              |             |
+| `scope`                      | string          | false    |              |             |
+| `software_id`                | string          | false    |              |             |
+| `software_statement`         | string          | false    |              |             |
+| `software_version`           | string          | false    |              |             |
+| `token_endpoint_auth_method` | string          | false    |              |             |
+| `tos_uri`                    | string          | false    |              |             |
+
+## codersdk.OAuth2ClientRegistrationResponse
+
+```json
+{
+  "client_id": "string",
+  "client_id_issued_at": 0,
+  "client_name": "string",
+  "client_secret": "string",
+  "client_secret_expires_at": 0,
+  "client_uri": "string",
+  "contacts": [
+    "string"
+  ],
+  "grant_types": [
+    "string"
+  ],
+  "jwks": {},
+  "jwks_uri": "string",
+  "logo_uri": "string",
+  "policy_uri": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "registration_access_token": "string",
+  "registration_client_uri": "string",
+  "response_types": [
+    "string"
+  ],
+  "scope": "string",
+  "software_id": "string",
+  "software_version": "string",
+  "token_endpoint_auth_method": "string",
+  "tos_uri": "string"
+}
+```
+
+### Properties
+
+| Name                         | Type            | Required | Restrictions | Description |
+|------------------------------|-----------------|----------|--------------|-------------|
+| `client_id`                  | string          | false    |              |             |
+| `client_id_issued_at`        | integer         | false    |              |             |
+| `client_name`                | string          | false    |              |             |
+| `client_secret`              | string          | false    |              |             |
+| `client_secret_expires_at`   | integer         | false    |              |             |
+| `client_uri`                 | string          | false    |              |             |
+| `contacts`                   | array of string | false    |              |             |
+| `grant_types`                | array of string | false    |              |             |
+| `jwks`                       | object          | false    |              |             |
+| `jwks_uri`                   | string          | false    |              |             |
+| `logo_uri`                   | string          | false    |              |             |
+| `policy_uri`                 | string          | false    |              |             |
+| `redirect_uris`              | array of string | false    |              |             |
+| `registration_access_token`  | string          | false    |              |             |
+| `registration_client_uri`    | string          | false    |              |             |
+| `response_types`             | array of string | false    |              |             |
+| `scope`                      | string          | false    |              |             |
+| `software_id`                | string          | false    |              |             |
+| `software_version`           | string          | false    |              |             |
+| `token_endpoint_auth_method` | string          | false    |              |             |
+| `tos_uri`                    | string          | false    |              |             |
 
 ## codersdk.OAuth2Config
 
@@ -6544,6 +6760,76 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |---------------|-------------|
 | `provisioner` | `terraform` |
 
+## codersdk.TemplateACL
+
+```json
+{
+  "group": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "admin",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "organization_ids": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "role": "admin",
+      "roles": [
+        {
+          "display_name": "string",
+          "name": "string",
+          "organization_id": "string"
+        }
+      ],
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                      | Required | Restrictions | Description |
+|---------|-----------------------------------------------------------|----------|--------------|-------------|
+| `group` | array of [codersdk.TemplateGroup](#codersdktemplategroup) | false    |              |             |
+| `users` | array of [codersdk.TemplateUser](#codersdktemplateuser)   | false    |              |             |
+
 ## codersdk.TemplateAppUsage
 
 ```json
@@ -6670,6 +6956,63 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `name`        | string          | false    |              |             |
 | `tags`        | array of string | false    |              |             |
 | `url`         | string          | false    |              |             |
+
+## codersdk.TemplateGroup
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "quota_allowance": 0,
+  "role": "admin",
+  "source": "user",
+  "total_member_count": 0
+}
+```
+
+### Properties
+
+| Name                        | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
+|-----------------------------|-------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`                | string                                                | false    |              |                                                                                                                                                                       |
+| `display_name`              | string                                                | false    |              |                                                                                                                                                                       |
+| `id`                        | string                                                | false    |              |                                                                                                                                                                       |
+| `members`                   | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
+| `name`                      | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_display_name` | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_id`           | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_name`         | string                                                | false    |              |                                                                                                                                                                       |
+| `quota_allowance`           | integer                                               | false    |              |                                                                                                                                                                       |
+| `role`                      | [codersdk.TemplateRole](#codersdktemplaterole)        | false    |              |                                                                                                                                                                       |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
+| `total_member_count`        | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+#### Enumerated Values
+
+| Property | Value   |
+|----------|---------|
+| `role`   | `admin` |
+| `role`   | `use`   |
 
 ## codersdk.TemplateInsightsIntervalReport
 
@@ -7404,11 +7747,11 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 {
   "group_perms": {
     "8bd26b20-f3e8-48be-a903-46bb920cf671": "use",
-    "<user_id>>": "admin"
+    "<group_id>": "admin"
   },
   "user_perms": {
     "4df59e74-c027-470b-ab4d-cbba8963a5e9": "use",
-    "<group_id>": "admin"
+    "<user_id>": "admin"
   }
 }
 ```

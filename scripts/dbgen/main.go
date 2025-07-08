@@ -459,8 +459,7 @@ func orderAndStubDatabaseFunctions(filePath, receiver, structName string, stub f
 		return xerrors.Errorf("format package: %w", err)
 	}
 	data, err := imports.Process(filePath, buf.Bytes(), &imports.Options{
-		Comments:   true,
-		FormatOnly: true,
+		Comments: true,
 	})
 	if err != nil {
 		return xerrors.Errorf("process imports: %w", err)

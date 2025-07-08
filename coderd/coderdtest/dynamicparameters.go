@@ -25,6 +25,8 @@ type DynamicParameterTemplateParams struct {
 
 	// TemplateID is used to update an existing template instead of creating a new one.
 	TemplateID uuid.UUID
+
+	Version func(request *codersdk.CreateTemplateVersionRequest)
 }
 
 func DynamicParameterTemplate(t *testing.T, client *codersdk.Client, org uuid.UUID, args DynamicParameterTemplateParams) (codersdk.Template, codersdk.TemplateVersion) {
@@ -46,6 +48,9 @@ func DynamicParameterTemplate(t *testing.T, client *codersdk.Client, org uuid.UU
 	version := CreateTemplateVersion(t, client, org, files, func(request *codersdk.CreateTemplateVersionRequest) {
 		if args.TemplateID != uuid.Nil {
 			request.TemplateID = args.TemplateID
+		}
+		if args.Version != nil {
+			args.Version(request)
 		}
 	})
 	AwaitTemplateVersionJobCompleted(t, client, version.ID)
