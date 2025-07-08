@@ -108,6 +108,7 @@ func TestRolePermissions(t *testing.T) {
 	fileID := uuid.New()
 	groupID := uuid.New()
 	apiKeyID := uuid.New()
+	//userSecretID := uuid.New()
 
 	// Subjects to user
 	memberMe := authSubject{Name: "member_me", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember()}}}
@@ -846,6 +847,21 @@ func TestRolePermissions(t *testing.T) {
 					orgAuditor, otherOrgAuditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
 					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
+		// TODO(yevhenii): improve test coverage
+		// Only user can access its own secrets and no one else.
+		{
+			Name:     "User Secrets",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceUserSecret.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {memberMe, orgMemberMe},
+				false: {
+					owner, orgAdmin,
+					otherOrgAdmin, otherOrgMember, orgAuditor, orgUserAdmin, orgTemplateAdmin,
+					templateAdmin, userAdmin, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
 				},
 			},
 		},
