@@ -19,11 +19,11 @@ requiredenvs CODER_GPG_RELEASE_KEY_BASE64
 FILE_TO_SIGN="$1"
 
 if [[ -z "$FILE_TO_SIGN" ]]; then
-	echo "Usage: $0 <file_to_sign>"
+	error "Usage: $0 <file_to_sign>"
 fi
 
 if [[ ! -f "$FILE_TO_SIGN" ]]; then
-	echo "File not found: $FILE_TO_SIGN"
+	error "File not found: $FILE_TO_SIGN"
 fi
 
 # Import the GPG key.
@@ -55,5 +55,5 @@ fi
 if [[ $verification_result -eq 0 ]]; then
 	echo "${FILE_TO_SIGN}.asc"
 else
-	echo "Signature verification failed!" >&2
+	error "Signature verification failed!" >&2
 fi
