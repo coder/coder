@@ -44,7 +44,7 @@ on the internet that explain sensible configurations for this chart. Example:
 ```console
 # Install PostgreSQL
 helm repo add bitnami https://charts.bitnami.com/bitnami
-helm install coder-db bitnami/postgresql \
+helm install postgresql bitnami/postgresql \
     --namespace coder \
     --set auth.username=coder \
     --set auth.password=coder \
@@ -55,17 +55,8 @@ helm install coder-db bitnami/postgresql \
 The cluster-internal DB URL for the above database is:
 
 ```shell
-postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
+postgres://coder:coder@postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
 ```
-
-> [!NOTE]
-> The service name depends on your Helm release name.
->
-> The examples in this guide use `coder-db`.
->
-> If you use a different release name, modify the URL to match.
-> For example, if you use `postgresql`, the URL (between `coder@` and `.coder.svc...`)
-> would be `postgres://coder:coder@postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable`.
 
 You can optionally use the
 [Postgres operator](https://github.com/zalando/postgres-operator) to manage
@@ -78,10 +69,8 @@ self-managed PostgreSQL, the address will be:
 
 ```sh
 kubectl create secret generic coder-db-url -n coder \
-  --from-literal=url="postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable"
+  --from-literal=url="postgres://coder:coder@postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable"
 ```
-
-If you're using a different Helm release name, remember to replace `coder-db-postgresql` with your service name.
 
 ## 4. Install Coder with Helm
 
