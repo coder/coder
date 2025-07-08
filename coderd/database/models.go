@@ -3269,13 +3269,12 @@ type NotificationTemplate struct {
 
 // A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.
 type OAuth2ProviderApp struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	Name        string    `db:"name" json:"name"`
-	Icon        string    `db:"icon" json:"icon"`
-	CallbackURL string    `db:"callback_url" json:"callback_url"`
-	// List of valid redirect URIs for the application
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	Name      string    `db:"name" json:"name"`
+	Icon      string    `db:"icon" json:"icon"`
+	// RFC 6749 compliant list of valid redirect URIs for the application
 	RedirectUris []string `db:"redirect_uris" json:"redirect_uris"`
 	// OAuth2 client type: confidential or public
 	ClientType sql.NullString `db:"client_type" json:"client_type"`

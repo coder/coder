@@ -61,7 +61,7 @@ type tokenParams struct {
 	deviceCode   string // RFC 8628 device code
 }
 
-func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []codersdk.ValidationError, error) {
+func extractTokenParams(r *http.Request, registeredRedirectURIs []string) (tokenParams, []codersdk.ValidationError, error) {
 	p := httpapi.NewQueryParamParser()
 	if err := r.ParseForm(); err != nil {
 		return tokenParams{}, nil, xerrors.Errorf("parse form: %w", err)
@@ -74,7 +74,7 @@ func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []c
 	case codersdk.OAuth2ProviderGrantTypeRefreshToken:
 		p.RequiredNotEmpty("refresh_token")
 	case codersdk.OAuth2ProviderGrantTypeAuthorizationCode:
-		p.RequiredNotEmpty("client_secret", "client_id", "code")
+		p.RequiredNotEmpty("client_secret", "client_id", "code", "redirect_uri")
 	case codersdk.OAuth2ProviderGrantTypeDeviceCode:
 		p.RequiredNotEmpty("client_id", "device_code")
 	}
@@ -84,11 +84,17 @@ func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []c
 		clientSecret: p.String(vals, "", "client_secret"),
 		code:         p.String(vals, "", "code"),
 		grantType:    grantType,
-		redirectURL:  p.RedirectURL(vals, callbackURL, "redirect_uri"),
+		redirectURL:  nil, // Will be validated below
 		refreshToken: p.String(vals, "", "refresh_token"),
 		codeVerifier: p.String(vals, "", "code_verifier"),
 		resource:     p.String(vals, "", "resource"),
 		deviceCode:   p.String(vals, "", "device_code"),
+	}
+
+	// RFC 6749 compliant redirect URI validation for authorization code flow
+	if grantType == codersdk.OAuth2ProviderGrantTypeAuthorizationCode {
+		redirectURIParam := p.String(vals, "", "redirect_uri")
+		params.redirectURL = validateRedirectURI(p, redirectURIParam, registeredRedirectURIs)
 	}
 	// Validate resource parameter syntax (RFC 8707): must be absolute URI without fragment
 	if err := validateResourceParameter(params.resource); err != nil {
@@ -114,16 +120,15 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 		ctx := r.Context()
 		app := httpmw.OAuth2ProviderApp(r)
 
-		callbackURL, err := url.Parse(app.CallbackURL)
-		if err != nil {
+		// Validate that app has registered redirect URIs
+		if len(app.RedirectUris) == 0 {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to validate form values.",
-				Detail:  err.Error(),
+				Message: "OAuth2 app has no registered redirect URIs.",
 			})
 			return
 		}
 
-		params, validationErrs, err := extractTokenParams(r, callbackURL)
+		params, validationErrs, err := extractTokenParams(r, app.RedirectUris)
 		if err != nil {
 			// Check for specific validation errors in priority order
 			if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
@@ -473,6 +478,34 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 		Expiry:       key.ExpiresAt,
 		ExpiresIn:    int64(time.Until(key.ExpiresAt).Seconds()),
 	}, nil
+}
+
+// validateRedirectURI validates redirect URI according to RFC 6749 and returns the parsed URL if valid
+func validateRedirectURI(p *httpapi.QueryParamParser, redirectURIParam string, registeredRedirectURIs []string) *url.URL {
+	if redirectURIParam == "" {
+		return nil
+	}
+
+	// Parse the redirect URI
+	redirectURL, err := url.Parse(redirectURIParam)
+	if err != nil {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  "redirect_uri",
+			Detail: "must be a valid URL",
+		})
+		return nil
+	}
+
+	// RFC 6749: Exact match against registered redirect URIs
+	if slices.Contains(registeredRedirectURIs, redirectURIParam) {
+		return redirectURL
+	}
+
+	p.Errors = append(p.Errors, codersdk.ValidationError{
+		Field:  "redirect_uri",
+		Detail: "redirect_uri must exactly match one of the registered redirect URIs",
+	})
+	return nil
 }
 
 // validateResourceParameter validates that a resource parameter conforms to RFC 8707:

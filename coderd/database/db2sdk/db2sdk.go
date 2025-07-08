@@ -356,10 +356,10 @@ func TemplateVersionParameterOptionFromPreview(option *previewtypes.ParameterOpt
 
 func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
 	return codersdk.OAuth2ProviderApp{
-		ID:          dbApp.ID,
-		Name:        dbApp.Name,
-		CallbackURL: dbApp.CallbackURL,
-		Icon:        dbApp.Icon,
+		ID:           dbApp.ID,
+		Name:         dbApp.Name,
+		RedirectURIs: dbApp.RedirectUris,
+		Icon:         dbApp.Icon,
 		Endpoints: codersdk.OAuth2AppEndpoints{
 			Authorization: accessURL.ResolveReference(&url.URL{
 				Path: "/oauth2/authorize",

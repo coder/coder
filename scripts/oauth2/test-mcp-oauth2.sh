@@ -40,13 +40,16 @@ fi
 # Create OAuth2 App
 echo -e "${YELLOW}Creating OAuth2 app...${NC}"
 APP_NAME="test-mcp-$(date +%s)"
+read -r -d '' PAYLOAD <<EOF
+{
+  "name": "$APP_NAME",
+  "redirect_uris": ["http://localhost:9876/callback"]
+}
+EOF
 APP_RESPONSE=$(curl -s -X POST "$BASE_URL/api/v2/oauth2-provider/apps" \
 	-H "$AUTH_HEADER" \
 	-H "Content-Type: application/json" \
-	-d "{
-    \"name\": \"$APP_NAME\",
-    \"callback_url\": \"http://localhost:9876/callback\"
-  }")
+	-d "$PAYLOAD")
 
 if ! CLIENT_ID=$(echo "$APP_RESPONSE" | jq -r '.id'); then
 	echo -e "${RED}Failed to create app:${NC}"
