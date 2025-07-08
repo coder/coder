@@ -15,9 +15,17 @@ import (
 
 func (r *RootCmd) show() *serpent.Command {
 	client := new(codersdk.Client)
+	var details bool
 	return &serpent.Command{
 		Use:   "show <workspace>",
 		Short: "Display details of a workspace's resources and agents",
+		Options: serpent.OptionSet{
+			{
+				Flag:        "details",
+				Description: "Show full error messages and additional details.",
+				Value:       serpent.BoolOf(&details),
+			},
+		},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 			r.InitClient(client),
@@ -35,6 +43,7 @@ func (r *RootCmd) show() *serpent.Command {
 			options := cliui.WorkspaceResourcesOptions{
 				WorkspaceName: workspace.Name,
 				ServerVersion: buildInfo.Version,
+				ShowDetails:   details,
 			}
 			if workspace.LatestBuild.Status == codersdk.WorkspaceStatusRunning {
 				// Get listening ports for each agent.
@@ -42,6 +51,7 @@ func (r *RootCmd) show() *serpent.Command {
 				options.ListeningPorts = ports
 				options.Devcontainers = devcontainers
 			}
+
 			return cliui.WorkspaceResources(inv.Stdout, workspace.LatestBuild.Resources, options)
 		},
 	}
