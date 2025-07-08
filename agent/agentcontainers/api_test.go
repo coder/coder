@@ -36,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
+	"github.com/coder/websocket"
 )
 
 // fakeContainerCLI implements the agentcontainers.ContainerCLI interface for
@@ -439,6 +440,73 @@ func TestAPI(t *testing.T) {
 		require.Contains(t, got, "updater loop ticker failed", "error after success should be logged")
 		require.Contains(t, got, "first error", "should contain first error message")
 		logbuf.Reset()
+	})
+
+	t.Run("Watch", func(t *testing.T) {
+		t.Parallel()
+
+		fakeContainer1 := fakeContainer(t)
+		fakeContainer2 := fakeContainer(t)
+		fakeContainer3 := fakeContainer(t)
+
+		makeResponse := func(cts ...codersdk.WorkspaceAgentContainer) codersdk.WorkspaceAgentListContainersResponse {
+			return codersdk.WorkspaceAgentListContainersResponse{Containers: cts}
+		}
+
+		var (
+			ctx               = testutil.Context(t, testutil.WaitShort)
+			mClock            = quartz.NewMock(t)
+			updaterTickerTrap = mClock.Trap().TickerFunc("updaterLoop")
+			mCtrl             = gomock.NewController(t)
+			mLister           = acmock.NewMockContainerCLI(mCtrl)
+			logger            = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		)
+
+		mLister.EXPECT().List(gomock.Any()).Return(makeResponse(), nil)
+
+		api := agentcontainers.NewAPI(logger,
+			agentcontainers.WithClock(mClock),
+			agentcontainers.WithContainerCLI(mLister),
+			agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
+		)
+		api.Start()
+		defer api.Close()
+
+		srv := httptest.NewServer(api.Routes())
+		defer srv.Close()
+
+		updaterTickerTrap.MustWait(ctx).MustRelease(ctx)
+		defer updaterTickerTrap.Close()
+
+		client, _, err := websocket.Dial(ctx, srv.URL+"/watch", nil)
+		require.NoError(t, err)
+
+		for _, mockResponse := range []codersdk.WorkspaceAgentListContainersResponse{
+			makeResponse(),
+			makeResponse(fakeContainer1),
+			makeResponse(fakeContainer1, fakeContainer2),
+			makeResponse(fakeContainer1, fakeContainer2, fakeContainer3),
+			makeResponse(fakeContainer1, fakeContainer2),
+			makeResponse(fakeContainer1),
+			makeResponse(),
+		} {
+			mLister.EXPECT().List(gomock.Any()).Return(mockResponse, nil)
+
+			// Given: We allow the update loop to progress
+			_, aw := mClock.AdvanceNext()
+			aw.MustWait(ctx)
+
+			// When: We attempt to read a message from the socket.
+			mt, msg, err := client.Read(ctx)
+			require.NoError(t, err)
+			require.Equal(t, websocket.MessageText, mt)
+
+			// Then: We expect the receieved message matches the mocked response.
+			var got codersdk.WorkspaceAgentListContainersResponse
+			err = json.Unmarshal(msg, &got)
+			require.NoError(t, err)
+			require.Equal(t, mockResponse, got)
+		}
 	})
 
 	// List tests the API.getContainers method using a mock

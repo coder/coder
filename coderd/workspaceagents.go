@@ -865,6 +865,8 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
+	ctx = api.ctx
+
 	go httpapi.Heartbeat(ctx, conn)
 	defer conn.Close(websocket.StatusNormalClosure, "connection closed")
 

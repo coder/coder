@@ -560,14 +560,20 @@ func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx = api.ctx
+
 	go httpapi.Heartbeat(ctx, conn)
 	defer conn.Close(websocket.StatusNormalClosure, "connection closed")
 
 	encoder := wsjson.NewEncoder[codersdk.WorkspaceAgentListContainersResponse](conn, websocket.MessageText)
 	defer encoder.Close(websocket.StatusNormalClosure)
 
-	updateCh := make(chan struct{})
-	defer close(updateCh)
+	updateCh := make(chan struct{}, 1)
+	defer func() {
+		api.mu.Lock()
+		close(updateCh)
+		api.mu.Unlock()
+	}()
 
 	api.mu.Lock()
 	api.updateChans = append(api.updateChans, updateCh)
@@ -644,7 +650,10 @@ func (api *API) updateContainers(ctx context.Context) error {
 
 	// Broadcast our updates
 	for _, ch := range api.updateChans {
-		ch <- struct{}{}
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
 	}
 
 	api.logger.Debug(ctx, "containers updated successfully", slog.F("container_count", len(api.containers.Containers)), slog.F("warning_count", len(api.containers.Warnings)), slog.F("devcontainer_count", len(api.knownDevcontainers)))
