@@ -56,7 +56,7 @@ func (s *Server) TrackToolUse(ctx context.Context, in *proto.TrackToolUseRequest
 		return nil, xerrors.Errorf("marshal event: %w", err)
 	}
 
-	err = s.store.InsertWormholeEvent(ctx, database.InsertWormholeEventParams{Event: raw, EventType: "tool_use"})
+	err = s.store.InsertWormholeEvent(ctx, database.InsertWormholeEventParams{Event: raw, EventType: "tool_usage"})
 	if err != nil {
 		return nil, xerrors.Errorf("store event: %w", err)
 	}

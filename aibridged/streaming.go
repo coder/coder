@@ -63,16 +63,22 @@ func BasicSSESender(outerCtx context.Context, sessionID uuid.UUID, stream EventS
 				return
 			case <-stream.Closed():
 				return
-			case payload, ok := <-stream.Events():
+			case ev, ok := <-stream.Events():
 				if !ok {
 					return
 				}
 
+
+				// TODO: https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/implement-tool-use#example-of-successful-tool-result see "Important formatting requirements"
+
+
+
+
 				// TODO: use logger, make configurable.
 				//_, _ = fmt.Fprintf(os.Stderr, "[%s] 	%s", sessionID, payload)
-				_, _ = os.Stderr.Write(payload)
+				_, _ = os.Stderr.Write([]byte(fmt.Sprintf("[orig] %s\n[zero] %s\n[out] %s", ev.orig, ev.zero, ev.payload)))
 
-				_, err := w.Write(payload)
+				_, err := w.Write(ev.payload)
 				if err != nil {
 					if isConnectionError(err) {
 						logger.Debug(ctx, "client disconnected during SSE write", slog.Error(err))
@@ -102,14 +108,20 @@ func flush(w http.ResponseWriter) {
 }
 
 type EventStreamer interface {
-	TrySend(ctx context.Context, data any, exclusions ...string) error
-	Events() <-chan []byte
+	TrySend(ctx context.Context, data any, input string, exclusions ...string) error
+	Events() <-chan event
 	Close(ctx context.Context) error
 	Closed() <-chan any
 }
 
+type event struct {
+	payload []byte
+	zero    []byte // Marshaling with zero-value elements omitted.
+	orig    string
+}
+
 type eventStream struct {
-	eventsCh chan []byte
+	eventsCh chan event
 	kind     eventStreamProvider
 
 	closedOnce sync.Once
@@ -126,12 +138,12 @@ const (
 func newEventStream(kind eventStreamProvider) *eventStream {
 	return &eventStream{
 		kind:     kind,
-		eventsCh: make(chan []byte),
+		eventsCh: make(chan event),
 		closedCh: make(chan any),
 	}
 }
 
-func (s *eventStream) Events() <-chan []byte {
+func (s *eventStream) Events() <-chan event {
 	return s.eventsCh
 }
 
@@ -139,7 +151,7 @@ func (s *eventStream) Closed() <-chan any {
 	return s.closedCh
 }
 
-func (s *eventStream) TrySend(ctx context.Context, data any, exclusions ...string) error {
+func (s *eventStream) TrySend(ctx context.Context, data any, input string, exclusions ...string) error {
 	// Save an unnecessary marshaling if possible.
 	select {
 	case <-ctx.Done():
@@ -161,20 +173,19 @@ func (s *eventStream) TrySend(ctx context.Context, data any, exclusions ...strin
 		// out all the zero value objects in the response, with optional exclusions.
 		payload, err = util.MarshalNoZero(data, exclusions...)
 	default:
-		zero, _ := util.MarshalNoZero(data, exclusions...)
-		fmt.Printf("[zero] %s\n", zero)
-
 		payload, err = json.Marshal(data)
 	}
+
+	zero, _ := util.MarshalNoZero(data, exclusions...)
 
 	if err != nil {
 		return xerrors.Errorf("marshal payload: %w", err)
 	}
 
-	return s.send(ctx, payload)
+	return s.send(ctx, payload, zero, input)
 }
 
-func (s *eventStream) send(ctx context.Context, payload []byte) error {
+func (s *eventStream) send(ctx context.Context, payload, zero []byte, input string) error {
 	switch s.kind {
 	case openAIEventStream:
 		var buf bytes.Buffer
@@ -209,7 +220,7 @@ func (s *eventStream) send(ctx context.Context, payload []byte) error {
 		return ctx.Err()
 	case <-s.closedCh:
 		return xerrors.New("closed")
-	case s.eventsCh <- payload:
+	case s.eventsCh <- event{payload: payload, orig: input, zero: zero}:
 		return nil
 	}
 }
@@ -219,7 +230,7 @@ func (s *eventStream) Close(ctx context.Context) error {
 	s.closedOnce.Do(func() {
 		switch s.kind {
 		case openAIEventStream:
-			err := s.send(ctx, []byte("[DONE]"))
+			err := s.send(ctx, []byte("[DONE]"), nil, "")
 			if err != nil {
 				out = xerrors.Errorf("close stream: %w", err)
 			}

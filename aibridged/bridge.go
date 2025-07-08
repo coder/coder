@@ -17,17 +17,18 @@ import (
 	"cdr.dev/slog"
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
-	"github.com/anthropics/anthropic-sdk-go/packages/param"
 	ant_constant "github.com/anthropics/anthropic-sdk-go/shared/constant"
 	"github.com/google/uuid"
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/shared/constant"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+
+	"github.com/invopop/jsonschema"
 
 	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
-
-	"github.com/invopop/jsonschema"
 )
 
 // Error type constants for structured error reporting
@@ -65,10 +66,11 @@ type Bridge struct {
 	clientFn func() (proto.DRPCAIBridgeDaemonClient, bool)
 	logger   slog.Logger
 
-	lastErr error
+	lastErr    error
+	mcpProxies map[string]*BridgeMCPProxy
 }
 
-func NewBridge(cfg codersdk.AIBridgeConfig, addr string, logger slog.Logger, clientFn func() (proto.DRPCAIBridgeDaemonClient, bool)) *Bridge {
+func NewBridge(cfg codersdk.AIBridgeConfig, addr string, logger slog.Logger, clientFn func() (proto.DRPCAIBridgeDaemonClient, bool)) (*Bridge, error) {
 	var bridge Bridge
 
 	mux := &http.ServeMux{}
@@ -86,7 +88,28 @@ func NewBridge(cfg codersdk.AIBridgeConfig, addr string, logger slog.Logger, cli
 	bridge.clientFn = clientFn
 	bridge.logger = logger
 
-	return &bridge
+	const githubMCPName = "github"
+	githubMCP, err := NewBridgeMCPProxy(githubMCPName, "https://api.githubcopilot.com/mcp/", os.Getenv("GITHUB_MCP_TOKEN"), logger.Named("mcp-proxy"))
+	if err != nil {
+		return nil, xerrors.Errorf("github MCP proxy setup: %w", err)
+	}
+
+	bridge.mcpProxies = map[string]*BridgeMCPProxy{
+		githubMCPName: githubMCP,
+	}
+
+	ctx := context.Background()
+
+	var eg errgroup.Group
+	eg.Go(func() error {
+		return githubMCP.Init(ctx)
+	})
+
+	if err := eg.Wait(); err != nil {
+		return nil, xerrors.Errorf("MCP proxy init: %w", err)
+	}
+
+	return &bridge, nil
 }
 
 func (b *Bridge) openAITarget() *url.URL {
@@ -288,7 +311,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 						Choices: []openai.ChatCompletionChunkChoice{
 							{
 								Delta: openai.ChatCompletionChunkChoiceDelta{
-									//Role:    "assistant",
+									// Role:    "assistant",
 									Content: fmt.Sprintf(" %s", toolRes.Choices[0].Message.Content), // TODO: improve
 								},
 							},
@@ -301,7 +324,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 						Object:            constant.ValueOf[constant.ChatCompletionChunk](),
 					}
 
-					if err := es.TrySend(streamCtx, toolChunk); err != nil {
+					if err := es.TrySend(streamCtx, toolChunk, chunk.RawJSON()); err != nil {
 						b.logConnectionError(ctx, err, "sending tool chunk")
 						if isConnectionError(err) {
 							return // Stop processing if client disconnected
@@ -313,7 +336,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 						Choices: []openai.ChatCompletionChunkChoice{
 							{
 								Delta: openai.ChatCompletionChunkChoiceDelta{
-									//Role:    "assistant",
+									// Role:    "assistant",
 									Content: "",
 								},
 								FinishReason: string(openai.CompletionChoiceFinishReasonStop),
@@ -327,7 +350,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 						Object:            constant.ValueOf[constant.ChatCompletionChunk](),
 					}
 
-					if err := es.TrySend(streamCtx, finishChunk, "choices[].delta.content"); err != nil {
+					if err := es.TrySend(streamCtx, finishChunk, chunk.RawJSON(), "choices[].delta.content"); err != nil {
 						b.logConnectionError(ctx, err, "sending finish chunk")
 						if isConnectionError(err) {
 							return // Stop processing if client disconnected
@@ -342,7 +365,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 			//		 up the stream need to be ignored because we send those after the tool call is executed and the result
 			//		 is appended as if it came from the assistant.
 			if _, ok := ignoreSubsequent[acc.ID]; !ok {
-				if err := es.TrySend(streamCtx, chunk); err != nil {
+				if err := es.TrySend(streamCtx, chunk, chunk.RawJSON()); err != nil {
 					b.logConnectionError(ctx, err, "sending reflected chunk")
 					if isConnectionError(err) {
 						return // Stop processing if client disconnected
@@ -403,8 +426,8 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprintf(os.Stderr, "[%s] chat session ended\n\n", sessionID)
 	}()
 
-	//out, _ := httputil.DumpRequest(r, true)
-	//fmt.Printf("\n\nREQUEST: %s\n\n", out)
+	// out, _ := httputil.DumpRequest(r, true)
+	// fmt.Printf("\n\nREQUEST: %s\n\n", out)
 
 	// Allow us to interrupt watch via cancel.
 	ctx, cancel := context.WithCancel(r.Context())
@@ -422,8 +445,8 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	if !useBeta {
 		b.logger.Warn(r.Context(), "non-beta API requested, using beta instead", slog.F("url", r.URL.String()))
 		useBeta = true
-		//http.Error(w, "only beta API supported", http.StatusInternalServerError)
-		//return
+		// http.Error(w, "only beta API supported", http.StatusInternalServerError)
+		// return
 	}
 
 	body, err := io.ReadAll(r.Body)
@@ -433,8 +456,8 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//var in streamer
-	//if useBeta {
+	// var in streamer
+	// if useBeta {
 	var in BetaMessageNewParamsWrapper
 	//} else {
 	//	in = &MessageNewParamsWrapper{}
@@ -446,38 +469,36 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	toolParams := []anthropic.BetaToolParam{
-		{
-			Name:        "get_coordinates",
-			Description: anthropic.String("Accepts a place as an address, then returns the latitude and longitude coordinates."),
-			InputSchema: GetCoordinatesInputSchema,
-		},
-	}
-	tools := make([]anthropic.BetaToolUnionParam, len(toolParams))
-	for i, toolParam := range toolParams {
-		tools[i] = anthropic.BetaToolUnionParam{OfTool: &toolParam}
-	}
-	in.Tools = tools
+	in.Tools = append(in.Tools, anthropic.BetaToolUnionParam{OfTool: &anthropic.BetaToolParam{
+		Name:        "get_coordinates",
+		Description: anthropic.String("Accepts a place as an address, then returns the latitude and longitude coordinates."),
+		InputSchema: GetCoordinatesInputSchema,
+	}})
 
-	// TODO: fetch instead with lib and inject into tools since OAI doesn't support MCP.
-	in.MCPServers = []anthropic.BetaRequestMCPServerURLDefinitionParam{
-		{
-			URL:                "https://api.githubcopilot.com/mcp/",
-			Name:               "github",
-			AuthorizationToken: param.NewOpt(os.Getenv("GITHUB_MCP_TOKEN")),
-			ToolConfiguration: anthropic.BetaRequestMCPServerToolConfigurationParam{
-				Enabled: anthropic.Bool(true),
-			},
-		},
-		{
-			URL:                "https://dev.coder.com/api/experimental/mcp/http",
-			Name:               "coder",
-			AuthorizationToken: param.NewOpt(os.Getenv("CODER_MCP_TOKEN")),
-			ToolConfiguration: anthropic.BetaRequestMCPServerToolConfigurationParam{
-				Enabled: anthropic.Bool(true),
-			},
-		},
+	for _, proxy := range b.mcpProxies {
+		in.Tools = append(in.Tools, proxy.ListTools()...)
 	}
+	// in.Tools = append(in.Tools, b.fetchMCPTools("", "")...)
+
+	//// TODO: fetch instead with lib and inject into tools since OAI doesn't support MCP.
+	//in.MCPServers = []anthropic.BetaRequestMCPServerURLDefinitionParam{
+	//	{
+	//		URL:                "https://api.githubcopilot.com/mcp/",
+	//		Name:               "github",
+	//		AuthorizationToken: param.NewOpt(os.Getenv("GITHUB_MCP_TOKEN")),
+	//		ToolConfiguration: anthropic.BetaRequestMCPServerToolConfigurationParam{
+	//			Enabled: anthropic.Bool(true),
+	//		},
+	//	},
+	//	{
+	//		URL:                "https://dev.coder.com/api/experimental/mcp/http",
+	//		Name:               "coder",
+	//		AuthorizationToken: param.NewOpt(os.Getenv("CODER_MCP_TOKEN")),
+	//		ToolConfiguration: anthropic.BetaRequestMCPServerToolConfigurationParam{
+	//			Enabled: anthropic.Bool(true),
+	//		},
+	//	},
+	//}
 
 	// Claude Code uses the 3.5 Haiku model to do autocomplete and other small tasks. (see ANTHROPIC_SMALL_FAST_MODEL).
 	isSmallFastModel := strings.Contains(string(in.Model), "3-5-haiku")
@@ -539,6 +560,12 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 
 	es := newEventStream(anthropicEventStream)
 
+	//var buf strings.Builder
+	//in.Messages[0].Content = []anthropic.BetaContentBlockParamUnion{in.Messages[0].Content[len(in.Messages[0].Content) - 1]}
+	//
+	//json.NewEncoder(&buf).Encode(in)
+	//fmt.Println(strings.Replace(buf.String(), "'", "\\'", -1))
+
 	var wg sync.WaitGroup
 	wg.Add(1)
 
@@ -555,15 +582,13 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 
 	stream := client.Beta.Messages.NewStreaming(streamCtx, in.BetaMessageNewParams)
 
-	var foundToolCall bool
-
 	var events []anthropic.BetaRawMessageStreamEventUnion
 	var message anthropic.BetaMessage
 	for stream.Next() {
 		event := stream.Current()
 		events = append(events, event)
 
-		fmt.Printf("[provider] %s\n", event.RawJSON())
+		//fmt.Printf("[provider] %s\n", event.RawJSON())
 
 		if err := message.Accumulate(event); err != nil {
 			b.logger.Error(ctx, "failed to accumulate streaming events", slog.Error(err), slog.F("event", event), slog.F("msg", message.RawJSON()))
@@ -576,94 +601,193 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 		//[zero] {"content_block":{"id":"toolu_015YCpDbjWuSbcKGfDRWR1bD","name":"get_coordinates","type":"tool_use"},"index":1,"type":"content_block_start"}
 		//[zero] {"delta":{"type":"input_json_delta"},"index":1,"type":"content_block_delta"}
 
-		//switch e := event.AsAny().(type) {
-		//case anthropic.BetaRawContentBlockStartEvent:
-		//	switch block := e.ContentBlock.AsAny().(type) {
-		//	case anthropic.BetaToolUseBlock:
-		//		if block.Name == "get_coordinates" {
-		//			foundToolCall = true // Ensure no more events get sent after this point since our injected tool needs to be called.
-		//		}
-		//	}
-		//}
-		//
-		//if !foundToolCall {
-		if err := es.TrySend(streamCtx, event); err != nil {
-			b.logConnectionError(ctx, err, "sending event")
-			if isConnectionError(err) {
-				return // Stop processing if client disconnected
-			}
-		}
-		//} else {
-		//	fmt.Printf("[ignored, tool call found] %s\n", event.RawJSON())
-		//}
-	}
+		var appendedToolMessages []anthropic.BetaContentBlockParamUnion
 
-	if foundToolCall {
-		for _, c := range message.Content {
-			switch c.AsAny().(type) {
+		switch event.Type {
+		case string(constant.ValueOf[ant_constant.ContentBlockStart]()): // Have to do this because otherwise content_block_delta and content_block_start both match the type anthropic.BetaRawContentBlockStartEvent
+			switch block := event.AsContentBlockStart().ContentBlock.AsAny().(type) {
 			case anthropic.BetaToolUseBlock:
-				fn := c.AsToolUse().Name
-				//input := c.AsToolUse().Input
+				//		if block.Name == "get_coordinates" {
+				//			foundToolCall = true // Ensure no more events get sent after this point since our injected tool needs to be called.
+				//		}
+				fmt.Printf("[event] %s\n[tool] %s %+v\n\n", event.RawJSON(), block.Name, block.Input)
 
-				var input GetCoordinatesInput
-				raw := c.Input
-				err = json.Unmarshal(raw, &input)
-				if err != nil {
-					b.logger.Error(ctx, "failed to send event", slog.Error(err))
-					goto outer
+				serverName, toolName, found := strings.Cut(block.Name, MCPProxyDelimiter)
+				if !found {
+					// Not an MCP proxy call, don't do anything.
+					continue
 				}
-
-				fmt.Printf("[tool] %s %+v\n", fn, input)
-				resp := GetCoordinates(input.Location)
-				out := fmt.Sprintf("The latitude is %.2f and longitude is %.2f.", resp.Lat, resp.Long)
 
 				_, err = coderdClient.TrackToolUse(streamCtx, &proto.TrackToolUseRequest{
 					Model: string(message.Model),
-					Input: map[string]string{
-						"location": input.Location,
-					},
-					Tool: fn,
+					Input: map[string]string{}, // TODO: input.
+					Tool:  toolName,
 				})
 				if err != nil {
 					b.logger.Error(ctx, "failed to track usage", slog.Error(err))
 				}
 
-				// Start content block
-				var textType ant_constant.Text
-				if err := es.TrySend(streamCtx, anthropic.BetaRawMessageStreamEventUnion{
-					Type:  string(ant_constant.ValueOf[ant_constant.ContentBlockStart]()),
-					Index: 0, // TODO: which index to use?
-					ContentBlock: anthropic.BetaRawContentBlockStartEventContentBlockUnion{
-						Type: string(textType.Default()),
-					},
-				}); err != nil {
-					b.logger.Error(ctx, "failed to send content block start event", slog.Error(err))
+				res, err := b.mcpProxies[serverName].CallTool(streamCtx, toolName, block.Input)
+				if err != nil {
+					// TODO:
 				}
 
-				// Send the tool result
-				if err := es.TrySend(streamCtx, anthropic.BetaRawMessageStreamEventUnion{
-					Type:  string(ant_constant.ValueOf[ant_constant.ContentBlockDelta]()),
-					Index: 0, // TODO: which index to use?
-					Delta: anthropic.BetaRawMessageStreamEventUnionDelta{
-						Type: string(ant_constant.ValueOf[ant_constant.TextDelta]()),
-						Text: out,
-					},
-				}); err != nil {
-					b.logger.Error(ctx, "failed to send content block delta event", slog.Error(err))
+				var out strings.Builder
+				if err := json.NewEncoder(&out).Encode(res); err != nil {
+					b.logger.Error(ctx, "failed to encode tool response", slog.Error(err))
+					continue
 				}
 
-				// Stop content block
-				if err := es.TrySend(streamCtx, anthropic.BetaRawMessageStreamEventUnion{
-					Type:  string(ant_constant.ValueOf[ant_constant.ContentBlockStop]()),
-					Index: 0, // TODO: which index to use?
-				}); err != nil {
-					b.logger.Error(ctx, "failed to send content block stop event", slog.Error(err))
+				//// Start content block
+				//var textType ant_constant.Text
+				//appendedToolMessages = append(appendedToolMessages, anthropic.BetaRawMessageStreamEventUnion{
+				//	Type:  string(ant_constant.ValueOf[ant_constant.ContentBlockStart]()),
+				//	Index: 0, // TODO: which index to use?
+				//	ContentBlock: anthropic.BetaRawContentBlockStartEventContentBlockUnion{
+				//		Type: string(textType.Default()),
+				//	},
+				//})
+
+				for _, content := range res.Content {
+					switch cb := content.(type) {
+					case mcp.TextContent:
+						appendedToolMessages = append(appendedToolMessages,
+							anthropic.NewBetaToolResultBlock(block.ID, cb.Text, false))
+					default:
+						// Not supported.
+						appendedToolMessages = append(appendedToolMessages,
+							anthropic.NewBetaToolResultBlock(block.ID, out.String(), false))
+					}
 				}
+
+				//// Start content block
+				//var textType ant_constant.Text
+				//appendedToolMessages = append(appendedToolMessages, anthropic.BetaRawMessageStreamEventUnion{
+				//	Type:  string(ant_constant.ValueOf[ant_constant.ContentBlockStart]()),
+				//	Index: 0, // TODO: which index to use?
+				//	ContentBlock: anthropic.BetaRawContentBlockStartEventContentBlockUnion{
+				//		Type: string(textType.Default()),
+				//	},
+				//})
+				//
+				//// Send the tool result
+				//appendedToolMessages = append(appendedToolMessages, anthropic.BetaRawMessageStreamEventUnion{
+				//	Type:  string(ant_constant.ValueOf[ant_constant.ContentBlockDelta]()),
+				//	Index: 0, // TODO: which index to use?
+				//	Delta: anthropic.BetaRawMessageStreamEventUnionDelta{
+				//		Type: string(ant_constant.ValueOf[ant_constant.TextDelta]()),
+				//		Text: out.String(),
+				//	},
+				//})
+				//
+				//// Stop content block
+				//appendedToolMessages = append(appendedToolMessages, anthropic.BetaRawMessageStreamEventUnion{
+				//	Type:  string(ant_constant.ValueOf[ant_constant.ContentBlockStop]()),
+				//	Index: 0, // TODO: which index to use?
+				//})
 			}
 		}
+		//
+		//if !foundToolCall {
+		if err := es.TrySend(streamCtx, event, event.RawJSON()); err != nil {
+			b.logConnectionError(ctx, err, "sending event")
+			if isConnectionError(err) {
+				return // Stop processing if client disconnected
+			}
+		}
+
+		if len(appendedToolMessages) > 0 {
+			toolMsg := anthropic.NewBetaUserMessage(appendedToolMessages...)
+
+			//
+			//
+			//
+			//
+			//
+			// TODO: ok, next steps...
+			// 			once we get message_stop, that's IT, FINITO. we have to pass all of the messages seen until now into a new request (just loop)
+			//			and include the tool result as a new user message.
+			//			this will mean we will loop continuously until we hit a message_stop and no tool results are pending. (any other stopping conditions?)
+			//			that's when we'll let the loop exit and the request complete.
+			//
+			//
+			//
+			//
+			//
+			//
+		}
+
+		//} else {
+		//	fmt.Printf("[ignored, tool call found] %s\n", event.RawJSON())
+		//}
 	}
 
-outer:
+	//if foundToolCall {
+	//	for _, c := range message.Content {
+	//		switch c.AsAny().(type) {
+	//		case anthropic.BetaToolUseBlock:
+	//			fn := c.AsToolUse().Name
+	//			// input := c.AsToolUse().Input
+	//
+	//			var input GetCoordinatesInput
+	//			raw := c.Input
+	//			err = json.Unmarshal(raw, &input)
+	//			if err != nil {
+	//				b.logger.Error(ctx, "failed to send event", slog.Error(err))
+	//				goto outer
+	//			}
+	//
+	//			fmt.Printf("[tool] %s %+v\n", fn, input)
+	//			resp := GetCoordinates(input.Location)
+	//			out := fmt.Sprintf("The latitude is %.2f and longitude is %.2f.", resp.Lat, resp.Long)
+	//
+	//			_, err = coderdClient.TrackToolUse(streamCtx, &proto.TrackToolUseRequest{
+	//				Model: string(message.Model),
+	//				Input: map[string]string{
+	//					"location": input.Location,
+	//				},
+	//				Tool: fn,
+	//			})
+	//			if err != nil {
+	//				b.logger.Error(ctx, "failed to track usage", slog.Error(err))
+	//			}
+	//
+	//			// Start content block
+	//			var textType ant_constant.Text
+	//			if err := es.TrySend(streamCtx, anthropic.BetaRawMessageStreamEventUnion{
+	//				Type:  string(ant_constant.ValueOf[ant_constant.ContentBlockStart]()),
+	//				Index: 0, // TODO: which index to use?
+	//				ContentBlock: anthropic.BetaRawContentBlockStartEventContentBlockUnion{
+	//					Type: string(textType.Default()),
+	//				},
+	//			}); err != nil {
+	//				b.logger.Error(ctx, "failed to send content block start event", slog.Error(err))
+	//			}
+	//
+	//			// Send the tool result
+	//			if err := es.TrySend(streamCtx, anthropic.BetaRawMessageStreamEventUnion{
+	//				Type:  string(ant_constant.ValueOf[ant_constant.ContentBlockDelta]()),
+	//				Index: 0, // TODO: which index to use?
+	//				Delta: anthropic.BetaRawMessageStreamEventUnionDelta{
+	//					Type: string(ant_constant.ValueOf[ant_constant.TextDelta]()),
+	//					Text: out,
+	//				},
+	//			}); err != nil {
+	//				b.logger.Error(ctx, "failed to send content block delta event", slog.Error(err))
+	//			}
+	//
+	//			// Stop content block
+	//			if err := es.TrySend(streamCtx, anthropic.BetaRawMessageStreamEventUnion{
+	//				Type:  string(ant_constant.ValueOf[ant_constant.ContentBlockStop]()),
+	//				Index: 0, // TODO: which index to use?
+	//			}); err != nil {
+	//				b.logger.Error(ctx, "failed to send content block stop event", slog.Error(err))
+	//			}
+	//		}
+	//	}
+	//}
+
+	//outer:
 	for _, c := range message.Content {
 		switch block := c.AsAny().(type) {
 		case anthropic.BetaMCPToolUseBlock:
@@ -716,7 +840,7 @@ outer:
 		b.logger.Error(ctx, "anthropic stream error", slog.Error(streamErr))
 		b.setError(streamErr)
 		if antErr := getAnthropicErrorResponse(streamErr); antErr != nil {
-			err = es.TrySend(streamCtx, antErr)
+			err = es.TrySend(streamCtx, antErr, "<error>")
 			if err != nil {
 				b.logger.Error(ctx, "failed to send error", slog.Error(err))
 			}

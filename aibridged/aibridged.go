@@ -71,7 +71,11 @@ func New(rpcDialer Dialer, httpAddr string, logger slog.Logger, bridgeCfg coders
 		initConnectionCh: make(chan struct{}),
 	}
 
-	bridge := NewBridge(bridgeCfg, httpAddr, logger.Named("ai_bridge"), daemon.client)
+	bridge, err := NewBridge(bridgeCfg, httpAddr, logger.Named("ai_bridge"), daemon.client)
+	if err != nil {
+		return nil, xerrors.Errorf("create new bridge server: %w", err)
+	}
+
 	daemon.bridge = bridge
 
 	daemon.wg.Add(1)
