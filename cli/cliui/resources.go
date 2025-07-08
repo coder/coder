@@ -211,12 +211,9 @@ func renderDevcontainerRow(resources []codersdk.WorkspaceResource, devcontainer 
 				break
 			}
 		}
-
-		displayName = devcontainer.Agent.Name
 		if subAgent != nil {
+			displayName = subAgent.Name
 			displayName += fmt.Sprintf(" (%s, %s)", subAgent.OperatingSystem, subAgent.Architecture)
-		} else {
-			displayName += " (linux, amd64)"
 		}
 	}
 
