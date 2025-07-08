@@ -5336,7 +5336,33 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		})
 	}))
 	s.Run("InsertOAuth2ProviderApp", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.InsertOAuth2ProviderAppParams{}).Asserts(rbac.ResourceOauth2App, policy.ActionCreate)
+		check.Args(database.InsertOAuth2ProviderAppParams{
+			ID:                      uuid.New(),
+			Name:                    fmt.Sprintf("test-app-%d", time.Now().UnixNano()),
+			CreatedAt:               dbtestutil.NowInDefaultTimezone(),
+			UpdatedAt:               dbtestutil.NowInDefaultTimezone(),
+			Icon:                    "",
+			RedirectUris:            []string{"http://localhost"},
+			ClientType:              sql.NullString{String: "confidential", Valid: true},
+			DynamicallyRegistered:   sql.NullBool{Bool: false, Valid: true},
+			ClientIDIssuedAt:        sql.NullTime{},
+			ClientSecretExpiresAt:   sql.NullTime{},
+			GrantTypes:              []string{"authorization_code", "refresh_token"},
+			ResponseTypes:           []string{"code"},
+			TokenEndpointAuthMethod: sql.NullString{String: "client_secret_basic", Valid: true},
+			Scope:                   sql.NullString{},
+			Contacts:                []string{},
+			ClientUri:               sql.NullString{},
+			LogoUri:                 sql.NullString{},
+			TosUri:                  sql.NullString{},
+			PolicyUri:               sql.NullString{},
+			JwksUri:                 sql.NullString{},
+			Jwks:                    pqtype.NullRawMessage{},
+			SoftwareID:              sql.NullString{},
+			SoftwareVersion:         sql.NullString{},
+			RegistrationAccessToken: sql.NullString{},
+			RegistrationClientUri:   sql.NullString{},
+		}).Asserts(rbac.ResourceOauth2App, policy.ActionCreate)
 	}))
 	s.Run("UpdateOAuth2ProviderAppByID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -5347,7 +5373,6 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 			ID:                      app.ID,
 			Name:                    app.Name,
 			Icon:                    app.Icon,
-			CallbackURL:             app.CallbackURL,
 			RedirectUris:            app.RedirectUris,
 			ClientType:              app.ClientType,
 			DynamicallyRegistered:   app.DynamicallyRegistered,
@@ -5389,7 +5414,6 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 			ID:                      app.ID,
 			Name:                    app.Name,
 			Icon:                    app.Icon,
-			CallbackURL:             app.CallbackURL,
 			RedirectUris:            app.RedirectUris,
 			ClientType:              app.ClientType,
 			ClientSecretExpiresAt:   app.ClientSecretExpiresAt,

@@ -28,13 +28,13 @@ func authorizeMW(accessURL *url.URL) func(next http.Handler) http.Handler {
 			// in a future PR we should support a cURL-based flow where we output text
 			// instead of HTML.
 
-			callbackURL, err := url.Parse(app.CallbackURL)
-			if err != nil {
+			// Validate that app has registered redirect URIs
+			if len(app.RedirectUris) == 0 {
 				site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 					Status:       http.StatusInternalServerError,
 					HideStatus:   false,
 					Title:        "Internal Server Error",
-					Description:  err.Error(),
+					Description:  "OAuth2 app has no registered redirect URIs",
 					RetryEnabled: false,
 					DashboardURL: accessURL.String(),
 					Warnings:     nil,
@@ -47,7 +47,7 @@ func authorizeMW(accessURL *url.URL) func(next http.Handler) http.Handler {
 			// 2. Since validation will run once the user clicks "allow", it is
 			//    better to validate now to avoid wasting the user's time clicking a
 			//    button that will just error anyway.
-			params, validationErrs, err := extractAuthorizeParams(r, callbackURL)
+			params, validationErrs, err := extractAuthorizeParams(r, app.RedirectUris)
 			if err != nil {
 				errStr := make([]string, len(validationErrs))
 				for i, err := range validationErrs {
