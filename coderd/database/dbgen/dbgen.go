@@ -204,6 +204,17 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		require.NoError(t, err, "update workspace agent first connected at")
 	}
 
+	// If the lifecycle state is "ready", update the agent with the corresponding timestamps
+	if orig.LifecycleState == database.WorkspaceAgentLifecycleStateReady && orig.StartedAt.Valid && orig.ReadyAt.Valid {
+		err := db.UpdateWorkspaceAgentLifecycleStateByID(genCtx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             agt.ID,
+			LifecycleState: orig.LifecycleState,
+			StartedAt:      orig.StartedAt,
+			ReadyAt:        orig.ReadyAt,
+		})
+		require.NoError(t, err, "update workspace agent lifecycle state")
+	}
+
 	if orig.ParentID.UUID == uuid.Nil {
 		// Add a test antagonist. For every agent we add a deleted sub agent
 		// to discover cases where deletion should be handled.
@@ -1363,6 +1374,17 @@ func UserSecret(t testing.TB, db database.Store, seed database.InsertUserSecretP
 	})
 	require.NoError(t, err, "insert preset prebuild schedule")
 	return schedule
+}
+
+func ClaimPrebuild(t testing.TB, db database.Store, newUserID uuid.UUID, newName string, presetID uuid.UUID) database.ClaimPrebuiltWorkspaceRow {
+	claimedWorkspace, err := db.ClaimPrebuiltWorkspace(genCtx, database.ClaimPrebuiltWorkspaceParams{
+		NewUserID: newUserID,
+		NewName:   newName,
+		PresetID:  presetID,
+	})
+	require.NoError(t, err, "claim prebuilt workspace")
+
+	return claimedWorkspace
 }
 
 func provisionerJobTiming(t testing.TB, db database.Store, seed database.ProvisionerJobTiming) database.ProvisionerJobTiming {
