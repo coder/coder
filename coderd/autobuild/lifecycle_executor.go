@@ -520,6 +520,8 @@ func isEligibleForAutostart(user database.User, ws database.Workspace, build dat
 		return false
 	}
 
+	// Get the next allowed autostart time after the build's creation time,
+	// based on the workspace's schedule and the template's allowed days.
 	nextTransition, err := schedule.NextAllowedAutostart(build.CreatedAt, ws.AutostartSchedule.String, templateSchedule)
 	if err != nil {
 		return false

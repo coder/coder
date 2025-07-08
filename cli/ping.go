@@ -110,7 +110,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			defer notifyCancel()
 
 			workspaceName := inv.Args[0]
-			_, workspaceAgent, err := getWorkspaceAndAgent(
+			_, workspaceAgent, _, err := getWorkspaceAndAgent(
 				ctx, inv, client,
 				false, // Do not autostart for a ping.
 				workspaceName,

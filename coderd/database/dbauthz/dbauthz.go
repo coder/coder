@@ -1182,6 +1182,27 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 	return nil
 }
 
+func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.ProvisionerJob) error {
+	switch job.Type {
+	case database.ProvisionerJobTypeWorkspaceBuild:
+		// Authorized call to get workspace build. If we can read the build, we
+		// can read the job.
+		_, err := q.GetWorkspaceBuildByJobID(ctx, job.ID)
+		if err != nil {
+			return xerrors.Errorf("fetch related workspace build: %w", err)
+		}
+	case database.ProvisionerJobTypeTemplateVersionDryRun, database.ProvisionerJobTypeTemplateVersionImport:
+		// Authorized call to get template version.
+		_, err := authorizedTemplateVersionFromJob(ctx, q, job)
+		if err != nil {
+			return xerrors.Errorf("fetch related template version: %w", err)
+		}
+	default:
+		return xerrors.Errorf("unknown job type: %q", job.Type)
+	}
+	return nil
+}
+
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -2445,32 +2466,24 @@ func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (data
 		return database.ProvisionerJob{}, err
 	}
 
-	switch job.Type {
-	case database.ProvisionerJobTypeWorkspaceBuild:
-		// Authorized call to get workspace build. If we can read the build, we
-		// can read the job.
-		_, err := q.GetWorkspaceBuildByJobID(ctx, id)
-		if err != nil {
-			return database.ProvisionerJob{}, xerrors.Errorf("fetch related workspace build: %w", err)
-		}
-	case database.ProvisionerJobTypeTemplateVersionDryRun, database.ProvisionerJobTypeTemplateVersionImport:
-		// Authorized call to get template version.
-		_, err := authorizedTemplateVersionFromJob(ctx, q, job)
-		if err != nil {
-			return database.ProvisionerJob{}, xerrors.Errorf("fetch related template version: %w", err)
-		}
-	default:
-		return database.ProvisionerJob{}, xerrors.Errorf("unknown job type: %q", job.Type)
+	if err := q.authorizeProvisionerJob(ctx, job); err != nil {
+		return database.ProvisionerJob{}, err
 	}
 
 	return job, nil
 }
 
 func (q *querier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
+	job, err := q.db.GetProvisionerJobByIDForUpdate(ctx, id)
+	if err != nil {
 		return database.ProvisionerJob{}, err
 	}
-	return q.db.GetProvisionerJobByIDForUpdate(ctx, id)
+
+	if err := q.authorizeProvisionerJob(ctx, job); err != nil {
+		return database.ProvisionerJob{}, err
+	}
+
+	return job, nil
 }
 
 func (q *querier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
