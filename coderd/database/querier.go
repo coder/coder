@@ -378,6 +378,14 @@ type sqlcQuerier interface {
 	GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUserLinkByUserIDLoginTypeParams) (UserLink, error)
 	GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]UserLink, error)
 	GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error)
+	// GetUserSecret - Get by user_id and name
+	// GetUserSecretByID - Get by ID
+	// ListUserSecrets - List all secrets for a user
+	// CreateUserSecret - Create new secret
+	// UpdateUserSecret - Update existing secret
+	// DeleteUserSecret - Delete by user_id and name
+	// DeleteUserSecretByID - Delete by ID
+	GetUserSecret(ctx context.Context, arg GetUserSecretParams) (UserSecret, error)
 	// GetUserStatusCounts returns the count of users in each status over time.
 	// The time range is inclusively defined by the start_time and end_time parameters.
 	//
@@ -522,13 +530,6 @@ type sqlcQuerier interface {
 	// InsertUserGroupsByName adds a user to all provided groups, if they exist.
 	InsertUserGroupsByName(ctx context.Context, arg InsertUserGroupsByNameParams) error
 	InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error)
-	// GetUserSecret - Get by user_id and name
-	// GetUserSecretByID - Get by ID
-	// ListUserSecrets - List all secrets for a user
-	// CreateUserSecret - Create new secret
-	// UpdateUserSecret - Update existing secret
-	// DeleteUserSecret - Delete by user_id and name
-	// DeleteUserSecretByID - Delete by ID
 	InsertUserSecret(ctx context.Context, arg InsertUserSecretParams) (UserSecret, error)
 	InsertVolumeResourceMonitor(ctx context.Context, arg InsertVolumeResourceMonitorParams) (WorkspaceAgentVolumeResourceMonitor, error)
 	InsertWebpushSubscription(ctx context.Context, arg InsertWebpushSubscriptionParams) (WebpushSubscription, error)

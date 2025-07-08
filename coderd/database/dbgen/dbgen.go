@@ -1364,7 +1364,7 @@ func PresetParameter(t testing.TB, db database.Store, seed database.InsertPreset
 }
 
 func UserSecret(t testing.TB, db database.Store, seed database.InsertUserSecretParams) database.UserSecret {
-	schedule, err := db.InsertUserSecret(genCtx, database.InsertUserSecretParams{
+	userSecret, err := db.InsertUserSecret(genCtx, database.InsertUserSecretParams{
 		ID:          takeFirst(seed.ID, uuid.New()),
 		UserID:      takeFirst(seed.UserID, uuid.New()),
 		Name:        takeFirst(seed.Name, "secret-name"),
@@ -1372,8 +1372,8 @@ func UserSecret(t testing.TB, db database.Store, seed database.InsertUserSecretP
 		Value:       takeFirst(seed.Value, "secret value"),
 		ValueKeyID:  takeFirst(seed.ValueKeyID, sql.NullString{}),
 	})
-	require.NoError(t, err, "insert preset prebuild schedule")
-	return schedule
+	require.NoError(t, err, "insert user secret")
+	return userSecret
 }
 
 func ClaimPrebuild(t testing.TB, db database.Store, newUserID uuid.UUID, newName string, presetID uuid.UUID) database.ClaimPrebuiltWorkspaceRow {

@@ -6799,6 +6799,15 @@ func (q *FakeQuerier) GetUserNotificationPreferences(_ context.Context, userID u
 	return out, nil
 }
 
+func (q *FakeQuerier) GetUserSecret(ctx context.Context, arg database.GetUserSecretParams) (database.UserSecret, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.UserSecret{}, err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetUserStatusCounts(_ context.Context, arg database.GetUserStatusCountsParams) ([]database.GetUserStatusCountsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

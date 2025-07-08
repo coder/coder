@@ -6,6 +6,10 @@
 -- DeleteUserSecret - Delete by user_id and name
 -- DeleteUserSecretByID - Delete by ID
 
+-- name: GetUserSecret :one
+SELECT * FROM user_secrets
+WHERE user_id = @user_id AND name = @name;
+
 -- name: InsertUserSecret :one
 INSERT INTO user_secrets (
 	id,

@@ -13070,8 +13070,41 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 	return i, err
 }
 
-const insertUserSecret = `-- name: InsertUserSecret :one
+const getUserSecret = `-- name: GetUserSecret :one
 
+SELECT id, user_id, name, description, value, value_key_id, created_at, updated_at FROM user_secrets
+WHERE user_id = $1 AND name = $2
+`
+
+type GetUserSecretParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Name   string    `db:"name" json:"name"`
+}
+
+// GetUserSecret - Get by user_id and name
+// GetUserSecretByID - Get by ID
+// ListUserSecrets - List all secrets for a user
+// CreateUserSecret - Create new secret
+// UpdateUserSecret - Update existing secret
+// DeleteUserSecret - Delete by user_id and name
+// DeleteUserSecretByID - Delete by ID
+func (q *sqlQuerier) GetUserSecret(ctx context.Context, arg GetUserSecretParams) (UserSecret, error) {
+	row := q.db.QueryRowContext(ctx, getUserSecret, arg.UserID, arg.Name)
+	var i UserSecret
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Value,
+		&i.ValueKeyID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertUserSecret = `-- name: InsertUserSecret :one
 INSERT INTO user_secrets (
 	id,
 	user_id,
@@ -13099,13 +13132,6 @@ type InsertUserSecretParams struct {
 	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
 }
 
-// GetUserSecret - Get by user_id and name
-// GetUserSecretByID - Get by ID
-// ListUserSecrets - List all secrets for a user
-// CreateUserSecret - Create new secret
-// UpdateUserSecret - Update existing secret
-// DeleteUserSecret - Delete by user_id and name
-// DeleteUserSecretByID - Delete by ID
 func (q *sqlQuerier) InsertUserSecret(ctx context.Context, arg InsertUserSecretParams) (UserSecret, error) {
 	row := q.db.QueryRowContext(ctx, insertUserSecret,
 		arg.ID,

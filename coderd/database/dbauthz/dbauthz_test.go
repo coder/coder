@@ -5780,4 +5780,18 @@ func (s *MethodTestSuite) TestUserSecrets() {
 			Asserts(rbac.ResourceUserSecret.WithOwner(arg.UserID.String()), policy.ActionCreate).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
+	s.Run("GetUserSecret", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		userSecret := dbgen.UserSecret(s.T(), db, database.InsertUserSecretParams{
+			UserID: user.ID,
+		})
+		arg := database.GetUserSecretParams{
+			UserID: user.ID,
+			Name:   "secret-name",
+		}
+		check.Args(arg).
+			Asserts(rbac.ResourceUserSecret.WithOwner(arg.UserID.String()), policy.ActionRead).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented).
+			Returns(userSecret)
+	}))
 }
