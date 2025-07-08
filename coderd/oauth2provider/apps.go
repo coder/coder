@@ -91,8 +91,7 @@ func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			UpdatedAt:               dbtime.Now(),
 			Name:                    req.Name,
 			Icon:                    req.Icon,
-			CallbackURL:             req.CallbackURL,
-			RedirectUris:            []string{},
+			RedirectUris:            req.RedirectURIs,
 			ClientType:              sql.NullString{String: "confidential", Valid: true},
 			DynamicallyRegistered:   sql.NullBool{Bool: false, Valid: true},
 			ClientIDIssuedAt:        sql.NullTime{},
@@ -149,8 +148,7 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			UpdatedAt:               dbtime.Now(),
 			Name:                    req.Name,
 			Icon:                    req.Icon,
-			CallbackURL:             req.CallbackURL,
-			RedirectUris:            app.RedirectUris,            // Keep existing value
+			RedirectUris:            req.RedirectURIs,
 			ClientType:              app.ClientType,              // Keep existing value
 			DynamicallyRegistered:   app.DynamicallyRegistered,   // Keep existing value
 			ClientSecretExpiresAt:   app.ClientSecretExpiresAt,   // Keep existing value

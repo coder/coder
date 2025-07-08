@@ -25,7 +25,6 @@ APP_RESPONSE=$(
 		<<-EOF
 			{
 				"name": "$APP_NAME",
-				"callback_url": "http://localhost:9876/callback",
 				"redirect_uris": ["http://localhost:9876/callback"]
 			}
 		EOF

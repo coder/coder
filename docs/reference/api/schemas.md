@@ -5599,7 +5599,6 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ```json
 {
-  "callback_url": "string",
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
@@ -5608,19 +5607,22 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ]
 }
 ```
 
 ### Properties
 
-| Name           | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                             |
-|----------------|------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `callback_url` | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `endpoints`    | [codersdk.OAuth2AppEndpoints](#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
-| `icon`         | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `id`           | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `name`         | string                                                     | false    |              |                                                                                                                                                                                                         |
+| Name            | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                             |
+|-----------------|------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `endpoints`     | [codersdk.OAuth2AppEndpoints](#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
+| `icon`          | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `id`            | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `name`          | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `redirect_uris` | array of string                                            | false    |              |                                                                                                                                                                                                         |
 
 ## codersdk.OAuth2ProviderAppSecret
 
@@ -6220,19 +6222,21 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ```json
 {
-  "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ]
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `callback_url` | string | true     |              |             |
-| `icon`         | string | false    |              |             |
-| `name`         | string | true     |              |             |
+| Name            | Type            | Required | Restrictions | Description |
+|-----------------|-----------------|----------|--------------|-------------|
+| `icon`          | string          | false    |              |             |
+| `name`          | string          | true     |              |             |
+| `redirect_uris` | array of string | true     |              |             |
 
 ## codersdk.PostWorkspaceUsageRequest
 
@@ -7071,19 +7075,21 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ```json
 {
-  "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ]
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `callback_url` | string | true     |              |             |
-| `icon`         | string | false    |              |             |
-| `name`         | string | true     |              |             |
+| Name            | Type            | Required | Restrictions | Description |
+|-----------------|-----------------|----------|--------------|-------------|
+| `icon`          | string          | false    |              |             |
+| `name`          | string          | true     |              |             |
+| `redirect_uris` | array of string | true     |              |             |
 
 ## codersdk.RBACAction
 
