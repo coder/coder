@@ -528,6 +528,12 @@
 									"path": "./admin/templates/extending-templates/parameters.md"
 								},
 								{
+									"title": "Dynamic Parameters",
+									"description": "Conditional, identity-aware parameter syntax for advanced users.",
+									"path": "./admin/templates/extending-templates/dynamic-parameters.md",
+									"state": ["beta"]
+								},
+								{
 									"title": "Prebuilt workspaces",
 									"description": "Pre-provision a ready-to-deploy workspace with a defined set of parameters",
 									"path": "./admin/templates/extending-templates/prebuilt-workspaces.md",

@@ -3245,7 +3245,7 @@ func TestWorkspaceWatcher(t *testing.T) {
 	closeFunc.Close()
 	build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
 	wait("first is for the workspace build itself", nil)
-	err = client.CancelWorkspaceBuild(ctx, build.ID)
+	err = client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
 	require.NoError(t, err)
 	wait("second is for the build cancel", nil)
 }
