@@ -4655,8 +4655,59 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			VapidPrivateKey: "test",
 		}).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
-	s.Run("GetProvisionerJobByIDForUpdate", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(uuid.New()).Asserts(rbac.ResourceProvisionerJobs, policy.ActionRead).Errors(sql.ErrNoRows)
+	s.Run("Build/GetProvisionerJobByIDForUpdate", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		tpl := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			OwnerID:        u.ID,
+			OrganizationID: o.ID,
+			TemplateID:     tpl.ID,
+		})
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			JobID:          j.ID,
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
+		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
+			JobID:             j.ID,
+			WorkspaceID:       w.ID,
+			TemplateVersionID: tv.ID,
+		})
+		check.Args(j.ID).Asserts(w, policy.ActionRead).Returns(j)
+	}))
+	s.Run("TemplateVersion/GetProvisionerJobByIDForUpdate", s.Subtest(func(db database.Store, check *expects) {
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeTemplateVersionImport,
+		})
+		tpl := dbgen.Template(s.T(), db, database.Template{})
+		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			JobID:      j.ID,
+		})
+		check.Args(j.ID).Asserts(v.RBACObject(tpl), policy.ActionRead).Returns(j)
+	}))
+	s.Run("TemplateVersionDryRun/GetProvisionerJobByIDForUpdate", s.Subtest(func(db database.Store, check *expects) {
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
+		tpl := dbgen.Template(s.T(), db, database.Template{})
+		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		})
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeTemplateVersionDryRun,
+			Input: must(json.Marshal(struct {
+				TemplateVersionID uuid.UUID `json:"template_version_id"`
+			}{TemplateVersionID: v.ID})),
+		})
+		check.Args(j.ID).Asserts(v.RBACObject(tpl), policy.ActionRead).Returns(j)
 	}))
 	s.Run("HasTemplateVersionsWithAITask", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts()
@@ -5182,17 +5233,15 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{
 			UserID: user.ID,
 		})
-		createdAt := dbtestutil.NowInDefaultTimezone()
-		if !dbtestutil.WillUsePostgres() {
-			createdAt = time.Time{}
-		}
+		// Use a fixed timestamp for consistent test results across all database types
+		fixedTime := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{
-			CreatedAt: createdAt,
-			UpdatedAt: createdAt,
+			CreatedAt: fixedTime,
+			UpdatedAt: fixedTime,
 		})
 		_ = dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{
-			CreatedAt: createdAt,
-			UpdatedAt: createdAt,
+			CreatedAt: fixedTime,
+			UpdatedAt: fixedTime,
 		})
 		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
 			AppID: app.ID,
@@ -5206,6 +5255,8 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 			})
 		}
 		expectedApp := app
+		expectedApp.CreatedAt = fixedTime
+		expectedApp.UpdatedAt = fixedTime
 		check.Args(user.ID).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionRead).Returns([]database.GetOAuth2ProviderAppsByUserIDRow{
 			{
 				OAuth2ProviderApp: expectedApp,
@@ -5222,19 +5273,76 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		app.Name = "my-new-name"
 		app.UpdatedAt = dbtestutil.NowInDefaultTimezone()
 		check.Args(database.UpdateOAuth2ProviderAppByIDParams{
-			ID:                    app.ID,
-			Name:                  app.Name,
-			Icon:                  app.Icon,
-			CallbackURL:           app.CallbackURL,
-			RedirectUris:          app.RedirectUris,
-			ClientType:            app.ClientType,
-			DynamicallyRegistered: app.DynamicallyRegistered,
-			UpdatedAt:             app.UpdatedAt,
+			ID:                      app.ID,
+			Name:                    app.Name,
+			Icon:                    app.Icon,
+			CallbackURL:             app.CallbackURL,
+			RedirectUris:            app.RedirectUris,
+			ClientType:              app.ClientType,
+			DynamicallyRegistered:   app.DynamicallyRegistered,
+			ClientSecretExpiresAt:   app.ClientSecretExpiresAt,
+			GrantTypes:              app.GrantTypes,
+			ResponseTypes:           app.ResponseTypes,
+			TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
+			Scope:                   app.Scope,
+			Contacts:                app.Contacts,
+			ClientUri:               app.ClientUri,
+			LogoUri:                 app.LogoUri,
+			TosUri:                  app.TosUri,
+			PolicyUri:               app.PolicyUri,
+			JwksUri:                 app.JwksUri,
+			Jwks:                    app.Jwks,
+			SoftwareID:              app.SoftwareID,
+			SoftwareVersion:         app.SoftwareVersion,
+			UpdatedAt:               app.UpdatedAt,
 		}).Asserts(rbac.ResourceOauth2App, policy.ActionUpdate).Returns(app)
 	}))
 	s.Run("DeleteOAuth2ProviderAppByID", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		check.Args(app.ID).Asserts(rbac.ResourceOauth2App, policy.ActionDelete)
+	}))
+	s.Run("GetOAuth2ProviderAppByClientID", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		check.Args(app.ID).Asserts(rbac.ResourceOauth2App, policy.ActionRead).Returns(app)
+	}))
+	s.Run("DeleteOAuth2ProviderAppByClientID", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		check.Args(app.ID).Asserts(rbac.ResourceOauth2App, policy.ActionDelete)
+	}))
+	s.Run("UpdateOAuth2ProviderAppByClientID", s.Subtest(func(db database.Store, check *expects) {
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		app.Name = "updated-name"
+		app.UpdatedAt = dbtestutil.NowInDefaultTimezone()
+		check.Args(database.UpdateOAuth2ProviderAppByClientIDParams{
+			ID:                      app.ID,
+			Name:                    app.Name,
+			Icon:                    app.Icon,
+			CallbackURL:             app.CallbackURL,
+			RedirectUris:            app.RedirectUris,
+			ClientType:              app.ClientType,
+			ClientSecretExpiresAt:   app.ClientSecretExpiresAt,
+			GrantTypes:              app.GrantTypes,
+			ResponseTypes:           app.ResponseTypes,
+			TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
+			Scope:                   app.Scope,
+			Contacts:                app.Contacts,
+			ClientUri:               app.ClientUri,
+			LogoUri:                 app.LogoUri,
+			TosUri:                  app.TosUri,
+			PolicyUri:               app.PolicyUri,
+			JwksUri:                 app.JwksUri,
+			Jwks:                    app.Jwks,
+			SoftwareID:              app.SoftwareID,
+			SoftwareVersion:         app.SoftwareVersion,
+			UpdatedAt:               app.UpdatedAt,
+		}).Asserts(rbac.ResourceOauth2App, policy.ActionUpdate).Returns(app)
+	}))
+	s.Run("GetOAuth2ProviderAppByRegistrationToken", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{
+			RegistrationAccessToken: sql.NullString{String: "test-token", Valid: true},
+		})
+		check.Args(sql.NullString{String: "test-token", Valid: true}).Asserts(rbac.ResourceOauth2App, policy.ActionRead).Returns(app)
 	}))
 }
 

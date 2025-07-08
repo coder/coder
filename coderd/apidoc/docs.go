@@ -2324,6 +2324,132 @@ const docTemplate = `{
                 }
             }
         },
+        "/oauth2/clients/{client_id}": {
+            "get": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get OAuth2 client configuration (RFC 7592)",
+                "operationId": "get-oauth2-client-configuration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "client_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2ClientConfiguration"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update OAuth2 client configuration (RFC 7592)",
+                "operationId": "put-oauth2-client-configuration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "client_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Client update request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2ClientRegistrationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2ClientConfiguration"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete OAuth2 client registration (RFC 7592)",
+                "operationId": "delete-oauth2-client-configuration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "client_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/oauth2/register": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "OAuth2 dynamic client registration (RFC 7591)",
+                "operationId": "oauth2-dynamic-client-registration",
+                "parameters": [
+                    {
+                        "description": "Client registration request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2ClientRegistrationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2ClientRegistrationResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/oauth2/tokens": {
             "post": {
                 "produces": [
@@ -5085,10 +5211,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.TemplateUser"
-                            }
+                            "$ref": "#/definitions/codersdk.TemplateACL"
                         }
                     }
                 }
@@ -8999,6 +9122,16 @@ const docTemplate = `{
                         "name": "workspacebuild",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "enum": [
+                            "running",
+                            "pending"
+                        ],
+                        "type": "string",
+                        "description": "Expected status of the job. If expect_status is supplied, the request will be rejected with 412 Precondition Failed if the job doesn't match the state when performing the cancellation.",
+                        "name": "expect_status",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -11233,12 +11366,14 @@ const docTemplate = `{
             "enum": [
                 "initiator",
                 "autostart",
-                "autostop"
+                "autostop",
+                "dormancy"
             ],
             "x-enum-varnames": [
                 "BuildReasonInitiator",
                 "BuildReasonAutostart",
-                "BuildReasonAutostop"
+                "BuildReasonAutostop",
+                "BuildReasonDormancy"
             ]
         },
         "codersdk.ChangePasswordWithOneTimePasscodeRequest": {
@@ -11585,7 +11720,73 @@ const docTemplate = `{
             }
         },
         "codersdk.CreateTestAuditLogRequest": {
-            "type": "object"
+            "type": "object",
+            "properties": {
+                "action": {
+                    "enum": [
+                        "create",
+                        "write",
+                        "delete",
+                        "start",
+                        "stop"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AuditAction"
+                        }
+                    ]
+                },
+                "additional_fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "build_reason": {
+                    "enum": [
+                        "autostart",
+                        "autostop",
+                        "initiator"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.BuildReason"
+                        }
+                    ]
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "request_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "resource_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "resource_type": {
+                    "enum": [
+                        "template",
+                        "template_version",
+                        "user",
+                        "workspace",
+                        "workspace_build",
+                        "git_ssh_key",
+                        "auditable_group"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ResourceType"
+                        }
+                    ]
+                },
+                "time": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
         },
         "codersdk.CreateTokenRequest": {
             "type": "object",
@@ -12358,12 +12559,16 @@ const docTemplate = `{
                 "auto-fill-parameters",
                 "notifications",
                 "workspace-usage",
-                "web-push"
+                "web-push",
+                "oauth2",
+                "mcp-server-http"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
+                "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
+                "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
@@ -12372,7 +12577,9 @@ const docTemplate = `{
                 "ExperimentAutoFillParameters",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage",
-                "ExperimentWebPush"
+                "ExperimentWebPush",
+                "ExperimentOAuth2",
+                "ExperimentMCPServerHTTP"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -12670,7 +12877,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "avatar_url": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uri"
                 },
                 "display_name": {
                     "type": "string"
@@ -13421,6 +13629,228 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "codersdk.OAuth2ClientConfiguration": {
+            "type": "object",
+            "properties": {
+                "client_id": {
+                    "type": "string"
+                },
+                "client_id_issued_at": {
+                    "type": "integer"
+                },
+                "client_name": {
+                    "type": "string"
+                },
+                "client_secret_expires_at": {
+                    "type": "integer"
+                },
+                "client_uri": {
+                    "type": "string"
+                },
+                "contacts": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "grant_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "jwks": {
+                    "type": "object"
+                },
+                "jwks_uri": {
+                    "type": "string"
+                },
+                "logo_uri": {
+                    "type": "string"
+                },
+                "policy_uri": {
+                    "type": "string"
+                },
+                "redirect_uris": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "registration_access_token": {
+                    "type": "string"
+                },
+                "registration_client_uri": {
+                    "type": "string"
+                },
+                "response_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "scope": {
+                    "type": "string"
+                },
+                "software_id": {
+                    "type": "string"
+                },
+                "software_version": {
+                    "type": "string"
+                },
+                "token_endpoint_auth_method": {
+                    "type": "string"
+                },
+                "tos_uri": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.OAuth2ClientRegistrationRequest": {
+            "type": "object",
+            "properties": {
+                "client_name": {
+                    "type": "string"
+                },
+                "client_uri": {
+                    "type": "string"
+                },
+                "contacts": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "grant_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "jwks": {
+                    "type": "object"
+                },
+                "jwks_uri": {
+                    "type": "string"
+                },
+                "logo_uri": {
+                    "type": "string"
+                },
+                "policy_uri": {
+                    "type": "string"
+                },
+                "redirect_uris": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "response_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "scope": {
+                    "type": "string"
+                },
+                "software_id": {
+                    "type": "string"
+                },
+                "software_statement": {
+                    "type": "string"
+                },
+                "software_version": {
+                    "type": "string"
+                },
+                "token_endpoint_auth_method": {
+                    "type": "string"
+                },
+                "tos_uri": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.OAuth2ClientRegistrationResponse": {
+            "type": "object",
+            "properties": {
+                "client_id": {
+                    "type": "string"
+                },
+                "client_id_issued_at": {
+                    "type": "integer"
+                },
+                "client_name": {
+                    "type": "string"
+                },
+                "client_secret": {
+                    "type": "string"
+                },
+                "client_secret_expires_at": {
+                    "type": "integer"
+                },
+                "client_uri": {
+                    "type": "string"
+                },
+                "contacts": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "grant_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "jwks": {
+                    "type": "object"
+                },
+                "jwks_uri": {
+                    "type": "string"
+                },
+                "logo_uri": {
+                    "type": "string"
+                },
+                "policy_uri": {
+                    "type": "string"
+                },
+                "redirect_uris": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "registration_access_token": {
+                    "type": "string"
+                },
+                "registration_client_uri": {
+                    "type": "string"
+                },
+                "response_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "scope": {
+                    "type": "string"
+                },
+                "software_id": {
+                    "type": "string"
+                },
+                "software_version": {
+                    "type": "string"
+                },
+                "token_endpoint_auth_method": {
+                    "type": "string"
+                },
+                "tos_uri": {
+                    "type": "string"
                 }
             }
         },
@@ -15591,6 +16021,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.TemplateACL": {
+            "type": "object",
+            "properties": {
+                "group": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateGroup"
+                    }
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateUser"
+                    }
+                }
+            }
+        },
         "codersdk.TemplateAppUsage": {
             "type": "object",
             "properties": {
@@ -15720,6 +16167,62 @@ const docTemplate = `{
                 },
                 "url": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.TemplateGroup": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ReducedUser"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_display_name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organization_name": {
+                    "type": "string"
+                },
+                "quota_allowance": {
+                    "type": "integer"
+                },
+                "role": {
+                    "enum": [
+                        "admin",
+                        "use"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.TemplateRole"
+                        }
+                    ]
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.GroupSource"
+                },
+                "total_member_count": {
+                    "description": "How many members are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than ` + "`" + `len(Group.Members)` + "`" + `.",
+                    "type": "integer"
                 }
             }
         },
@@ -16344,7 +16847,7 @@ const docTemplate = `{
                     },
                     "example": {
                         "8bd26b20-f3e8-48be-a903-46bb920cf671": "use",
-                        "\u003cuser_id\u003e\u003e": "admin"
+                        "\u003cgroup_id\u003e": "admin"
                     }
                 },
                 "user_perms": {
@@ -16355,7 +16858,7 @@ const docTemplate = `{
                     },
                     "example": {
                         "4df59e74-c027-470b-ab4d-cbba8963a5e9": "use",
-                        "\u003cgroup_id\u003e": "admin"
+                        "\u003cuser_id\u003e": "admin"
                     }
                 }
             }

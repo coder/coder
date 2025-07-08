@@ -2104,7 +2104,7 @@ func TestSSH_Container(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		err := inv.WithContext(ctx).Run()
-		require.ErrorContains(t, err, "The agent dev containers feature is experimental and not enabled by default.")
+		require.ErrorContains(t, err, "Dev Container feature not enabled.")
 	})
 }
 

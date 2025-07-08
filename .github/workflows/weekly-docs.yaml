@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Check Markdown links
-        uses: umbrelladocs/action-linkspector@e2ccef58c4b9eb89cd71ee23a8629744bba75aa6 # v1.3.5
+        uses: umbrelladocs/action-linkspector@3a951c1f0dca72300c2320d0eb39c2bafe429ab1 # v1.3.6
         id: markdown-link-check
         # checks all markdown files from /docs including all subfolders
         with:
