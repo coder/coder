@@ -20,6 +20,9 @@
 # binary will be signed using ./sign_darwin.sh. Read that file for more details
 # on the requirements.
 #
+# If the --sign-gpg parameter is specified, the output binary will be signed using ./sign_with_gpg.sh.
+# Read that file for more details on the requirements.
+#
 # If the --agpl parameter is specified, builds only the AGPL-licensed code (no
 # Coder enterprise features).
 #

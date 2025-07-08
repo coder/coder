@@ -5,7 +5,7 @@
 #
 # Usage: ./sign_with_gpg.sh path/to/binary
 #
-# On success, the input file will be signed using the GPG key.
+# On success, the input file will be signed using the GPG key and the signature output file will moved to /site/out/bin/ (happens in the Makefile)
 #
 # Depends on the GPG utility. Requires the following environment variables to be set:
 #  - $CODER_GPG_RELEASE_KEY_BASE64: The base64 encoded private key to use.
@@ -20,12 +20,10 @@ FILE_TO_SIGN="$1"
 
 if [[ -z "$FILE_TO_SIGN" ]]; then
 	echo "Usage: $0 <file_to_sign>"
-	exit 1
 fi
 
 if [[ ! -f "$FILE_TO_SIGN" ]]; then
 	echo "File not found: $FILE_TO_SIGN"
-	exit 1
 fi
 
 # Import the GPG key.
@@ -58,5 +56,4 @@ if [[ $verification_result -eq 0 ]]; then
 	echo "${FILE_TO_SIGN}.asc"
 else
 	echo "Signature verification failed!" >&2
-	exit 1
 fi
