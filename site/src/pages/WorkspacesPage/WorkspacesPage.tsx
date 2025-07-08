@@ -106,6 +106,7 @@ const WorkspacesPage: FC = () => {
 				? ACTIVE_BUILDS_REFRESH_INTERVAL
 				: NO_ACTIVE_BUILDS_REFRESH_INTERVAL;
 		},
+		refetchOnWindowFocus: "always",
 	});
 
 	const [checkedWorkspaces, setCheckedWorkspaces] = useState<
