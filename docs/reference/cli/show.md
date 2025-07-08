@@ -13,8 +13,9 @@ coder show [flags] <workspace>
 
 ### --details
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+|         |                    |
+|---------|--------------------|
+| Type    | <code>bool</code>  |
+| Default | <code>false</code> |
 
 Show full error messages and additional details.

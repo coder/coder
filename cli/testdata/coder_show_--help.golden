@@ -6,7 +6,7 @@ USAGE:
   Display details of a workspace's resources and agents
 
 OPTIONS:
-      --details bool
+      --details bool (default: false)
           Show full error messages and additional details.
 
 ———
