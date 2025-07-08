@@ -544,16 +544,19 @@ jobs:
             # Postgres tends not to choke.
             NUM_PARALLEL_PACKAGES=8
             NUM_PARALLEL_TESTS=16
+            PACKAGES="./cli/... ./enterprise/cli/... ./agent/..."
           elif [ "${{ runner.os }}" == "macOS" ]; then
             # Our macOS runners have 8 cores. We set NUM_PARALLEL_TESTS to 16
             # because the tests complete faster and Postgres doesn't choke. It seems
             # that macOS's tmpfs is faster than the one on Windows.
             NUM_PARALLEL_PACKAGES=8
             NUM_PARALLEL_TESTS=16
+            PACKAGES="./cli/... ./enterprise/cli/... ./agent/..."
           elif [ "${{ runner.os }}" == "Linux" ]; then
             # Our Linux runners have 8 cores.
             NUM_PARALLEL_PACKAGES=8
             NUM_PARALLEL_TESTS=8
+            PACKAGES="./..."
           fi
 
           # by default, run tests with cache
@@ -577,7 +580,7 @@ jobs:
           normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname $(which terraform))"
 
           DB=ci gotestsum $TEST_RETRIES \
-            --format standard-quiet --packages "./..." \
+            --format standard-quiet --packages $PACKAGES \
             -- -timeout=20m -v -p $NUM_PARALLEL_PACKAGES -parallel=$NUM_PARALLEL_TESTS $TESTCOUNT
 
       - name: Upload Go Build Cache
