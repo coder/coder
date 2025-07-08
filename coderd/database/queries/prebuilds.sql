@@ -50,6 +50,11 @@ WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a pre
 
 -- name: GetRunningPrebuiltWorkspacesOptimized :many
 WITH latest_prebuilds AS (
+	-- All workspaces that match the following criteria:
+	-- 1. Owned by prebuilds user
+	-- 2. Not deleted
+	-- 3. Latest build is a 'start' transition
+	-- 4. Latest build was successful
 	SELECT
 		workspaces.id,
 		workspaces.name,
@@ -65,6 +70,8 @@ WITH latest_prebuilds AS (
 	AND NOT workspaces.deleted
 ),
 workspace_latest_presets AS (
+	-- For each of the above workspaces, the preset_id of the most recent
+	-- successful start transition.
 	SELECT DISTINCT ON (latest_prebuilds.id)
 		latest_prebuilds.id AS workspace_id,
 		workspace_builds.template_version_preset_id AS current_preset_id
@@ -75,6 +82,7 @@ workspace_latest_presets AS (
 	ORDER BY latest_prebuilds.id, workspace_builds.build_number DESC
 ),
 ready_agents AS (
+	-- For each of the above workspaces, check if all agents are ready.
 	SELECT
 		latest_prebuilds.job_id,
 		BOOL_AND(workspace_agents.lifecycle_state = 'ready'::workspace_agent_lifecycle_state)::boolean AS ready
