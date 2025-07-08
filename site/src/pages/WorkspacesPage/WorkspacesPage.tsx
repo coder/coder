@@ -106,7 +106,6 @@ const WorkspacesPage: FC = () => {
 				? ACTIVE_BUILDS_REFRESH_INTERVAL
 				: NO_ACTIVE_BUILDS_REFRESH_INTERVAL;
 		},
-		refetchIntervalInBackground: false, // Stop polling when tab is inactive
 	});
 
 	const [checkedWorkspaces, setCheckedWorkspaces] = useState<
