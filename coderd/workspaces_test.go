@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -1426,9 +1425,6 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 // TestWorkspaceFilterAllStatus tests workspace status is correctly set given a set of conditions.
 func TestWorkspaceFilterAllStatus(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("DB") != "" {
-		t.Skip(`This test takes too long with an actual database. Takes 10s on local machine`)
-	}
 
 	// For this test, we do not care about permissions.
 	// nolint:gocritic // unit testing
