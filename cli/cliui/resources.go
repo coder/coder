@@ -252,7 +252,7 @@ func renderDevcontainerRow(resources []codersdk.WorkspaceResource, devcontainer 
 	if errorMessage := devcontainer.Error; errorMessage != "" {
 		// Cap error message length for display.
 		if !wro.ShowDetails && len(errorMessage) > 80 {
-			errorMessage = errorMessage[:77] + "..."
+			errorMessage = errorMessage[:79] + "…"
 		}
 		errorRow := table.Row{
 			"         × " + pretty.Sprint(DefaultStyles.Error, errorMessage),
