@@ -58,7 +58,14 @@ The cluster-internal DB URL for the above database is:
 postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
 ```
 
-> **Note**: The service name depends on your Helm release name. If you used a different release name (e.g., `postgresql`), the URL would be `postgres://coder:coder@postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable`.
+> [!NOTE]
+> The service name depends on your Helm release name.
+>
+> The examples in this guide use `coder-db`.
+>
+> If you use a different release name, modify the URL to match.
+> For example, if you use `postgresql`, the URL (between `coder@` and `.coder.svc...`)
+> would be `postgres://coder:coder@postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable`.
 
 You can optionally use the
 [Postgres operator](https://github.com/zalando/postgres-operator) to manage
@@ -74,7 +81,7 @@ kubectl create secret generic coder-db-url -n coder \
   --from-literal=url="postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable"
 ```
 
-> **Note**: Replace `coder-db-postgresql` with your actual service name if you used a different Helm release name.
+If you're using a different Helm release name, remember to replace `coder-db-postgresql` with your service name.
 
 ## 4. Install Coder with Helm
 
