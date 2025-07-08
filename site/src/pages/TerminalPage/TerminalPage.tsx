@@ -15,6 +15,9 @@ import {
 import { useProxy } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+// We use partysocket because it provides automatic reconnection
+// and is a drop-in replacement for the native WebSocket API.
+import { WebSocket } from "partysocket";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
@@ -28,9 +31,6 @@ import { getMatchingAgentOrFirst } from "utils/workspace";
 import { v4 as uuidv4 } from "uuid";
 import { TerminalAlerts } from "./TerminalAlerts";
 import type { ConnectionStatus } from "./types";
-// We use partysocket because it provides automatic reconnection
-// and is a drop-in replacement for the native WebSocket API. 
-import { WebSocket } from "partysocket";
 
 export const Language = {
 	workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
