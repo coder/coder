@@ -11366,12 +11366,14 @@ const docTemplate = `{
             "enum": [
                 "initiator",
                 "autostart",
-                "autostop"
+                "autostop",
+                "dormancy"
             ],
             "x-enum-varnames": [
                 "BuildReasonInitiator",
                 "BuildReasonAutostart",
-                "BuildReasonAutostop"
+                "BuildReasonAutostop",
+                "BuildReasonDormancy"
             ]
         },
         "codersdk.ChangePasswordWithOneTimePasscodeRequest": {
