@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
@@ -78,13 +79,17 @@ func fetchRuntimeResources(inv *serpent.Invocation, client *codersdk.Client, res
 				ports[agent.ID] = lp
 				mu.Unlock()
 			}()
+
+			if agent.ParentID.Valid {
+				continue
+			}
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				dc, err := client.WorkspaceAgentListContainers(inv.Context(), agent.ID, map[string]string{
 					// Labels set by VSCode Remote Containers and @devcontainers/cli.
-					"devcontainer.config_file":  "",
-					"devcontainer.local_folder": "",
+					agentcontainers.DevcontainerConfigFileLabel:  "",
+					agentcontainers.DevcontainerLocalFolderLabel: "",
 				})
 				if err != nil {
 					cliui.Warnf(inv.Stderr, "Failed to get devcontainers for agent %s: %v", agent.Name, err)
