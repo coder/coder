@@ -287,11 +287,9 @@ const TerminalPage: FC = () => {
 					);
 					setConnectionStatus("connected");
 				});
-				websocket.addEventListener(WebsocketEvent.error, () => {
+				websocket.addEventListener(WebsocketEvent.error, (_, event) => {
+					console.error("WebSocket error:", event);
 					terminal.options.disableStdin = true;
-					terminal.writeln(
-						`${Language.websocketErrorMessagePrefix}socket errored`,
-					);
 					setConnectionStatus("disconnected");
 				});
 				websocket.addEventListener(WebsocketEvent.close, () => {
@@ -312,7 +310,7 @@ const TerminalPage: FC = () => {
 				if (disposed) {
 					return; // Unmounted while we waited for the async call.
 				}
-				terminal.writeln(Language.websocketErrorMessagePrefix + error.message);
+				console.error("WebSocket connection failed:", error);
 				setConnectionStatus("disconnected");
 			});
 
