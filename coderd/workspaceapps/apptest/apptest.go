@@ -1750,16 +1750,16 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			return c
 		}
 
-		// authenticatedClient := func(t *testing.T, appDetails *Details) *codersdk.Client {
-		// 	uc, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
-		// 	c := appDetails.AppClient(t)
-		// 	c.SetSessionToken(uc.SessionToken())
-		// 	return c
-		// }
+		authenticatedClient := func(t *testing.T, appDetails *Details) *codersdk.Client {
+			uc, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
+			c := appDetails.AppClient(t)
+			c.SetSessionToken(uc.SessionToken())
+			return c
+		}
 
-		// ownerClient := func(t *testing.T, appDetails *Details) *codersdk.Client {
-		// 	return appDetails.SDKClient
-		// }
+		ownerClient := func(t *testing.T, appDetails *Details) *codersdk.Client {
+			return appDetails.SDKClient
+		}
 
 		tests := []struct {
 			name                string
@@ -1778,58 +1778,58 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				client:              unauthenticatedClient,
 				expectedStatusCode:  http.StatusOK,
 			},
-			// {
-			// 	name:                "Passthru/Public",
-			// 	shareLevel:          codersdk.WorkspaceAgentPortShareLevelPublic,
-			// 	behavior:            codersdk.CORSBehaviorPassthru,
-			// 	expectedCORSHeaders: true,
-			// 	client:              unauthenticatedClient,
-			// 	expectedStatusCode:  http.StatusOK,
-			// },
-			// // Authenticated
-			// {
-			// 	name:                "Default/Authenticated",
-			// 	shareLevel:          codersdk.WorkspaceAgentPortShareLevelAuthenticated,
-			// 	behavior:            codersdk.CORSBehaviorSimple,
-			// 	expectedCORSHeaders: false,
-			// 	client:              authenticatedClient,
-			// 	expectedStatusCode:  http.StatusOK,
-			// },
-			// {
-			// 	name:                "Passthru/Authenticated",
-			// 	shareLevel:          codersdk.WorkspaceAgentPortShareLevelAuthenticated,
-			// 	behavior:            codersdk.CORSBehaviorPassthru,
-			// 	expectedCORSHeaders: true,
-			// 	client:              authenticatedClient,
-			// 	expectedStatusCode:  http.StatusOK,
-			// },
-			// {
-			// 	// The CORS behavior will not affect unauthenticated requests.
-			// 	// The request will be redirected to the login page.
-			// 	name:                "Passthru/Unauthenticated",
-			// 	shareLevel:          codersdk.WorkspaceAgentPortShareLevelAuthenticated,
-			// 	behavior:            codersdk.CORSBehaviorPassthru,
-			// 	expectedCORSHeaders: false,
-			// 	client:              unauthenticatedClient,
-			// 	expectedStatusCode:  http.StatusSeeOther,
-			// },
-			// // Owner
-			// {
-			// 	name:                "Default/Owner",
-			// 	shareLevel:          codersdk.WorkspaceAgentPortShareLevelAuthenticated, // Owner is not a valid share level for ports.
-			// 	behavior:            codersdk.CORSBehaviorSimple,
-			// 	expectedCORSHeaders: false,
-			// 	client:              ownerClient,
-			// 	expectedStatusCode:  http.StatusOK,
-			// },
-			// {
-			// 	name:                "Passthru/Owner",
-			// 	shareLevel:          codersdk.WorkspaceAgentPortShareLevelAuthenticated, // Owner is not a valid share level for ports.
-			// 	behavior:            codersdk.CORSBehaviorPassthru,
-			// 	expectedCORSHeaders: true,
-			// 	client:              ownerClient,
-			// 	expectedStatusCode:  http.StatusOK,
-			// },
+			{ // fails
+				name:                "Passthru/Public",
+				shareLevel:          codersdk.WorkspaceAgentPortShareLevelPublic,
+				behavior:            codersdk.CORSBehaviorPassthru,
+				expectedCORSHeaders: true,
+				client:              unauthenticatedClient,
+				expectedStatusCode:  http.StatusOK,
+			},
+			// Authenticated
+			{
+				name:                "Default/Authenticated",
+				shareLevel:          codersdk.WorkspaceAgentPortShareLevelAuthenticated,
+				behavior:            codersdk.CORSBehaviorSimple,
+				expectedCORSHeaders: false,
+				client:              authenticatedClient,
+				expectedStatusCode:  http.StatusOK,
+			},
+			{ // fails
+				name:                "Passthru/Authenticated",
+				shareLevel:          codersdk.WorkspaceAgentPortShareLevelAuthenticated,
+				behavior:            codersdk.CORSBehaviorPassthru,
+				expectedCORSHeaders: true,
+				client:              authenticatedClient,
+				expectedStatusCode:  http.StatusOK,
+			},
+			{
+				// The CORS behavior will not affect unauthenticated requests.
+				// The request will be redirected to the login page.
+				name:                "Passthru/Unauthenticated",
+				shareLevel:          codersdk.WorkspaceAgentPortShareLevelAuthenticated,
+				behavior:            codersdk.CORSBehaviorPassthru,
+				expectedCORSHeaders: false,
+				client:              unauthenticatedClient,
+				expectedStatusCode:  http.StatusSeeOther,
+			},
+			// Owner
+			{
+				name:                "Default/Owner",
+				shareLevel:          codersdk.WorkspaceAgentPortShareLevelAuthenticated, // Owner is not a valid share level for ports.
+				behavior:            codersdk.CORSBehaviorSimple,
+				expectedCORSHeaders: false,
+				client:              ownerClient,
+				expectedStatusCode:  http.StatusOK,
+			},
+			{ // fails
+				name:                "Passthru/Owner",
+				shareLevel:          codersdk.WorkspaceAgentPortShareLevelAuthenticated, // Owner is not a valid share level for ports.
+				behavior:            codersdk.CORSBehaviorPassthru,
+				expectedCORSHeaders: true,
+				client:              ownerClient,
+				expectedStatusCode:  http.StatusOK,
+			},
 		}
 
 		for _, tc := range tests {
@@ -1870,8 +1870,8 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				require.Equal(t, tc.expectedStatusCode, resp.StatusCode)
 
 				if tc.expectedCORSHeaders {
-					require.Equal(t, testHeaders.Get("Access-Control-Allow-Origin"), resp.Header.Get("Access-Control-Allow-Origin"))
-					require.Equal(t, testHeaders.Get("Access-Control-Allow-Methods"), resp.Header.Get("Access-Control-Allow-Methods"))
+					require.Equal(t, testHeaders.Get("Access-Control-Allow-Origin"), resp.Header.Get("Access-Control-Allow-Origin"), "allow origin did not match")
+					require.Equal(t, testHeaders.Get("Access-Control-Allow-Methods"), resp.Header.Get("Access-Control-Allow-Methods"), "allow methods did not match")
 				} else {
 					require.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"))
 					require.Empty(t, resp.Header.Get("Access-Control-Allow-Methods"))
