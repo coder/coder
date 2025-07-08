@@ -74,6 +74,7 @@ func New() database.Store {
 			presets:                        make([]database.TemplateVersionPreset, 0),
 			presetParameters:               make([]database.TemplateVersionPresetParameter, 0),
 			presetPrebuildSchedules:        make([]database.TemplateVersionPresetPrebuildSchedule, 0),
+			userSecrets:                    make([]database.UserSecret, 0),
 			provisionerDaemons:             make([]database.ProvisionerDaemon, 0),
 			provisionerJobs:                make([]database.ProvisionerJob, 0),
 			provisionerJobLogs:             make([]database.ProvisionerJobLog, 0),
@@ -297,6 +298,7 @@ type data struct {
 	presets                          []database.TemplateVersionPreset
 	presetParameters                 []database.TemplateVersionPresetParameter
 	presetPrebuildSchedules          []database.TemplateVersionPresetPrebuildSchedule
+	userSecrets                      []database.UserSecret
 	prebuildsSettings                []byte
 }
 
@@ -6805,7 +6807,16 @@ func (q *FakeQuerier) GetUserSecret(ctx context.Context, arg database.GetUserSec
 		return database.UserSecret{}, err
 	}
 
-	panic("not implemented")
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, secret := range q.userSecrets {
+		if secret.UserID == arg.UserID && secret.Name == arg.Name {
+			return secret, nil
+		}
+	}
+
+	return database.UserSecret{}, fmt.Errorf("secret %v for user %v not found", arg.Name, arg.UserID)
 }
 
 func (q *FakeQuerier) GetUserStatusCounts(_ context.Context, arg database.GetUserStatusCountsParams) ([]database.GetUserStatusCountsRow, error) {
@@ -9725,7 +9736,21 @@ func (q *FakeQuerier) InsertUserSecret(ctx context.Context, arg database.InsertU
 		return database.UserSecret{}, err
 	}
 
-	return database.UserSecret{}, ErrUnimplemented
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	userSecret := database.UserSecret{
+		ID:          uuid.New(),
+		UserID:      arg.UserID,
+		Name:        arg.Name,
+		Description: arg.Description,
+		Value:       arg.Value,
+		ValueKeyID:  arg.ValueKeyID,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+	q.userSecrets = append(q.userSecrets, userSecret)
+	return userSecret, nil
 }
 
 func (q *FakeQuerier) InsertVolumeResourceMonitor(_ context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {
@@ -10286,7 +10311,17 @@ func (q *FakeQuerier) ListProvisionerKeysByOrganizationExcludeReserved(_ context
 }
 
 func (q *FakeQuerier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]database.UserSecret, error) {
-	panic("not implemented")
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	filteredUserSecrets := make([]database.UserSecret, 0)
+	for _, secret := range q.userSecrets {
+		if secret.UserID == userID {
+			filteredUserSecrets = append(filteredUserSecrets, secret)
+		}
+	}
+
+	return filteredUserSecrets, nil
 }
 
 func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {

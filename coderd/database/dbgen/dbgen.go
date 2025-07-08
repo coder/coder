@@ -1372,7 +1372,7 @@ func UserSecret(t testing.TB, db database.Store, seed database.InsertUserSecretP
 		Value:       takeFirst(seed.Value, "secret value"),
 		ValueKeyID:  takeFirst(seed.ValueKeyID, sql.NullString{}),
 	})
-	require.NoError(t, err, "insert user secret")
+	require.NoError(t, err, "failed to insert user secret")
 	return userSecret
 }
 

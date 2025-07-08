@@ -5777,8 +5777,7 @@ func (s *MethodTestSuite) TestUserSecrets() {
 			UserID: user.ID,
 		}
 		check.Args(arg).
-			Asserts(rbac.ResourceUserSecret.WithOwner(arg.UserID.String()), policy.ActionCreate).
-			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
+			Asserts(rbac.ResourceUserSecret.WithOwner(arg.UserID.String()), policy.ActionCreate)
 	}))
 	s.Run("GetUserSecret", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
@@ -5791,7 +5790,6 @@ func (s *MethodTestSuite) TestUserSecrets() {
 		}
 		check.Args(arg).
 			Asserts(rbac.ResourceUserSecret.WithOwner(arg.UserID.String()), policy.ActionRead).
-			ErrorsWithInMemDB(dbmem.ErrUnimplemented).
 			Returns(userSecret)
 	}))
 	s.Run("ListUserSecrets", s.Subtest(func(db database.Store, check *expects) {
@@ -5801,7 +5799,6 @@ func (s *MethodTestSuite) TestUserSecrets() {
 		})
 		check.Args(user.ID).
 			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionRead).
-			ErrorsWithInMemDB(dbmem.ErrUnimplemented).
 			Returns([]database.UserSecret{userSecret})
 	}))
 }
