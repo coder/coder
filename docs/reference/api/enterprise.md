@@ -701,7 +701,6 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
 ```json
 [
   {
-    "callback_url": "string",
     "endpoints": {
       "authorization": "string",
       "device_authorization": "string",
@@ -710,7 +709,10 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
     },
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "name": "string"
+    "name": "string",
+    "redirect_uris": [
+      "string"
+    ]
   }
 ]
 ```
@@ -728,7 +730,6 @@ Status Code **200**
 | Name                      | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                                             |
 |---------------------------|----------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `[array item]`            | array                                                                | false    |              |                                                                                                                                                                                                         |
-| `» callback_url`          | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `» endpoints`             | [codersdk.OAuth2AppEndpoints](schemas.md#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
 | `»» authorization`        | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `»» device_authorization` | string                                                               | false    |              | Device authorization is the device authorization endpoint for RFC 8628.                                                                                                                                 |
@@ -737,6 +738,7 @@ Status Code **200**
 | `» icon`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `» id`                    | string(uuid)                                                         | false    |              |                                                                                                                                                                                                         |
 | `» name`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `» redirect_uris`         | array                                                                | false    |              |                                                                                                                                                                                                         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -758,9 +760,11 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
 
 ```json
 {
-  "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ]
 }
 ```
 
@@ -776,7 +780,6 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
 
 ```json
 {
-  "callback_url": "string",
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
@@ -785,7 +788,10 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ]
 }
 ```
 
@@ -822,7 +828,6 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 ```json
 {
-  "callback_url": "string",
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
@@ -831,7 +836,10 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ]
 }
 ```
 
@@ -861,9 +869,11 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 ```json
 {
-  "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ]
 }
 ```
 
@@ -880,7 +890,6 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 ```json
 {
-  "callback_url": "string",
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
@@ -889,7 +898,10 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ]
 }
 ```
 
@@ -1314,7 +1326,6 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2/clients/{client_id}
 ```shell
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/oauth2/device \
-  -H 'Content-Type: application/json' \
   -H 'Accept: application/json'
 ```
 
@@ -1322,12 +1333,11 @@ curl -X POST http://coder-server:8080/api/v2/oauth2/device \
 
 > Body parameter
 
-```json
-{
-  "client_id": "string",
-  "resource": "string",
-  "scope": "string"
-}
+```yaml
+client_id: string
+resource: string
+scope: string
+
 ```
 
 ### Parameters

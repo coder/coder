@@ -1604,7 +1604,7 @@ export interface OAuth2ProtectedResourceMetadata {
 export interface OAuth2ProviderApp {
 	readonly id: string;
 	readonly name: string;
-	readonly callback_url: string;
+	readonly redirect_uris: readonly string[];
 	readonly icon: string;
 	readonly endpoints: OAuth2AppEndpoints;
 }
@@ -1879,7 +1879,7 @@ export interface Permission {
 // From codersdk/oauth2.go
 export interface PostOAuth2ProviderAppRequest {
 	readonly name: string;
-	readonly callback_url: string;
+	readonly redirect_uris: readonly string[];
 	readonly icon: string;
 }
 
@@ -2221,7 +2221,7 @@ export interface PutExtendWorkspaceRequest {
 // From codersdk/oauth2.go
 export interface PutOAuth2ProviderAppRequest {
 	readonly name: string;
-	readonly callback_url: string;
+	readonly redirect_uris: readonly string[];
 	readonly icon: string;
 }
 

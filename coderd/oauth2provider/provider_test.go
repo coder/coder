@@ -31,14 +31,14 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 			{
 				name: "NameMissing",
 				req: codersdk.PostOAuth2ProviderAppRequest{
-					CallbackURL: "http://localhost:3000",
+					RedirectURIs: []string{"http://localhost:3000"},
 				},
 			},
 			{
 				name: "NameTooLong",
 				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "this is a really long name that exceeds the 64 character limit and should fail validation",
-					CallbackURL: "http://localhost:3000",
+					Name:         "this is a really long name that exceeds the 64 character limit and should fail validation",
+					RedirectURIs: []string{"http://localhost:3000"},
 				},
 			},
 			{
@@ -50,57 +50,57 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 			{
 				name: "URLLocalhostNoScheme",
 				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo",
-					CallbackURL: "localhost:3000",
+					Name:         "foo",
+					RedirectURIs: []string{"localhost:3000"},
 				},
 			},
 			{
 				name: "URLNoScheme",
 				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo",
-					CallbackURL: "coder.com",
+					Name:         "foo",
+					RedirectURIs: []string{"coder.com"},
 				},
 			},
 			{
 				name: "URLNoColon",
 				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo",
-					CallbackURL: "http//coder",
+					Name:         "foo",
+					RedirectURIs: []string{"http//coder"},
 				},
 			},
 			{
 				name: "URLJustBar",
 				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo",
-					CallbackURL: "bar",
+					Name:         "foo",
+					RedirectURIs: []string{"bar"},
 				},
 			},
 			{
 				name: "URLPathOnly",
 				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo",
-					CallbackURL: "/bar/baz/qux",
+					Name:         "foo",
+					RedirectURIs: []string{"/bar/baz/qux"},
 				},
 			},
 			{
 				name: "URLJustHttp",
 				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo",
-					CallbackURL: "http",
+					Name:         "foo",
+					RedirectURIs: []string{"http"},
 				},
 			},
 			{
 				name: "URLNoHost",
 				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo",
-					CallbackURL: "http://",
+					Name:         "foo",
+					RedirectURIs: []string{"http://"},
 				},
 			},
 			{
 				name: "URLSpaces",
 				req: codersdk.PostOAuth2ProviderAppRequest{
-					Name:        "foo",
-					CallbackURL: "bar baz qux",
+					Name:         "foo",
+					RedirectURIs: []string{"bar baz qux"},
 				},
 			},
 		}
@@ -160,8 +160,8 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 
 				//nolint:gocritic // OAuth2 app management requires owner permission.
 				app, err := client.PostOAuth2ProviderApp(testCtx, codersdk.PostOAuth2ProviderAppRequest{
-					Name:        test.displayName,
-					CallbackURL: "http://localhost:3000",
+					Name:         test.displayName,
+					RedirectURIs: []string{"http://localhost:3000"},
 				})
 				require.NoError(t, err)
 				require.Equal(t, test.displayName, app.Name)
@@ -204,8 +204,8 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 
 				//nolint:gocritic // OAuth2 app management requires owner permission.
 				_, err := client.PostOAuth2ProviderApp(testCtx, codersdk.PostOAuth2ProviderAppRequest{
-					Name:        test.displayName,
-					CallbackURL: "http://localhost:3000",
+					Name:         test.displayName,
+					RedirectURIs: []string{"http://localhost:3000"},
 				})
 				require.Error(t, err)
 			})
@@ -225,8 +225,8 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 		// Create first app
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		app1, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
-			Name:        appName,
-			CallbackURL: "http://localhost:3001",
+			Name:         appName,
+			RedirectURIs: []string{"http://localhost:3001"},
 		})
 		require.NoError(t, err)
 		require.Equal(t, appName, app1.Name)
@@ -234,8 +234,8 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 		// Create second app with the same name
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		app2, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
-			Name:        appName,
-			CallbackURL: "http://localhost:3002",
+			Name:         appName,
+			RedirectURIs: []string{"http://localhost:3002"},
 		})
 		require.NoError(t, err)
 		require.Equal(t, appName, app2.Name)
@@ -243,8 +243,8 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 		// Create third app with the same name
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		app3, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
-			Name:        appName,
-			CallbackURL: "http://localhost:3003",
+			Name:         appName,
+			RedirectURIs: []string{"http://localhost:3003"},
 		})
 		require.NoError(t, err)
 		require.Equal(t, appName, app3.Name)
@@ -445,29 +445,29 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 
 		// Should be able to keep the same name when updating.
 		req := codersdk.PutOAuth2ProviderAppRequest{
-			Name:        expectedApps.Default.Name,
-			CallbackURL: "http://coder.com",
-			Icon:        "test",
+			Name:         expectedApps.Default.Name,
+			RedirectURIs: []string{"http://coder.com"},
+			Icon:         "test",
 		}
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		newApp, err := client.PutOAuth2ProviderApp(ctx, expectedApps.Default.ID, req)
 		require.NoError(t, err)
 		require.Equal(t, req.Name, newApp.Name)
-		require.Equal(t, req.CallbackURL, newApp.CallbackURL)
+		require.Equal(t, req.RedirectURIs, newApp.RedirectURIs)
 		require.Equal(t, req.Icon, newApp.Icon)
 		require.Equal(t, expectedApps.Default.ID, newApp.ID)
 
 		// Should be able to update name.
 		req = codersdk.PutOAuth2ProviderAppRequest{
-			Name:        "new-foo",
-			CallbackURL: "http://coder.com",
-			Icon:        "test",
+			Name:         "new-foo",
+			RedirectURIs: []string{"http://coder.com"},
+			Icon:         "test",
 		}
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		newApp, err = client.PutOAuth2ProviderApp(ctx, expectedApps.Default.ID, req)
 		require.NoError(t, err)
 		require.Equal(t, req.Name, newApp.Name)
-		require.Equal(t, req.CallbackURL, newApp.CallbackURL)
+		require.Equal(t, req.RedirectURIs, newApp.RedirectURIs)
 		require.Equal(t, req.Icon, newApp.Icon)
 		require.Equal(t, expectedApps.Default.ID, newApp.ID)
 
@@ -519,13 +519,13 @@ func generateApps(ctx context.Context, t *testing.T, client *codersdk.Client, su
 		name = fmt.Sprintf("%s-%s", name, suffix)
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
-			Name:        name,
-			CallbackURL: callback,
-			Icon:        "",
+			Name:         name,
+			RedirectURIs: []string{callback},
+			Icon:         "",
 		})
 		require.NoError(t, err)
 		require.Equal(t, name, app.Name)
-		require.Equal(t, callback, app.CallbackURL)
+		require.Equal(t, callback, app.RedirectURIs[0])
 		return app
 	}
 
