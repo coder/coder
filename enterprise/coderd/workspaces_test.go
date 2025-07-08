@@ -287,7 +287,9 @@ func TestCreateUserWorkspace(t *testing.T) {
 			OrganizationID: first.OrganizationID,
 		})
 
-		template, _ := coderdtest.DynamicParameterTemplate(t, admin, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{})
+		template, _ := coderdtest.DynamicParameterTemplate(t, admin, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{
+			Zip: true,
+		})
 
 		ctx = testutil.Context(t, testutil.WaitLong)
 
