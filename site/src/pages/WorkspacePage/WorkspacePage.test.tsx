@@ -13,6 +13,7 @@ import type { FC } from "react";
 import { type Location, useLocation } from "react-router-dom";
 import {
 	MockAppearanceConfig,
+	MockBuildInfo,
 	MockDeploymentConfig,
 	MockEntitlements,
 	MockFailedWorkspace,
@@ -603,6 +604,10 @@ describe("WorkspacePage", () => {
 						appearance: MockAppearanceConfig,
 						entitlements: MockEntitlements,
 						experiments: [],
+						buildInfo: {
+							...MockBuildInfo,
+							version: "v0.0.0-test",
+						},
 						organizations: [MockOrganization],
 						showOrganizations: true,
 						canViewOrganizationSettings: true,

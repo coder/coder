@@ -807,14 +807,18 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 export type Experiment =
 	| "auto-fill-parameters"
 	| "example"
+	| "mcp-server-http"
 	| "notifications"
+	| "oauth2"
 	| "web-push"
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
 	"auto-fill-parameters",
 	"example",
+	"mcp-server-http",
 	"notifications",
+	"oauth2",
 	"web-push",
 	"workspace-usage",
 ];

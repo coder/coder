@@ -1,4 +1,4 @@
-package identityprovider
+package oauth2provider
 
 import (
 	"context"
@@ -183,7 +183,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 
 func authorizationCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, params tokenParams) (oauth2.Token, error) {
 	// Validate the client secret.
-	secret, err := parseSecret(params.clientSecret)
+	secret, err := parseFormattedSecret(params.clientSecret)
 	if err != nil {
 		return oauth2.Token{}, errBadSecret
 	}
@@ -204,7 +204,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	}
 
 	// Validate the authorization code.
-	code, err := parseSecret(params.code)
+	code, err := parseFormattedSecret(params.code)
 	if err != nil {
 		return oauth2.Token{}, errBadCode
 	}
@@ -335,7 +335,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 
 func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, params tokenParams) (oauth2.Token, error) {
 	// Validate the token.
-	token, err := parseSecret(params.refreshToken)
+	token, err := parseFormattedSecret(params.refreshToken)
 	if err != nil {
 		return oauth2.Token{}, errBadToken
 	}
