@@ -63,6 +63,17 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 				return xerrors.Errorf("failed to delete old notification messages: %w", err)
 			}
 
+			// Purge old provisioner job logs and timings
+			// - logs & timings for all deleted workspaces
+			// - all logs & timings (except the latest build) for non-deleted workspaces where builds are older than 90 days
+			oldBuildThreshold := start.Add(-90 * 24 * time.Hour) // 90 days
+			if err := tx.DeleteOldProvisionerJobLogs(ctx, oldBuildThreshold); err != nil {
+				return xerrors.Errorf("failed to delete old provisioner job logs: %w", err)
+			}
+			if err := tx.DeleteOldProvisionerJobTimings(ctx, oldBuildThreshold); err != nil {
+				return xerrors.Errorf("failed to delete old provisioner job timings: %w", err)
+			}
+
 			logger.Debug(ctx, "purged old database entries", slog.F("duration", clk.Since(start)))
 
 			return nil

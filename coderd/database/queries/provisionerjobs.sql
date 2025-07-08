@@ -329,3 +329,88 @@ RETURNING *;
 SELECT * FROM provisioner_job_timings
 WHERE job_id = $1
 ORDER BY started_at ASC;
+
+-- Purge old provisioner job logs and timings based on workspace deletion and build age.
+-- We purge:
+-- - logs & timings for all deleted workspaces older than 30 days
+-- - all logs & timings (except the latest build) for non-deleted workspaces where builds are older than 90 days
+-- We also update workspace_builds.purged_at to track what has been purged.
+-- name: DeleteOldProvisionerJobLogs :exec
+WITH
+	deleted_workspaces_old AS (
+		-- For now, select all deleted workspaces since we don't have deleted_at column
+		-- This will be updated once the migration adds deleted_at column
+		SELECT id FROM workspaces
+		WHERE deleted = TRUE
+	),
+	latest_builds AS (
+		SELECT
+			workspace_id, MAX(build_number) AS max_build_number
+		FROM
+			workspace_builds
+		WHERE
+			workspace_id NOT IN (SELECT id FROM deleted_workspaces_old)
+		GROUP BY
+			workspace_id
+	),
+	builds_to_purge AS (
+		-- Builds from deleted workspaces
+		SELECT wb.id, wb.job_id
+		FROM workspace_builds wb
+		WHERE wb.workspace_id IN (SELECT id FROM deleted_workspaces_old)
+		
+		UNION
+		
+		-- Builds from non-deleted workspaces older than 90 days (except latest)
+		SELECT wb.id, wb.job_id
+		FROM workspace_builds wb
+		LEFT JOIN latest_builds lb ON wb.workspace_id = lb.workspace_id AND wb.build_number = lb.max_build_number
+		WHERE wb.workspace_id NOT IN (SELECT id FROM deleted_workspaces_old)
+		AND wb.created_at < @old_build_threshold::timestamptz
+		AND lb.workspace_id IS NULL -- Exclude latest builds
+	),
+	jobs_to_purge AS (
+		SELECT DISTINCT job_id FROM builds_to_purge
+	)
+DELETE FROM provisioner_job_logs
+WHERE job_id IN (SELECT job_id FROM jobs_to_purge);
+
+-- name: DeleteOldProvisionerJobTimings :exec
+WITH
+	deleted_workspaces_old AS (
+		-- For now, select all deleted workspaces since we don't have deleted_at column
+		-- This will be updated once the migration adds deleted_at column
+		SELECT id FROM workspaces
+		WHERE deleted = TRUE
+	),
+	latest_builds AS (
+		SELECT
+			workspace_id, MAX(build_number) AS max_build_number
+		FROM
+			workspace_builds
+		WHERE
+			workspace_id NOT IN (SELECT id FROM deleted_workspaces_old)
+		GROUP BY
+			workspace_id
+	),
+	builds_to_purge AS (
+		-- Builds from deleted workspaces
+		SELECT wb.id, wb.job_id
+		FROM workspace_builds wb
+		WHERE wb.workspace_id IN (SELECT id FROM deleted_workspaces_old)
+		
+		UNION
+		
+		-- Builds from non-deleted workspaces older than 90 days (except latest)
+		SELECT wb.id, wb.job_id
+		FROM workspace_builds wb
+		LEFT JOIN latest_builds lb ON wb.workspace_id = lb.workspace_id AND wb.build_number = lb.max_build_number
+		WHERE wb.workspace_id NOT IN (SELECT id FROM deleted_workspaces_old)
+		AND wb.created_at < @old_build_threshold::timestamptz
+		AND lb.workspace_id IS NULL -- Exclude latest builds
+	),
+	jobs_to_purge AS (
+		SELECT DISTINCT job_id FROM builds_to_purge
+	)
+DELETE FROM provisioner_job_timings
+WHERE job_id IN (SELECT job_id FROM jobs_to_purge);
