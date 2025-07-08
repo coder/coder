@@ -55,5 +55,5 @@ fi
 if [[ $verification_result -eq 0 ]]; then
 	echo "${FILE_TO_SIGN}.asc"
 else
-	error "Signature verification failed!" >&2
+	error "Signature verification failed!"
 fi
