@@ -81,7 +81,7 @@ func initDefaultConnection(t TBSubset) error {
 	}
 
 	var dbErr error
-	// Retry up to 3 seconds for temporary errors.
+	// Retry up to 10 seconds for temporary errors.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for r := retry.New(10*time.Millisecond, 500*time.Millisecond); r.Wait(ctx); {
@@ -93,7 +93,7 @@ func initDefaultConnection(t TBSubset) error {
 		if !containsAnySubstring(errString, retryableErrSubstrings) {
 			break
 		}
-		t.Logf("failed to connect to postgres, retrying: %s", errString)
+		t.Logf("%s failed to connect to postgres, retrying: %s", time.Now().Format(time.StampMilli), errString)
 	}
 
 	// After the loop dbErr is the last connection error (if any).
