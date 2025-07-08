@@ -293,6 +293,19 @@ export const BypassRatelimitHeader = "X-Coder-Bypass-Ratelimit";
 // From codersdk/client.go
 export const CLITelemetryHeader = "Coder-CLI-Telemetry";
 
+// From codersdk/workspacebuilds.go
+export interface CancelWorkspaceBuildParams {
+	readonly expect_status?: CancelWorkspaceBuildStatus;
+}
+
+// From codersdk/workspacebuilds.go
+export type CancelWorkspaceBuildStatus = "pending" | "running";
+
+export const CancelWorkspaceBuildStatuses: CancelWorkspaceBuildStatus[] = [
+	"pending",
+	"running",
+];
+
 // From codersdk/users.go
 export interface ChangePasswordWithOneTimePasscodeRequest {
 	readonly email: string;

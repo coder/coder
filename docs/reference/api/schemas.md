@@ -283,7 +283,7 @@
 {
   "groups": [
     {
-      "avatar_url": "string",
+      "avatar_url": "http://example.com",
       "display_name": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "members": [
@@ -3424,7 +3424,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
-  "avatar_url": "string",
+  "avatar_url": "http://example.com",
   "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
@@ -6761,6 +6761,76 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |---------------|-------------|
 | `provisioner` | `terraform` |
 
+## codersdk.TemplateACL
+
+```json
+{
+  "group": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "admin",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "organization_ids": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "role": "admin",
+      "roles": [
+        {
+          "display_name": "string",
+          "name": "string",
+          "organization_id": "string"
+        }
+      ],
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                      | Required | Restrictions | Description |
+|---------|-----------------------------------------------------------|----------|--------------|-------------|
+| `group` | array of [codersdk.TemplateGroup](#codersdktemplategroup) | false    |              |             |
+| `users` | array of [codersdk.TemplateUser](#codersdktemplateuser)   | false    |              |             |
+
 ## codersdk.TemplateAppUsage
 
 ```json
@@ -6887,6 +6957,63 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `name`        | string          | false    |              |             |
 | `tags`        | array of string | false    |              |             |
 | `url`         | string          | false    |              |             |
+
+## codersdk.TemplateGroup
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "quota_allowance": 0,
+  "role": "admin",
+  "source": "user",
+  "total_member_count": 0
+}
+```
+
+### Properties
+
+| Name                        | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
+|-----------------------------|-------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`                | string                                                | false    |              |                                                                                                                                                                       |
+| `display_name`              | string                                                | false    |              |                                                                                                                                                                       |
+| `id`                        | string                                                | false    |              |                                                                                                                                                                       |
+| `members`                   | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
+| `name`                      | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_display_name` | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_id`           | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_name`         | string                                                | false    |              |                                                                                                                                                                       |
+| `quota_allowance`           | integer                                               | false    |              |                                                                                                                                                                       |
+| `role`                      | [codersdk.TemplateRole](#codersdktemplaterole)        | false    |              |                                                                                                                                                                       |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
+| `total_member_count`        | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+#### Enumerated Values
+
+| Property | Value   |
+|----------|---------|
+| `role`   | `admin` |
+| `role`   | `use`   |
 
 ## codersdk.TemplateInsightsIntervalReport
 
@@ -7621,11 +7748,11 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 {
   "group_perms": {
     "8bd26b20-f3e8-48be-a903-46bb920cf671": "use",
-    "<user_id>>": "admin"
+    "<group_id>": "admin"
   },
   "user_perms": {
     "4df59e74-c027-470b-ab4d-cbba8963a5e9": "use",
-    "<group_id>": "admin"
+    "<user_id>": "admin"
   }
 }
 ```
