@@ -201,13 +201,10 @@ func renderDevcontainerRow(resources []codersdk.WorkspaceResource, devcontainer 
 	displayName := devcontainer.Name
 	if devcontainer.Agent != nil && devcontainer.Status == codersdk.WorkspaceAgentDevcontainerStatusRunning {
 		for _, resource := range resources {
-			for _, agent := range resource.Agents {
-				if agent.ID == devcontainer.Agent.ID {
-					subAgent = &agent
-					break
-				}
-			}
-			if subAgent != nil {
+			if agent, found := slice.Find(resource.Agents, func(agent codersdk.WorkspaceAgent) bool {
+				return agent.ID == devcontainer.Agent.ID
+			}); found {
+				subAgent = &agent
 				break
 			}
 		}
