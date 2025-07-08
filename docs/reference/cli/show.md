@@ -6,5 +6,15 @@ Display details of a workspace's resources and agents
 ## Usage
 
 ```console
-coder show <workspace>
+coder show [flags] <workspace>
 ```
+
+## Options
+
+### --details
+
+|      |                   |
+|------|-------------------|
+| Type | <code>bool</code> |
+
+Show full error messages and additional details.
