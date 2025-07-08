@@ -15,9 +15,6 @@ import {
 import { useProxy } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-// We use partysocket because it provides automatic reconnection
-// and is a drop-in replacement for the native WebSocket API.
-import { WebSocket } from "partysocket";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
@@ -29,6 +26,13 @@ import { openMaybePortForwardedURL } from "utils/portForward";
 import { terminalWebsocketUrl } from "utils/terminal";
 import { getMatchingAgentOrFirst } from "utils/workspace";
 import { v4 as uuidv4 } from "uuid";
+// Use websocket-ts for better WebSocket handling and auto-reconnection.
+import {
+	ConstantBackoff,
+	type Websocket,
+	WebsocketBuilder,
+	WebsocketEvent,
+} from "websocket-ts";
 import { TerminalAlerts } from "./TerminalAlerts";
 import type { ConnectionStatus } from "./types";
 
@@ -224,7 +228,7 @@ const TerminalPage: FC = () => {
 		}
 
 		// Hook up terminal events to the websocket.
-		let websocket: WebSocket | null;
+		let websocket: Websocket | null;
 		const disposers = [
 			terminal.onData((data) => {
 				websocket?.send(
@@ -262,9 +266,11 @@ const TerminalPage: FC = () => {
 				if (disposed) {
 					return; // Unmounted while we waited for the async call.
 				}
-				websocket = new WebSocket(url);
+				websocket = new WebsocketBuilder(url)
+					.withBackoff(new ConstantBackoff(1000))
+					.build();
 				websocket.binaryType = "arraybuffer";
-				websocket.addEventListener("open", () => {
+				websocket.addEventListener(WebsocketEvent.open, () => {
 					// Now that we are connected, allow user input.
 					terminal.options = {
 						disableStdin: false,
@@ -281,18 +287,18 @@ const TerminalPage: FC = () => {
 					);
 					setConnectionStatus("connected");
 				});
-				websocket.addEventListener("error", () => {
+				websocket.addEventListener(WebsocketEvent.error, () => {
 					terminal.options.disableStdin = true;
 					terminal.writeln(
 						`${Language.websocketErrorMessagePrefix}socket errored`,
 					);
 					setConnectionStatus("disconnected");
 				});
-				websocket.addEventListener("close", () => {
+				websocket.addEventListener(WebsocketEvent.close, () => {
 					terminal.options.disableStdin = true;
 					setConnectionStatus("disconnected");
 				});
-				websocket.addEventListener("message", (event) => {
+				websocket.addEventListener(WebsocketEvent.message, (_, event) => {
 					if (typeof event.data === "string") {
 						// This exclusively occurs when testing.
 						// "jest-websocket-mock" doesn't support ArrayBuffer.

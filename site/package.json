@@ -93,7 +93,6 @@
 		"lodash": "4.17.21",
 		"lucide-react": "0.474.0",
 		"monaco-editor": "0.52.0",
-		"partysocket": "1.1.4",
 		"pretty-bytes": "6.1.1",
 		"react": "18.3.1",
 		"react-color": "2.19.3",
@@ -121,6 +120,7 @@
 		"undici": "6.21.2",
 		"unique-names-generator": "4.7.1",
 		"uuid": "9.0.1",
+		"websocket-ts": "2.2.1",
 		"yup": "1.6.1"
 	},
 	"devDependencies": {
