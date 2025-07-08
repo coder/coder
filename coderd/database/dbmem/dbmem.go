@@ -10285,6 +10285,10 @@ func (q *FakeQuerier) ListProvisionerKeysByOrganizationExcludeReserved(_ context
 	return keys, nil
 }
 
+func (q *FakeQuerier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]database.UserSecret, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

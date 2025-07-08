@@ -1845,7 +1845,7 @@ func (s *MethodTestSuite) TestUser() {
 		check.Args(database.DeleteCustomRoleParams{
 			Name: customRole.Name,
 		}).Asserts(
-		// fails immediately, missing organization id
+			// fails immediately, missing organization id
 		).Errors(dbauthz.NotAuthorizedError{Err: xerrors.New("custom roles must belong to an organization")})
 	}))
 	s.Run("Blank/UpdateCustomRole", s.Subtest(func(db database.Store, check *expects) {
@@ -1876,7 +1876,7 @@ func (s *MethodTestSuite) TestUser() {
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}), convertSDKPerm),
 		}).Asserts(
-		// fails immediately, missing organization id
+			// fails immediately, missing organization id
 		).Errors(dbauthz.NotAuthorizedError{Err: xerrors.New("custom roles must belong to an organization")})
 	}))
 	s.Run("OrgPermissions/UpdateCustomRole", s.Subtest(func(db database.Store, check *expects) {
@@ -1929,7 +1929,7 @@ func (s *MethodTestSuite) TestUser() {
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}), convertSDKPerm),
 		}).Asserts(
-		// fails immediately, missing organization id
+			// fails immediately, missing organization id
 		).Errors(dbauthz.NotAuthorizedError{Err: xerrors.New("custom roles must belong to an organization")})
 	}))
 	s.Run("OrgPermissions/InsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
@@ -4262,13 +4262,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			Type:          database.ProvisionerJobTypeWorkspaceBuild,
 			Input:         json.RawMessage("{}"),
-		}).Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionCreate */ )
+		}).Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionCreate */)
 	}))
 	s.Run("InsertProvisionerJobLogs", s.Subtest(func(db database.Store, check *expects) {
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
 		check.Args(database.InsertProvisionerJobLogsParams{
 			JobID: j.ID,
-		}).Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionUpdate */ )
+		}).Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionUpdate */)
 	}))
 	s.Run("InsertProvisionerJobTimings", s.Subtest(func(db database.Store, check *expects) {
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
@@ -5793,5 +5793,15 @@ func (s *MethodTestSuite) TestUserSecrets() {
 			Asserts(rbac.ResourceUserSecret.WithOwner(arg.UserID.String()), policy.ActionRead).
 			ErrorsWithInMemDB(dbmem.ErrUnimplemented).
 			Returns(userSecret)
+	}))
+	s.Run("ListUserSecrets", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		userSecret := dbgen.UserSecret(s.T(), db, database.InsertUserSecretParams{
+			UserID: user.ID,
+		})
+		check.Args(user.ID).
+			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionRead).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented).
+			Returns([]database.UserSecret{userSecret})
 	}))
 }

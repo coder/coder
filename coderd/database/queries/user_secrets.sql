@@ -10,6 +10,10 @@
 SELECT * FROM user_secrets
 WHERE user_id = @user_id AND name = @name;
 
+-- name: ListUserSecrets :many
+SELECT * FROM user_secrets
+WHERE user_id = @user_id;
+
 -- name: InsertUserSecret :one
 INSERT INTO user_secrets (
 	id,

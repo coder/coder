@@ -13155,6 +13155,43 @@ func (q *sqlQuerier) InsertUserSecret(ctx context.Context, arg InsertUserSecretP
 	return i, err
 }
 
+const listUserSecrets = `-- name: ListUserSecrets :many
+SELECT id, user_id, name, description, value, value_key_id, created_at, updated_at FROM user_secrets
+WHERE user_id = $1
+`
+
+func (q *sqlQuerier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]UserSecret, error) {
+	rows, err := q.db.QueryContext(ctx, listUserSecrets, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserSecret
+	for rows.Next() {
+		var i UserSecret
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Name,
+			&i.Description,
+			&i.Value,
+			&i.ValueKeyID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const allUserIDs = `-- name: AllUserIDs :many
 SELECT DISTINCT id FROM USERS
 	WHERE CASE WHEN $1::bool THEN TRUE ELSE is_system = false END
