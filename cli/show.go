@@ -24,6 +24,7 @@ func (r *RootCmd) show() *serpent.Command {
 			{
 				Flag:        "details",
 				Description: "Show full error messages and additional details.",
+				Default:     "false",
 				Value:       serpent.BoolOf(&details),
 			},
 		},
