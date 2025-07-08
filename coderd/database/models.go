@@ -3574,6 +3574,17 @@ type UserLink struct {
 	Claims UserLinkClaims `db:"claims" json:"claims"`
 }
 
+type UserSecret struct {
+	ID          uuid.UUID      `db:"id" json:"id"`
+	UserID      uuid.UUID      `db:"user_id" json:"user_id"`
+	Name        string         `db:"name" json:"name"`
+	Description string         `db:"description" json:"description"`
+	Value       string         `db:"value" json:"value"`
+	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
+	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
+}
+
 // Tracks the history of user status changes
 type UserStatusChange struct {
 	ID        uuid.UUID  `db:"id" json:"id"`

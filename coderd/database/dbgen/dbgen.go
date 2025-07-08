@@ -1363,6 +1363,19 @@ func PresetParameter(t testing.TB, db database.Store, seed database.InsertPreset
 	return parameters
 }
 
+func UserSecret(t testing.TB, db database.Store, seed database.InsertUserSecretParams) database.UserSecret {
+	userSecret, err := db.InsertUserSecret(genCtx, database.InsertUserSecretParams{
+		ID:          takeFirst(seed.ID, uuid.New()),
+		UserID:      takeFirst(seed.UserID, uuid.New()),
+		Name:        takeFirst(seed.Name, "secret-name"),
+		Description: takeFirst(seed.Description, "secret description"),
+		Value:       takeFirst(seed.Value, "secret value"),
+		ValueKeyID:  takeFirst(seed.ValueKeyID, sql.NullString{}),
+	})
+	require.NoError(t, err, "failed to insert user secret")
+	return userSecret
+}
+
 func ClaimPrebuild(t testing.TB, db database.Store, newUserID uuid.UUID, newName string, presetID uuid.UUID) database.ClaimPrebuiltWorkspaceRow {
 	claimedWorkspace, err := db.ClaimPrebuiltWorkspace(genCtx, database.ClaimPrebuiltWorkspaceParams{
 		NewUserID: newUserID,
