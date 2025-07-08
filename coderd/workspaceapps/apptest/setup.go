@@ -408,6 +408,36 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 			Url:          appURL,
 			Subdomain:    true,
 		},
+		{
+			Slug:         proxyTestAppNamePublicCORSPassthru,
+			DisplayName:  proxyTestAppNamePublicCORSPassthru,
+			SharingLevel: proto.AppSharingLevel_PUBLIC,
+			Url:          appURL,
+			Subdomain:    true,
+			// CorsBehavior: proto.AppCORSBehavior_PASSTHRU,
+		},
+		{
+			Slug:         proxyTestAppNameAuthenticatedCORSPassthru,
+			DisplayName:  proxyTestAppNameAuthenticatedCORSPassthru,
+			SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
+			Url:          appURL,
+			Subdomain:    true,
+			// CorsBehavior: proto.AppCORSBehavior_PASSTHRU,
+		},
+		{
+			Slug:         proxyTestAppNamePublicCORSDefault,
+			DisplayName:  proxyTestAppNamePublicCORSDefault,
+			SharingLevel: proto.AppSharingLevel_PUBLIC,
+			Url:          appURL,
+			Subdomain:    true,
+		},
+		{
+			Slug:         proxyTestAppNameAuthenticatedCORSDefault,
+			DisplayName:  proxyTestAppNameAuthenticatedCORSDefault,
+			SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
+			Url:          appURL,
+			Subdomain:    true,
+		},
 	}
 	version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
 		Parse:         echo.ParseComplete,

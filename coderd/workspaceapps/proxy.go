@@ -595,6 +595,11 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	proxy := s.AgentProvider.ReverseProxy(appURL, s.DashboardURL, appToken.AgentID, app, s.Hostname)
 
 	proxy.ModifyResponse = func(r *http.Response) error {
+		// If passthru behavior is set, disable our CORS header stripping.
+		if cors.HasBehavior(r.Request.Context(), codersdk.CORSBehaviorPassthru) {
+			fmt.Println("not modifying headers!!!")
+			return nil
+		}
 		r.Header.Del(httpmw.AccessControlAllowOriginHeader)
 		r.Header.Del(httpmw.AccessControlAllowCredentialsHeader)
 		r.Header.Del(httpmw.AccessControlAllowMethodsHeader)
