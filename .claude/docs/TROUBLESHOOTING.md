@@ -21,59 +21,50 @@
      }
      ```
 
-3. **Tests passing locally but failing in CI**
-   - **Solution**: Check if `dbmem` implementation needs updating
-   - Update `coderd/database/dbmem/dbmem.go` for Insert/Update methods
-   - Missing fields in dbmem can cause tests to fail even if main implementation is correct
-
 ### Testing Issues
 
-4. **"package should be X_test"**
+3. **"package should be X_test"**
    - **Solution**: Use `package_test` naming for test files
    - Example: `identityprovider_test` for black-box testing
 
-5. **Race conditions in tests**
+4. **Race conditions in tests**
    - **Solution**: Use unique identifiers instead of hardcoded names
    - Example: `fmt.Sprintf("test-client-%s-%d", t.Name(), time.Now().UnixNano())`
    - Never use hardcoded names in concurrent tests
 
-6. **Missing newlines**
+5. **Missing newlines**
    - **Solution**: Ensure files end with newline character
    - Most editors can be configured to add this automatically
 
 ### OAuth2 Issues
 
-7. **OAuth2 endpoints returning wrong error format**
+6. **OAuth2 endpoints returning wrong error format**
    - **Solution**: Ensure OAuth2 endpoints return RFC 6749 compliant errors
    - Use standard error codes: `invalid_client`, `invalid_grant`, `invalid_request`
    - Format: `{"error": "code", "error_description": "details"}`
 
-8. **OAuth2 tests failing but scripts working**
-   - **Solution**: Check in-memory database implementations in `dbmem.go`
-   - Ensure all OAuth2 fields are properly copied in Insert/Update methods
-
-9. **Resource indicator validation failing**
+7. **Resource indicator validation failing**
    - **Solution**: Ensure database stores and retrieves resource parameters correctly
    - Check both authorization code storage and token exchange handling
 
-10. **PKCE tests failing**
+8. **PKCE tests failing**
     - **Solution**: Verify both authorization code storage and token exchange handle PKCE fields
     - Check `CodeChallenge` and `CodeChallengeMethod` field handling
 
 ### RFC Compliance Issues
 
-11. **RFC compliance failures**
+9. **RFC compliance failures**
     - **Solution**: Verify against actual RFC specifications, not assumptions
     - Use WebFetch tool to get current RFC content for compliance verification
     - Read the actual RFC specifications before implementation
 
-12. **Default value mismatches**
+10. **Default value mismatches**
     - **Solution**: Ensure database migrations match application code defaults
     - Example: RFC 7591 specifies `client_secret_basic` as default, not `client_secret_post`
 
 ### Authorization Issues
 
-13. **Authorization context errors in public endpoints**
+11. **Authorization context errors in public endpoints**
     - **Solution**: Use `dbauthz.AsSystemRestricted(ctx)` pattern
     - Example:
 
@@ -84,17 +75,17 @@
 
 ### Authentication Issues
 
-14. **Bearer token authentication issues**
+12. **Bearer token authentication issues**
     - **Solution**: Check token extraction precedence and format validation
     - Ensure proper RFC 6750 Bearer Token Support implementation
 
-15. **URI validation failures**
+13. **URI validation failures**
     - **Solution**: Support both standard schemes and custom schemes per protocol requirements
     - Native OAuth2 apps may use custom schemes
 
 ### General Development Issues
 
-16. **Log message formatting errors**
+14. **Log message formatting errors**
     - **Solution**: Use lowercase, descriptive messages without special characters
     - Follow Go logging conventions
 

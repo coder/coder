@@ -599,7 +599,6 @@ DB_GEN_FILES := \
 	coderd/database/dump.sql \
 	coderd/database/querier.go \
 	coderd/database/unique_constraint.go \
-	coderd/database/dbmem/dbmem.go \
 	coderd/database/dbmetrics/dbmetrics.go \
 	coderd/database/dbauthz/dbauthz.go \
 	coderd/database/dbmock/dbmock.go
@@ -973,7 +972,7 @@ sqlc-vet: test-postgres-docker
 test-postgres: test-postgres-docker
 	# The postgres test is prone to failure, so we limit parallelism for
 	# more consistent execution.
-	$(GIT_FLAGS)  DB=ci gotestsum \
+	$(GIT_FLAGS)  gotestsum \
 		--junitfile="gotests.xml" \
 		--jsonfile="gotests.json" \
 		$(GOTESTSUM_RETRY_FLAGS) \
