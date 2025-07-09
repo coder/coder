@@ -5020,3 +5020,102 @@ func requireUsersMatch(t testing.TB, expected []database.User, found []database.
 	t.Helper()
 	require.ElementsMatch(t, expected, database.ConvertUserRows(found), msg)
 }
+
+// TestGetRunningPrebuiltWorkspaces ensures the correct behavior of the
+// GetRunningPrebuiltWorkspaces query.
+func TestGetRunningPrebuiltWorkspaces(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("Test requires PostgreSQL for complex queries")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	now := dbtime.Now()
+
+	// Given: a prebuilt workspace with a successful start build and a stop build.
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	preset := dbgen.Preset(t, db, database.InsertPresetParams{
+		TemplateVersionID: templateVersion.ID,
+		DesiredInstances:  sql.NullInt32{Int32: 1, Valid: true},
+	})
+
+	setupFixture := func(t *testing.T, db database.Store, name string, deleted bool, transition database.WorkspaceTransition, jobStatus database.ProvisionerJobStatus) database.WorkspaceTable {
+		t.Helper()
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:    database.PrebuildsSystemUserID,
+			TemplateID: template.ID,
+			Name:       name,
+			Deleted:    deleted,
+		})
+		var canceledAt sql.NullTime
+		var jobError sql.NullString
+		switch jobStatus {
+		case database.ProvisionerJobStatusFailed:
+			jobError = sql.NullString{String: assert.AnError.Error(), Valid: true}
+		case database.ProvisionerJobStatusCanceled:
+			canceledAt = sql.NullTime{Time: now, Valid: true}
+		}
+		pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			InitiatorID:    database.PrebuildsSystemUserID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			StartedAt:      sql.NullTime{Time: now.Add(-time.Minute), Valid: true},
+			CanceledAt:     canceledAt,
+			CompletedAt:    sql.NullTime{Time: now, Valid: true},
+			Error:          jobError,
+		})
+		wb := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:             ws.ID,
+			TemplateVersionID:       templateVersion.ID,
+			TemplateVersionPresetID: uuid.NullUUID{UUID: preset.ID, Valid: true},
+			JobID:                   pj.ID,
+			BuildNumber:             1,
+			Transition:              transition,
+			InitiatorID:             database.PrebuildsSystemUserID,
+			Reason:                  database.BuildReasonInitiator,
+		})
+		// Ensure things are set up as expectd
+		require.Equal(t, transition, wb.Transition)
+		require.Equal(t, int32(1), wb.BuildNumber)
+		require.Equal(t, jobStatus, pj.JobStatus)
+		require.Equal(t, deleted, ws.Deleted)
+
+		return ws
+	}
+
+	// Given: a number of prebuild workspaces with different states exist.
+	runningPrebuild := setupFixture(t, db, "running-prebuild", false, database.WorkspaceTransitionStart, database.ProvisionerJobStatusSucceeded)
+	_ = setupFixture(t, db, "stopped-prebuild", false, database.WorkspaceTransitionStop, database.ProvisionerJobStatusSucceeded)
+	_ = setupFixture(t, db, "failed-prebuild", false, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed)
+	_ = setupFixture(t, db, "canceled-prebuild", false, database.WorkspaceTransitionStart, database.ProvisionerJobStatusCanceled)
+	_ = setupFixture(t, db, "deleted-prebuild", true, database.WorkspaceTransitionStart, database.ProvisionerJobStatusSucceeded)
+
+	// Given: a regular workspace also exists.
+	_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:    user.ID,
+		TemplateID: template.ID,
+		Name:       "test-running-regular-workspace",
+		Deleted:    false,
+	})
+
+	// When: we query for running prebuild workspaces
+	runningPrebuilds, err := db.GetRunningPrebuiltWorkspaces(ctx)
+	require.NoError(t, err)
+
+	// Then: only the running prebuild workspace should be returned.
+	require.Len(t, runningPrebuilds, 1, "expected only one running prebuilt workspace")
+	require.Equal(t, runningPrebuild.ID, runningPrebuilds[0].ID, "expected the running prebuilt workspace to be returned")
+}
