@@ -343,6 +343,10 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		Experiments(api.Experiments).
 		TemplateVersionPresetID(createBuild.TemplateVersionPresetID)
 
+	if createBuild.Reason != "" {
+		builder = builder.Reason(database.BuildReason(createBuild.Reason))
+	}
+
 	var (
 		previousWorkspaceBuild database.WorkspaceBuild
 		workspaceBuild         *database.WorkspaceBuild
