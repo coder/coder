@@ -204,6 +204,17 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		require.NoError(t, err, "update workspace agent first connected at")
 	}
 
+	// If the lifecycle state is "ready", update the agent with the corresponding timestamps
+	if orig.LifecycleState == database.WorkspaceAgentLifecycleStateReady && orig.StartedAt.Valid && orig.ReadyAt.Valid {
+		err := db.UpdateWorkspaceAgentLifecycleStateByID(genCtx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             agt.ID,
+			LifecycleState: orig.LifecycleState,
+			StartedAt:      orig.StartedAt,
+			ReadyAt:        orig.ReadyAt,
+		})
+		require.NoError(t, err, "update workspace agent lifecycle state")
+	}
+
 	if orig.ParentID.UUID == uuid.Nil {
 		// Add a test antagonist. For every agent we add a deleted sub agent
 		// to discover cases where deletion should be handled.
@@ -1140,21 +1151,32 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 
 func OAuth2ProviderApp(t testing.TB, db database.Store, seed database.OAuth2ProviderApp) database.OAuth2ProviderApp {
 	app, err := db.InsertOAuth2ProviderApp(genCtx, database.InsertOAuth2ProviderAppParams{
-		ID:           takeFirst(seed.ID, uuid.New()),
-		Name:         takeFirst(seed.Name, testutil.GetRandomName(t)),
-		CreatedAt:    takeFirst(seed.CreatedAt, dbtime.Now()),
-		UpdatedAt:    takeFirst(seed.UpdatedAt, dbtime.Now()),
-		Icon:         takeFirst(seed.Icon, ""),
-		CallbackURL:  takeFirst(seed.CallbackURL, "http://localhost"),
-		RedirectUris: takeFirstSlice(seed.RedirectUris, []string{}),
-		ClientType: takeFirst(seed.ClientType, sql.NullString{
-			String: "confidential",
-			Valid:  true,
-		}),
-		DynamicallyRegistered: takeFirst(seed.DynamicallyRegistered, sql.NullBool{
-			Bool:  false,
-			Valid: true,
-		}),
+		ID:                      takeFirst(seed.ID, uuid.New()),
+		Name:                    takeFirst(seed.Name, testutil.GetRandomName(t)),
+		CreatedAt:               takeFirst(seed.CreatedAt, dbtime.Now()),
+		UpdatedAt:               takeFirst(seed.UpdatedAt, dbtime.Now()),
+		Icon:                    takeFirst(seed.Icon, ""),
+		CallbackURL:             takeFirst(seed.CallbackURL, "http://localhost"),
+		RedirectUris:            takeFirstSlice(seed.RedirectUris, []string{}),
+		ClientType:              takeFirst(seed.ClientType, sql.NullString{String: "confidential", Valid: true}),
+		DynamicallyRegistered:   takeFirst(seed.DynamicallyRegistered, sql.NullBool{Bool: false, Valid: true}),
+		ClientIDIssuedAt:        takeFirst(seed.ClientIDIssuedAt, sql.NullTime{}),
+		ClientSecretExpiresAt:   takeFirst(seed.ClientSecretExpiresAt, sql.NullTime{}),
+		GrantTypes:              takeFirstSlice(seed.GrantTypes, []string{"authorization_code", "refresh_token"}),
+		ResponseTypes:           takeFirstSlice(seed.ResponseTypes, []string{"code"}),
+		TokenEndpointAuthMethod: takeFirst(seed.TokenEndpointAuthMethod, sql.NullString{String: "client_secret_basic", Valid: true}),
+		Scope:                   takeFirst(seed.Scope, sql.NullString{}),
+		Contacts:                takeFirstSlice(seed.Contacts, []string{}),
+		ClientUri:               takeFirst(seed.ClientUri, sql.NullString{}),
+		LogoUri:                 takeFirst(seed.LogoUri, sql.NullString{}),
+		TosUri:                  takeFirst(seed.TosUri, sql.NullString{}),
+		PolicyUri:               takeFirst(seed.PolicyUri, sql.NullString{}),
+		JwksUri:                 takeFirst(seed.JwksUri, sql.NullString{}),
+		Jwks:                    seed.Jwks, // pqtype.NullRawMessage{} is not comparable, use existing value
+		SoftwareID:              takeFirst(seed.SoftwareID, sql.NullString{}),
+		SoftwareVersion:         takeFirst(seed.SoftwareVersion, sql.NullString{}),
+		RegistrationAccessToken: takeFirst(seed.RegistrationAccessToken, sql.NullString{}),
+		RegistrationClientUri:   takeFirst(seed.RegistrationClientUri, sql.NullString{}),
 	})
 	require.NoError(t, err, "insert oauth2 app")
 	return app
@@ -1347,6 +1369,17 @@ func PresetParameter(t testing.TB, db database.Store, seed database.InsertPreset
 
 	require.NoError(t, err, "insert preset parameters")
 	return parameters
+}
+
+func ClaimPrebuild(t testing.TB, db database.Store, newUserID uuid.UUID, newName string, presetID uuid.UUID) database.ClaimPrebuiltWorkspaceRow {
+	claimedWorkspace, err := db.ClaimPrebuiltWorkspace(genCtx, database.ClaimPrebuiltWorkspaceParams{
+		NewUserID: newUserID,
+		NewName:   newName,
+		PresetID:  presetID,
+	})
+	require.NoError(t, err, "claim prebuilt workspace")
+
+	return claimedWorkspace
 }
 
 func provisionerJobTiming(t testing.TB, db database.Store, seed database.ProvisionerJobTiming) database.ProvisionerJobTiming {

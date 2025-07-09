@@ -275,11 +275,12 @@ export interface BuildInfoResponse {
 }
 
 // From codersdk/workspacebuilds.go
-export type BuildReason = "autostart" | "autostop" | "initiator";
+export type BuildReason = "autostart" | "autostop" | "dormancy" | "initiator";
 
 export const BuildReasons: BuildReason[] = [
 	"autostart",
 	"autostop",
+	"dormancy",
 	"initiator",
 ];
 
@@ -291,6 +292,19 @@ export const BypassRatelimitHeader = "X-Coder-Bypass-Ratelimit";
 
 // From codersdk/client.go
 export const CLITelemetryHeader = "Coder-CLI-Telemetry";
+
+// From codersdk/workspacebuilds.go
+export interface CancelWorkspaceBuildParams {
+	readonly expect_status?: CancelWorkspaceBuildStatus;
+}
+
+// From codersdk/workspacebuilds.go
+export type CancelWorkspaceBuildStatus = "pending" | "running";
+
+export const CancelWorkspaceBuildStatuses: CancelWorkspaceBuildStatus[] = [
+	"pending",
+	"running",
+];
 
 // From codersdk/users.go
 export interface ChangePasswordWithOneTimePasscodeRequest {
@@ -654,7 +668,6 @@ export interface DeploymentValues {
 	readonly proxy_trusted_headers?: string;
 	readonly proxy_trusted_origins?: string;
 	readonly cache_directory?: string;
-	readonly in_memory_database?: boolean;
 	readonly ephemeral_deployment?: boolean;
 	readonly pg_connection_url?: string;
 	readonly pg_auth?: string;
@@ -794,14 +807,18 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 export type Experiment =
 	| "auto-fill-parameters"
 	| "example"
+	| "mcp-server-http"
 	| "notifications"
+	| "oauth2"
 	| "web-push"
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
 	"auto-fill-parameters",
 	"example",
+	"mcp-server-http",
 	"notifications",
+	"oauth2",
 	"web-push",
 	"workspace-usage",
 ];
@@ -1457,6 +1474,75 @@ export interface OAuth2AuthorizationServerMetadata {
 	readonly code_challenge_methods_supported: readonly string[];
 	readonly scopes_supported?: readonly string[];
 	readonly token_endpoint_auth_methods_supported?: readonly string[];
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2ClientConfiguration {
+	readonly client_id: string;
+	readonly client_id_issued_at: number;
+	readonly client_secret_expires_at?: number;
+	readonly redirect_uris?: readonly string[];
+	readonly client_name?: string;
+	readonly client_uri?: string;
+	readonly logo_uri?: string;
+	readonly tos_uri?: string;
+	readonly policy_uri?: string;
+	readonly jwks_uri?: string;
+	readonly jwks?: Record<string, string>;
+	readonly software_id?: string;
+	readonly software_version?: string;
+	readonly grant_types: readonly string[];
+	readonly response_types: readonly string[];
+	readonly token_endpoint_auth_method: string;
+	readonly scope?: string;
+	readonly contacts?: readonly string[];
+	readonly registration_access_token: string;
+	readonly registration_client_uri: string;
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2ClientRegistrationRequest {
+	readonly redirect_uris?: readonly string[];
+	readonly client_name?: string;
+	readonly client_uri?: string;
+	readonly logo_uri?: string;
+	readonly tos_uri?: string;
+	readonly policy_uri?: string;
+	readonly jwks_uri?: string;
+	readonly jwks?: Record<string, string>;
+	readonly software_id?: string;
+	readonly software_version?: string;
+	readonly software_statement?: string;
+	readonly grant_types?: readonly string[];
+	readonly response_types?: readonly string[];
+	readonly token_endpoint_auth_method?: string;
+	readonly scope?: string;
+	readonly contacts?: readonly string[];
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2ClientRegistrationResponse {
+	readonly client_id: string;
+	readonly client_secret?: string;
+	readonly client_id_issued_at: number;
+	readonly client_secret_expires_at?: number;
+	readonly redirect_uris?: readonly string[];
+	readonly client_name?: string;
+	readonly client_uri?: string;
+	readonly logo_uri?: string;
+	readonly tos_uri?: string;
+	readonly policy_uri?: string;
+	readonly jwks_uri?: string;
+	readonly jwks?: Record<string, string>;
+	readonly software_id?: string;
+	readonly software_version?: string;
+	readonly grant_types: readonly string[];
+	readonly response_types: readonly string[];
+	readonly token_endpoint_auth_method: string;
+	readonly scope?: string;
+	readonly contacts?: readonly string[];
+	readonly registration_access_token: string;
+	readonly registration_client_uri: string;
 }
 
 // From codersdk/deployment.go

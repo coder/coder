@@ -22,7 +22,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -149,8 +148,6 @@ func NewWithAPI(t *testing.T, options *Options) (
 					// we check for the in-memory test types so that the real types don't have to exported
 					_, ok := coderAPI.Pubsub.(*pubsub.MemoryPubsub)
 					require.False(t, ok, "FeatureHighAvailability is incompatible with MemoryPubsub")
-					_, ok = coderAPI.Database.(*dbmem.FakeQuerier)
-					require.False(t, ok, "FeatureHighAvailability is incompatible with dbmem")
 				}
 			}
 			_ = AddLicense(t, client, lo)

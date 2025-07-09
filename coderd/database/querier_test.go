@@ -1400,7 +1400,6 @@ func TestGetUsers_IncludeSystem(t *testing.T) {
 
 			// Given: a system user
 			// postgres: introduced by migration coderd/database/migrations/00030*_system_user.up.sql
-			// dbmem: created in dbmem/dbmem.go
 			db, _ := dbtestutil.NewDB(t)
 			other := dbgen.User(t, db, database.User{})
 			users, err := db.GetUsers(ctx, database.GetUsersParams{

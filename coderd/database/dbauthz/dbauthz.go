@@ -397,6 +397,8 @@ var (
 					rbac.ResourceCryptoKey.Type:              {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceFile.Type:                   {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceProvisionerJobs.Type:        {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
+					rbac.ResourceOauth2App.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceOauth2AppSecret.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -1180,6 +1182,27 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 	return nil
 }
 
+func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.ProvisionerJob) error {
+	switch job.Type {
+	case database.ProvisionerJobTypeWorkspaceBuild:
+		// Authorized call to get workspace build. If we can read the build, we
+		// can read the job.
+		_, err := q.GetWorkspaceBuildByJobID(ctx, job.ID)
+		if err != nil {
+			return xerrors.Errorf("fetch related workspace build: %w", err)
+		}
+	case database.ProvisionerJobTypeTemplateVersionDryRun, database.ProvisionerJobTypeTemplateVersionImport:
+		// Authorized call to get template version.
+		_, err := authorizedTemplateVersionFromJob(ctx, q, job)
+		if err != nil {
+			return xerrors.Errorf("fetch related template version: %w", err)
+		}
+	default:
+		return xerrors.Errorf("unknown job type: %q", job.Type)
+	}
+	return nil
+}
+
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -1446,6 +1469,13 @@ func (q *querier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 		return -1, err
 	}
 	return id, nil
+}
+
+func (q *querier) DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceOauth2App); err != nil {
+		return err
+	}
+	return q.db.DeleteOAuth2ProviderAppByClientID(ctx, id)
 }
 
 func (q *querier) DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error {
@@ -2148,11 +2178,25 @@ func (q *querier) GetOAuth2GithubDefaultEligible(ctx context.Context) (bool, err
 	return q.db.GetOAuth2GithubDefaultEligible(ctx)
 }
 
+func (q *querier) GetOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2App); err != nil {
+		return database.OAuth2ProviderApp{}, err
+	}
+	return q.db.GetOAuth2ProviderAppByClientID(ctx, id)
+}
+
 func (q *querier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2App); err != nil {
 		return database.OAuth2ProviderApp{}, err
 	}
 	return q.db.GetOAuth2ProviderAppByID(ctx, id)
+}
+
+func (q *querier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken sql.NullString) (database.OAuth2ProviderApp, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2App); err != nil {
+		return database.OAuth2ProviderApp{}, err
+	}
+	return q.db.GetOAuth2ProviderAppByRegistrationToken(ctx, registrationAccessToken)
 }
 
 func (q *querier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppCode, error) {
@@ -2422,32 +2466,24 @@ func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (data
 		return database.ProvisionerJob{}, err
 	}
 
-	switch job.Type {
-	case database.ProvisionerJobTypeWorkspaceBuild:
-		// Authorized call to get workspace build. If we can read the build, we
-		// can read the job.
-		_, err := q.GetWorkspaceBuildByJobID(ctx, id)
-		if err != nil {
-			return database.ProvisionerJob{}, xerrors.Errorf("fetch related workspace build: %w", err)
-		}
-	case database.ProvisionerJobTypeTemplateVersionDryRun, database.ProvisionerJobTypeTemplateVersionImport:
-		// Authorized call to get template version.
-		_, err := authorizedTemplateVersionFromJob(ctx, q, job)
-		if err != nil {
-			return database.ProvisionerJob{}, xerrors.Errorf("fetch related template version: %w", err)
-		}
-	default:
-		return database.ProvisionerJob{}, xerrors.Errorf("unknown job type: %q", job.Type)
+	if err := q.authorizeProvisionerJob(ctx, job); err != nil {
+		return database.ProvisionerJob{}, err
 	}
 
 	return job, nil
 }
 
 func (q *querier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
+	job, err := q.db.GetProvisionerJobByIDForUpdate(ctx, id)
+	if err != nil {
 		return database.ProvisionerJob{}, err
 	}
-	return q.db.GetProvisionerJobByIDForUpdate(ctx, id)
+
+	if err := q.authorizeProvisionerJob(ctx, job); err != nil {
+		return database.ProvisionerJob{}, err
+	}
+
+	return job, nil
 }
 
 func (q *querier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
@@ -4323,6 +4359,13 @@ func (q *querier) UpdateNotificationTemplateMethodByID(ctx context.Context, arg 
 		return database.NotificationTemplate{}, err
 	}
 	return q.db.UpdateNotificationTemplateMethodByID(ctx, arg)
+}
+
+func (q *querier) UpdateOAuth2ProviderAppByClientID(ctx context.Context, arg database.UpdateOAuth2ProviderAppByClientIDParams) (database.OAuth2ProviderApp, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceOauth2App); err != nil {
+		return database.OAuth2ProviderApp{}, err
+	}
+	return q.db.UpdateOAuth2ProviderAppByClientID(ctx, arg)
 }
 
 func (q *querier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {
