@@ -7751,6 +7751,37 @@
 				}
 			}
 		},
+		"/workspaceagents/{workspaceagent}/containers/watch": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["Agents"],
+				"summary": "Watch agent for container updates.",
+				"operationId": "watch-containers-for-workspace-agent",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace agent ID",
+						"name": "workspaceagent",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.WorkspaceAgentListContainersResponse"
+						}
+					}
+				}
+			}
+		},
 		"/workspaceagents/{workspaceagent}/coordinate": {
 			"get": {
 				"security": [

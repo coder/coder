@@ -802,6 +802,13 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 }
 
 // @Summary Watch agent for container updates.
+// @ID watch-containers-for-workspace-agent
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Success 200 {object} codersdk.WorkspaceAgentListContainersResponse
+// @Router /workspaceagents/{workspaceagent}/containers/watch [get]
 func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx            = r.Context()
