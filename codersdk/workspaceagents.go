@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
-	"net/url"
 	"strings"
 	"time"
 
@@ -521,21 +520,8 @@ func (c *Client) WorkspaceAgentListContainers(ctx context.Context, agentID uuid.
 	return cr, json.NewDecoder(res.Body).Decode(&cr)
 }
 
-func (c *Client) WatchWorkspaceAgentContainers(ctx context.Context, agentID uuid.UUID, labels map[string]string) (<-chan WorkspaceAgentListContainersResponse, io.Closer, error) {
-	var labelParams []string
-	for k, v := range labels {
-		k = url.QueryEscape(k)
-		v = url.QueryEscape(v)
-
-		labelParams = append(labelParams, fmt.Sprintf("%s=%s", k, v))
-	}
-
-	var query string
-	if len(labelParams) > 0 {
-		query = "?" + strings.Join(labelParams, "&")
-	}
-
-	reqURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/containers/watch%s", agentID, query))
+func (c *Client) WatchWorkspaceAgentContainers(ctx context.Context, agentID uuid.UUID) (<-chan WorkspaceAgentListContainersResponse, io.Closer, error) {
+	reqURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/containers/watch", agentID))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -561,7 +547,6 @@ func (c *Client) WatchWorkspaceAgentContainers(ctx context.Context, agentID uuid
 		if res == nil {
 			return nil, nil, err
 		}
-		fmt.Println(err)
 		return nil, nil, ReadBodyAsError(res)
 	}
 

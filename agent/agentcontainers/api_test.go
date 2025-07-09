@@ -478,8 +478,11 @@ func TestAPI(t *testing.T) {
 		updaterTickerTrap.MustWait(ctx).MustRelease(ctx)
 		defer updaterTickerTrap.Close()
 
-		client, _, err := websocket.Dial(ctx, srv.URL+"/watch", nil)
+		client, res, err := websocket.Dial(ctx, srv.URL+"/watch", nil)
 		require.NoError(t, err)
+		if res != nil {
+			defer res.Body.Close()
+		}
 
 		for _, mockResponse := range []codersdk.WorkspaceAgentListContainersResponse{
 			makeResponse(),

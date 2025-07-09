@@ -1445,7 +1445,7 @@ func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
 	updaterTickerTrap.MustWait(ctx).MustRelease(ctx)
 	defer updaterTickerTrap.Close()
 
-	containers, closer, err := client.WatchWorkspaceAgentContainers(ctx, agentID, nil)
+	containers, closer, err := client.WatchWorkspaceAgentContainers(ctx, agentID)
 	require.NoError(t, err)
 	defer func() {
 		closer.Close()

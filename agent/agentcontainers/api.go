@@ -595,7 +595,7 @@ func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
 		case <-updateCh:
 			ct, err := api.getContainers()
 			if err != nil {
-				api.logger.Error(ctx, "get containers", slog.Error(err))
+				api.logger.Error(ctx, "unable to get containers", slog.Error(err))
 				continue
 			}
 

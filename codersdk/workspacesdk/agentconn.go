@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"time"
 
-	"cdr.dev/slog"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/crypto/ssh"
@@ -20,6 +19,8 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/speedtest"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
@@ -401,10 +402,13 @@ func (c *AgentConn) WatchContainers(ctx context.Context) (<-chan codersdk.Worksp
 		HTTPClient: c.apiClient(),
 	})
 	if err != nil {
-		if res != nil {
-			return nil, nil, codersdk.ReadBodyAsError(res)
+		if res == nil {
+			return nil, nil, err
 		}
-		return nil, nil, err
+		return nil, nil, codersdk.ReadBodyAsError(res)
+	}
+	if res != nil {
+		defer res.Body.Close()
 	}
 
 	d := wsjson.NewDecoder[codersdk.WorkspaceAgentListContainersResponse](conn, websocket.MessageText, slog.Logger{})

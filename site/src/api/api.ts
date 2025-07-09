@@ -131,12 +131,9 @@ export const watchWorkspace = (
 
 export const watchAgentContainers = (
 	agentId: string,
-	labels?: string[],
 ): OneWayWebSocket<TypesGen.WorkspaceAgentDevcontainer[]> => {
-	const params = new URLSearchParams(labels?.map((label) => ["label", label]));
-
 	return new OneWayWebSocket({
-		apiRoute: `/api/v2/workspaceagents/${agentId}/containers/watch?${params.toString()}`,
+		apiRoute: `/api/v2/workspaceagents/${agentId}/containers/watch`,
 	});
 };
 
