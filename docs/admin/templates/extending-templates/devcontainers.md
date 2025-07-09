@@ -9,11 +9,13 @@ modules and configurations outlined in this doc.
 
 ## Why Use Dev Containers
 
-Dev containers improve consistency across environments by letting developers define their development setup.
-When integrated with Coder templates, they provide:
+Dev containers improve consistency across environments by letting developers define their development setup within
+the code repository.
+
+When integrated with Coder templates, dev containers provide:
 
 - **Project-specific environments**: Each repository can define its own tools, extensions, and configuration.
-- **Zero setup time**: Developers get fully configured environments without manual installation.
+- **Zero setup time**: Developers start workspace with fully configured environments without additional installation.
 - **Consistency across teams**: Everyone works in identical environments regardless of their local machine.
 - **Version control**: Development environment changes are tracked alongside code changes.
 
@@ -55,7 +57,7 @@ RUN npm install -g @devcontainers/cli
 
 ## Define the Dev Container Resource
 
-If you don't use [`git_clone`](#clone-the-repository), point the resource at the folder that contains `devcontainer.json`:
+If you don't use [`git-clone`](#clone-the-repository), point the resource at the folder that contains `devcontainer.json`:
 
 ```terraform
 resource "coder_devcontainer" "project" { # `project` in this example is how users will connect to the dev container: `ssh://project.<workspace>.me.coder`
@@ -69,11 +71,11 @@ resource "coder_devcontainer" "project" { # `project` in this example is how use
 
 This step is optional, but it ensures that the project is present before the dev container starts.
 
-Note that if you use the `git_clone` module, update or replace the `coder_devcontainer` resource
-to point to `/home/coder/project/${module.git_clone[0].folder_name}` so that it is only defined once:
+Note that if you use the `git-clone` module, update or replace the `coder_devcontainer` resource
+to point to `/home/coder/project/${module.git-clone[0].folder_name}` so that it is only defined once:
 
 ```terraform
-module "git_clone" {
+module "git-clone" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/modules/git-clone/coder"
   agent_id = coder_agent.main.id
@@ -84,7 +86,7 @@ module "git_clone" {
 resource "coder_devcontainer" "project" {
   count            = data.coder_workspace.me.start_count
   agent_id         = coder_agent.main.id
-  workspace_folder = "/home/coder/${module.git_clone[0].folder_name}"
+  workspace_folder = "/home/coder/${module.git-clone[0].folder_name}"
 }
 ```
 
@@ -143,7 +145,7 @@ resource "coder_devcontainer" "backend" {
 }
 ```
 
-## Example Docker Dev Container
+## Example Docker Dev Container Template
 
 <details><summary>Expand for the full file:</summary>
 
@@ -173,7 +175,7 @@ module "devcontainers-cli" {
   agent_id = coder_agent.main.id
 }
 
-module "git_clone" {
+module "git-clone" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/modules/git-clone/coder"
   agent_id = coder_agent.main.id
@@ -184,7 +186,7 @@ module "git_clone" {
 resource "coder_devcontainer" "project" {
   count            = data.coder_workspace.me.start_count
   agent_id         = coder_agent.main.id
-  workspace_folder = "/home/coder/${module.git_clone[0].folder_name}"
+  workspace_folder = "/home/coder/${module.git-clone[0].folder_name}"
 }
 
 resource "docker_container" "workspace" {

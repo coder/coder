@@ -1,6 +1,6 @@
 # Advanced Dev Container Configuration
 
-This page extends [devcontainers.md](./devcontainers.md) with patterns for multiple dev containers,
+This page extends the [devcontainers documentation](./devcontainers.md) with patterns for multiple dev containers,
 user-controlled startup, repository selection, and infrastructure tuning.
 
 ## Run Multiple Dev Containers
@@ -11,7 +11,7 @@ In this example, there are two: `frontend` and `backend`:
 
 ```terraform
 # Clone each repo
-module "git_clone_frontend" {
+module "git-clone-frontend" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/modules/git-clone/coder"
 
@@ -20,7 +20,7 @@ module "git_clone_frontend" {
   base_dir = "/home/coder/frontend"
 }
 
-module "git_clone_backend" {
+module "git-clone-backend" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/modules/git-clone/coder"
 
@@ -33,15 +33,14 @@ module "git_clone_backend" {
 resource "coder_devcontainer" "frontend" {
   count            = data.coder_workspace.me.start_count
   agent_id         = coder_agent.main.id
-  workspace_folder = "/home/coder/frontend/${module.git_clone_frontend[0].folder_name}"
+  workspace_folder = "/home/coder/frontend/${module.git-clone-frontend[0].folder_name}"
 }
 
 resource "coder_devcontainer" "backend" {
   count            = data.coder_workspace.me.start_count
   agent_id         = coder_agent.main.id
-  workspace_folder = "/home/coder/backend/${module.git_clone_backend[0].folder_name}"
+  workspace_folder = "/home/coder/backend/${module.git-clone-backend[0].folder_name}"
 }
-
 ```
 
 Each dev container appears as a separate agent, so developers can connect to any
@@ -64,7 +63,7 @@ data "coder_parameter" "enable_frontend" {
 resource "coder_devcontainer" "frontend" {
   count            = data.coder_parameter.enable_frontend.value ? data.coder_workspace.me.start_count : 0
   agent_id         = coder_agent.main.id
-  workspace_folder = "/home/coder/frontend/${module.git_clone_frontend[0].folder_name}"
+  workspace_folder = "/home/coder/frontend/${module.git-clone-frontend[0].folder_name}"
 }
 ```
 
@@ -92,10 +91,10 @@ Prompt users to pick a repository or team at workspace creation time and clone t
    }
    ```
 
-1. Change the `git_clone` module to accept the `value` as the `url`:
+1. Change the `git-clone` module to accept the `value` as the `url`:
 
     ```terraform
-    module "git_clone" {
+    module "git-clone" {
      count    = data.coder_workspace.me.start_count
      source   = "dev.registry.coder.com/modules/git-clone/coder"
      agent_id = coder_agent.main.id
