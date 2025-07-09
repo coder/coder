@@ -480,7 +480,7 @@ func TestAPI(t *testing.T) {
 
 		client, res, err := websocket.Dial(ctx, srv.URL+"/watch", nil)
 		require.NoError(t, err)
-		if res != nil {
+		if res != nil && res.Body != nil {
 			defer res.Body.Close()
 		}
 

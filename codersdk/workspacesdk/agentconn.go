@@ -407,7 +407,7 @@ func (c *AgentConn) WatchContainers(ctx context.Context) (<-chan codersdk.Worksp
 		}
 		return nil, nil, codersdk.ReadBodyAsError(res)
 	}
-	if res != nil {
+	if res != nil && res.Body != nil {
 		defer res.Body.Close()
 	}
 
