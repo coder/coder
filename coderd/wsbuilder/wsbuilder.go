@@ -633,10 +633,16 @@ func (b *Builder) getDynamicParameterRenderer() (dynamicparameters.Renderer, err
 		return nil, xerrors.Errorf("get template version terraform values: %w", err)
 	}
 
+	variableValues, err := b.getTemplateVersionVariables()
+	if err != nil {
+		return nil, xerrors.Errorf("get template version variables: %w", err)
+	}
+
 	renderer, err := dynamicparameters.Prepare(b.ctx, b.store, b.fileCache, tv.ID,
 		dynamicparameters.WithTemplateVersion(*tv),
 		dynamicparameters.WithProvisionerJob(*job),
 		dynamicparameters.WithTerraformValues(*tfVals),
+		dynamicparameters.WithTemplateVariableValues(variableValues),
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("get template version renderer: %w", err)
