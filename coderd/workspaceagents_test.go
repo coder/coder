@@ -1386,6 +1386,91 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 	})
 }
 
+func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx               = testutil.Context(t, testutil.WaitLong)
+		logger            = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		mClock            = quartz.NewMock(t)
+		updaterTickerTrap = mClock.Trap().TickerFunc("updaterLoop")
+		mCtrl             = gomock.NewController(t)
+		mCCLI             = acmock.NewMockContainerCLI(mCtrl)
+
+		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{Logger: &logger})
+		user       = coderdtest.CreateFirstUser(t, client)
+		r          = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			return agents
+		}).Do()
+
+		devContainer = codersdk.WorkspaceAgentContainer{
+			ID:           uuid.NewString(),
+			CreatedAt:    dbtime.Now(),
+			FriendlyName: testutil.GetRandomName(t),
+			Image:        "busybox:latest",
+			Labels: map[string]string{
+				agentcontainers.DevcontainerLocalFolderLabel: "/home/coder/project",
+				agentcontainers.DevcontainerConfigFileLabel:  "/home/coder/project/.devcontainer/devcontainer.json",
+			},
+			Running: true,
+			Status:  "running",
+		}
+
+		makeResponse = func(cts ...codersdk.WorkspaceAgentContainer) codersdk.WorkspaceAgentListContainersResponse {
+			return codersdk.WorkspaceAgentListContainersResponse{Containers: cts}
+		}
+	)
+
+	mCCLI.EXPECT().List(gomock.Any()).Return(makeResponse(), nil)
+
+	_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
+		o.Logger = logger.Named("agent")
+		o.Devcontainers = true
+		o.DevcontainerAPIOptions = []agentcontainers.Option{
+			agentcontainers.WithClock(mClock),
+			agentcontainers.WithContainerCLI(mCCLI),
+			agentcontainers.WithWatcher(watcher.NewNoop()),
+			agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
+		}
+	})
+
+	resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+	require.Len(t, resources, 1, "expected one resource")
+	require.Len(t, resources[0].Agents, 1, "expected one agent")
+	agentID := resources[0].Agents[0].ID
+
+	updaterTickerTrap.MustWait(ctx).MustRelease(ctx)
+	defer updaterTickerTrap.Close()
+
+	containers, closer, err := client.WatchWorkspaceAgentContainers(ctx, agentID, nil)
+	require.NoError(t, err)
+	defer func() {
+		closer.Close()
+	}()
+
+	for _, mockResponse := range []codersdk.WorkspaceAgentListContainersResponse{
+		makeResponse(),
+		makeResponse(devContainer),
+		makeResponse(),
+	} {
+		mCCLI.EXPECT().List(gomock.Any()).Return(mockResponse, nil)
+
+		_, aw := mClock.AdvanceNext()
+		aw.MustWait(ctx)
+
+		var resp codersdk.WorkspaceAgentListContainersResponse
+		select {
+		case <-ctx.Done():
+		case resp = <-containers:
+		}
+		require.NoError(t, ctx.Err())
+		require.Equal(t, mockResponse, resp)
+	}
+}
+
 func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 	t.Parallel()
 
