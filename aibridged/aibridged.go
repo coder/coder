@@ -194,9 +194,9 @@ func (s *Server) TrackUserPrompts(ctx context.Context, in *proto.TrackUserPrompt
 	return out, nil
 }
 
-func (s *Server) TrackToolUse(ctx context.Context, in *proto.TrackToolUseRequest) (*proto.TrackToolUseResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.TrackToolUseResponse, error) {
-		return client.TrackToolUse(ctx, in)
+func (s *Server) TrackToolUsage(ctx context.Context, in *proto.TrackToolUsageRequest) (*proto.TrackToolUsageResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.TrackToolUsageResponse, error) {
+		return client.TrackToolUsage(ctx, in)
 	})
 	if err != nil {
 		return nil, err

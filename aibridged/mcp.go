@@ -9,19 +9,20 @@ import (
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
+	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
 )
 
-type BridgeMCPProxy struct {
+type MCPToolBridge struct {
 	name       string
 	client     *client.Client
 	logger     slog.Logger
-	foundTools []anthropic.BetaToolUnionParam
+	foundTools map[string]anthropic.BetaToolUnionParam
 }
 
 const MCPProxyDelimiter = "_"
 
-func NewBridgeMCPProxy(name, serverURL string, headers map[string]string, logger slog.Logger) (*BridgeMCPProxy, error) {
+func NewMCPToolBridge(name, serverURL string, headers map[string]string, logger slog.Logger) (*MCPToolBridge, error) {
 	//ts := transport.NewMemoryTokenStore()
 	//if err := ts.SaveToken(&transport.Token{
 	//	AccessToken: token,
@@ -38,14 +39,14 @@ func NewBridgeMCPProxy(name, serverURL string, headers map[string]string, logger
 		return nil, xerrors.Errorf("create streamable http client: %w", err)
 	}
 
-	return &BridgeMCPProxy{
+	return &MCPToolBridge{
 		name:   name,
 		client: mcpClient,
 		logger: logger,
 	}, nil
 }
 
-func (b *BridgeMCPProxy) Init(ctx context.Context) error {
+func (b *MCPToolBridge) Init(ctx context.Context) error {
 	if err := b.client.Start(ctx); err != nil {
 		return xerrors.Errorf("start client: %w", err)
 	}
@@ -59,11 +60,18 @@ func (b *BridgeMCPProxy) Init(ctx context.Context) error {
 	return nil
 }
 
-func (b *BridgeMCPProxy) ListTools() []anthropic.BetaToolUnionParam {
-	return b.foundTools
+func (b *MCPToolBridge) ListTools() []anthropic.BetaToolUnionParam {
+	return maps.Values(b.foundTools)
 }
 
-func (b *BridgeMCPProxy) CallTool(ctx context.Context, name string, input any) (*mcp.CallToolResult, error) {
+func (b *MCPToolBridge) HasTool(name string) bool {
+	if b.foundTools == nil { return false }
+
+	_, ok := b.foundTools[name]
+	return ok
+}
+
+func (b *MCPToolBridge) CallTool(ctx context.Context, name string, input any) (*mcp.CallToolResult, error) {
 	return b.client.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Name:      name,
@@ -72,7 +80,7 @@ func (b *BridgeMCPProxy) CallTool(ctx context.Context, name string, input any) (
 	})
 }
 
-func (b *BridgeMCPProxy) fetchMCPTools(ctx context.Context) ([]anthropic.BetaToolUnionParam, error) {
+func (b *MCPToolBridge) fetchMCPTools(ctx context.Context) (map[string]anthropic.BetaToolUnionParam, error) {
 	initReq := mcp.InitializeRequest{
 		Params: mcp.InitializeParams{
 			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
@@ -87,7 +95,7 @@ func (b *BridgeMCPProxy) fetchMCPTools(ctx context.Context) ([]anthropic.BetaToo
 	if err != nil {
 		return nil, xerrors.Errorf("init MCP client: %w", err)
 	}
-	fmt.Println(result.ProtocolVersion) // TODO: remove.
+	fmt.Printf("mcp(%q)], %+v\n", result.ServerInfo.Name, result) // TODO: remove.
 
 	// Test tool listing
 	tools, err := b.client.ListTools(ctx, mcp.ListToolsRequest{})
@@ -95,9 +103,9 @@ func (b *BridgeMCPProxy) fetchMCPTools(ctx context.Context) ([]anthropic.BetaToo
 		return nil, xerrors.Errorf("list MCP tools: %w", err)
 	}
 
-	out := make([]anthropic.BetaToolUnionParam, 0, len(tools.Tools))
+	out := make(map[string]anthropic.BetaToolUnionParam, len(tools.Tools))
 	for _, tool := range tools.Tools {
-		out = append(out, anthropic.BetaToolUnionParam{
+		out[tool.Name] = anthropic.BetaToolUnionParam{
 			OfTool: &anthropic.BetaToolParam{
 				InputSchema: anthropic.BetaToolInputSchemaParam{
 					Properties: tool.InputSchema.Properties,
@@ -107,12 +115,12 @@ func (b *BridgeMCPProxy) fetchMCPTools(ctx context.Context) ([]anthropic.BetaToo
 				Description: anthropic.String(tool.Description),
 				Type:        anthropic.BetaToolTypeCustom,
 			},
-		})
+		}
 	}
 
 	return out, nil
 }
 
-func (b *BridgeMCPProxy) Close() {
+func (b *MCPToolBridge) Close() {
 	// TODO: atomically close.
 }

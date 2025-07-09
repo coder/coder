@@ -69,7 +69,7 @@ type Bridge struct {
 	logger   slog.Logger
 
 	lastErr    error
-	mcpProxies map[string]*BridgeMCPProxy
+	mcpBridges map[string]*MCPToolBridge
 }
 
 func NewBridge(cfg codersdk.AIBridgeConfig, addr string, logger slog.Logger, clientFn func() (proto.DRPCAIBridgeDaemonClient, bool)) (*Bridge, error) {
@@ -96,22 +96,22 @@ func NewBridge(cfg codersdk.AIBridgeConfig, addr string, logger slog.Logger, cli
 		githubMCPName = "github"
 		coderMCPName  = "coder"
 	)
-	githubMCP, err := NewBridgeMCPProxy(githubMCPName, "https://api.githubcopilot.com/mcp/", map[string]string{
+	githubMCP, err := NewMCPToolBridge(githubMCPName, "https://api.githubcopilot.com/mcp/", map[string]string{
 		"Authorization": "Bearer " + os.Getenv("GITHUB_MCP_TOKEN"),
-	}, logger.Named("mcp-proxy-github"))
+	}, logger.Named("mcp-bridge-github"))
 	if err != nil {
-		return nil, xerrors.Errorf("github MCP proxy setup: %w", err)
+		return nil, xerrors.Errorf("github MCP bridge setup: %w", err)
 	}
-	coderMCP, err := NewBridgeMCPProxy(coderMCPName, "https://dev.coder.com/api/experimental/mcp/http", map[string]string{
-		"Authorization":       "Bearer " + os.Getenv("CODER_MCP_TOKEN"),
+	coderMCP, err := NewMCPToolBridge(coderMCPName, "https://dev.coder.com/api/experimental/mcp/http", map[string]string{
+		"Authorization": "Bearer " + os.Getenv("CODER_MCP_TOKEN"),
 		// This is necessary to even access the MCP endpoint.
 		"Coder-Session-Token": os.Getenv("CODER_MCP_SESSION_TOKEN"),
-	}, logger.Named("mcp-proxy-coder"))
+	}, logger.Named("mcp-bridge-coder"))
 	if err != nil {
-		return nil, xerrors.Errorf("coder MCP proxy setup: %w", err)
+		return nil, xerrors.Errorf("coder MCP bridge setup: %w", err)
 	}
 
-	bridge.mcpProxies = map[string]*BridgeMCPProxy{
+	bridge.mcpBridges = map[string]*MCPToolBridge{
 		githubMCPName: githubMCP,
 		coderMCPName:  coderMCP,
 	}
@@ -120,9 +120,9 @@ func NewBridge(cfg codersdk.AIBridgeConfig, addr string, logger slog.Logger, cli
 	defer cancel()
 
 	var eg errgroup.Group
-	//eg.Go(func() error {
-	//	return githubMCP.Init(ctx)
-	//})
+	eg.Go(func() error {
+		return githubMCP.Init(ctx)
+	})
 	eg.Go(func() error {
 		return coderMCP.Init(ctx)
 	})
@@ -436,7 +436,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func Logger(req *http.Request, next option.MiddlewareNext) (res *http.Response, err error) {
+func LoggingMiddleware(req *http.Request, next option.MiddlewareNext) (res *http.Response, err error) {
 	reqOut, _ := httputil.DumpRequest(req, true)
 
 	// Forward the request to the next handler
@@ -518,30 +518,9 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 		InputSchema: GetCoordinatesInputSchema,
 	}})
 
-	for _, proxy := range b.mcpProxies {
+	for _, proxy := range b.mcpBridges {
 		in.Tools = append(in.Tools, proxy.ListTools()...)
 	}
-	// in.Tools = append(in.Tools, b.fetchMCPTools("", "")...)
-
-	//// TODO: fetch instead with lib and inject into tools since OAI doesn't support MCP.
-	//in.MCPServers = []anthropic.BetaRequestMCPServerURLDefinitionParam{
-	//	{
-	//		URL:                "https://api.githubcopilot.com/mcp/",
-	//		Name:               "github",
-	//		AuthorizationToken: param.NewOpt(os.Getenv("GITHUB_MCP_TOKEN")),
-	//		ToolConfiguration: anthropic.BetaRequestMCPServerToolConfigurationParam{
-	//			Enabled: anthropic.Bool(true),
-	//		},
-	//	},
-	//	{
-	//		URL:                "https://dev.coder.com/api/experimental/mcp/http",
-	//		Name:               "coder",
-	//		AuthorizationToken: param.NewOpt(os.Getenv("CODER_MCP_TOKEN")),
-	//		ToolConfiguration: anthropic.BetaRequestMCPServerToolConfigurationParam{
-	//			Enabled: anthropic.Bool(true),
-	//		},
-	//	},
-	//}
 
 	// Claude Code uses the 3.5 Haiku model to do autocomplete and other small tasks. (see ANTHROPIC_SMALL_FAST_MODEL).
 	isSmallFastModel := strings.Contains(string(in.Model), "3-5-haiku")
@@ -560,6 +539,14 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	messages := in.BetaMessageNewParams
+
+	// Note: Parallel tool calls are disabled in the processing loop to avoid tool_use/tool_result block mismatches
+	messages.ToolChoice = anthropic.BetaToolChoiceUnionParam{
+		OfAny: &anthropic.BetaToolChoiceAnyParam{
+			Type:                   "auto",
+			DisableParallelToolUse: anthropic.Bool(true),
+		},
+	}
 
 	var opts []option.RequestOption
 	if reqBetaHeader := r.Header.Get("anthropic-beta"); strings.TrimSpace(reqBetaHeader) != "" {
@@ -637,6 +624,8 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 
 		var events []anthropic.BetaRawMessageStreamEventUnion
 		var message anthropic.BetaMessage
+		var lastToolName string
+
 		pendingToolCalls := make(map[string]string)
 
 		for stream.Next() {
@@ -650,37 +639,51 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Tool-related handling.
+
+			// TODO: this should *ignore* built-in tools; so ONLY do this for injected tooling.
+
 			switch event.Type {
 			case string(constant.ValueOf[ant_constant.ContentBlockStart]()): // Have to do this because otherwise content_block_delta and content_block_start both match the type anthropic.BetaRawContentBlockStartEvent
 				switch block := event.AsContentBlockStart().ContentBlock.AsAny().(type) {
 				case anthropic.BetaToolUseBlock:
-					pendingToolCalls[block.Name] = block.ID
-					// Don't relay this event back, otherwise the client will try invoke the tool as well.
-					continue
+					lastToolName = block.Name
+
+					if b.isInjectedTool(block.Name) {
+						pendingToolCalls[block.Name] = block.ID
+						// Don't relay this event back, otherwise the client will try invoke the tool as well.
+						continue
+					}
+				default:
+					fmt.Printf("[%s] %s\n", event.Type, event.RawJSON())
 				}
 			case string(constant.ValueOf[ant_constant.ContentBlockDelta]()):
-				if len(pendingToolCalls) > 0 {
+				if len(pendingToolCalls) > 0 && b.isInjectedTool(lastToolName) {
 					// We're busy with a tool call, don't relay this event back.
 					continue
 				}
 			case string(constant.ValueOf[ant_constant.ContentBlockStop]()):
-				if len(pendingToolCalls) > 0 {
+				// Reset the tool name
+				isInjected := b.isInjectedTool(lastToolName)
+				lastToolName = ""
+
+				if len(pendingToolCalls) > 0 && isInjected {
 					// We're busy with a tool call, don't relay this event back.
 					continue
 				}
 			case string(ant_constant.ValueOf[ant_constant.MessageStart]()):
 				if !isFirst {
-					// don't send message_start unless first message.
+					// Don't send message_start unless first message!
+					// We're sending multiple messages back and forth with the API, but from the client's perspective
+					// they're just expecting a single message.
 					continue
 				}
 			case string(ant_constant.ValueOf[ant_constant.MessageDelta]()):
 				// Don't relay message_delta events which indicate tool use.
-				//if event.AsMessageDelta().Delta.StopReason == anthropic.BetaStopReasonToolUse {
-				// don't send message_start unless first message.
-				continue
+				// if event.AsMessageDelta().Delta.StopReason == anthropic.BetaStopReasonToolUse {
+				if len(pendingToolCalls) > 0 && b.isInjectedTool(lastToolName) {
+					continue
+				}
 				//}
-			case string(ant_constant.ValueOf[ant_constant.ToolResult]()), string(ant_constant.ValueOf[ant_constant.ToolUse]()):
-				continue
 
 			// Don't send message_stop until all tools have been called.
 			case string(ant_constant.ValueOf[ant_constant.MessageStop]()):
@@ -704,83 +707,205 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 				if len(pendingToolCalls) > 0 {
 					// Append the whole message from this stream as context since we'll be sending a new request with the tool results.
 					messages.Messages = append(messages.Messages, message.ToParam())
-				}
 
-				for name, id := range pendingToolCalls {
-					serverName, toolName, found := strings.Cut(name, MCPProxyDelimiter)
-					if !found {
-						// Not an MCP proxy call, don't do anything.
-						continue
+					for name, id := range pendingToolCalls {
+						serverName, toolName, found := parseToolName(name)
+						if !found {
+							// Not an MCP proxy call, don't do anything.
+							continue
+						}
+
+						var (
+							input      any
+							foundTool  bool
+							foundTools int
+						)
+						for _, block := range message.Content {
+							switch variant := block.AsAny().(type) {
+							case anthropic.BetaToolUseBlock:
+								foundTools++
+								if variant.Name == name {
+									input = variant.Input
+									foundTool = true
+								}
+							}
+						}
+
+						if !foundTool {
+							b.logger.Error(ctx, "failed to find tool input", slog.F("tool_name", name), slog.F("found_tools", foundTools))
+							continue
+						}
+
+						var (
+							serialized map[string]string
+							buf        bytes.Buffer
+						)
+						_ = json.NewEncoder(&buf).Encode(input)
+						_ = json.NewDecoder(&buf).Decode(&serialized)
+
+						fmt.Printf("[event] %s\n[tool(%q)] %s %+v\n\n", event.RawJSON(), id, name, input)
+
+						_, err = coderdClient.TrackToolUsage(streamCtx, &proto.TrackToolUsageRequest{
+							Model: string(message.Model),
+							Input: serialized,
+							Tool:  toolName,
+							Injected: true,
+						})
+						if err != nil {
+							b.logger.Error(ctx, "failed to track injected tool usage", slog.Error(err))
+						}
+
+						res, err := b.mcpBridges[serverName].CallTool(streamCtx, toolName, input)
+						if err != nil {
+							// Always provide a tool_result even if the tool call failed
+							messages.Messages = append(messages.Messages,
+								anthropic.NewBetaUserMessage(anthropic.NewBetaToolResultBlock(id, fmt.Sprintf("Error calling tool: %v", err), true)),
+							)
+							continue
+						}
+
+						var out strings.Builder
+						if err := json.NewEncoder(&out).Encode(res); err != nil {
+							b.logger.Error(ctx, "failed to encode tool response", slog.Error(err))
+							// Always provide a tool_result even if encoding failed
+							messages.Messages = append(messages.Messages,
+								anthropic.NewBetaUserMessage(anthropic.NewBetaToolResultBlock(id, fmt.Sprintf("Error encoding tool response: %v", err), true)),
+							)
+							continue
+						}
+
+						// Ensure at least one tool_result is always added for each tool_use
+						toolResult := anthropic.BetaContentBlockParamUnion{
+							OfToolResult: &anthropic.BetaToolResultBlockParam{
+								ToolUseID: id,
+								IsError:   anthropic.Bool(false),
+							},
+						}
+
+						var hasValidResult bool
+						for _, content := range res.Content {
+
+							switch cb := content.(type) {
+							case mcp.TextContent:
+								//messages.Messages = append(messages.Messages,
+								//	anthropic.NewBetaUserMessage(anthropic.NewBetaToolResultBlock(id, cb.Text, false)),
+								//)
+								toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.BetaToolResultBlockParamContentUnion{
+									OfText: &anthropic.BetaTextBlockParam{
+										Text: cb.Text,
+									},
+								})
+
+								hasValidResult = true
+							case mcp.EmbeddedResource:
+								// Handle embedded resource based on its type
+								switch resource := cb.Resource.(type) {
+								case mcp.TextResourceContents:
+									// For text resources, include the text content
+									val := fmt.Sprintf("Binary resource (MIME: %s, URI: %s): %s",
+										resource.MIMEType, resource.URI, resource.Text)
+									//messages.Messages = append(messages.Messages,
+									//	anthropic.NewBetaUserMessage(anthropic.NewBetaToolResultBlock(id, val, false)),
+									//)
+
+									toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.BetaToolResultBlockParamContentUnion{
+										OfText: &anthropic.BetaTextBlockParam{
+											Text: val,
+										},
+									})
+									hasValidResult = true
+								case mcp.BlobResourceContents:
+									// For blob resources, include the base64 data with MIME type info
+									val := fmt.Sprintf("Binary resource (MIME: %s, URI: %s): %s",
+										resource.MIMEType, resource.URI, resource.Blob)
+									//messages.Messages = append(messages.Messages,
+									//	anthropic.NewBetaUserMessage(anthropic.NewBetaToolResultBlock(id, val, false)),
+									//)
+
+									toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.BetaToolResultBlockParamContentUnion{
+										OfText: &anthropic.BetaTextBlockParam{
+											Text: val,
+										},
+									})
+									hasValidResult = true
+								default:
+									b.logger.Error(ctx, "unknown embedded resource type", slog.F("type", fmt.Sprintf("%T", resource)))
+									//messages.Messages = append(messages.Messages,
+									//	anthropic.NewBetaUserMessage(anthropic.NewBetaToolResultBlock(id, "Error: unknown embedded resource type", true)),
+									//)
+
+									toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.BetaToolResultBlockParamContentUnion{
+										OfText: &anthropic.BetaTextBlockParam{
+											Text: "Error: unknown embedded resource type",
+										},
+									})
+									toolResult.OfToolResult.IsError = anthropic.Bool(true)
+									hasValidResult = true
+								}
+							default:
+								// Not supported - but we must still provide a tool_result to match the tool_use
+								b.logger.Error(ctx, "not handling non-text tool result", slog.F("type", fmt.Sprintf("%T", cb)), slog.F("json", out.String()))
+								//messages.Messages = append(messages.Messages,
+								//	anthropic.NewBetaUserMessage(anthropic.NewBetaToolResultBlock(id, "Error: unsupported tool result type", true)),
+								//)
+
+								toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.BetaToolResultBlockParamContentUnion{
+									OfText: &anthropic.BetaTextBlockParam{
+										Text: "Error: unsupported tool result type",
+									},
+								})
+								toolResult.OfToolResult.IsError = anthropic.Bool(true)
+								hasValidResult = true
+							}
+						}
+
+						// If no content was processed, still add a tool_result
+						if !hasValidResult {
+							//messages.Messages = append(messages.Messages,
+							//	anthropic.NewBetaUserMessage(anthropic.NewBetaToolResultBlock(id, "Error: no valid tool result content", true)),
+							//)
+
+							toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.BetaToolResultBlockParamContentUnion{
+								OfText: &anthropic.BetaTextBlockParam{
+									Text: "Error: no valid tool result content",
+								},
+							})
+							toolResult.OfToolResult.IsError = anthropic.Bool(true)
+						}
+
+						if len(toolResult.OfToolResult.Content) > 0 {
+							messages.Messages = append(messages.Messages, anthropic.NewBetaUserMessage(toolResult))
+						}
 					}
 
-					var (
-						input      any
-						foundTool  bool
-						foundTools int
-					)
+					// Causes a new stream to be run with updated messages.
+					isFirst = false
+					goto newStream
+				} else {
+					// Find all the non-injected tools and track their uses.
 					for _, block := range message.Content {
 						switch variant := block.AsAny().(type) {
 						case anthropic.BetaToolUseBlock:
-							foundTools++
-							if variant.Name == name {
-								input = variant.Input
-								foundTool = true
+							if b.isInjectedTool(variant.Name) {
+								continue
+							}
+
+							var (
+								serialized map[string]string
+								buf        bytes.Buffer
+							)
+							_ = json.NewEncoder(&buf).Encode(variant.Input)
+							_ = json.NewDecoder(&buf).Decode(&serialized)
+							_, err = coderdClient.TrackToolUsage(streamCtx, &proto.TrackToolUsageRequest{
+								Model:    string(message.Model),
+								Input:    serialized,
+								Tool:     variant.Name,
+							})
+							if err != nil {
+								b.logger.Error(ctx, "failed to track non-injected tool usage", slog.Error(err))
 							}
 						}
 					}
-
-					if !foundTool {
-						b.logger.Error(ctx, "failed to find tool input", slog.F("tool_name", name), slog.F("found_tools", foundTools))
-						continue
-					}
-
-					var (
-						serialized map[string]string
-						buf        bytes.Buffer
-					)
-					_ = json.NewEncoder(&buf).Encode(input)
-					_ = json.NewDecoder(&buf).Decode(&serialized)
-
-					fmt.Printf("[event] %s\n[tool(%q)] %s %+v\n\n", event.RawJSON(), id, name, input)
-
-					_, err = coderdClient.TrackToolUse(streamCtx, &proto.TrackToolUseRequest{
-						Model: string(message.Model),
-						Input: serialized,
-						Tool:  toolName,
-					})
-					if err != nil {
-						b.logger.Error(ctx, "failed to track usage", slog.Error(err))
-					}
-
-					res, err := b.mcpProxies[serverName].CallTool(streamCtx, toolName, input)
-					if err != nil {
-						// TODO:
-					}
-
-					var out strings.Builder
-					if err := json.NewEncoder(&out).Encode(res); err != nil {
-						b.logger.Error(ctx, "failed to encode tool response", slog.Error(err))
-						continue
-					}
-
-					for _, content := range res.Content {
-						switch cb := content.(type) {
-						case mcp.TextContent:
-							messages.Messages = append(messages.Messages,
-								anthropic.NewBetaUserMessage(anthropic.NewBetaToolResultBlock(id, cb.Text, false)),
-							)
-						default:
-							// Not supported.
-							b.logger.Error(ctx, "not handling non-text tool result", slog.F("type", fmt.Sprintf("%T", cb)), slog.F("json", out.String()))
-						}
-					}
-				}
-
-				if len(pendingToolCalls) > 0 {
-					// Causes a new stream to be run with updated messages.
-					isFirst = false
-					pendingToolCalls = nil
-					goto newStream
 				}
 			}
 
@@ -834,6 +959,25 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 
 		break
 	}
+}
+
+func parseToolName(name string) (string, string, bool) {
+	serverName, toolName, found := strings.Cut(name, MCPProxyDelimiter)
+	return serverName, toolName, found
+}
+
+func (b *Bridge) isInjectedTool(name string) bool {
+	serverName, toolName, found := parseToolName(name)
+	if !found {
+		return false
+	}
+
+	mcp, ok := b.mcpBridges[serverName]
+	if !ok {
+		return false
+	}
+
+	return mcp.HasTool(toolName)
 }
 
 func getAnthropicErrorResponse(err error) *AnthropicErrorResponse {

@@ -50,7 +50,7 @@ func (s *Server) TrackUserPrompts(ctx context.Context, in *proto.TrackUserPrompt
 	return &proto.TrackUserPromptsResponse{}, nil
 }
 
-func (s *Server) TrackToolUse(ctx context.Context, in *proto.TrackToolUseRequest) (*proto.TrackToolUseResponse, error) {
+func (s *Server) TrackToolUsage(ctx context.Context, in *proto.TrackToolUsageRequest) (*proto.TrackToolUsageResponse, error) {
 	raw, err := json.Marshal(in)
 	if err != nil {
 		return nil, xerrors.Errorf("marshal event: %w", err)
@@ -61,7 +61,7 @@ func (s *Server) TrackToolUse(ctx context.Context, in *proto.TrackToolUseRequest
 		return nil, xerrors.Errorf("store event: %w", err)
 	}
 
-	return &proto.TrackToolUseResponse{}, nil
+	return &proto.TrackToolUsageResponse{}, nil
 }
 
 func NewServer(lifecycleCtx context.Context, store database.Store) (*Server, error) {
