@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"os"
 	"path"
@@ -646,13 +647,29 @@ func (api *API) updateContainers(ctx context.Context) error {
 	api.mu.Lock()
 	defer api.mu.Unlock()
 
+	var knownDevcontainers map[string]codersdk.WorkspaceAgentDevcontainer
+	if len(api.updateChans) > 0 {
+		knownDevcontainers = maps.Clone(api.knownDevcontainers)
+	}
+
 	api.processUpdatedContainersLocked(ctx, updated)
 
-	// Broadcast our updates
-	for _, ch := range api.updateChans {
-		select {
-		case ch <- struct{}{}:
-		default:
+	if len(api.updateChans) > 0 {
+		statesAreEqual := maps.EqualFunc(
+			knownDevcontainers,
+			api.knownDevcontainers,
+			func(dc1, dc2 codersdk.WorkspaceAgentDevcontainer) bool {
+				return dc1.Equals(dc2)
+			})
+
+		if !statesAreEqual {
+			// Broadcast our updates
+			for _, ch := range api.updateChans {
+				select {
+				case ch <- struct{}{}:
+				default:
+				}
+			}
 		}
 	}
 

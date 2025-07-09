@@ -44,6 +44,7 @@ import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { useAgentLogs } from "./useAgentLogs";
+import { useAgentContainers } from "./useAgentContainers";
 
 interface AgentRowProps {
 	agent: WorkspaceAgent;
@@ -136,44 +137,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
 	}, []);
 
-	const { data: devcontainers } = useQuery({
-		queryKey: ["agents", agent.id, "containers"],
-		queryFn: () => API.getAgentContainers(agent.id),
-		enabled: agent.status === "connected",
-		select: (res) => res.devcontainers,
-	});
-
-	const updateDevcontainersCache = useEffectEvent(
-		async (devcontainers: WorkspaceAgentDevcontainer[]) => {
-			const queryKey = ["agents", agent.id, "containers"];
-
-			queryClient.setQueryData(queryKey, devcontainers);
-			await queryClient.invalidateQueries({ queryKey });
-		},
-	);
-
-	useEffect(() => {
-		const socket = watchAgentContainers(agent.id);
-
-		socket.addEventListener("message", (event) => {
-			if (event.parseError) {
-				displayError(
-					"Unable to process latest data from the server. Please try refreshing the page.",
-				);
-				return;
-			}
-
-			updateDevcontainersCache(event.parsedMessage);
-		});
-
-		socket.addEventListener("error", () => {
-			displayError(
-				"Unable to get workspace containers. Connection has been closed.",
-			);
-		});
-
-		return () => socket.close();
-	}, [agent.id, updateDevcontainersCache]);
+	const devcontainers = useAgentContainers(agent);
 
 	// This is used to show the parent apps of the devcontainer.
 	const [showParentApps, setShowParentApps] = useState(false);

@@ -1406,14 +1406,27 @@ func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
 			return agents
 		}).Do()
 
-		devContainer = codersdk.WorkspaceAgentContainer{
-			ID:           uuid.NewString(),
+		fakeContainer1 = codersdk.WorkspaceAgentContainer{
+			ID:           "container1",
 			CreatedAt:    dbtime.Now(),
-			FriendlyName: testutil.GetRandomName(t),
+			FriendlyName: "container1",
 			Image:        "busybox:latest",
 			Labels: map[string]string{
-				agentcontainers.DevcontainerLocalFolderLabel: "/home/coder/project",
-				agentcontainers.DevcontainerConfigFileLabel:  "/home/coder/project/.devcontainer/devcontainer.json",
+				agentcontainers.DevcontainerLocalFolderLabel: "/home/coder/project1",
+				agentcontainers.DevcontainerConfigFileLabel:  "/home/coder/project1/.devcontainer/devcontainer.json",
+			},
+			Running: true,
+			Status:  "running",
+		}
+
+		fakeContainer2 = codersdk.WorkspaceAgentContainer{
+			ID:           "container1",
+			CreatedAt:    dbtime.Now(),
+			FriendlyName: "container2",
+			Image:        "busybox:latest",
+			Labels: map[string]string{
+				agentcontainers.DevcontainerLocalFolderLabel: "/home/coder/project2",
+				agentcontainers.DevcontainerConfigFileLabel:  "/home/coder/project2/.devcontainer/devcontainer.json",
 			},
 			Running: true,
 			Status:  "running",
@@ -1424,6 +1437,71 @@ func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
 		}
 	)
 
+	stages := []struct {
+		containers []codersdk.WorkspaceAgentContainer
+		expected   codersdk.WorkspaceAgentListContainersResponse
+	}{
+		{
+			containers: []codersdk.WorkspaceAgentContainer{fakeContainer1},
+			expected: codersdk.WorkspaceAgentListContainersResponse{
+				Containers: []codersdk.WorkspaceAgentContainer{fakeContainer1},
+				Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+					{
+						Name:            "project1",
+						WorkspaceFolder: fakeContainer1.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+						ConfigPath:      fakeContainer1.Labels[agentcontainers.DevcontainerConfigFileLabel],
+						Status:          "running",
+						Container:       &fakeContainer1,
+					},
+				},
+			},
+		},
+		{
+			containers: []codersdk.WorkspaceAgentContainer{fakeContainer1, fakeContainer2},
+			expected: codersdk.WorkspaceAgentListContainersResponse{
+				Containers: []codersdk.WorkspaceAgentContainer{fakeContainer1, fakeContainer2},
+				Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+					{
+						Name:            "project1",
+						WorkspaceFolder: fakeContainer1.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+						ConfigPath:      fakeContainer1.Labels[agentcontainers.DevcontainerConfigFileLabel],
+						Status:          "running",
+						Container:       &fakeContainer1,
+					},
+					{
+						Name:            "project2",
+						WorkspaceFolder: fakeContainer2.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+						ConfigPath:      fakeContainer2.Labels[agentcontainers.DevcontainerConfigFileLabel],
+						Status:          "running",
+						Container:       &fakeContainer2,
+					},
+				},
+			},
+		},
+		{
+			containers: []codersdk.WorkspaceAgentContainer{fakeContainer2},
+			expected: codersdk.WorkspaceAgentListContainersResponse{
+				Containers: []codersdk.WorkspaceAgentContainer{fakeContainer2},
+				Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+					{
+						Name:            "",
+						WorkspaceFolder: fakeContainer1.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+						ConfigPath:      fakeContainer1.Labels[agentcontainers.DevcontainerConfigFileLabel],
+						Status:          "stopped",
+						Container:       nil,
+					},
+					{
+						Name:            "project2",
+						WorkspaceFolder: fakeContainer2.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+						ConfigPath:      fakeContainer2.Labels[agentcontainers.DevcontainerConfigFileLabel],
+						Status:          "running",
+						Container:       &fakeContainer2,
+					},
+				},
+			},
+		},
+	}
+
 	mCCLI.EXPECT().List(gomock.Any()).Return(makeResponse(), nil)
 
 	_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
@@ -1433,7 +1511,6 @@ func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
 			agentcontainers.WithClock(mClock),
 			agentcontainers.WithContainerCLI(mCCLI),
 			agentcontainers.WithWatcher(watcher.NewNoop()),
-			agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
 		}
 	})
 
@@ -1451,23 +1528,30 @@ func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
 		closer.Close()
 	}()
 
-	for _, mockResponse := range []codersdk.WorkspaceAgentListContainersResponse{
-		makeResponse(),
-		makeResponse(devContainer),
-		makeResponse(),
-	} {
-		mCCLI.EXPECT().List(gomock.Any()).Return(mockResponse, nil)
+	mCCLI.EXPECT().DetectArchitecture(gomock.Any(), gomock.Any()).Return("<none>", nil).AnyTimes()
+	for _, stage := range stages {
+		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{Containers: stage.containers}, nil)
 
 		_, aw := mClock.AdvanceNext()
 		aw.MustWait(ctx)
 
-		var resp codersdk.WorkspaceAgentListContainersResponse
+		var got codersdk.WorkspaceAgentListContainersResponse
 		select {
 		case <-ctx.Done():
-		case resp = <-containers:
+		case got = <-containers:
 		}
 		require.NoError(t, ctx.Err())
-		require.Equal(t, mockResponse, resp)
+
+		require.Equal(t, stage.expected.Containers, got.Containers)
+		require.Len(t, got.Devcontainers, len(stage.expected.Devcontainers))
+		for j, expectedDev := range stage.expected.Devcontainers {
+			gotDev := got.Devcontainers[j]
+			require.Equal(t, expectedDev.Name, gotDev.Name)
+			require.Equal(t, expectedDev.WorkspaceFolder, gotDev.WorkspaceFolder)
+			require.Equal(t, expectedDev.ConfigPath, gotDev.ConfigPath)
+			require.Equal(t, expectedDev.Status, gotDev.Status)
+			require.Equal(t, expectedDev.Container, gotDev.Container)
+		}
 	}
 }
 

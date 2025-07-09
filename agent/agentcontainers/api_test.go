@@ -445,12 +445,93 @@ func TestAPI(t *testing.T) {
 	t.Run("Watch", func(t *testing.T) {
 		t.Parallel()
 
-		fakeContainer1 := fakeContainer(t)
-		fakeContainer2 := fakeContainer(t)
-		fakeContainer3 := fakeContainer(t)
-
 		makeResponse := func(cts ...codersdk.WorkspaceAgentContainer) codersdk.WorkspaceAgentListContainersResponse {
 			return codersdk.WorkspaceAgentListContainersResponse{Containers: cts}
+		}
+
+		fakeContainer1 := fakeContainer(t, func(c *codersdk.WorkspaceAgentContainer) {
+			c.ID = "container1"
+			c.FriendlyName = "devcontainer1"
+			c.Image = "busybox:latest"
+			c.Labels = map[string]string{
+				agentcontainers.DevcontainerLocalFolderLabel: "/home/coder/project1",
+				agentcontainers.DevcontainerConfigFileLabel:  "/home/coder/project1/.devcontainer/devcontainer.json",
+			}
+		})
+
+		fakeContainer2 := fakeContainer(t, func(c *codersdk.WorkspaceAgentContainer) {
+			c.ID = "container2"
+			c.FriendlyName = "devcontainer2"
+			c.Image = "ubuntu:latest"
+			c.Labels = map[string]string{
+				agentcontainers.DevcontainerLocalFolderLabel: "/home/coder/project2",
+				agentcontainers.DevcontainerConfigFileLabel:  "/home/coder/project2/.devcontainer/devcontainer.json",
+			}
+		})
+
+		stages := []struct {
+			containers []codersdk.WorkspaceAgentContainer
+			expected   codersdk.WorkspaceAgentListContainersResponse
+		}{
+			{
+				containers: []codersdk.WorkspaceAgentContainer{fakeContainer1},
+				expected: codersdk.WorkspaceAgentListContainersResponse{
+					Containers: []codersdk.WorkspaceAgentContainer{fakeContainer1},
+					Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+						{
+							Name:            "project1",
+							WorkspaceFolder: fakeContainer1.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+							ConfigPath:      fakeContainer1.Labels[agentcontainers.DevcontainerConfigFileLabel],
+							Status:          "running",
+							Container:       &fakeContainer1,
+						},
+					},
+				},
+			},
+			{
+				containers: []codersdk.WorkspaceAgentContainer{fakeContainer1, fakeContainer2},
+				expected: codersdk.WorkspaceAgentListContainersResponse{
+					Containers: []codersdk.WorkspaceAgentContainer{fakeContainer1, fakeContainer2},
+					Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+						{
+							Name:            "project1",
+							WorkspaceFolder: fakeContainer1.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+							ConfigPath:      fakeContainer1.Labels[agentcontainers.DevcontainerConfigFileLabel],
+							Status:          "running",
+							Container:       &fakeContainer1,
+						},
+						{
+							Name:            "project2",
+							WorkspaceFolder: fakeContainer2.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+							ConfigPath:      fakeContainer2.Labels[agentcontainers.DevcontainerConfigFileLabel],
+							Status:          "running",
+							Container:       &fakeContainer2,
+						},
+					},
+				},
+			},
+			{
+				containers: []codersdk.WorkspaceAgentContainer{fakeContainer2},
+				expected: codersdk.WorkspaceAgentListContainersResponse{
+					Containers: []codersdk.WorkspaceAgentContainer{fakeContainer2},
+					Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+						{
+							Name:            "",
+							WorkspaceFolder: fakeContainer1.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+							ConfigPath:      fakeContainer1.Labels[agentcontainers.DevcontainerConfigFileLabel],
+							Status:          "stopped",
+							Container:       nil,
+						},
+						{
+							Name:            "project2",
+							WorkspaceFolder: fakeContainer2.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+							ConfigPath:      fakeContainer2.Labels[agentcontainers.DevcontainerConfigFileLabel],
+							Status:          "running",
+							Container:       &fakeContainer2,
+						},
+					},
+				},
+			},
 		}
 
 		var (
@@ -467,7 +548,7 @@ func TestAPI(t *testing.T) {
 		api := agentcontainers.NewAPI(logger,
 			agentcontainers.WithClock(mClock),
 			agentcontainers.WithContainerCLI(mLister),
-			agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
+			agentcontainers.WithWatcher(watcher.NewNoop()),
 		)
 		api.Start()
 		defer api.Close()
@@ -484,16 +565,10 @@ func TestAPI(t *testing.T) {
 			defer res.Body.Close()
 		}
 
-		for _, mockResponse := range []codersdk.WorkspaceAgentListContainersResponse{
-			makeResponse(),
-			makeResponse(fakeContainer1),
-			makeResponse(fakeContainer1, fakeContainer2),
-			makeResponse(fakeContainer1, fakeContainer2, fakeContainer3),
-			makeResponse(fakeContainer1, fakeContainer2),
-			makeResponse(fakeContainer1),
-			makeResponse(),
-		} {
-			mLister.EXPECT().List(gomock.Any()).Return(mockResponse, nil)
+		mLister.EXPECT().DetectArchitecture(gomock.Any(), gomock.Any()).Return("<none>", nil).AnyTimes()
+
+		for _, stage := range stages {
+			mLister.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{Containers: stage.containers}, nil)
 
 			// Given: We allow the update loop to progress
 			_, aw := mClock.AdvanceNext()
@@ -504,11 +579,21 @@ func TestAPI(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, websocket.MessageText, mt)
 
-			// Then: We expect the receieved message matches the mocked response.
+			// Then: We expect the receieved message matches the expected response.
 			var got codersdk.WorkspaceAgentListContainersResponse
 			err = json.Unmarshal(msg, &got)
 			require.NoError(t, err)
-			require.Equal(t, mockResponse, got)
+
+			require.Equal(t, stage.expected.Containers, got.Containers)
+			require.Len(t, got.Devcontainers, len(stage.expected.Devcontainers))
+			for j, expectedDev := range stage.expected.Devcontainers {
+				gotDev := got.Devcontainers[j]
+				require.Equal(t, expectedDev.Name, gotDev.Name)
+				require.Equal(t, expectedDev.WorkspaceFolder, gotDev.WorkspaceFolder)
+				require.Equal(t, expectedDev.ConfigPath, gotDev.ConfigPath)
+				require.Equal(t, expectedDev.Status, gotDev.Status)
+				require.Equal(t, expectedDev.Container, gotDev.Container)
+			}
 		}
 	})
 

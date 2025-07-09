@@ -421,6 +421,15 @@ type WorkspaceAgentDevcontainer struct {
 	Error string `json:"error,omitempty"`
 }
 
+func (d WorkspaceAgentDevcontainer) Equals(other WorkspaceAgentDevcontainer) bool {
+	return d.ID == other.ID &&
+		d.Name == other.Name &&
+		d.WorkspaceFolder == other.WorkspaceFolder &&
+		d.Status == other.Status &&
+		d.Dirty == other.Dirty &&
+		d.Error == other.Error
+}
+
 // WorkspaceAgentDevcontainerAgent represents the sub agent for a
 // devcontainer.
 type WorkspaceAgentDevcontainerAgent struct {
