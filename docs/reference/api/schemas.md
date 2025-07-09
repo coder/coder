@@ -2004,7 +2004,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "same_site": "string",
       "secure_auth_cookie": true
     },
-    "in_memory_database": true,
     "job_hang_detector_interval": 0,
     "logging": {
       "human": "string",
@@ -2492,7 +2491,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "same_site": "string",
     "secure_auth_cookie": true
   },
-  "in_memory_database": true,
   "job_hang_detector_interval": 0,
   "logging": {
     "human": "string",
@@ -2789,7 +2787,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `hide_ai_tasks`                      | boolean                                                                                              | false    |              |                                                                    |
 | `http_address`                       | string                                                                                               | false    |              | Http address is a string because it may be set to zero to disable. |
 | `http_cookies`                       | [codersdk.HTTPCookieConfig](#codersdkhttpcookieconfig)                                               | false    |              |                                                                    |
-| `in_memory_database`                 | boolean                                                                                              | false    |              |                                                                    |
 | `job_hang_detector_interval`         | integer                                                                                              | false    |              |                                                                    |
 | `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                                     | false    |              |                                                                    |
 | `metrics_cache_refresh_interval`     | integer                                                                                              | false    |              |                                                                    |

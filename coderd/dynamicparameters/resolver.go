@@ -55,19 +55,21 @@ func ResolveParameters(
 		values[preset.Name] = parameterValue{Source: sourcePreset, Value: preset.Value}
 	}
 
-	// originalValues is going to be used to detect if a user tried to change
+	// originalInputValues is going to be used to detect if a user tried to change
 	// an immutable parameter after the first build.
-	originalValues := make(map[string]parameterValue, len(values))
+	// The actual input values are mutated based on attributes like mutability
+	// and ephemerality.
+	originalInputValues := make(map[string]parameterValue, len(values))
 	for name, value := range values {
 		// Store the original values for later use.
-		originalValues[name] = value
+		originalInputValues[name] = value
 	}
 
 	// Render the parameters using the values that were supplied to the previous build.
 	//
 	// This is how the form should look to the user on their workspace settings page.
 	// This is the original form truth that our validations should initially be based on.
-	output, diags := renderer.Render(ctx, ownerID, values.ValuesMap())
+	output, diags := renderer.Render(ctx, ownerID, previousValuesMap)
 	if diags.HasErrors() {
 		// Top level diagnostics should break the build. Previous values (and new) should
 		// always be valid. If there is a case where this is not true, then this has to
@@ -91,22 +93,6 @@ func ResolveParameters(
 				delete(values, parameter.Name)
 			}
 		}
-
-		// Immutable parameters should also not be allowed to be changed from
-		// the previous build. Remove any values taken from the preset or
-		// new build params. This forces the value to be the same as it was before.
-		//
-		// We do this so the next form render uses the original immutable value.
-		if !firstBuild && !parameter.Mutable {
-			delete(values, parameter.Name)
-			prev, ok := previousValuesMap[parameter.Name]
-			if ok {
-				values[parameter.Name] = parameterValue{
-					Value:  prev,
-					Source: sourcePrevious,
-				}
-			}
-		}
 	}
 
 	// This is the final set of values that will be used. Any errors at this stage
@@ -116,7 +102,7 @@ func ResolveParameters(
 		return nil, parameterValidationError(diags)
 	}
 
-	// parameterNames is going to be used to remove any excess values that were left
+	// parameterNames is going to be used to remove any excess values left
 	// around without a parameter.
 	parameterNames := make(map[string]struct{}, len(output.Parameters))
 	parameterError := parameterValidationError(nil)
@@ -124,15 +110,20 @@ func ResolveParameters(
 		parameterNames[parameter.Name] = struct{}{}
 
 		if !firstBuild && !parameter.Mutable {
-			originalValue, ok := originalValues[parameter.Name]
+			// previousValuesMap should be used over the first render output
+			// for the previous state of parameters. The previous build
+			// should emit all values, so the previousValuesMap should be
+			// complete with all parameter values (user specified and defaults)
+			originalValue, ok := previousValuesMap[parameter.Name]
+
 			// Immutable parameters should not be changed after the first build.
-			// If the value matches the original value, that is fine.
+			// If the value matches the previous input value, that is fine.
 			//
-			// If the original value is not set, that means this is a new parameter. New
+			// If the previous value is not set, that means this is a new parameter. New
 			// immutable parameters are allowed. This is an opinionated choice to prevent
 			// workspaces failing to update or delete. Ideally we would block this, as
 			// immutable parameters should only be able to be set at creation time.
-			if ok && parameter.Value.AsString() != originalValue.Value {
+			if ok && parameter.Value.AsString() != originalValue {
 				var src *hcl.Range
 				if parameter.Source != nil {
 					src = &parameter.Source.HCLBlock().TypeRange

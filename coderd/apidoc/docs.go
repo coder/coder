@@ -12324,9 +12324,6 @@ const docTemplate = `{
                 "http_cookies": {
                     "$ref": "#/definitions/codersdk.HTTPCookieConfig"
                 },
-                "in_memory_database": {
-                    "type": "boolean"
-                },
                 "job_hang_detector_interval": {
                     "type": "integer"
                 },
