@@ -71,6 +71,8 @@ func New(rpcDialer Dialer, httpAddr string, logger slog.Logger, bridgeCfg coders
 		initConnectionCh: make(chan struct{}),
 	}
 
+	// TODO: improve error handling here; if this fails it prevents the whole server from starting up!
+
 	bridge, err := NewBridge(bridgeCfg, httpAddr, logger.Named("ai_bridge"), daemon.client)
 	if err != nil {
 		return nil, xerrors.Errorf("create new bridge server: %w", err)

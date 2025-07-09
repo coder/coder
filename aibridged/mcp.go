@@ -21,11 +21,19 @@ type BridgeMCPProxy struct {
 
 const MCPProxyDelimiter = "_"
 
-func NewBridgeMCPProxy(name, serverURL, token string, logger slog.Logger) (*BridgeMCPProxy, error) {
+func NewBridgeMCPProxy(name, serverURL string, headers map[string]string, logger slog.Logger) (*BridgeMCPProxy, error) {
+	//ts := transport.NewMemoryTokenStore()
+	//if err := ts.SaveToken(&transport.Token{
+	//	AccessToken: token,
+	//}); err != nil {
+	//	return nil, xerrors.Errorf("save token: %w", err)
+	//}
+
 	mcpClient, err := client.NewStreamableHttpClient(serverURL,
-		transport.WithHTTPHeaders(map[string]string{
-			"Authorization": "Bearer " + token,
-		}))
+		transport.WithHTTPHeaders(headers))
+	//transport.WithHTTPOAuth(transport.OAuthConfig{
+	//	TokenStore: ts,
+	//}))
 	if err != nil {
 		return nil, xerrors.Errorf("create streamable http client: %w", err)
 	}

@@ -1038,30 +1038,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// avoid leaving dangling goroutines waiting for the
 			// channel to be consumed.
 			errCh = make(chan error, 1)
-			aiBridgeDaemons := make([]*aibridged.Server, 0)
-			defer func() {
-				// We have no graceful shutdown of aiBridgeDaemons
-				// here because that's handled at the end of main, this
-				// is here in case the program exits early.
-				for _, daemon := range aiBridgeDaemons {
-					_ = daemon.Close()
-				}
-			}()
-
-			// Built in aibridge daemons.
-			for i := int64(0); i < vals.AI.BridgeConfig.Daemons.Value(); i++ {
-				suffix := fmt.Sprintf("%d", i)
-				// The suffix is added to the hostname, so we may need to trim to fit into
-				// the 64 character limit.
-				hostname := stringutil.Truncate(cliutil.Hostname(), 63-len(suffix))
-				name := fmt.Sprintf("%s-%s", hostname, suffix)
-				daemon, err := newAIBridgeDaemon(ctx, coderAPI, name, vals.AI.BridgeConfig)
-				if err != nil {
-					return xerrors.Errorf("create provisioner daemon: %w", err)
-				}
-				aiBridgeDaemons = append(aiBridgeDaemons, daemon)
-			}
-			coderAPI.AIBridgeDaemons = aiBridgeDaemons
 
 			shutdownConnsCtx, shutdownConns := context.WithCancel(ctx)
 			defer shutdownConns()
@@ -1129,6 +1105,32 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				default:
 				}
 			}()
+
+			// TODO: this shouldn't block.
+			aiBridgeDaemons := make([]*aibridged.Server, 0)
+			defer func() {
+				// We have no graceful shutdown of aiBridgeDaemons
+				// here because that's handled at the end of main, this
+				// is here in case the program exits early.
+				for _, daemon := range aiBridgeDaemons {
+					_ = daemon.Close()
+				}
+			}()
+
+			// Built in aibridge daemons.
+			for i := int64(0); i < vals.AI.BridgeConfig.Daemons.Value(); i++ {
+				suffix := fmt.Sprintf("%d", i)
+				// The suffix is added to the hostname, so we may need to trim to fit into
+				// the 64 character limit.
+				hostname := stringutil.Truncate(cliutil.Hostname(), 63-len(suffix))
+				name := fmt.Sprintf("%s-%s", hostname, suffix)
+				daemon, err := newAIBridgeDaemon(ctx, coderAPI, name, vals.AI.BridgeConfig)
+				if err != nil {
+					return xerrors.Errorf("create provisioner daemon: %w", err)
+				}
+				aiBridgeDaemons = append(aiBridgeDaemons, daemon)
+			}
+			coderAPI.AIBridgeDaemons = aiBridgeDaemons
 
 			// Updates the systemd status from activating to activated.
 			_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
@@ -1575,6 +1577,8 @@ func newProvisionerDaemon(
 
 func newAIBridgeDaemon(ctx context.Context, coderAPI *coderd.API, name string, bridgeCfg codersdk.AIBridgeConfig) (*aibridged.Server, error) {
 	httpAddr := "0.0.0.0:0" // TODO: configurable.
+
+
 
 	return aibridged.New(func(dialCtx context.Context) (aibridgedproto.DRPCAIBridgeDaemonClient, error) {
 		// This debounces calls to listen every second.
