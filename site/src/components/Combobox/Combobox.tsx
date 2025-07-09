@@ -1,3 +1,4 @@
+import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import {
 	Command,
@@ -34,10 +35,6 @@ type ComboboxOption = {
 	value: string;
 };
 
-function normalizeOptions(options: Readonly<Array<string | ComboboxOption>>): readonly ComboboxOption[] {
-return	options.map((option) => typeof options === "string" ? ({ displayName: option, value: option }) : option);
-}
-
 export const Combobox: FC<ComboboxProps> = ({
 	value,
 	options = [],
@@ -49,6 +46,18 @@ export const Combobox: FC<ComboboxProps> = ({
 	onKeyDown,
 	onSelect,
 }) => {
+	const optionsMap = new Map<string, ComboboxOption>();
+	for (const option of options) {
+		if (typeof option === "string") {
+			optionsMap.set(option, { displayName: option, value: option });
+			continue;
+		}
+
+		optionsMap.set(option.value, option);
+	}
+	const optionObjects = [...optionsMap.values()];
+	const showIcons = optionObjects.some((it) => it.icon);
+
 	return (
 		<Popover open={open} onOpenChange={onOpenChange}>
 			<PopoverTrigger asChild>
@@ -58,7 +67,7 @@ export const Combobox: FC<ComboboxProps> = ({
 					className="w-72 justify-between group"
 				>
 					<span className={cn(!value && "text-content-secondary")}>
-						{value || placeholder}
+						{optionsMap.get(value)?.displayName || placeholder}
 					</span>
 					<ChevronDown className="size-icon-sm text-content-secondary group-hover:text-content-primary" />
 				</Button>
@@ -80,7 +89,7 @@ export const Combobox: FC<ComboboxProps> = ({
 							</span>
 						</CommandEmpty>
 						<CommandGroup>
-							{normalizeOptions(options).map((option) => (
+							{optionObjects.map((option) => (
 								<CommandItem
 									key={option.value}
 									value={option.value}
@@ -89,6 +98,13 @@ export const Combobox: FC<ComboboxProps> = ({
 										onSelect(currentValue === value ? "" : currentValue);
 									}}
 								>
+									{showIcons && (
+										<Avatar
+											size="sm"
+											src={option.icon}
+											fallback={option.value}
+										/>
+									)}
 									{option.displayName}
 									{value === option.value && (
 										<Check className="size-icon-sm ml-auto" />

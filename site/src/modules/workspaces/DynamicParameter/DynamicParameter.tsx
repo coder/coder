@@ -7,6 +7,7 @@ import type {
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { Checkbox } from "components/Checkbox/Checkbox";
+import { Combobox } from "components/Combobox/Combobox";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
@@ -16,13 +17,6 @@ import {
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
 import { RadioGroup, RadioGroupItem } from "components/RadioGroup/RadioGroup";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "components/Select/Select";
 import { Slider } from "components/Slider/Slider";
 import { Stack } from "components/Stack/Stack";
 import { Switch } from "components/Switch/Switch";
@@ -50,7 +44,6 @@ import { type FC, useEffect, useId, useRef, useState } from "react";
 import { cn } from "utils/cn";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
-import { Combobox } from "components/Combobox/Combobox";
 
 interface DynamicParameterProps {
 	parameter: PreviewParameter;
@@ -438,53 +431,22 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			const [open, setOpen] = useState(false);
 			const [searchValue, setSearchValue] = useState("");
 
-			return <Combobox value="" open={open} onOpenChange={setOpen}
-				inputValue={searchValue} onInputChange={setSearchValue}
-				onSelect={(value) => onChange(value)}
-				options={parameter.options.map((
-					option,
-				) => ({ icon: option.icon, displayName: option.name, value: option.value.value }))} />
+			return (
+				<Combobox
+					value={value}
+					open={open}
+					onOpenChange={setOpen}
+					inputValue={searchValue}
+					onInputChange={setSearchValue}
+					onSelect={(value) => onChange(value)}
+					options={parameter.options.map((option) => ({
+						icon: option.icon,
+						displayName: option.name,
+						value: option.value.value,
+					}))}
+				/>
+			);
 		}
-		// case "dropdown": {
-		// 	const EMPTY_VALUE_PLACEHOLDER = "__EMPTY_STRING__";
-		// 	const selectValue = value === "" ? EMPTY_VALUE_PLACEHOLDER : value;
-		// 	const handleSelectChange = (newValue: string) => {
-		// 		onChange(newValue === EMPTY_VALUE_PLACEHOLDER ? "" : newValue);
-		// 	};
-
-		// 	return (
-		// 		<Select
-		// 			onValueChange={handleSelectChange}
-		// 			value={selectValue}
-		// 			disabled={disabled}
-		// 			required={parameter.required}
-		// 		>
-		// 			<SelectTrigger id={id}>
-		// 				<SelectValue
-		// 					placeholder={parameter.styling?.placeholder || "Select option"}
-		// 				/>
-		// 			</SelectTrigger>
-		// 			<SelectContent>
-		// 				{parameter.options.map((option, index) => {
-		// 					const optionValue =
-		// 						option.value.value === ""
-		// 							? EMPTY_VALUE_PLACEHOLDER
-		// 							: option.value.value;
-		// 					return (
-		// 						<SelectItem
-		// 							key={
-		// 								option.value.value || `${EMPTY_VALUE_PLACEHOLDER}:${index}`
-		// 							}
-		// 							value={optionValue}
-		// 						>
-		// 							<OptionDisplay option={option} />
-		// 						</SelectItem>
-		// 					);
-		// 				})}
-		// 			</SelectContent>
-		// 		</Select>
-		// 	);
-		// }
 
 		case "multi-select": {
 			const parsedValues = parseStringArrayValue(value ?? "");
@@ -705,8 +667,8 @@ const ParameterDiagnostics: FC<ParameterDiagnosticsProps> = ({
 					<div
 						key={`parameter-diagnostic-${diagnostic.summary}-${index}`}
 						className={`text-xs px-1 ${diagnostic.severity === "error"
-							? "text-content-destructive"
-							: "text-content-warning"
+								? "text-content-destructive"
+								: "text-content-warning"
 							}`}
 					>
 						<p className="font-medium">{diagnostic.summary}</p>

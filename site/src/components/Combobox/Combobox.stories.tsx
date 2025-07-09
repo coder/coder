@@ -3,9 +3,34 @@ import { expect, screen, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
 import { Combobox } from "./Combobox";
 
-const options = ["Option 1", "Option 2", "Option 3", "Another Option"];
+const simpleOptions = ["Go", "Gleam", "Kotlin", "Rust"];
 
-const ComboboxWithHooks = () => {
+const advancedOptions = [
+	{
+		displayName: "Go",
+		value: "go",
+		icon: "/icon/go.svg",
+	},
+	{
+		displayName: "Gleam",
+		value: "gleam",
+		icon: "https://github.com/gleam-lang.png",
+	},
+	{
+		displayName: "Kotlin",
+		value: "kotlin",
+		icon: "/icon/kotlin.svg",
+	},
+	{
+		displayName: "Rust",
+		value: "rust",
+		icon: "/icon/rust.svg",
+	},
+] as const;
+
+const ComboboxWithHooks = ({
+	options = advancedOptions,
+}: { options?: React.ComponentProps<typeof Combobox>["options"] }) => {
 	const [value, setValue] = useState("");
 	const [open, setOpen] = useState(false);
 	const [inputValue, setInputValue] = useState("");
@@ -41,6 +66,10 @@ type Story = StoryObj<typeof Combobox>;
 
 export const Default: Story = {
 	render: () => <ComboboxWithHooks />,
+};
+
+export const SimpleOptions: Story = {
+	render: () => <ComboboxWithHooks options={simpleOptions} />,
 };
 
 export const OpenCombobox: Story = {

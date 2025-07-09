@@ -10,7 +10,7 @@ const meta: Meta<typeof DynamicParameter> = {
 	},
 	args: {
 		parameter: MockPreviewParameter,
-		onChange: () => { },
+		onChange: () => {},
 	},
 };
 
@@ -62,6 +62,12 @@ export const Dropdown: Story = {
 					icon: "/icon/go.svg",
 				},
 				{
+					name: "Gleam",
+					value: { valid: true, value: "gleam" },
+					description: "Gleam 1.11, Erlang 28, rebar3",
+					icon: "https://github.com/gleam-lang.png",
+				},
+				{
 					name: "Kotlin/Java",
 					value: { valid: true, value: "jvm" },
 					description: "OpenJDK 24 and Gradle",
@@ -108,7 +114,6 @@ export const Dropdown: Story = {
 					name: "PHP",
 					value: { valid: true, value: "php" },
 					description: "PHP 8.4",
-					icon: "/icon/php.svg",
 				},
 				{
 					name: "Python",
