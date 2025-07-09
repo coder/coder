@@ -801,8 +801,8 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 	httpapi.Write(ctx, rw, http.StatusOK, portsResponse)
 }
 
-// @Summary Watch agent for container updates.
-// @ID watch-containers-for-workspace-agent
+// @Summary Watch workspace agent for container updates.
+// @ID watch-workspace-agent-for-container-updates
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents

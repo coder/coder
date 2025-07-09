@@ -8791,8 +8791,8 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Watch agent for container updates.",
-                "operationId": "watch-containers-for-workspace-agent",
+                "summary": "Watch workspace agent for container updates.",
+                "operationId": "watch-workspace-agent-for-container-updates",
                 "parameters": [
                     {
                         "type": "string",
