@@ -17,12 +17,12 @@ import {
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
 import { RadioGroup, RadioGroupItem } from "components/RadioGroup/RadioGroup";
 import {
-	SearchableSelect,
-	SearchableSelectContent,
-	SearchableSelectItem,
-	SearchableSelectTrigger,
-	SearchableSelectValue,
-} from "components/SearchableSelect/SearchableSelect";
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "components/Select/Select";
 import { Slider } from "components/Slider/Slider";
 import { Stack } from "components/Stack/Stack";
 import { Switch } from "components/Switch/Switch";
@@ -50,6 +50,7 @@ import { type FC, useEffect, useId, useRef, useState } from "react";
 import { cn } from "utils/cn";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
+import { Combobox } from "components/Combobox/Combobox";
 
 interface DynamicParameterProps {
 	parameter: PreviewParameter;
@@ -83,7 +84,7 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 			/>
 			<div className="max-w-lg">
 				{parameter.form_type === "input" ||
-				parameter.form_type === "textarea" ? (
+					parameter.form_type === "textarea" ? (
 					<DebouncedParameterField
 						id={id}
 						parameter={parameter}
@@ -322,8 +323,8 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 						className={cn(
 							"overflow-y-auto max-h-[500px]",
 							parameter.styling?.mask_input &&
-								!showMaskedInput &&
-								"[-webkit-text-security:disc]",
+							!showMaskedInput &&
+							"[-webkit-text-security:disc]",
 						)}
 						value={localValue}
 						onChange={(e) => {
@@ -434,44 +435,56 @@ const ParameterField: FC<ParameterFieldProps> = ({
 }) => {
 	switch (parameter.form_type) {
 		case "dropdown": {
-			const EMPTY_VALUE_PLACEHOLDER = "__EMPTY_STRING__";
-			const selectValue = value === "" ? EMPTY_VALUE_PLACEHOLDER : value;
-			const handleSelectChange = (newValue: string) => {
-				onChange(newValue === EMPTY_VALUE_PLACEHOLDER ? "" : newValue);
-			};
+			const [open, setOpen] = useState(false);
+			const [searchValue, setSearchValue] = useState("");
 
-			return (
-				<SearchableSelect
-					value={selectValue}
-					onValueChange={handleSelectChange}
-					disabled={disabled}
-					required={parameter.required}
-					placeholder={parameter.styling?.placeholder || "Select option"}
-				>
-					<SearchableSelectTrigger id={id}>
-						<SearchableSelectValue />
-					</SearchableSelectTrigger>
-					<SearchableSelectContent>
-						{parameter.options.map((option, index) => {
-							const optionValue =
-								option.value.value === ""
-									? EMPTY_VALUE_PLACEHOLDER
-									: option.value.value;
-							return (
-								<SearchableSelectItem
-									key={
-										option.value.value || `${EMPTY_VALUE_PLACEHOLDER}:${index}`
-									}
-									value={optionValue}
-								>
-									<OptionDisplay option={option} />
-								</SearchableSelectItem>
-							);
-						})}
-					</SearchableSelectContent>
-				</SearchableSelect>
-			);
+			return <Combobox value="" open={open} onOpenChange={setOpen}
+				inputValue={searchValue} onInputChange={setSearchValue}
+				onSelect={(value) => onChange(value)}
+				options={parameter.options.map((
+					option,
+				) => ({ icon: option.icon, displayName: option.name, value: option.value.value }))} />
 		}
+		// case "dropdown": {
+		// 	const EMPTY_VALUE_PLACEHOLDER = "__EMPTY_STRING__";
+		// 	const selectValue = value === "" ? EMPTY_VALUE_PLACEHOLDER : value;
+		// 	const handleSelectChange = (newValue: string) => {
+		// 		onChange(newValue === EMPTY_VALUE_PLACEHOLDER ? "" : newValue);
+		// 	};
+
+		// 	return (
+		// 		<Select
+		// 			onValueChange={handleSelectChange}
+		// 			value={selectValue}
+		// 			disabled={disabled}
+		// 			required={parameter.required}
+		// 		>
+		// 			<SelectTrigger id={id}>
+		// 				<SelectValue
+		// 					placeholder={parameter.styling?.placeholder || "Select option"}
+		// 				/>
+		// 			</SelectTrigger>
+		// 			<SelectContent>
+		// 				{parameter.options.map((option, index) => {
+		// 					const optionValue =
+		// 						option.value.value === ""
+		// 							? EMPTY_VALUE_PLACEHOLDER
+		// 							: option.value.value;
+		// 					return (
+		// 						<SelectItem
+		// 							key={
+		// 								option.value.value || `${EMPTY_VALUE_PLACEHOLDER}:${index}`
+		// 							}
+		// 							value={optionValue}
+		// 						>
+		// 							<OptionDisplay option={option} />
+		// 						</SelectItem>
+		// 					);
+		// 				})}
+		// 			</SelectContent>
+		// 		</Select>
+		// 	);
+		// }
 
 		case "multi-select": {
 			const parsedValues = parseStringArrayValue(value ?? "");
@@ -691,11 +704,10 @@ const ParameterDiagnostics: FC<ParameterDiagnosticsProps> = ({
 				return (
 					<div
 						key={`parameter-diagnostic-${diagnostic.summary}-${index}`}
-						className={`text-xs px-1 ${
-							diagnostic.severity === "error"
-								? "text-content-destructive"
-								: "text-content-warning"
-						}`}
+						className={`text-xs px-1 ${diagnostic.severity === "error"
+							? "text-content-destructive"
+							: "text-content-warning"
+							}`}
 					>
 						<p className="font-medium">{diagnostic.summary}</p>
 						{diagnostic.detail && <p className="m-0">{diagnostic.detail}</p>}

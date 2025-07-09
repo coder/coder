@@ -18,7 +18,7 @@ import { cn } from "utils/cn";
 
 interface ComboboxProps {
 	value: string;
-	options?: readonly string[];
+	options?: Readonly<Array<string | ComboboxOption>>;
 	placeholder?: string;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -26,6 +26,16 @@ interface ComboboxProps {
 	onInputChange: (value: string) => void;
 	onKeyDown?: KeyboardEventHandler<HTMLInputElement>;
 	onSelect: (value: string) => void;
+}
+
+type ComboboxOption = {
+	icon?: string;
+	displayName: string;
+	value: string;
+};
+
+function normalizeOptions(options: Readonly<Array<string | ComboboxOption>>): readonly ComboboxOption[] {
+return	options.map((option) => typeof options === "string" ? ({ displayName: option, value: option }) : option);
 }
 
 export const Combobox: FC<ComboboxProps> = ({
@@ -70,16 +80,17 @@ export const Combobox: FC<ComboboxProps> = ({
 							</span>
 						</CommandEmpty>
 						<CommandGroup>
-							{options.map((option) => (
+							{normalizeOptions(options).map((option) => (
 								<CommandItem
-									key={option}
-									value={option}
+									key={option.value}
+									value={option.value}
+									keywords={[option.displayName]}
 									onSelect={(currentValue) => {
 										onSelect(currentValue === value ? "" : currentValue);
 									}}
 								>
-									{option}
-									{value === option && (
+									{option.displayName}
+									{value === option.value && (
 										<Check className="size-icon-sm ml-auto" />
 									)}
 								</CommandItem>
