@@ -43,20 +43,6 @@ When a workspace with the dev containers integration starts:
 - Full SSH access directly into dev containers (`coder ssh <agent>.<workspace>.me.coder`).
 - Automatic port forwarding.
 
-## Comparison with Envbuilder-based Dev Containers
-
-| Feature        | Dev Containers                         | Envbuilder Dev Containers                    |
-|----------------|----------------------------------------|----------------------------------------------|
-| Implementation | Direct `@devcontainers/cli` and Docker | Coder's Envbuilder                           |
-| Target users   | Individual developers                  | Platform teams and administrators            |
-| Configuration  | Standard `devcontainer.json`           | Terraform templates with Envbuilder          |
-| Management     | User-controlled                        | Admin-controlled                             |
-| Requirements   | Docker access in workspace             | Compatible with more restricted environments |
-
-Choose the appropriate solution based on your team's needs and infrastructure constraints.
-
-Visit [Choose an approach to Dev Containers](../../admin/templates/extending-templates/dev-containers-envbuilder.md) for a more in-depth comparison.
-
 ## Known Limitations
 
 Currently, dev containers are not compatible with [prebuilt workspaces](../../admin/templates/extending-templates/prebuilt-workspaces.md).

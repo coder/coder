@@ -6,6 +6,8 @@ This allows the template to prompt for the developer for their dev container rep
 [parameter](../../extending-templates/parameters.md) when they create their workspace.
 Envbuilder clones the repo and builds a container from the `devcontainer.json` specified in the repo.
 
+This is a legacy implementation.
+
 For the Docker-based Dev Containers integration, follow the [Configure a template for dev containers](../../extending-templates/devcontainers.md) documentation instead.
 
 You can create template files through the Coder dashboard, CLI, or you can choose a template from the

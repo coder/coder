@@ -14,9 +14,9 @@ pre-approved by platform teams in registries like
 workflows, reduces the need for tickets and approvals, and promotes greater
 independence for developers.
 
-This doc explains how to use Envbuilder to integrate dev containers in a template.
+Envbuilder is a legacy implementation of dev containers.
 
-For the Docker-based Dev Containers integration, follow the [Configure a template for dev containers](../../extending-templates/devcontainers.md) documentation.
+For the Docker-based Dev Containers integration, follow the [Configure a template for dev containers](../../extending-templates/devcontainers.md) documentation instead.
 
 ## Prerequisites
 
