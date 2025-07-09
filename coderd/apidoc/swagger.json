@@ -10106,11 +10106,12 @@
 		},
 		"codersdk.BuildReason": {
 			"type": "string",
-			"enum": ["initiator", "autostart", "autostop"],
+			"enum": ["initiator", "autostart", "autostop", "dormancy"],
 			"x-enum-varnames": [
 				"BuildReasonInitiator",
 				"BuildReasonAutostart",
-				"BuildReasonAutostop"
+				"BuildReasonAutostop",
+				"BuildReasonDormancy"
 			]
 		},
 		"codersdk.ChangePasswordWithOneTimePasscodeRequest": {
@@ -10987,9 +10988,6 @@
 				},
 				"http_cookies": {
 					"$ref": "#/definitions/codersdk.HTTPCookieConfig"
-				},
-				"in_memory_database": {
-					"type": "boolean"
 				},
 				"job_hang_detector_interval": {
 					"type": "integer"

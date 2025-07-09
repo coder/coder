@@ -354,7 +354,6 @@ type DeploymentValues struct {
 	ProxyTrustedHeaders             serpent.StringArray                  `json:"proxy_trusted_headers,omitempty" typescript:",notnull"`
 	ProxyTrustedOrigins             serpent.StringArray                  `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
 	CacheDir                        serpent.String                       `json:"cache_directory,omitempty" typescript:",notnull"`
-	InMemoryDatabase                serpent.Bool                         `json:"in_memory_database,omitempty" typescript:",notnull"`
 	EphemeralDeployment             serpent.Bool                         `json:"ephemeral_deployment,omitempty" typescript:",notnull"`
 	PostgresURL                     serpent.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
 	PostgresAuth                    string                               `json:"pg_auth,omitempty" typescript:",notnull"`
@@ -2403,15 +2402,6 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Default: DefaultCacheDir(),
 			Value:   &c.CacheDir,
 			YAML:    "cacheDir",
-		},
-		{
-			Name:        "In Memory Database",
-			Description: "Controls whether data will be stored in an in-memory database.",
-			Flag:        "in-memory",
-			Env:         "CODER_IN_MEMORY",
-			Hidden:      true,
-			Value:       &c.InMemoryDatabase,
-			YAML:        "inMemoryDatabase",
 		},
 		{
 			Name:        "Ephemeral Deployment",

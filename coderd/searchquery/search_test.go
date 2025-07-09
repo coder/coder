@@ -14,7 +14,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -300,7 +300,7 @@ func TestSearchWorkspace(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			// TODO: Replace this with the mock database.
-			db := dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
 			if c.Setup != nil {
 				c.Setup(t, db)
 			}
@@ -331,7 +331,8 @@ func TestSearchWorkspace(t *testing.T) {
 
 		query := ``
 		timeout := 1337 * time.Second
-		values, errs := searchquery.Workspaces(context.Background(), dbmem.New(), query, codersdk.Pagination{}, timeout)
+		db, _ := dbtestutil.NewDB(t)
+		values, errs := searchquery.Workspaces(context.Background(), db, query, codersdk.Pagination{}, timeout)
 		require.Empty(t, errs)
 		require.Equal(t, int64(timeout.Seconds()), values.AgentInactiveDisconnectTimeoutSeconds)
 	})
@@ -389,7 +390,7 @@ func TestSearchAudit(t *testing.T) {
 			t.Parallel()
 			// Do not use a real database, this is only used for an
 			// organization lookup.
-			db := dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
 			values, countValues, errs := searchquery.AuditLogs(context.Background(), db, c.Query)
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")
@@ -628,7 +629,7 @@ func TestSearchTemplates(t *testing.T) {
 			t.Parallel()
 			// Do not use a real database, this is only used for an
 			// organization lookup.
-			db := dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
 			values, errs := searchquery.Templates(context.Background(), db, c.Query)
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")
