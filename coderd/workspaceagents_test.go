@@ -46,7 +46,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -1989,8 +1988,8 @@ func (s *testWAMErrorStore) GetWorkspaceAgentMetadata(ctx context.Context, arg d
 func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
 	t.Parallel()
 
-	db := &testWAMErrorStore{Store: dbmem.New()}
-	psub := pubsub.NewInMemory()
+	store, psub := dbtestutil.NewDB(t)
+	db := &testWAMErrorStore{Store: store}
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("coderd").Leveled(slog.LevelDebug)
 	client := coderdtest.New(t, &coderdtest.Options{
 		Database:                 db,
