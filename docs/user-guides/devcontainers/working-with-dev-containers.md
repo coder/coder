@@ -41,7 +41,7 @@ You can open your dev container directly in VS Code by:
 2. Using the Coder CLI with the container flag:
 
 ```console
-coder open vscode --container keen_dijkstra my-workspace
+coder open vscode --container my-container-name my-workspace
 ```
 
 While optimized for VS Code, other IDEs with dev containers support may also
