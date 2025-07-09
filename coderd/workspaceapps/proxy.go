@@ -344,13 +344,10 @@ func (s *Server) determineCORSBehavior(token *SignedToken, app appurl.Applicatio
 
 			switch behavior {
 			case codersdk.CORSBehaviorPassthru:
-				fmt.Println("passthru")
 				// Bypass the CORS middleware.
 				next.ServeHTTP(rw, r)
 				return
 			default:
-				fmt.Println("default cors")
-
 				// Apply the CORS middleware.
 				corsHandler.ServeHTTP(rw, r)
 			}
@@ -597,7 +594,6 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	proxy.ModifyResponse = func(r *http.Response) error {
 		// If passthru behavior is set, disable our CORS header stripping.
 		if cors.HasBehavior(r.Request.Context(), codersdk.CORSBehaviorPassthru) {
-			fmt.Println("not modifying headers!!!")
 			return nil
 		}
 		r.Header.Del(httpmw.AccessControlAllowOriginHeader)

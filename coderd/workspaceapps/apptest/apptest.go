@@ -839,7 +839,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				})
 
 				// Update the template CORS behavior.
-				b := codersdk.CORSBehavior(tc.behavior)
+				b := tc.behavior
 				template, err := appDetails.SDKClient.UpdateTemplateMeta(ctx, appDetails.Workspace.TemplateID, codersdk.UpdateTemplateMeta{
 					CORSBehavior: &b,
 				})
@@ -1856,7 +1856,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				require.NoError(t, err)
 
 				// Update the template CORS behavior.
-				b := codersdk.CORSBehavior(tc.behavior)
+				b := tc.behavior
 				template, err := appDetails.SDKClient.UpdateTemplateMeta(ctx, appDetails.Workspace.TemplateID, codersdk.UpdateTemplateMeta{
 					CORSBehavior: &b,
 				})
