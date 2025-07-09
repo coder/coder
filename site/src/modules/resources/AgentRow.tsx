@@ -10,11 +10,12 @@ import type {
 	WorkspaceAgentDevcontainer,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
-import { isAxiosError } from "axios";
 import { Button } from "components/Button/Button";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
+import { useEffectEvent } from "hooks/hookPolyfills";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import {
@@ -43,9 +44,6 @@ import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { useAgentLogs } from "./useAgentLogs";
-import { OneWayWebSocket } from "utils/OneWayWebSocket";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { useEffectEvent } from "hooks/hookPolyfills";
 
 interface AgentRowProps {
 	agent: WorkspaceAgent;
