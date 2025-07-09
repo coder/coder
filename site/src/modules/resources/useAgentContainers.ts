@@ -1,5 +1,8 @@
 import { API, watchAgentContainers } from "api/api";
-import { WorkspaceAgent, WorkspaceAgentDevcontainer } from "api/typesGenerated";
+import type {
+	WorkspaceAgent,
+	WorkspaceAgentDevcontainer,
+} from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useEffect } from "react";

@@ -2,20 +2,16 @@ import type { Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
-import { API, watchAgentContainers } from "api/api";
 import type {
 	Template,
 	Workspace,
 	WorkspaceAgent,
-	WorkspaceAgentDevcontainer,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
-import { useEffectEvent } from "hooks/hookPolyfills";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import {
@@ -27,7 +23,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useQuery, useQueryClient } from "react-query";
+import { useQueryClient } from "react-query";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
@@ -43,8 +39,8 @@ import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
-import { useAgentLogs } from "./useAgentLogs";
 import { useAgentContainers } from "./useAgentContainers";
+import { useAgentLogs } from "./useAgentLogs";
 
 interface AgentRowProps {
 	agent: WorkspaceAgent;
