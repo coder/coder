@@ -250,6 +250,10 @@ $(CODER_ALL_BINARIES): go.mod go.sum \
 		fi
 
 		cp "$@" "./site/out/bin/coder-$$os-$$arch$$dot_ext"
+
+		if [[ "$${CODER_SIGN_GPG:-0}" == "1" ]]; then
+			cp "$@.asc" "./site/out/bin/coder-$$os-$$arch$$dot_ext.asc"
+		fi
 	fi
 
 # This task builds Coder Desktop dylibs
