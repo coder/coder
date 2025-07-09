@@ -2,7 +2,7 @@
 
 ## Log in
 
-![Install Coder in your cloud or air-gapped on-premises. Developers simply log in via their browser to access their Workspaces.](../images/screenshots/login.png)
+![Install Coder in your cloud or air-gapped on-premises. Developers simply log in via their browser to access their Workspaces.](../images/)
 
 Install Coder in your cloud or air-gapped on-premises. Developers simply log in
 via their browser to access their Workspaces.
