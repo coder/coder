@@ -12,6 +12,17 @@ import {
 } from "./constants";
 import tw from "./tailwindColors";
 
+type PaletteIndex =
+	| "primary"
+	| "secondary"
+	| "background"
+	| "text"
+	| "error"
+	| "warning"
+	| "info"
+	| "success"
+	| "action"
+	| "neutral";
 
 // biome-ignore lint/suspicious/noExplicitAny: needed for MUI overrides
 type MuiStyle = any;
@@ -213,9 +224,9 @@ export const components = {
 				// This targets the first+last td elements, and also the first+last elements
 				// of a TableCellLink.
 				"&:not(:only-child):first-of-type, &:not(:only-child):first-of-type > a":
-				{
-					paddingLeft: 32,
-				},
+					{
+						paddingLeft: 32,
+					},
 				"&:not(:only-child):last-child, &:not(:only-child):last-child > a": {
 					paddingRight: 32,
 				},
@@ -353,9 +364,9 @@ export const components = {
 				},
 				// The default outlined input color is white, which seemed jarring.
 				"&:hover:not(.Mui-error):not(.Mui-focused) .MuiOutlinedInput-notchedOutline":
-				{
-					borderColor: tw.zinc[500],
-				},
+					{
+						borderColor: tw.zinc[500],
+					},
 			},
 		},
 	},
