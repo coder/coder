@@ -306,8 +306,10 @@ module "vscode-web" {
 
 module "jetbrains" {
   count         = data.coder_workspace.me.start_count
-  source        = "git::https://github.com/coder/registry.git//registry/coder/modules/jetbrains?ref=jetbrains"
+  source        = "dev.registry.coder.com/coder/jetbrains/coder"
+  version       = "1.0.0"
   agent_id      = coder_agent.dev.id
+  agent_name    = "dev"
   folder        = local.repo_dir
   major_version = "latest"
 }
@@ -337,7 +339,7 @@ module "cursor" {
 
 module "windsurf" {
   count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/coder/windsurf/coder"
+  source   = "dev.registry.coder.com/coder/windsurf/coder"
   version  = "1.0.0"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
@@ -345,7 +347,8 @@ module "windsurf" {
 
 module "zed" {
   count      = data.coder_workspace.me.start_count
-  source     = "./zed"
+  source     = "dev.registry.coder.com/coder/zed/coder"
+  version    = "1.0.0"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
   folder     = local.repo_dir
