@@ -28,7 +28,7 @@ import { getMatchingAgentOrFirst } from "utils/workspace";
 import { v4 as uuidv4 } from "uuid";
 // Use websocket-ts for better WebSocket handling and auto-reconnection.
 import {
-	ConstantBackoff,
+	ExponentialBackoff,
 	type Websocket,
 	WebsocketBuilder,
 	WebsocketEvent,
@@ -267,7 +267,7 @@ const TerminalPage: FC = () => {
 					return; // Unmounted while we waited for the async call.
 				}
 				websocket = new WebsocketBuilder(url)
-					.withBackoff(new ConstantBackoff(1000))
+					.withBackoff(new ExponentialBackoff(1000, 6))
 					.build();
 				websocket.binaryType = "arraybuffer";
 				websocket.addEventListener(WebsocketEvent.open, () => {
@@ -303,6 +303,19 @@ const TerminalPage: FC = () => {
 						terminal.write(event.data);
 					} else {
 						terminal.write(new Uint8Array(event.data));
+					}
+				});
+				websocket.addEventListener(WebsocketEvent.reconnect, () => {
+					if (websocket) {
+						websocket.binaryType = "arraybuffer";
+						websocket.send(
+							new TextEncoder().encode(
+								JSON.stringify({
+									height: terminal.rows,
+									width: terminal.cols,
+								}),
+							),
+						);
 					}
 				});
 			})
