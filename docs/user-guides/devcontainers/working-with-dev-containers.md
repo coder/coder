@@ -5,19 +5,26 @@ visual representation of the running environment:
 
 ![Dev container integration in Coder dashboard](../../images/user-guides/devcontainers/devcontainer-agent-ports.png)
 
+This page assumes you have a [dev containers integration](./index.md) ready.
+
 ## SSH Access
 
 You can SSH into your dev container directly using the Coder CLI:
 
 ```console
-coder ssh --container keen_dijkstra my-workspace
+coder ssh --container my-container-name my-workspace
 ```
+
+Remember to replace:
+
+- `my-container-name` with the dev container agent name.
+- `my-workspace` with your workspace's name.
 
 > [!NOTE]
 >
-> SSH access is not yet compatible with the `coder config-ssh` command for use
-> with OpenSSH. You would need to manually modify your SSH config to include the
-> `--container` flag in the `ProxyCommand`.
+> Starting with Coder v2.24.0, `coder config-ssh` works with dev containers.
+> If you’re using an older Coder version, add `--container <name>` to the
+> `ProxyCommand` entry in your SSH config.
 
 ## Web Terminal Access
 
@@ -34,7 +41,7 @@ You can open your dev container directly in VS Code by:
 2. Using the Coder CLI with the container flag:
 
 ```console
-coder open vscode --container keen_dijkstra my-workspace
+coder open vscode --container my-container-name my-workspace
 ```
 
 While optimized for VS Code, other IDEs with dev containers support may also
@@ -42,31 +49,14 @@ work.
 
 ## Port Forwarding
 
-During the early access phase, port forwarding is limited to ports defined via
-[`appPort`](https://containers.dev/implementors/json_reference/#image-specific)
-in your `devcontainer.json` file.
-
-> [!NOTE]
->
-> Support for automatic port forwarding via the `forwardPorts` property in
-> `devcontainer.json` is planned for a future release.
-
-For example, with this `devcontainer.json` configuration:
-
-```json
-{
-    "appPort": ["8080:8080", "4000:3000"]
-}
-```
-
-You can forward these ports to your local machine using:
+Coder automatically forwards any port declared in `appPort` or `forwardPorts`.
+Use the dashboard to open a forwarded port, or the CLI:
 
 ```console
 coder port-forward my-workspace --tcp 8080,4000
 ```
 
-This forwards port 8080 (local) -> 8080 (agent) -> 8080 (dev container) and port
-4000 (local) -> 4000 (agent) -> 3000 (dev container).
+If you need a port that isn’t declared, pass it explicitly to `coder port-forward`.
 
 ## Dev Container Features
 

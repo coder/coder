@@ -479,23 +479,23 @@
 									"path": "./admin/templates/managing-templates/change-management.md"
 								},
 								{
-									"title": "Dev containers",
-									"description": "Learn about using development containers in templates",
+									"title": "Envbuilder Dev Containers",
+									"description": "Learn about using Envbuilder to manage development containers in templates",
 									"path": "./admin/templates/managing-templates/devcontainers/index.md",
 									"children": [
 										{
-											"title": "Add a dev container template",
-											"description": "How to add a dev container template to Coder",
+											"title": "Add an Envbuilder dev container template",
+											"description": "Use Envbuilder to add a dev container template to Coder",
 											"path": "./admin/templates/managing-templates/devcontainers/add-devcontainer.md"
 										},
 										{
-											"title": "Dev container security and caching",
-											"description": "Configure dev container authentication and caching",
+											"title": "Envbuilder dev container security and caching",
+											"description": "Configure dev container authentication and caching with Envbuilder",
 											"path": "./admin/templates/managing-templates/devcontainers/devcontainer-security-caching.md"
 										},
 										{
-											"title": "Dev container releases and known issues",
-											"description": "Dev container releases and known issues",
+											"title": "Envbuilder dev container releases and known issues",
+											"description": "Envbuilder dev container releases and known issues",
 											"path": "./admin/templates/managing-templates/devcontainers/devcontainer-releases-known-issues.md"
 										}
 									]
@@ -606,8 +606,20 @@
 								},
 								{
 									"title": "Configure a template for dev containers",
-									"description": "How to use configure your template for dev containers",
-									"path": "./admin/templates/extending-templates/devcontainers.md"
+									"description": "How to configure your template for dev containers",
+									"path": "./admin/templates/extending-templates/devcontainers.md",
+									"children": [
+										{
+											"title": "Advanced dev container configurations",
+											"description": "Enhance your dev container configurations with multiple containers, repo selection, monitoring, and more.",
+											"path": "./admin/templates/extending-templates/advanced-dev-containers.md"
+										},
+										{
+											"title": "Choose an approach to Dev Containers",
+											"description": "How to choose the right Dev Container integration.",
+											"path": "./admin/templates/extending-templates/dev-containers-envbuilder.md"
+										}
+									]
 								},
 								{
 									"title": "Process Logging",
