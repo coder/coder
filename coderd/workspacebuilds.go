@@ -11,6 +11,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -329,13 +330,15 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+
 	workspace := httpmw.WorkspaceParam(r)
 	var createBuild codersdk.CreateWorkspaceBuildRequest
 	if !httpapi.Read(ctx, rw, r, &createBuild) {
 		return
 	}
 
-	builder := wsbuilder.New(workspace, database.WorkspaceTransition(createBuild.Transition)).
+	transition := database.WorkspaceTransition(createBuild.Transition)
+	builder := wsbuilder.New(workspace, transition).
 		Initiator(apiKey.UserID).
 		RichParameterValues(createBuild.RichParameterValues).
 		LogLevel(string(createBuild.LogLevel)).
@@ -343,8 +346,15 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		Experiments(api.Experiments).
 		TemplateVersionPresetID(createBuild.TemplateVersionPresetID)
 
-	if createBuild.Reason != "" {
-		builder = builder.Reason(database.BuildReason(createBuild.Reason))
+	if transition == database.WorkspaceTransitionStart {
+		if createBuild.Reason == "" {
+			userAgent := r.Header.Get("User-Agent")
+			if strings.HasPrefix(userAgent, "Coder Toolbox") || strings.HasPrefix(userAgent, "Coder Gateway") {
+				builder = builder.Reason(database.BuildReasonJetbrainsConnection)
+			}
+		} else {
+			builder = builder.Reason(database.BuildReason(createBuild.Reason))
+		}
 	}
 
 	var (

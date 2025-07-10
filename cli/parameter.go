@@ -164,12 +164,11 @@ This is useful for troubleshooting build issues.`,
 		},
 		{
 			Flag:        "reason",
-			Description: `Sets the reason for the workspace build (cli, vscode_connection, jetbrains_connection).`,
+			Description: `Sets the reason for the workspace build (cli, vscode_connection).`,
 			Value: serpent.EnumOf(
 				&bf.reason,
 				string(codersdk.BuildReasonCLI),
 				string(codersdk.BuildReasonVSCodeConnection),
-				string(codersdk.BuildReasonJetbrainsConnection),
 			),
 			Default: string(codersdk.BuildReasonCLI),
 			Hidden:  true,

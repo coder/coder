@@ -348,12 +348,17 @@ func AllAutomaticUpdatesValues() []AutomaticUpdates {
 type BuildReason string
 
 const (
-	BuildReasonInitiator  BuildReason = "initiator"
-	BuildReasonAutostart  BuildReason = "autostart"
-	BuildReasonAutostop   BuildReason = "autostop"
-	BuildReasonDormancy   BuildReason = "dormancy"
-	BuildReasonFailedstop BuildReason = "failedstop"
-	BuildReasonAutodelete BuildReason = "autodelete"
+	BuildReasonInitiator           BuildReason = "initiator"
+	BuildReasonAutostart           BuildReason = "autostart"
+	BuildReasonAutostop            BuildReason = "autostop"
+	BuildReasonDormancy            BuildReason = "dormancy"
+	BuildReasonFailedstop          BuildReason = "failedstop"
+	BuildReasonAutodelete          BuildReason = "autodelete"
+	BuildReasonDashboard           BuildReason = "dashboard"
+	BuildReasonCli                 BuildReason = "cli"
+	BuildReasonSshConnection       BuildReason = "ssh_connection"
+	BuildReasonVscodeConnection    BuildReason = "vscode_connection"
+	BuildReasonJetbrainsConnection BuildReason = "jetbrains_connection"
 )
 
 func (e *BuildReason) Scan(src interface{}) error {
@@ -398,7 +403,12 @@ func (e BuildReason) Valid() bool {
 		BuildReasonAutostop,
 		BuildReasonDormancy,
 		BuildReasonFailedstop,
-		BuildReasonAutodelete:
+		BuildReasonAutodelete,
+		BuildReasonDashboard,
+		BuildReasonCli,
+		BuildReasonSshConnection,
+		BuildReasonVscodeConnection,
+		BuildReasonJetbrainsConnection:
 		return true
 	}
 	return false
@@ -412,6 +422,11 @@ func AllBuildReasonValues() []BuildReason {
 		BuildReasonDormancy,
 		BuildReasonFailedstop,
 		BuildReasonAutodelete,
+		BuildReasonDashboard,
+		BuildReasonCli,
+		BuildReasonSshConnection,
+		BuildReasonVscodeConnection,
+		BuildReasonJetbrainsConnection,
 	}
 }
 

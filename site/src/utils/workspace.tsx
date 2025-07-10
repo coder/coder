@@ -93,8 +93,6 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
 			return "VSCode Connection";
 		case "jetbrains_connection":
 			return "JetBrains Connection";
-		default:
-			return "Unknown";
 	}
 	return undefined;
 };

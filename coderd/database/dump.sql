@@ -49,7 +49,12 @@ CREATE TYPE build_reason AS ENUM (
     'autostop',
     'dormancy',
     'failedstop',
-    'autodelete'
+    'autodelete',
+    'dashboard',
+    'cli',
+    'ssh_connection',
+    'vscode_connection',
+    'jetbrains_connection'
 );
 
 CREATE TYPE crypto_key_feature AS ENUM (
