@@ -306,6 +306,20 @@ func (m queryMetricsStore) DeleteCustomRole(ctx context.Context, arg database.De
 	return r0
 }
 
+func (m queryMetricsStore) DeleteExpiredOAuth2ProviderAppCodes(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.DeleteExpiredOAuth2ProviderAppCodes(ctx)
+	m.queryLatencies.WithLabelValues("DeleteExpiredOAuth2ProviderAppCodes").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) DeleteExpiredOAuth2ProviderAppTokens(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.DeleteExpiredOAuth2ProviderAppTokens(ctx)
+	m.queryLatencies.WithLabelValues("DeleteExpiredOAuth2ProviderAppTokens").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) DeleteExpiredOAuth2ProviderDeviceCodes(ctx context.Context) error {
 	start := time.Now()
 	r0 := m.s.DeleteExpiredOAuth2ProviderDeviceCodes(ctx)

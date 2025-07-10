@@ -5414,9 +5414,29 @@ func (q *sqlQuerier) ConsumeOAuth2ProviderDeviceCodeByPrefix(ctx context.Context
 	return i, err
 }
 
+const deleteExpiredOAuth2ProviderAppCodes = `-- name: DeleteExpiredOAuth2ProviderAppCodes :exec
+DELETE FROM oauth2_provider_app_codes
+WHERE expires_at < NOW()
+`
+
+func (q *sqlQuerier) DeleteExpiredOAuth2ProviderAppCodes(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteExpiredOAuth2ProviderAppCodes)
+	return err
+}
+
+const deleteExpiredOAuth2ProviderAppTokens = `-- name: DeleteExpiredOAuth2ProviderAppTokens :exec
+DELETE FROM oauth2_provider_app_tokens
+WHERE expires_at < NOW()
+`
+
+func (q *sqlQuerier) DeleteExpiredOAuth2ProviderAppTokens(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteExpiredOAuth2ProviderAppTokens)
+	return err
+}
+
 const deleteExpiredOAuth2ProviderDeviceCodes = `-- name: DeleteExpiredOAuth2ProviderDeviceCodes :exec
 DELETE FROM oauth2_provider_device_codes
-WHERE expires_at < NOW() AND status = 'pending'
+WHERE expires_at < NOW()
 `
 
 func (q *sqlQuerier) DeleteExpiredOAuth2ProviderDeviceCodes(ctx context.Context) error {

@@ -310,7 +310,15 @@ DELETE FROM oauth2_provider_device_codes WHERE id = $1;
 
 -- name: DeleteExpiredOAuth2ProviderDeviceCodes :exec
 DELETE FROM oauth2_provider_device_codes
-WHERE expires_at < NOW() AND status = 'pending';
+WHERE expires_at < NOW();
+
+-- name: DeleteExpiredOAuth2ProviderAppCodes :exec
+DELETE FROM oauth2_provider_app_codes
+WHERE expires_at < NOW();
+
+-- name: DeleteExpiredOAuth2ProviderAppTokens :exec
+DELETE FROM oauth2_provider_app_tokens
+WHERE expires_at < NOW();
 
 -- name: GetOAuth2ProviderDeviceCodesByClientID :many
 SELECT * FROM oauth2_provider_device_codes
