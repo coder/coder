@@ -20,11 +20,9 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { Check, ChevronDown, CornerDownLeft } from "lucide-react";
+import { Info } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useState } from "react";
 import { cn } from "utils/cn";
-import {
-	Info,
-} from "lucide-react";
 
 interface ComboboxProps {
 	value: string;
@@ -137,7 +135,8 @@ export const Combobox: FC<ComboboxProps> = ({
 													</TooltipContent>
 												</Tooltip>
 											</TooltipProvider>
-										)}</div>
+										)}
+									</div>
 								</CommandItem>
 							))}
 						</CommandGroup>

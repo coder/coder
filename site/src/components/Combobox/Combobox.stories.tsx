@@ -103,17 +103,12 @@ export const SearchAndFilter: Story = {
 		await userEvent.click(canvas.getByRole("button"));
 		await userEvent.type(screen.getByRole("combobox"), "r");
 		await waitFor(() => {
-			expect(
-				screen.getByRole("option", { name: "Rust" }),
-			).toBeInTheDocument();
+			expect(screen.getByRole("option", { name: "Rust" })).toBeInTheDocument();
 			expect(
 				screen.queryByRole("option", { name: "Kotlin" }),
 			).not.toBeInTheDocument();
 		});
-		await userEvent.click(
-			screen.getByRole("option", { name: "Rust" }),
-		);
-
+		await userEvent.click(screen.getByRole("option", { name: "Rust" }));
 	},
 };
 
