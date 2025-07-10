@@ -11,7 +11,6 @@ import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import dayjs from "dayjs";
-import { isPrebuiltWorkspace } from "modules/workspaces/prebuilds";
 import {
 	scheduleChanged,
 	scheduleToAutostart,
@@ -98,13 +97,10 @@ const WorkspaceSchedulePage: FC = () => {
 			)}
 
 			{template &&
-				// Prebuilt workspaces have their own scheduling system,
-				// so we avoid showing the workspace-level schedule settings form.
-				// Instead, show an informational message with a link to the relevant docs.
-				(isPrebuiltWorkspace(workspace) ? (
+				(workspace.is_prebuild ? (
 					<Alert severity="info">
-						Prebuilt workspaces do not support workspace-level scheduling. For
-						prebuilt workspace specific scheduling refer to the{" "}
+						Prebuilt workspaces ignore workspace-level scheduling until they are claimed.
+						For prebuilt workspace specific scheduling refer to the{" "}
 						<Link
 							title="Prebuilt Workspaces Scheduling"
 							href={docs(
