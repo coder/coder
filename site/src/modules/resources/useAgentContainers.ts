@@ -35,7 +35,8 @@ export function useAgentContainers(
 		socket.addEventListener("message", (event) => {
 			if (event.parseError) {
 				displayError(
-					"Unable to process latest data from the server. Please try refreshing the page.",
+					"Failed to update containers",
+					"Please try refreshing the page",
 				);
 				return;
 			}
@@ -45,7 +46,8 @@ export function useAgentContainers(
 
 		socket.addEventListener("error", () => {
 			displayError(
-				"Unable to get workspace containers. Connection has been closed.",
+				"Failed to load containers",
+				"Please try refreshing the page",
 			);
 		});
 

@@ -8,6 +8,8 @@ import {
 } from "testHelpers/entities";
 import { server } from "testHelpers/server";
 import { useAgentContainers } from "./useAgentContainers";
+import * as API from "api/api";
+import * as GlobalSnackbar from "components/GlobalSnackbar/utils";
 
 const createWrapper = (): FC<PropsWithChildren> => {
 	const queryClient = new QueryClient({
@@ -81,5 +83,108 @@ describe("useAgentContainers", () => {
 		await waitFor(() => {
 			expect(result.current).toBeUndefined();
 		});
+	});
+
+	it("handles parsing errors from WebSocket", async () => {
+		const displayErrorSpy = jest.spyOn(GlobalSnackbar, "displayError");
+		const watchAgentContainersSpy = jest.spyOn(API, "watchAgentContainers");
+
+		const mockSocket = {
+			addEventListener: jest.fn(),
+			close: jest.fn(),
+		};
+		watchAgentContainersSpy.mockReturnValue(mockSocket as any);
+
+		server.use(
+			http.get(
+				`/api/v2/workspaceagents/${MockWorkspaceAgent.id}/containers`,
+				() => {
+					return HttpResponse.json({
+						devcontainers: [MockWorkspaceAgentDevcontainer],
+						containers: [],
+					});
+				},
+			),
+		);
+
+		const { unmount } = renderHook(
+			() => useAgentContainers(MockWorkspaceAgent),
+			{
+				wrapper: createWrapper(),
+			},
+		);
+
+		// Simulate message event with parsing error
+		const messageHandler = mockSocket.addEventListener.mock.calls.find(
+			(call) => call[0] === "message",
+		)?.[1];
+
+		if (messageHandler) {
+			messageHandler({
+				parseError: new Error("Parse error"),
+				parsedMessage: null,
+			});
+		}
+
+		await waitFor(() => {
+			expect(displayErrorSpy).toHaveBeenCalledWith(
+				"Failed to update containers",
+				"Please try refreshing the page",
+			);
+		});
+
+		unmount();
+		displayErrorSpy.mockRestore();
+		watchAgentContainersSpy.mockRestore();
+	});
+
+	it("handles WebSocket errors", async () => {
+		const displayErrorSpy = jest.spyOn(GlobalSnackbar, "displayError");
+		const watchAgentContainersSpy = jest.spyOn(API, "watchAgentContainers");
+
+		const mockSocket = {
+			addEventListener: jest.fn(),
+			close: jest.fn(),
+		};
+		watchAgentContainersSpy.mockReturnValue(mockSocket as any);
+
+		server.use(
+			http.get(
+				`/api/v2/workspaceagents/${MockWorkspaceAgent.id}/containers`,
+				() => {
+					return HttpResponse.json({
+						devcontainers: [MockWorkspaceAgentDevcontainer],
+						containers: [],
+					});
+				},
+			),
+		);
+
+		const { unmount } = renderHook(
+			() => useAgentContainers(MockWorkspaceAgent),
+			{
+				wrapper: createWrapper(),
+			},
+		);
+
+		// Simulate error event
+		const errorHandler = mockSocket.addEventListener.mock.calls.find(
+			(call) => call[0] === "error",
+		)?.[1];
+
+		if (errorHandler) {
+			errorHandler(new Error("WebSocket error"));
+		}
+
+		await waitFor(() => {
+			expect(displayErrorSpy).toHaveBeenCalledWith(
+				"Failed to load containers",
+				"Please try refreshing the page",
+			);
+		});
+
+		unmount();
+		displayErrorSpy.mockRestore();
+		watchAgentContainersSpy.mockRestore();
 	});
 });

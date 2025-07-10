@@ -72,7 +72,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const showVSCode = hasVSCodeApp && !browser_only;
 
 	const hasStartupFeatures = Boolean(agent.logs_length);
-	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
 	const [showLogs, setShowLogs] = useState(
 		["starting", "start_timeout"].includes(agent.lifecycle_state) &&
