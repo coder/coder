@@ -570,11 +570,6 @@ func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
 	defer encoder.Close(websocket.StatusNormalClosure)
 
 	updateCh := make(chan struct{}, 1)
-	defer func() {
-		api.mu.Lock()
-		close(updateCh)
-		api.mu.Unlock()
-	}()
 
 	api.mu.Lock()
 	api.updateChans = append(api.updateChans, updateCh)
@@ -585,6 +580,7 @@ func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
 		api.updateChans = slices.DeleteFunc(api.updateChans, func(ch chan struct{}) bool {
 			return ch == updateCh
 		})
+		close(updateCh)
 		api.mu.Unlock()
 	}()
 
