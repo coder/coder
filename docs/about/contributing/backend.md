@@ -16,9 +16,9 @@ Need help or have questions? Join the conversation on our [Discord server](https
 
 To understand how the backend fits into the broader system, we recommend reviewing the following resources:
 
-* [General Concepts](../../admin/infrastructure/validated-architectures/index.md#general-concepts): Essential concepts and language used to describe how Coder is structured and operated.
+* [General Concepts](../../admin/infrastructure/validated-architectures#general-concepts): Essential concepts and language used to describe how Coder is structured and operated.
 
-* [Architecture](../../admin/infrastructure/architecture.md): A high-level overview of the infrastructure layout, key services, and how components interact.
+* [Architecture](../../admin/infrastructure/architecture): A high-level overview of the infrastructure layout, key services, and how components interact.
 
 These sections provide the necessary context for navigating and contributing to the backend effectively.
 

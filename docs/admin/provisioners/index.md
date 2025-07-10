@@ -19,11 +19,11 @@ are often benefits to running external provisioner daemons:
 
 - **Reduce server load**: External provisioners reduce load and build queue
   times from the Coder server. See
-  [Scaling Coder](../../admin/infrastructure/index.md#scale-tests) for more
+  [Scaling Coder](../infrastructure#scale-tests) for more
   details.
 
 Each provisioner runs a single
-[concurrent workspace build](../../admin/infrastructure/scale-testing.md#control-plane-provisionerd).
+[concurrent workspace build](../infrastructure/scale-testing#control-plane-provisionerd).
 For example, running 30 provisioner containers will allow 30 users to start
 workspaces at the same time.
 

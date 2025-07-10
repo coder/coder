@@ -115,7 +115,7 @@ Adjust the CPU and memory values as shown in
 ```
 
 Visit the
-[validated architecture documentation](../../admin/infrastructure/validated-architectures/index.md#workspace-nodes)
+[validated architecture documentation](../../admin/infrastructure/validated-architectures#workspace-nodes)
 for more information.
 
 ## Set up Terraform provider caching
