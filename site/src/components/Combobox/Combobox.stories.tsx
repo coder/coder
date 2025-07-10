@@ -67,10 +67,6 @@ type Story = StoryObj<typeof Combobox>;
 
 export const Default: Story = {};
 
-export const ExternallyManaged: Story = {
-	render: () => <ComboboxWithHooks />,
-};
-
 export const SimpleOptions: Story = {
 	args: {
 		options: simpleOptions,
@@ -87,6 +83,7 @@ export const OpenCombobox: Story = {
 };
 
 export const SelectOption: Story = {
+	render: () => <ComboboxWithHooks />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
@@ -99,6 +96,7 @@ export const SelectOption: Story = {
 };
 
 export const SearchAndFilter: Story = {
+	render: () => <ComboboxWithHooks />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
@@ -119,6 +117,7 @@ export const SearchAndFilter: Story = {
 };
 
 export const EnterCustomValue: Story = {
+	render: () => <ComboboxWithHooks />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
@@ -144,6 +143,7 @@ export const NoResults: Story = {
 };
 
 export const ClearSelectedOption: Story = {
+	render: () => <ComboboxWithHooks />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
