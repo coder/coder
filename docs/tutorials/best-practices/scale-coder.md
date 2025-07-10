@@ -114,7 +114,7 @@ under ten instances, and opt for vertical scale over horizontal scale after
 meeting availability requirements.
 
 Coder's
-[validated architectures](../../admin/infrastructure/validated-architectures)
+[validated architectures](../../admin/infrastructure/validated-architectures/index.md)
 give specific sizing recommendations for various user scales. These are a useful
 starting point, but very few deployments will remain stable at a predetermined
 user level over the long term. We recommend monitoring and adjusting resources as needed.
@@ -193,7 +193,7 @@ On a virtual machine (VM), you can deploy multiple provisioner daemons, ensuring
 each has a unique `CODER_CACHE_DIRECTORY` value.
 
 Coder's
-[validated architectures](../../admin/infrastructure/validated-architectures)
+[validated architectures](../../admin/infrastructure/validated-architectures/index.md)
 give specific sizing recommendations for various user scales. Since the
 complexity of builds varies significantly depending on the workspace template,
 consider this a starting point. Monitor queue times and build times and adjust
@@ -215,7 +215,7 @@ must also be low-latency with respect to one another.
 
 Prefer scaling PostgreSQL vertically rather than horizontally for best
 performance. Coder's
-[validated architectures](../../admin/infrastructure/validated-architectures)
+[validated architectures](../../admin/infrastructure/validated-architectures/index.md)
 give specific sizing recommendations for various user scales.
 
 ## Workspace proxies
@@ -318,5 +318,5 @@ workspace proxy instances.
 
 ## Next steps
 
-- [Scale Tests and Utilities](../../admin/infrastructure/scale-utility)
-- [Scale Testing](../../admin/infrastructure/scale-testing)
+- [Scale Tests and Utilities](../../admin/infrastructure/scale-utility.md)
+- [Scale Testing](../../admin/infrastructure/scale-testing.md)

@@ -5,7 +5,7 @@ by the template configuration.
 
 Deployment operators can learn more about different types of workspace
 connections and performance in our
-[networking docs](../../admin/infrastructure).
+[networking docs](../../admin/infrastructure/index.md).
 
 You can see the primary methods of connecting to your workspace in the workspace
 dashboard.
@@ -24,7 +24,7 @@ workspace through the shell environment set by your template.
 ### Through with the CLI
 
 Coder will use the optimal path for an SSH connection (determined by your
-deployment's [networking configuration](../../admin/infrastructure))
+deployment's [networking configuration](../../admin/infrastructure/index.md))
 when using the CLI:
 
 ```console
