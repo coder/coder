@@ -391,7 +391,7 @@ func (c *AgentConn) ListContainers(ctx context.Context) (codersdk.WorkspaceAgent
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-func (c *AgentConn) WatchContainers(ctx context.Context) (<-chan codersdk.WorkspaceAgentListContainersResponse, io.Closer, error) {
+func (c *AgentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-chan codersdk.WorkspaceAgentListContainersResponse, io.Closer, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -411,7 +411,7 @@ func (c *AgentConn) WatchContainers(ctx context.Context) (<-chan codersdk.Worksp
 		defer res.Body.Close()
 	}
 
-	d := wsjson.NewDecoder[codersdk.WorkspaceAgentListContainersResponse](conn, websocket.MessageText, slog.Logger{})
+	d := wsjson.NewDecoder[codersdk.WorkspaceAgentListContainersResponse](conn, websocket.MessageText, logger)
 	return d.Chan(), d, nil
 }
 

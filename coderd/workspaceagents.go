@@ -853,7 +853,8 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 	}
 	defer release()
 
-	containersCh, closer, err := agentConn.WatchContainers(ctx)
+	watcherLogger := api.Logger.Named("agent_container_watcher").With(slog.F("agent_id", workspaceAgent.ID))
+	containersCh, closer, err := agentConn.WatchContainers(ctx, watcherLogger)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error watching agent's containers.",
