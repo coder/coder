@@ -910,7 +910,97 @@ LEFT JOIN users ON
 	connection_logs.user_id = users.id
 JOIN organizations ON
 	connection_logs.organization_id = organizations.id
-WHERE TRUE
+WHERE
+	-- Filter organization_id
+	CASE
+		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.organization_id = $1
+		ELSE true
+	END
+	-- Filter by workspace owner username
+	AND CASE
+		WHEN $2 :: text != '' THEN
+			workspace_owner_id = (
+				SELECT id FROM users
+				WHERE lower(username) = lower($2) AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by workspace_owner_id
+	AND CASE
+		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspace_owner_id = $3
+		ELSE true
+	END
+	-- Filter by workspace_owner_email
+	AND CASE
+		WHEN $4 :: text != '' THEN
+			workspace_owner_id = (
+				SELECT id FROM users
+				WHERE email = $4 AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by type
+	AND CASE
+		WHEN $5 :: text != '' THEN
+			type = $5 :: connection_type
+		ELSE true
+	END
+	-- Filter by user_id
+	AND CASE
+		WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = $6
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN $7 :: text != '' THEN
+			user_id = (
+				SELECT id FROM users
+				WHERE lower(username) = lower($7) AND deleted = false
+			)
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN $8 :: text != '' THEN
+			users.email = $8
+		ELSE true
+	END
+	-- Filter by connected_after
+	AND CASE
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			connect_time >= $9
+		ELSE true
+	END
+	-- Filter by connected_before
+	AND CASE
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			connect_time <= $10
+		ELSE true
+	END
+	-- Filter by workspace_id
+	AND CASE
+		WHEN $11 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.workspace_id = $11
+		ELSE true
+	END
+	-- Filter by connection_id
+	AND CASE
+		WHEN $12 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			connection_logs.connection_id = $12
+		ELSE true
+	END
+	-- Filter by whether the session has a disconnect_time
+	AND CASE
+		WHEN $13 :: text != '' THEN
+			(($13 = 'ongoing' AND disconnect_time IS NULL) OR
+			($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
+			-- Exclude web events, since we don't know their close time.
+			"type" NOT IN ('workspace_app', 'port_forwarding')
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in
 	-- GetAuthorizedConnectionLogsOffset
 	-- @authorize_filter
@@ -920,14 +1010,27 @@ LIMIT
 	-- a limit of 0 means "no limit". The connection log table is unbounded
 	-- in size, and is expected to be quite large. Implement a default
 	-- limit of 100 to prevent accidental excessively large queries.
-	COALESCE(NULLIF($2 :: int, 0), 100)
+	COALESCE(NULLIF($15 :: int, 0), 100)
 OFFSET
-	$1
+	$14
 `
 
 type GetConnectionLogsOffsetParams struct {
-	OffsetOpt int32 `db:"offset_opt" json:"offset_opt"`
-	LimitOpt  int32 `db:"limit_opt" json:"limit_opt"`
+	OrganizationID      uuid.UUID `db:"organization_id" json:"organization_id"`
+	WorkspaceOwner      string    `db:"workspace_owner" json:"workspace_owner"`
+	WorkspaceOwnerID    uuid.UUID `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceOwnerEmail string    `db:"workspace_owner_email" json:"workspace_owner_email"`
+	Type                string    `db:"type" json:"type"`
+	UserID              uuid.UUID `db:"user_id" json:"user_id"`
+	Username            string    `db:"username" json:"username"`
+	UserEmail           string    `db:"user_email" json:"user_email"`
+	ConnectedAfter      time.Time `db:"connected_after" json:"connected_after"`
+	ConnectedBefore     time.Time `db:"connected_before" json:"connected_before"`
+	WorkspaceID         uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	ConnectionID        uuid.UUID `db:"connection_id" json:"connection_id"`
+	Status              string    `db:"status" json:"status"`
+	OffsetOpt           int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt            int32     `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetConnectionLogsOffsetRow struct {
@@ -951,7 +1054,23 @@ type GetConnectionLogsOffsetRow struct {
 }
 
 func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error) {
-	rows, err := q.db.QueryContext(ctx, getConnectionLogsOffset, arg.OffsetOpt, arg.LimitOpt)
+	rows, err := q.db.QueryContext(ctx, getConnectionLogsOffset,
+		arg.OrganizationID,
+		arg.WorkspaceOwner,
+		arg.WorkspaceOwnerID,
+		arg.WorkspaceOwnerEmail,
+		arg.Type,
+		arg.UserID,
+		arg.Username,
+		arg.UserEmail,
+		arg.ConnectedAfter,
+		arg.ConnectedBefore,
+		arg.WorkspaceID,
+		arg.ConnectionID,
+		arg.Status,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
 	if err != nil {
 		return nil, err
 	}

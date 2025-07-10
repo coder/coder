@@ -1,4 +1,4 @@
-package coderd
+package coderd_test
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -123,7 +124,7 @@ func TestPagination(t *testing.T) {
 			query.Set("offset", c.Offset)
 			r.URL.RawQuery = query.Encode()
 
-			params, ok := parsePagination(rw, r)
+			params, ok := coderd.ParsePagination(rw, r)
 			if c.ExpectedError == "" {
 				require.True(t, ok, "expect ok")
 				require.Equal(t, c.ExpectedParams, params, "expected params")
