@@ -643,16 +643,16 @@ func (api *API) updateContainers(ctx context.Context) error {
 	api.mu.Lock()
 	defer api.mu.Unlock()
 
-	var knownDevcontainers map[string]codersdk.WorkspaceAgentDevcontainer
+	var previouslyKnownDevcontainers map[string]codersdk.WorkspaceAgentDevcontainer
 	if len(api.updateChans) > 0 {
-		knownDevcontainers = maps.Clone(api.knownDevcontainers)
+		previouslyKnownDevcontainers = maps.Clone(api.knownDevcontainers)
 	}
 
 	api.processUpdatedContainersLocked(ctx, updated)
 
 	if len(api.updateChans) > 0 {
 		statesAreEqual := maps.EqualFunc(
-			knownDevcontainers,
+			previouslyKnownDevcontainers,
 			api.knownDevcontainers,
 			func(dc1, dc2 codersdk.WorkspaceAgentDevcontainer) bool {
 				return dc1.Equals(dc2)
