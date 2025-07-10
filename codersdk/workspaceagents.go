@@ -427,6 +427,8 @@ func (d WorkspaceAgentDevcontainer) Equals(other WorkspaceAgentDevcontainer) boo
 		d.WorkspaceFolder == other.WorkspaceFolder &&
 		d.Status == other.Status &&
 		d.Dirty == other.Dirty &&
+		(d.Container == nil && other.Container == nil ||
+			(d.Container != nil && other.Container != nil && d.Container.ID == other.Container.ID)) &&
 		d.Error == other.Error
 }
 
