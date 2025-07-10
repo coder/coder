@@ -77,6 +77,7 @@ export const Combobox: FC<ComboboxProps> = ({
 			<PopoverTrigger asChild>
 				<Button
 					variant="outline"
+					role="combobox"
 					aria-expanded={open ?? managedOpen}
 					className="w-72 justify-between group"
 				>

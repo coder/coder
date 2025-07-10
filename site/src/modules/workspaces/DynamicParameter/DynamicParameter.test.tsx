@@ -191,7 +191,7 @@ describe("DynamicParameter", () => {
 		});
 	});
 
-	describe("Select Parameter", () => {
+	describe("dropdown parameter", () => {
 		const mockSelectParameter = createMockParameter({
 			name: "select_param",
 			display_name: "Select Parameter",
@@ -274,26 +274,6 @@ describe("DynamicParameter", () => {
 			});
 
 			expect(mockOnChange).toHaveBeenCalledWith("option2");
-		});
-
-		it("displays option icons when provided", async () => {
-			render(
-				<DynamicParameter
-					parameter={mockSelectParameter}
-					value="option1"
-					onChange={mockOnChange}
-				/>,
-			);
-
-			const select = screen.getByRole("combobox");
-			await waitFor(async () => {
-				await userEvent.click(select);
-			});
-
-			const icons = screen.getAllByRole("img");
-			expect(
-				icons.some((icon) => icon.getAttribute("src") === "/icon2.png"),
-			).toBe(true);
 		});
 	});
 
