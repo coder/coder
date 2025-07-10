@@ -428,16 +428,9 @@ const ParameterField: FC<ParameterFieldProps> = ({
 }) => {
 	switch (parameter.form_type) {
 		case "dropdown": {
-			const [open, setOpen] = useState(false);
-			const [searchValue, setSearchValue] = useState("");
-
 			return (
 				<Combobox
 					value={value ?? ""}
-					open={open}
-					onOpenChange={setOpen}
-					inputValue={searchValue}
-					onInputChange={setSearchValue}
 					onSelect={(value) => onChange(value)}
 					options={parameter.options.map((option) => ({
 						icon: option.icon,

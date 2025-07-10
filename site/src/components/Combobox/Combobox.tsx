@@ -14,17 +14,17 @@ import {
 	PopoverTrigger,
 } from "components/Popover/Popover";
 import { Check, ChevronDown, CornerDownLeft } from "lucide-react";
-import type { FC, KeyboardEventHandler } from "react";
+import { type FC, type KeyboardEventHandler, useState } from "react";
 import { cn } from "utils/cn";
 
 interface ComboboxProps {
 	value: string;
 	options?: Readonly<Array<string | ComboboxOption>>;
 	placeholder?: string;
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
-	inputValue: string;
-	onInputChange: (value: string) => void;
+	open?: boolean;
+	onOpenChange?: (open: boolean) => void;
+	inputValue?: string;
+	onInputChange?: (value: string) => void;
 	onKeyDown?: KeyboardEventHandler<HTMLInputElement>;
 	onSelect: (value: string) => void;
 }
@@ -46,6 +46,9 @@ export const Combobox: FC<ComboboxProps> = ({
 	onKeyDown,
 	onSelect,
 }) => {
+	const [managedOpen, setManagedOpen] = useState(false);
+	const [managedInputValue, setManagedInputValue] = useState("");
+
 	const optionsMap = new Map<string, ComboboxOption>();
 	for (const option of options) {
 		if (typeof option === "string") {
@@ -59,11 +62,14 @@ export const Combobox: FC<ComboboxProps> = ({
 	const showIcons = optionObjects.some((it) => it.icon);
 
 	return (
-		<Popover open={open} onOpenChange={onOpenChange}>
+		<Popover
+			open={open ?? managedOpen}
+			onOpenChange={onOpenChange ?? setManagedOpen}
+		>
 			<PopoverTrigger asChild>
 				<Button
 					variant="outline"
-					aria-expanded={open}
+					aria-expanded={open ?? managedOpen}
 					className="w-72 justify-between group"
 				>
 					<span className={cn(!value && "text-content-secondary")}>
@@ -76,8 +82,8 @@ export const Combobox: FC<ComboboxProps> = ({
 				<Command>
 					<CommandInput
 						placeholder="Search or enter custom value"
-						value={inputValue}
-						onValueChange={onInputChange}
+						value={inputValue ?? managedInputValue}
+						onValueChange={onInputChange ?? setManagedInputValue}
 						onKeyDown={onKeyDown}
 					/>
 					<CommandList>
