@@ -1609,6 +1609,22 @@ func (q *querier) DeleteCustomRole(ctx context.Context, arg database.DeleteCusto
 	return q.db.DeleteCustomRole(ctx, arg)
 }
 
+func (q *querier) DeleteExpiredOAuth2ProviderAppCodes(ctx context.Context) error {
+	// System operation - only system can clean up expired authorization codes
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteExpiredOAuth2ProviderAppCodes(ctx)
+}
+
+func (q *querier) DeleteExpiredOAuth2ProviderAppTokens(ctx context.Context) error {
+	// System operation - only system can clean up expired access tokens
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteExpiredOAuth2ProviderAppTokens(ctx)
+}
+
 func (q *querier) DeleteExpiredOAuth2ProviderDeviceCodes(ctx context.Context) error {
 	// System operation - only system can clean up expired device codes
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
