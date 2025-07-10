@@ -12,7 +12,6 @@ import (
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
-	unsafe "unsafe"
 )
 
 const (
@@ -4619,7 +4618,7 @@ var (
 
 func file_provisionersdk_proto_provisioner_proto_rawDescGZIP() []byte {
 	file_provisionersdk_proto_provisioner_proto_rawDescOnce.Do(func() {
-		file_provisionersdk_proto_provisioner_proto_rawDescData = protoimpl.X.CompressGZIP(file_provisionersdk_proto_provisioner_proto_rawDesc)
+		file_provisionersdk_proto_provisioner_proto_rawDescData = protoimpl.X.CompressGZIP([]byte(file_provisionersdk_proto_provisioner_proto_rawDesc))
 	})
 	return file_provisionersdk_proto_provisioner_proto_rawDescData
 }
@@ -4791,7 +4790,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: file_provisionersdk_proto_provisioner_proto_rawDesc,
+			RawDescriptor: []byte(file_provisionersdk_proto_provisioner_proto_rawDesc),
 			NumEnums:      8,
 			NumMessages:   51,
 			NumExtensions: 0,
@@ -4803,7 +4802,6 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 		MessageInfos:      file_provisionersdk_proto_provisioner_proto_msgTypes,
 	}.Build()
 	File_provisionersdk_proto_provisioner_proto = out.File
-	file_provisionersdk_proto_provisioner_proto_rawDesc = nil
 	file_provisionersdk_proto_provisioner_proto_goTypes = nil
 	file_provisionersdk_proto_provisioner_proto_depIdxs = nil
 }
