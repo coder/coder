@@ -809,7 +809,7 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			expect(screen.getByRole("combobox")).toBeInTheDocument();
+			expect(screen.getByRole("button")).toBeInTheDocument();
 		});
 
 		it("handles null/undefined values", () => {
