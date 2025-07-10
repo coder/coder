@@ -13,9 +13,18 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { Check, ChevronDown, CornerDownLeft } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useState } from "react";
 import { cn } from "utils/cn";
+import {
+	Info,
+} from "lucide-react";
 
 interface ComboboxProps {
 	value: string;
@@ -33,6 +42,7 @@ type ComboboxOption = {
 	icon?: string;
 	displayName: string;
 	value: string;
+	description?: string;
 };
 
 export const Combobox: FC<ComboboxProps> = ({
@@ -112,9 +122,22 @@ export const Combobox: FC<ComboboxProps> = ({
 										/>
 									)}
 									{option.displayName}
-									{value === option.value && (
-										<Check className="size-icon-sm ml-auto" />
-									)}
+									<div className="flex flex-row items-center ml-auto gap-1">
+										{value === option.value && (
+											<Check className="size-icon-sm" />
+										)}
+										{option.description && (
+											<TooltipProvider delayDuration={100}>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<Info className="w-3.5 h-3.5 text-content-secondary" />
+													</TooltipTrigger>
+													<TooltipContent side="right" sideOffset={10}>
+														{option.description}
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+										)}</div>
 								</CommandItem>
 							))}
 						</CommandGroup>

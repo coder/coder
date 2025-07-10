@@ -19,6 +19,7 @@ const advancedOptions = [
 	{
 		displayName: "Kotlin",
 		value: "kotlin",
+		description: "Kotlin 2.1, OpenJDK 24, gradle",
 		icon: "/icon/kotlin.svg",
 	},
 	{
@@ -87,10 +88,10 @@ export const SelectOption: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
-		await userEvent.click(screen.getByText("Option 1"));
+		await userEvent.click(screen.getByText("Go"));
 
 		await waitFor(() =>
-			expect(canvas.getByRole("button")).toHaveTextContent("Option 1"),
+			expect(canvas.getByRole("button")).toHaveTextContent("Go"),
 		);
 	},
 };
@@ -100,19 +101,19 @@ export const SearchAndFilter: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
-		await userEvent.type(screen.getByRole("combobox"), "Another");
-		await userEvent.click(
-			screen.getByRole("option", { name: "Another Option" }),
-		);
-
+		await userEvent.type(screen.getByRole("combobox"), "r");
 		await waitFor(() => {
 			expect(
-				screen.getByRole("option", { name: "Another Option" }),
+				screen.getByRole("option", { name: "Rust" }),
 			).toBeInTheDocument();
 			expect(
-				screen.queryByRole("option", { name: "Option 1" }),
+				screen.queryByRole("option", { name: "Kotlin" }),
 			).not.toBeInTheDocument();
 		});
+		await userEvent.click(
+			screen.getByRole("option", { name: "Rust" }),
+		);
+
 	},
 };
 
@@ -121,10 +122,10 @@ export const EnterCustomValue: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
-		await userEvent.type(screen.getByRole("combobox"), "Custom Value{enter}");
+		await userEvent.type(screen.getByRole("combobox"), "Swift{enter}");
 
 		await waitFor(() =>
-			expect(canvas.getByRole("button")).toHaveTextContent("Custom Value"),
+			expect(canvas.getByRole("button")).toHaveTextContent("Swift"),
 		);
 	},
 };
@@ -149,9 +150,9 @@ export const ClearSelectedOption: Story = {
 
 		await userEvent.click(canvas.getByRole("button"));
 		// First select an option
-		await userEvent.click(screen.getByRole("option", { name: "Option 1" }));
+		await userEvent.click(screen.getByRole("option", { name: "Go" }));
 		// Then clear it by selecting it again
-		await userEvent.click(screen.getByRole("option", { name: "Option 1" }));
+		await userEvent.click(screen.getByRole("option", { name: "Go" }));
 
 		await waitFor(() =>
 			expect(canvas.getByRole("button")).toHaveTextContent("Select option"),
