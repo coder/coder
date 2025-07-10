@@ -318,7 +318,7 @@ func hasEmptyResponse(values []reflect.Value) bool {
 			}
 		}
 
-		// Special case for int64, as it's the return type for count query.
+		// Special case for int64, as it's the return type for count queries.
 		if r.Kind() == reflect.Int64 {
 			if r.Int() == 0 {
 				return true
