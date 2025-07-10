@@ -34,6 +34,7 @@ export enum AppSharingLevel {
   OWNER = 0,
   AUTHENTICATED = 1,
   PUBLIC = 2,
+  ORGANIZATION = 3,
   UNRECOGNIZED = -1,
 }
 
