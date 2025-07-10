@@ -2,6 +2,7 @@ package agentcontainers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -29,7 +30,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/quartz"
 	"github.com/coder/websocket"
@@ -561,13 +561,10 @@ func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx = api.ctx
+	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
+	defer wsNetConn.Close()
 
 	go httpapi.Heartbeat(ctx, conn)
-	defer conn.Close(websocket.StatusNormalClosure, "connection closed")
-
-	encoder := wsjson.NewEncoder[codersdk.WorkspaceAgentListContainersResponse](conn, websocket.MessageText)
-	defer encoder.Close(websocket.StatusNormalClosure)
 
 	updateCh := make(chan struct{}, 1)
 
@@ -586,6 +583,9 @@ func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
 
 	for {
 		select {
+		case <-api.ctx.Done():
+			return
+
 		case <-ctx.Done():
 			return
 
@@ -596,7 +596,7 @@ func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			if err := encoder.Encode(ct); err != nil {
+			if err := json.NewEncoder(wsNetConn).Encode(ct); err != nil {
 				api.logger.Error(ctx, "encode container list", slog.Error(err))
 				return
 			}

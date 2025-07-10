@@ -817,7 +817,7 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 
 	// If the agent is unreachable, the request will hang. Assume that if we
 	// don't get a response after 30s that the agent is unreachable.
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	dialCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	apiAgent, err := db2sdk.WorkspaceAgent(
 		api.DERPMap(),
@@ -843,7 +843,7 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	agentConn, release, err := api.agentProvider.AgentConn(ctx, workspaceAgent.ID)
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, workspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error dialing workspace agent.",
@@ -873,21 +873,21 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	ctx = api.ctx
+	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
+	defer wsNetConn.Close()
 
 	go httpapi.Heartbeat(ctx, conn)
-	defer conn.Close(websocket.StatusNormalClosure, "connection closed")
-
-	encoder := wsjson.NewEncoder[codersdk.WorkspaceAgentListContainersResponse](conn, websocket.MessageText)
-	defer encoder.Close(websocket.StatusNormalClosure)
 
 	for {
 		select {
+		case <-api.ctx.Done():
+			return
+
 		case <-ctx.Done():
 			return
 
 		case containers := <-containersCh:
-			if err := encoder.Encode(containers); err != nil {
+			if err := json.NewEncoder(wsNetConn).Encode(containers); err != nil {
 				api.Logger.Error(ctx, "encode containers", slog.Error(err))
 				return
 			}
