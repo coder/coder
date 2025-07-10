@@ -561,6 +561,10 @@ func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Here we close the websocket for reading, so that the websocket library will handle pings and
+	// close frames.
+	_ = conn.CloseRead(context.Background())
+
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close()
 
