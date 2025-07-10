@@ -149,10 +149,11 @@ export const ClearSelectedOption: Story = {
 		const canvas = within(canvasElement);
 
 		await userEvent.click(canvas.getByRole("button"));
+		const goOption = screen.getByText("Go");
 		// First select an option
-		await userEvent.click(screen.getByRole("option", { name: "Go" }));
+		await userEvent.click(goOption);
 		// Then clear it by selecting it again
-		await userEvent.click(screen.getByRole("option", { name: "Go" }));
+		await userEvent.click(goOption);
 
 		await waitFor(() =>
 			expect(canvas.getByRole("button")).toHaveTextContent("Select option"),
