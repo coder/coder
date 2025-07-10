@@ -99,8 +99,8 @@ const WorkspaceSchedulePage: FC = () => {
 			{template &&
 				(workspace.is_prebuild ? (
 					<Alert severity="info">
-						Prebuilt workspaces ignore workspace-level scheduling until they are claimed.
-						For prebuilt workspace specific scheduling refer to the{" "}
+						Prebuilt workspaces ignore workspace-level scheduling until they are
+						claimed. For prebuilt workspace specific scheduling refer to the{" "}
 						<Link
 							title="Prebuilt Workspaces Scheduling"
 							href={docs(
