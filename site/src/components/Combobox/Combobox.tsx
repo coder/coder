@@ -83,7 +83,7 @@ export const Combobox: FC<ComboboxProps> = ({
 					className="w-72 justify-between group"
 				>
 					<span className={cn(!value && "text-content-secondary")}>
-						{optionsMap.get(value)?.displayName || placeholder}
+						{optionsMap.get(value)?.displayName || value || placeholder}
 					</span>
 					<ChevronDown className="size-icon-sm text-content-secondary group-hover:text-content-primary" />
 				</Button>
