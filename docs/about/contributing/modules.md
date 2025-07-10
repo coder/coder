@@ -68,8 +68,10 @@ Create your namespace README at `registry/[your-username]/README.md`:
 ---
 display_name: "Your Name"
 bio: "Brief description of what you do"
-avatar_url: "./.images/avatar.png"
 github: "your-username"
+avatar: "./.images/avatar.png"
+linkedin: "https://www.linkedin.com/in/your-username"
+website: "https://your-website.com"
 status: "community"
 ---
 
@@ -77,6 +79,8 @@ status: "community"
 
 Brief description of who you are and what you do.
 ```
+
+**Note**: The `linkedin` and `website` fields are optional and can be omitted or left empty if not applicable.
 
 ### 2. Generate module scaffolding
 
@@ -215,22 +219,7 @@ module "git_clone" {
   base_dir = "/home/coder/projects"
 }
 ```
-
-## Variables
-
-| Name | Description | Type | Default | Required |
-|------|-------------|------|---------|----------|
-| `agent_id` | The ID of a Coder agent | `string` | n/a | yes |
-| `url` | Git repository URL to clone | `string` | n/a | yes |
-| `base_dir` | Directory to clone the repository into | `string` | `"~"` | no |
-
-## Outputs
-
-| Name | Description |
-|------|-------------|
-| `repo_dir` | Path to the cloned repository |
-
-```markdown
+```
 
 ## Module best practices
 
@@ -249,54 +238,13 @@ module "git_clone" {
 - Use proper resource dependencies with `depends_on` when needed
 - Follow [Terraform style conventions](https://developer.hashicorp.com/terraform/language/syntax/style)
 
-### Testing requirements
-
-Every module must include complete tests:
-
-```typescript
-import { runTerraformApply, runTerraformInit, testRequiredVariables } from "~test"
-
-describe("code-server", async () => {
-  // Test required variables
-  await testRequiredVariables("registry/coder/modules/code-server")
-  
-  // Test successful installation
-  it("should install code-server successfully", async () => {
-    await runTerraformInit("registry/coder/modules/code-server")
-    await runTerraformApply("registry/coder/modules/code-server", {
-      agent_id: "test-agent-id"
-    })
-  })
-  
-  // Test with custom folder
-  it("should work with custom folder", async () => {
-    await runTerraformInit("registry/coder/modules/code-server")
-    await runTerraformApply("registry/coder/modules/code-server", {
-      agent_id: "test-agent-id",
-      folder: "/workspace/project"
-    })
-  })
-  
-  // Test with auto-install extensions
-  it("should support auto-install extensions", async () => {
-    await runTerraformInit("registry/coder/modules/code-server")
-    await runTerraformApply("registry/coder/modules/code-server", {
-      agent_id: "test-agent-id",
-      auto_install_extensions: true
-    })
-  })
-})
-```
-
 ### Documentation standards
 
-Your module README must include:
+Your module README should include:
 
 - **Frontmatter**: Required metadata for the registry
 - **Description**: Clear explanation of what the module does
 - **Usage example**: Working Terraform code snippet
-- **Variables table**: All input variables with descriptions
-- **Outputs table**: All outputs with descriptions
 - **Additional context**: Setup requirements, known limitations, etc.
 
 ## Test your module
@@ -355,34 +303,6 @@ When modifying existing modules:
 - Don't change variable types or meanings
 - Test that basic configurations still work
 
-## Submit your contribution
-
-1. **Create a feature branch**:
-
-   ```bash
-   git checkout -b feat/add-git-clone-module
-   ```
-
-2. **Test thoroughly**:
-
-   ```bash
-   bun test -t 'git-clone'
-   bun fmt
-   ```
-
-3. **Commit with clear messages**:
-
-   ```bash
-   git add .
-   git commit -m "Add git-clone module for repository cloning"
-   ```
-
-4. **Open a pull request**:
-   - Use a descriptive title
-   - Explain what the module does and why it's useful
-   - Include testing instructions
-   - Reference any related issues
-
 ## Versioning
 
 When you modify a module, update its version following semantic versioning:
@@ -403,6 +323,34 @@ Use the version bump script to update versions:
 # For breaking changes
 ./.github/scripts/version-bump.sh major
 ```
+
+## Submit your contribution
+
+1. **Create a feature branch**:
+
+   ```bash
+   git checkout -b feat/modify-git-clone-module
+   ```
+
+2. **Test thoroughly**:
+
+   ```bash
+   bun test -t 'git-clone'
+   bun fmt
+   ```
+
+3. **Commit with clear messages**:
+
+   ```bash
+   git add .
+   git commit -m "feat(git-clone):modify git-clone module"
+   ```
+
+4. **Open a pull request**:
+   - Use a descriptive title
+   - Explain what the module does and why it's useful
+   - Include testing instructions
+   - Reference any related issues
 
 ## Common issues and solutions
 
