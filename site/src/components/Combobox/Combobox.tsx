@@ -77,6 +77,7 @@ export const Combobox: FC<ComboboxProps> = ({
 			<PopoverTrigger asChild>
 				<Button
 					variant="outline"
+					// biome-ignore lint/a11y/useSemanticElements: the recommended `<select>` tag is not customizable enough to actually be a good alternative.
 					role="combobox"
 					aria-expanded={open ?? managedOpen}
 					className="w-72 justify-between group"
