@@ -4619,14 +4619,14 @@ var (
 
 func file_provisionersdk_proto_provisioner_proto_rawDescGZIP() []byte {
 	file_provisionersdk_proto_provisioner_proto_rawDescOnce.Do(func() {
-		file_provisionersdk_proto_provisioner_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_provisionersdk_proto_provisioner_proto_rawDesc), len(file_provisionersdk_proto_provisioner_proto_rawDesc)))
+		file_provisionersdk_proto_provisioner_proto_rawDescData = protoimpl.X.CompressGZIP(file_provisionersdk_proto_provisioner_proto_rawDesc)
 	})
 	return file_provisionersdk_proto_provisioner_proto_rawDescData
 }
 
 var file_provisionersdk_proto_provisioner_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
 var file_provisionersdk_proto_provisioner_proto_msgTypes = make([]protoimpl.MessageInfo, 51)
-var file_provisionersdk_proto_provisioner_proto_goTypes = []any{
+var file_provisionersdk_proto_provisioner_proto_goTypes = []interface{}{
 	(ParameterFormType)(0),               // 0: provisioner.ParameterFormType
 	(LogLevel)(0),                        // 1: provisioner.LogLevel
 	(AppSharingLevel)(0),                 // 2: provisioner.AppSharingLevel
@@ -4767,19 +4767,19 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 	if File_provisionersdk_proto_provisioner_proto != nil {
 		return
 	}
-	file_provisionersdk_proto_provisioner_proto_msgTypes[3].OneofWrappers = []any{}
-	file_provisionersdk_proto_provisioner_proto_msgTypes[17].OneofWrappers = []any{
+	file_provisionersdk_proto_provisioner_proto_msgTypes[3].OneofWrappers = []interface{}{}
+	file_provisionersdk_proto_provisioner_proto_msgTypes[17].OneofWrappers = []interface{}{
 		(*Agent_Token)(nil),
 		(*Agent_InstanceId)(nil),
 	}
-	file_provisionersdk_proto_provisioner_proto_msgTypes[43].OneofWrappers = []any{
+	file_provisionersdk_proto_provisioner_proto_msgTypes[43].OneofWrappers = []interface{}{
 		(*Request_Config)(nil),
 		(*Request_Parse)(nil),
 		(*Request_Plan)(nil),
 		(*Request_Apply)(nil),
 		(*Request_Cancel)(nil),
 	}
-	file_provisionersdk_proto_provisioner_proto_msgTypes[44].OneofWrappers = []any{
+	file_provisionersdk_proto_provisioner_proto_msgTypes[44].OneofWrappers = []interface{}{
 		(*Response_Log)(nil),
 		(*Response_Parse)(nil),
 		(*Response_Plan)(nil),
@@ -4791,7 +4791,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_provisionersdk_proto_provisioner_proto_rawDesc), len(file_provisionersdk_proto_provisioner_proto_rawDesc)),
+			RawDescriptor: file_provisionersdk_proto_provisioner_proto_rawDesc,
 			NumEnums:      8,
 			NumMessages:   51,
 			NumExtensions: 0,
@@ -4803,6 +4803,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 		MessageInfos:      file_provisionersdk_proto_provisioner_proto_msgTypes,
 	}.Build()
 	File_provisionersdk_proto_provisioner_proto = out.File
+	file_provisionersdk_proto_provisioner_proto_rawDesc = nil
 	file_provisionersdk_proto_provisioner_proto_goTypes = nil
 	file_provisionersdk_proto_provisioner_proto_depIdxs = nil
 }
