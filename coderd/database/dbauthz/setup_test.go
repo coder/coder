@@ -41,8 +41,6 @@ var skipMethods = map[string]string{
 	"Wrappers":       "Not relevant",
 	"AcquireLock":    "Not relevant",
 	"TryAcquireLock": "Not relevant",
-	// This method will be removed once we know this works correctly.
-	"GetRunningPrebuiltWorkspacesOptimized": "Not relevant",
 }
 
 // TestMethodTestSuite runs MethodTestSuite.
