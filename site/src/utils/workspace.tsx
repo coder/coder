@@ -88,7 +88,7 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
 		case "cli":
 			return "CLI";
 		case "ssh_connection":
-			return "User SSH Connection";
+			return "SSH Connection";
 		case "vscode_connection":
 			return "VSCode Connection";
 		case "jetbrains_connection":
