@@ -433,7 +433,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 
 			return (
 				<Combobox
-					value={value}
+					value={value ?? ""}
 					open={open}
 					onOpenChange={setOpen}
 					inputValue={searchValue}
