@@ -1,4 +1,10 @@
 version: 2
+
+registries:
+  coder-registry:
+    type: terraform-registry
+    url: https://registry.coder.com
+
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -122,3 +128,5 @@ updates:
       - dependency-name: "*"
         update-types:
           - version-update:semver-major
+    registries:
+        - coder-registry
