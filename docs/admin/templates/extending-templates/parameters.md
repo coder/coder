@@ -227,10 +227,6 @@ data "coder_parameter" "region" {
 If a required parameter is empty or if the workspace creation page detects an incompatibility between selected
 parameters, the **Create workspace** button is disabled until the issues are resolved.
 
-You can modify a parameter's `mutable` attribute state any time.
-In case of emergency, you can temporarily allow for changing immutable parameters
-to fix an operational issue, but it is not advised to overuse this opportunity.
-
 ## Ephemeral parameters
 
 Ephemeral parameters are introduced to users in order to model specific
