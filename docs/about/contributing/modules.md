@@ -235,7 +235,7 @@ module "git_clone" {
 - Use descriptive variable names and include descriptions
 - Provide default values for optional variables
 - Include helpful outputs for working with other modules
-- Use proper resource dependencies with `depends_on` when needed
+- Use proper resource dependencies
 - Follow [Terraform style conventions](https://developer.hashicorp.com/terraform/language/syntax/style)
 
 ### Documentation standards
@@ -343,13 +343,12 @@ Use the version bump script to update versions:
 
    ```bash
    git add .
-   git commit -m "feat(git-clone):modify git-clone module"
+   git commit -m "feat(git-clone):add git-clone module"
    ```
 
 4. **Open a pull request**:
    - Use a descriptive title
    - Explain what the module does and why it's useful
-   - Include testing instructions
    - Reference any related issues
 
 ## Common issues and solutions
