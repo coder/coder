@@ -23,7 +23,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useQueryClient } from "react-query";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";

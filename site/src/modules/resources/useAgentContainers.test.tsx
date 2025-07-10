@@ -1,4 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
+import * as API from "api/api";
+import type { WorkspaceAgentDevcontainer } from "api/typesGenerated";
+import * as GlobalSnackbar from "components/GlobalSnackbar/utils";
 import { http, HttpResponse } from "msw";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
@@ -7,9 +10,8 @@ import {
 	MockWorkspaceAgentDevcontainer,
 } from "testHelpers/entities";
 import { server } from "testHelpers/server";
+import type { OneWayWebSocket } from "utils/OneWayWebSocket";
 import { useAgentContainers } from "./useAgentContainers";
-import * as API from "api/api";
-import * as GlobalSnackbar from "components/GlobalSnackbar/utils";
 
 const createWrapper = (): FC<PropsWithChildren> => {
 	const queryClient = new QueryClient({
@@ -93,7 +95,9 @@ describe("useAgentContainers", () => {
 			addEventListener: jest.fn(),
 			close: jest.fn(),
 		};
-		watchAgentContainersSpy.mockReturnValue(mockSocket as any);
+		watchAgentContainersSpy.mockReturnValue(
+			mockSocket as unknown as OneWayWebSocket<WorkspaceAgentDevcontainer[]>,
+		);
 
 		server.use(
 			http.get(
@@ -146,7 +150,9 @@ describe("useAgentContainers", () => {
 			addEventListener: jest.fn(),
 			close: jest.fn(),
 		};
-		watchAgentContainersSpy.mockReturnValue(mockSocket as any);
+		watchAgentContainersSpy.mockReturnValue(
+			mockSocket as unknown as OneWayWebSocket<WorkspaceAgentDevcontainer[]>,
+		);
 
 		server.use(
 			http.get(
