@@ -82,14 +82,15 @@ export type UserFilterMenu = ReturnType<typeof useUserFilterMenu>;
 
 interface UserMenuProps {
 	menu: UserFilterMenu;
+	placeholder?: string;
 	width?: number;
 }
 
-export const UserMenu: FC<UserMenuProps> = ({ menu, width }) => {
+export const UserMenu: FC<UserMenuProps> = ({ menu, width, placeholder }) => {
 	return (
 		<SelectFilter
 			label="Select user"
-			placeholder="All users"
+			placeholder={placeholder ?? "All users"}
 			emptyText="No users found"
 			options={menu.searchOptions}
 			onSelect={menu.selectOption}

@@ -156,6 +156,13 @@ export const permissionChecks = {
 		},
 		action: "read",
 	},
+	viewAnyConnectionLog: {
+		object: {
+			resource_type: "connection_log",
+			any_org: true,
+		},
+		action: "read",
+	},
 	viewDebugInfo: {
 		object: {
 			resource_type: "debug_info",
