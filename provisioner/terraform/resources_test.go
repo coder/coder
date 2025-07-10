@@ -1573,6 +1573,89 @@ func TestAITasks(t *testing.T) {
 	})
 }
 
+func TestAppSharingLevelOrganization(t *testing.T) {
+	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
+
+	// Create a simple terraform plan with an app that has organization sharing
+	tfPlan := &tfjson.Plan{
+		PlannedValues: &tfjson.StateValues{
+			RootModule: &tfjson.StateModule{
+				Resources: []*tfjson.StateResource{
+					{
+						Address:      "coder_agent.dev",
+						Mode:         "managed",
+						Type:         "coder_agent",
+						Name:         "dev",
+						ProviderName: "registry.terraform.io/coder/coder",
+						AttributeValues: map[string]interface{}{
+							"id":   "agent-id",
+							"os":   "linux",
+							"arch": "amd64",
+						},
+					},
+					{
+						Address:      "coder_app.org-app",
+						Mode:         "managed",
+						Type:         "coder_app",
+						Name:         "org-app",
+						ProviderName: "registry.terraform.io/coder/coder",
+						AttributeValues: map[string]interface{}{
+							"agent_id":     "agent-id",
+							"slug":         "org-app",
+							"display_name": "Organization App",
+							"share":        "organization",
+							"url":          "http://localhost:8080",
+						},
+					},
+					{
+						Address:      "null_resource.dev",
+						Mode:         "managed",
+						Type:         "null_resource",
+						Name:         "dev",
+						ProviderName: "registry.terraform.io/hashicorp/null",
+						AttributeValues: map[string]interface{}{
+							"triggers": nil,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Create a simple graph for the test
+	graph := `digraph {
+		compound = "true"
+		newrank = "true"
+		subgraph "root" {
+			"[root] coder_agent.dev (expand)" [label = "coder_agent.dev", shape = "box"]
+			"[root] coder_app.org-app (expand)" [label = "coder_app.org-app", shape = "box"]
+			"[root] null_resource.dev (expand)" [label = "null_resource.dev", shape = "box"]
+			"[root] provider[\"registry.terraform.io/coder/coder\"]" [label = "provider[\"registry.terraform.io/coder/coder\"]", shape = "diamond"]
+			"[root] provider[\"registry.terraform.io/hashicorp/null\"]" [label = "provider[\"registry.terraform.io/hashicorp/null\"]", shape = "diamond"]
+			"[root] coder_agent.dev (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+			"[root] coder_app.org-app (expand)" -> "[root] coder_agent.dev (expand)"
+			"[root] coder_app.org-app (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+			"[root] null_resource.dev (expand)" -> "[root] coder_agent.dev (expand)"
+			"[root] null_resource.dev (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"]"
+		}
+	}`
+
+	// Convert the plan to state
+	state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, graph, logger)
+	require.NoError(t, err)
+
+	// Verify that the app has organization sharing level
+	require.Len(t, state.Resources, 1)
+	require.Len(t, state.Resources[0].Agents, 1)
+	require.Len(t, state.Resources[0].Agents[0].Apps, 1)
+
+	app := state.Resources[0].Agents[0].Apps[0]
+	require.Equal(t, "org-app", app.Slug)
+	require.Equal(t, "Organization App", app.DisplayName)
+	require.Equal(t, proto.AppSharingLevel_ORGANIZATION, app.SharingLevel)
+}
+
 // sortResource ensures resources appear in a consistent ordering
 // to prevent tests from flaking.
 func sortResources(resources []*proto.Resource) {

@@ -530,6 +530,8 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				sharingLevel = proto.AppSharingLevel_OWNER
 			case "authenticated":
 				sharingLevel = proto.AppSharingLevel_AUTHENTICATED
+			case "organization":
+				sharingLevel = proto.AppSharingLevel_ORGANIZATION
 			case "public":
 				sharingLevel = proto.AppSharingLevel_PUBLIC
 			}

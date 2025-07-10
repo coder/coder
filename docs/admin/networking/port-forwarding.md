@@ -87,7 +87,8 @@ resource "coder_app" "node-react-app" {
 ```
 
 Valid `share` values include `owner` - private to the user, `authenticated` -
-accessible by any user authenticated to the Coder deployment, and `public` -
+accessible by any user authenticated to the Coder deployment, `organization` -
+accessible by authenticated users in the same organization as the template, and `public` -
 accessible by users outside of the Coder deployment.
 
 ![Port forwarding from an app in the UI](../../images/networking/portforwarddashboard.png)
@@ -112,9 +113,11 @@ sharing levels that match our `coder_app`’s share option in
   visible to the workspace owner
 - `authenticated`: Accessible by other authenticated Coder users on the same
   deployment.
+- `organization`: Accessible by authenticated users in the same organization as
+  the template.
 - `public`: Accessible by any user with the associated URL.
 
-Once a port is shared at either `authenticated` or `public` levels, it will stay
+Once a port is shared at `authenticated`, `organization`, or `public` levels, it will stay
 pinned in the open ports UI for better accessibility regardless of whether or
 not it is still accessible.
 
@@ -138,8 +141,8 @@ to the app.
 Premium-licensed template admins can control the maximum port sharing level for
 workspaces under a given template in the template settings. By default, the
 maximum sharing level is set to `Owner`, meaning port sharing is disabled for
-end-users. OSS deployments allow all workspaces to share ports at both the
-`authenticated` and `public` levels.
+end-users. OSS deployments allow all workspaces to share ports at the
+`authenticated`, `organization`, and `public` levels.
 
 ![Max port sharing level in the UI](../../images/networking/portsharingmax.png)
 
