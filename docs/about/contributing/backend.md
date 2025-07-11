@@ -16,9 +16,9 @@ Need help or have questions? Join the conversation on our [Discord server](https
 
 To understand how the backend fits into the broader system, we recommend reviewing the following resources:
 
-* [General Concepts](../admin/infrastructure/validated-architectures/index.md#general-concepts): Essential concepts and language used to describe how Coder is structured and operated.
+* [General Concepts](../../admin/infrastructure/validated-architectures/index.md#general-concepts): Essential concepts and language used to describe how Coder is structured and operated.
 
-* [Architecture](../admin/infrastructure/architecture.md): A high-level overview of the infrastructure layout, key services, and how components interact.
+* [Architecture](../../admin/infrastructure/architecture.md): A high-level overview of the infrastructure layout, key services, and how components interact.
 
 These sections provide the necessary context for navigating and contributing to the backend effectively.
 
@@ -168,9 +168,9 @@ There are two types of fixtures that are used to test that migrations don't
 break existing Coder deployments:
 
 * Partial fixtures
-  [`migrations/testdata/fixtures`](../../coderd/database/migrations/testdata/fixtures)
+  [`migrations/testdata/fixtures`](../../../coderd/database/migrations/testdata/fixtures)
 * Full database dumps
-  [`migrations/testdata/full_dumps`](../../coderd/database/migrations/testdata/full_dumps)
+  [`migrations/testdata/full_dumps`](../../../coderd/database/migrations/testdata/full_dumps)
 
 Both types behave like database migrations (they also
 [`migrate`](https://github.com/golang-migrate/migrate)). Their behavior mirrors
@@ -193,7 +193,7 @@ To add a new partial fixture, run the following command:
 ```
 
 Then add some queries to insert data and commit the file to the repo. See
-[`000024_example.up.sql`](../../coderd/database/migrations/testdata/fixtures/000024_example.up.sql)
+[`000024_example.up.sql`](../../../coderd/database/migrations/testdata/fixtures/000024_example.up.sql)
 for an example.
 
 To create a full dump, run a fully fledged Coder deployment and use it to
