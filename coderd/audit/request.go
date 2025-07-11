@@ -6,13 +6,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"net"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 	"go.opentelemetry.io/otel/baggage"
 	"golang.org/x/xerrors"
 
@@ -434,7 +432,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			action = req.Action
 		}
 
-		ip := ParseIP(p.Request.RemoteAddr)
+		ip := database.ParseIP(p.Request.RemoteAddr)
 		auditLog := database.AuditLog{
 			ID:             uuid.New(),
 			Time:           dbtime.Now(),
@@ -466,7 +464,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 // BackgroundAudit creates an audit log for a background event.
 // The audit log is committed upon invocation.
 func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[T]) {
-	ip := ParseIP(p.IP)
+	ip := database.ParseIP(p.IP)
 
 	diff := Diff(p.Audit, p.Old, p.New)
 	var err error
@@ -579,21 +577,5 @@ func either[T Auditable, R any](old, newVal T, fn func(T) R, auditAction databas
 		return fn(old)
 	default:
 		panic("both old and new are nil")
-	}
-}
-
-func ParseIP(ipStr string) pqtype.Inet {
-	ip := net.ParseIP(ipStr)
-	ipNet := net.IPNet{}
-	if ip != nil {
-		ipNet = net.IPNet{
-			IP:   ip,
-			Mask: net.CIDRMask(len(ip)*8, len(ip)*8),
-		}
-	}
-
-	return pqtype.Inet{
-		IPNet: ipNet,
-		Valid: ip != nil,
 	}
 }
