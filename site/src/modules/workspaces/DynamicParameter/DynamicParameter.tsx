@@ -7,6 +7,7 @@ import type {
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { Checkbox } from "components/Checkbox/Checkbox";
+import { Combobox } from "components/Combobox/Combobox";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
@@ -16,13 +17,6 @@ import {
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
 import { RadioGroup, RadioGroupItem } from "components/RadioGroup/RadioGroup";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "components/Select/Select";
 import { Slider } from "components/Slider/Slider";
 import { Stack } from "components/Stack/Stack";
 import { Switch } from "components/Switch/Switch";
@@ -434,43 +428,17 @@ const ParameterField: FC<ParameterFieldProps> = ({
 }) => {
 	switch (parameter.form_type) {
 		case "dropdown": {
-			const EMPTY_VALUE_PLACEHOLDER = "__EMPTY_STRING__";
-			const selectValue = value === "" ? EMPTY_VALUE_PLACEHOLDER : value;
-			const handleSelectChange = (newValue: string) => {
-				onChange(newValue === EMPTY_VALUE_PLACEHOLDER ? "" : newValue);
-			};
-
 			return (
-				<Select
-					onValueChange={handleSelectChange}
-					value={selectValue}
-					disabled={disabled}
-					required={parameter.required}
-				>
-					<SelectTrigger id={id}>
-						<SelectValue
-							placeholder={parameter.styling?.placeholder || "Select option"}
-						/>
-					</SelectTrigger>
-					<SelectContent>
-						{parameter.options.map((option, index) => {
-							const optionValue =
-								option.value.value === ""
-									? EMPTY_VALUE_PLACEHOLDER
-									: option.value.value;
-							return (
-								<SelectItem
-									key={
-										option.value.value || `${EMPTY_VALUE_PLACEHOLDER}:${index}`
-									}
-									value={optionValue}
-								>
-									<OptionDisplay option={option} />
-								</SelectItem>
-							);
-						})}
-					</SelectContent>
-				</Select>
+				<Combobox
+					value={value ?? ""}
+					onSelect={(value) => onChange(value)}
+					options={parameter.options.map((option) => ({
+						icon: option.icon,
+						displayName: option.name,
+						value: option.value.value,
+						description: option.description,
+					}))}
+				/>
 			);
 		}
 

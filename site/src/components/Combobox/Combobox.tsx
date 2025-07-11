@@ -1,3 +1,4 @@
+import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import {
 	Command,
@@ -12,21 +13,35 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { Check, ChevronDown, CornerDownLeft } from "lucide-react";
-import type { FC, KeyboardEventHandler } from "react";
+import { Info } from "lucide-react";
+import { type FC, type KeyboardEventHandler, useState } from "react";
 import { cn } from "utils/cn";
 
 interface ComboboxProps {
 	value: string;
-	options?: readonly string[];
+	options?: Readonly<Array<string | ComboboxOption>>;
 	placeholder?: string;
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
-	inputValue: string;
-	onInputChange: (value: string) => void;
+	open?: boolean;
+	onOpenChange?: (open: boolean) => void;
+	inputValue?: string;
+	onInputChange?: (value: string) => void;
 	onKeyDown?: KeyboardEventHandler<HTMLInputElement>;
 	onSelect: (value: string) => void;
 }
+
+type ComboboxOption = {
+	icon?: string;
+	displayName: string;
+	value: string;
+	description?: string;
+};
 
 export const Combobox: FC<ComboboxProps> = ({
 	value,
@@ -39,16 +54,34 @@ export const Combobox: FC<ComboboxProps> = ({
 	onKeyDown,
 	onSelect,
 }) => {
+	const [managedOpen, setManagedOpen] = useState(false);
+	const [managedInputValue, setManagedInputValue] = useState("");
+
+	const optionsMap = new Map<string, ComboboxOption>();
+	for (const option of options) {
+		if (typeof option === "string") {
+			optionsMap.set(option, { displayName: option, value: option });
+			continue;
+		}
+
+		optionsMap.set(option.value, option);
+	}
+	const optionObjects = [...optionsMap.values()];
+	const showIcons = optionObjects.some((it) => it.icon);
+
 	return (
-		<Popover open={open} onOpenChange={onOpenChange}>
+		<Popover
+			open={open ?? managedOpen}
+			onOpenChange={onOpenChange ?? setManagedOpen}
+		>
 			<PopoverTrigger asChild>
 				<Button
 					variant="outline"
-					aria-expanded={open}
+					aria-expanded={open ?? managedOpen}
 					className="w-72 justify-between group"
 				>
 					<span className={cn(!value && "text-content-secondary")}>
-						{value || placeholder}
+						{optionsMap.get(value)?.displayName || value || placeholder}
 					</span>
 					<ChevronDown className="size-icon-sm text-content-secondary group-hover:text-content-primary" />
 				</Button>
@@ -57,8 +90,8 @@ export const Combobox: FC<ComboboxProps> = ({
 				<Command>
 					<CommandInput
 						placeholder="Search or enter custom value"
-						value={inputValue}
-						onValueChange={onInputChange}
+						value={inputValue ?? managedInputValue}
+						onValueChange={onInputChange ?? setManagedInputValue}
 						onKeyDown={onKeyDown}
 					/>
 					<CommandList>
@@ -70,18 +103,40 @@ export const Combobox: FC<ComboboxProps> = ({
 							</span>
 						</CommandEmpty>
 						<CommandGroup>
-							{options.map((option) => (
+							{optionObjects.map((option) => (
 								<CommandItem
-									key={option}
-									value={option}
+									key={option.value}
+									value={option.value}
+									keywords={[option.displayName]}
 									onSelect={(currentValue) => {
 										onSelect(currentValue === value ? "" : currentValue);
 									}}
 								>
-									{option}
-									{value === option && (
-										<Check className="size-icon-sm ml-auto" />
+									{showIcons && (
+										<Avatar
+											size="sm"
+											src={option.icon}
+											fallback={option.value}
+										/>
 									)}
+									{option.displayName}
+									<div className="flex flex-row items-center ml-auto gap-1">
+										{value === option.value && (
+											<Check className="size-icon-sm" />
+										)}
+										{option.description && (
+											<TooltipProvider delayDuration={100}>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<Info className="w-3.5 h-3.5 text-content-secondary" />
+													</TooltipTrigger>
+													<TooltipContent side="right" sideOffset={10}>
+														{option.description}
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+										)}
+									</div>
 								</CommandItem>
 							))}
 						</CommandGroup>
