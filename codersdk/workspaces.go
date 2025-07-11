@@ -66,6 +66,7 @@ type Workspace struct {
 	AllowRenames     bool             `json:"allow_renames"`
 	Favorite         bool             `json:"favorite"`
 	NextStartAt      *time.Time       `json:"next_start_at" format:"date-time"`
+	IsPrebuild       bool             `json:"is_prebuild"`
 }
 
 func (w Workspace) FullName() string {

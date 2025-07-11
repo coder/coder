@@ -2231,6 +2231,12 @@ func convertWorkspace(
 	if latestAppStatus.ID == uuid.Nil {
 		appStatus = nil
 	}
+
+	isPrebuild := false
+	if workspace.OwnerID == database.PrebuildsSystemUserID {
+		isPrebuild = true
+	}
+
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
 		CreatedAt:                            workspace.CreatedAt,
@@ -2265,6 +2271,7 @@ func convertWorkspace(
 		AllowRenames:     allowRenames,
 		Favorite:         requesterFavorite,
 		NextStartAt:      nextStartAt,
+		IsPrebuild:       isPrebuild,
 	}, nil
 }
 

@@ -17437,6 +17437,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "is_prebuild": {
+                    "type": "boolean"
+                },
                 "last_used_at": {
                     "type": "string",
                     "format": "date-time"

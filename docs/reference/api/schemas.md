@@ -8444,6 +8444,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "healthy": false
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_prebuild": true,
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_app_status": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
@@ -8694,6 +8695,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `favorite`                                  | boolean                                                    | false    |              |                                                                                                                                                                                                                                                       |
 | `health`                                    | [codersdk.WorkspaceHealth](#codersdkworkspacehealth)       | false    |              | Health shows the health of the workspace and information about what is causing an unhealthy status.                                                                                                                                                   |
 | `id`                                        | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
+| `is_prebuild`                               | boolean                                                    | false    |              |                                                                                                                                                                                                                                                       |
 | `last_used_at`                              | string                                                     | false    |              |                                                                                                                                                                                                                                                       |
 | `latest_app_status`                         | [codersdk.WorkspaceAppStatus](#codersdkworkspaceappstatus) | false    |              |                                                                                                                                                                                                                                                       |
 | `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild)         | false    |              |                                                                                                                                                                                                                                                       |
@@ -10282,6 +10284,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "healthy": false
       },
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_prebuild": true,
       "last_used_at": "2019-08-24T14:15:22Z",
       "latest_app_status": {
         "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
