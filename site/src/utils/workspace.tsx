@@ -83,6 +83,16 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
 		case "autostop":
 		case "dormancy":
 			return "Coder";
+		case "dashboard":
+			return "Dashboard";
+		case "cli":
+			return "CLI";
+		case "ssh_connection":
+			return "SSH Connection";
+		case "vscode_connection":
+			return "VSCode Connection";
+		case "jetbrains_connection":
+			return "JetBrains Connection";
 	}
 	return undefined;
 };
