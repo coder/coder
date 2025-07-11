@@ -16,6 +16,8 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"golang.org/x/xerrors"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -352,7 +354,6 @@ type DeploymentValues struct {
 	ProxyTrustedHeaders             serpent.StringArray                  `json:"proxy_trusted_headers,omitempty" typescript:",notnull"`
 	ProxyTrustedOrigins             serpent.StringArray                  `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
 	CacheDir                        serpent.String                       `json:"cache_directory,omitempty" typescript:",notnull"`
-	InMemoryDatabase                serpent.Bool                         `json:"in_memory_database,omitempty" typescript:",notnull"`
 	EphemeralDeployment             serpent.Bool                         `json:"ephemeral_deployment,omitempty" typescript:",notnull"`
 	PostgresURL                     serpent.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
 	PostgresAuth                    string                               `json:"pg_auth,omitempty" typescript:",notnull"`
@@ -2403,15 +2404,6 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:    "cacheDir",
 		},
 		{
-			Name:        "In Memory Database",
-			Description: "Controls whether data will be stored in an in-memory database.",
-			Flag:        "in-memory",
-			Env:         "CODER_IN_MEMORY",
-			Hidden:      true,
-			Value:       &c.InMemoryDatabase,
-			YAML:        "inMemoryDatabase",
-		},
-		{
 			Name:        "Ephemeral Deployment",
 			Description: "Controls whether Coder data, including built-in Postgres, will be stored in a temporary directory and deleted when the server is stopped.",
 			Flag:        "ephemeral",
@@ -3066,11 +3058,10 @@ Write out the current server config as YAML to stdout.`,
 			Flag:        "workspace-prebuilds-reconciliation-interval",
 			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL",
 			Value:       &c.Prebuilds.ReconciliationInterval,
-			Default:     (time.Second * 15).String(),
+			Default:     time.Minute.String(),
 			Group:       &deploymentGroupPrebuilds,
 			YAML:        "reconciliation_interval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
-			Hidden:      ExperimentsSafe.Enabled(ExperimentWorkspacePrebuilds), // Hide setting while this feature is experimental.
 		},
 		{
 			Name:        "Reconciliation Backoff Interval",
@@ -3078,7 +3069,7 @@ Write out the current server config as YAML to stdout.`,
 			Flag:        "workspace-prebuilds-reconciliation-backoff-interval",
 			Env:         "CODER_WORKSPACE_PREBUILDS_RECONCILIATION_BACKOFF_INTERVAL",
 			Value:       &c.Prebuilds.ReconciliationBackoffInterval,
-			Default:     (time.Second * 15).String(),
+			Default:     time.Minute.String(),
 			Group:       &deploymentGroupPrebuilds,
 			YAML:        "reconciliation_backoff_interval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
@@ -3342,8 +3333,33 @@ const (
 	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
-	ExperimentWorkspacePrebuilds Experiment = "workspace-prebuilds"  // Enables the new workspace prebuilds feature.
+	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
+	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
 )
+
+func (e Experiment) DisplayName() string {
+	switch e {
+	case ExperimentExample:
+		return "Example Experiment"
+	case ExperimentAutoFillParameters:
+		return "Auto-fill Template Parameters"
+	case ExperimentNotifications:
+		return "SMTP and Webhook Notifications"
+	case ExperimentWorkspaceUsage:
+		return "Workspace Usage Tracking"
+	case ExperimentWebPush:
+		return "Browser Push Notifications"
+	case ExperimentOAuth2:
+		return "OAuth2 Provider Functionality"
+	case ExperimentMCPServerHTTP:
+		return "MCP HTTP Server Functionality"
+	default:
+		// Split on hyphen and convert to title case
+		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
+		caser := cases.Title(language.English)
+		return caser.String(strings.ReplaceAll(string(e), "-", " "))
+	}
+}
 
 // ExperimentsKnown should include all experiments defined above.
 var ExperimentsKnown = Experiments{
@@ -3352,16 +3368,15 @@ var ExperimentsKnown = Experiments{
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
 	ExperimentWebPush,
-	ExperimentWorkspacePrebuilds,
+	ExperimentOAuth2,
+	ExperimentMCPServerHTTP,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsSafe = Experiments{
-	ExperimentWorkspacePrebuilds,
-}
+var ExperimentsSafe = Experiments{}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.
@@ -3372,14 +3387,9 @@ var ExperimentsSafe = Experiments{
 // @typescript-ignore Experiments
 type Experiments []Experiment
 
-// Returns a list of experiments that are enabled for the deployment.
+// Enabled returns a list of experiments that are enabled for the deployment.
 func (e Experiments) Enabled(ex Experiment) bool {
-	for _, v := range e {
-		if v == ex {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(e, ex)
 }
 
 func (c *Client) Experiments(ctx context.Context) (Experiments, error) {

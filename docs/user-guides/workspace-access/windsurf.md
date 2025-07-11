@@ -6,6 +6,7 @@ development.
 Follow this guide to use Windsurf to access your Coder workspaces.
 
 If your team uses Windsurf regularly, ask your Coder administrator to add Windsurf as a workspace application in your template.
+You can also use the [Windsurf module](https://registry.coder.com/modules/coder/windsurf) to easily add Windsurf to your Coder templates.
 
 ## Install Windsurf
 
@@ -30,7 +31,7 @@ Windsurf can connect to your Coder workspaces via SSH:
 
    ## Extension Marketplace
 
-   1. Search for Coder from the Extensions Pane and select **Install**.
+   Search for Coder from the Extensions Pane and select **Install**.
 
    ## Manually
 
@@ -41,8 +42,7 @@ Windsurf can connect to your Coder workspaces via SSH:
       Alternatively:
 
       1. Open the Command Palette
-   (<kdb>Ctrl</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb> or <kdb>Cmd</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb>)
-   and search for `vsix`.
+         (<kdb>Ctrl</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb> or <kdb>Cmd</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb>) and search for `vsix`.
 
       1. Select **Extensions: Install from VSIX** and select the vscode-coder extension you downloaded.
 
@@ -50,9 +50,8 @@ Windsurf can connect to your Coder workspaces via SSH:
 
 ## Open a workspace in Windsurf
 
-1. From the Windsurf Command Palette
-(<kdb>Ctrl</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb> or <kdb>Cmd</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb>),
-enter `coder` and select **Coder: Login**.
+1. From the Windsurf Command Palette (<kdb>Ctrl</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb> or <kdb>Cmd</kdb>+<kdb>Shift</kdb>+<kdb>P</kdb>),
+   enter `coder` and select **Coder: Login**.
 
 1. Follow the prompts to login and copy your session token.
 

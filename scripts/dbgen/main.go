@@ -7,7 +7,6 @@ import (
 	"go/format"
 	"go/token"
 	"os"
-	"path"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -52,14 +51,6 @@ func run() error {
 		return err
 	}
 	databasePath := filepath.Join(localPath, "..", "..", "..", "coderd", "database")
-
-	err = orderAndStubDatabaseFunctions(filepath.Join(databasePath, "dbmem", "dbmem.go"), "q", "FakeQuerier", func(_ stubParams) string {
-		return `panic("not implemented")`
-	})
-	if err != nil {
-		return xerrors.Errorf("stub dbmem: %w", err)
-	}
-
 	err = orderAndStubDatabaseFunctions(filepath.Join(databasePath, "dbmetrics", "querymetrics.go"), "m", "queryMetricsStore", func(params stubParams) string {
 		return fmt.Sprintf(`
 start := time.Now()
@@ -257,13 +248,13 @@ func orderAndStubDatabaseFunctions(filePath, receiver, structName string, stub f
 
 	contents, err := os.ReadFile(filePath)
 	if err != nil {
-		return xerrors.Errorf("read dbmem: %w", err)
+		return xerrors.Errorf("read file: %w", err)
 	}
 
 	// Required to preserve imports!
 	f, err := decorator.NewDecoratorWithImports(token.NewFileSet(), packageName, goast.New()).Parse(contents)
 	if err != nil {
-		return xerrors.Errorf("parse dbmem: %w", err)
+		return xerrors.Errorf("parse file: %w", err)
 	}
 
 	pointer := false
@@ -298,76 +289,6 @@ func orderAndStubDatabaseFunctions(filePath, receiver, structName string, stub f
 	for _, fn := range funcs {
 		var bodyStmts []dst.Stmt
 
-		// Add input validation, only relevant for dbmem.
-		if strings.Contains(filePath, "dbmem") && len(fn.Func.Params.List) == 2 && fn.Func.Params.List[1].Names[0].Name == "arg" {
-			/*
-				err := validateDatabaseType(arg)
-				if err != nil {
-					return database.User{}, err
-				}
-			*/
-			bodyStmts = append(bodyStmts, &dst.AssignStmt{
-				Lhs: []dst.Expr{dst.NewIdent("err")},
-				Tok: token.DEFINE,
-				Rhs: []dst.Expr{
-					&dst.CallExpr{
-						Fun: &dst.Ident{
-							Name: "validateDatabaseType",
-						},
-						Args: []dst.Expr{dst.NewIdent("arg")},
-					},
-				},
-			})
-			returnStmt := &dst.ReturnStmt{
-				Results: []dst.Expr{}, // Filled below.
-			}
-			bodyStmts = append(bodyStmts, &dst.IfStmt{
-				Cond: &dst.BinaryExpr{
-					X:  dst.NewIdent("err"),
-					Op: token.NEQ,
-					Y:  dst.NewIdent("nil"),
-				},
-				Body: &dst.BlockStmt{
-					List: []dst.Stmt{
-						returnStmt,
-					},
-				},
-				Decs: dst.IfStmtDecorations{
-					NodeDecs: dst.NodeDecs{
-						After: dst.EmptyLine,
-					},
-				},
-			})
-			for _, r := range fn.Func.Results.List {
-				switch typ := r.Type.(type) {
-				case *dst.StarExpr, *dst.ArrayType, *dst.SelectorExpr:
-					returnStmt.Results = append(returnStmt.Results, dst.NewIdent("nil"))
-				case *dst.Ident:
-					if typ.Path != "" {
-						returnStmt.Results = append(returnStmt.Results, dst.NewIdent(fmt.Sprintf("%s.%s{}", path.Base(typ.Path), typ.Name)))
-					} else {
-						switch typ.Name {
-						case "uint8", "uint16", "uint32", "uint64", "uint", "uintptr",
-							"int8", "int16", "int32", "int64", "int",
-							"byte", "rune",
-							"float32", "float64",
-							"complex64", "complex128":
-							returnStmt.Results = append(returnStmt.Results, dst.NewIdent("0"))
-						case "string":
-							returnStmt.Results = append(returnStmt.Results, dst.NewIdent("\"\""))
-						case "bool":
-							returnStmt.Results = append(returnStmt.Results, dst.NewIdent("false"))
-						case "error":
-							returnStmt.Results = append(returnStmt.Results, dst.NewIdent("err"))
-						default:
-							panic(fmt.Sprintf("unknown ident: %#v", r.Type))
-						}
-					}
-				default:
-					panic(fmt.Sprintf("unknown return type: %T", r.Type))
-				}
-			}
-		}
 		decl, ok := declByName[fn.Name]
 		if !ok {
 			typeName := structName
@@ -459,8 +380,7 @@ func orderAndStubDatabaseFunctions(filePath, receiver, structName string, stub f
 		return xerrors.Errorf("format package: %w", err)
 	}
 	data, err := imports.Process(filePath, buf.Bytes(), &imports.Options{
-		Comments:   true,
-		FormatOnly: true,
+		Comments: true,
 	})
 	if err != nil {
 		return xerrors.Errorf("process imports: %w", err)

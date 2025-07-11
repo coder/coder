@@ -15,6 +15,26 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// Tool name constants to avoid hardcoded strings
+const (
+	ToolNameReportTask                  = "coder_report_task"
+	ToolNameGetWorkspace                = "coder_get_workspace"
+	ToolNameCreateWorkspace             = "coder_create_workspace"
+	ToolNameListWorkspaces              = "coder_list_workspaces"
+	ToolNameListTemplates               = "coder_list_templates"
+	ToolNameListTemplateVersionParams   = "coder_template_version_parameters"
+	ToolNameGetAuthenticatedUser        = "coder_get_authenticated_user"
+	ToolNameCreateWorkspaceBuild        = "coder_create_workspace_build"
+	ToolNameCreateTemplateVersion       = "coder_create_template_version"
+	ToolNameGetWorkspaceAgentLogs       = "coder_get_workspace_agent_logs"
+	ToolNameGetWorkspaceBuildLogs       = "coder_get_workspace_build_logs"
+	ToolNameGetTemplateVersionLogs      = "coder_get_template_version_logs"
+	ToolNameUpdateTemplateActiveVersion = "coder_update_template_active_version"
+	ToolNameUploadTarFile               = "coder_upload_tar_file"
+	ToolNameCreateTemplate              = "coder_create_template"
+	ToolNameDeleteTemplate              = "coder_delete_template"
+)
+
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
 	d := Deps{
 		coderClient: client,
@@ -173,7 +193,7 @@ type ReportTaskArgs struct {
 
 var ReportTask = Tool[ReportTaskArgs, codersdk.Response]{
 	Tool: aisdk.Tool{
-		Name: "coder_report_task",
+		Name: ToolNameReportTask,
 		Description: `Report progress on your work.
 
 The user observes your work through a Task UI. To keep them updated
@@ -238,7 +258,7 @@ type GetWorkspaceArgs struct {
 
 var GetWorkspace = Tool[GetWorkspaceArgs, codersdk.Workspace]{
 	Tool: aisdk.Tool{
-		Name: "coder_get_workspace",
+		Name: ToolNameGetWorkspace,
 		Description: `Get a workspace by ID.
 
 This returns more data than list_workspaces to reduce token usage.`,
@@ -269,7 +289,7 @@ type CreateWorkspaceArgs struct {
 
 var CreateWorkspace = Tool[CreateWorkspaceArgs, codersdk.Workspace]{
 	Tool: aisdk.Tool{
-		Name: "coder_create_workspace",
+		Name: ToolNameCreateWorkspace,
 		Description: `Create a new workspace in Coder.
 
 If a user is asking to "test a template", they are typically referring
@@ -331,7 +351,7 @@ type ListWorkspacesArgs struct {
 
 var ListWorkspaces = Tool[ListWorkspacesArgs, []MinimalWorkspace]{
 	Tool: aisdk.Tool{
-		Name:        "coder_list_workspaces",
+		Name:        ToolNameListWorkspaces,
 		Description: "Lists workspaces for the authenticated user.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -373,7 +393,7 @@ var ListWorkspaces = Tool[ListWorkspacesArgs, []MinimalWorkspace]{
 
 var ListTemplates = Tool[NoArgs, []MinimalTemplate]{
 	Tool: aisdk.Tool{
-		Name:        "coder_list_templates",
+		Name:        ToolNameListTemplates,
 		Description: "Lists templates for the authenticated user.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{},
@@ -406,7 +426,7 @@ type ListTemplateVersionParametersArgs struct {
 
 var ListTemplateVersionParameters = Tool[ListTemplateVersionParametersArgs, []codersdk.TemplateVersionParameter]{
 	Tool: aisdk.Tool{
-		Name:        "coder_template_version_parameters",
+		Name:        ToolNameListTemplateVersionParams,
 		Description: "Get the parameters for a template version. You can refer to these as workspace parameters to the user, as they are typically important for creating a workspace.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -432,7 +452,7 @@ var ListTemplateVersionParameters = Tool[ListTemplateVersionParametersArgs, []co
 
 var GetAuthenticatedUser = Tool[NoArgs, codersdk.User]{
 	Tool: aisdk.Tool{
-		Name:        "coder_get_authenticated_user",
+		Name:        ToolNameGetAuthenticatedUser,
 		Description: "Get the currently authenticated user, similar to the `whoami` command.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{},
@@ -452,7 +472,7 @@ type CreateWorkspaceBuildArgs struct {
 
 var CreateWorkspaceBuild = Tool[CreateWorkspaceBuildArgs, codersdk.WorkspaceBuild]{
 	Tool: aisdk.Tool{
-		Name:        "coder_create_workspace_build",
+		Name:        ToolNameCreateWorkspaceBuild,
 		Description: "Create a new workspace build for an existing workspace. Use this to start, stop, or delete.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -502,7 +522,7 @@ type CreateTemplateVersionArgs struct {
 
 var CreateTemplateVersion = Tool[CreateTemplateVersionArgs, codersdk.TemplateVersion]{
 	Tool: aisdk.Tool{
-		Name: "coder_create_template_version",
+		Name: ToolNameCreateTemplateVersion,
 		Description: `Create a new template version. This is a precursor to creating a template, or you can update an existing template.
 
 Templates are Terraform defining a development environment. The provisioned infrastructure must run
@@ -1002,7 +1022,7 @@ type GetWorkspaceAgentLogsArgs struct {
 
 var GetWorkspaceAgentLogs = Tool[GetWorkspaceAgentLogsArgs, []string]{
 	Tool: aisdk.Tool{
-		Name: "coder_get_workspace_agent_logs",
+		Name: ToolNameGetWorkspaceAgentLogs,
 		Description: `Get the logs of a workspace agent.
 
 		More logs may appear after this call. It does not wait for the agent to finish.`,
@@ -1041,7 +1061,7 @@ type GetWorkspaceBuildLogsArgs struct {
 
 var GetWorkspaceBuildLogs = Tool[GetWorkspaceBuildLogsArgs, []string]{
 	Tool: aisdk.Tool{
-		Name: "coder_get_workspace_build_logs",
+		Name: ToolNameGetWorkspaceBuildLogs,
 		Description: `Get the logs of a workspace build.
 
 		Useful for checking whether a workspace builds successfully or not.`,
@@ -1078,7 +1098,7 @@ type GetTemplateVersionLogsArgs struct {
 
 var GetTemplateVersionLogs = Tool[GetTemplateVersionLogsArgs, []string]{
 	Tool: aisdk.Tool{
-		Name:        "coder_get_template_version_logs",
+		Name:        ToolNameGetTemplateVersionLogs,
 		Description: "Get the logs of a template version. This is useful to check whether a template version successfully imports or not.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -1115,7 +1135,7 @@ type UpdateTemplateActiveVersionArgs struct {
 
 var UpdateTemplateActiveVersion = Tool[UpdateTemplateActiveVersionArgs, string]{
 	Tool: aisdk.Tool{
-		Name:        "coder_update_template_active_version",
+		Name:        ToolNameUpdateTemplateActiveVersion,
 		Description: "Update the active version of a template. This is helpful when iterating on templates.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -1154,7 +1174,7 @@ type UploadTarFileArgs struct {
 
 var UploadTarFile = Tool[UploadTarFileArgs, codersdk.UploadResponse]{
 	Tool: aisdk.Tool{
-		Name:        "coder_upload_tar_file",
+		Name:        ToolNameUploadTarFile,
 		Description: `Create and upload a tar file by key/value mapping of file names to file contents. Use this to create template versions. Reference the tool description of "create_template_version" to understand template requirements.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -1216,7 +1236,7 @@ type CreateTemplateArgs struct {
 
 var CreateTemplate = Tool[CreateTemplateArgs, codersdk.Template]{
 	Tool: aisdk.Tool{
-		Name:        "coder_create_template",
+		Name:        ToolNameCreateTemplate,
 		Description: "Create a new template in Coder. First, you must create a template version.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -1269,7 +1289,7 @@ type DeleteTemplateArgs struct {
 
 var DeleteTemplate = Tool[DeleteTemplateArgs, codersdk.Response]{
 	Tool: aisdk.Tool{
-		Name:        "coder_delete_template",
+		Name:        ToolNameDeleteTemplate,
 		Description: "Delete a template. This is irreversible.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{

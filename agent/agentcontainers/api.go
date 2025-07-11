@@ -53,7 +53,6 @@ type API struct {
 	cancel                      context.CancelFunc
 	watcherDone                 chan struct{}
 	updaterDone                 chan struct{}
-	initialUpdateDone           chan struct{}   // Closed after first update in updaterLoop.
 	updateTrigger               chan chan error // Channel to trigger manual refresh.
 	updateInterval              time.Duration   // Interval for periodic container updates.
 	logger                      slog.Logger
@@ -71,13 +70,16 @@ type API struct {
 
 	ownerName     string
 	workspaceName string
+	parentAgent   string
 
-	mu                       sync.RWMutex
+	mu                       sync.RWMutex  // Protects the following fields.
+	initDone                 chan struct{} // Closed by Init.
 	closed                   bool
 	containers               codersdk.WorkspaceAgentListContainersResponse  // Output from the last list operation.
 	containersErr            error                                          // Error from the last list operation.
 	devcontainerNames        map[string]bool                                // By devcontainer name.
 	knownDevcontainers       map[string]codersdk.WorkspaceAgentDevcontainer // By workspace folder.
+	devcontainerLogSourceIDs map[string]uuid.UUID                           // By workspace folder.
 	configFileModifiedTimes  map[string]time.Time                           // By config file path.
 	recreateSuccessTimes     map[string]time.Time                           // By workspace folder.
 	recreateErrorTimes       map[string]time.Time                           // By workspace folder.
@@ -85,8 +87,6 @@ type API struct {
 	usingWorkspaceFolderName map[string]bool                                // By workspace folder.
 	ignoredDevcontainers     map[string]bool                                // By workspace folder. Tracks three states (true, false and not checked).
 	asyncWg                  sync.WaitGroup
-
-	devcontainerLogSourceIDs map[string]uuid.UUID // By workspace folder.
 }
 
 type subAgentProcess struct {
@@ -188,10 +188,11 @@ func WithSubAgentEnv(env ...string) Option {
 
 // WithManifestInfo sets the owner name, and workspace name
 // for the sub-agent.
-func WithManifestInfo(owner, workspace string) Option {
+func WithManifestInfo(owner, workspace, parentAgent string) Option {
 	return func(api *API) {
 		api.ownerName = owner
 		api.workspaceName = workspace
+		api.parentAgent = parentAgent
 	}
 }
 
@@ -210,6 +211,25 @@ func WithDevcontainers(devcontainers []codersdk.WorkspaceAgentDevcontainer, scri
 			if dc.Status == "" {
 				dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
 			}
+			logger := api.logger.With(
+				slog.F("devcontainer_id", dc.ID),
+				slog.F("devcontainer_name", dc.Name),
+				slog.F("workspace_folder", dc.WorkspaceFolder),
+				slog.F("config_path", dc.ConfigPath),
+			)
+
+			// Devcontainers have a name originating from Terraform, but
+			// we need to ensure that the name is unique. We will use
+			// the workspace folder name to generate a unique agent name,
+			// and if that fails, we will fall back to the devcontainers
+			// original name.
+			name, usingWorkspaceFolder := api.makeAgentName(dc.WorkspaceFolder, dc.Name)
+			if name != dc.Name {
+				logger = logger.With(slog.F("devcontainer_name", name))
+				logger.Debug(api.ctx, "updating devcontainer name", slog.F("devcontainer_old_name", dc.Name))
+				dc.Name = name
+				api.usingWorkspaceFolderName[dc.WorkspaceFolder] = usingWorkspaceFolder
+			}
 
 			api.knownDevcontainers[dc.WorkspaceFolder] = dc
 			api.devcontainerNames[dc.Name] = true
@@ -222,12 +242,7 @@ func WithDevcontainers(devcontainers []codersdk.WorkspaceAgentDevcontainer, scri
 				}
 			}
 			if api.devcontainerLogSourceIDs[dc.WorkspaceFolder] == uuid.Nil {
-				api.logger.Error(api.ctx, "devcontainer log source ID not found for devcontainer",
-					slog.F("devcontainer_id", dc.ID),
-					slog.F("devcontainer_name", dc.Name),
-					slog.F("workspace_folder", dc.WorkspaceFolder),
-					slog.F("config_path", dc.ConfigPath),
-				)
+				logger.Error(api.ctx, "devcontainer log source ID not found for devcontainer")
 			}
 		}
 	}
@@ -269,7 +284,7 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 	api := &API{
 		ctx:                         ctx,
 		cancel:                      cancel,
-		initialUpdateDone:           make(chan struct{}),
+		initDone:                    make(chan struct{}),
 		updateTrigger:               make(chan chan error),
 		updateInterval:              defaultUpdateInterval,
 		logger:                      logger,
@@ -321,17 +336,36 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 }
 
 // Init applies a final set of options to the API and then
-// begins the watcherLoop and updaterLoop. This function
-// must only be called once.
+// closes initDone. This method can only be called once.
 func (api *API) Init(opts ...Option) {
 	api.mu.Lock()
 	defer api.mu.Unlock()
 	if api.closed {
 		return
 	}
+	select {
+	case <-api.initDone:
+		return
+	default:
+	}
+	defer close(api.initDone)
 
 	for _, opt := range opts {
 		opt(api)
+	}
+}
+
+// Start starts the API by initializing the watcher and updater loops.
+// This method calls Init, if it is desired to apply options after
+// the API has been created, it should be done by calling Init before
+// Start. This method must only be called once.
+func (api *API) Start() {
+	api.Init()
+
+	api.mu.Lock()
+	defer api.mu.Unlock()
+	if api.closed {
+		return
 	}
 
 	api.watcherDone = make(chan struct{})
@@ -411,28 +445,37 @@ func (api *API) updaterLoop() {
 	} else {
 		api.logger.Debug(api.ctx, "initial containers update complete")
 	}
-	// Signal that the initial update attempt (successful or not) is done.
-	// Other services can wait on this if they need the first data to be available.
-	close(api.initialUpdateDone)
 
 	// We utilize a TickerFunc here instead of a regular Ticker so that
 	// we can guarantee execution of the updateContainers method after
 	// advancing the clock.
+	var prevErr error
 	ticker := api.clock.TickerFunc(api.ctx, api.updateInterval, func() error {
 		done := make(chan error, 1)
-		defer close(done)
-
+		var sent bool
+		defer func() {
+			if !sent {
+				close(done)
+			}
+		}()
 		select {
 		case <-api.ctx.Done():
 			return api.ctx.Err()
 		case api.updateTrigger <- done:
+			sent = true
 			err := <-done
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
 					api.logger.Warn(api.ctx, "updater loop ticker canceled", slog.Error(err))
-				} else {
+					return nil
+				}
+				// Avoid excessive logging of the same error.
+				if prevErr == nil || prevErr.Error() != err.Error() {
 					api.logger.Error(api.ctx, "updater loop ticker failed", slog.Error(err))
 				}
+				prevErr = err
+			} else {
+				prevErr = nil
 			}
 		default:
 			api.logger.Debug(api.ctx, "updater loop ticker skipped, update in progress")
@@ -454,6 +497,7 @@ func (api *API) updaterLoop() {
 			// Note that although we pass api.ctx here, updateContainers
 			// has an internal timeout to prevent long blocking calls.
 			done <- api.updateContainers(api.ctx)
+			close(done)
 		}
 	}
 }
@@ -467,7 +511,7 @@ func (api *API) UpdateSubAgentClient(client SubAgentClient) {
 func (api *API) Routes() http.Handler {
 	r := chi.NewRouter()
 
-	ensureInitialUpdateDoneMW := func(next http.Handler) http.Handler {
+	ensureInitDoneMW := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			select {
 			case <-api.ctx.Done():
@@ -478,9 +522,8 @@ func (api *API) Routes() http.Handler {
 				return
 			case <-r.Context().Done():
 				return
-			case <-api.initialUpdateDone:
-				// Initial update is done, we can start processing
-				// requests.
+			case <-api.initDone:
+				// API init is done, we can start processing requests.
 			}
 			next.ServeHTTP(rw, r)
 		})
@@ -489,13 +532,13 @@ func (api *API) Routes() http.Handler {
 	// For now, all endpoints require the initial update to be done.
 	// If we want to allow some endpoints to be available before
 	// the initial update, we can enable this per-route.
-	r.Use(ensureInitialUpdateDoneMW)
+	r.Use(ensureInitDoneMW)
 
 	r.Get("/", api.handleList)
 	// TODO(mafredri): Simplify this route as the previous /devcontainers
 	// /-route was dropped. We can drop the /devcontainers prefix here too.
-	r.Route("/devcontainers", func(r chi.Router) {
-		r.Post("/container/{container}/recreate", api.handleDevcontainerRecreate)
+	r.Route("/devcontainers/{devcontainer}", func(r chi.Router) {
+		r.Post("/recreate", api.handleDevcontainerRecreate)
 	})
 
 	return r
@@ -528,7 +571,6 @@ func (api *API) updateContainers(ctx context.Context) error {
 		// will clear up on the next update.
 		if !errors.Is(err, context.Canceled) {
 			api.mu.Lock()
-			api.containers = codersdk.WorkspaceAgentListContainersResponse{}
 			api.containersErr = err
 			api.mu.Unlock()
 		}
@@ -682,6 +724,9 @@ func (api *API) processUpdatedContainersLocked(ctx context.Context, updated code
 				err := api.maybeInjectSubAgentIntoContainerLocked(ctx, dc)
 				if err != nil {
 					logger.Error(ctx, "inject subagent into container failed", slog.Error(err))
+					dc.Error = err.Error()
+				} else {
+					dc.Error = ""
 				}
 			}
 
@@ -798,12 +843,19 @@ func (api *API) RefreshContainers(ctx context.Context) (err error) {
 	}()
 
 	done := make(chan error, 1)
+	var sent bool
+	defer func() {
+		if !sent {
+			close(done)
+		}
+	}()
 	select {
 	case <-api.ctx.Done():
 		return xerrors.Errorf("API closed: %w", api.ctx.Err())
 	case <-ctx.Done():
 		return ctx.Err()
 	case api.updateTrigger <- done:
+		sent = true
 		select {
 		case <-api.ctx.Done():
 			return xerrors.Errorf("API closed: %w", api.ctx.Err())
@@ -844,7 +896,7 @@ func (api *API) getContainers() (codersdk.WorkspaceAgentListContainersResponse, 
 			devcontainers = append(devcontainers, dc)
 		}
 		slices.SortFunc(devcontainers, func(a, b codersdk.WorkspaceAgentDevcontainer) int {
-			return strings.Compare(a.Name, b.Name)
+			return strings.Compare(a.WorkspaceFolder, b.WorkspaceFolder)
 		})
 	}
 
@@ -859,68 +911,40 @@ func (api *API) getContainers() (codersdk.WorkspaceAgentListContainersResponse, 
 // devcontainer by referencing the container.
 func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	containerID := chi.URLParam(r, "container")
+	devcontainerID := chi.URLParam(r, "devcontainer")
 
-	if containerID == "" {
+	if devcontainerID == "" {
 		httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
-			Message: "Missing container ID or name",
-			Detail:  "Container ID or name is required to recreate a devcontainer.",
-		})
-		return
-	}
-
-	containers, err := api.getContainers()
-	if err != nil {
-		httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
-			Message: "Could not list containers",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	containerIdx := slices.IndexFunc(containers.Containers, func(c codersdk.WorkspaceAgentContainer) bool { return c.Match(containerID) })
-	if containerIdx == -1 {
-		httpapi.Write(ctx, w, http.StatusNotFound, codersdk.Response{
-			Message: "Container not found",
-			Detail:  "Container ID or name not found in the list of containers.",
-		})
-		return
-	}
-
-	container := containers.Containers[containerIdx]
-	workspaceFolder := container.Labels[DevcontainerLocalFolderLabel]
-	configPath := container.Labels[DevcontainerConfigFileLabel]
-
-	// Workspace folder is required to recreate a container, we don't verify
-	// the config path here because it's optional.
-	if workspaceFolder == "" {
-		httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
-			Message: "Missing workspace folder label",
-			Detail:  "The container is not a devcontainer, the container must have the workspace folder label to support recreation.",
+			Message: "Missing devcontainer ID",
+			Detail:  "Devcontainer ID is required to recreate a devcontainer.",
 		})
 		return
 	}
 
 	api.mu.Lock()
 
-	dc, ok := api.knownDevcontainers[workspaceFolder]
-	switch {
-	case !ok:
+	var dc codersdk.WorkspaceAgentDevcontainer
+	for _, knownDC := range api.knownDevcontainers {
+		if knownDC.ID.String() == devcontainerID {
+			dc = knownDC
+			break
+		}
+	}
+	if dc.ID == uuid.Nil {
 		api.mu.Unlock()
 
-		// This case should not happen if the container is a valid devcontainer.
-		api.logger.Error(ctx, "devcontainer not found for workspace folder", slog.F("workspace_folder", workspaceFolder))
-		httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, w, http.StatusNotFound, codersdk.Response{
 			Message: "Devcontainer not found.",
-			Detail:  fmt.Sprintf("Could not find devcontainer for workspace folder: %q", workspaceFolder),
+			Detail:  fmt.Sprintf("Could not find devcontainer with ID: %q", devcontainerID),
 		})
 		return
-	case dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting:
+	}
+	if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting {
 		api.mu.Unlock()
 
 		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
 			Message: "Devcontainer recreation already in progress",
-			Detail:  fmt.Sprintf("Recreation for workspace folder %q is already underway.", dc.WorkspaceFolder),
+			Detail:  fmt.Sprintf("Recreation for devcontainer %q is already underway.", dc.Name),
 		})
 		return
 	}
@@ -929,16 +953,17 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	// devcontainer multiple times in parallel.
 	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
 	dc.Container = nil
+	dc.Error = ""
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	go func() {
-		_ = api.CreateDevcontainer(dc.WorkspaceFolder, configPath, WithRemoveExistingContainer())
+		_ = api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath, WithRemoveExistingContainer())
 	}()
 
 	api.mu.Unlock()
 
 	httpapi.Write(ctx, w, http.StatusAccepted, codersdk.Response{
 		Message: "Devcontainer recreation initiated",
-		Detail:  fmt.Sprintf("Recreation process for workspace folder %q has started.", dc.WorkspaceFolder),
+		Detail:  fmt.Sprintf("Recreation process for devcontainer %q has started.", dc.Name),
 	})
 }
 
@@ -962,32 +987,31 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 		return xerrors.Errorf("devcontainer not found")
 	}
 
-	api.asyncWg.Add(1)
-	defer api.asyncWg.Done()
-	api.mu.Unlock()
-
 	var (
-		err    error
 		ctx    = api.ctx
 		logger = api.logger.With(
 			slog.F("devcontainer_id", dc.ID),
 			slog.F("devcontainer_name", dc.Name),
 			slog.F("workspace_folder", dc.WorkspaceFolder),
-			slog.F("config_path", configPath),
+			slog.F("config_path", dc.ConfigPath),
 		)
 	)
+
+	// Send logs via agent logging facilities.
+	logSourceID := api.devcontainerLogSourceIDs[dc.WorkspaceFolder]
+	if logSourceID == uuid.Nil {
+		api.logger.Debug(api.ctx, "devcontainer log source ID not found, falling back to external log source ID")
+		logSourceID = agentsdk.ExternalLogSourceID
+	}
+
+	api.asyncWg.Add(1)
+	defer api.asyncWg.Done()
+	api.mu.Unlock()
 
 	if dc.ConfigPath != configPath {
 		logger.Warn(ctx, "devcontainer config path mismatch",
 			slog.F("config_path_param", configPath),
 		)
-	}
-
-	// Send logs via agent logging facilities.
-	logSourceID := api.devcontainerLogSourceIDs[dc.WorkspaceFolder]
-	if logSourceID == uuid.Nil {
-		// Fallback to the external log source ID if not found.
-		logSourceID = agentsdk.ExternalLogSourceID
 	}
 
 	scriptLogger := api.scriptLogger(logSourceID)
@@ -1008,7 +1032,7 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 	upOptions := []DevcontainerCLIUpOptions{WithUpOutput(infoW, errW)}
 	upOptions = append(upOptions, opts...)
 
-	_, err = api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, upOptions...)
+	_, err := api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, upOptions...)
 	if err != nil {
 		// No need to log if the API is closing (context canceled), as this
 		// is expected behavior when the API is shutting down.
@@ -1019,6 +1043,7 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 		api.mu.Lock()
 		dc = api.knownDevcontainers[dc.WorkspaceFolder]
 		dc.Status = codersdk.WorkspaceAgentDevcontainerStatusError
+		dc.Error = err.Error()
 		api.knownDevcontainers[dc.WorkspaceFolder] = dc
 		api.recreateErrorTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "errorTimes")
 		api.mu.Unlock()
@@ -1042,6 +1067,7 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 		}
 	}
 	dc.Dirty = false
+	dc.Error = ""
 	api.recreateSuccessTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "successTimes")
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	api.mu.Unlock()
@@ -1319,7 +1345,9 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 						fmt.Sprintf("CODER_WORKSPACE_AGENT_NAME=%s", subAgentConfig.Name),
 						fmt.Sprintf("CODER_WORKSPACE_OWNER_NAME=%s", api.ownerName),
 						fmt.Sprintf("CODER_WORKSPACE_NAME=%s", api.workspaceName),
+						fmt.Sprintf("CODER_WORKSPACE_PARENT_AGENT_NAME=%s", api.parentAgent),
 						fmt.Sprintf("CODER_URL=%s", api.subAgentURL),
+						fmt.Sprintf("CONTAINER_ID=%s", container.ID),
 					}...),
 				)
 			}
@@ -1466,6 +1494,11 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		return xerrors.Errorf("set agent binary executable: %w", err)
 	}
 
+	// Make sure the agent binary is owned by a valid user so we can run it.
+	if _, err := api.ccli.ExecAs(ctx, container.ID, "root", "/bin/sh", "-c", fmt.Sprintf("chown $(id -u):$(id -g) %s", coderPathInsideContainer)); err != nil {
+		return xerrors.Errorf("set agent binary ownership: %w", err)
+	}
+
 	// Attempt to add CAP_NET_ADMIN to the binary to improve network
 	// performance (optional, allow to fail). See `bootstrap_linux.sh`.
 	// TODO(mafredri): Disable for now until we can figure out why this
@@ -1503,7 +1536,9 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 		originalName := subAgentConfig.Name
 
 		for attempt := 1; attempt <= maxAttemptsToNameAgent; attempt++ {
-			if proc.agent, err = client.Create(ctx, subAgentConfig); err == nil {
+			agent, err := client.Create(ctx, subAgentConfig)
+			if err == nil {
+				proc.agent = agent // Only reassign on success.
 				if api.usingWorkspaceFolderName[dc.WorkspaceFolder] {
 					api.devcontainerNames[dc.Name] = true
 					delete(api.usingWorkspaceFolderName, dc.WorkspaceFolder)
@@ -1511,7 +1546,6 @@ func (api *API) maybeInjectSubAgentIntoContainerLocked(ctx context.Context, dc c
 
 				break
 			}
-
 			// NOTE(DanielleMaywood):
 			// Ordinarily we'd use `errors.As` here, but it didn't appear to work. Not
 			// sure if this is because of the communication protocol? Instead I've opted

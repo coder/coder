@@ -25,7 +25,9 @@ func TestDynamicParameterBuild(t *testing.T) {
 	t.Parallel()
 
 	owner, _, _, first := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
-		Options: &coderdtest.Options{IncludeProvisionerDaemon: true},
+		Options: &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureTemplateRBAC: 1,
@@ -336,7 +338,6 @@ func TestDynamicParameterBuild(t *testing.T) {
 			bld, err := templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
 				TemplateVersionID: immutable.ID, // Use the new template version with the immutable parameter
 				Transition:        codersdk.WorkspaceTransitionDelete,
-				DryRun:            false,
 			})
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, bld.ID)
@@ -352,7 +353,162 @@ func TestDynamicParameterBuild(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, wrk.ID, deleted.ID, "workspace should be deleted")
 		})
+
+		t.Run("PreviouslyImmutable", func(t *testing.T) {
+			// Ok this is a weird test to document how things are working.
+			// What if a parameter flips it's immutability based on a value?
+			// The current behavior is to source immutability from the new state.
+			// So the value is allowed to be changed.
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			// Start with a new template that has 1 parameter that is immutable
+			immutable, _ := coderdtest.DynamicParameterTemplate(t, templateAdmin, orgID, coderdtest.DynamicParameterTemplateParams{
+				MainTF: "# PreviouslyImmutable\n" + string(must(os.ReadFile("testdata/parameters/dynamicimmutable/main.tf"))),
+			})
+
+			// Create the workspace with the immutable parameter
+			wrk, err := templateAdmin.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+				TemplateID: immutable.ID,
+				Name:       coderdtest.RandomUsername(t),
+				RichParameterValues: []codersdk.WorkspaceBuildParameter{
+					{Name: "isimmutable", Value: "true"},
+					{Name: "immutable", Value: "coder"},
+				},
+			})
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, wrk.LatestBuild.ID)
+
+			// Try new values
+			_, err = templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+				Transition: codersdk.WorkspaceTransitionStart,
+				RichParameterValues: []codersdk.WorkspaceBuildParameter{
+					{Name: "isimmutable", Value: "false"},
+					{Name: "immutable", Value: "not-coder"},
+				},
+			})
+			require.NoError(t, err)
+		})
+
+		t.Run("PreviouslyMutable", func(t *testing.T) {
+			// The value cannot be changed because it becomes immutable.
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			immutable, _ := coderdtest.DynamicParameterTemplate(t, templateAdmin, orgID, coderdtest.DynamicParameterTemplateParams{
+				MainTF: "# PreviouslyMutable\n" + string(must(os.ReadFile("testdata/parameters/dynamicimmutable/main.tf"))),
+			})
+
+			// Create the workspace with the mutable parameter
+			wrk, err := templateAdmin.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+				TemplateID: immutable.ID,
+				Name:       coderdtest.RandomUsername(t),
+				RichParameterValues: []codersdk.WorkspaceBuildParameter{
+					{Name: "isimmutable", Value: "false"},
+					{Name: "immutable", Value: "coder"},
+				},
+			})
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, wrk.LatestBuild.ID)
+
+			// Switch it to immutable, which breaks the validation
+			_, err = templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+				Transition: codersdk.WorkspaceTransitionStart,
+				RichParameterValues: []codersdk.WorkspaceBuildParameter{
+					{Name: "isimmutable", Value: "true"},
+					{Name: "immutable", Value: "not-coder"},
+				},
+			})
+			require.Error(t, err)
+			require.ErrorContains(t, err, "is not mutable")
+		})
 	})
+}
+
+func TestDynamicWorkspaceTags(t *testing.T) {
+	t.Parallel()
+
+	owner, _, _, first := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC:               1,
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
+		},
+	})
+
+	orgID := first.OrganizationID
+
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, owner, orgID, rbac.ScopedRoleOrgTemplateAdmin(orgID))
+	// create the template first, mark it as dynamic, then create the second version with the workspace tags.
+	// This ensures the template import uses the dynamic tags flow. The second step will happen in a test below.
+	workspaceTags, _ := coderdtest.DynamicParameterTemplate(t, templateAdmin, orgID, coderdtest.DynamicParameterTemplateParams{
+		MainTF: ``,
+	})
+
+	expectedTags := map[string]string{
+		"function":    "param is foo",
+		"stringvar":   "bar",
+		"numvar":      "42",
+		"boolvar":     "true",
+		"stringparam": "foo",
+		"numparam":    "7",
+		"boolparam":   "true",
+		"listparam":   `["a","b"]`,
+		"static":      "static value",
+	}
+
+	// A new provisioner daemon is required to make the template version.
+	importProvisioner := coderdenttest.NewExternalProvisionerDaemon(t, owner, first.OrganizationID, expectedTags)
+	defer importProvisioner.Close()
+
+	// This tests the template import's workspace tags extraction.
+	workspaceTags, workspaceTagsVersion := coderdtest.DynamicParameterTemplate(t, templateAdmin, orgID, coderdtest.DynamicParameterTemplateParams{
+		MainTF:     string(must(os.ReadFile("testdata/parameters/workspacetags/main.tf"))),
+		TemplateID: workspaceTags.ID,
+		Version: func(request *codersdk.CreateTemplateVersionRequest) {
+			request.ProvisionerTags = map[string]string{
+				"static": "static value",
+			}
+		},
+	})
+	importProvisioner.Close() // No longer need this provisioner daemon, as the template import is done.
+
+	// Test the workspace create tag extraction.
+	expectedTags["function"] = "param is baz"
+	expectedTags["stringparam"] = "baz"
+	expectedTags["numparam"] = "8"
+	expectedTags["boolparam"] = "false"
+	workspaceProvisioner := coderdenttest.NewExternalProvisionerDaemon(t, owner, first.OrganizationID, expectedTags)
+	defer workspaceProvisioner.Close()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	wrk, err := templateAdmin.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+		TemplateVersionID: workspaceTagsVersion.ID,
+		Name:              coderdtest.RandomUsername(t),
+		RichParameterValues: []codersdk.WorkspaceBuildParameter{
+			{Name: "stringparam", Value: "baz"},
+			{Name: "numparam", Value: "8"},
+			{Name: "boolparam", Value: "false"},
+		},
+	})
+	require.NoError(t, err)
+
+	build, err := templateAdmin.WorkspaceBuild(ctx, wrk.LatestBuild.ID)
+	require.NoError(t, err)
+
+	job, err := templateAdmin.OrganizationProvisionerJob(ctx, first.OrganizationID, build.Job.ID)
+	require.NoError(t, err)
+
+	// If the tags do no match, the await will fail.
+	// 'scope' and 'owner' tags are always included.
+	expectedTags["scope"] = "organization"
+	expectedTags["owner"] = ""
+	require.Equal(t, expectedTags, job.Tags)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, wrk.LatestBuild.ID)
 }
 
 // TestDynamicParameterTemplate uses a template with some dynamic elements, and

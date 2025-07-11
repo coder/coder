@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -1426,9 +1425,6 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 // TestWorkspaceFilterAllStatus tests workspace status is correctly set given a set of conditions.
 func TestWorkspaceFilterAllStatus(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("DB") != "" {
-		t.Skip(`This test takes too long with an actual database. Takes 10s on local machine`)
-	}
 
 	// For this test, we do not care about permissions.
 	// nolint:gocritic // unit testing
@@ -3245,7 +3241,7 @@ func TestWorkspaceWatcher(t *testing.T) {
 	closeFunc.Close()
 	build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
 	wait("first is for the workspace build itself", nil)
-	err = client.CancelWorkspaceBuild(ctx, build.ID)
+	err = client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
 	require.NoError(t, err)
 	wait("second is for the build cancel", nil)
 }

@@ -1400,7 +1400,6 @@ func TestGetUsers_IncludeSystem(t *testing.T) {
 
 			// Given: a system user
 			// postgres: introduced by migration coderd/database/migrations/00030*_system_user.up.sql
-			// dbmem: created in dbmem/dbmem.go
 			db, _ := dbtestutil.NewDB(t)
 			other := dbgen.User(t, db, database.User{})
 			users, err := db.GetUsers(ctx, database.GetUsersParams{
@@ -1565,6 +1564,26 @@ func TestAuditLogDefaultLimit(t *testing.T) {
 	// The length should match the default limit of the SQL query.
 	// Updating the sql query requires changing the number below to match.
 	require.Len(t, rows, 100)
+}
+
+func TestAuditLogCount(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	dbgen.AuditLog(t, db, database.AuditLog{})
+
+	count, err := db.CountAuditLogs(ctx, database.CountAuditLogsParams{})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), count)
 }
 
 func TestWorkspaceQuotas(t *testing.T) {
@@ -1947,9 +1966,13 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 		})
 
 		// When: The user queries for audit logs
+		count, err := db.CountAuditLogs(memberCtx, database.CountAuditLogsParams{})
+		require.NoError(t, err)
 		logs, err := db.GetAuditLogsOffset(memberCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
-		// Then: No logs returned
+
+		// Then: No logs returned and count is 0
+		require.Equal(t, int64(0), count, "count should be 0")
 		require.Len(t, logs, 0, "no logs should be returned")
 	})
 
@@ -1965,10 +1988,14 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 		})
 
 		// When: the auditor queries for audit logs
+		count, err := db.CountAuditLogs(siteAuditorCtx, database.CountAuditLogsParams{})
+		require.NoError(t, err)
 		logs, err := db.GetAuditLogsOffset(siteAuditorCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
-		// Then: All logs are returned
-		require.ElementsMatch(t, auditOnlyIDs(allLogs), auditOnlyIDs(logs))
+
+		// Then: All logs are returned and count matches
+		require.Equal(t, int64(len(allLogs)), count, "count should match total number of logs")
+		require.ElementsMatch(t, auditOnlyIDs(allLogs), auditOnlyIDs(logs), "all logs should be returned")
 	})
 
 	t.Run("SingleOrgAuditor", func(t *testing.T) {
@@ -1984,10 +2011,14 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 		})
 
 		// When: The auditor queries for audit logs
+		count, err := db.CountAuditLogs(orgAuditCtx, database.CountAuditLogsParams{})
+		require.NoError(t, err)
 		logs, err := db.GetAuditLogsOffset(orgAuditCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
-		// Then: Only the logs for the organization are returned
-		require.ElementsMatch(t, orgAuditLogs[orgID], auditOnlyIDs(logs))
+
+		// Then: Only the logs for the organization are returned and count matches
+		require.Equal(t, int64(len(orgAuditLogs[orgID])), count, "count should match organization logs")
+		require.ElementsMatch(t, orgAuditLogs[orgID], auditOnlyIDs(logs), "only organization logs should be returned")
 	})
 
 	t.Run("TwoOrgAuditors", func(t *testing.T) {
@@ -2004,10 +2035,16 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 		})
 
 		// When: The user queries for audit logs
+		count, err := db.CountAuditLogs(multiOrgAuditCtx, database.CountAuditLogsParams{})
+		require.NoError(t, err)
 		logs, err := db.GetAuditLogsOffset(multiOrgAuditCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
-		// Then: All logs for both organizations are returned
-		require.ElementsMatch(t, append(orgAuditLogs[first], orgAuditLogs[second]...), auditOnlyIDs(logs))
+
+		// Then: All logs for both organizations are returned and count matches
+		expectedLogs := append([]uuid.UUID{}, orgAuditLogs[first]...)
+		expectedLogs = append(expectedLogs, orgAuditLogs[second]...)
+		require.Equal(t, int64(len(expectedLogs)), count, "count should match sum of both organizations")
+		require.ElementsMatch(t, expectedLogs, auditOnlyIDs(logs), "logs from both organizations should be returned")
 	})
 
 	t.Run("ErroneousOrg", func(t *testing.T) {
@@ -2022,9 +2059,13 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 		})
 
 		// When: The user queries for audit logs
+		count, err := db.CountAuditLogs(userCtx, database.CountAuditLogsParams{})
+		require.NoError(t, err)
 		logs, err := db.GetAuditLogsOffset(userCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
-		// Then: No logs are returned
+
+		// Then: No logs are returned and count is 0
+		require.Equal(t, int64(0), count, "count should be 0")
 		require.Len(t, logs, 0, "no logs should be returned")
 	})
 }
@@ -4978,4 +5019,103 @@ func TestGetWorkspaceAgentsByParentID(t *testing.T) {
 func requireUsersMatch(t testing.TB, expected []database.User, found []database.GetUsersRow, msg string) {
 	t.Helper()
 	require.ElementsMatch(t, expected, database.ConvertUserRows(found), msg)
+}
+
+// TestGetRunningPrebuiltWorkspaces ensures the correct behavior of the
+// GetRunningPrebuiltWorkspaces query.
+func TestGetRunningPrebuiltWorkspaces(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("Test requires PostgreSQL for complex queries")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	now := dbtime.Now()
+
+	// Given: a prebuilt workspace with a successful start build and a stop build.
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	preset := dbgen.Preset(t, db, database.InsertPresetParams{
+		TemplateVersionID: templateVersion.ID,
+		DesiredInstances:  sql.NullInt32{Int32: 1, Valid: true},
+	})
+
+	setupFixture := func(t *testing.T, db database.Store, name string, deleted bool, transition database.WorkspaceTransition, jobStatus database.ProvisionerJobStatus) database.WorkspaceTable {
+		t.Helper()
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:    database.PrebuildsSystemUserID,
+			TemplateID: template.ID,
+			Name:       name,
+			Deleted:    deleted,
+		})
+		var canceledAt sql.NullTime
+		var jobError sql.NullString
+		switch jobStatus {
+		case database.ProvisionerJobStatusFailed:
+			jobError = sql.NullString{String: assert.AnError.Error(), Valid: true}
+		case database.ProvisionerJobStatusCanceled:
+			canceledAt = sql.NullTime{Time: now, Valid: true}
+		}
+		pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			InitiatorID:    database.PrebuildsSystemUserID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			StartedAt:      sql.NullTime{Time: now.Add(-time.Minute), Valid: true},
+			CanceledAt:     canceledAt,
+			CompletedAt:    sql.NullTime{Time: now, Valid: true},
+			Error:          jobError,
+		})
+		wb := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:             ws.ID,
+			TemplateVersionID:       templateVersion.ID,
+			TemplateVersionPresetID: uuid.NullUUID{UUID: preset.ID, Valid: true},
+			JobID:                   pj.ID,
+			BuildNumber:             1,
+			Transition:              transition,
+			InitiatorID:             database.PrebuildsSystemUserID,
+			Reason:                  database.BuildReasonInitiator,
+		})
+		// Ensure things are set up as expectd
+		require.Equal(t, transition, wb.Transition)
+		require.Equal(t, int32(1), wb.BuildNumber)
+		require.Equal(t, jobStatus, pj.JobStatus)
+		require.Equal(t, deleted, ws.Deleted)
+
+		return ws
+	}
+
+	// Given: a number of prebuild workspaces with different states exist.
+	runningPrebuild := setupFixture(t, db, "running-prebuild", false, database.WorkspaceTransitionStart, database.ProvisionerJobStatusSucceeded)
+	_ = setupFixture(t, db, "stopped-prebuild", false, database.WorkspaceTransitionStop, database.ProvisionerJobStatusSucceeded)
+	_ = setupFixture(t, db, "failed-prebuild", false, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed)
+	_ = setupFixture(t, db, "canceled-prebuild", false, database.WorkspaceTransitionStart, database.ProvisionerJobStatusCanceled)
+	_ = setupFixture(t, db, "deleted-prebuild", true, database.WorkspaceTransitionStart, database.ProvisionerJobStatusSucceeded)
+
+	// Given: a regular workspace also exists.
+	_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:    user.ID,
+		TemplateID: template.ID,
+		Name:       "test-running-regular-workspace",
+		Deleted:    false,
+	})
+
+	// When: we query for running prebuild workspaces
+	runningPrebuilds, err := db.GetRunningPrebuiltWorkspaces(ctx)
+	require.NoError(t, err)
+
+	// Then: only the running prebuild workspace should be returned.
+	require.Len(t, runningPrebuilds, 1, "expected only one running prebuilt workspace")
+	require.Equal(t, runningPrebuild.ID, runningPrebuilds[0].ID, "expected the running prebuilt workspace to be returned")
 }

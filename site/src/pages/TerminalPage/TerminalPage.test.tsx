@@ -85,7 +85,7 @@ describe("TerminalPage", () => {
 		await expectTerminalText(container, Language.workspaceErrorMessagePrefix);
 	});
 
-	it("shows an error if the websocket fails", async () => {
+	it("shows reconnect message when websocket fails", async () => {
 		server.use(
 			http.get("/api/v2/workspaceagents/:agentId/pty", () => {
 				return HttpResponse.json({}, { status: 500 });
@@ -94,7 +94,9 @@ describe("TerminalPage", () => {
 
 		const { container } = await renderTerminal();
 
-		await expectTerminalText(container, Language.websocketErrorMessagePrefix);
+		await waitFor(() => {
+			expect(container.textContent).toContain("Trying to connect...");
+		});
 	});
 
 	it("renders data from the backend", async () => {

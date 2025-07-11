@@ -2372,7 +2372,7 @@ func TestAgent_DevcontainerRecreate(t *testing.T) {
 	// devcontainer, we do it in a goroutine so we can process logs
 	// concurrently.
 	go func(container codersdk.WorkspaceAgentContainer) {
-		_, err := conn.RecreateDevcontainer(ctx, container.ID)
+		_, err := conn.RecreateDevcontainer(ctx, devcontainerID.String())
 		assert.NoError(t, err, "recreate devcontainer should succeed")
 	}(container)
 
@@ -2441,7 +2441,8 @@ func TestAgent_DevcontainersDisabledForSubAgent(t *testing.T) {
 
 	// Setup the agent with devcontainers enabled initially.
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, manifest, 0, func(*agenttest.Client, *agent.Options) {
+	conn, _, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.Devcontainers = true
 	})
 
 	// Query the containers API endpoint. This should fail because
@@ -2453,8 +2454,8 @@ func TestAgent_DevcontainersDisabledForSubAgent(t *testing.T) {
 	require.Error(t, err)
 
 	// Verify the error message contains the expected text.
-	require.Contains(t, err.Error(), "The agent dev containers feature is experimental and not enabled by default.")
-	require.Contains(t, err.Error(), "To enable this feature, set CODER_AGENT_DEVCONTAINERS_ENABLE=true in your template.")
+	require.Contains(t, err.Error(), "Dev Container feature not supported.")
+	require.Contains(t, err.Error(), "Dev Container integration inside other Dev Containers is explicitly not supported.")
 }
 
 func TestAgent_Dial(t *testing.T) {
