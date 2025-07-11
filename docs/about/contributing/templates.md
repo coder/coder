@@ -12,7 +12,7 @@ Coder templates are complete Terraform configurations that define entire workspa
 - Networking and security settings
 - Complete startup automation
 
-Templates appear as "Community Templates" on the Coder Registry and can be deployed directly by users.
+Templates appear on the Coder Registry and can be deployed directly by users.
 
 ## Prerequisites
 
