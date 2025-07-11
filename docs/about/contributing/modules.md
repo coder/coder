@@ -219,7 +219,6 @@ module "git_clone" {
   base_dir = "/home/coder/projects"
 }
 ```
-```
 
 ## Module best practices
 
