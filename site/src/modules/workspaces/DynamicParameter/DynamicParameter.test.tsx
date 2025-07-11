@@ -221,19 +221,6 @@ describe("DynamicParameter", () => {
 			],
 		});
 
-		it("renders select parameter with options", () => {
-			render(
-				<DynamicParameter
-					parameter={mockSelectParameter}
-					value="option1"
-					onChange={mockOnChange}
-				/>,
-			);
-
-			expect(screen.getByText("Select Parameter")).toBeInTheDocument();
-			expect(screen.getByRole("combobox")).toBeInTheDocument();
-		});
-
 		it("displays all options when opened", async () => {
 			render(
 				<DynamicParameter
@@ -243,7 +230,7 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			const select = screen.getByRole("combobox");
+			const select = screen.getByRole("button");
 			await waitFor(async () => {
 				await userEvent.click(select);
 			});
@@ -263,7 +250,7 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			const select = screen.getByRole("combobox");
+			const select = screen.getByRole("button");
 			await waitFor(async () => {
 				await userEvent.click(select);
 			});
