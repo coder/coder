@@ -83,7 +83,7 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 	const isSigningIn = loginMutation.isLoading;
 	const isUpdatingProfile = updateProfileMutation.isLoading;
 
-	const signOut = useCallback(async () => {
+	const signOut = useCallback(() => {
 		logoutMutation.mutate();
 	}, [logoutMutation]);
 
