@@ -680,7 +680,6 @@ export interface DeploymentValues {
 	readonly proxy_trusted_headers?: string;
 	readonly proxy_trusted_origins?: string;
 	readonly cache_directory?: string;
-	readonly in_memory_database?: boolean;
 	readonly ephemeral_deployment?: boolean;
 	readonly pg_connection_url?: string;
 	readonly pg_auth?: string;

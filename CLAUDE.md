@@ -44,7 +44,6 @@
 2. Run `make gen`
 3. If audit errors: update `enterprise/audit/table.go`
 4. Run `make gen` again
-5. Update `coderd/database/dbmem/dbmem.go` in-memory implementations
 
 ### LSP Navigation (USE FIRST)
 
@@ -116,9 +115,8 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 
 1. **Audit table errors** → Update `enterprise/audit/table.go`
 2. **OAuth2 errors** → Return RFC-compliant format
-3. **dbmem failures** → Update in-memory implementations
-4. **Race conditions** → Use unique test identifiers
-5. **Missing newlines** → Ensure files end with newline
+3. **Race conditions** → Use unique test identifiers
+4. **Missing newlines** → Ensure files end with newline
 
 ---
 

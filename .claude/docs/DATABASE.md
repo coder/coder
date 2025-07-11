@@ -58,31 +58,6 @@ If adding fields to auditable types:
    - `ActionSecret`: Field contains sensitive data
 3. Run `make gen` to verify no audit errors
 
-## In-Memory Database (dbmem) Updates
-
-### Critical Requirements
-
-When adding new fields to database structs:
-
-- **CRITICAL**: Update `coderd/database/dbmem/dbmem.go` in-memory implementations
-- The `Insert*` functions must include ALL new fields, not just basic ones
-- Common issue: Tests pass with real database but fail with in-memory database due to missing field mappings
-- Always verify in-memory database functions match the real database schema after migrations
-
-### Example Pattern
-
-```go
-// In dbmem.go - ensure ALL fields are included
-code := database.OAuth2ProviderAppCode{
-    ID:                  arg.ID,
-    CreatedAt:           arg.CreatedAt,
-    // ... existing fields ...
-    ResourceUri:         arg.ResourceUri,         // New field
-    CodeChallenge:       arg.CodeChallenge,       // New field
-    CodeChallengeMethod: arg.CodeChallengeMethod, // New field
-}
-```
-
 ## Database Architecture
 
 ### Core Components
@@ -116,7 +91,6 @@ roles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user
 
 1. **Nullable field errors**: Use `sql.Null*` types consistently
 2. **Missing audit entries**: Update `enterprise/audit/table.go`
-3. **dbmem inconsistencies**: Ensure in-memory implementations match schema
 
 ### Query Issues
 
@@ -133,19 +107,6 @@ func TestDatabaseFunction(t *testing.T) {
     db := dbtestutil.NewDB(t)
 
     // Test with real database
-    result, err := db.GetSomething(ctx, param)
-    require.NoError(t, err)
-    require.Equal(t, expected, result)
-}
-```
-
-### In-Memory Testing
-
-```go
-func TestInMemoryDatabase(t *testing.T) {
-    db := dbmem.New()
-
-    // Test with in-memory database
     result, err := db.GetSomething(ctx, param)
     require.NoError(t, err)
     require.Equal(t, expected, result)

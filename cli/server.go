@@ -79,7 +79,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbmetrics"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
 	"github.com/coder/coder/v2/coderd/database/migrations"
@@ -425,7 +424,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			builtinPostgres := false
 			// Only use built-in if PostgreSQL URL isn't specified!
-			if !vals.InMemoryDatabase && vals.PostgresURL == "" {
+			if vals.PostgresURL == "" {
 				var closeFunc func() error
 				cliui.Infof(inv.Stdout, "Using built-in PostgreSQL (%s)", config.PostgresPath())
 				customPostgresCacheDir := ""
@@ -728,42 +727,37 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// nil, that case of the select will just never fire, but it's important not to have a
 			// "bare" read on this channel.
 			var pubsubWatchdogTimeout <-chan struct{}
-			if vals.InMemoryDatabase {
-				// This is only used for testing.
-				options.Database = dbmem.New()
-				options.Pubsub = pubsub.NewInMemory()
-			} else {
-				sqlDB, dbURL, err := getAndMigratePostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
-				if err != nil {
-					return xerrors.Errorf("connect to postgres: %w", err)
-				}
-				defer func() {
-					_ = sqlDB.Close()
-				}()
 
-				if options.DeploymentValues.Prometheus.Enable {
-					// At this stage we don't think the database name serves much purpose in these metrics.
-					// It requires parsing the DSN to determine it, which requires pulling in another dependency
-					// (i.e. https://github.com/jackc/pgx), but it's rather heavy.
-					// The conn string (https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING) can
-					// take different forms, which make parsing non-trivial.
-					options.PrometheusRegistry.MustRegister(collectors.NewDBStatsCollector(sqlDB, ""))
-				}
-
-				options.Database = database.New(sqlDB)
-				ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
-				if err != nil {
-					return xerrors.Errorf("create pubsub: %w", err)
-				}
-				options.Pubsub = ps
-				if options.DeploymentValues.Prometheus.Enable {
-					options.PrometheusRegistry.MustRegister(ps)
-				}
-				defer options.Pubsub.Close()
-				psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), ps)
-				pubsubWatchdogTimeout = psWatchdog.Timeout()
-				defer psWatchdog.Close()
+			sqlDB, dbURL, err := getAndMigratePostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
+			if err != nil {
+				return xerrors.Errorf("connect to postgres: %w", err)
 			}
+			defer func() {
+				_ = sqlDB.Close()
+			}()
+
+			if options.DeploymentValues.Prometheus.Enable {
+				// At this stage we don't think the database name serves much purpose in these metrics.
+				// It requires parsing the DSN to determine it, which requires pulling in another dependency
+				// (i.e. https://github.com/jackc/pgx), but it's rather heavy.
+				// The conn string (https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING) can
+				// take different forms, which make parsing non-trivial.
+				options.PrometheusRegistry.MustRegister(collectors.NewDBStatsCollector(sqlDB, ""))
+			}
+
+			options.Database = database.New(sqlDB)
+			ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
+			if err != nil {
+				return xerrors.Errorf("create pubsub: %w", err)
+			}
+			options.Pubsub = ps
+			if options.DeploymentValues.Prometheus.Enable {
+				options.PrometheusRegistry.MustRegister(ps)
+			}
+			defer options.Pubsub.Close()
+			psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), ps)
+			pubsubWatchdogTimeout = psWatchdog.Timeout()
+			defer psWatchdog.Close()
 
 			if options.DeploymentValues.Prometheus.Enable && options.DeploymentValues.Prometheus.CollectDBMetrics {
 				options.Database = dbmetrics.NewQueryMetrics(options.Database, options.Logger, options.PrometheusRegistry)
