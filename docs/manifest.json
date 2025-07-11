@@ -64,6 +64,12 @@
 							"description": "Security vulnerability disclosure policy",
 							"path": "./about/contributing/SECURITY.md",
 							"icon_path": "./images/icons/lock.svg"
+						},
+						{
+							"title": "Modules",
+							"description": "Our guide for module development",
+							"path": "./about/contributing/modules.md",
+							"icon_path": "./images/icons/puzzle.svg"
 						}
 					]
 				}
