@@ -196,13 +196,14 @@ func New(opts Options) *API {
 	}
 
 	api.SubAgentAPI = &SubAgentAPI{
-		OwnerID:        opts.OwnerID,
-		OrganizationID: opts.OrganizationID,
-		AgentID:        opts.AgentID,
-		AgentFn:        api.agent,
-		Log:            opts.Log,
-		Clock:          opts.Clock,
-		Database:       opts.Database,
+		OwnerID:                  opts.OwnerID,
+		OrganizationID:           opts.OrganizationID,
+		AgentID:                  opts.AgentID,
+		AgentFn:                  api.agent,
+		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
+		Log:                      opts.Log,
+		Clock:                    opts.Clock,
+		Database:                 opts.Database,
 	}
 
 	return api
