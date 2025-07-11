@@ -207,8 +207,8 @@ data "coder_parameter" "dotfiles_url" {
 Immutable parameters can only be set in these situations:
 
 - Creating a workspace for the first time.
-- Updating a workspace to a new template version. This sets the initial value
-  for required parameters.
+- Updating a workspace to a new template version.
+  This sets the initial value for required parameters.
 
 The idea is to prevent users from modifying fragile or persistent workspace
 resources like volumes, regions, and so on.
@@ -224,9 +224,8 @@ data "coder_parameter" "region" {
 }
 ```
 
-You can modify a parameter's `mutable` attribute state anytime. In case of
-emergency, you can temporarily allow for changing immutable parameters to fix an
-operational issue, but it is not advised to overuse this opportunity.
+If a required parameter is empty or if the workspace creation page detects an incompatibility between selected
+parameters, the **Create workspace** button is disabled until the issues are resolved.
 
 ## Ephemeral parameters
 
