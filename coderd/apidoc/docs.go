@@ -9122,6 +9122,16 @@ const docTemplate = `{
                         "name": "workspacebuild",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "enum": [
+                            "running",
+                            "pending"
+                        ],
+                        "type": "string",
+                        "description": "Expected status of the job. If expect_status is supplied, the request will be rejected with 412 Precondition Failed if the job doesn't match the state when performing the cancellation.",
+                        "name": "expect_status",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -11356,12 +11366,14 @@ const docTemplate = `{
             "enum": [
                 "initiator",
                 "autostart",
-                "autostop"
+                "autostop",
+                "dormancy"
             ],
             "x-enum-varnames": [
                 "BuildReasonInitiator",
                 "BuildReasonAutostart",
-                "BuildReasonAutostop"
+                "BuildReasonAutostop",
+                "BuildReasonDormancy"
             ]
         },
         "codersdk.ChangePasswordWithOneTimePasscodeRequest": {
@@ -12292,9 +12304,6 @@ const docTemplate = `{
                 },
                 "http_cookies": {
                     "$ref": "#/definitions/codersdk.HTTPCookieConfig"
-                },
-                "in_memory_database": {
-                    "type": "boolean"
                 },
                 "job_hang_detector_interval": {
                     "type": "integer"

@@ -275,11 +275,12 @@ export interface BuildInfoResponse {
 }
 
 // From codersdk/workspacebuilds.go
-export type BuildReason = "autostart" | "autostop" | "initiator";
+export type BuildReason = "autostart" | "autostop" | "dormancy" | "initiator";
 
 export const BuildReasons: BuildReason[] = [
 	"autostart",
 	"autostop",
+	"dormancy",
 	"initiator",
 ];
 
@@ -291,6 +292,19 @@ export const BypassRatelimitHeader = "X-Coder-Bypass-Ratelimit";
 
 // From codersdk/client.go
 export const CLITelemetryHeader = "Coder-CLI-Telemetry";
+
+// From codersdk/workspacebuilds.go
+export interface CancelWorkspaceBuildParams {
+	readonly expect_status?: CancelWorkspaceBuildStatus;
+}
+
+// From codersdk/workspacebuilds.go
+export type CancelWorkspaceBuildStatus = "pending" | "running";
+
+export const CancelWorkspaceBuildStatuses: CancelWorkspaceBuildStatus[] = [
+	"pending",
+	"running",
+];
 
 // From codersdk/users.go
 export interface ChangePasswordWithOneTimePasscodeRequest {
@@ -654,7 +668,6 @@ export interface DeploymentValues {
 	readonly proxy_trusted_headers?: string;
 	readonly proxy_trusted_origins?: string;
 	readonly cache_directory?: string;
-	readonly in_memory_database?: boolean;
 	readonly ephemeral_deployment?: boolean;
 	readonly pg_connection_url?: string;
 	readonly pg_auth?: string;

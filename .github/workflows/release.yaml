@@ -323,6 +323,8 @@ jobs:
         env:
           CODER_SIGN_WINDOWS: "1"
           CODER_SIGN_DARWIN: "1"
+          CODER_SIGN_GPG: "1"
+          CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
           CODER_WINDOWS_RESOURCES: "1"
           AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
           AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
@@ -693,6 +695,8 @@ jobs:
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/provisioner_helm_${version}.tgz gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/index.yaml gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp helm/artifacthub-repo.yml gs://helm.coder.com/v2
+          helm push build/coder_helm_${version}.tgz oci://ghcr.io/coder/chart
+          helm push build/provisioner_helm_${version}.tgz oci://ghcr.io/coder/chart
 
       - name: Upload artifacts to actions (if dry-run)
         if: ${{ inputs.dry_run }}

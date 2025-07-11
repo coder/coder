@@ -16,9 +16,9 @@ Need help or have questions? Join the conversation on our [Discord server](https
 
 To understand how the backend fits into the broader system, we recommend reviewing the following resources:
 
-* [General Concepts](../admin/infrastructure/validated-architectures/index.md#general-concepts): Essential concepts and language used to describe how Coder is structured and operated.
+* [General Concepts](../../admin/infrastructure/validated-architectures/index.md#general-concepts): Essential concepts and language used to describe how Coder is structured and operated.
 
-* [Architecture](../admin/infrastructure/architecture.md): A high-level overview of the infrastructure layout, key services, and how components interact.
+* [Architecture](../../admin/infrastructure/architecture.md): A high-level overview of the infrastructure layout, key services, and how components interact.
 
 These sections provide the necessary context for navigating and contributing to the backend effectively.
 
@@ -68,7 +68,6 @@ The Coder backend is organized into multiple packages and directories, each with
   * [dbauthz](https://github.com/coder/coder/tree/main/coderd/database/dbauthz): AuthZ wrappers for database queries, ideally, every query should verify first if the accessor is eligible to see the query results.
   * [dbfake](https://github.com/coder/coder/tree/main/coderd/database/dbfake): helper functions to quickly prepare the initial database state for testing purposes (e.g. create N healthy workspaces and templates), operates on higher level than [dbgen](https://github.com/coder/coder/tree/main/coderd/database/dbgen)
   * [dbgen](https://github.com/coder/coder/tree/main/coderd/database/dbgen): helper functions to insert raw records to the database store, used for testing purposes
-  * [dbmem](https://github.com/coder/coder/tree/main/coderd/database/dbmem): in-memory implementation of the database store, ideally, every real query should have a complimentary Go implementation
   * [dbmock](https://github.com/coder/coder/tree/main/coderd/database/dbmock): a store wrapper for database queries, useful to verify if the function has been called, used for testing purposes
   * [dbpurge](https://github.com/coder/coder/tree/main/coderd/database/dbpurge): simple wrapper for periodic database cleanup operations
   * [migrations](https://github.com/coder/coder/tree/main/coderd/database/migrations): an ordered list of up/down database migrations, use `./create_migration.sh my_migration_name` to modify the database schema
@@ -169,9 +168,9 @@ There are two types of fixtures that are used to test that migrations don't
 break existing Coder deployments:
 
 * Partial fixtures
-  [`migrations/testdata/fixtures`](../../coderd/database/migrations/testdata/fixtures)
+  [`migrations/testdata/fixtures`](../../../coderd/database/migrations/testdata/fixtures)
 * Full database dumps
-  [`migrations/testdata/full_dumps`](../../coderd/database/migrations/testdata/full_dumps)
+  [`migrations/testdata/full_dumps`](../../../coderd/database/migrations/testdata/full_dumps)
 
 Both types behave like database migrations (they also
 [`migrate`](https://github.com/golang-migrate/migrate)). Their behavior mirrors
@@ -194,7 +193,7 @@ To add a new partial fixture, run the following command:
 ```
 
 Then add some queries to insert data and commit the file to the repo. See
-[`000024_example.up.sql`](../../coderd/database/migrations/testdata/fixtures/000024_example.up.sql)
+[`000024_example.up.sql`](../../../coderd/database/migrations/testdata/fixtures/000024_example.up.sql)
 for an example.
 
 To create a full dump, run a fully fledged Coder deployment and use it to

@@ -112,14 +112,13 @@ Always run the full test suite after OAuth2 changes:
 ## Common OAuth2 Issues
 
 1. **OAuth2 endpoints returning wrong error format** - Ensure OAuth2 endpoints return RFC 6749 compliant errors
-2. **OAuth2 tests failing but scripts working** - Check in-memory database implementations in `dbmem.go`
-3. **Resource indicator validation failing** - Ensure database stores and retrieves resource parameters correctly
-4. **PKCE tests failing** - Verify both authorization code storage and token exchange handle PKCE fields
-5. **RFC compliance failures** - Verify against actual RFC specifications, not assumptions
-6. **Authorization context errors in public endpoints** - Use `dbauthz.AsSystemRestricted(ctx)` pattern
-7. **Default value mismatches** - Ensure database migrations match application code defaults
-8. **Bearer token authentication issues** - Check token extraction precedence and format validation
-9. **URI validation failures** - Support both standard schemes and custom schemes per protocol requirements
+2. **Resource indicator validation failing** - Ensure database stores and retrieves resource parameters correctly
+3. **PKCE tests failing** - Verify both authorization code storage and token exchange handle PKCE fields
+4. **RFC compliance failures** - Verify against actual RFC specifications, not assumptions
+5. **Authorization context errors in public endpoints** - Use `dbauthz.AsSystemRestricted(ctx)` pattern
+6. **Default value mismatches** - Ensure database migrations match application code defaults
+7. **Bearer token authentication issues** - Check token extraction precedence and format validation
+8. **URI validation failures** - Support both standard schemes and custom schemes per protocol requirements
 
 ## Authorization Context Patterns
 
