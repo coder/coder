@@ -381,7 +381,7 @@ Use the version bump script to update versions:
 - **Examples**: Review existing modules like [`code-server`](https://registry.coder.com/modules/coder/code-server), [`git-clone`](https://registry.coder.com/modules/coder/git-clone), and [`filebrowser`](https://registry.coder.com/modules/coder/filebrowser)
 - **Issues**: Open an issue for technical problems
 - **Community**: Join the [Coder Discord](https://discord.gg/coder) for questions
-- **Documentation**: Check the [Coder docs](https://coder.com/docs) for Terraform guidance
+- **Documentation**: Check the [Coder docs](https://coder.com/docs) for help on Coder.
 
 ## Next steps
 
