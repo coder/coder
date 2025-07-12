@@ -160,8 +160,7 @@ func validateGrantTypes(grantTypes []string) error {
 		string(OAuth2ProviderGrantTypeAuthorizationCode),
 		string(OAuth2ProviderGrantTypeRefreshToken),
 		string(OAuth2ProviderGrantTypeDeviceCode),
-		// Add more grant types as they are implemented
-		// "client_credentials",
+		// Note: client_credentials is not supported for dynamic client registration
 	}
 
 	for _, grant := range grantTypes {
