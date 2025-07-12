@@ -5526,7 +5526,7 @@ func (q *sqlQuerier) DeleteOAuth2ProviderDeviceCodeByID(ctx context.Context, id 
 
 const getOAuth2ProviderAppByClientID = `-- name: GetOAuth2ProviderAppByClientID :one
 
-SELECT id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps WHERE id = $1
+SELECT id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri, user_id FROM oauth2_provider_apps WHERE id = $1
 `
 
 // RFC 7591/7592 Dynamic Client Registration queries
@@ -5559,12 +5559,13 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByClientID(ctx context.Context, id uuid
 		&i.SoftwareVersion,
 		&i.RegistrationAccessToken,
 		&i.RegistrationClientUri,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppByID = `-- name: GetOAuth2ProviderAppByID :one
-SELECT id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps WHERE id = $1
+SELECT id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri, user_id FROM oauth2_provider_apps WHERE id = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error) {
@@ -5596,12 +5597,13 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID)
 		&i.SoftwareVersion,
 		&i.RegistrationAccessToken,
 		&i.RegistrationClientUri,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppByRegistrationToken = `-- name: GetOAuth2ProviderAppByRegistrationToken :one
-SELECT id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps WHERE registration_access_token = $1
+SELECT id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri, user_id FROM oauth2_provider_apps WHERE registration_access_token = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken sql.NullString) (OAuth2ProviderApp, error) {
@@ -5633,6 +5635,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context
 		&i.SoftwareVersion,
 		&i.RegistrationAccessToken,
 		&i.RegistrationClientUri,
+		&i.UserID,
 	)
 	return i, err
 }
@@ -5797,7 +5800,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hash
 }
 
 const getOAuth2ProviderApps = `-- name: GetOAuth2ProviderApps :many
-SELECT id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps ORDER BY (name, id) ASC
+SELECT id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri, user_id FROM oauth2_provider_apps ORDER BY (name, id) ASC
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2ProviderApp, error) {
@@ -5835,6 +5838,7 @@ func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2Provide
 			&i.SoftwareVersion,
 			&i.RegistrationAccessToken,
 			&i.RegistrationClientUri,
+			&i.UserID,
 		); err != nil {
 			return nil, err
 		}
@@ -5852,7 +5856,7 @@ func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2Provide
 const getOAuth2ProviderAppsByUserID = `-- name: GetOAuth2ProviderAppsByUserID :many
 SELECT
   COUNT(DISTINCT oauth2_provider_app_tokens.id) as token_count,
-  oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.redirect_uris, oauth2_provider_apps.client_type, oauth2_provider_apps.dynamically_registered, oauth2_provider_apps.client_id_issued_at, oauth2_provider_apps.client_secret_expires_at, oauth2_provider_apps.grant_types, oauth2_provider_apps.response_types, oauth2_provider_apps.token_endpoint_auth_method, oauth2_provider_apps.scope, oauth2_provider_apps.contacts, oauth2_provider_apps.client_uri, oauth2_provider_apps.logo_uri, oauth2_provider_apps.tos_uri, oauth2_provider_apps.policy_uri, oauth2_provider_apps.jwks_uri, oauth2_provider_apps.jwks, oauth2_provider_apps.software_id, oauth2_provider_apps.software_version, oauth2_provider_apps.registration_access_token, oauth2_provider_apps.registration_client_uri
+  oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.redirect_uris, oauth2_provider_apps.client_type, oauth2_provider_apps.dynamically_registered, oauth2_provider_apps.client_id_issued_at, oauth2_provider_apps.client_secret_expires_at, oauth2_provider_apps.grant_types, oauth2_provider_apps.response_types, oauth2_provider_apps.token_endpoint_auth_method, oauth2_provider_apps.scope, oauth2_provider_apps.contacts, oauth2_provider_apps.client_uri, oauth2_provider_apps.logo_uri, oauth2_provider_apps.tos_uri, oauth2_provider_apps.policy_uri, oauth2_provider_apps.jwks_uri, oauth2_provider_apps.jwks, oauth2_provider_apps.software_id, oauth2_provider_apps.software_version, oauth2_provider_apps.registration_access_token, oauth2_provider_apps.registration_client_uri, oauth2_provider_apps.user_id
 FROM oauth2_provider_app_tokens
   INNER JOIN oauth2_provider_app_secrets
     ON oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
@@ -5905,6 +5909,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID u
 			&i.OAuth2ProviderApp.SoftwareVersion,
 			&i.OAuth2ProviderApp.RegistrationAccessToken,
 			&i.OAuth2ProviderApp.RegistrationClientUri,
+			&i.OAuth2ProviderApp.UserID,
 		); err != nil {
 			return nil, err
 		}
@@ -6067,7 +6072,8 @@ INSERT INTO oauth2_provider_apps (
     software_id,
     software_version,
     registration_access_token,
-    registration_client_uri
+    registration_client_uri,
+    user_id
 ) VALUES(
     $1,
     $2,
@@ -6093,8 +6099,9 @@ INSERT INTO oauth2_provider_apps (
     $22,
     $23,
     $24,
-    $25
-) RETURNING id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri
+    $25,
+    $26
+) RETURNING id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri, user_id
 `
 
 type InsertOAuth2ProviderAppParams struct {
@@ -6123,6 +6130,7 @@ type InsertOAuth2ProviderAppParams struct {
 	SoftwareVersion         sql.NullString        `db:"software_version" json:"software_version"`
 	RegistrationAccessToken sql.NullString        `db:"registration_access_token" json:"registration_access_token"`
 	RegistrationClientUri   sql.NullString        `db:"registration_client_uri" json:"registration_client_uri"`
+	UserID                  uuid.NullUUID         `db:"user_id" json:"user_id"`
 }
 
 func (q *sqlQuerier) InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAuth2ProviderAppParams) (OAuth2ProviderApp, error) {
@@ -6152,6 +6160,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAut
 		arg.SoftwareVersion,
 		arg.RegistrationAccessToken,
 		arg.RegistrationClientUri,
+		arg.UserID,
 	)
 	var i OAuth2ProviderApp
 	err := row.Scan(
@@ -6180,6 +6189,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAut
 		&i.SoftwareVersion,
 		&i.RegistrationAccessToken,
 		&i.RegistrationClientUri,
+		&i.UserID,
 	)
 	return i, err
 }
@@ -6467,7 +6477,7 @@ UPDATE oauth2_provider_apps SET
     jwks = $18,
     software_id = $19,
     software_version = $20
-WHERE id = $1 RETURNING id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri
+WHERE id = $1 RETURNING id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri, user_id
 `
 
 type UpdateOAuth2ProviderAppByClientIDParams struct {
@@ -6543,6 +6553,7 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppByClientID(ctx context.Context, arg 
 		&i.SoftwareVersion,
 		&i.RegistrationAccessToken,
 		&i.RegistrationClientUri,
+		&i.UserID,
 	)
 	return i, err
 }
@@ -6569,7 +6580,7 @@ UPDATE oauth2_provider_apps SET
     jwks = $19,
     software_id = $20,
     software_version = $21
-WHERE id = $1 RETURNING id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri
+WHERE id = $1 RETURNING id, created_at, updated_at, name, icon, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri, user_id
 `
 
 type UpdateOAuth2ProviderAppByIDParams struct {
@@ -6647,6 +6658,7 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg Update
 		&i.SoftwareVersion,
 		&i.RegistrationAccessToken,
 		&i.RegistrationClientUri,
+		&i.UserID,
 	)
 	return i, err
 }

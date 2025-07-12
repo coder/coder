@@ -276,6 +276,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"redirect_uris":          ActionTrack,
 		"client_type":            ActionTrack,
 		"dynamically_registered": ActionTrack,
+		"user_id":                ActionTrack,
 		// RFC 7591 Dynamic Client Registration fields
 		"client_id_issued_at":        ActionIgnore, // Timestamp, not security relevant
 		"client_secret_expires_at":   ActionTrack,  // Security relevant - expiration policy

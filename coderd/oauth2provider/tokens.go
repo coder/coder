@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
 )
 
 var (
@@ -77,6 +78,8 @@ func extractTokenParams(r *http.Request, registeredRedirectURIs []string) (token
 		p.RequiredNotEmpty("client_secret", "client_id", "code", "redirect_uri")
 	case codersdk.OAuth2ProviderGrantTypeDeviceCode:
 		p.RequiredNotEmpty("client_id", "device_code")
+	case codersdk.OAuth2ProviderGrantTypeClientCredentials:
+		p.RequiredNotEmpty("client_id", "client_secret")
 	}
 
 	params := tokenParams{
@@ -162,6 +165,8 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 			token, err = authorizationCodeGrant(ctx, db, app, lifetimes, params)
 		case codersdk.OAuth2ProviderGrantTypeDeviceCode:
 			token, err = deviceCodeGrant(ctx, db, app, lifetimes, params)
+		case codersdk.OAuth2ProviderGrantTypeClientCredentials:
+			token, err = clientCredentialsGrant(ctx, db, app, lifetimes, params)
 		default:
 			// This should handle truly invalid grant types
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "unsupported_grant_type", fmt.Sprintf("The grant type %q is not supported", params.grantType))
@@ -506,6 +511,108 @@ func validateRedirectURI(p *httpapi.QueryParamParser, redirectURIParam string, r
 		Detail: "redirect_uri must exactly match one of the registered redirect URIs",
 	})
 	return nil
+}
+
+func clientCredentialsGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, params tokenParams) (oauth2.Token, error) {
+	// Validate the client secret.
+	secret, err := parseFormattedSecret(params.clientSecret)
+	if err != nil {
+		return oauth2.Token{}, errBadSecret
+	}
+	//nolint:gocritic // Users cannot read secrets so we must use the system.
+	dbSecret, err := db.GetOAuth2ProviderAppSecretByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(secret.prefix))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return oauth2.Token{}, errBadSecret
+		}
+		return oauth2.Token{}, err
+	}
+	equal, err := userpassword.Compare(string(dbSecret.HashedSecret), secret.secret)
+	if err != nil {
+		return oauth2.Token{}, xerrors.Errorf("unable to compare secret: %w", err)
+	}
+	if !equal {
+		return oauth2.Token{}, errBadSecret
+	}
+
+	if !app.UserID.Valid {
+		return oauth2.Token{}, xerrors.New("client credentials grant not supported for apps without a user")
+	}
+
+	if app.ClientType.String != "confidential" {
+		return oauth2.Token{}, xerrors.New("client credentials grant only supported for confidential clients")
+	}
+
+	// Generate the API key we will swap for the code.
+	// TODO: We are ignoring scopes for now.
+	// Use timestamp to ensure unique token names and enable seamless token rotation
+	tokenName := fmt.Sprintf("%s_%s_oauth_session_token_%d", app.UserID.UUID, app.ID, time.Now().UnixNano())
+	key, sessionToken, err := apikey.Generate(apikey.CreateParams{
+		UserID:          app.UserID.UUID,
+		LoginType:       database.LoginTypeOAuth2ProviderApp,
+		DefaultLifetime: lifetimes.DefaultDuration.Value(),
+		// Allow multiple active tokens per app to enable seamless token rotation
+		TokenName: tokenName,
+	})
+	if err != nil {
+		return oauth2.Token{}, err
+	}
+
+	// Grab the user roles so we can perform the exchange as the user.
+	actor, _, err := httpmw.UserRBACSubject(ctx, db, app.UserID.UUID, rbac.ScopeAll)
+	if err != nil {
+		return oauth2.Token{}, xerrors.Errorf("fetch user actor: %w", err)
+	}
+
+	// Do the actual token exchange in the database.
+	err = db.InTx(func(tx database.Store) error {
+		ctx := dbauthz.As(ctx, actor)
+
+		// Insert the new API key - we allow multiple active tokens per app
+		// to enable seamless token rotation where old tokens expire naturally
+		newKey, err := tx.InsertAPIKey(ctx, key)
+		if err != nil {
+			return xerrors.Errorf("insert oauth2 access token: %w", err)
+		}
+
+		// Generate a unique prefix for client credentials tokens to satisfy database unique constraint
+		// Even though client credentials tokens don't have refresh tokens, we need a unique hash_prefix
+		uniquePrefix, err := cryptorand.String(10)
+		if err != nil {
+			return xerrors.Errorf("generate unique prefix: %w", err)
+		}
+
+		// Create OAuth2 provider app token record for audience validation
+		_, err = tx.InsertOAuth2ProviderAppToken(ctx, database.InsertOAuth2ProviderAppTokenParams{
+			ID:          uuid.New(),
+			CreatedAt:   dbtime.Now(),
+			ExpiresAt:   key.ExpiresAt,
+			HashPrefix:  []byte(uniquePrefix), // Unique prefix for client credentials flow
+			RefreshHash: nil,                  // No refresh token for client credentials flow
+			AppSecretID: dbSecret.ID,
+			APIKeyID:    newKey.ID,
+			UserID:      app.UserID.UUID,
+			Audience: sql.NullString{
+				String: params.resource,
+				Valid:  params.resource != "",
+			},
+		})
+		if err != nil {
+			return xerrors.Errorf("insert oauth2 provider app token: %w", err)
+		}
+
+		return nil
+	}, nil)
+	if err != nil {
+		return oauth2.Token{}, err
+	}
+
+	return oauth2.Token{
+		AccessToken: sessionToken,
+		TokenType:   "Bearer",
+		Expiry:      key.ExpiresAt,
+		ExpiresIn:   int64(time.Until(key.ExpiresAt).Seconds()),
+	}, nil
 }
 
 // validateResourceParameter validates that a resource parameter conforms to RFC 8707:

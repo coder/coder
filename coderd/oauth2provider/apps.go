@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -85,6 +86,34 @@ func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 		if !httpapi.Read(ctx, rw, r, &req) {
 			return
 		}
+
+		// Validate grant types and redirect URI requirements
+		if err := req.Validate(); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid OAuth2 application request.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		// Determine grant types and user ownership
+		grantTypes := req.GrantTypes
+		var userID uuid.NullUUID
+
+		switch {
+		case len(grantTypes) == 0:
+			// Default behavior: authorization_code + refresh_token (system-scoped)
+			grantTypes = []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeAuthorizationCode, codersdk.OAuth2ProviderGrantTypeRefreshToken}
+			userID = uuid.NullUUID{Valid: false} // NULL - system level
+		case slices.Contains(grantTypes, codersdk.OAuth2ProviderGrantTypeClientCredentials):
+			// Client credentials apps belong to creating user
+			apiKey := httpmw.APIKey(r)
+			userID = uuid.NullUUID{UUID: apiKey.UserID, Valid: true}
+		default:
+			// Authorization/device flows are system-level
+			userID = uuid.NullUUID{Valid: false} // NULL
+		}
+
 		app, err := db.InsertOAuth2ProviderApp(ctx, database.InsertOAuth2ProviderAppParams{
 			ID:                      uuid.New(),
 			CreatedAt:               dbtime.Now(),
@@ -94,10 +123,11 @@ func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			RedirectUris:            req.RedirectURIs,
 			ClientType:              sql.NullString{String: "confidential", Valid: true},
 			DynamicallyRegistered:   sql.NullBool{Bool: false, Valid: true},
+			UserID:                  userID,
 			ClientIDIssuedAt:        sql.NullTime{},
 			ClientSecretExpiresAt:   sql.NullTime{},
-			GrantTypes:              []string{"authorization_code", "refresh_token"},
-			ResponseTypes:           []string{"code"},
+			GrantTypes:              codersdk.OAuth2ProviderGrantTypesToStrings(grantTypes),
+			ResponseTypes:           []string{string(codersdk.OAuth2ProviderResponseTypeCode)},
 			TokenEndpointAuthMethod: sql.NullString{String: "client_secret_post", Valid: true},
 			Scope:                   sql.NullString{},
 			Contacts:                []string{},
@@ -143,6 +173,22 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 		if !httpapi.Read(ctx, rw, r, &req) {
 			return
 		}
+
+		// Validate the update request
+		if err := req.Validate(); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid OAuth2 application update request.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		// Determine grant types to use (allow updates if provided)
+		grantTypes := app.GrantTypes // Default to existing (strings from database)
+		if len(req.GrantTypes) > 0 {
+			grantTypes = codersdk.OAuth2ProviderGrantTypesToStrings(req.GrantTypes)
+		}
+
 		app, err := db.UpdateOAuth2ProviderAppByID(ctx, database.UpdateOAuth2ProviderAppByIDParams{
 			ID:                      app.ID,
 			UpdatedAt:               dbtime.Now(),
@@ -152,7 +198,7 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			ClientType:              app.ClientType,              // Keep existing value
 			DynamicallyRegistered:   app.DynamicallyRegistered,   // Keep existing value
 			ClientSecretExpiresAt:   app.ClientSecretExpiresAt,   // Keep existing value
-			GrantTypes:              app.GrantTypes,              // Keep existing value
+			GrantTypes:              grantTypes,                  // Allow updates
 			ResponseTypes:           app.ResponseTypes,           // Keep existing value
 			TokenEndpointAuthMethod: app.TokenEndpointAuthMethod, // Keep existing value
 			Scope:                   app.Scope,                   // Keep existing value
