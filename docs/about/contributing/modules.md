@@ -73,6 +73,7 @@ github: "your-username"
 avatar: "./.images/avatar.png"
 linkedin: "https://www.linkedin.com/in/your-username"
 website: "https://your-website.com"
+support_email: "support@your-domain.com"
 status: "community"
 ---
 
@@ -82,7 +83,7 @@ Brief description of who you are and what you do.
 ```
 
 > [!NOTE]
-> The `linkedin` and `website` fields are optional and can be omitted or left empty if not applicable.
+> The `linkedin`, `website`, and `support_email` fields are optional and can be omitted or left empty if not applicable.
 
 ### 2. Generate module scaffolding
 

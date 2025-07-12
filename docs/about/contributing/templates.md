@@ -71,8 +71,11 @@ Create your namespace README at `registry/[your-username]/README.md`:
 ---
 display_name: "Your Name"
 bio: "Brief description of what you do"
-avatar_url: "./.images/avatar.png"
 github: "your-username"
+avatar: "./.images/avatar.png"
+linkedin: "https://www.linkedin.com/in/your-username"
+website: "https://your-website.com"
+support_email: "support@your-domain.com"
 status: "community"
 ---
 
@@ -80,6 +83,9 @@ status: "community"
 
 Brief description of who you are and what you do.
 ```
+
+> [!NOTE]
+> The `linkedin`, `website`, and `support_email` fields are optional and can be omitted or left empty if not applicable.
 
 ### 2. Create your template directory
 
@@ -185,7 +191,6 @@ Create `README.md` with comprehensive documentation:
 display_name: "Ubuntu Development Environment"
 description: "Complete Ubuntu workspace with VS Code, Git, and development tools"
 icon: "../../../../.icons/ubuntu.svg"
-maintainer_github: "your-username"
 verified: false
 tags: ["ubuntu", "docker", "vscode", "git"]
 ---
@@ -196,7 +201,7 @@ A complete Ubuntu-based development workspace with VS Code, Git, and essential d
 
 ## Features
 
-- **Ubuntu 20.04 LTS** base image
+- **Ubuntu 24.04 LTS** base image
 - **VS Code** with code-server for browser-based development
 - **Git** with automatic repository cloning
 - **Node.js** and **npm** for JavaScript development
@@ -297,7 +302,7 @@ module "dotfiles" {
 }
 ```
 
-### Variable design
+### Variables
 
 Provide meaningful customization options:
 
@@ -434,7 +439,7 @@ When modifying existing templates:
 # Simple Docker template
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = "ubuntu:20.04"
+  image = "ubuntu:24.04"
   name  = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
   
   command = ["sh", "-c", coder_agent.main.init_script]
@@ -473,7 +478,7 @@ resource "kubernetes_pod" "workspace" {
   spec {
     container {
       name  = "workspace"
-      image = "ubuntu:20.04"
+      image = "ubuntu:24.04"
       
       command = ["sh", "-c", coder_agent.main.init_script]
       env {
