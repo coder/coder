@@ -366,9 +366,6 @@ Use the version bump script to update versions:
 
 ### Documentation
 
-**Issue**: Module not appearing on registry
-**Solution**: Check frontmatter format and ensure all required fields are present
-
 **Issue**: Code blocks not syntax highlighted
 **Solution**: Use `tf` language identifier for Terraform code blocks
 
