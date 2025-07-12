@@ -81,7 +81,8 @@ status: "community"
 Brief description of who you are and what you do.
 ```
 
-**Note**: The `linkedin` and `website` fields are optional and can be omitted or left empty if not applicable.
+> [!NOTE]
+> The `linkedin` and `website` fields are optional and can be omitted or left empty if not applicable.
 
 ### 2. Generate module scaffolding
 
@@ -262,7 +263,8 @@ bun test
 bun fmt
 ```
 
-**Important**: Tests require Docker with `--network=host` support, which typically requires Linux. macOS users can use [Colima](https://github.com/abiosoft/colima) or [OrbStack](https://orbstack.dev/) instead of Docker Desktop.
+> [!IMPORTANT]
+> Tests require Docker with `--network=host` support, which typically requires Linux. macOS users can use [Colima](https://github.com/abiosoft/colima) or [OrbStack](https://orbstack.dev/) instead of Docker Desktop.
 
 ## Contribute to existing modules
 
