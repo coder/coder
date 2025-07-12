@@ -516,7 +516,7 @@ resource "kubernetes_pod" "workspace" {
   - [Google Compute Engine (Linux)](https://registry.coder.com/templates/gcp-vm-container) - GCP VM instances
   - [Scratch](https://registry.coder.com/templates/scratch) - Minimal starter template
 - **Modules**: Browse available modules at [registry.coder.com/modules](https://registry.coder.com/modules)
-- **Issues**: Open an issue for technical problems
+- **Issues**: Open an issue at [github.com/coder/registry](https://github.com/coder/registry/issues)
 - **Community**: Join the [Coder Discord](https://discord.gg/coder) for questions
 - **Documentation**: Check the [Coder docs](https://coder.com/docs) for template guidance
 
