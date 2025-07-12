@@ -248,6 +248,9 @@ Your module README should include:
 - **Usage example**: Working Terraform code snippet
 - **Additional context**: Setup requirements, known limitations, etc.
 
+> [!NOTE]
+> Do not include variables tables in your README. The registry automatically generates variable documentation from your `main.tf` file.
+
 ## Test your module
 
 Run tests to ensure your module works correctly:
@@ -353,13 +356,7 @@ Use the version bump script to update versions:
 **Issue**: Tests fail with network errors
 **Solution**: Ensure Docker is running with `--network=host` support
 
-**Issue**: Module not found in tests
-**Solution**: Check your module path and ensure it matches the test file location
-
 ### Module development
-
-**Issue**: Variables not showing in registry
-**Solution**: Ensure your README includes properly formatted variables table
 
 **Issue**: Icon not displaying
 **Solution**: Verify icon path is correct and file exists in `.icons/` directory
