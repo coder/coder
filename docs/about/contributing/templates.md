@@ -507,7 +507,14 @@ resource "kubernetes_pod" "workspace" {
 
 ## Get help
 
-- **Examples**: Review real-world examples in the [Coder repository templates](https://github.com/coder/coder/tree/main/examples/templates)
+- **Examples**: Review real-world examples from the [official Coder templates](https://registry.coder.com/contributors/coder?tab=templates):
+  - [AWS EC2 (Devcontainer)](https://registry.coder.com/templates/aws-devcontainer) - AWS EC2 VMs with devcontainer support
+  - [Docker (Devcontainer)](https://registry.coder.com/templates/docker-devcontainer) - Envbuilder containers with dev container support
+  - [Kubernetes (Devcontainer)](https://registry.coder.com/templates/kubernetes-devcontainer) - Envbuilder pods on Kubernetes
+  - [Docker Containers](https://registry.coder.com/templates/docker) - Basic Docker container workspaces
+  - [AWS EC2 (Linux)](https://registry.coder.com/templates/aws-linux) - AWS EC2 VMs for Linux development
+  - [Google Compute Engine (Linux)](https://registry.coder.com/templates/gcp-vm-container) - GCP VM instances
+  - [Scratch](https://registry.coder.com/templates/scratch) - Minimal starter template
 - **Modules**: Browse available modules at [registry.coder.com/modules](https://registry.coder.com/modules)
 - **Issues**: Open an issue for technical problems
 - **Community**: Join the [Coder Discord](https://discord.gg/coder) for questions
