@@ -316,14 +316,7 @@ When you modify a module, update its version following semantic versioning:
 Use the version bump script to update versions:
 
 ```bash
-# For bug fixes
-./.github/scripts/version-bump.sh patch
-
-# For new features
-./.github/scripts/version-bump.sh minor
-
-# For breaking changes
-./.github/scripts/version-bump.sh major
+./.github/scripts/version-bump.sh patch|minor|major
 ```
 
 ## Submit your contribution
