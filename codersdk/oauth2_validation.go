@@ -159,9 +159,9 @@ func validateGrantTypes(grantTypes []string) error {
 	validGrants := []string{
 		string(OAuth2ProviderGrantTypeAuthorizationCode),
 		string(OAuth2ProviderGrantTypeRefreshToken),
+		string(OAuth2ProviderGrantTypeDeviceCode),
 		// Add more grant types as they are implemented
 		// "client_credentials",
-		// "urn:ietf:params:oauth:grant-type:device_code",
 	}
 
 	for _, grant := range grantTypes {
