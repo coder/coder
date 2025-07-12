@@ -1240,6 +1240,7 @@ func OAuth2ProviderApp(t testing.TB, db database.Store, seed database.OAuth2Prov
 		RedirectUris:            takeFirstSlice(seed.RedirectUris, []string{"http://localhost"}),
 		ClientType:              takeFirst(seed.ClientType, sql.NullString{String: "confidential", Valid: true}),
 		DynamicallyRegistered:   takeFirst(seed.DynamicallyRegistered, sql.NullBool{Bool: false, Valid: true}),
+		UserID:                  takeFirst(seed.UserID, uuid.NullUUID{Valid: false}),
 		ClientIDIssuedAt:        takeFirst(seed.ClientIDIssuedAt, sql.NullTime{}),
 		ClientSecretExpiresAt:   takeFirst(seed.ClientSecretExpiresAt, sql.NullTime{}),
 		GrantTypes:              takeFirstSlice(seed.GrantTypes, []string{"authorization_code", "refresh_token"}),

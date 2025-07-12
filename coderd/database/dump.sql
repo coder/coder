@@ -1488,7 +1488,7 @@ CREATE TABLE oauth2_provider_app_tokens (
     created_at timestamp with time zone NOT NULL,
     expires_at timestamp with time zone NOT NULL,
     hash_prefix bytea NOT NULL,
-    refresh_hash bytea NOT NULL,
+    refresh_hash bytea,
     app_secret_id uuid NOT NULL,
     api_key_id text NOT NULL,
     audience text,
@@ -1527,6 +1527,7 @@ CREATE TABLE oauth2_provider_apps (
     software_version text,
     registration_access_token text,
     registration_client_uri text,
+    user_id uuid,
     CONSTRAINT redirect_uris_not_empty CHECK ((cardinality(redirect_uris) > 0))
 );
 
@@ -3558,6 +3559,9 @@ ALTER TABLE ONLY oauth2_provider_app_tokens
 
 ALTER TABLE ONLY oauth2_provider_app_tokens
     ADD CONSTRAINT oauth2_provider_app_tokens_app_secret_id_fkey FOREIGN KEY (app_secret_id) REFERENCES oauth2_provider_app_secrets(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY oauth2_provider_apps
+    ADD CONSTRAINT oauth2_provider_apps_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY oauth2_provider_device_codes
     ADD CONSTRAINT oauth2_provider_device_codes_client_id_fkey FOREIGN KEY (client_id) REFERENCES oauth2_provider_apps(id) ON DELETE CASCADE;
