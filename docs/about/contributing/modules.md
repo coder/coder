@@ -8,7 +8,8 @@ Coder modules are Terraform modules that integrate with Coder workspaces to prov
 
 Examples of modules include:
 
-- **IDE integrations**: [`code-server`](https://registry.coder.com/modules/coder/code-server), [`jetbrains-gateway`](https://registry.coder.com/modules/coder/jetbrains-gateway), [`cursor`](https://registry.coder.com/modules/coder/cursor)
+- **Desktop IDEs**: [`jetbrains-fleet`](https://registry.coder.com/modules/coder/jetbrains-fleet), [`cursor`](https://registry.coder.com/modules/coder/cursor), [`windsurf`](https://registry.coder.com/modules/coder/windsurf), [`zed`](https://registry.coder.com/modules/coder/zed)
+- **Web IDEs**: [`code-server`](https://registry.coder.com/modules/coder/code-server), [`vscode-web`](https://registry.coder.com/modules/coder/vscode-web), [`jupyter-notebook`](https://registry.coder.com/modules/coder/jupyter-notebook), [`jupyter-lab`](https://registry.coder.com/modules/coder/jupyterlab)
 - **Development tools**: [`git-clone`](https://registry.coder.com/modules/coder/git-clone), [`dotfiles`](https://registry.coder.com/modules/coder/dotfiles), [`devcontainers-cli`](https://registry.coder.com/modules/coder/devcontainers-cli)
 - **Workspace utilities**: [`filebrowser`](https://registry.coder.com/modules/coder/filebrowser), [`coder-login`](https://registry.coder.com/modules/coder/coder-login), [`personalize`](https://registry.coder.com/modules/coder/personalize)
 
