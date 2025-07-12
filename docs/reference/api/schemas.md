@@ -4237,12 +4237,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   ],
   "device_authorization_endpoint": "string",
   "grant_types_supported": [
-    "string"
+    "authorization_code"
   ],
   "issuer": "string",
   "registration_endpoint": "string",
   "response_types_supported": [
-    "string"
+    "code"
   ],
   "scopes_supported": [
     "string"
@@ -4256,18 +4256,18 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                                    | Type            | Required | Restrictions | Description                        |
-|-----------------------------------------|-----------------|----------|--------------|------------------------------------|
-| `authorization_endpoint`                | string          | false    |              |                                    |
-| `code_challenge_methods_supported`      | array of string | false    |              |                                    |
-| `device_authorization_endpoint`         | string          | false    |              | Device authorization endpoint 8628 |
-| `grant_types_supported`                 | array of string | false    |              |                                    |
-| `issuer`                                | string          | false    |              |                                    |
-| `registration_endpoint`                 | string          | false    |              |                                    |
-| `response_types_supported`              | array of string | false    |              |                                    |
-| `scopes_supported`                      | array of string | false    |              |                                    |
-| `token_endpoint`                        | string          | false    |              |                                    |
-| `token_endpoint_auth_methods_supported` | array of string | false    |              |                                    |
+| Name                                    | Type                                                                                | Required | Restrictions | Description                        |
+|-----------------------------------------|-------------------------------------------------------------------------------------|----------|--------------|------------------------------------|
+| `authorization_endpoint`                | string                                                                              | false    |              |                                    |
+| `code_challenge_methods_supported`      | array of string                                                                     | false    |              |                                    |
+| `device_authorization_endpoint`         | string                                                                              | false    |              | Device authorization endpoint 8628 |
+| `grant_types_supported`                 | array of [codersdk.OAuth2ProviderGrantType](#codersdkoauth2providergranttype)       | false    |              |                                    |
+| `issuer`                                | string                                                                              | false    |              |                                    |
+| `registration_endpoint`                 | string                                                                              | false    |              |                                    |
+| `response_types_supported`              | array of [codersdk.OAuth2ProviderResponseType](#codersdkoauth2providerresponsetype) | false    |              |                                    |
+| `scopes_supported`                      | array of string                                                                     | false    |              |                                    |
+| `token_endpoint`                        | string                                                                              | false    |              |                                    |
+| `token_endpoint_auth_methods_supported` | array of string                                                                     | false    |              |                                    |
 
 ## codersdk.OAuth2ClientConfiguration
 
@@ -4635,6 +4635,37 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------------------|--------|----------|--------------|-------------|
 | `client_secret_full` | string | false    |              |             |
 | `id`                 | string | false    |              |             |
+
+## codersdk.OAuth2ProviderGrantType
+
+```json
+"authorization_code"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                                          |
+|------------------------------------------------|
+| `authorization_code`                           |
+| `refresh_token`                                |
+| `urn:ietf:params:oauth:grant-type:device_code` |
+| `client_credentials`                           |
+
+## codersdk.OAuth2ProviderResponseType
+
+```json
+"code"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value  |
+|--------|
+| `code` |
 
 ## codersdk.OAuthConversionResponse
 
@@ -5200,6 +5231,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
+  "grant_types": [
+    "authorization_code"
+  ],
   "icon": "string",
   "name": "string",
   "redirect_uris": [
@@ -5210,11 +5244,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name            | Type            | Required | Restrictions | Description |
-|-----------------|-----------------|----------|--------------|-------------|
-| `icon`          | string          | false    |              |             |
-| `name`          | string          | true     |              |             |
-| `redirect_uris` | array of string | true     |              |             |
+| Name            | Type                                                                          | Required | Restrictions | Description |
+|-----------------|-------------------------------------------------------------------------------|----------|--------------|-------------|
+| `grant_types`   | array of [codersdk.OAuth2ProviderGrantType](#codersdkoauth2providergranttype) | false    |              |             |
+| `icon`          | string                                                                        | false    |              |             |
+| `name`          | string                                                                        | true     |              |             |
+| `redirect_uris` | array of string                                                               | true     |              |             |
 
 ## codersdk.PostWorkspaceUsageRequest
 
@@ -6043,6 +6078,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
+  "grant_types": [
+    "authorization_code"
+  ],
   "icon": "string",
   "name": "string",
   "redirect_uris": [
@@ -6053,11 +6091,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name            | Type            | Required | Restrictions | Description |
-|-----------------|-----------------|----------|--------------|-------------|
-| `icon`          | string          | false    |              |             |
-| `name`          | string          | true     |              |             |
-| `redirect_uris` | array of string | true     |              |             |
+| Name            | Type                                                                          | Required | Restrictions | Description |
+|-----------------|-------------------------------------------------------------------------------|----------|--------------|-------------|
+| `grant_types`   | array of [codersdk.OAuth2ProviderGrantType](#codersdkoauth2providergranttype) | false    |              |             |
+| `icon`          | string                                                                        | false    |              |             |
+| `name`          | string                                                                        | true     |              |             |
+| `redirect_uris` | array of string                                                               | true     |              |             |
 
 ## codersdk.RBACAction
 
