@@ -389,15 +389,7 @@ Before submitting your template, verify:
 2. **Maintain compatibility**: Ensure existing workspaces continue to function
 3. **Document changes**: Update the README with new features or requirements
 4. **Follow versioning**: Update version numbers for significant changes
-
-### Backward compatibility
-
-When modifying existing templates:
-
-- Don't remove existing variables without clear migration paths
-- Preserve existing functionality
-- Test that minimal configurations still work
-- Document any breaking changes clearly
+5. **Modernize**: Use latest provider versions, best practices, and current software versions
 
 ## Submit your contribution
 
@@ -500,13 +492,7 @@ resource "kubernetes_pod" "workspace" {
 **Issue**: Agent doesn't connect
 **Solution**: Verify agent token and network connectivity
 
-**Issue**: Registry modules not working
-**Solution**: Check module versions and variable passing
-
 ### Documentation
-
-**Issue**: Template not appearing on registry
-**Solution**: Check frontmatter format and ensure all required fields are present
 
 **Issue**: Icon not displaying
 **Solution**: Verify icon path and file existence
