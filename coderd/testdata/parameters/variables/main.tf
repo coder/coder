@@ -13,7 +13,7 @@ terraform {
 
 variable "one" {
   default = "alice"
-  type = string
+  type    = string
 }
 
 
