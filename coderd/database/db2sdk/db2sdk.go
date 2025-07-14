@@ -884,3 +884,14 @@ func PreviewParameterValidation(v *previewtypes.ParameterValidation) codersdk.Pr
 		Monotonic: v.Monotonic,
 	}
 }
+
+func UserSecret(secret database.UserSecret) codersdk.UserSecret {
+	return codersdk.UserSecret{
+		ID:          secret.ID,
+		UserID:      secret.UserID,
+		Name:        secret.Name,
+		Description: secret.Description,
+		CreatedAt:   secret.CreatedAt,
+		UpdatedAt:   secret.UpdatedAt,
+	}
+}
