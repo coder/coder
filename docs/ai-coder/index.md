@@ -8,6 +8,10 @@ Coder [integrates with IDEs](../user-guides/workspace-access/index.md) such as C
 
 These agents work well inside existing Coder workspaces as they can simply be enabled via an extension or are built-into the editor.
 
+## GitHub Actions Integration
+
+Coder provides a [GitHub Action](./github-actions.md) that automatically starts workspaces from GitHub issues and comments, enabling seamless integration between your development workflow and AI coding agents. This is particularly useful for automated code reviews, issue resolution, and collaborative development with AI agents.
+
 ## Agents with Coder Tasks (Beta)
 
 In cases where the IDE is secondary, such as protyping or long-running background jobs, agents like Claude Code or Aider are better for the job and new SaaS interfaces like [Devin](https://devin.ai) and [ChatGPT Codex](https://openai.com/index/introducing-codex/) are emerging.

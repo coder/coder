@@ -834,6 +834,11 @@
 					"path": "./ai-coder/ide-agents.md"
 				},
 				{
+					"title": "GitHub Actions",
+					"description": "Integrate AI agents with GitHub workflows",
+					"path": "./ai-coder/github-actions.md"
+				},
+				{
 					"title": "Coder Tasks",
 					"description": "Run Coding Agents on your Own Infrastructure",
 					"path": "./ai-coder/tasks.md",
