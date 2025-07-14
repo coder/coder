@@ -14,6 +14,12 @@ You can install Coder Desktop on macOS or Windows.
 
 ### macOS
 
+> [!IMPORTANT]
+> Coder Desktop can't connect through another VPN.
+>
+> Due to a [known issue](#mac-coder-desktop-cant-connect-through-another-vpn),
+> if your Coder deployment is requires that you connect through a VPN, Desktop will timeout when it tries to connect.
+
 1. Use [Homebrew](https://brew.sh/) to install Coder Desktop:
 
    ```shell
@@ -121,7 +127,25 @@ Before you can use Coder Desktop, you will need to sign in.
 
 ## Troubleshooting
 
-Do not install more than one copy of Coder Desktop. To avoid system VPN configuration conflicts, only one copy of `Coder Desktop.app` should exist on your Mac, and it must remain in `/Applications`.
+If you encounter an issue with Coder Desktop that is not listed here, file an issue in the GitHub repository for
+Coder Desktop for [macOS](https://github.com/coder/coder-desktop-macos/issues) or
+[Windows](https://github.com/coder/coder-desktop-windows/issues), in the
+[main Coder repository](https://github.com/coder/coder/issues), or consult the
+[community on Discord](https://coder.com/chat).
+
+### Known Issues
+
+#### Do not install more than one copy of Coder Desktop
+
+To avoid system VPN configuration conflicts, only one copy of `Coder Desktop.app` should exist on your Mac, and it must remain in `/Applications`.
+
+#### macOS: Coder Desktop can't connect through another VPN
+
+If the logged in Coder deployment requires a VPN to connect, Coder Connect can't establish communication through the VPN,
+and will time out.
+
+This is due to a [known issue](https://github.com/coder/coder-desktop-macos/issues/201) with how macOS network extensions
+communicate with each other and a resolution is in progress.
 
 ## Next Steps
 
