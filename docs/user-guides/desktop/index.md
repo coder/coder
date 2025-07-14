@@ -9,7 +9,7 @@ Coder Desktop requires a Coder deployment running [v2.20.0](https://github.com/c
 ## Install Coder Desktop
 
 > [!IMPORTANT]
-> Coder Desktop can't connect through another VPN.
+> Coder Desktop can't connect through a corporate VPN.
 >
 > Due to a [known issue](#coder-desktop-cant-connect-through-another-vpn),
 > if your Coder deployment requires that you connect through a corporate VPN, Desktop will timeout when it tries to connect.
@@ -119,7 +119,7 @@ Before you can use Coder Desktop, you will need to sign in.
 
    ![Coder Desktop on Windows - enable Coder Connect](../../images/user-guides/desktop/coder-desktop-win-enable-coder-connect.png)
 
-   This may take a few moments, as Coder Desktop will download the necessary components from the Coder server if they have been updated.
+   This may take a few moments, because Coder Desktop will download the necessary components from the Coder server if they have been updated.
 
 1. macOS: You may be prompted to enter your password to allow Coder Connect to start.
 
@@ -141,12 +141,11 @@ To avoid system VPN configuration conflicts, only one copy of `Coder Desktop.app
 
 #### Coder Desktop can't connect through another VPN
 
-If the logged in Coder deployment requires a VPN to connect, Coder Connect can't establish communication through the VPN,
-and will time out.
+If the logged in Coder deployment requires a corporate VPN to connect, Coder Connect can't establish communication
+through the VPN, and will time out.
 
-This is due to known issues with how [macOS](https://github.com/coder/coder-desktop-macos/issues/201) and
-[Windows](https://github.com/coder/coder-desktop-windows/issues/147)
-network extensions communicate with each other.
+This is due to known issues with [macOS](https://github.com/coder/coder-desktop-macos/issues/201) and
+[Windows](https://github.com/coder/coder-desktop-windows/issues/147) networking.
 A resolution is in progress.
 
 ## Next Steps
