@@ -275,11 +275,12 @@ export interface BuildInfoResponse {
 }
 
 // From codersdk/workspacebuilds.go
-export type BuildReason = "autostart" | "autostop" | "initiator";
+export type BuildReason = "autostart" | "autostop" | "dormancy" | "initiator";
 
 export const BuildReasons: BuildReason[] = [
 	"autostart",
 	"autostop",
+	"dormancy",
 	"initiator",
 ];
 
