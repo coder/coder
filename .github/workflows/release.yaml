@@ -338,6 +338,19 @@ jobs:
           GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
           JSIGN_PATH: /tmp/jsign-6.0.jar
 
+      - name: Publish signatures to GCS
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euxo pipefail
+
+          version="$(./scripts/version.sh)"
+
+          for file in ./site/out/bin/*.asc; do
+            filename=$(basename "$file")
+            # Upload the signature to GCS, but only if it doesn't already exist
+            gcloud storage cp "$file" "gs://releases.coder.com/coder-cli/${version}/${filename}" --if-generation-match=0
+          done
+
       - name: Delete Apple Developer certificate and API key
         run: rm -f /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
 
