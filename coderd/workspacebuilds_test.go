@@ -1826,35 +1826,6 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, codersdk.BuildReasonDashboard, build.Reason)
 	})
-	t.Run("WithCoderToolboxUserAgent", func(t *testing.T) {
-		t.Parallel()
-		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-		})
-		client.HTTPClient.Transport = &codersdk.HeaderTransport{
-			Transport: http.DefaultTransport,
-			Header: http.Header{
-				"User-Agent": {"Coder Toolbox/1.0"},
-			},
-		}
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-		_ = closeDaemon.Close()
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			TemplateVersionID: template.ActiveVersionID,
-			Transition:        codersdk.WorkspaceTransitionStart,
-		})
-		require.NoError(t, err)
-		require.Equal(t, codersdk.BuildReasonJetbrainsConnection, build.Reason)
-	})
 }
 
 func TestWorkspaceBuildTimings(t *testing.T) {

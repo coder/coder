@@ -11,7 +11,6 @@ import (
 	"slices"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -346,15 +345,8 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		Experiments(api.Experiments).
 		TemplateVersionPresetID(createBuild.TemplateVersionPresetID)
 
-	if transition == database.WorkspaceTransitionStart {
-		if createBuild.Reason == "" {
-			userAgent := r.Header.Get("User-Agent")
-			if strings.HasPrefix(userAgent, "Coder Toolbox") || strings.HasPrefix(userAgent, "Coder Gateway") {
-				builder = builder.Reason(database.BuildReasonJetbrainsConnection)
-			}
-		} else {
-			builder = builder.Reason(database.BuildReason(createBuild.Reason))
-		}
+	if transition == database.WorkspaceTransitionStart && createBuild.Reason != "" {
+		builder = builder.Reason(database.BuildReason(createBuild.Reason))
 	}
 
 	var (
