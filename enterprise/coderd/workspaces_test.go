@@ -2826,12 +2826,16 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 
 			emptyTar := testutil.CreateTar(t, map[string]string{"main.tf": ""})
 			emptyFi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(emptyTar))
+			require.NoError(t, err)
+
 			emptyTv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
 				Name:          testutil.GetRandomName(t),
 				FileID:        emptyFi.ID,
 				StorageMethod: codersdk.ProvisionerStorageMethodFile,
 				Provisioner:   codersdk.ProvisionerTypeTerraform,
 			})
+			require.NoError(t, err)
+
 			coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, emptyTv.ID)
 			tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, emptyTv.ID, func(request *codersdk.CreateTemplateRequest) {
 				request.UseClassicParameterFlow = ptr.Ref(false)
