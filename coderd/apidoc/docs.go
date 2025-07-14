@@ -8778,6 +8778,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/{workspaceagent}/containers/watch": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Watch workspace agent for container updates.",
+                "operationId": "watch-workspace-agent-for-container-updates",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentListContainersResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/{workspaceagent}/coordinate": {
             "get": {
                 "security": [
