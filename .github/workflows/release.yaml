@@ -78,13 +78,7 @@ jobs:
 
             mkdir -p /tmp/binaries
             versions=(
-              2.22.1
-              2.23.0
-              2.23.1
-              2.23.2
-              2.23.3
               2.24.0
-              2.24.1
             )
 
             for version in "${versions[@]}"; do
