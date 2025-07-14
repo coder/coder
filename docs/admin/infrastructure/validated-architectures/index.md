@@ -317,17 +317,20 @@ considerations:
 
 For production deployments, we recommend using dedicated compute instances rather than burstable instances (like AWS t-family) which provide inconsistent CPU performance. Below are recommended instance types for each major cloud provider:
 
-**AWS (RDS/Aurora PostgreSQL)**
+##### AWS (RDS/Aurora PostgreSQL)
+
 - **Small deployments (<1000 users)**: `db.m6i.large` (2 vCPU, 8 GB RAM) or `db.r6i.large` (2 vCPU, 16 GB RAM)
 - **Medium deployments (1000-2000 users)**: `db.m6i.xlarge` (4 vCPU, 16 GB RAM) or `db.r6i.xlarge` (4 vCPU, 32 GB RAM)
 - **Large deployments (2000+ users)**: `db.m6i.2xlarge` (8 vCPU, 32 GB RAM) or `db.r6i.2xlarge` (8 vCPU, 64 GB RAM)
 
-**Azure (Azure Database for PostgreSQL)**
+##### Azure (Azure Database for PostgreSQL)
+
 - **Small deployments (<1000 users)**: `Standard_D2s_v5` (2 vCPU, 8 GB RAM) or `Standard_E2s_v5` (2 vCPU, 16 GB RAM)
 - **Medium deployments (1000-2000 users)**: `Standard_D4s_v5` (4 vCPU, 16 GB RAM) or `Standard_E4s_v5` (4 vCPU, 32 GB RAM)
 - **Large deployments (2000+ users)**: `Standard_D8s_v5` (8 vCPU, 32 GB RAM) or `Standard_E8s_v5` (8 vCPU, 64 GB RAM)
 
-**Google Cloud (Cloud SQL for PostgreSQL)**
+##### Google Cloud (Cloud SQL for PostgreSQL)
+
 - **Small deployments (<1000 users)**: `db-standard-2` (2 vCPU, 7.5 GB RAM) or `db-highmem-2` (2 vCPU, 13 GB RAM)
 - **Medium deployments (1000-2000 users)**: `db-standard-4` (4 vCPU, 15 GB RAM) or `db-highmem-4` (4 vCPU, 26 GB RAM)
 - **Large deployments (2000+ users)**: `db-standard-8` (8 vCPU, 30 GB RAM) or `db-highmem-8` (8 vCPU, 52 GB RAM)
