@@ -443,7 +443,7 @@ const DebouncedSlider: FC<DebouncedSliderProps> = ({
 		if (value !== undefined && value !== localValue) {
 			setLocalValue(value);
 		}
-	}, [value]);
+	}, [value, localValue]);
 
 	useEffect(() => {
 		if (
