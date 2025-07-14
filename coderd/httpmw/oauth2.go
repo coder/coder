@@ -195,8 +195,45 @@ type (
 )
 
 // OAuth2ProviderApp returns the OAuth2 app from the ExtractOAuth2ProviderAppParam handler.
+// This returns the base OAuth2ProviderApp type for backward compatibility with existing code.
 func OAuth2ProviderApp(r *http.Request) database.OAuth2ProviderApp {
-	app, ok := r.Context().Value(oauth2ProviderAppParamContextKey{}).(database.OAuth2ProviderApp)
+	appRow := OAuth2ProviderAppRow(r)
+
+	// Convert to base type for backward compatibility
+	return database.OAuth2ProviderApp{
+		ID:                      appRow.ID,
+		CreatedAt:               appRow.CreatedAt,
+		UpdatedAt:               appRow.UpdatedAt,
+		Name:                    appRow.Name,
+		Icon:                    appRow.Icon,
+		RedirectUris:            appRow.RedirectUris,
+		ClientType:              appRow.ClientType,
+		DynamicallyRegistered:   appRow.DynamicallyRegistered,
+		ClientIDIssuedAt:        appRow.ClientIDIssuedAt,
+		ClientSecretExpiresAt:   appRow.ClientSecretExpiresAt,
+		GrantTypes:              appRow.GrantTypes,
+		ResponseTypes:           appRow.ResponseTypes,
+		TokenEndpointAuthMethod: appRow.TokenEndpointAuthMethod,
+		Scope:                   appRow.Scope,
+		Contacts:                appRow.Contacts,
+		ClientUri:               appRow.ClientUri,
+		LogoUri:                 appRow.LogoUri,
+		TosUri:                  appRow.TosUri,
+		PolicyUri:               appRow.PolicyUri,
+		JwksUri:                 appRow.JwksUri,
+		Jwks:                    appRow.Jwks,
+		SoftwareID:              appRow.SoftwareID,
+		SoftwareVersion:         appRow.SoftwareVersion,
+		RegistrationAccessToken: appRow.RegistrationAccessToken,
+		RegistrationClientUri:   appRow.RegistrationClientUri,
+		UserID:                  appRow.UserID,
+	}
+}
+
+// OAuth2ProviderAppRow returns the full OAuth2 app row from the ExtractOAuth2ProviderAppParam handler.
+// This includes username and email fields for API responses that need them.
+func OAuth2ProviderAppRow(r *http.Request) database.GetOAuth2ProviderAppByIDRow {
+	app, ok := r.Context().Value(oauth2ProviderAppParamContextKey{}).(database.GetOAuth2ProviderAppByIDRow)
 	if !ok {
 		panic("developer error: oauth2 app param middleware not provided")
 	}
@@ -322,6 +359,7 @@ func extractOAuth2ProviderAppBase(db database.Store, errWriter errorWriter) func
 				})
 				return
 			}
+
 			ctx = context.WithValue(ctx, oauth2ProviderAppParamContextKey{}, app)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})

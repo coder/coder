@@ -21,10 +21,10 @@ export const getGitHubDeviceFlowCallback = (code: string, state: string) => {
 	};
 };
 
-export const getApps = (userId?: string) => {
+export const getApps = (filter: TypesGen.OAuth2ProviderAppFilter = {}) => {
 	return {
-		queryKey: userId ? appsKey.concat(userId) : appsKey,
-		queryFn: () => API.getOAuth2ProviderApps({ user_id: userId }),
+		queryKey: [...appsKey, filter],
+		queryFn: () => API.getOAuth2ProviderApps(filter),
 	};
 };
 

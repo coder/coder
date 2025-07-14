@@ -130,12 +130,13 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 
 		//nolint:gocritic // Dynamic client registration is a public endpoint, system access required
 		_, err = db.InsertOAuth2ProviderAppSecret(dbauthz.AsSystemRestricted(ctx), database.InsertOAuth2ProviderAppSecretParams{
-			ID:            uuid.New(),
-			CreatedAt:     now,
-			SecretPrefix:  []byte(parsedSecret.prefix),
-			HashedSecret:  []byte(hashedSecret),
-			DisplaySecret: createDisplaySecret(clientSecret),
-			AppID:         clientID,
+			ID:             uuid.New(),
+			CreatedAt:      now,
+			SecretPrefix:   []byte(parsedSecret.prefix),
+			HashedSecret:   []byte(hashedSecret),
+			DisplaySecret:  createDisplaySecret(clientSecret),
+			AppID:          clientID,
+			AppOwnerUserID: uuid.NullUUID{Valid: false}, // System-level secret
 		})
 		if err != nil {
 			writeOAuth2RegistrationError(ctx, rw, http.StatusInternalServerError,
