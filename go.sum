@@ -916,6 +916,8 @@ github.com/coder/pq v1.10.5-0.20250630052411-a259f96b6102 h1:ahTJlTRmTogsubgRVGO
 github.com/coder/pq v1.10.5-0.20250630052411-a259f96b6102/go.mod h1:AlVN5x4E4T544tWzH6hKfbfQvm3HdbOxrmggDNAPY9o=
 github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0 h1:3A0ES21Ke+FxEM8CXx9n47SZOKOpgSE1bbJzlE4qPVs=
 github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0/go.mod h1:5UuS2Ts+nTToAMeOjNlnHFkPahrtDkmpydBen/3wgZc=
+github.com/coder/preview v1.0.3-0.20250713201143-17616ecf763a h1:SLAUUH/lIfa15B28wU8h6Alze500HQeNYoUMB/OGE8A=
+github.com/coder/preview v1.0.3-0.20250713201143-17616ecf763a/go.mod h1:efDWGlO/PZPrvdt5QiDhMtTUTkPxejXo9c0wmYYLLjM=
 github.com/coder/quartz v0.2.1 h1:QgQ2Vc1+mvzewg2uD/nj8MJ9p9gE+QhGJm+Z+NGnrSE=
 github.com/coder/quartz v0.2.1/go.mod h1:vsiCc+AHViMKH2CQpGIpFgdHIEQsxwm8yCscqKmzbRA=
 github.com/coder/retry v1.5.1 h1:iWu8YnD8YqHs3XwqrqsjoBTAVqT9ml6z9ViJ2wlMiqc=
