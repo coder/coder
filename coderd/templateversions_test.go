@@ -641,6 +641,118 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("Presets", func(t *testing.T) {
+		t.Parallel()
+		store, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: store,
+			Pubsub:   ps,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		for _, tt := range []struct {
+			name        string
+			files       map[string]string
+			expectError string
+		}{
+			{
+				name: "valid preset",
+				files: map[string]string{
+					`main.tf`: `
+						terraform {
+							required_providers {
+								coder = {
+									source = "coder/coder"
+									version = "2.8.0"
+								}
+							}
+						}
+						data "coder_parameter" "valid_parameter" {
+							name = "valid_parameter_name"
+							default = "valid_option_value"
+							option {
+								name = "valid_option_name"
+								value = "valid_option_value"
+							}
+						}
+						data "coder_workspace_preset" "valid_preset" {
+							name = "valid_preset"
+							parameters = {
+								"valid_parameter_name" = "valid_option_value"
+							}
+						}
+					`,
+				},
+			},
+			{
+				name: "invalid preset",
+				files: map[string]string{
+					`main.tf`: `
+						terraform {
+							required_providers {
+								coder = {
+									source = "coder/coder"
+									version = "2.8.0"
+								}
+							}
+						}
+						data "coder_parameter" "valid_parameter" {
+							name = "valid_parameter_name"
+							default = "valid_option_value"
+							option {
+								name = "valid_option_name"
+								value = "valid_option_value"
+							}
+						}
+						data "coder_workspace_preset" "invalid_parameter_name" {
+							name = "invalid_parameter_name"
+							parameters = {
+								"invalid_parameter_name" = "irrelevant_value"
+							}
+						}
+					`,
+				},
+				expectError: "Undefined Parameter",
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitShort)
+
+				// Create an archive from the files provided in the test case.
+				tarFile := testutil.CreateTar(t, tt.files)
+
+				// Post the archive file
+				fi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarFile))
+				require.NoError(t, err)
+
+				// Create a template version from the archive
+				tvName := testutil.GetRandomNameHyphenated(t)
+				tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+					Name:          tvName,
+					StorageMethod: codersdk.ProvisionerStorageMethodFile,
+					Provisioner:   codersdk.ProvisionerTypeTerraform,
+					FileID:        fi.ID,
+				})
+
+				if tt.expectError == "" {
+					require.NoError(t, err)
+					// Assert the expected provisioner job is created from the template version import
+					pj, err := store.GetProvisionerJobByID(ctx, tv.Job.ID)
+					require.NoError(t, err)
+					require.NotNil(t, pj)
+					// Also assert that we get the expected information back from the API endpoint
+					require.Zero(t, tv.MatchedProvisioners.Count)
+					require.Zero(t, tv.MatchedProvisioners.Available)
+					require.Zero(t, tv.MatchedProvisioners.MostRecentlySeen.Time)
+				} else {
+					require.ErrorContains(t, err, tt.expectError)
+				}
+			})
+		}
+	})
 }
 
 func TestPatchCancelTemplateVersion(t *testing.T) {

@@ -488,6 +488,8 @@ require (
 	github.com/mark3labs/mcp-go v0.32.0
 )
 
+replace github.com/coder/preview => ../preview
+
 require (
 	cel.dev/expr v0.23.0 // indirect
 	cloud.google.com/go v0.120.0 // indirect
