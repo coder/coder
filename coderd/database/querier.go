@@ -234,7 +234,7 @@ type sqlcQuerier interface {
 	GetOAuth2GithubDefaultEligible(ctx context.Context) (bool, error)
 	// RFC 7591/7592 Dynamic Client Registration queries
 	GetOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error)
-	GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error)
+	GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (GetOAuth2ProviderAppByIDRow, error)
 	GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken sql.NullString) (OAuth2ProviderApp, error)
 	GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error)
 	GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppCode, error)
@@ -243,7 +243,8 @@ type sqlcQuerier interface {
 	GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, appID uuid.UUID) ([]OAuth2ProviderAppSecret, error)
 	GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, apiKeyID string) (OAuth2ProviderAppToken, error)
 	GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (OAuth2ProviderAppToken, error)
-	GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2ProviderApp, error)
+	GetOAuth2ProviderApps(ctx context.Context) ([]GetOAuth2ProviderAppsRow, error)
+	GetOAuth2ProviderAppsByOwnerID(ctx context.Context, userID uuid.NullUUID) ([]GetOAuth2ProviderAppsByOwnerIDRow, error)
 	GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]GetOAuth2ProviderAppsByUserIDRow, error)
 	GetOAuth2ProviderDeviceCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderDeviceCode, error)
 	GetOAuth2ProviderDeviceCodeByPrefix(ctx context.Context, deviceCodePrefix string) (OAuth2ProviderDeviceCode, error)

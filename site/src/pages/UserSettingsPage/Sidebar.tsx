@@ -46,7 +46,7 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 				External Authentication
 			</SidebarNavItem>
 			{(experiments.includes("oauth2") || isDevBuild(buildInfo)) && (
-				<SidebarNavItem href="oauth2-provider" icon={ShieldIcon}>
+				<SidebarNavItem href="oauth2-provider" icon={ShieldIcon} end={false}>
 					OAuth2 Applications
 				</SidebarNavItem>
 			)}
@@ -61,7 +61,7 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 			<SidebarNavItem href="ssh-keys" icon={FingerprintIcon}>
 				SSH Keys
 			</SidebarNavItem>
-			<SidebarNavItem href="tokens" icon={KeyIcon}>
+			<SidebarNavItem href="tokens" icon={KeyIcon} end={false}>
 				Tokens
 			</SidebarNavItem>
 			<SidebarNavItem href="notifications" icon={NotificationsIcon}>

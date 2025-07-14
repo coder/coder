@@ -30,7 +30,10 @@ export const Apps: Story = {
 	args: {
 		isLoading: false,
 		error: undefined,
-		apps: MockOAuth2ProviderApps,
+		authorizedApps: MockOAuth2ProviderApps,
+		ownedApps: MockOAuth2ProviderApps,
 		revoke: () => undefined,
+		onManageOwnedApp: () => undefined,
+		onDeleteOwnedApp: () => undefined,
 	},
 };

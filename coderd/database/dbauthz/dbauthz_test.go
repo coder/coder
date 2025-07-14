@@ -5259,15 +5259,110 @@ func (s *MethodTestSuite) TestPrebuilds() {
 
 func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 	s.Run("GetOAuth2ProviderApps", s.Subtest(func(db database.Store, check *expects) {
-		apps := []database.OAuth2ProviderApp{
-			dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{Name: "first"}),
-			dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{Name: "last"}),
+		app1 := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{Name: "first"})
+		app2 := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{Name: "last"})
+		apps := []database.GetOAuth2ProviderAppsRow{
+			{
+				ID:                      app1.ID,
+				CreatedAt:               app1.CreatedAt,
+				UpdatedAt:               app1.UpdatedAt,
+				Name:                    app1.Name,
+				Icon:                    app1.Icon,
+				RedirectUris:            app1.RedirectUris,
+				ClientType:              app1.ClientType,
+				DynamicallyRegistered:   app1.DynamicallyRegistered,
+				ClientIDIssuedAt:        app1.ClientIDIssuedAt,
+				ClientSecretExpiresAt:   app1.ClientSecretExpiresAt,
+				GrantTypes:              app1.GrantTypes,
+				ResponseTypes:           app1.ResponseTypes,
+				TokenEndpointAuthMethod: app1.TokenEndpointAuthMethod,
+				Scope:                   app1.Scope,
+				Contacts:                app1.Contacts,
+				ClientUri:               app1.ClientUri,
+				LogoUri:                 app1.LogoUri,
+				TosUri:                  app1.TosUri,
+				PolicyUri:               app1.PolicyUri,
+				JwksUri:                 app1.JwksUri,
+				Jwks:                    app1.Jwks,
+				SoftwareID:              app1.SoftwareID,
+				SoftwareVersion:         app1.SoftwareVersion,
+				RegistrationAccessToken: app1.RegistrationAccessToken,
+				RegistrationClientUri:   app1.RegistrationClientUri,
+				UserID:                  app1.UserID,
+				Username:                sql.NullString{},
+				Email:                   sql.NullString{},
+			},
+			{
+				ID:                      app2.ID,
+				CreatedAt:               app2.CreatedAt,
+				UpdatedAt:               app2.UpdatedAt,
+				Name:                    app2.Name,
+				Icon:                    app2.Icon,
+				RedirectUris:            app2.RedirectUris,
+				ClientType:              app2.ClientType,
+				DynamicallyRegistered:   app2.DynamicallyRegistered,
+				ClientIDIssuedAt:        app2.ClientIDIssuedAt,
+				ClientSecretExpiresAt:   app2.ClientSecretExpiresAt,
+				GrantTypes:              app2.GrantTypes,
+				ResponseTypes:           app2.ResponseTypes,
+				TokenEndpointAuthMethod: app2.TokenEndpointAuthMethod,
+				Scope:                   app2.Scope,
+				Contacts:                app2.Contacts,
+				ClientUri:               app2.ClientUri,
+				LogoUri:                 app2.LogoUri,
+				TosUri:                  app2.TosUri,
+				PolicyUri:               app2.PolicyUri,
+				JwksUri:                 app2.JwksUri,
+				Jwks:                    app2.Jwks,
+				SoftwareID:              app2.SoftwareID,
+				SoftwareVersion:         app2.SoftwareVersion,
+				RegistrationAccessToken: app2.RegistrationAccessToken,
+				RegistrationClientUri:   app2.RegistrationClientUri,
+				UserID:                  app2.UserID,
+				Username:                sql.NullString{},
+				Email:                   sql.NullString{},
+			},
 		}
-		check.Args().Asserts(rbac.ResourceOauth2App, policy.ActionRead).Returns(apps)
+		// fetchWithPostFilter calls RBACObject() on each app automatically
+		// Pass the actual app objects and let the framework call their RBACObject() method
+		check.Args().
+			Asserts(app1, policy.ActionRead, app2, policy.ActionRead).
+			OutOfOrder().
+			Returns(apps)
 	}))
 	s.Run("GetOAuth2ProviderAppByID", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
-		check.Args(app.ID).Asserts(rbac.ResourceOauth2App, policy.ActionRead).Returns(app)
+		appRow := database.GetOAuth2ProviderAppByIDRow{
+			ID:                      app.ID,
+			CreatedAt:               app.CreatedAt,
+			UpdatedAt:               app.UpdatedAt,
+			Name:                    app.Name,
+			Icon:                    app.Icon,
+			RedirectUris:            app.RedirectUris,
+			ClientType:              app.ClientType,
+			DynamicallyRegistered:   app.DynamicallyRegistered,
+			ClientIDIssuedAt:        app.ClientIDIssuedAt,
+			ClientSecretExpiresAt:   app.ClientSecretExpiresAt,
+			GrantTypes:              app.GrantTypes,
+			ResponseTypes:           app.ResponseTypes,
+			TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
+			Scope:                   app.Scope,
+			Contacts:                app.Contacts,
+			ClientUri:               app.ClientUri,
+			LogoUri:                 app.LogoUri,
+			TosUri:                  app.TosUri,
+			PolicyUri:               app.PolicyUri,
+			JwksUri:                 app.JwksUri,
+			Jwks:                    app.Jwks,
+			SoftwareID:              app.SoftwareID,
+			SoftwareVersion:         app.SoftwareVersion,
+			RegistrationAccessToken: app.RegistrationAccessToken,
+			RegistrationClientUri:   app.RegistrationClientUri,
+			UserID:                  app.UserID,
+			Username:                sql.NullString{},
+			Email:                   sql.NullString{},
+		}
+		check.Args(app.ID).Asserts(rbac.ResourceOauth2App, policy.ActionRead).Returns(appRow)
 	}))
 	s.Run("GetOAuth2ProviderAppsByUserID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -5353,6 +5448,91 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		check.Args(app.ID).Asserts(rbac.ResourceOauth2App, policy.ActionDelete)
 	}))
+	s.Run("GetOAuth2ProviderAppsByOwnerID", s.Subtest(func(db database.Store, check *expects) {
+		owner := dbgen.User(s.T(), db, database.User{})
+		// Create multiple apps with the same owner
+		app1 := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{
+			UserID: uuid.NullUUID{UUID: owner.ID, Valid: true},
+		})
+		app2 := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{
+			UserID: uuid.NullUUID{UUID: owner.ID, Valid: true},
+		})
+		// Create an app with a different owner to ensure filtering works
+		differentOwner := dbgen.User(s.T(), db, database.User{})
+		_ = dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{
+			UserID: uuid.NullUUID{UUID: differentOwner.ID, Valid: true},
+		})
+
+		apps := []database.GetOAuth2ProviderAppsByOwnerIDRow{
+			{
+				ID:                      app1.ID,
+				CreatedAt:               app1.CreatedAt,
+				UpdatedAt:               app1.UpdatedAt,
+				Name:                    app1.Name,
+				Icon:                    app1.Icon,
+				RedirectUris:            app1.RedirectUris,
+				ClientType:              app1.ClientType,
+				DynamicallyRegistered:   app1.DynamicallyRegistered,
+				ClientIDIssuedAt:        app1.ClientIDIssuedAt,
+				ClientSecretExpiresAt:   app1.ClientSecretExpiresAt,
+				GrantTypes:              app1.GrantTypes,
+				ResponseTypes:           app1.ResponseTypes,
+				TokenEndpointAuthMethod: app1.TokenEndpointAuthMethod,
+				Scope:                   app1.Scope,
+				Contacts:                app1.Contacts,
+				ClientUri:               app1.ClientUri,
+				LogoUri:                 app1.LogoUri,
+				TosUri:                  app1.TosUri,
+				PolicyUri:               app1.PolicyUri,
+				JwksUri:                 app1.JwksUri,
+				Jwks:                    app1.Jwks,
+				SoftwareID:              app1.SoftwareID,
+				SoftwareVersion:         app1.SoftwareVersion,
+				RegistrationAccessToken: app1.RegistrationAccessToken,
+				RegistrationClientUri:   app1.RegistrationClientUri,
+				UserID:                  app1.UserID,
+				Username:                sql.NullString{String: owner.Username, Valid: true},
+				Email:                   sql.NullString{String: owner.Email, Valid: true},
+			},
+			{
+				ID:                      app2.ID,
+				CreatedAt:               app2.CreatedAt,
+				UpdatedAt:               app2.UpdatedAt,
+				Name:                    app2.Name,
+				Icon:                    app2.Icon,
+				RedirectUris:            app2.RedirectUris,
+				ClientType:              app2.ClientType,
+				DynamicallyRegistered:   app2.DynamicallyRegistered,
+				ClientIDIssuedAt:        app2.ClientIDIssuedAt,
+				ClientSecretExpiresAt:   app2.ClientSecretExpiresAt,
+				GrantTypes:              app2.GrantTypes,
+				ResponseTypes:           app2.ResponseTypes,
+				TokenEndpointAuthMethod: app2.TokenEndpointAuthMethod,
+				Scope:                   app2.Scope,
+				Contacts:                app2.Contacts,
+				ClientUri:               app2.ClientUri,
+				LogoUri:                 app2.LogoUri,
+				TosUri:                  app2.TosUri,
+				PolicyUri:               app2.PolicyUri,
+				JwksUri:                 app2.JwksUri,
+				Jwks:                    app2.Jwks,
+				SoftwareID:              app2.SoftwareID,
+				SoftwareVersion:         app2.SoftwareVersion,
+				RegistrationAccessToken: app2.RegistrationAccessToken,
+				RegistrationClientUri:   app2.RegistrationClientUri,
+				UserID:                  app2.UserID,
+				Username:                sql.NullString{String: owner.Username, Valid: true},
+				Email:                   sql.NullString{String: owner.Email, Valid: true},
+			},
+		}
+
+		// fetchWithPostFilter calls RBACObject() on each app automatically
+		// Pass the actual app objects and let the framework call their RBACObject() method
+		check.Args(uuid.NullUUID{UUID: owner.ID, Valid: true}).
+			Asserts(app1, policy.ActionRead, app2, policy.ActionRead).
+			OutOfOrder().
+			Returns(apps)
+	}))
 	s.Run("GetOAuth2ProviderAppByClientID", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		check.Args(app.ID).Asserts(rbac.ResourceOauth2App, policy.ActionRead).Returns(app)
@@ -5417,27 +5597,31 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppSecrets() {
 			AppID:        app2.ID,
 			SecretPrefix: []byte("3"),
 		})
-		check.Args(app1.ID).Asserts(rbac.ResourceOauth2AppSecret, policy.ActionRead).Returns(secrets)
+		// fetchWithPostFilter calls RBACObject() on each secret automatically
+		// Pass the actual secret objects and let the framework call their RBACObject() method
+		check.Args(app1.ID).
+			Asserts(secrets[0], policy.ActionRead, secrets[1], policy.ActionRead).
+			Returns(secrets)
 	}))
 	s.Run("GetOAuth2ProviderAppSecretByID", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
 			AppID: app.ID,
 		})
-		check.Args(secret.ID).Asserts(rbac.ResourceOauth2AppSecret, policy.ActionRead).Returns(secret)
+		check.Args(secret.ID).Asserts(rbac.ResourceOauth2AppSecret.WithID(secret.ID), policy.ActionRead).Returns(secret)
 	}))
 	s.Run("GetOAuth2ProviderAppSecretByPrefix", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
 			AppID: app.ID,
 		})
-		check.Args(secret.SecretPrefix).Asserts(rbac.ResourceOauth2AppSecret, policy.ActionRead).Returns(secret)
+		check.Args(secret.SecretPrefix).Asserts(rbac.ResourceOauth2AppSecret.WithID(secret.ID), policy.ActionRead).Returns(secret)
 	}))
 	s.Run("InsertOAuth2ProviderAppSecret", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		check.Args(database.InsertOAuth2ProviderAppSecretParams{
 			AppID: app.ID,
-		}).Asserts(rbac.ResourceOauth2AppSecret, policy.ActionCreate)
+		}).Asserts(rbac.ResourceOauth2AppSecret.WithID(uuid.Nil), policy.ActionCreate)
 	}))
 	s.Run("UpdateOAuth2ProviderAppSecretByID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -5449,14 +5633,14 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppSecrets() {
 		check.Args(database.UpdateOAuth2ProviderAppSecretByIDParams{
 			ID:         secret.ID,
 			LastUsedAt: secret.LastUsedAt,
-		}).Asserts(rbac.ResourceOauth2AppSecret, policy.ActionUpdate).Returns(secret)
+		}).Asserts(rbac.ResourceOauth2AppSecret.WithID(secret.ID), policy.ActionUpdate).Returns(secret)
 	}))
 	s.Run("DeleteOAuth2ProviderAppSecretByID", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
 			AppID: app.ID,
 		})
-		check.Args(secret.ID).Asserts(rbac.ResourceOauth2AppSecret, policy.ActionDelete)
+		check.Args(secret.ID).Asserts(rbac.ResourceOauth2AppSecret.WithID(secret.ID), policy.ActionDelete)
 	}))
 }
 
