@@ -62,22 +62,22 @@ jobs:
 
 #### Required Inputs
 
-| Input | Description |
-|-------|-------------|
-| `coder-url` | Your Coder deployment URL |
-| `coder-token` | API token for Coder (requires admin privileges) |
-| `template-name` | Name of the Coder template to use |
-| `parameters` | YAML-formatted parameters for the workspace |
+| Input           | Description                                     |
+|-----------------|-------------------------------------------------|
+| `coder-url`     | Your Coder deployment URL                       |
+| `coder-token`   | API token for Coder (requires admin privileges) |
+| `template-name` | Name of the Coder template to use               |
+| `parameters`    | YAML-formatted parameters for the workspace     |
 
 #### Optional Inputs
 
-| Input | Description | Default |
-|-------|-------------|----------|
-| `github-token` | GitHub token for posting comments | `${{ github.token }}` |
-| `github-issue-number` | Issue number for status comments | Current issue from context |
-| `github-username` | GitHub user to map to Coder user | - |
-| `coder-username` | Coder username (alternative to github-username) | - |
-| `workspace-name` | Name for the new workspace | `issue-{issue_number}` |
+| Input                 | Description                                     | Default                    |
+|-----------------------|-------------------------------------------------|----------------------------|
+| `github-token`        | GitHub token for posting comments               | `${{ github.token }}`      |
+| `github-issue-number` | Issue number for status comments                | Current issue from context |
+| `github-username`     | GitHub user to map to Coder user                | -                          |
+| `coder-username`      | Coder username (alternative to github-username) | -                          |
+| `workspace-name`      | Name for the new workspace                      | `issue-{issue_number}`     |
 
 ### User Mapping
 
