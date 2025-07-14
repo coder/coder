@@ -417,6 +417,64 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 	}
 };
 
+interface DebouncedSliderProps {
+	parameter: PreviewParameter;
+	value?: string;
+	onChange: (value: string) => void;
+	disabled?: boolean;
+	id: string;
+}
+
+const DebouncedSlider: FC<DebouncedSliderProps> = ({
+	parameter,
+	value,
+	onChange,
+	disabled,
+	id,
+}) => {
+	const [localValue, setLocalValue] = useState(
+		value !== undefined ? value : "0",
+	);
+	const debouncedLocalValue = useDebouncedValue(localValue, 300);
+	const onChangeEvent = useEffectEvent(onChange);
+	const prevDebouncedValueRef = useRef<string | undefined>();
+
+	useEffect(() => {
+		if (value !== undefined && value !== localValue) {
+			setLocalValue(value);
+		}
+	}, [value]);
+
+	useEffect(() => {
+		if (
+			prevDebouncedValueRef.current !== undefined &&
+			prevDebouncedValueRef.current !== debouncedLocalValue
+		) {
+			onChangeEvent(debouncedLocalValue);
+		}
+		prevDebouncedValueRef.current = debouncedLocalValue;
+	}, [debouncedLocalValue, onChangeEvent]);
+
+	return (
+		<div className="flex flex-row items-baseline gap-3">
+			<Slider
+				id={id}
+				className="mt-2"
+				value={[Number.isFinite(Number(localValue)) ? Number(localValue) : 0]}
+				onValueChange={([value]) => {
+					setLocalValue(value.toString());
+				}}
+				min={parameter.validations[0]?.validation_min ?? 0}
+				max={parameter.validations[0]?.validation_max ?? 100}
+				disabled={disabled}
+			/>
+			<span className="w-4 font-medium">
+				{Number.isFinite(Number(localValue)) ? localValue : "0"}
+			</span>
+		</div>
+	);
+};
+
 interface ParameterFieldProps {
 	parameter: PreviewParameter;
 	value?: string;
@@ -598,22 +656,13 @@ const ParameterField: FC<ParameterFieldProps> = ({
 
 		case "slider":
 			return (
-				<div className="flex flex-row items-baseline gap-3">
-					<Slider
-						id={id}
-						className="mt-2"
-						value={[Number.isFinite(Number(value)) ? Number(value) : 0]}
-						onValueChange={([value]) => {
-							onChange(value.toString());
-						}}
-						min={parameter.validations[0]?.validation_min ?? 0}
-						max={parameter.validations[0]?.validation_max ?? 100}
-						disabled={disabled}
-					/>
-					<span className="w-4 font-medium">
-						{Number.isFinite(Number(value)) ? value : "0"}
-					</span>
-				</div>
+				<DebouncedSlider
+					id={id}
+					parameter={parameter}
+					value={value}
+					onChange={onChange}
+					disabled={disabled}
+				/>
 			);
 		case "error":
 			return <Diagnostics diagnostics={parameter.diagnostics} />;
