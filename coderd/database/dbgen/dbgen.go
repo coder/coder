@@ -359,6 +359,14 @@ func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) da
 		NextStartAt:       orig.NextStartAt,
 	})
 	require.NoError(t, err, "insert workspace")
+	if orig.Deleted {
+		err = db.UpdateWorkspaceDeletedByID(genCtx, database.UpdateWorkspaceDeletedByIDParams{
+			ID:      workspace.ID,
+			Deleted: true,
+		})
+		require.NoError(t, err, "set workspace as deleted")
+		workspace.Deleted = true
+	}
 	return workspace
 }
 

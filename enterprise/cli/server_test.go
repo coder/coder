@@ -18,9 +18,6 @@ import (
 )
 
 func dbArg(t *testing.T) string {
-	if !dbtestutil.WillUsePostgres() {
-		return "--in-memory"
-	}
 	dbURL, err := dbtestutil.Open(t)
 	require.NoError(t, err)
 	return "--postgres-url=" + dbURL

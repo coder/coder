@@ -20,6 +20,9 @@ type DynamicParameterTemplateParams struct {
 	Plan           json.RawMessage
 	ModulesArchive []byte
 
+	// Uses a zip archive instead of a tar
+	Zip bool
+
 	// StaticParams is used if the provisioner daemon version does not support dynamic parameters.
 	StaticParams []*proto.RichParameter
 
@@ -45,7 +48,11 @@ func DynamicParameterTemplate(t *testing.T, client *codersdk.Client, org uuid.UU
 		},
 	}}
 
-	version := CreateTemplateVersion(t, client, org, files, func(request *codersdk.CreateTemplateVersionRequest) {
+	mime := codersdk.ContentTypeTar
+	if args.Zip {
+		mime = codersdk.ContentTypeZip
+	}
+	version := CreateTemplateVersionMimeType(t, client, mime, org, files, func(request *codersdk.CreateTemplateVersionRequest) {
 		if args.TemplateID != uuid.Nil {
 			request.TemplateID = args.TemplateID
 		}
