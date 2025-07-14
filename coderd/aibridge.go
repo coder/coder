@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"time"
 
 	"cdr.dev/slog"
 
@@ -19,6 +20,11 @@ type rt struct {
 }
 
 func (r *rt) RoundTrip(req *http.Request) (*http.Response, error) {
+	start := time.Now()
+	defer func() {
+		fmt.Printf("req to %q started %v completed\n", req.URL.String(), start.Local().Format(time.RFC3339Nano))
+	}()
+
 	resp, err := r.RoundTripper.RoundTrip(req)
 
 	if err != nil || resp.StatusCode == aibridged.ProxyErrCode {
@@ -56,12 +62,15 @@ func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		api.Logger.Error(ctx, "failed to parse bridge address", slog.Error(err))
 		http.Error(rw, "failed to parse bridge address", http.StatusInternalServerError)
+		return
 	}
 
 	rp := httputil.NewSingleHostReverseProxy(u)
 	rp.Transport = &rt{RoundTripper: http.DefaultTransport, server: server}
 	rp.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		api.Logger.Error(ctx, "aibridge reverse proxy error", slog.Error(err))
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	http.StripPrefix("/api/v2/aibridge", rp).ServeHTTP(rw, r)
 }

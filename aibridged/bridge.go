@@ -512,6 +512,44 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Policy examples.
+	if strings.Contains(string(in.Model), "opus") {
+		err := xerrors.Errorf("%q model is not allowed", in.Model)
+		b.setError(err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	for _, m := range in.Messages {
+		for _, c := range m.Content {
+			if c.OfText == nil {
+				continue
+			}
+
+			if strings.Contains(c.OfText.Text, ".env") {
+				http.Error(w, "Request blocked due to attempted access to sensitive file; this has been logged.", http.StatusBadRequest)
+				return
+			}
+		}
+	}
+
+	for _, t := range in.Tools {
+		if t.OfTool == nil {
+			continue
+		}
+
+		if strings.Contains(t.OfTool.Name, "mcp__") && (!strings.Contains(t.OfTool.Name, "go") && !strings.Contains(t.OfTool.Name, "typescript")) {
+			segs := strings.Split(t.OfTool.Name, "__")
+			var serverName string
+			if len(segs) >= 1 {
+				serverName = segs[1]
+			}
+
+			http.Error(w, fmt.Sprintf("Request blocked due to MCP server %q being used; this has been logged.", serverName), http.StatusBadRequest)
+			return
+		}
+	}
+
 	in.Tools = append(in.Tools, anthropic.BetaToolUnionParam{OfTool: &anthropic.BetaToolParam{
 		Name:        "get_coordinates",
 		Description: anthropic.String("Accepts a place as an address, then returns the latitude and longitude coordinates."),
@@ -555,45 +593,12 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 
 	// looks up API key with os.LookupEnv("ANTHROPIC_API_KEY")
 	client := anthropic.NewClient(opts...)
-	if !in.UseStreaming() || isSmallFastModel {
-		msg, err := client.Beta.Messages.New(ctx, messages)
-		if err != nil {
-			if antErr := getAnthropicErrorResponse(err); antErr != nil {
-				b.setError(antErr)
-				http.Error(w, antErr.Error.Message, antErr.StatusCode)
-			} else {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				b.setError(err)
-			}
-			return
-		}
-
-		// TODO: these figures don't seem to exactly match what Claude Code reports. Find the source of inconsistency!
-		_, err = coderdClient.TrackTokenUsage(ctx, &proto.TrackTokenUsageRequest{
-			MsgId:        msg.ID,
-			Model:        string(msg.Model),
-			InputTokens:  msg.Usage.InputTokens,
-			OutputTokens: msg.Usage.OutputTokens,
-			Other: map[string]int64{
-				"web_search_requests":      msg.Usage.ServerToolUse.WebSearchRequests,
-				"cache_creation_input":     msg.Usage.CacheCreationInputTokens,
-				"cache_read_input":         msg.Usage.CacheReadInputTokens,
-				"cache_ephemeral_1h_input": msg.Usage.CacheCreation.Ephemeral1hInputTokens,
-				"cache_ephemeral_5m_input": msg.Usage.CacheCreation.Ephemeral5mInputTokens,
-			},
-		})
-		if err != nil {
-			b.logger.Error(ctx, "failed to track usage", slog.Error(err))
-		}
-
-		out := []byte(msg.RawJSON())
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(out)
+	if !in.UseStreaming() {
+		http.Error(w, "streaming API supported only", http.StatusBadRequest)
 		return
 	}
 
 	streamCtx, streamCancel := context.WithCancelCause(r.Context())
-	defer streamCancel(xerrors.New("deferred"))
 
 	es := newEventStream(anthropicEventStream)
 
@@ -678,31 +683,41 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 			case string(ant_constant.ValueOf[ant_constant.MessageDelta]()):
-				// Don't relay message_delta events which indicate tool use.
-				// if event.AsMessageDelta().Delta.StopReason == anthropic.BetaStopReasonToolUse {
+				delta := event.AsMessageDelta()
+				if delta.Delta.StopReason == anthropic.BetaStopReasonEndTurn {
+					// TODO: these figures don't seem to exactly match what Claude Code reports. Find the source of inconsistency!
+					if _, err = coderdClient.TrackTokenUsage(streamCtx, &proto.TrackTokenUsageRequest{
+						MsgId:        message.ID,
+						Model:        string(message.Model),
+						InputTokens:  delta.Usage.InputTokens,
+						OutputTokens: delta.Usage.OutputTokens,
+						Other: map[string]int64{
+							"web_search_requests":      delta.Usage.ServerToolUse.WebSearchRequests,
+							"cache_creation_input":     delta.Usage.CacheCreationInputTokens,
+							"cache_read_input":         delta.Usage.CacheReadInputTokens,
+							"cache_ephemeral_1h_input": message.Usage.CacheCreation.Ephemeral1hInputTokens,
+							"cache_ephemeral_5m_input": message.Usage.CacheCreation.Ephemeral5mInputTokens,
+						},
+					}); err != nil {
+						b.logger.Error(ctx, "failed to track token usage", slog.Error(err))
+					}
+				}
+
+				// Don't relay message_delta events which indicate injected tool use.
 				if len(pendingToolCalls) > 0 && b.isInjectedTool(lastToolName) {
 					continue
 				}
-				//}
+
+				// If currently calling a tool.
+				if message.Content[len(message.Content)-1].Type == string(ant_constant.ValueOf[ant_constant.ToolUse]()) {
+					toolName := message.Content[len(message.Content)-1].AsToolUse().Name
+					if len(pendingToolCalls) > 0 && b.isInjectedTool(toolName) {
+						continue
+					}
+				}
 
 			// Don't send message_stop until all tools have been called.
 			case string(ant_constant.ValueOf[ant_constant.MessageStop]()):
-				// TODO: these figures don't seem to exactly match what Claude Code reports. Find the source of inconsistency!
-				if _, err = coderdClient.TrackTokenUsage(streamCtx, &proto.TrackTokenUsageRequest{
-					MsgId:        message.ID,
-					Model:        string(message.Model),
-					InputTokens:  message.Usage.InputTokens,
-					OutputTokens: message.Usage.OutputTokens,
-					Other: map[string]int64{
-						"web_search_requests":      message.Usage.ServerToolUse.WebSearchRequests,
-						"cache_creation_input":     message.Usage.CacheCreationInputTokens,
-						"cache_read_input":         message.Usage.CacheReadInputTokens,
-						"cache_ephemeral_1h_input": message.Usage.CacheCreation.Ephemeral1hInputTokens,
-						"cache_ephemeral_5m_input": message.Usage.CacheCreation.Ephemeral5mInputTokens,
-					},
-				}); err != nil {
-					b.logger.Error(ctx, "failed to track token usage", slog.Error(err))
-				}
 
 				if len(pendingToolCalls) > 0 {
 					// Append the whole message from this stream as context since we'll be sending a new request with the tool results.
@@ -746,9 +761,9 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 						fmt.Printf("[event] %s\n[tool(%q)] %s %+v\n\n", event.RawJSON(), id, name, input)
 
 						_, err = coderdClient.TrackToolUsage(streamCtx, &proto.TrackToolUsageRequest{
-							Model: string(message.Model),
-							Input: serialized,
-							Tool:  toolName,
+							Model:    string(message.Model),
+							Input:    serialized,
+							Tool:     toolName,
 							Injected: true,
 						})
 						if err != nil {
@@ -897,9 +912,9 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 							_ = json.NewEncoder(&buf).Encode(variant.Input)
 							_ = json.NewDecoder(&buf).Decode(&serialized)
 							_, err = coderdClient.TrackToolUsage(streamCtx, &proto.TrackToolUsageRequest{
-								Model:    string(message.Model),
-								Input:    serialized,
-								Tool:     variant.Name,
+								Model: string(message.Model),
+								Input: serialized,
+								Tool:  variant.Name,
 							})
 							if err != nil {
 								b.logger.Error(ctx, "failed to track non-injected tool usage", slog.Error(err))
@@ -924,16 +939,15 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 			}
 
 			b.logger.Error(ctx, "anthropic stream error", slog.Error(streamErr))
-			b.setError(streamErr)
 			if antErr := getAnthropicErrorResponse(streamErr); antErr != nil {
 				err = es.TrySend(streamCtx, antErr, "<error>")
 				if err != nil {
 					b.logger.Error(ctx, "failed to send error", slog.Error(err))
 				}
 
-				http.Error(w, antErr.Error.Message, ProxyErrCode)
+				b.setError(antErr)
 			} else {
-				http.Error(w, streamErr.Error(), ProxyErrCode)
+				b.setError(streamErr)
 			}
 		}
 
@@ -955,6 +969,16 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 
 		select {
 		case <-streamCtx.Done():
+		}
+
+		// Close the underlying connection by hijacking it
+		if hijacker, ok := w.(http.Hijacker); ok {
+			conn, _, err := hijacker.Hijack()
+			if err != nil {
+				b.logger.Error(ctx, "failed to hijack connection", slog.Error(err))
+			} else {
+				conn.Close() // This closes the TCP connection entirely
+			}
 		}
 
 		break
