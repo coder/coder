@@ -66,13 +66,6 @@ jobs:
             mkdir -p /tmp/binaries
             versions=(
               2.22.0
-              2.22.1
-              2.23.0
-              2.23.1
-              2.23.2
-              2.23.3
-              2.24.0
-              2.24.1
             )
 
             for version in "${versions[@]}"; do
@@ -84,7 +77,7 @@ jobs:
               for file in /tmp/binaries/${version}/*; do
                 ./scripts/sign_with_gpg.sh "$file"
                 filename=$(basename "$file")
-                gcloud storage cp "$file".asc "gs://releases.coder.com/coder-cli/${version}/${filename}.asc" --if-generation-match=0
+                gcloud storage cp "$file".asc "gs://releases.coder.com/coder-cli/${version}/${filename}.asc"
               done
             done
           env:
