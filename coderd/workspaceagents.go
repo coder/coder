@@ -882,6 +882,8 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 
 	go httpapi.Heartbeat(ctx, conn)
 
+	encoder := json.NewEncoder(wsNetConn)
+
 	for {
 		select {
 		case <-api.ctx.Done():
@@ -891,7 +893,7 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 			return
 
 		case containers := <-containersCh:
-			if err := json.NewEncoder(wsNetConn).Encode(containers); err != nil {
+			if err := encoder.Encode(containers); err != nil {
 				api.Logger.Error(ctx, "encode containers", slog.Error(err))
 				return
 			}

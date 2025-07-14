@@ -585,6 +585,8 @@ func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
 		api.mu.Unlock()
 	}()
 
+	encoder := json.NewEncoder(wsNetConn)
+
 	for {
 		select {
 		case <-api.ctx.Done():
@@ -600,7 +602,7 @@ func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			if err := json.NewEncoder(wsNetConn).Encode(ct); err != nil {
+			if err := encoder.Encode(ct); err != nil {
 				api.logger.Error(ctx, "encode container list", slog.Error(err))
 				return
 			}
