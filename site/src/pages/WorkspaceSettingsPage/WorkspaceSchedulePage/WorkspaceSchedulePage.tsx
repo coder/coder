@@ -34,7 +34,7 @@ const permissionsToCheck = (workspace: TypesGen.Workspace) =>
 		updateWorkspace: {
 			object: {
 				resource_type: "workspace",
-				resourceId: workspace.id,
+				resource_id: workspace.id,
 				owner_id: workspace.owner_id,
 			},
 			action: "update",

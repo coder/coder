@@ -69,3 +69,5 @@ export const WorkspaceSettingsLayout: FC = () => {
 		</>
 	);
 };
+
+export const WorkspaceSettingsContext = WorkspaceSettings;
