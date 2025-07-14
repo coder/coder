@@ -1,107 +1,30 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { getAuthorizationKey } from "api/queries/authCheck";
 import { templateByNameKey } from "api/queries/templates";
-import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
-import { AuthProvider } from "contexts/auth/AuthProvider";
-import { RequireAuth } from "contexts/auth/RequireAuth";
-import { permissionChecks } from "modules/permissions";
 import {
-	reactRouterOutlet,
+	reactRouterNestedAncestors,
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
 import {
-	MockAppearanceConfig,
-	MockAuthMethodsAll,
-	MockBuildInfo,
-	MockDefaultOrganization,
-	MockEntitlements,
-	MockExperiments,
 	MockPrebuiltWorkspace,
 	MockTemplate,
-	MockUserAppearanceSettings,
 	MockUserOwner,
 	MockWorkspace,
 } from "testHelpers/entities";
 import WorkspaceSchedulePage from "./WorkspaceSchedulePage";
-
-import { WorkspaceSettingsContext } from "../WorkspaceSettingsLayout";
+import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
+import { WorkspaceSettingsLayout } from "../WorkspaceSettingsLayout";
+import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
+import type { Workspace } from "api/typesGenerated";
 
 const meta = {
 	title: "pages/WorkspaceSchedulePage",
-	component: RequireAuth,
+	component: WorkspaceSchedulePage,
+	decorators: [withAuthProvider, withDashboardProvider],
 	parameters: {
 		layout: "fullscreen",
-		reactRouter: reactRouterParameters({
-			location: {
-				pathParams: {
-					username: `@${MockWorkspace.owner_name}`,
-					workspace: MockWorkspace.name,
-				},
-			},
-			routing: reactRouterOutlet(
-				{
-					path: "/:username/:workspace/settings/schedule",
-				},
-				<WorkspaceSchedulePage />,
-			),
-		}),
-		queries: [
-			{ key: ["me"], data: MockUserOwner },
-			{ key: ["authMethods"], data: MockAuthMethodsAll },
-			{ key: ["hasFirstUser"], data: true },
-			{ key: ["buildInfo"], data: MockBuildInfo },
-			{ key: ["entitlements"], data: MockEntitlements },
-			{ key: ["experiments"], data: MockExperiments },
-			{ key: ["appearance"], data: MockAppearanceConfig },
-			{ key: ["organizations"], data: [MockDefaultOrganization] },
-			{
-				key: getAuthorizationKey({ checks: permissionChecks }),
-				data: { editWorkspaceProxies: true },
-			},
-			{ key: ["me", "appearance"], data: MockUserAppearanceSettings },
-			{
-				key: workspaceByOwnerAndNameKey(
-					MockWorkspace.owner_name,
-					MockWorkspace.name,
-				),
-				data: MockWorkspace,
-			},
-			{
-				key: getAuthorizationKey({
-					checks: {
-						updateWorkspace: {
-							object: {
-								resource_type: "workspace",
-								resource_id: MockWorkspace.id,
-								owner_id: MockWorkspace.owner_id,
-							},
-							action: "update",
-						},
-					},
-				}),
-				data: { updateWorkspace: true },
-			},
-			{
-				key: templateByNameKey(
-					MockWorkspace.organization_id,
-					MockWorkspace.template_name,
-				),
-				data: MockTemplate,
-			},
-		],
+		user: MockUserOwner,
 	},
-	decorators: [
-		(Story, { parameters }) => {
-			const workspace = parameters.workspace || MockWorkspace;
-			return (
-				<AuthProvider>
-					<WorkspaceSettingsContext.Provider value={workspace}>
-						<Story />
-					</WorkspaceSettingsContext.Provider>
-				</AuthProvider>
-			);
-		},
-	],
 } satisfies Meta<typeof WorkspaceSchedulePage>;
 
 export default meta;
@@ -109,12 +32,62 @@ type Story = StoryObj<typeof WorkspaceSchedulePage>;
 
 export const RegularWorkspace: Story = {
 	parameters: {
-		workspace: MockWorkspace,
+		reactRouter: workspaceRouterParameters(MockWorkspace),
+		queries: workspaceQueries(MockWorkspace),
 	},
 };
 
 export const PrebuiltWorkspace: Story = {
 	parameters: {
-		workspace: MockPrebuiltWorkspace,
+		reactRouter: workspaceRouterParameters(MockPrebuiltWorkspace),
+		queries: workspaceQueries(MockPrebuiltWorkspace),
 	},
 };
+
+function workspaceRouterParameters(workspace: Workspace) {
+	return reactRouterParameters({
+		location: {
+			pathParams: {
+				username: `@${workspace.owner_name}`,
+				workspace: workspace.name,
+			},
+		},
+		routing: reactRouterNestedAncestors(
+			{
+				path: "/:username/:workspace/settings/schedule",
+			},
+			<WorkspaceSettingsLayout />,
+		),
+	});
+}
+
+function workspaceQueries(workspace: Workspace) {
+	return [
+		{
+			key: workspaceByOwnerAndNameKey(workspace.owner_name, workspace.name),
+			data: workspace,
+		},
+		{
+			key: getAuthorizationKey({
+				checks: {
+					updateWorkspace: {
+						object: {
+							resource_type: "workspace",
+							resource_id: MockWorkspace.id,
+							owner_id: MockWorkspace.owner_id,
+						},
+						action: "update",
+					},
+				},
+			}),
+			data: { updateWorkspace: true },
+		},
+		{
+			key: templateByNameKey(
+				MockWorkspace.organization_id,
+				MockWorkspace.template_name,
+			),
+			data: MockTemplate,
+		},
+	];
+}
