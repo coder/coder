@@ -483,7 +483,7 @@ require (
 require (
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
 	github.com/coder/aisdk-go v0.0.9
-	github.com/coder/preview v1.0.3-0.20250709160236-8ddde200cd69
+	github.com/coder/preview v1.0.3-0.20250714153828-a737d4750448
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/mark3labs/mcp-go v0.33.0
 )
