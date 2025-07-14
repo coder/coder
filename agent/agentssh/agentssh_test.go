@@ -453,7 +453,7 @@ func TestSSHServer_ClosesStdin(t *testing.T) {
 	// exit code 1 if it hits EOF, which is what we want to test.
 	cmdErrCh := make(chan error, 1)
 	go func() {
-		cmdErrCh <- sess.Start(fmt.Sprintf("echo started; read; echo \"read exit code: $?\" > %s", filePath))
+		cmdErrCh <- sess.Start(fmt.Sprintf(`echo started; echo "read exit code: $(read && echo 0 || echo 1)" > %s`, filePath))
 	}()
 
 	cmdErr := testutil.RequireReceive(ctx, t, cmdErrCh)

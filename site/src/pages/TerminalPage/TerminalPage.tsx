@@ -26,6 +26,13 @@ import { openMaybePortForwardedURL } from "utils/portForward";
 import { terminalWebsocketUrl } from "utils/terminal";
 import { getMatchingAgentOrFirst } from "utils/workspace";
 import { v4 as uuidv4 } from "uuid";
+// Use websocket-ts for better WebSocket handling and auto-reconnection.
+import {
+	ExponentialBackoff,
+	type Websocket,
+	WebsocketBuilder,
+	WebsocketEvent,
+} from "websocket-ts";
 import { TerminalAlerts } from "./TerminalAlerts";
 import type { ConnectionStatus } from "./types";
 
@@ -221,7 +228,7 @@ const TerminalPage: FC = () => {
 		}
 
 		// Hook up terminal events to the websocket.
-		let websocket: WebSocket | null;
+		let websocket: Websocket | null;
 		const disposers = [
 			terminal.onData((data) => {
 				websocket?.send(
@@ -259,9 +266,11 @@ const TerminalPage: FC = () => {
 				if (disposed) {
 					return; // Unmounted while we waited for the async call.
 				}
-				websocket = new WebSocket(url);
+				websocket = new WebsocketBuilder(url)
+					.withBackoff(new ExponentialBackoff(1000, 6))
+					.build();
 				websocket.binaryType = "arraybuffer";
-				websocket.addEventListener("open", () => {
+				websocket.addEventListener(WebsocketEvent.open, () => {
 					// Now that we are connected, allow user input.
 					terminal.options = {
 						disableStdin: false,
@@ -278,18 +287,16 @@ const TerminalPage: FC = () => {
 					);
 					setConnectionStatus("connected");
 				});
-				websocket.addEventListener("error", () => {
-					terminal.options.disableStdin = true;
-					terminal.writeln(
-						`${Language.websocketErrorMessagePrefix}socket errored`,
-					);
-					setConnectionStatus("disconnected");
-				});
-				websocket.addEventListener("close", () => {
+				websocket.addEventListener(WebsocketEvent.error, (_, event) => {
+					console.error("WebSocket error:", event);
 					terminal.options.disableStdin = true;
 					setConnectionStatus("disconnected");
 				});
-				websocket.addEventListener("message", (event) => {
+				websocket.addEventListener(WebsocketEvent.close, () => {
+					terminal.options.disableStdin = true;
+					setConnectionStatus("disconnected");
+				});
+				websocket.addEventListener(WebsocketEvent.message, (_, event) => {
 					if (typeof event.data === "string") {
 						// This exclusively occurs when testing.
 						// "jest-websocket-mock" doesn't support ArrayBuffer.
@@ -298,12 +305,25 @@ const TerminalPage: FC = () => {
 						terminal.write(new Uint8Array(event.data));
 					}
 				});
+				websocket.addEventListener(WebsocketEvent.reconnect, () => {
+					if (websocket) {
+						websocket.binaryType = "arraybuffer";
+						websocket.send(
+							new TextEncoder().encode(
+								JSON.stringify({
+									height: terminal.rows,
+									width: terminal.cols,
+								}),
+							),
+						);
+					}
+				});
 			})
 			.catch((error) => {
 				if (disposed) {
 					return; // Unmounted while we waited for the async call.
 				}
-				terminal.writeln(Language.websocketErrorMessagePrefix + error.message);
+				console.error("WebSocket connection failed:", error);
 				setConnectionStatus("disconnected");
 			});
 
