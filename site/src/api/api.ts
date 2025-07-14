@@ -131,7 +131,7 @@ export const watchWorkspace = (
 
 export const watchAgentContainers = (
 	agentId: string,
-): OneWayWebSocket<TypesGen.WorkspaceAgentDevcontainer[]> => {
+): OneWayWebSocket<TypesGen.WorkspaceAgentListContainersResponse> => {
 	return new OneWayWebSocket({
 		apiRoute: `/api/v2/workspaceagents/${agentId}/containers/watch`,
 	});

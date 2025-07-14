@@ -1,6 +1,9 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import * as API from "api/api";
-import type { WorkspaceAgentDevcontainer } from "api/typesGenerated";
+import type {
+	WorkspaceAgentDevcontainer,
+	WorkspaceAgentListContainersResponse,
+} from "api/typesGenerated";
 import * as GlobalSnackbar from "components/GlobalSnackbar/utils";
 import { http, HttpResponse } from "msw";
 import type { FC, PropsWithChildren } from "react";
@@ -96,7 +99,7 @@ describe("useAgentContainers", () => {
 			close: jest.fn(),
 		};
 		watchAgentContainersSpy.mockReturnValue(
-			mockSocket as unknown as OneWayWebSocket<WorkspaceAgentDevcontainer[]>,
+			mockSocket as unknown as OneWayWebSocket<WorkspaceAgentListContainersResponse>,
 		);
 
 		server.use(
@@ -151,7 +154,7 @@ describe("useAgentContainers", () => {
 			close: jest.fn(),
 		};
 		watchAgentContainersSpy.mockReturnValue(
-			mockSocket as unknown as OneWayWebSocket<WorkspaceAgentDevcontainer[]>,
+			mockSocket as unknown as OneWayWebSocket<WorkspaceAgentListContainersResponse>,
 		);
 
 		server.use(

@@ -2,6 +2,7 @@ import { API, watchAgentContainers } from "api/api";
 import type {
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
+	WorkspaceAgentListContainersResponse,
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useEffectEvent } from "hooks/hookPolyfills";
@@ -21,11 +22,10 @@ export function useAgentContainers(
 	});
 
 	const updateDevcontainersCache = useEffectEvent(
-		async (devcontainers: WorkspaceAgentDevcontainer[]) => {
+		async (data: WorkspaceAgentListContainersResponse) => {
 			const queryKey = ["agents", agent.id, "containers"];
 
-			queryClient.setQueryData(queryKey, devcontainers);
-			await queryClient.invalidateQueries({ queryKey });
+			queryClient.setQueryData(queryKey, data);
 		},
 	);
 
