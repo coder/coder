@@ -61,7 +61,8 @@ message ServiceMessage {
 	oneof msg {
 		StartResponse start = 2;
 		StopResponse stop = 3;
-		Status status = 4; // either in reply to a StatusRequest or broadcasted
+		Status status = 4;                // either in reply to a StatusRequest or broadcasted
+		StartProgress start_progress = 5; // broadcasted during startup (used exclusively by Windows)
 	}
 }
 
@@ -232,6 +233,28 @@ message StartRequest {
 message StartResponse {
 	bool success = 1;
 	string error_message = 2;
+}
+
+// StartProgress is sent from the manager to the client to indicate the
+// download/startup progress of the tunnel. This will be sent during the
+// processing of a StartRequest before the StartResponse is sent.
+//
+// Note: this is currently a broadcasted message to all clients due to the
+//       inability to easily send messages to a specific client in the Speaker
+//       implementation. If clients are not expecting these messages, they
+//       should ignore them.
+enum StartProgressStage {
+	Initializing = 0;
+	Downloading = 1;
+	Finalizing = 2;
+}
+message StartProgressDownloadProgress {
+	uint64 bytes_written = 1;
+	optional uint64 bytes_total = 2; // unknown in some situations
+}
+message StartProgress {
+	StartProgressStage stage = 1;
+	optional StartProgressDownloadProgress download_progress = 2; // only set when stage == Downloading
 }
 
 // StopRequest is a request from the manager to stop the tunnel. The tunnel replies with a

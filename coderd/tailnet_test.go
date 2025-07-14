@@ -257,7 +257,6 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		port := ":4444"
 
 		for i, ag := range agents {
-			i := i
 			ln, err := ag.TailnetConn().Listen("tcp", port)
 			require.NoError(t, err)
 			wln := &wrappedListener{Listener: ln}

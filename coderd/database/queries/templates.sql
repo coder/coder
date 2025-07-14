@@ -10,34 +10,36 @@ LIMIT
 
 -- name: GetTemplatesWithFilter :many
 SELECT
-	*
+	t.*
 FROM
-	template_with_names AS templates
+	template_with_names AS t
+LEFT JOIN
+	template_versions tv ON t.active_version_id = tv.id
 WHERE
 	-- Optionally include deleted templates
-	templates.deleted = @deleted
+	t.deleted = @deleted
 	-- Filter by organization_id
 	AND CASE
 		WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			organization_id = @organization_id
+			t.organization_id = @organization_id
 		ELSE true
 	END
 	-- Filter by exact name
 	AND CASE
 		WHEN @exact_name :: text != '' THEN
-			LOWER("name") = LOWER(@exact_name)
+			LOWER(t.name) = LOWER(@exact_name)
 		ELSE true
 	END
 	-- Filter by name, matching on substring
 	AND CASE
 		WHEN @fuzzy_name :: text != '' THEN
-			lower(name) ILIKE '%' || lower(@fuzzy_name) || '%'
+			lower(t.name) ILIKE '%' || lower(@fuzzy_name) || '%'
 		ELSE true
 	END
 	-- Filter by ids
 	AND CASE
 		WHEN array_length(@ids :: uuid[], 1) > 0 THEN
-			id = ANY(@ids)
+			t.id = ANY(@ids)
 		ELSE true
 	END
 	-- Filter by deprecated
@@ -45,15 +47,21 @@ WHERE
 		WHEN sqlc.narg('deprecated') :: boolean IS NOT NULL THEN
 			CASE
 				WHEN sqlc.narg('deprecated') :: boolean THEN
-					deprecated != ''
+					t.deprecated != ''
 				ELSE
-					deprecated = ''
+					t.deprecated = ''
 			END
+		ELSE true
+	END
+	-- Filter by has_ai_task in latest version
+	AND CASE
+		WHEN sqlc.narg('has_ai_task') :: boolean IS NOT NULL THEN
+			tv.has_ai_task = sqlc.narg('has_ai_task') :: boolean
 		ELSE true
 	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
   -- @authorize_filter
-ORDER BY (name, id) ASC
+ORDER BY (t.name, t.id) ASC
 ;
 
 -- name: GetTemplateByOrganizationAndName :one
@@ -90,10 +98,11 @@ INSERT INTO
 		group_acl,
 		display_name,
 		allow_user_cancel_workspace_jobs,
-		max_port_sharing_level
+		max_port_sharing_level,
+		use_classic_parameter_flow
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16);
 
 -- name: UpdateTemplateActiveVersionByID :exec
 UPDATE

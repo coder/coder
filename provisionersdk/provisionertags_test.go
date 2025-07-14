@@ -185,7 +185,6 @@ func TestMutateTags(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := provisionersdk.MutateTags(tt.userID, tt.tags...)

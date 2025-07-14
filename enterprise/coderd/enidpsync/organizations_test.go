@@ -53,10 +53,6 @@ type OrganizationSyncTestCase struct {
 func TestOrganizationSync(t *testing.T) {
 	t.Parallel()
 
-	if dbtestutil.WillUsePostgres() {
-		t.Skip("Skipping test because it populates a lot of db entries, which is slow on postgres")
-	}
-
 	requireUserOrgs := func(t *testing.T, db database.Store, user database.User, expected []uuid.UUID) {
 		t.Helper()
 
@@ -296,7 +292,6 @@ func TestOrganizationSync(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitMedium)

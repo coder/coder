@@ -1,6 +1,7 @@
 package coderdtest
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"crypto"
@@ -52,6 +53,8 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/archive"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd"
@@ -359,6 +362,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		ctx,
 		options.Database,
 		options.Pubsub,
+		files.New(prometheus.NewRegistry(), options.Authorizer),
 		prometheus.NewRegistry(),
 		&templateScheduleStore,
 		&auditor,
@@ -884,14 +888,22 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 	return other, user
 }
 
-// CreateTemplateVersion creates a template import provisioner job
-// with the responses provided. It uses the "echo" provisioner for compatibility
-// with testing.
-func CreateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
+func CreateTemplateVersionMimeType(t testing.TB, client *codersdk.Client, mimeType string, organizationID uuid.UUID, res *echo.Responses, mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
 	t.Helper()
 	data, err := echo.TarWithOptions(context.Background(), client.Logger(), res)
 	require.NoError(t, err)
-	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))
+
+	switch mimeType {
+	case codersdk.ContentTypeTar:
+		// do nothing
+	case codersdk.ContentTypeZip:
+		data, err = archive.CreateZipFromTar(tar.NewReader(bytes.NewBuffer(data)), int64(len(data)))
+		require.NoError(t, err, "creating zip")
+	default:
+		t.Fatal("unexpected mime type", mimeType)
+	}
+
+	file, err := client.Upload(context.Background(), mimeType, bytes.NewReader(data))
 	require.NoError(t, err)
 
 	req := codersdk.CreateTemplateVersionRequest{
@@ -906,6 +918,13 @@ func CreateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID
 	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, req)
 	require.NoError(t, err)
 	return templateVersion
+}
+
+// CreateTemplateVersion creates a template import provisioner job
+// with the responses provided. It uses the "echo" provisioner for compatibility
+// with testing.
+func CreateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
+	return CreateTemplateVersionMimeType(t, client, codersdk.ContentTypeTar, organizationID, res, mutators...)
 }
 
 // CreateWorkspaceBuild creates a workspace build for the given workspace and transition.
@@ -1245,16 +1264,16 @@ func CreateWorkspace(t testing.TB, client *codersdk.Client, templateID uuid.UUID
 }
 
 // TransitionWorkspace is a convenience method for transitioning a workspace from one state to another.
-func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition, muts ...func(req *codersdk.CreateWorkspaceBuildRequest)) codersdk.Workspace {
+func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID, from, to codersdk.WorkspaceTransition, muts ...func(req *codersdk.CreateWorkspaceBuildRequest)) codersdk.Workspace {
 	t.Helper()
 	ctx := context.Background()
 	workspace, err := client.Workspace(ctx, workspaceID)
 	require.NoError(t, err, "unexpected error fetching workspace")
-	require.Equal(t, workspace.LatestBuild.Transition, codersdk.WorkspaceTransition(from), "expected workspace state: %s got: %s", from, workspace.LatestBuild.Transition)
+	require.Equal(t, workspace.LatestBuild.Transition, from, "expected workspace state: %s got: %s", from, workspace.LatestBuild.Transition)
 
 	req := codersdk.CreateWorkspaceBuildRequest{
 		TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
-		Transition:        codersdk.WorkspaceTransition(to),
+		Transition:        to,
 	}
 
 	for _, mut := range muts {
@@ -1267,7 +1286,7 @@ func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID 
 	_ = AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
 	updated := MustWorkspace(t, client, workspace.ID)
-	require.Equal(t, codersdk.WorkspaceTransition(to), updated.LatestBuild.Transition, "expected workspace to be in state %s but got %s", to, updated.LatestBuild.Transition)
+	require.Equal(t, to, updated.LatestBuild.Transition, "expected workspace to be in state %s but got %s", to, updated.LatestBuild.Transition)
 	return updated
 }
 

@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -25,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -371,42 +373,174 @@ func TestWorkspaceBuildsProvisionerState(t *testing.T) {
 
 	t.Run("Orphan", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		first := coderdtest.CreateFirstUser(t, client)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		t.Run("WithoutDelete", func(t *testing.T) {
+			t.Parallel()
+			client, store := coderdtest.NewWithDatabase(t, nil)
+			first := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleTemplateAdmin())
 
-		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OwnerID:        templateAdminUser.ID,
+				OrganizationID: first.OrganizationID,
+			}).Do()
 
-		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
 
-		// Providing both state and orphan fails.
-		_, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
-			Transition:        codersdk.WorkspaceTransitionDelete,
-			ProvisionerState:  []byte(" "),
-			Orphan:            true,
+			// Trying to orphan without delete transition fails.
+			_, err := templateAdmin.CreateWorkspaceBuild(ctx, r.Workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+				TemplateVersionID: r.TemplateVersion.ID,
+				Transition:        codersdk.WorkspaceTransitionStart,
+				Orphan:            true,
+			})
+			require.Error(t, err, "Orphan is only permitted when deleting a workspace.")
+			cerr := coderdtest.SDKError(t, err)
+			require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 		})
-		require.Error(t, err)
-		cerr := coderdtest.SDKError(t, err)
-		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 
-		// Regular orphan operation succeeds.
-		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
-			Transition:        codersdk.WorkspaceTransitionDelete,
-			Orphan:            true,
+		t.Run("WithState", func(t *testing.T) {
+			t.Parallel()
+			client, store := coderdtest.NewWithDatabase(t, nil)
+			first := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleTemplateAdmin())
+
+			r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OwnerID:        templateAdminUser.ID,
+				OrganizationID: first.OrganizationID,
+			}).Do()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			// Providing both state and orphan fails.
+			_, err := templateAdmin.CreateWorkspaceBuild(ctx, r.Workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+				TemplateVersionID: r.TemplateVersion.ID,
+				Transition:        codersdk.WorkspaceTransitionDelete,
+				ProvisionerState:  []byte(" "),
+				Orphan:            true,
+			})
+			require.Error(t, err)
+			cerr := coderdtest.SDKError(t, err)
+			require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 		})
-		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
-		_, err = client.Workspace(ctx, workspace.ID)
-		require.Error(t, err)
-		require.Equal(t, http.StatusGone, coderdtest.SDKError(t, err).StatusCode())
+		t.Run("NoPermission", func(t *testing.T) {
+			t.Parallel()
+			client, store := coderdtest.NewWithDatabase(t, nil)
+			first := coderdtest.CreateFirstUser(t, client)
+			member, memberUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+			r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OwnerID:        memberUser.ID,
+				OrganizationID: first.OrganizationID,
+			}).Do()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			// Trying to orphan without being a template admin fails.
+			_, err := member.CreateWorkspaceBuild(ctx, r.Workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+				TemplateVersionID: r.TemplateVersion.ID,
+				Transition:        codersdk.WorkspaceTransitionDelete,
+				Orphan:            true,
+			})
+			require.Error(t, err)
+			cerr := coderdtest.SDKError(t, err)
+			require.Equal(t, http.StatusForbidden, cerr.StatusCode())
+		})
+
+		t.Run("OK", func(t *testing.T) {
+			// Include a provisioner so that we can test that provisionerdserver
+			// performs deletion.
+			auditor := audit.NewMock()
+			client, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
+			first := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleTemplateAdmin())
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+			// This is a valid zip file. Without this the job will fail to complete.
+			// TODO: add this to dbfake by default.
+			zipBytes := make([]byte, 22)
+			zipBytes[0] = 80
+			zipBytes[1] = 75
+			zipBytes[2] = 0o5
+			zipBytes[3] = 0o6
+			uploadRes, err := client.Upload(ctx, codersdk.ContentTypeZip, bytes.NewReader(zipBytes))
+			require.NoError(t, err)
+
+			tv := dbfake.TemplateVersion(t, store).
+				FileID(uploadRes.ID).
+				Seed(database.TemplateVersion{
+					OrganizationID: first.OrganizationID,
+					CreatedBy:      templateAdminUser.ID,
+				}).
+				Do()
+
+			r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OwnerID:        templateAdminUser.ID,
+				OrganizationID: first.OrganizationID,
+				TemplateID:     tv.Template.ID,
+			}).Do()
+
+			auditor.ResetLogs()
+			// Regular orphan operation succeeds.
+			build, err := templateAdmin.CreateWorkspaceBuild(ctx, r.Workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+				TemplateVersionID: r.TemplateVersion.ID,
+				Transition:        codersdk.WorkspaceTransitionDelete,
+				Orphan:            true,
+			})
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+
+			// Validate that the deletion was audited.
+			require.True(t, auditor.Contains(t, database.AuditLog{
+				ResourceID: build.ID,
+				Action:     database.AuditActionDelete,
+			}))
+		})
+
+		t.Run("NoProvisioners", func(t *testing.T) {
+			t.Parallel()
+			auditor := audit.NewMock()
+			client, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{Auditor: auditor})
+			first := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleTemplateAdmin())
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+			r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OwnerID:        templateAdminUser.ID,
+				OrganizationID: first.OrganizationID,
+			}).Do()
+
+			// nolint:gocritic // For testing
+			daemons, err := store.GetProvisionerDaemons(dbauthz.AsSystemReadProvisionerDaemons(ctx))
+			require.NoError(t, err)
+			require.Empty(t, daemons, "Provisioner daemons should be empty for this test")
+
+			// Orphan deletion still succeeds despite no provisioners being available.
+			build, err := templateAdmin.CreateWorkspaceBuild(ctx, r.Workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+				TemplateVersionID: r.TemplateVersion.ID,
+				Transition:        codersdk.WorkspaceTransitionDelete,
+				Orphan:            true,
+			})
+			require.NoError(t, err)
+			require.Equal(t, codersdk.WorkspaceTransitionDelete, build.Transition)
+			require.Equal(t, codersdk.ProvisionerJobSucceeded, build.Job.Status)
+			require.Empty(t, build.Job.Error)
+
+			ws, err := client.Workspace(ctx, r.Workspace.ID)
+			require.Empty(t, ws)
+			require.Equal(t, http.StatusGone, coderdtest.SDKError(t, err).StatusCode())
+
+			// Validate that the deletion was audited.
+			require.True(t, auditor.Contains(t, database.AuditLog{
+				ResourceID: build.ID,
+				Action:     database.AuditActionDelete,
+			}))
+		})
 	})
 }
 
@@ -439,7 +573,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 			build, err = client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
 			return assert.NoError(t, err) && build.Job.Status == codersdk.ProvisionerJobRunning
 		}, testutil.WaitShort, testutil.IntervalFast)
-		err := client.CancelWorkspaceBuild(ctx, build.ID)
+		err := client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
 			var err error
@@ -484,10 +618,198 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 			build, err = userClient.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
 			return assert.NoError(t, err) && build.Job.Status == codersdk.ProvisionerJobRunning
 		}, testutil.WaitShort, testutil.IntervalFast)
-		err := userClient.CancelWorkspaceBuild(ctx, build.ID)
+		err := userClient.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+	})
+
+	t.Run("Cancel with expect_state=pending", func(t *testing.T) {
+		t.Parallel()
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("this test requires postgres")
+		}
+		// Given: a coderd instance with a provisioner daemon
+		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
+		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+			Database:                 store,
+			Pubsub:                   ps,
+			IncludeProvisionerDaemon: true,
+		})
+		defer closeDaemon.Close()
+		// Given: a user, template, and workspace
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// Stop the provisioner daemon.
+		require.NoError(t, closeDaemon.Close())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Given: no provisioner daemons exist.
+		_, err := db.ExecContext(ctx, `DELETE FROM provisioner_daemons;`)
+		require.NoError(t, err)
+
+		// When: a new workspace build is created
+		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+		})
+		// Then: the request should succeed.
+		require.NoError(t, err)
+		// Then: the provisioner job should remain pending.
+		require.Equal(t, codersdk.ProvisionerJobPending, build.Job.Status)
+
+		// Then: the response should indicate no provisioners are available.
+		if assert.NotNil(t, build.MatchedProvisioners) {
+			assert.Zero(t, build.MatchedProvisioners.Count)
+			assert.Zero(t, build.MatchedProvisioners.Available)
+			assert.Zero(t, build.MatchedProvisioners.MostRecentlySeen.Time)
+			assert.False(t, build.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
+
+		// When: the workspace build is canceled
+		err = client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{
+			ExpectStatus: codersdk.CancelWorkspaceBuildStatusPending,
+		})
+		require.NoError(t, err)
+
+		// Then: the workspace build should be canceled.
+		build, err = client.WorkspaceBuild(ctx, build.ID)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ProvisionerJobCanceled, build.Job.Status)
+	})
+
+	t.Run("Cancel with expect_state=pending when job is running - should fail with 412", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Log{
+					Log: &proto.Log{},
+				},
+			}},
+			ProvisionPlan: echo.PlanComplete,
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		var build codersdk.WorkspaceBuild
+		require.Eventually(t, func() bool {
+			var err error
+			build, err = client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
+			return assert.NoError(t, err) && build.Job.Status == codersdk.ProvisionerJobRunning
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		// When: a cancel request is made with expect_state=pending
+		err := client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{
+			ExpectStatus: codersdk.CancelWorkspaceBuildStatusPending,
+		})
+		// Then: the request should fail with 412.
+		require.Error(t, err)
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+	})
+
+	t.Run("Cancel with expect_state=running when job is pending - should fail with 412", func(t *testing.T) {
+		t.Parallel()
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("this test requires postgres")
+		}
+		// Given: a coderd instance with a provisioner daemon
+		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
+		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+			Database:                 store,
+			Pubsub:                   ps,
+			IncludeProvisionerDaemon: true,
+		})
+		defer closeDaemon.Close()
+		// Given: a user, template, and workspace
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// Stop the provisioner daemon.
+		require.NoError(t, closeDaemon.Close())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Given: no provisioner daemons exist.
+		_, err := db.ExecContext(ctx, `DELETE FROM provisioner_daemons;`)
+		require.NoError(t, err)
+
+		// When: a new workspace build is created
+		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+		})
+		// Then: the request should succeed.
+		require.NoError(t, err)
+		// Then: the provisioner job should remain pending.
+		require.Equal(t, codersdk.ProvisionerJobPending, build.Job.Status)
+
+		// Then: the response should indicate no provisioners are available.
+		if assert.NotNil(t, build.MatchedProvisioners) {
+			assert.Zero(t, build.MatchedProvisioners.Count)
+			assert.Zero(t, build.MatchedProvisioners.Available)
+			assert.Zero(t, build.MatchedProvisioners.MostRecentlySeen.Time)
+			assert.False(t, build.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
+
+		// When: a cancel request is made with expect_state=running
+		err = client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{
+			ExpectStatus: codersdk.CancelWorkspaceBuildStatusRunning,
+		})
+		// Then: the request should fail with 412.
+		require.Error(t, err)
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+	})
+
+	t.Run("Cancel with expect_state - invalid status", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a coderd instance with a provisioner daemon
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Log{
+					Log: &proto.Log{},
+				},
+			}},
+			ProvisionPlan: echo.PlanComplete,
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// When: a cancel request is made with invalid expect_state
+		err := client.CancelWorkspaceBuild(ctx, workspace.LatestBuild.ID, codersdk.CancelWorkspaceBuildParams{
+			ExpectStatus: "invalid_status",
+		})
+		// Then: the request should fail with 400.
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Invalid expect_status")
 	})
 }
 
@@ -585,7 +907,7 @@ func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T)
 		// Create a workspace using this template
 		workspace := coderdtest.CreateWorkspace(t, userClient, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
-		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Create a new version of the template
 		newVersion := coderdtest.CreateTemplateVersion(t, templateAdminClient, first.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
@@ -598,7 +920,7 @@ func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T)
 			cwbr.TemplateVersionID = newVersion.ID
 		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, build.ID)
-		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Create the workspace build _again_. We are doing this to
 		// ensure we do not create _another_ notification. This is
@@ -610,7 +932,7 @@ func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T)
 			cwbr.TemplateVersionID = newVersion.ID
 		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, build.ID)
-		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// We're going to have two notifications (one for the first user and one for the template admin)
 		// By ensuring we only have these two, we are sure the second build didn't trigger more
@@ -659,7 +981,7 @@ func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T)
 		// Create a workspace using this template
 		workspace := coderdtest.CreateWorkspace(t, userClient, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
-		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Create a new version of the template
 		newVersion := coderdtest.CreateTemplateVersion(t, templateAdminClient, first.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
@@ -675,7 +997,7 @@ func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T)
 		})
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, build.ID)
-		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Ensure we receive only 1 workspace manually updated notification and to the right user
 		sent := notify.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceManuallyUpdated))
@@ -834,7 +1156,7 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	_ = closeDaemon.Close()
 	// after successful cancel is "canceled"
 	build = coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
-	err = client.CancelWorkspaceBuild(ctx, build.ID)
+	err = client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{})
 	require.NoError(t, err)
 
 	workspace, err = client.Workspace(ctx, workspace.ID)

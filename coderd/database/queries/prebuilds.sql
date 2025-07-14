@@ -35,7 +35,8 @@ SELECT
 		tvp.id,
 		tvp.name,
 		tvp.desired_instances       AS desired_instances,
-		tvp.invalidate_after_secs 	AS ttl,
+		tvp.scheduling_timezone,
+		tvp.invalidate_after_secs   AS ttl,
 		tvp.prebuild_status,
 		t.deleted,
 		t.deprecated != ''          AS deprecated
@@ -46,6 +47,64 @@ FROM templates t
 WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
   -- AND NOT t.deleted -- We don't exclude deleted templates because there's no constraint in the DB preventing a soft deletion on a template while workspaces are running.
 	AND (t.id = sqlc.narg('template_id')::uuid OR sqlc.narg('template_id') IS NULL);
+
+-- name: GetRunningPrebuiltWorkspacesOptimized :many
+WITH latest_prebuilds AS (
+	-- All workspaces that match the following criteria:
+	-- 1. Owned by prebuilds user
+	-- 2. Not deleted
+	-- 3. Latest build is a 'start' transition
+	-- 4. Latest build was successful
+	SELECT
+		workspaces.id,
+		workspaces.name,
+		workspaces.template_id,
+		workspace_latest_builds.template_version_id,
+		workspace_latest_builds.job_id,
+		workspaces.created_at
+	FROM workspace_latest_builds
+	JOIN workspaces ON workspaces.id = workspace_latest_builds.workspace_id
+	WHERE workspace_latest_builds.transition = 'start'::workspace_transition
+	AND workspace_latest_builds.job_status = 'succeeded'::provisioner_job_status
+	AND workspaces.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
+	AND NOT workspaces.deleted
+),
+workspace_latest_presets AS (
+	-- For each of the above workspaces, the preset_id of the most recent
+	-- successful start transition.
+	SELECT DISTINCT ON (latest_prebuilds.id)
+		latest_prebuilds.id AS workspace_id,
+		workspace_builds.template_version_preset_id AS current_preset_id
+	FROM latest_prebuilds
+	JOIN workspace_builds ON workspace_builds.workspace_id = latest_prebuilds.id
+	WHERE workspace_builds.transition = 'start'::workspace_transition
+	AND   workspace_builds.template_version_preset_id IS NOT NULL
+	ORDER BY latest_prebuilds.id, workspace_builds.build_number DESC
+),
+ready_agents AS (
+	-- For each of the above workspaces, check if all agents are ready.
+	SELECT
+		latest_prebuilds.job_id,
+		BOOL_AND(workspace_agents.lifecycle_state = 'ready'::workspace_agent_lifecycle_state)::boolean AS ready
+	FROM latest_prebuilds
+	JOIN workspace_resources ON workspace_resources.job_id = latest_prebuilds.job_id
+	JOIN workspace_agents ON workspace_agents.resource_id = workspace_resources.id
+	WHERE workspace_agents.deleted = false
+	AND workspace_agents.parent_id IS NULL
+	GROUP BY latest_prebuilds.job_id
+)
+SELECT
+	latest_prebuilds.id,
+	latest_prebuilds.name,
+	latest_prebuilds.template_id,
+	latest_prebuilds.template_version_id,
+	workspace_latest_presets.current_preset_id,
+	COALESCE(ready_agents.ready, false)::boolean AS ready,
+	latest_prebuilds.created_at
+FROM latest_prebuilds
+LEFT JOIN ready_agents ON ready_agents.job_id = latest_prebuilds.job_id
+LEFT JOIN workspace_latest_presets ON workspace_latest_presets.workspace_id = latest_prebuilds.id
+ORDER BY latest_prebuilds.id;
 
 -- name: GetRunningPrebuiltWorkspaces :many
 SELECT
@@ -59,7 +118,8 @@ SELECT
 FROM workspace_prebuilds p
 		INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
 WHERE (b.transition = 'start'::workspace_transition
-	AND b.job_status = 'succeeded'::provisioner_job_status);
+	AND b.job_status = 'succeeded'::provisioner_job_status)
+ORDER BY p.id;
 
 -- name: CountInProgressPrebuilds :many
 -- CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.

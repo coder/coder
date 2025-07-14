@@ -2,6 +2,7 @@ package provisionerd
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -18,8 +19,10 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
+	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/retry"
 
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -515,7 +518,75 @@ func (p *Server) FailJob(ctx context.Context, in *proto.FailedJob) error {
 	return err
 }
 
+// UploadModuleFiles will insert a file into the database of coderd.
+func (p *Server) UploadModuleFiles(ctx context.Context, moduleFiles []byte) error {
+	// Send the files separately if the message size is too large.
+	_, err := clientDoWithRetries(ctx, p.client, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (*proto.Empty, error) {
+		// Add some timeout to prevent the stream from hanging indefinitely.
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+		defer cancel()
+
+		stream, err := client.UploadFile(ctx)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to start CompleteJobWithFiles stream: %w", err)
+		}
+		defer stream.Close()
+
+		dataUp, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleFiles)
+
+		err = stream.Send(&proto.UploadFileRequest{Type: &proto.UploadFileRequest_DataUpload{DataUpload: dataUp}})
+		if err != nil {
+			if retryable(err) { // Do not retry
+				return nil, xerrors.Errorf("send data upload: %s", err.Error())
+			}
+			return nil, xerrors.Errorf("send data upload: %w", err)
+		}
+
+		for i, chunk := range chunks {
+			err = stream.Send(&proto.UploadFileRequest{Type: &proto.UploadFileRequest_ChunkPiece{ChunkPiece: chunk}})
+			if err != nil {
+				if retryable(err) { // Do not retry
+					return nil, xerrors.Errorf("send chunk piece: %s", err.Error())
+				}
+				return nil, xerrors.Errorf("send chunk piece %d: %w", i, err)
+			}
+		}
+
+		resp, err := stream.CloseAndRecv()
+		if err != nil {
+			if retryable(err) { // Do not retry
+				return nil, xerrors.Errorf("close stream: %s", err.Error())
+			}
+			return nil, xerrors.Errorf("close stream: %w", err)
+		}
+		return resp, nil
+	})
+	if err != nil {
+		return xerrors.Errorf("upload module files: %w", err)
+	}
+
+	return nil
+}
+
 func (p *Server) CompleteJob(ctx context.Context, in *proto.CompletedJob) error {
+	// If the moduleFiles exceed the max message size, we need to upload them separately.
+	if ti, ok := in.Type.(*proto.CompletedJob_TemplateImport_); ok {
+		messageSize := protobuf.Size(in)
+		if messageSize > drpcsdk.MaxMessageSize &&
+			messageSize-len(ti.TemplateImport.ModuleFiles) < drpcsdk.MaxMessageSize {
+			// Hashing the module files to reference them in the CompletedJob message.
+			moduleFilesHash := sha256.Sum256(ti.TemplateImport.ModuleFiles)
+
+			moduleFiles := ti.TemplateImport.ModuleFiles
+			ti.TemplateImport.ModuleFiles = []byte{} // Clear the files in the final message
+			ti.TemplateImport.ModuleFilesHash = moduleFilesHash[:]
+			err := p.UploadModuleFiles(ctx, moduleFiles)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	_, err := clientDoWithRetries(ctx, p.client, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (*proto.Empty, error) {
 		return client.CompleteJob(ctx, in)
 	})

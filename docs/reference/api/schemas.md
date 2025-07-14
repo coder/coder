@@ -212,250 +212,6 @@
 |--------------------|
 | `prebuild_claimed` |
 
-## aisdk.Attachment
-
-```json
-{
-  "contentType": "string",
-  "name": "string",
-  "url": "string"
-}
-```
-
-### Properties
-
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `contentType` | string | false    |              |             |
-| `name`        | string | false    |              |             |
-| `url`         | string | false    |              |             |
-
-## aisdk.Message
-
-```json
-{
-  "annotations": [
-    null
-  ],
-  "content": "string",
-  "createdAt": [
-    0
-  ],
-  "experimental_attachments": [
-    {
-      "contentType": "string",
-      "name": "string",
-      "url": "string"
-    }
-  ],
-  "id": "string",
-  "parts": [
-    {
-      "data": [
-        0
-      ],
-      "details": [
-        {
-          "data": "string",
-          "signature": "string",
-          "text": "string",
-          "type": "string"
-        }
-      ],
-      "mimeType": "string",
-      "reasoning": "string",
-      "source": {
-        "contentType": "string",
-        "data": "string",
-        "metadata": {
-          "property1": null,
-          "property2": null
-        },
-        "uri": "string"
-      },
-      "text": "string",
-      "toolInvocation": {
-        "args": null,
-        "result": null,
-        "state": "call",
-        "step": 0,
-        "toolCallId": "string",
-        "toolName": "string"
-      },
-      "type": "text"
-    }
-  ],
-  "role": "string"
-}
-```
-
-### Properties
-
-| Name                       | Type                                          | Required | Restrictions | Description |
-|----------------------------|-----------------------------------------------|----------|--------------|-------------|
-| `annotations`              | array of undefined                            | false    |              |             |
-| `content`                  | string                                        | false    |              |             |
-| `createdAt`                | array of integer                              | false    |              |             |
-| `experimental_attachments` | array of [aisdk.Attachment](#aisdkattachment) | false    |              |             |
-| `id`                       | string                                        | false    |              |             |
-| `parts`                    | array of [aisdk.Part](#aisdkpart)             | false    |              |             |
-| `role`                     | string                                        | false    |              |             |
-
-## aisdk.Part
-
-```json
-{
-  "data": [
-    0
-  ],
-  "details": [
-    {
-      "data": "string",
-      "signature": "string",
-      "text": "string",
-      "type": "string"
-    }
-  ],
-  "mimeType": "string",
-  "reasoning": "string",
-  "source": {
-    "contentType": "string",
-    "data": "string",
-    "metadata": {
-      "property1": null,
-      "property2": null
-    },
-    "uri": "string"
-  },
-  "text": "string",
-  "toolInvocation": {
-    "args": null,
-    "result": null,
-    "state": "call",
-    "step": 0,
-    "toolCallId": "string",
-    "toolName": "string"
-  },
-  "type": "text"
-}
-```
-
-### Properties
-
-| Name             | Type                                                    | Required | Restrictions | Description             |
-|------------------|---------------------------------------------------------|----------|--------------|-------------------------|
-| `data`           | array of integer                                        | false    |              |                         |
-| `details`        | array of [aisdk.ReasoningDetail](#aisdkreasoningdetail) | false    |              |                         |
-| `mimeType`       | string                                                  | false    |              | Type: "file"            |
-| `reasoning`      | string                                                  | false    |              | Type: "reasoning"       |
-| `source`         | [aisdk.SourceInfo](#aisdksourceinfo)                    | false    |              | Type: "source"          |
-| `text`           | string                                                  | false    |              | Type: "text"            |
-| `toolInvocation` | [aisdk.ToolInvocation](#aisdktoolinvocation)            | false    |              | Type: "tool-invocation" |
-| `type`           | [aisdk.PartType](#aisdkparttype)                        | false    |              |                         |
-
-## aisdk.PartType
-
-```json
-"text"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value             |
-|-------------------|
-| `text`            |
-| `reasoning`       |
-| `tool-invocation` |
-| `source`          |
-| `file`            |
-| `step-start`      |
-
-## aisdk.ReasoningDetail
-
-```json
-{
-  "data": "string",
-  "signature": "string",
-  "text": "string",
-  "type": "string"
-}
-```
-
-### Properties
-
-| Name        | Type   | Required | Restrictions | Description |
-|-------------|--------|----------|--------------|-------------|
-| `data`      | string | false    |              |             |
-| `signature` | string | false    |              |             |
-| `text`      | string | false    |              |             |
-| `type`      | string | false    |              |             |
-
-## aisdk.SourceInfo
-
-```json
-{
-  "contentType": "string",
-  "data": "string",
-  "metadata": {
-    "property1": null,
-    "property2": null
-  },
-  "uri": "string"
-}
-```
-
-### Properties
-
-| Name               | Type   | Required | Restrictions | Description |
-|--------------------|--------|----------|--------------|-------------|
-| `contentType`      | string | false    |              |             |
-| `data`             | string | false    |              |             |
-| `metadata`         | object | false    |              |             |
-| » `[any property]` | any    | false    |              |             |
-| `uri`              | string | false    |              |             |
-
-## aisdk.ToolInvocation
-
-```json
-{
-  "args": null,
-  "result": null,
-  "state": "call",
-  "step": 0,
-  "toolCallId": "string",
-  "toolName": "string"
-}
-```
-
-### Properties
-
-| Name         | Type                                                   | Required | Restrictions | Description |
-|--------------|--------------------------------------------------------|----------|--------------|-------------|
-| `args`       | any                                                    | false    |              |             |
-| `result`     | any                                                    | false    |              |             |
-| `state`      | [aisdk.ToolInvocationState](#aisdktoolinvocationstate) | false    |              |             |
-| `step`       | integer                                                | false    |              |             |
-| `toolCallId` | string                                                 | false    |              |             |
-| `toolName`   | string                                                 | false    |              |             |
-
-## aisdk.ToolInvocationState
-
-```json
-"call"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value          |
-|----------------|
-| `call`         |
-| `partial-call` |
-| `result`       |
-
 ## coderd.SCIMUser
 
 ```json
@@ -527,7 +283,7 @@
 {
   "groups": [
     {
-      "avatar_url": "string",
+      "avatar_url": "http://example.com",
       "display_name": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "members": [
@@ -578,48 +334,6 @@
 |----------|-------------------------------------------------------|----------|--------------|-------------|
 | `groups` | array of [codersdk.Group](#codersdkgroup)             | false    |              |             |
 | `users`  | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |             |
-
-## codersdk.AIConfig
-
-```json
-{
-  "providers": [
-    {
-      "base_url": "string",
-      "models": [
-        "string"
-      ],
-      "type": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name        | Type                                                            | Required | Restrictions | Description |
-|-------------|-----------------------------------------------------------------|----------|--------------|-------------|
-| `providers` | array of [codersdk.AIProviderConfig](#codersdkaiproviderconfig) | false    |              |             |
-
-## codersdk.AIProviderConfig
-
-```json
-{
-  "base_url": "string",
-  "models": [
-    "string"
-  ],
-  "type": "string"
-}
-```
-
-### Properties
-
-| Name       | Type            | Required | Restrictions | Description                                               |
-|------------|-----------------|----------|--------------|-----------------------------------------------------------|
-| `base_url` | string          | false    |              | Base URL is the base URL to use for the API provider.     |
-| `models`   | array of string | false    |              | Models is the list of models to use for the API provider. |
-| `type`     | string          | false    |              | Type is the type of the API provider.                     |
 
 ## codersdk.APIKey
 
@@ -1335,6 +1049,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `initiator` |
 | `autostart` |
 | `autostop`  |
+| `dormancy`  |
 
 ## codersdk.ChangePasswordWithOneTimePasscodeRequest
 
@@ -1353,97 +1068,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `email`             | string | true     |              |             |
 | `one_time_passcode` | string | true     |              |             |
 | `password`          | string | true     |              |             |
-
-## codersdk.Chat
-
-```json
-{
-  "created_at": "2019-08-24T14:15:22Z",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "title": "string",
-  "updated_at": "2019-08-24T14:15:22Z"
-}
-```
-
-### Properties
-
-| Name         | Type   | Required | Restrictions | Description |
-|--------------|--------|----------|--------------|-------------|
-| `created_at` | string | false    |              |             |
-| `id`         | string | false    |              |             |
-| `title`      | string | false    |              |             |
-| `updated_at` | string | false    |              |             |
-
-## codersdk.ChatMessage
-
-```json
-{
-  "annotations": [
-    null
-  ],
-  "content": "string",
-  "createdAt": [
-    0
-  ],
-  "experimental_attachments": [
-    {
-      "contentType": "string",
-      "name": "string",
-      "url": "string"
-    }
-  ],
-  "id": "string",
-  "parts": [
-    {
-      "data": [
-        0
-      ],
-      "details": [
-        {
-          "data": "string",
-          "signature": "string",
-          "text": "string",
-          "type": "string"
-        }
-      ],
-      "mimeType": "string",
-      "reasoning": "string",
-      "source": {
-        "contentType": "string",
-        "data": "string",
-        "metadata": {
-          "property1": null,
-          "property2": null
-        },
-        "uri": "string"
-      },
-      "text": "string",
-      "toolInvocation": {
-        "args": null,
-        "result": null,
-        "state": "call",
-        "step": 0,
-        "toolCallId": "string",
-        "toolName": "string"
-      },
-      "type": "text"
-    }
-  ],
-  "role": "string"
-}
-```
-
-### Properties
-
-| Name                       | Type                                          | Required | Restrictions | Description |
-|----------------------------|-----------------------------------------------|----------|--------------|-------------|
-| `annotations`              | array of undefined                            | false    |              |             |
-| `content`                  | string                                        | false    |              |             |
-| `createdAt`                | array of integer                              | false    |              |             |
-| `experimental_attachments` | array of [aisdk.Attachment](#aisdkattachment) | false    |              |             |
-| `id`                       | string                                        | false    |              |             |
-| `parts`                    | array of [aisdk.Part](#aisdkpart)             | false    |              |             |
-| `role`                     | string                                        | false    |              |             |
 
 ## codersdk.ConnectionLatency
 
@@ -1476,77 +1100,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |------------|------------------------------------------|----------|--------------|------------------------------------------|
 | `password` | string                                   | true     |              |                                          |
 | `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
-
-## codersdk.CreateChatMessageRequest
-
-```json
-{
-  "message": {
-    "annotations": [
-      null
-    ],
-    "content": "string",
-    "createdAt": [
-      0
-    ],
-    "experimental_attachments": [
-      {
-        "contentType": "string",
-        "name": "string",
-        "url": "string"
-      }
-    ],
-    "id": "string",
-    "parts": [
-      {
-        "data": [
-          0
-        ],
-        "details": [
-          {
-            "data": "string",
-            "signature": "string",
-            "text": "string",
-            "type": "string"
-          }
-        ],
-        "mimeType": "string",
-        "reasoning": "string",
-        "source": {
-          "contentType": "string",
-          "data": "string",
-          "metadata": {
-            "property1": null,
-            "property2": null
-          },
-          "uri": "string"
-        },
-        "text": "string",
-        "toolInvocation": {
-          "args": null,
-          "result": null,
-          "state": "call",
-          "step": 0,
-          "toolCallId": "string",
-          "toolName": "string"
-        },
-        "type": "text"
-      }
-    ],
-    "role": "string"
-  },
-  "model": "string",
-  "thinking": true
-}
-```
-
-### Properties
-
-| Name       | Type                                         | Required | Restrictions | Description |
-|------------|----------------------------------------------|----------|--------------|-------------|
-| `message`  | [codersdk.ChatMessage](#codersdkchatmessage) | false    |              |             |
-| `model`    | string                                       | false    |              |             |
-| `thinking` | boolean                                      | false    |              |             |
 
 ## codersdk.CreateFirstUserRequest
 
@@ -1706,31 +1259,33 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "max_port_share_level": "owner",
   "name": "string",
   "require_active_version": true,
+  "template_use_classic_parameter_flow": true,
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
 }
 ```
 
 ### Properties
 
-| Name                               | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                         |
-|------------------------------------|--------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `activity_bump_ms`                 | integer                                                                        | false    |              | Activity bump ms allows optionally specifying the activity bump duration for all workspaces created from this template. Defaults to 1h but can be set to 0 to disable activity bumping.                                                                                                                             |
-| `allow_user_autostart`             | boolean                                                                        | false    |              | Allow user autostart allows users to set a schedule for autostarting their workspace. By default this is true. This can only be disabled when using an enterprise license.                                                                                                                                          |
-| `allow_user_autostop`              | boolean                                                                        | false    |              | Allow user autostop allows users to set a custom workspace TTL to use in place of the template's DefaultTTL field. By default this is true. If false, the DefaultTTL will always be used. This can only be disabled when using an enterprise license.                                                               |
-| `allow_user_cancel_workspace_jobs` | boolean                                                                        | false    |              | Allow users to cancel in-progress workspace jobs. *bool as the default value is "true".                                                                                                                                                                                                                             |
-| `autostart_requirement`            | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              | Autostart requirement allows optionally specifying the autostart allowed days for workspaces created from this template. This is an enterprise feature.                                                                                                                                                             |
-| `autostop_requirement`             | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement allows optionally specifying the autostop requirement for workspaces created from this template. This is an enterprise feature.                                                                                                                                                                |
-| `default_ttl_ms`                   | integer                                                                        | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                                                                                          |
-| `delete_ttl_ms`                    | integer                                                                        | false    |              | Delete ttl ms allows optionally specifying the max lifetime before Coder permanently deletes dormant workspaces created from this template.                                                                                                                                                                         |
-| `description`                      | string                                                                         | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                                                                                         |
-| `disable_everyone_group_access`    | boolean                                                                        | false    |              | Disable everyone group access allows optionally disabling the default behavior of granting the 'everyone' group access to use the template. If this is set to true, the template will not be available to all users, and must be explicitly granted to users or groups in the permissions settings of the template. |
-| `display_name`                     | string                                                                         | false    |              | Display name is the displayed name of the template.                                                                                                                                                                                                                                                                 |
-| `dormant_ttl_ms`                   | integer                                                                        | false    |              | Dormant ttl ms allows optionally specifying the max lifetime before Coder locks inactive workspaces created from this template.                                                                                                                                                                                     |
-| `failure_ttl_ms`                   | integer                                                                        | false    |              | Failure ttl ms allows optionally specifying the max lifetime before Coder stops all resources for failed workspaces created from this template.                                                                                                                                                                     |
-| `icon`                             | string                                                                         | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                                                                                    |
-| `max_port_share_level`             | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              | Max port share level allows optionally specifying the maximum port share level for workspaces created from the template.                                                                                                                                                                                            |
-| `name`                             | string                                                                         | true     |              | Name is the name of the template.                                                                                                                                                                                                                                                                                   |
-| `require_active_version`           | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                                                                                                         |
+| Name                                  | Type                                                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                         |
+|---------------------------------------|--------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `activity_bump_ms`                    | integer                                                                        | false    |              | Activity bump ms allows optionally specifying the activity bump duration for all workspaces created from this template. Defaults to 1h but can be set to 0 to disable activity bumping.                                                                                                                             |
+| `allow_user_autostart`                | boolean                                                                        | false    |              | Allow user autostart allows users to set a schedule for autostarting their workspace. By default this is true. This can only be disabled when using an enterprise license.                                                                                                                                          |
+| `allow_user_autostop`                 | boolean                                                                        | false    |              | Allow user autostop allows users to set a custom workspace TTL to use in place of the template's DefaultTTL field. By default this is true. If false, the DefaultTTL will always be used. This can only be disabled when using an enterprise license.                                                               |
+| `allow_user_cancel_workspace_jobs`    | boolean                                                                        | false    |              | Allow users to cancel in-progress workspace jobs. *bool as the default value is "true".                                                                                                                                                                                                                             |
+| `autostart_requirement`               | [codersdk.TemplateAutostartRequirement](#codersdktemplateautostartrequirement) | false    |              | Autostart requirement allows optionally specifying the autostart allowed days for workspaces created from this template. This is an enterprise feature.                                                                                                                                                             |
+| `autostop_requirement`                | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement allows optionally specifying the autostop requirement for workspaces created from this template. This is an enterprise feature.                                                                                                                                                                |
+| `default_ttl_ms`                      | integer                                                                        | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                                                                                          |
+| `delete_ttl_ms`                       | integer                                                                        | false    |              | Delete ttl ms allows optionally specifying the max lifetime before Coder permanently deletes dormant workspaces created from this template.                                                                                                                                                                         |
+| `description`                         | string                                                                         | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                                                                                         |
+| `disable_everyone_group_access`       | boolean                                                                        | false    |              | Disable everyone group access allows optionally disabling the default behavior of granting the 'everyone' group access to use the template. If this is set to true, the template will not be available to all users, and must be explicitly granted to users or groups in the permissions settings of the template. |
+| `display_name`                        | string                                                                         | false    |              | Display name is the displayed name of the template.                                                                                                                                                                                                                                                                 |
+| `dormant_ttl_ms`                      | integer                                                                        | false    |              | Dormant ttl ms allows optionally specifying the max lifetime before Coder locks inactive workspaces created from this template.                                                                                                                                                                                     |
+| `failure_ttl_ms`                      | integer                                                                        | false    |              | Failure ttl ms allows optionally specifying the max lifetime before Coder stops all resources for failed workspaces created from this template.                                                                                                                                                                     |
+| `icon`                                | string                                                                         | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                                                                                    |
+| `max_port_share_level`                | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              | Max port share level allows optionally specifying the maximum port share level for workspaces created from the template.                                                                                                                                                                                            |
+| `name`                                | string                                                                         | true     |              | Name is the name of the template.                                                                                                                                                                                                                                                                                   |
+| `require_active_version`              | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                                                                                                         |
+| `template_use_classic_parameter_flow` | boolean                                                                        | false    |              | Template use classic parameter flow allows optionally specifying whether the template should use the classic parameter flow. The default if unset is true, and is why `*bool` is used here. When dynamic parameters becomes the default, this will default to false.                                                |
 |`template_version_id`|string|true||Template version ID is an in-progress or completed job to use as an initial version of the template.
 This is required on creation to enable a user-flow of validating a template works. There is no reason the data-model cannot support empty templates, but it doesn't make sense for users.|
 
@@ -1917,7 +1472,6 @@ This is required on creation to enable a user-flow of validating a template work
 ```json
 {
   "dry_run": true,
-  "enable_dynamic_parameters": true,
   "log_level": "debug",
   "orphan": true,
   "rich_parameter_values": [
@@ -1940,7 +1494,6 @@ This is required on creation to enable a user-flow of validating a template work
 | Name                         | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                                   |
 |------------------------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `dry_run`                    | boolean                                                                       | false    |              |                                                                                                                                                                                                               |
-| `enable_dynamic_parameters`  | boolean                                                                       | false    |              | Enable dynamic parameters skips some of the static parameter checking. It will default to whatever the template has marked as the default experience. Requires the "dynamic-experiment" to be used.           |
 | `log_level`                  | [codersdk.ProvisionerLogLevel](#codersdkprovisionerloglevel)                  | false    |              | Log level changes the default logging verbosity of a provider ("info" if empty).                                                                                                                              |
 | `orphan`                     | boolean                                                                       | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                                 |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
@@ -1982,7 +1535,6 @@ This is required on creation to enable a user-flow of validating a template work
 {
   "automatic_updates": "always",
   "autostart_schedule": "string",
-  "enable_dynamic_parameters": true,
   "name": "string",
   "rich_parameter_values": [
     {
@@ -2005,7 +1557,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 |------------------------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------|
 | `automatic_updates`          | [codersdk.AutomaticUpdates](#codersdkautomaticupdates)                        | false    |              |                                                                                                         |
 | `autostart_schedule`         | string                                                                        | false    |              |                                                                                                         |
-| `enable_dynamic_parameters`  | boolean                                                                       | false    |              |                                                                                                         |
 | `name`                       | string                                                                        | true     |              |                                                                                                         |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values allows for additional parameters to be provided during the initial provision.     |
 | `template_id`                | string                                                                        | false    |              | Template ID specifies which template should be used for creating the workspace.                         |
@@ -2332,19 +1883,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
-    "ai": {
-      "value": {
-        "providers": [
-          {
-            "base_url": "string",
-            "models": [
-              "string"
-            ],
-            "type": "string"
-          }
-        ]
-      }
-    },
     "allow_workspace_renames": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
@@ -2443,12 +1981,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "refresh": 0,
       "threshold_database": 0
     },
+    "hide_ai_tasks": true,
     "http_address": "string",
     "http_cookies": {
       "same_site": "string",
       "secure_auth_cookie": true
     },
-    "in_memory_database": true,
     "job_hang_detector_interval": 0,
     "logging": {
       "human": "string",
@@ -2832,19 +2370,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "user": {}
   },
   "agent_stat_refresh_interval": 0,
-  "ai": {
-    "value": {
-      "providers": [
-        {
-          "base_url": "string",
-          "models": [
-            "string"
-          ],
-          "type": "string"
-        }
-      ]
-    }
-  },
   "allow_workspace_renames": true,
   "autobuild_poll_interval": 0,
   "browser_only": true,
@@ -2943,12 +2468,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "refresh": 0,
     "threshold_database": 0
   },
+  "hide_ai_tasks": true,
   "http_address": "string",
   "http_cookies": {
     "same_site": "string",
     "secure_auth_cookie": true
   },
-  "in_memory_database": true,
   "job_hang_detector_interval": 0,
   "logging": {
     "human": "string",
@@ -3223,7 +2748,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `address`                            | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Deprecated: Use HTTPAddress or TLS.Address instead.                |
 | `agent_fallback_troubleshooting_url` | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                              | false    |              |                                                                    |
-| `ai`                                 | [serpent.Struct-codersdk_AIConfig](#serpentstruct-codersdk_aiconfig)                                 | false    |              |                                                                    |
 | `allow_workspace_renames`            | boolean                                                                                              | false    |              |                                                                    |
 | `autobuild_poll_interval`            | integer                                                                                              | false    |              |                                                                    |
 | `browser_only`                       | boolean                                                                                              | false    |              |                                                                    |
@@ -3243,9 +2767,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `external_auth`                      | [serpent.Struct-array_codersdk_ExternalAuthConfig](#serpentstruct-array_codersdk_externalauthconfig) | false    |              |                                                                    |
 | `external_token_encryption_keys`     | array of string                                                                                      | false    |              |                                                                    |
 | `healthcheck`                        | [codersdk.HealthcheckConfig](#codersdkhealthcheckconfig)                                             | false    |              |                                                                    |
+| `hide_ai_tasks`                      | boolean                                                                                              | false    |              |                                                                    |
 | `http_address`                       | string                                                                                               | false    |              | Http address is a string because it may be set to zero to disable. |
 | `http_cookies`                       | [codersdk.HTTPCookieConfig](#codersdkhttpcookieconfig)                                               | false    |              |                                                                    |
-| `in_memory_database`                 | boolean                                                                                              | false    |              |                                                                    |
 | `job_hang_detector_interval`         | integer                                                                                              | false    |              |                                                                    |
 | `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                                     | false    |              |                                                                    |
 | `metrics_cache_refresh_interval`     | integer                                                                                              | false    |              |                                                                    |
@@ -3406,6 +2930,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "styling": {
         "disabled": true,
         "label": "string",
+        "mask_input": true,
         "placeholder": "string"
       },
       "type": "string",
@@ -3512,10 +3037,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `notifications`        |
 | `workspace-usage`      |
 | `web-push`             |
-| `dynamic-parameters`   |
-| `workspace-prebuilds`  |
-| `agentic-chat`         |
-| `ai-tasks`             |
+| `oauth2`               |
+| `mcp-server-http`      |
 
 ## codersdk.ExternalAuth
 
@@ -3898,7 +3421,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
-  "avatar_url": "string",
+  "avatar_url": "http://example.com",
   "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
@@ -4154,44 +3677,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Value                         |
 |-------------------------------|
 | `REQUIRED_TEMPLATE_VARIABLES` |
-
-## codersdk.LanguageModel
-
-```json
-{
-  "display_name": "string",
-  "id": "string",
-  "provider": "string"
-}
-```
-
-### Properties
-
-| Name           | Type   | Required | Restrictions | Description                                                       |
-|----------------|--------|----------|--------------|-------------------------------------------------------------------|
-| `display_name` | string | false    |              |                                                                   |
-| `id`           | string | false    |              | ID is used by the provider to identify the LLM.                   |
-| `provider`     | string | false    |              | Provider is the provider of the LLM. e.g. openai, anthropic, etc. |
-
-## codersdk.LanguageModelConfig
-
-```json
-{
-  "models": [
-    {
-      "display_name": "string",
-      "id": "string",
-      "provider": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name     | Type                                                      | Required | Restrictions | Description |
-|----------|-----------------------------------------------------------|----------|--------------|-------------|
-| `models` | array of [codersdk.LanguageModel](#codersdklanguagemodel) | false    |              |             |
 
 ## codersdk.License
 
@@ -4740,6 +4225,220 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `device_authorization` | string | false    |              | Device authorization is optional. |
 | `token`                | string | false    |              |                                   |
 
+## codersdk.OAuth2AuthorizationServerMetadata
+
+```json
+{
+  "authorization_endpoint": "string",
+  "code_challenge_methods_supported": [
+    "string"
+  ],
+  "grant_types_supported": [
+    "string"
+  ],
+  "issuer": "string",
+  "registration_endpoint": "string",
+  "response_types_supported": [
+    "string"
+  ],
+  "scopes_supported": [
+    "string"
+  ],
+  "token_endpoint": "string",
+  "token_endpoint_auth_methods_supported": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name                                    | Type            | Required | Restrictions | Description |
+|-----------------------------------------|-----------------|----------|--------------|-------------|
+| `authorization_endpoint`                | string          | false    |              |             |
+| `code_challenge_methods_supported`      | array of string | false    |              |             |
+| `grant_types_supported`                 | array of string | false    |              |             |
+| `issuer`                                | string          | false    |              |             |
+| `registration_endpoint`                 | string          | false    |              |             |
+| `response_types_supported`              | array of string | false    |              |             |
+| `scopes_supported`                      | array of string | false    |              |             |
+| `token_endpoint`                        | string          | false    |              |             |
+| `token_endpoint_auth_methods_supported` | array of string | false    |              |             |
+
+## codersdk.OAuth2ClientConfiguration
+
+```json
+{
+  "client_id": "string",
+  "client_id_issued_at": 0,
+  "client_name": "string",
+  "client_secret_expires_at": 0,
+  "client_uri": "string",
+  "contacts": [
+    "string"
+  ],
+  "grant_types": [
+    "string"
+  ],
+  "jwks": {},
+  "jwks_uri": "string",
+  "logo_uri": "string",
+  "policy_uri": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "registration_access_token": "string",
+  "registration_client_uri": "string",
+  "response_types": [
+    "string"
+  ],
+  "scope": "string",
+  "software_id": "string",
+  "software_version": "string",
+  "token_endpoint_auth_method": "string",
+  "tos_uri": "string"
+}
+```
+
+### Properties
+
+| Name                         | Type            | Required | Restrictions | Description |
+|------------------------------|-----------------|----------|--------------|-------------|
+| `client_id`                  | string          | false    |              |             |
+| `client_id_issued_at`        | integer         | false    |              |             |
+| `client_name`                | string          | false    |              |             |
+| `client_secret_expires_at`   | integer         | false    |              |             |
+| `client_uri`                 | string          | false    |              |             |
+| `contacts`                   | array of string | false    |              |             |
+| `grant_types`                | array of string | false    |              |             |
+| `jwks`                       | object          | false    |              |             |
+| `jwks_uri`                   | string          | false    |              |             |
+| `logo_uri`                   | string          | false    |              |             |
+| `policy_uri`                 | string          | false    |              |             |
+| `redirect_uris`              | array of string | false    |              |             |
+| `registration_access_token`  | string          | false    |              |             |
+| `registration_client_uri`    | string          | false    |              |             |
+| `response_types`             | array of string | false    |              |             |
+| `scope`                      | string          | false    |              |             |
+| `software_id`                | string          | false    |              |             |
+| `software_version`           | string          | false    |              |             |
+| `token_endpoint_auth_method` | string          | false    |              |             |
+| `tos_uri`                    | string          | false    |              |             |
+
+## codersdk.OAuth2ClientRegistrationRequest
+
+```json
+{
+  "client_name": "string",
+  "client_uri": "string",
+  "contacts": [
+    "string"
+  ],
+  "grant_types": [
+    "string"
+  ],
+  "jwks": {},
+  "jwks_uri": "string",
+  "logo_uri": "string",
+  "policy_uri": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "response_types": [
+    "string"
+  ],
+  "scope": "string",
+  "software_id": "string",
+  "software_statement": "string",
+  "software_version": "string",
+  "token_endpoint_auth_method": "string",
+  "tos_uri": "string"
+}
+```
+
+### Properties
+
+| Name                         | Type            | Required | Restrictions | Description |
+|------------------------------|-----------------|----------|--------------|-------------|
+| `client_name`                | string          | false    |              |             |
+| `client_uri`                 | string          | false    |              |             |
+| `contacts`                   | array of string | false    |              |             |
+| `grant_types`                | array of string | false    |              |             |
+| `jwks`                       | object          | false    |              |             |
+| `jwks_uri`                   | string          | false    |              |             |
+| `logo_uri`                   | string          | false    |              |             |
+| `policy_uri`                 | string          | false    |              |             |
+| `redirect_uris`              | array of string | false    |              |             |
+| `response_types`             | array of string | false    |              |             |
+| `scope`                      | string          | false    |              |             |
+| `software_id`                | string          | false    |              |             |
+| `software_statement`         | string          | false    |              |             |
+| `software_version`           | string          | false    |              |             |
+| `token_endpoint_auth_method` | string          | false    |              |             |
+| `tos_uri`                    | string          | false    |              |             |
+
+## codersdk.OAuth2ClientRegistrationResponse
+
+```json
+{
+  "client_id": "string",
+  "client_id_issued_at": 0,
+  "client_name": "string",
+  "client_secret": "string",
+  "client_secret_expires_at": 0,
+  "client_uri": "string",
+  "contacts": [
+    "string"
+  ],
+  "grant_types": [
+    "string"
+  ],
+  "jwks": {},
+  "jwks_uri": "string",
+  "logo_uri": "string",
+  "policy_uri": "string",
+  "redirect_uris": [
+    "string"
+  ],
+  "registration_access_token": "string",
+  "registration_client_uri": "string",
+  "response_types": [
+    "string"
+  ],
+  "scope": "string",
+  "software_id": "string",
+  "software_version": "string",
+  "token_endpoint_auth_method": "string",
+  "tos_uri": "string"
+}
+```
+
+### Properties
+
+| Name                         | Type            | Required | Restrictions | Description |
+|------------------------------|-----------------|----------|--------------|-------------|
+| `client_id`                  | string          | false    |              |             |
+| `client_id_issued_at`        | integer         | false    |              |             |
+| `client_name`                | string          | false    |              |             |
+| `client_secret`              | string          | false    |              |             |
+| `client_secret_expires_at`   | integer         | false    |              |             |
+| `client_uri`                 | string          | false    |              |             |
+| `contacts`                   | array of string | false    |              |             |
+| `grant_types`                | array of string | false    |              |             |
+| `jwks`                       | object          | false    |              |             |
+| `jwks_uri`                   | string          | false    |              |             |
+| `logo_uri`                   | string          | false    |              |             |
+| `policy_uri`                 | string          | false    |              |             |
+| `redirect_uris`              | array of string | false    |              |             |
+| `registration_access_token`  | string          | false    |              |             |
+| `registration_client_uri`    | string          | false    |              |             |
+| `response_types`             | array of string | false    |              |             |
+| `scope`                      | string          | false    |              |             |
+| `software_id`                | string          | false    |              |             |
+| `software_version`           | string          | false    |              |             |
+| `token_endpoint_auth_method` | string          | false    |              |             |
+| `tos_uri`                    | string          | false    |              |             |
+
 ## codersdk.OAuth2Config
 
 ```json
@@ -4801,6 +4500,32 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `default_provider_enable` | boolean         | false    |              |             |
 | `device_flow`             | boolean         | false    |              |             |
 | `enterprise_base_url`     | string          | false    |              |             |
+
+## codersdk.OAuth2ProtectedResourceMetadata
+
+```json
+{
+  "authorization_servers": [
+    "string"
+  ],
+  "bearer_methods_supported": [
+    "string"
+  ],
+  "resource": "string",
+  "scopes_supported": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name                       | Type            | Required | Restrictions | Description |
+|----------------------------|-----------------|----------|--------------|-------------|
+| `authorization_servers`    | array of string | false    |              |             |
+| `bearer_methods_supported` | array of string | false    |              |             |
+| `resource`                 | string          | false    |              |             |
+| `scopes_supported`         | array of string | false    |              |             |
 
 ## codersdk.OAuth2ProviderApp
 
@@ -5495,10 +5220,25 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `reconciliation_backoff_lookback` | integer | false    |              | Reconciliation backoff lookback determines the time window to look back when calculating the number of failed prebuilds, which influences the backoff strategy.                                                                                                                                   |
 | `reconciliation_interval`         | integer | false    |              | Reconciliation interval defines how often the workspace prebuilds state should be reconciled.                                                                                                                                                                                                     |
 
+## codersdk.PrebuildsSettings
+
+```json
+{
+  "reconciliation_paused": true
+}
+```
+
+### Properties
+
+| Name                    | Type    | Required | Restrictions | Description |
+|-------------------------|---------|----------|--------------|-------------|
+| `reconciliation_paused` | boolean | false    |              |             |
+
 ## codersdk.Preset
 
 ```json
 {
+  "default": true,
   "id": "string",
   "name": "string",
   "parameters": [
@@ -5514,6 +5254,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 | Name         | Type                                                          | Required | Restrictions | Description |
 |--------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `default`    | boolean                                                       | false    |              |             |
 | `id`         | string                                                        | false    |              |             |
 | `name`       | string                                                        | false    |              |             |
 | `parameters` | array of [codersdk.PresetParameter](#codersdkpresetparameter) | false    |              |             |
@@ -5575,6 +5316,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "styling": {
     "disabled": true,
     "label": "string",
+    "mask_input": true,
     "placeholder": "string"
   },
   "type": "string",
@@ -5644,6 +5386,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "disabled": true,
   "label": "string",
+  "mask_input": true,
   "placeholder": "string"
 }
 ```
@@ -5654,6 +5397,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |---------------|---------|----------|--------------|-------------|
 | `disabled`    | boolean | false    |              |             |
 | `label`       | string  | false    |              |             |
+| `mask_input`  | boolean | false    |              |             |
 | `placeholder` | string  | false    |              |             |
 
 ## codersdk.PreviewParameterValidation
@@ -6308,7 +6052,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `assign_org_role`                  |
 | `assign_role`                      |
 | `audit_log`                        |
-| `chat`                             |
 | `crypto_key`                       |
 | `debug_info`                       |
 | `deployment_config`                |
@@ -6327,6 +6070,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `oauth2_app_secret`                |
 | `organization`                     |
 | `organization_member`              |
+| `prebuilt_workspace`               |
 | `provisioner_daemon`               |
 | `provisioner_jobs`                 |
 | `replicas`                         |
@@ -6568,6 +6312,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `convert_login`                  |
 | `health_settings`                |
 | `notifications_settings`         |
+| `prebuilds_settings`             |
 | `workspace_proxy`                |
 | `organization`                   |
 | `oauth2_provider_app`            |
@@ -7013,6 +6758,76 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |---------------|-------------|
 | `provisioner` | `terraform` |
 
+## codersdk.TemplateACL
+
+```json
+{
+  "group": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "admin",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "organization_ids": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "role": "admin",
+      "roles": [
+        {
+          "display_name": "string",
+          "name": "string",
+          "organization_id": "string"
+        }
+      ],
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                      | Required | Restrictions | Description |
+|---------|-----------------------------------------------------------|----------|--------------|-------------|
+| `group` | array of [codersdk.TemplateGroup](#codersdktemplategroup) | false    |              |             |
+| `users` | array of [codersdk.TemplateUser](#codersdktemplateuser)   | false    |              |             |
+
 ## codersdk.TemplateAppUsage
 
 ```json
@@ -7139,6 +6954,63 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `name`        | string          | false    |              |             |
 | `tags`        | array of string | false    |              |             |
 | `url`         | string          | false    |              |             |
+
+## codersdk.TemplateGroup
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "quota_allowance": 0,
+  "role": "admin",
+  "source": "user",
+  "total_member_count": 0
+}
+```
+
+### Properties
+
+| Name                        | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
+|-----------------------------|-------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`                | string                                                | false    |              |                                                                                                                                                                       |
+| `display_name`              | string                                                | false    |              |                                                                                                                                                                       |
+| `id`                        | string                                                | false    |              |                                                                                                                                                                       |
+| `members`                   | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
+| `name`                      | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_display_name` | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_id`           | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_name`         | string                                                | false    |              |                                                                                                                                                                       |
+| `quota_allowance`           | integer                                               | false    |              |                                                                                                                                                                       |
+| `role`                      | [codersdk.TemplateRole](#codersdktemplaterole)        | false    |              |                                                                                                                                                                       |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
+| `total_member_count`        | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+#### Enumerated Values
+
+| Property | Value   |
+|----------|---------|
+| `role`   | `admin` |
+| `role`   | `use`   |
 
 ## codersdk.TemplateInsightsIntervalReport
 
@@ -7873,11 +7745,11 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 {
   "group_perms": {
     "8bd26b20-f3e8-48be-a903-46bb920cf671": "use",
-    "<user_id>>": "admin"
+    "<group_id>": "admin"
   },
   "user_perms": {
     "4df59e74-c027-470b-ab4d-cbba8963a5e9": "use",
-    "<group_id>": "admin"
+    "<user_id>": "admin"
   }
 }
 ```
@@ -8085,6 +7957,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `protocol`    | `https`         |
 | `share_level` | `owner`         |
 | `share_level` | `authenticated` |
+| `share_level` | `organization`  |
 | `share_level` | `public`        |
 
 ## codersdk.UsageAppName
@@ -8585,10 +8458,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
   "latest_build": {
+    "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "has_ai_task": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -9012,8 +8887,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
-  "devcontainer_dirty": true,
-  "devcontainer_status": "running",
   "id": "string",
   "image": "string",
   "labels": {
@@ -9040,21 +8913,19 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                  | Type                                                                                   | Required | Restrictions | Description                                                                                                                                                                                    |
-|-----------------------|----------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `created_at`          | string                                                                                 | false    |              | Created at is the time the container was created.                                                                                                                                              |
-| `devcontainer_dirty`  | boolean                                                                                | false    |              | Devcontainer dirty is true if the devcontainer configuration has changed since the container was created. This is used to determine if the container needs to be rebuilt.                      |
-| `devcontainer_status` | [codersdk.WorkspaceAgentDevcontainerStatus](#codersdkworkspaceagentdevcontainerstatus) | false    |              | Devcontainer status is the status of the devcontainer, if this container is a devcontainer. This is used to determine if the devcontainer is running, stopped, starting, or in an error state. |
-| `id`                  | string                                                                                 | false    |              | ID is the unique identifier of the container.                                                                                                                                                  |
-| `image`               | string                                                                                 | false    |              | Image is the name of the container image.                                                                                                                                                      |
-| `labels`              | object                                                                                 | false    |              | Labels is a map of key-value pairs of container labels.                                                                                                                                        |
-| » `[any property]`    | string                                                                                 | false    |              |                                                                                                                                                                                                |
-| `name`                | string                                                                                 | false    |              | Name is the human-readable name of the container.                                                                                                                                              |
-| `ports`               | array of [codersdk.WorkspaceAgentContainerPort](#codersdkworkspaceagentcontainerport)  | false    |              | Ports includes ports exposed by the container.                                                                                                                                                 |
-| `running`             | boolean                                                                                | false    |              | Running is true if the container is currently running.                                                                                                                                         |
-| `status`              | string                                                                                 | false    |              | Status is the current status of the container. This is somewhat implementation-dependent, but should generally be a human-readable string.                                                     |
-| `volumes`             | object                                                                                 | false    |              | Volumes is a map of "things" mounted into the container. Again, this is somewhat implementation-dependent.                                                                                     |
-| » `[any property]`    | string                                                                                 | false    |              |                                                                                                                                                                                                |
+| Name               | Type                                                                                  | Required | Restrictions | Description                                                                                                                                |
+|--------------------|---------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`       | string                                                                                | false    |              | Created at is the time the container was created.                                                                                          |
+| `id`               | string                                                                                | false    |              | ID is the unique identifier of the container.                                                                                              |
+| `image`            | string                                                                                | false    |              | Image is the name of the container image.                                                                                                  |
+| `labels`           | object                                                                                | false    |              | Labels is a map of key-value pairs of container labels.                                                                                    |
+| » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
+| `name`             | string                                                                                | false    |              | Name is the human-readable name of the container.                                                                                          |
+| `ports`            | array of [codersdk.WorkspaceAgentContainerPort](#codersdkworkspaceagentcontainerport) | false    |              | Ports includes ports exposed by the container.                                                                                             |
+| `running`          | boolean                                                                               | false    |              | Running is true if the container is currently running.                                                                                     |
+| `status`           | string                                                                                | false    |              | Status is the current status of the container. This is somewhat implementation-dependent, but should generally be a human-readable string. |
+| `volumes`          | object                                                                                | false    |              | Volumes is a map of "things" mounted into the container. Again, this is somewhat implementation-dependent.                                 |
+| » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
 
 ## codersdk.WorkspaceAgentContainerPort
 
@@ -9075,6 +8946,81 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `host_port` | integer | false    |              | Host port is the port number *outside* the container.                                                                      |
 | `network`   | string  | false    |              | Network is the network protocol used by the port (tcp, udp, etc).                                                          |
 | `port`      | integer | false    |              | Port is the port number *inside* the container.                                                                            |
+
+## codersdk.WorkspaceAgentDevcontainer
+
+```json
+{
+  "agent": {
+    "directory": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string"
+  },
+  "config_path": "string",
+  "container": {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": "string",
+    "image": "string",
+    "labels": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "name": "string",
+    "ports": [
+      {
+        "host_ip": "string",
+        "host_port": 0,
+        "network": "string",
+        "port": 0
+      }
+    ],
+    "running": true,
+    "status": "string",
+    "volumes": {
+      "property1": "string",
+      "property2": "string"
+    }
+  },
+  "dirty": true,
+  "error": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "status": "running",
+  "workspace_folder": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                                                   | Required | Restrictions | Description                |
+|--------------------|----------------------------------------------------------------------------------------|----------|--------------|----------------------------|
+| `agent`            | [codersdk.WorkspaceAgentDevcontainerAgent](#codersdkworkspaceagentdevcontaineragent)   | false    |              |                            |
+| `config_path`      | string                                                                                 | false    |              |                            |
+| `container`        | [codersdk.WorkspaceAgentContainer](#codersdkworkspaceagentcontainer)                   | false    |              |                            |
+| `dirty`            | boolean                                                                                | false    |              |                            |
+| `error`            | string                                                                                 | false    |              |                            |
+| `id`               | string                                                                                 | false    |              |                            |
+| `name`             | string                                                                                 | false    |              |                            |
+| `status`           | [codersdk.WorkspaceAgentDevcontainerStatus](#codersdkworkspaceagentdevcontainerstatus) | false    |              | Additional runtime fields. |
+| `workspace_folder` | string                                                                                 | false    |              |                            |
+
+## codersdk.WorkspaceAgentDevcontainerAgent
+
+```json
+{
+  "directory": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name        | Type   | Required | Restrictions | Description |
+|-------------|--------|----------|--------------|-------------|
+| `directory` | string | false    |              |             |
+| `id`        | string | false    |              |             |
+| `name`      | string | false    |              |             |
 
 ## codersdk.WorkspaceAgentDevcontainerStatus
 
@@ -9138,8 +9084,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "containers": [
     {
       "created_at": "2019-08-24T14:15:22Z",
-      "devcontainer_dirty": true,
-      "devcontainer_status": "running",
       "id": "string",
       "image": "string",
       "labels": {
@@ -9163,6 +9107,46 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       }
     }
   ],
+  "devcontainers": [
+    {
+      "agent": {
+        "directory": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      },
+      "config_path": "string",
+      "container": {
+        "created_at": "2019-08-24T14:15:22Z",
+        "id": "string",
+        "image": "string",
+        "labels": {
+          "property1": "string",
+          "property2": "string"
+        },
+        "name": "string",
+        "ports": [
+          {
+            "host_ip": "string",
+            "host_port": 0,
+            "network": "string",
+            "port": 0
+          }
+        ],
+        "running": true,
+        "status": "string",
+        "volumes": {
+          "property1": "string",
+          "property2": "string"
+        }
+      },
+      "dirty": true,
+      "error": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "status": "running",
+      "workspace_folder": "string"
+    }
+  ],
   "warnings": [
     "string"
   ]
@@ -9171,10 +9155,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name         | Type                                                                          | Required | Restrictions | Description                                                                                                                           |
-|--------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
-| `containers` | array of [codersdk.WorkspaceAgentContainer](#codersdkworkspaceagentcontainer) | false    |              | Containers is a list of containers visible to the workspace agent.                                                                    |
-| `warnings`   | array of string                                                               | false    |              | Warnings is a list of warnings that may have occurred during the process of listing containers. This should not include fatal errors. |
+| Name            | Type                                                                                | Required | Restrictions | Description                                                                                                                           |
+|-----------------|-------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `containers`    | array of [codersdk.WorkspaceAgentContainer](#codersdkworkspaceagentcontainer)       | false    |              | Containers is a list of containers visible to the workspace agent.                                                                    |
+| `devcontainers` | array of [codersdk.WorkspaceAgentDevcontainer](#codersdkworkspaceagentdevcontainer) | false    |              | Devcontainers is a list of devcontainers visible to the workspace agent.                                                              |
+| `warnings`      | array of string                                                                     | false    |              | Warnings is a list of warnings that may have occurred during the process of listing containers. This should not include fatal errors. |
 
 ## codersdk.WorkspaceAgentListeningPort
 
@@ -9288,6 +9273,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `protocol`    | `https`         |
 | `share_level` | `owner`         |
 | `share_level` | `authenticated` |
+| `share_level` | `organization`  |
 | `share_level` | `public`        |
 
 ## codersdk.WorkspaceAgentPortShareLevel
@@ -9304,6 +9290,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |-----------------|
 | `owner`         |
 | `authenticated` |
+| `organization`  |
 | `public`        |
 
 ## codersdk.WorkspaceAgentPortShareProtocol
@@ -9474,6 +9461,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |-----------------|-----------------|
 | `sharing_level` | `owner`         |
 | `sharing_level` | `authenticated` |
+| `sharing_level` | `organization`  |
 | `sharing_level` | `public`        |
 
 ## codersdk.WorkspaceAppHealth
@@ -9522,6 +9510,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |-----------------|
 | `owner`         |
 | `authenticated` |
+| `organization`  |
 | `public`        |
 
 ## codersdk.WorkspaceAppStatus
@@ -9569,6 +9558,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Value      |
 |------------|
 | `working`  |
+| `idle`     |
 | `complete` |
 | `failure`  |
 
@@ -9576,10 +9566,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
   "build_number": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
+  "has_ai_task": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",
@@ -9782,10 +9774,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                         | Type                                                              | Required | Restrictions | Description                                                         |
 |------------------------------|-------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
+| `ai_task_sidebar_app_id`     | string                                                            | false    |              |                                                                     |
 | `build_number`               | integer                                                           | false    |              |                                                                     |
 | `created_at`                 | string                                                            | false    |              |                                                                     |
 | `daily_cost`                 | integer                                                           | false    |              |                                                                     |
 | `deadline`                   | string                                                            | false    |              |                                                                     |
+| `has_ai_task`                | boolean                                                           | false    |              |                                                                     |
 | `id`                         | string                                                            | false    |              |                                                                     |
 | `initiator_id`               | string                                                            | false    |              |                                                                     |
 | `initiator_name`             | string                                                            | false    |              |                                                                     |
@@ -10302,10 +10296,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
       },
       "latest_build": {
+        "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
         "build_number": 0,
         "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
         "deadline": "2019-08-24T14:15:22Z",
+        "has_ai_task": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
         "initiator_name": "string",
@@ -12147,30 +12143,6 @@ None
 | Name    | Type                                                | Required | Restrictions | Description |
 |---------|-----------------------------------------------------|----------|--------------|-------------|
 | `value` | array of [codersdk.LinkConfig](#codersdklinkconfig) | false    |              |             |
-
-## serpent.Struct-codersdk_AIConfig
-
-```json
-{
-  "value": {
-    "providers": [
-      {
-        "base_url": "string",
-        "models": [
-          "string"
-        ],
-        "type": "string"
-      }
-    ]
-  }
-}
-```
-
-### Properties
-
-| Name    | Type                                   | Required | Restrictions | Description |
-|---------|----------------------------------------|----------|--------------|-------------|
-| `value` | [codersdk.AIConfig](#codersdkaiconfig) | false    |              |             |
 
 ## serpent.URL
 

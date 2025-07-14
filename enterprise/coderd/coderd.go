@@ -474,6 +474,14 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.userQuietHoursSchedule)
 			r.Put("/", api.putUserQuietHoursSchedule)
 		})
+		r.Route("/prebuilds", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureWorkspacePrebuilds),
+			)
+			r.Get("/settings", api.prebuildsSettings)
+			r.Put("/settings", api.putPrebuildsSettings)
+		})
 		// The /notifications base route is mounted by the AGPL router, so we can't group it here.
 		// Additionally, because we have a static route for /notifications/templates/system which conflicts
 		// with the below route, we need to register this route without any mounts or groups to make both work.
@@ -772,13 +780,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 		if initial, changed, enabled := featureChanged(codersdk.FeatureHighAvailability); shouldUpdate(initial, changed, enabled) {
 			var coordinator agpltailnet.Coordinator
-			// If HA is enabled, but the database is in-memory, we can't actually
-			// run HA and the PG coordinator. So throw a log line, and continue to use
-			// the in memory AGPL coordinator.
-			if enabled && api.DeploymentValues.InMemoryDatabase.Value() {
-				api.Logger.Warn(ctx, "high availability is enabled, but cannot be configured due to the database being set to in-memory")
-			}
-			if enabled && !api.DeploymentValues.InMemoryDatabase.Value() {
+			if enabled {
 				haCoordinator, err := tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
 				if err != nil {
 					api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))
@@ -1150,21 +1152,14 @@ func (api *API) Authorize(r *http.Request, action policy.Action, object rbac.Obj
 
 // nolint:revive // featureEnabled is a legit control flag.
 func (api *API) setupPrebuilds(featureEnabled bool) (agplprebuilds.ReconciliationOrchestrator, agplprebuilds.Claimer) {
-	experimentEnabled := api.AGPL.Experiments.Enabled(codersdk.ExperimentWorkspacePrebuilds)
-	if !experimentEnabled || !featureEnabled {
-		levelFn := api.Logger.Debug
-		// If the experiment is enabled but the license does not entitle the feature, operators should be warned.
-		if !featureEnabled {
-			levelFn = api.Logger.Warn
-		}
-
-		levelFn(context.Background(), "prebuilds not enabled; ensure you have a premium license and the 'workspace-prebuilds' experiment set",
-			slog.F("experiment_enabled", experimentEnabled), slog.F("feature_enabled", featureEnabled))
+	if !featureEnabled {
+		api.Logger.Warn(context.Background(), "prebuilds not enabled; ensure you have a premium license",
+			slog.F("feature_enabled", featureEnabled))
 
 		return agplprebuilds.DefaultReconciler, agplprebuilds.DefaultClaimer
 	}
 
-	reconciler := prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.DeploymentValues.Prebuilds,
+	reconciler := prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.AGPL.FileCache, api.DeploymentValues.Prebuilds,
 		api.Logger.Named("prebuilds"), quartz.NewReal(), api.PrometheusRegistry, api.NotificationsEnqueuer)
 	return reconciler, prebuilds.NewEnterpriseClaimer(api.Database)
 }

@@ -14,7 +14,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -222,6 +222,36 @@ func TestSearchWorkspace(t *testing.T) {
 				OrganizationID: uuid.MustParse("08eb6715-02f8-45c5-b86d-03786fcfbb4e"),
 			},
 		},
+		{
+			Name:  "HasAITaskTrue",
+			Query: "has-ai-task:true",
+			Expected: database.GetWorkspacesParams{
+				HasAITask: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasAITaskFalse",
+			Query: "has-ai-task:false",
+			Expected: database.GetWorkspacesParams{
+				HasAITask: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasAITaskMissing",
+			Query: "",
+			Expected: database.GetWorkspacesParams{
+				HasAITask: sql.NullBool{
+					Bool:  false,
+					Valid: false,
+				},
+			},
+		},
 
 		// Failures
 		{
@@ -267,11 +297,10 @@ func TestSearchWorkspace(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			// TODO: Replace this with the mock database.
-			db := dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
 			if c.Setup != nil {
 				c.Setup(t, db)
 			}
@@ -302,7 +331,8 @@ func TestSearchWorkspace(t *testing.T) {
 
 		query := ``
 		timeout := 1337 * time.Second
-		values, errs := searchquery.Workspaces(context.Background(), dbmem.New(), query, codersdk.Pagination{}, timeout)
+		db, _ := dbtestutil.NewDB(t)
+		values, errs := searchquery.Workspaces(context.Background(), db, query, codersdk.Pagination{}, timeout)
 		require.Empty(t, errs)
 		require.Equal(t, int64(timeout.Seconds()), values.AgentInactiveDisconnectTimeoutSeconds)
 	})
@@ -314,6 +344,7 @@ func TestSearchAudit(t *testing.T) {
 		Name                  string
 		Query                 string
 		Expected              database.GetAuditLogsOffsetParams
+		ExpectedCountParams   database.CountAuditLogsParams
 		ExpectedErrorContains string
 	}{
 		{
@@ -343,6 +374,9 @@ func TestSearchAudit(t *testing.T) {
 			Expected: database.GetAuditLogsOffsetParams{
 				ResourceTarget: "foo",
 			},
+			ExpectedCountParams: database.CountAuditLogsParams{
+				ResourceTarget: "foo",
+			},
 		},
 		{
 			Name:                  "RequestID",
@@ -352,13 +386,12 @@ func TestSearchAudit(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			// Do not use a real database, this is only used for an
 			// organization lookup.
-			db := dbmem.New()
-			values, errs := searchquery.AuditLogs(context.Background(), db, c.Query)
+			db, _ := dbtestutil.NewDB(t)
+			values, countValues, errs := searchquery.AuditLogs(context.Background(), db, c.Query)
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
@@ -369,6 +402,7 @@ func TestSearchAudit(t *testing.T) {
 			} else {
 				require.Len(t, errs, 0, "expected no error")
 				require.Equal(t, c.Expected, values, "expected values")
+				require.Equal(t, c.ExpectedCountParams, countValues, "expected count values")
 			}
 		})
 	}
@@ -520,7 +554,6 @@ func TestSearchUsers(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			values, errs := searchquery.Users(c.Query)
@@ -559,15 +592,44 @@ func TestSearchTemplates(t *testing.T) {
 				FuzzyName: "foobar",
 			},
 		},
+		{
+			Name:  "HasAITaskTrue",
+			Query: "has-ai-task:true",
+			Expected: database.GetTemplatesWithFilterParams{
+				HasAITask: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasAITaskFalse",
+			Query: "has-ai-task:false",
+			Expected: database.GetTemplatesWithFilterParams{
+				HasAITask: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "HasAITaskMissing",
+			Query: "",
+			Expected: database.GetTemplatesWithFilterParams{
+				HasAITask: sql.NullBool{
+					Bool:  false,
+					Valid: false,
+				},
+			},
+		},
 	}
 
 	for _, c := range testCases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			// Do not use a real database, this is only used for an
 			// organization lookup.
-			db := dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
 			values, errs := searchquery.Templates(context.Background(), db, c.Query)
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")

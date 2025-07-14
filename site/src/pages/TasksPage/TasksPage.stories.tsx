@@ -1,9 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, spyOn, userEvent, within } from "@storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "@storybook/test";
 import { API } from "api/api";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import {
 	MockTemplate,
+	MockTemplateVersionExternalAuthGithub,
+	MockTemplateVersionExternalAuthGithubAuthenticated,
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAppStatus,
@@ -27,10 +30,20 @@ const meta: Meta<typeof TasksPage> = {
 		},
 	},
 	beforeEach: () => {
+		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([]);
 		spyOn(API, "getUsers").mockResolvedValue({
 			users: MockUsers,
 			count: MockUsers.length,
 		});
+		spyOn(data, "fetchAITemplates").mockResolvedValue([
+			MockTemplate,
+			{
+				...MockTemplate,
+				id: "test-template-2",
+				name: "template 2",
+				display_name: "Template 2",
+			},
+		]);
 	},
 };
 
@@ -120,6 +133,23 @@ const newTaskData = {
 
 export const CreateTaskSuccessfully: Story = {
 	decorators: [withProxyProvider()],
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/tasks",
+			},
+			routing: [
+				{
+					path: "/tasks",
+					useStoryElement: true,
+				},
+				{
+					path: "/tasks/:ownerName/:workspaceName",
+					element: <h1>Task page</h1>,
+				},
+			],
+		}),
+	},
 	beforeEach: () => {
 		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
 		spyOn(data, "fetchTasks")
@@ -134,13 +164,12 @@ export const CreateTaskSuccessfully: Story = {
 			const prompt = await canvas.findByLabelText(/prompt/i);
 			await userEvent.type(prompt, newTaskData.prompt);
 			const submitButton = canvas.getByRole("button", { name: /run task/i });
+			await waitFor(() => expect(submitButton).toBeEnabled());
 			await userEvent.click(submitButton);
 		});
 
-		await step("Verify task in the table", async () => {
-			await canvas.findByRole("row", {
-				name: new RegExp(newTaskData.prompt, "i"),
-			});
+		await step("Redirects to the task page", async () => {
+			await canvas.findByText(/task page/i);
 		});
 	},
 };
@@ -164,11 +193,95 @@ export const CreateTaskError: Story = {
 			const prompt = await canvas.findByLabelText(/prompt/i);
 			await userEvent.type(prompt, "Create a new task");
 			const submitButton = canvas.getByRole("button", { name: /run task/i });
+			await waitFor(() => expect(submitButton).toBeEnabled());
 			await userEvent.click(submitButton);
 		});
 
 		await step("Verify error", async () => {
 			await canvas.findByText(/failed to create task/i);
+		});
+	},
+};
+
+export const WithAuthenticatedExternalAuth: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		spyOn(data, "fetchTasks")
+			.mockResolvedValueOnce(MockTasks)
+			.mockResolvedValue([newTaskData, ...MockTasks]);
+		spyOn(data, "createTask").mockResolvedValue(newTaskData);
+		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
+			MockTemplateVersionExternalAuthGithubAuthenticated,
+		]);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Does not render external auth", async () => {
+			expect(
+				canvas.queryByText(/external authentication/),
+			).not.toBeInTheDocument();
+		});
+	},
+	parameters: {
+		chromatic: {
+			disableSnapshot: true,
+		},
+	},
+};
+
+export const MissingExternalAuth: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		spyOn(data, "fetchTasks")
+			.mockResolvedValueOnce(MockTasks)
+			.mockResolvedValue([newTaskData, ...MockTasks]);
+		spyOn(data, "createTask").mockResolvedValue(newTaskData);
+		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
+			MockTemplateVersionExternalAuthGithub,
+		]);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Submit is disabled", async () => {
+			const prompt = await canvas.findByLabelText(/prompt/i);
+			await userEvent.type(prompt, newTaskData.prompt);
+			const submitButton = canvas.getByRole("button", { name: /run task/i });
+			expect(submitButton).toBeDisabled();
+		});
+
+		await step("Renders external authentication", async () => {
+			await canvas.findByRole("button", { name: /connect to github/i });
+		});
+	},
+};
+
+export const ExternalAuthError: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		spyOn(data, "fetchTasks")
+			.mockResolvedValueOnce(MockTasks)
+			.mockResolvedValue([newTaskData, ...MockTasks]);
+		spyOn(data, "createTask").mockResolvedValue(newTaskData);
+		spyOn(API, "getTemplateVersionExternalAuth").mockRejectedValue(
+			mockApiError({
+				message: "Failed to load external auth",
+			}),
+		);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Submit is disabled", async () => {
+			const prompt = await canvas.findByLabelText(/prompt/i);
+			await userEvent.type(prompt, newTaskData.prompt);
+			const submitButton = canvas.getByRole("button", { name: /run task/i });
+			expect(submitButton).toBeDisabled();
+		});
+
+		await step("Renders error", async () => {
+			await canvas.findByText(/failed to load external auth/i);
 		});
 	},
 };

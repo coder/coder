@@ -2,7 +2,7 @@ import { getErrorDetail, getErrorMessage } from "api/errors";
 import { workspacePermissionsByOrganization } from "api/queries/organizations";
 import { templates } from "api/queries/templates";
 import { workspaces } from "api/queries/workspaces";
-import type { Workspace } from "api/typesGenerated";
+import type { Workspace, WorkspaceStatus } from "api/typesGenerated";
 import { useFilter } from "components/Filter/Filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { displayError } from "components/GlobalSnackbar/utils";
@@ -22,6 +22,18 @@ import { WorkspacesPageView } from "./WorkspacesPageView";
 import { useBatchActions } from "./batchActions";
 import { useStatusFilterMenu, useTemplateFilterMenu } from "./filter/menus";
 
+// To reduce the number of fetches, we reduce the fetch interval if there are no
+// active workspace builds.
+const ACTIVE_BUILD_STATUSES: WorkspaceStatus[] = [
+	"canceling",
+	"deleting",
+	"pending",
+	"starting",
+	"stopping",
+];
+const ACTIVE_BUILDS_REFRESH_INTERVAL = 5_000;
+const NO_ACTIVE_BUILDS_REFRESH_INTERVAL = 30_000;
+
 function useSafeSearchParams() {
 	// Have to wrap setSearchParams because React Router doesn't make sure that
 	// the function's memory reference stays stable on each render, even though
@@ -37,8 +49,6 @@ function useSafeSearchParams() {
 }
 
 const WorkspacesPage: FC = () => {
-	const { experiments } = useDashboard();
-	const isDynamicParametersEnabled = experiments.includes("dynamic-parameters");
 	const queryClient = useQueryClient();
 	// If we use a useSearchParams for each hook, the values will not be in sync.
 	// So we have to use a single one, centralizing the values, and pass it to
@@ -80,8 +90,23 @@ const WorkspacesPage: FC = () => {
 	const { data, error, refetch } = useQuery({
 		...workspacesQueryOptions,
 		refetchInterval: ({ state }) => {
-			return state.error ? false : 5_000;
+			if (state.error) return false;
+
+			// Default to 5s interval until first fetch completes
+			if (!state.data) return ACTIVE_BUILDS_REFRESH_INTERVAL;
+
+			// Check if any workspace has an active build
+			const hasActiveBuilds = state.data.workspaces?.some((workspace) => {
+				const status = workspace.latest_build.status;
+				return ACTIVE_BUILD_STATUSES.includes(status);
+			});
+
+			// Poll every 5s if there are active builds, otherwise every 30s
+			return hasActiveBuilds
+				? ACTIVE_BUILDS_REFRESH_INTERVAL
+				: NO_ACTIVE_BUILDS_REFRESH_INTERVAL;
 		},
+		refetchOnWindowFocus: "always",
 	});
 
 	const [checkedWorkspaces, setCheckedWorkspaces] = useState<
@@ -166,7 +191,7 @@ const WorkspacesPage: FC = () => {
 				onConfirm={async () => {
 					await batchActions.updateAll({
 						workspaces: checkedWorkspaces,
-						isDynamicParametersEnabled,
+						isDynamicParametersEnabled: false,
 					});
 					setConfirmingBatchAction(null);
 				}}

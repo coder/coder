@@ -13,6 +13,8 @@ import (
 	prometheus_client "github.com/prometheus/client_model/go"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -20,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/testutil"
@@ -55,8 +56,8 @@ func TestMetricsCollector(t *testing.T) {
 			name:         "prebuild provisioned but not completed",
 			transitions:  allTransitions,
 			jobStatuses:  allJobStatusesExcept(database.ProvisionerJobStatusPending, database.ProvisionerJobStatusRunning, database.ProvisionerJobStatusCanceling),
-			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
-			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID},
+			initiatorIDs: []uuid.UUID{database.PrebuildsSystemUserID},
+			ownerIDs:     []uuid.UUID{database.PrebuildsSystemUserID},
 			metrics: []metricCheck{
 				{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
 				{prebuilds.MetricClaimedCount, ptr.To(0.0), true},
@@ -72,8 +73,8 @@ func TestMetricsCollector(t *testing.T) {
 			name:         "prebuild running",
 			transitions:  []database.WorkspaceTransition{database.WorkspaceTransitionStart},
 			jobStatuses:  []database.ProvisionerJobStatus{database.ProvisionerJobStatusSucceeded},
-			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
-			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID},
+			initiatorIDs: []uuid.UUID{database.PrebuildsSystemUserID},
+			ownerIDs:     []uuid.UUID{database.PrebuildsSystemUserID},
 			metrics: []metricCheck{
 				{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
 				{prebuilds.MetricClaimedCount, ptr.To(0.0), true},
@@ -89,8 +90,8 @@ func TestMetricsCollector(t *testing.T) {
 			name:         "prebuild failed",
 			transitions:  allTransitions,
 			jobStatuses:  []database.ProvisionerJobStatus{database.ProvisionerJobStatusFailed},
-			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
-			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID, uuid.New()},
+			initiatorIDs: []uuid.UUID{database.PrebuildsSystemUserID},
+			ownerIDs:     []uuid.UUID{database.PrebuildsSystemUserID, uuid.New()},
 			metrics: []metricCheck{
 				{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
 				{prebuilds.MetricFailedCount, ptr.To(1.0), true},
@@ -105,8 +106,8 @@ func TestMetricsCollector(t *testing.T) {
 			name:         "prebuild eligible",
 			transitions:  []database.WorkspaceTransition{database.WorkspaceTransitionStart},
 			jobStatuses:  []database.ProvisionerJobStatus{database.ProvisionerJobStatusSucceeded},
-			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
-			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID},
+			initiatorIDs: []uuid.UUID{database.PrebuildsSystemUserID},
+			ownerIDs:     []uuid.UUID{database.PrebuildsSystemUserID},
 			metrics: []metricCheck{
 				{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
 				{prebuilds.MetricClaimedCount, ptr.To(0.0), true},
@@ -122,8 +123,8 @@ func TestMetricsCollector(t *testing.T) {
 			name:         "prebuild ineligible",
 			transitions:  allTransitions,
 			jobStatuses:  allJobStatusesExcept(database.ProvisionerJobStatusSucceeded),
-			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
-			ownerIDs:     []uuid.UUID{agplprebuilds.SystemUserID},
+			initiatorIDs: []uuid.UUID{database.PrebuildsSystemUserID},
+			ownerIDs:     []uuid.UUID{database.PrebuildsSystemUserID},
 			metrics: []metricCheck{
 				{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
 				{prebuilds.MetricClaimedCount, ptr.To(0.0), true},
@@ -139,7 +140,7 @@ func TestMetricsCollector(t *testing.T) {
 			name:         "prebuild claimed",
 			transitions:  allTransitions,
 			jobStatuses:  allJobStatuses,
-			initiatorIDs: []uuid.UUID{agplprebuilds.SystemUserID},
+			initiatorIDs: []uuid.UUID{database.PrebuildsSystemUserID},
 			ownerIDs:     []uuid.UUID{uuid.New()},
 			metrics: []metricCheck{
 				{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
@@ -169,27 +170,20 @@ func TestMetricsCollector(t *testing.T) {
 			name:            "deleted templates should not be included in exported metrics",
 			transitions:     allTransitions,
 			jobStatuses:     allJobStatuses,
-			initiatorIDs:    []uuid.UUID{agplprebuilds.SystemUserID},
-			ownerIDs:        []uuid.UUID{agplprebuilds.SystemUserID, uuid.New()},
+			initiatorIDs:    []uuid.UUID{database.PrebuildsSystemUserID},
+			ownerIDs:        []uuid.UUID{database.PrebuildsSystemUserID, uuid.New()},
 			metrics:         nil,
 			templateDeleted: []bool{true},
 			eligible:        []bool{false},
 		},
 	}
 	for _, test := range tests {
-		test := test // capture for parallel
 		for _, transition := range test.transitions {
-			transition := transition // capture for parallel
 			for _, jobStatus := range test.jobStatuses {
-				jobStatus := jobStatus // capture for parallel
 				for _, initiatorID := range test.initiatorIDs {
-					initiatorID := initiatorID // capture for parallel
 					for _, ownerID := range test.ownerIDs {
-						ownerID := ownerID // capture for parallel
 						for _, templateDeleted := range test.templateDeleted {
-							templateDeleted := templateDeleted // capture for parallel
 							for _, eligible := range test.eligible {
-								eligible := eligible // capture for parallel
 								t.Run(fmt.Sprintf("%v/transition:%s/jobStatus:%s", test.name, transition, jobStatus), func(t *testing.T) {
 									t.Parallel()
 
@@ -206,10 +200,11 @@ func TestMetricsCollector(t *testing.T) {
 									})
 									clock := quartz.NewMock(t)
 									db, pubsub := dbtestutil.NewDB(t)
-									reconciler := prebuilds.NewStoreReconciler(db, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+									cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+									reconciler := prebuilds.NewStoreReconciler(db, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 									ctx := testutil.Context(t, testutil.WaitLong)
 
-									createdUsers := []uuid.UUID{agplprebuilds.SystemUserID}
+									createdUsers := []uuid.UUID{database.PrebuildsSystemUserID}
 									for _, user := range slices.Concat(test.ownerIDs, test.initiatorIDs) {
 										if !slices.Contains(createdUsers, user) {
 											dbgen.User(t, db, database.User{
@@ -260,7 +255,6 @@ func TestMetricsCollector(t *testing.T) {
 										require.Equal(t, 1, len(presets))
 
 										for _, preset := range presets {
-											preset := preset // capture for parallel
 											labels := map[string]string{
 												"template_name":     template.Name,
 												"preset_name":       preset.Name,
@@ -327,8 +321,8 @@ func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 	test := testCase{
 		transition:  database.WorkspaceTransitionStart,
 		jobStatus:   database.ProvisionerJobStatusSucceeded,
-		initiatorID: agplprebuilds.SystemUserID,
-		ownerID:     agplprebuilds.SystemUserID,
+		initiatorID: database.PrebuildsSystemUserID,
+		ownerID:     database.PrebuildsSystemUserID,
 		metrics: []metricCheck{
 			{prebuilds.MetricCreatedCount, ptr.To(1.0), true},
 			{prebuilds.MetricClaimedCount, ptr.To(0.0), true},
@@ -343,7 +337,8 @@ func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	clock := quartz.NewMock(t)
 	db, pubsub := dbtestutil.NewDB(t)
-	reconciler := prebuilds.NewStoreReconciler(db, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	reconciler := prebuilds.NewStoreReconciler(db, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	collector := prebuilds.NewMetricsCollector(db, logger, reconciler)
@@ -480,4 +475,98 @@ func findAllMetricSeries(metricsFamilies []*prometheus_client.MetricFamily, labe
 		}
 	}
 	return series
+}
+
+func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("this test requires postgres")
+	}
+
+	t.Run("reconciliation_not_paused", func(t *testing.T) {
+		t.Parallel()
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		db, pubsub := dbtestutil.NewDB(t)
+		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+		registry := prometheus.NewPedanticRegistry()
+		reconciler := prebuilds.NewStoreReconciler(db, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), registry, newNoopEnqueuer())
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Ensure no pause setting is set (default state)
+		err := db.UpsertPrebuildsSettings(ctx, `{}`)
+		require.NoError(t, err)
+
+		// Run reconciliation to update the metric
+		err = reconciler.ReconcileAll(ctx)
+		require.NoError(t, err)
+
+		// Check that the metric shows reconciliation is not paused
+		metricsFamilies, err := registry.Gather()
+		require.NoError(t, err)
+
+		metric := findMetric(metricsFamilies, prebuilds.MetricReconciliationPausedGauge, map[string]string{})
+		require.NotNil(t, metric, "reconciliation paused metric should exist")
+		require.NotNil(t, metric.GetGauge())
+		require.Equal(t, 0.0, metric.GetGauge().GetValue(), "reconciliation should not be paused")
+	})
+
+	t.Run("reconciliation_paused", func(t *testing.T) {
+		t.Parallel()
+
+		// Create isolated collector and registry for this test
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		db, pubsub := dbtestutil.NewDB(t)
+		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+		registry := prometheus.NewPedanticRegistry()
+		reconciler := prebuilds.NewStoreReconciler(db, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), registry, newNoopEnqueuer())
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Set reconciliation to paused
+		err := prebuilds.SetPrebuildsReconciliationPaused(ctx, db, true)
+		require.NoError(t, err)
+
+		// Run reconciliation to update the metric
+		err = reconciler.ReconcileAll(ctx)
+		require.NoError(t, err)
+
+		// Check that the metric shows reconciliation is paused
+		metricsFamilies, err := registry.Gather()
+		require.NoError(t, err)
+
+		metric := findMetric(metricsFamilies, prebuilds.MetricReconciliationPausedGauge, map[string]string{})
+		require.NotNil(t, metric, "reconciliation paused metric should exist")
+		require.NotNil(t, metric.GetGauge())
+		require.Equal(t, 1.0, metric.GetGauge().GetValue(), "reconciliation should be paused")
+	})
+
+	t.Run("reconciliation_resumed", func(t *testing.T) {
+		t.Parallel()
+
+		// Create isolated collector and registry for this test
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		db, pubsub := dbtestutil.NewDB(t)
+		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+		registry := prometheus.NewPedanticRegistry()
+		reconciler := prebuilds.NewStoreReconciler(db, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), registry, newNoopEnqueuer())
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Set reconciliation back to not paused
+		err := prebuilds.SetPrebuildsReconciliationPaused(ctx, db, false)
+		require.NoError(t, err)
+
+		// Run reconciliation to update the metric
+		err = reconciler.ReconcileAll(ctx)
+		require.NoError(t, err)
+
+		// Check that the metric shows reconciliation is not paused
+		metricsFamilies, err := registry.Gather()
+		require.NoError(t, err)
+
+		metric := findMetric(metricsFamilies, prebuilds.MetricReconciliationPausedGauge, map[string]string{})
+		require.NotNil(t, metric, "reconciliation paused metric should exist")
+		require.NotNil(t, metric.GetGauge())
+		require.Equal(t, 0.0, metric.GetGauge().GetValue(), "reconciliation should not be paused")
+	})
 }

@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/files"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -35,6 +38,7 @@ type Executor struct {
 	ctx                   context.Context
 	db                    database.Store
 	ps                    pubsub.Pubsub
+	fileCache             *files.Cache
 	templateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 	accessControlStore    *atomic.Pointer[dbauthz.AccessControlStore]
 	auditor               *atomic.Pointer[audit.Auditor]
@@ -61,13 +65,14 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments) *Executor {
 	factory := promauto.With(reg)
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
 		ctx:                   dbauthz.AsAutostart(ctx),
 		db:                    db,
 		ps:                    ps,
+		fileCache:             fc,
 		templateScheduleStore: tss,
 		tick:                  tick,
 		log:                   log.Named("autobuild"),
@@ -151,6 +156,22 @@ func (e *Executor) runOnce(t time.Time) Stats {
 		e.log.Error(e.ctx, "get workspaces for autostart or autostop", slog.Error(err))
 		return stats
 	}
+
+	// Sort the workspaces by build template version ID so that we can group
+	// identical template versions together. This is a slight (and imperfect)
+	// optimization.
+	//
+	// `wsbuilder` needs to load the terraform files for a given template version
+	// into memory. If 2 workspaces are using the same template version, they will
+	// share the same files in the FileCache. This only happens if the builds happen
+	// in parallel.
+	// TODO: Actually make sure the cache has the files in the cache for the full
+	//  set of identical template versions. Then unload the files when the builds
+	//  are done. Right now, this relies on luck for the 10 goroutine workers to
+	//  overlap and keep the file reference in the cache alive.
+	slices.SortFunc(workspaces, func(a, b database.GetWorkspacesEligibleForTransitionRow) int {
+		return strings.Compare(a.BuildTemplateVersionID.UUID.String(), b.BuildTemplateVersionID.UUID.String())
+	})
 
 	// We only use errgroup here for convenience of API, not for early
 	// cancellation. This means we only return nil errors in th eg.Go.
@@ -276,7 +297,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							}
 						}
 
-						nextBuild, job, _, err = builder.Build(e.ctx, tx, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
+						nextBuild, job, _, err = builder.Build(e.ctx, tx, e.fileCache, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
 						if err != nil {
 							return xerrors.Errorf("build workspace with transition %q: %w", nextTransition, err)
 						}
@@ -499,6 +520,8 @@ func isEligibleForAutostart(user database.User, ws database.Workspace, build dat
 		return false
 	}
 
+	// Get the next allowed autostart time after the build's creation time,
+	// based on the workspace's schedule and the template's allowed days.
 	nextTransition, err := schedule.NextAllowedAutostart(build.CreatedAt, ws.AutostartSchedule.String, templateSchedule)
 	if err != nil {
 		return false

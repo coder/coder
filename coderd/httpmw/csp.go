@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/coderd/proxyhealth"
 )
 
 // cspDirectives is a map of all csp fetch directives to their values.
@@ -47,18 +47,18 @@ const (
 // for coderd.
 //
 // Arguments:
-//   - websocketHosts: a function that returns a list of supported external websocket hosts.
-//     This is to support the terminal connecting to a workspace proxy.
-//     The origin of the terminal request does not match the url of the proxy,
-//     so the CSP list of allowed hosts must be dynamic and match the current
-//     available proxy urls.
+//   - proxyHosts: a function that returns a list of supported proxy hosts
+//     (including the primary).  This is to support the terminal connecting to a
+//     workspace proxy and for embedding apps in an iframe.  The origin of the
+//     requests do not match the url of the proxy, so the CSP list of allowed
+//     hosts must be dynamic and match the current available proxy urls.
 //   - staticAdditions: a map of CSP directives to append to the default CSP headers.
 //     Used to allow specific static additions to the CSP headers. Allows some niche
 //     use cases, such as embedding Coder in an iframe.
 //     Example: https://github.com/coder/coder/issues/15118
 //
 //nolint:revive
-func CSPHeaders(experiments codersdk.Experiments, telemetry bool, websocketHosts func() []string, staticAdditions map[CSPFetchDirective][]string) func(next http.Handler) http.Handler {
+func CSPHeaders(telemetry bool, proxyHosts func() []*proxyhealth.ProxyHost, staticAdditions map[CSPFetchDirective][]string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Content-Security-Policy disables loading certain content types and can prevent XSS injections.
@@ -97,15 +97,6 @@ func CSPHeaders(experiments codersdk.Experiments, telemetry bool, websocketHosts
 				// "require-trusted-types-for" : []string{"'script'"},
 			}
 
-			if experiments.Enabled(codersdk.ExperimentAITasks) {
-				// AI tasks use iframe embeds of local apps.
-				// TODO: Handle region domains too, not just path based apps
-				cspSrcs.Append(CSPFrameAncestors, `'self'`)
-				cspSrcs.Append(CSPFrameSource, `'self'`)
-			} else {
-				cspSrcs.Append(CSPFrameAncestors, `'none'`)
-			}
-
 			if telemetry {
 				// If telemetry is enabled, we report to coder.com.
 				cspSrcs.Append(CSPDirectiveConnectSrc, "https://coder.com")
@@ -126,19 +117,24 @@ func CSPHeaders(experiments codersdk.Experiments, telemetry bool, websocketHosts
 				cspSrcs.Append(CSPDirectiveConnectSrc, fmt.Sprintf("wss://%[1]s ws://%[1]s", host))
 			}
 
-			// The terminal requires a websocket connection to the workspace proxy.
-			// Make sure we allow this connection to healthy proxies.
-			extraConnect := websocketHosts()
+			// The terminal and iframed apps can use workspace proxies (which includes
+			// the primary).  Make sure we allow connections to healthy proxies.
+			extraConnect := proxyHosts()
 			if len(extraConnect) > 0 {
 				for _, extraHost := range extraConnect {
-					if extraHost == "*" {
+					// Allow embedding the app host.
+					cspSrcs.Append(CSPDirectiveFrameSrc, extraHost.AppHost)
+					if extraHost.Host == "*" {
 						// '*' means all
 						cspSrcs.Append(CSPDirectiveConnectSrc, "*")
 						continue
 					}
-					cspSrcs.Append(CSPDirectiveConnectSrc, fmt.Sprintf("wss://%[1]s ws://%[1]s", extraHost))
+					// Avoid double-adding r.Host.
+					if extraHost.Host != r.Host {
+						cspSrcs.Append(CSPDirectiveConnectSrc, fmt.Sprintf("wss://%[1]s ws://%[1]s", extraHost.Host))
+					}
 					// We also require this to make http/https requests to the workspace proxy for latency checking.
-					cspSrcs.Append(CSPDirectiveConnectSrc, fmt.Sprintf("https://%[1]s http://%[1]s", extraHost))
+					cspSrcs.Append(CSPDirectiveConnectSrc, fmt.Sprintf("https://%[1]s http://%[1]s", extraHost.Host))
 				}
 			}
 

@@ -45,6 +45,13 @@ var (
 	connectionParamsInitOnce       sync.Once
 	defaultConnectionParams        ConnectionParams
 	errDefaultConnectionParamsInit error
+	retryableErrSubstrings         = []string{
+		"connection reset by peer",
+	}
+	noPostgresRunningErrSubstrings = []string{
+		"connection refused",          // nothing is listening on the port
+		"No connection could be made", // Windows variant of the above
+	}
 )
 
 // initDefaultConnection initializes the default postgres connection parameters.
@@ -59,28 +66,38 @@ func initDefaultConnection(t TBSubset) error {
 		DBName:   "postgres",
 	}
 	dsn := params.DSN()
-	db, dbErr := sql.Open("postgres", dsn)
-	if dbErr == nil {
-		dbErr = db.Ping()
-		if closeErr := db.Close(); closeErr != nil {
-			return xerrors.Errorf("close db: %w", closeErr)
-		}
-	}
-	shouldOpenContainer := false
-	if dbErr != nil {
-		errSubstrings := []string{
-			"connection refused",          // this happens on Linux when there's nothing listening on the port
-			"No connection could be made", // like above but Windows
-		}
-		errString := dbErr.Error()
-		for _, errSubstring := range errSubstrings {
-			if strings.Contains(errString, errSubstring) {
-				shouldOpenContainer = true
-				break
+
+	// Helper closure to try opening and pinging the default Postgres instance.
+	// Used within a single retry loop that handles both retryable and permanent errors.
+	attemptConn := func() error {
+		db, err := sql.Open("postgres", dsn)
+		if err == nil {
+			err = db.Ping()
+			if closeErr := db.Close(); closeErr != nil {
+				return xerrors.Errorf("close db: %w", closeErr)
 			}
 		}
+		return err
 	}
-	if dbErr != nil && shouldOpenContainer {
+
+	var dbErr error
+	// Retry up to 10 seconds for temporary errors.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for r := retry.New(10*time.Millisecond, 500*time.Millisecond); r.Wait(ctx); {
+		dbErr = attemptConn()
+		if dbErr == nil {
+			break
+		}
+		errString := dbErr.Error()
+		if !containsAnySubstring(errString, retryableErrSubstrings) {
+			break
+		}
+		t.Logf("%s failed to connect to postgres, retrying: %s", time.Now().Format(time.StampMilli), errString)
+	}
+
+	// After the loop dbErr is the last connection error (if any).
+	if dbErr != nil && containsAnySubstring(dbErr.Error(), noPostgresRunningErrSubstrings) {
 		// If there's no database running on the default port, we'll start a
 		// postgres container. We won't be cleaning it up so it can be reused
 		// by subsequent tests. It'll keep on running until the user terminates
@@ -110,6 +127,7 @@ func initDefaultConnection(t TBSubset) error {
 			if connErr == nil {
 				break
 			}
+			t.Logf("failed to connect to postgres after starting container, may retry: %s", connErr.Error())
 		}
 	} else if dbErr != nil {
 		return xerrors.Errorf("open postgres connection: %w", dbErr)
@@ -522,4 +540,13 @@ func OpenContainerized(t TBSubset, opts DBContainerOptions) (string, func(), err
 	}
 
 	return dbURL, containerCleanup, nil
+}
+
+func containsAnySubstring(s string, substrings []string) bool {
+	for _, substr := range substrings {
+		if strings.Contains(s, substr) {
+			return true
+		}
+	}
+	return false
 }

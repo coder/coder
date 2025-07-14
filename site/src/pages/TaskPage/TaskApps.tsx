@@ -7,6 +7,7 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { ChevronDownIcon, LayoutGridIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import type { Task } from "modules/tasks/tasks";
@@ -15,7 +16,6 @@ import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { cn } from "utils/cn";
 import { TaskAppIFrame } from "./TaskAppIframe";
-import { AI_APP_CHAT_SLUG } from "./constants";
 
 type TaskAppsProps = {
 	task: Task;
@@ -30,7 +30,9 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	// it here
 	const apps = agents
 		.flatMap((a) => a?.apps)
-		.filter((a) => !!a && a.slug !== AI_APP_CHAT_SLUG);
+		.filter(
+			(a) => !!a && a.id !== task.workspace.latest_build.ai_task_sidebar_app_id,
+		);
 
 	const embeddedApps = apps.filter((app) => !app.external);
 	const externalApps = apps.filter((app) => app.external);
@@ -56,20 +58,22 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	}
 
 	return (
-		<main className="flex-1 flex flex-col">
-			<div className="border-0 border-b border-border border-solid w-full p-1 flex gap-2">
-				{embeddedApps.map((app) => (
-					<TaskAppButton
-						key={app.id}
-						task={task}
-						app={app}
-						active={app.id === activeAppId}
-						onClick={(e) => {
-							e.preventDefault();
-							setActiveAppId(app.id);
-						}}
-					/>
-				))}
+		<main className="flex flex-col">
+			<div className="w-full flex items-center border-0 border-b border-border border-solid">
+				<div className="p-2 pb-0 flex gap-2 items-center">
+					{embeddedApps.map((app) => (
+						<TaskAppTab
+							key={app.id}
+							task={task}
+							app={app}
+							active={app.id === activeAppId}
+							onClick={(e) => {
+								e.preventDefault();
+								setActiveAppId(app.id);
+							}}
+						/>
+					))}
+				</div>
 
 				{externalApps.length > 0 && (
 					<div className="ml-auto">
@@ -122,19 +126,14 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	);
 };
 
-type TaskAppButtonProps = {
+type TaskAppTabProps = {
 	task: Task;
 	app: WorkspaceApp;
 	active: boolean;
 	onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void;
 };
 
-const TaskAppButton: FC<TaskAppButtonProps> = ({
-	task,
-	app,
-	active,
-	onClick,
-}) => {
+const TaskAppTab: FC<TaskAppTabProps> = ({ task, app, active, onClick }) => {
 	const agent = task.workspace.latest_build.resources
 		.flatMap((r) => r.agents)
 		.filter((a) => !!a)
@@ -156,13 +155,24 @@ const TaskAppButton: FC<TaskAppButtonProps> = ({
 			key={app.id}
 			asChild
 			className={cn([
-				{ "text-content-primary": active },
+				"px-3",
+				{
+					"text-content-primary bg-surface-tertiary rounded-sm rounded-b-none":
+						active,
+				},
 				{ "opacity-75 hover:opacity-100": !active },
 			])}
 		>
 			<RouterLink to={link.href} onClick={onClick}>
 				{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
 				{link.label}
+				{app.health === "unhealthy" && (
+					<InfoTooltip
+						title="This app is unhealthy."
+						message="The health check failed."
+						type="warning"
+					/>
+				)}
 			</RouterLink>
 		</Button>
 	);

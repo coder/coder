@@ -200,6 +200,12 @@ type CreateTemplateRequest struct {
 	// MaxPortShareLevel allows optionally specifying the maximum port share level
 	// for workspaces created from the template.
 	MaxPortShareLevel *WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
+
+	// UseClassicParameterFlow allows optionally specifying whether
+	// the template should use the classic parameter flow. The default if unset is
+	// true, and is why `*bool` is used here. When dynamic parameters becomes
+	// the default, this will default to false.
+	UseClassicParameterFlow *bool `json:"template_use_classic_parameter_flow,omitempty"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
@@ -227,7 +233,6 @@ type CreateWorkspaceRequest struct {
 	RichParameterValues     []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
 	AutomaticUpdates        AutomaticUpdates          `json:"automatic_updates,omitempty"`
 	TemplateVersionPresetID uuid.UUID                 `json:"template_version_preset_id,omitempty" format:"uuid"`
-	EnableDynamicParameters bool                      `json:"enable_dynamic_parameters,omitempty"`
 }
 
 func (c *Client) OrganizationByName(ctx context.Context, name string) (Organization, error) {

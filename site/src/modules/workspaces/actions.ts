@@ -6,16 +6,19 @@ import type { Workspace } from "api/typesGenerated";
 const actionTypes = [
 	"start",
 	"starting",
-	// Replaces start when an update is required.
+	// Appears beside start when an update is available.
 	"updateAndStart",
+	// Replaces start when an update is required.
+	"updateAndStartRequireActiveVersion",
 	"stop",
 	"stopping",
 	"restart",
 	"restarting",
-	// Replaces restart when an update is required.
+	// Appears beside restart when an update is available.
 	"updateAndRestart",
+	// Replaces restart when an update is required.
+	"updateAndRestartRequireActiveVersion",
 	"deleting",
-	"update",
 	"updating",
 	"activate",
 	"activating",
@@ -74,10 +77,10 @@ export const abilitiesByWorkspaceStatus = (
 			const actions: ActionType[] = ["stop"];
 
 			if (workspace.template_require_active_version && workspace.outdated) {
-				actions.push("updateAndRestart");
+				actions.push("updateAndRestartRequireActiveVersion");
 			} else {
 				if (workspace.outdated) {
-					actions.unshift("update");
+					actions.unshift("updateAndRestart");
 				}
 				actions.push("restart");
 			}
@@ -99,10 +102,10 @@ export const abilitiesByWorkspaceStatus = (
 			const actions: ActionType[] = [];
 
 			if (workspace.template_require_active_version && workspace.outdated) {
-				actions.push("updateAndStart");
+				actions.push("updateAndStartRequireActiveVersion");
 			} else {
 				if (workspace.outdated) {
-					actions.unshift("update");
+					actions.unshift("updateAndStart");
 				}
 				actions.push("start");
 			}
@@ -128,7 +131,7 @@ export const abilitiesByWorkspaceStatus = (
 			}
 
 			if (workspace.outdated) {
-				actions.unshift("update");
+				actions.unshift("updateAndStart");
 			}
 
 			return {
@@ -142,7 +145,7 @@ export const abilitiesByWorkspaceStatus = (
 		case "pending": {
 			return {
 				actions: ["pending"],
-				canCancel: false,
+				canCancel: true,
 				canAcceptJobs: false,
 			};
 		}

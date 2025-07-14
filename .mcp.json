@@ -1,0 +1,36 @@
+{
+  "mcpServers": {
+    "go-language-server": {
+      "type": "stdio",
+      "command": "go",
+      "args": [
+        "run",
+        "github.com/isaacphi/mcp-language-server@latest",
+        "-workspace",
+        "./",
+        "-lsp",
+        "go",
+        "--",
+        "run",
+        "golang.org/x/tools/gopls@latest"
+      ],
+      "env": {}
+    },
+    "typescript-language-server": {
+      "type": "stdio",
+      "command": "go",
+      "args": [
+        "run",
+        "github.com/isaacphi/mcp-language-server@latest",
+        "-workspace",
+        "./site/",
+        "-lsp",
+        "pnpx",
+        "--",
+        "typescript-language-server",
+        "--stdio"
+      ],
+      "env": {}
+    }
+  }
+}

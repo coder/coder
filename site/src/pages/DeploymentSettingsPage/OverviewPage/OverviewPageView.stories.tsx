@@ -30,7 +30,7 @@ const meta: Meta<typeof OverviewPageView> = {
 				description:
 					"Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
 				flag: "experiments",
-				value: ["workspace_actions"],
+				value: ["example"],
 				flag_shorthand: "",
 				hidden: false,
 			},
@@ -82,8 +82,8 @@ export const allExperimentsEnabled: Story = {
 				hidden: false,
 			},
 		],
-		safeExperiments: ["shared-ports"],
-		invalidExperiments: ["invalid"],
+		safeExperiments: ["example"],
+		invalidExperiments: [],
 	},
 };
 
@@ -118,7 +118,7 @@ export const invalidExperimentsEnabled: Story = {
 				hidden: false,
 			},
 		],
-		safeExperiments: ["shared-ports"],
+		safeExperiments: ["example"],
 		invalidExperiments: ["invalid"],
 	},
 };

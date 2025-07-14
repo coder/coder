@@ -3,6 +3,7 @@ package agentcontainers_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -10,9 +11,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/assert"
@@ -22,6 +25,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -233,6 +237,99 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("ReadConfig", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name            string
+			logFile         string
+			workspaceFolder string
+			configPath      string
+			opts            []agentcontainers.DevcontainerCLIReadConfigOptions
+			wantArgs        string
+			wantError       bool
+			wantConfig      agentcontainers.DevcontainerConfig
+		}{
+			{
+				name:            "WithCoderCustomization",
+				logFile:         "read-config-with-coder-customization.log",
+				workspaceFolder: "/test/workspace",
+				configPath:      "",
+				wantArgs:        "read-configuration --include-merged-configuration --workspace-folder /test/workspace",
+				wantError:       false,
+				wantConfig: agentcontainers.DevcontainerConfig{
+					MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
+						Customizations: agentcontainers.DevcontainerMergedCustomizations{
+							Coder: []agentcontainers.CoderCustomization{
+								{
+									DisplayApps: map[codersdk.DisplayApp]bool{
+										codersdk.DisplayAppVSCodeDesktop: true,
+										codersdk.DisplayAppWebTerminal:   true,
+									},
+								},
+								{
+									DisplayApps: map[codersdk.DisplayApp]bool{
+										codersdk.DisplayAppVSCodeInsiders: true,
+										codersdk.DisplayAppWebTerminal:    false,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				name:            "WithoutCoderCustomization",
+				logFile:         "read-config-without-coder-customization.log",
+				workspaceFolder: "/test/workspace",
+				configPath:      "/test/config.json",
+				wantArgs:        "read-configuration --include-merged-configuration --workspace-folder /test/workspace --config /test/config.json",
+				wantError:       false,
+				wantConfig: agentcontainers.DevcontainerConfig{
+					MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
+						Customizations: agentcontainers.DevcontainerMergedCustomizations{
+							Coder: nil,
+						},
+					},
+				},
+			},
+			{
+				name:            "FileNotFound",
+				logFile:         "read-config-error-not-found.log",
+				workspaceFolder: "/nonexistent/workspace",
+				configPath:      "",
+				wantArgs:        "read-configuration --include-merged-configuration --workspace-folder /nonexistent/workspace",
+				wantError:       true,
+				wantConfig:      agentcontainers.DevcontainerConfig{},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitMedium)
+
+				testExecer := &testDevcontainerExecer{
+					testExePath: testExePath,
+					wantArgs:    tt.wantArgs,
+					wantError:   tt.wantError,
+					logFile:     filepath.Join("testdata", "devcontainercli", "readconfig", tt.logFile),
+				}
+
+				dccli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
+				config, err := dccli.ReadConfig(ctx, tt.workspaceFolder, tt.configPath, []string{}, tt.opts...)
+				if tt.wantError {
+					assert.Error(t, err, "want error")
+					assert.Equal(t, agentcontainers.DevcontainerConfig{}, config, "expected empty config on error")
+				} else {
+					assert.NoError(t, err, "want no error")
+					assert.Equal(t, tt.wantConfig, config, "expected config to match")
+				}
+			})
+		}
+	})
 }
 
 // TestDevcontainerCLI_WithOutput tests that WithUpOutput and WithExecOutput capture CLI
@@ -246,6 +343,10 @@ func TestDevcontainerCLI_WithOutput(t *testing.T) {
 
 	t.Run("Up", func(t *testing.T) {
 		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows uses CRLF line endings, golden file is LF")
+		}
 
 		// Buffers to capture stdout and stderr.
 		outBuf := &bytes.Buffer{}
@@ -269,7 +370,7 @@ func TestDevcontainerCLI_WithOutput(t *testing.T) {
 		require.NotEmpty(t, containerID, "expected non-empty container ID")
 
 		// Read expected log content.
-		expLog, err := os.ReadFile(filepath.Join("testdata", "devcontainercli", "parse", "up.log"))
+		expLog, err := os.ReadFile(filepath.Join("testdata", "devcontainercli", "parse", "up.golden"))
 		require.NoError(t, err, "reading expected log file")
 
 		// Verify stdout buffer contains the CLI logs and stderr is empty.
@@ -492,7 +593,7 @@ func setupDevcontainerWorkspace(t *testing.T, workspaceFolder string) string {
 	"containerEnv": {
 		"TEST_CONTAINER": "true"
 	},
-	"runArgs": ["--label", "com.coder.test=devcontainercli"]
+	"runArgs": ["--label=com.coder.test=devcontainercli", "--label=` + agentcontainers.DevcontainerIsTestRunLabel + `=true"]
 }`
 	err = os.WriteFile(configPath, []byte(content), 0o600)
 	require.NoError(t, err, "create devcontainer.json file")
@@ -541,5 +642,109 @@ func removeDevcontainerByID(t *testing.T, pool *dockertest.Pool, id string) {
 	})
 	if err != nil && !errors.As(err, &errNoSuchContainer) {
 		assert.NoError(t, err, "remove container failed")
+	}
+}
+
+func TestDevcontainerFeatures_OptionsAsEnvs(t *testing.T) {
+	t.Parallel()
+
+	realConfigJSON := `{
+		"mergedConfiguration": {
+			"features": {
+				"./code-server": {
+					"port": 9090
+				},
+				"ghcr.io/devcontainers/features/docker-in-docker:2": {
+					"moby": "false"
+				}
+			}
+		}
+	}`
+	var realConfig agentcontainers.DevcontainerConfig
+	err := json.Unmarshal([]byte(realConfigJSON), &realConfig)
+	require.NoError(t, err, "unmarshal JSON payload")
+
+	tests := []struct {
+		name     string
+		features agentcontainers.DevcontainerFeatures
+		want     []string
+	}{
+		{
+			name: "code-server feature",
+			features: agentcontainers.DevcontainerFeatures{
+				"./code-server": map[string]any{
+					"port": 9090,
+				},
+			},
+			want: []string{
+				"FEATURE_CODE_SERVER_OPTION_PORT=9090",
+			},
+		},
+		{
+			name: "docker-in-docker feature",
+			features: agentcontainers.DevcontainerFeatures{
+				"ghcr.io/devcontainers/features/docker-in-docker:2": map[string]any{
+					"moby": "false",
+				},
+			},
+			want: []string{
+				"FEATURE_DOCKER_IN_DOCKER_OPTION_MOBY=false",
+			},
+		},
+		{
+			name: "multiple features with multiple options",
+			features: agentcontainers.DevcontainerFeatures{
+				"./code-server": map[string]any{
+					"port":     9090,
+					"password": "secret",
+				},
+				"ghcr.io/devcontainers/features/docker-in-docker:2": map[string]any{
+					"moby":                        "false",
+					"docker-dash-compose-version": "v2",
+				},
+			},
+			want: []string{
+				"FEATURE_CODE_SERVER_OPTION_PASSWORD=secret",
+				"FEATURE_CODE_SERVER_OPTION_PORT=9090",
+				"FEATURE_DOCKER_IN_DOCKER_OPTION_DOCKER_DASH_COMPOSE_VERSION=v2",
+				"FEATURE_DOCKER_IN_DOCKER_OPTION_MOBY=false",
+			},
+		},
+		{
+			name: "feature with non-map value (should be ignored)",
+			features: agentcontainers.DevcontainerFeatures{
+				"./code-server": map[string]any{
+					"port": 9090,
+				},
+				"./invalid-feature": "not-a-map",
+			},
+			want: []string{
+				"FEATURE_CODE_SERVER_OPTION_PORT=9090",
+			},
+		},
+		{
+			name:     "real config example",
+			features: realConfig.MergedConfiguration.Features,
+			want: []string{
+				"FEATURE_CODE_SERVER_OPTION_PORT=9090",
+				"FEATURE_DOCKER_IN_DOCKER_OPTION_MOBY=false",
+			},
+		},
+		{
+			name:     "empty features",
+			features: agentcontainers.DevcontainerFeatures{},
+			want:     nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.features.OptionsAsEnvs()
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				require.Failf(t, "OptionsAsEnvs() mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
 }

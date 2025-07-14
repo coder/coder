@@ -79,21 +79,6 @@ func New(opts Options) *Runner {
 
 type ScriptCompletedFunc func(context.Context, *proto.WorkspaceAgentScriptCompletedRequest) (*proto.WorkspaceAgentScriptCompletedResponse, error)
 
-type runnerScript struct {
-	runOnPostStart bool
-	codersdk.WorkspaceAgentScript
-}
-
-func toRunnerScript(scripts ...codersdk.WorkspaceAgentScript) []runnerScript {
-	var rs []runnerScript
-	for _, s := range scripts {
-		rs = append(rs, runnerScript{
-			WorkspaceAgentScript: s,
-		})
-	}
-	return rs
-}
-
 type Runner struct {
 	Options
 
@@ -103,7 +88,7 @@ type Runner struct {
 	closed          chan struct{}
 	closeMutex      sync.Mutex
 	cron            *cron.Cron
-	scripts         []runnerScript
+	scripts         []codersdk.WorkspaceAgentScript
 	dataDir         string
 	scriptCompleted ScriptCompletedFunc
 
@@ -138,19 +123,6 @@ func (r *Runner) RegisterMetrics(reg prometheus.Registerer) {
 // InitOption describes an option for the runner initialization.
 type InitOption func(*Runner)
 
-// WithPostStartScripts adds scripts that should be run after the workspace
-// start scripts but before the workspace is marked as started.
-func WithPostStartScripts(scripts ...codersdk.WorkspaceAgentScript) InitOption {
-	return func(r *Runner) {
-		for _, s := range scripts {
-			r.scripts = append(r.scripts, runnerScript{
-				runOnPostStart:       true,
-				WorkspaceAgentScript: s,
-			})
-		}
-	}
-}
-
 // Init initializes the runner with the provided scripts.
 // It also schedules any scripts that have a schedule.
 // This function must be called before Execute.
@@ -161,7 +133,7 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript, scriptCompleted S
 		return xerrors.New("init: already initialized")
 	}
 	r.initialized = true
-	r.scripts = toRunnerScript(scripts...)
+	r.scripts = scripts
 	r.scriptCompleted = scriptCompleted
 	for _, opt := range opts {
 		opt(r)
@@ -177,9 +149,8 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript, scriptCompleted S
 		if script.Cron == "" {
 			continue
 		}
-		script := script
 		_, err := r.cron.AddFunc(script.Cron, func() {
-			err := r.trackRun(r.cronCtx, script.WorkspaceAgentScript, ExecuteCronScripts)
+			err := r.trackRun(r.cronCtx, script, ExecuteCronScripts)
 			if err != nil {
 				r.Logger.Warn(context.Background(), "run agent script on schedule", slog.Error(err))
 			}
@@ -223,7 +194,6 @@ type ExecuteOption int
 const (
 	ExecuteAllScripts ExecuteOption = iota
 	ExecuteStartScripts
-	ExecutePostStartScripts
 	ExecuteStopScripts
 	ExecuteCronScripts
 )
@@ -246,7 +216,6 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 	for _, script := range r.scripts {
 		runScript := (option == ExecuteStartScripts && script.RunOnStart) ||
 			(option == ExecuteStopScripts && script.RunOnStop) ||
-			(option == ExecutePostStartScripts && script.runOnPostStart) ||
 			(option == ExecuteCronScripts && script.Cron != "") ||
 			option == ExecuteAllScripts
 
@@ -254,9 +223,8 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 			continue
 		}
 
-		script := script
 		eg.Go(func() error {
-			err := r.trackRun(ctx, script.WorkspaceAgentScript, option)
+			err := r.trackRun(ctx, script, option)
 			if err != nil {
 				return xerrors.Errorf("run agent script %q: %w", script.LogSourceID, err)
 			}

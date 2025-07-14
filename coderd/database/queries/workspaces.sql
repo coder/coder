@@ -116,7 +116,8 @@ SELECT
 	latest_build.canceled_at as latest_build_canceled_at,
 	latest_build.error as latest_build_error,
 	latest_build.transition as latest_build_transition,
-	latest_build.job_status as latest_build_status
+	latest_build.job_status as latest_build_status,
+	latest_build.has_ai_task as latest_build_has_ai_task
 FROM
 	workspaces_expanded as workspaces
 JOIN
@@ -128,6 +129,7 @@ LEFT JOIN LATERAL (
 		workspace_builds.id,
 		workspace_builds.transition,
 		workspace_builds.template_version_id,
+		workspace_builds.has_ai_task,
 		template_versions.name AS template_version_name,
 		provisioner_jobs.id AS provisioner_job_id,
 		provisioner_jobs.started_at,
@@ -301,6 +303,8 @@ WHERE
 				WHERE
 					workspace_resources.job_id = latest_build.provisioner_job_id AND
 					latest_build.transition = 'start'::workspace_transition AND
+					-- Filter out deleted sub agents.
+					workspace_agents.deleted = FALSE AND
 					@has_agent = (
 						CASE
 							WHEN workspace_agents.first_connected_at IS NULL THEN
@@ -344,6 +348,27 @@ WHERE
 		  WHEN sqlc.narg('using_active') :: boolean IS NOT NULL THEN
 			  (latest_build.template_version_id = template.active_version_id) = sqlc.narg('using_active') :: boolean
 		  ELSE true
+	END
+	-- Filter by has_ai_task in latest build
+	AND CASE
+		WHEN sqlc.narg('has_ai_task') :: boolean IS NOT NULL THEN
+			(COALESCE(latest_build.has_ai_task, false) OR (
+				-- If the build has no AI task, it means that the provisioner job is in progress
+				-- and we don't know if it has an AI task yet. In this case, we optimistically
+				-- assume that it has an AI task if the AI Prompt parameter is not empty. This
+				-- lets the AI Task frontend spawn a task and see it immediately after instead of
+				-- having to wait for the build to complete.
+				latest_build.has_ai_task IS NULL AND
+				latest_build.completed_at IS NULL AND
+				EXISTS (
+					SELECT 1
+					FROM workspace_build_parameters
+					WHERE workspace_build_parameters.workspace_build_id = latest_build.id
+					AND workspace_build_parameters.name = 'AI Prompt'
+					AND workspace_build_parameters.value != ''
+				)
+			)) = (sqlc.narg('has_ai_task') :: boolean)
+		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
@@ -411,7 +436,8 @@ WHERE
 		'0001-01-01 00:00:00+00'::timestamptz, -- latest_build_canceled_at,
 		'', -- latest_build_error
 		'start'::workspace_transition, -- latest_build_transition
-		'unknown'::provisioner_job_status -- latest_build_status
+		'unknown'::provisioner_job_status, -- latest_build_status
+		false -- latest_build_has_ai_task
 	WHERE
 		@with_summary :: boolean = true
 ), total_count AS (
@@ -616,7 +642,8 @@ FROM pending_workspaces, building_workspaces, running_workspaces, failed_workspa
 -- name: GetWorkspacesEligibleForTransition :many
 SELECT
 	workspaces.id,
-	workspaces.name
+	workspaces.name,
+	workspace_builds.template_version_id as build_template_version_id
 FROM
 	workspaces
 LEFT JOIN
@@ -731,7 +758,12 @@ WHERE
 			provisioner_jobs.completed_at IS NOT NULL AND
 			(@now :: timestamptz) - provisioner_jobs.completed_at > (INTERVAL '1 millisecond' * (templates.failure_ttl / 1000000))
 		)
-	) AND workspaces.deleted = 'false';
+	)
+  	AND workspaces.deleted = 'false'
+  	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- should not be considered by the lifecycle executor, as they are handled by the
+	-- prebuilds reconciliation loop.
+  	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID;
 
 -- name: UpdateWorkspaceDormantDeletingAt :one
 UPDATE
@@ -822,7 +854,11 @@ LEFT JOIN LATERAL (
 		workspace_agents.name as agent_name,
 		job_id
 	FROM workspace_resources
-	JOIN workspace_agents ON workspace_agents.resource_id = workspace_resources.id
+	JOIN workspace_agents ON (
+		workspace_agents.resource_id = workspace_resources.id
+		-- Filter out deleted sub agents.
+		AND workspace_agents.deleted = FALSE
+	)
 	WHERE job_id = latest_build.job_id
 ) resources ON true
 WHERE

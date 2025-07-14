@@ -41,7 +41,6 @@ func TestWrapDockerExec(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt // appease the linter even though this isn't needed anymore
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			actualCmd, actualArgs := wrapDockerExec("my-container", tt.containerUser, tt.cmdArgs[0], tt.cmdArgs[1:]...)
@@ -54,7 +53,6 @@ func TestWrapDockerExec(t *testing.T) {
 func TestConvertDockerPort(t *testing.T) {
 	t.Parallel()
 
-	//nolint:paralleltest // variable recapture no longer required
 	for _, tc := range []struct {
 		name          string
 		in            string
@@ -101,7 +99,6 @@ func TestConvertDockerPort(t *testing.T) {
 			expectError: "invalid port",
 		},
 	} {
-		//nolint: paralleltest // variable recapture no longer required
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			actualPort, actualNetwork, actualErr := convertDockerPort(tc.in)
@@ -151,7 +148,6 @@ func TestConvertDockerVolume(t *testing.T) {
 			expectError: "invalid volume",
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 		})

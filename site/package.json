@@ -34,8 +34,6 @@
 		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis"
 	},
 	"dependencies": {
-		"@ai-sdk/provider-utils": "2.2.6",
-		"@ai-sdk/react": "1.2.6",
 		"@emoji-mart/data": "1.2.1",
 		"@emoji-mart/react": "1.1.1",
 		"@emotion/cache": "11.14.0",
@@ -64,6 +62,7 @@
 		"@radix-ui/react-radio-group": "1.2.3",
 		"@radix-ui/react-scroll-area": "1.2.3",
 		"@radix-ui/react-select": "2.1.4",
+		"@radix-ui/react-separator": "1.1.7",
 		"@radix-ui/react-slider": "1.2.2",
 		"@radix-ui/react-slot": "1.1.1",
 		"@radix-ui/react-switch": "1.1.1",
@@ -103,13 +102,13 @@
 		"react-helmet-async": "2.0.5",
 		"react-markdown": "9.0.3",
 		"react-query": "npm:@tanstack/react-query@5.77.0",
+		"react-resizable-panels": "3.0.3",
 		"react-router-dom": "6.26.2",
 		"react-syntax-highlighter": "15.6.1",
 		"react-textarea-autosize": "8.5.9",
 		"react-virtualized-auto-sizer": "1.0.24",
 		"react-window": "1.8.11",
 		"recharts": "2.15.0",
-		"rehype-raw": "7.0.0",
 		"remark-gfm": "4.0.0",
 		"resize-observer-polyfill": "1.5.1",
 		"semver": "7.6.2",
@@ -121,6 +120,7 @@
 		"undici": "6.21.2",
 		"unique-names-generator": "4.7.1",
 		"uuid": "9.0.1",
+		"websocket-ts": "2.2.1",
 		"yup": "1.6.1"
 	},
 	"devDependencies": {

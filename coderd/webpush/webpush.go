@@ -103,7 +103,6 @@ func (n *Webpusher) Dispatch(ctx context.Context, userID uuid.UUID, msg codersdk
 	var mu sync.Mutex
 	var eg errgroup.Group
 	for _, subscription := range subscriptions {
-		subscription := subscription
 		eg.Go(func() error {
 			// TODO: Implement some retry logic here. For now, this is just a
 			// best-effort attempt.

@@ -16,16 +16,18 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
+	previewtypes "github.com/coder/preview/types"
+
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
-	previewtypes "github.com/coder/preview/types"
 )
 
 // List is a helper function to reduce boilerplate when converting slices of
@@ -94,6 +96,49 @@ func TemplateVersionParameters(params []database.TemplateVersionParameter) ([]co
 	}
 
 	return out, nil
+}
+
+func TemplateVersionParameterFromPreview(param previewtypes.Parameter) (codersdk.TemplateVersionParameter, error) {
+	descriptionPlaintext, err := render.PlaintextFromMarkdown(param.Description)
+	if err != nil {
+		return codersdk.TemplateVersionParameter{}, err
+	}
+
+	sdkParam := codersdk.TemplateVersionParameter{
+		Name:                 param.Name,
+		DisplayName:          param.DisplayName,
+		Description:          param.Description,
+		DescriptionPlaintext: descriptionPlaintext,
+		Type:                 string(param.Type),
+		FormType:             string(param.FormType),
+		Mutable:              param.Mutable,
+		DefaultValue:         param.DefaultValue.AsString(),
+		Icon:                 param.Icon,
+		Required:             param.Required,
+		Ephemeral:            param.Ephemeral,
+		Options:              List(param.Options, TemplateVersionParameterOptionFromPreview),
+		// Validation set after
+	}
+	if len(param.Validations) > 0 {
+		validation := param.Validations[0]
+		sdkParam.ValidationError = validation.Error
+		if validation.Monotonic != nil {
+			sdkParam.ValidationMonotonic = codersdk.ValidationMonotonicOrder(*validation.Monotonic)
+		}
+		if validation.Regex != nil {
+			sdkParam.ValidationRegex = *validation.Regex
+		}
+		if validation.Min != nil {
+			//nolint:gosec // No other choice
+			sdkParam.ValidationMin = ptr.Ref(int32(*validation.Min))
+		}
+		if validation.Max != nil {
+			//nolint:gosec // No other choice
+			sdkParam.ValidationMax = ptr.Ref(int32(*validation.Max))
+		}
+	}
+
+	return sdkParam, nil
 }
 
 func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk.TemplateVersionParameter, error) {
@@ -297,6 +342,15 @@ func templateVersionParameterOptions(rawOptions json.RawMessage) ([]codersdk.Tem
 		})
 	}
 	return options, nil
+}
+
+func TemplateVersionParameterOptionFromPreview(option *previewtypes.ParameterOption) codersdk.TemplateVersionParameterOption {
+	return codersdk.TemplateVersionParameterOption{
+		Name:        option.Name,
+		Description: option.Description,
+		Value:       option.Value.AsString(),
+		Icon:        option.Icon,
+	}
 }
 
 func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
@@ -750,19 +804,6 @@ func AgentProtoConnectionActionToAuditAction(action database.AuditAction) (agent
 	}
 }
 
-func Chat(chat database.Chat) codersdk.Chat {
-	return codersdk.Chat{
-		ID:        chat.ID,
-		Title:     chat.Title,
-		CreatedAt: chat.CreatedAt,
-		UpdatedAt: chat.UpdatedAt,
-	}
-}
-
-func Chats(chats []database.Chat) []codersdk.Chat {
-	return List(chats, Chat)
-}
-
 func PreviewParameter(param previewtypes.Parameter) codersdk.PreviewParameter {
 	return codersdk.PreviewParameter{
 		PreviewParameterData: codersdk.PreviewParameterData{
@@ -775,6 +816,7 @@ func PreviewParameter(param previewtypes.Parameter) codersdk.PreviewParameter {
 				Placeholder: param.Styling.Placeholder,
 				Disabled:    param.Styling.Disabled,
 				Label:       param.Styling.Label,
+				MaskInput:   param.Styling.MaskInput,
 			},
 			Mutable:      param.Mutable,
 			DefaultValue: PreviewHCLString(param.DefaultValue),

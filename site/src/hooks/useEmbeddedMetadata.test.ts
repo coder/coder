@@ -5,6 +5,7 @@ import {
 	MockBuildInfo,
 	MockEntitlements,
 	MockExperiments,
+	MockTasksTabVisible,
 	MockUserAppearanceSettings,
 	MockUserOwner,
 } from "testHelpers/entities";
@@ -41,6 +42,7 @@ const mockDataForTags = {
 	user: MockUserOwner,
 	userAppearance: MockUserAppearanceSettings,
 	regions: MockRegions,
+	"tasks-tab-visible": MockTasksTabVisible,
 } as const satisfies Record<MetadataKey, MetadataValue>;
 
 const emptyMetadata: RuntimeHtmlMetadata = {
@@ -69,6 +71,10 @@ const emptyMetadata: RuntimeHtmlMetadata = {
 		value: undefined,
 	},
 	userAppearance: {
+		available: false,
+		value: undefined,
+	},
+	"tasks-tab-visible": {
 		available: false,
 		value: undefined,
 	},
@@ -102,6 +108,10 @@ const populatedMetadata: RuntimeHtmlMetadata = {
 	userAppearance: {
 		available: true,
 		value: MockUserAppearanceSettings,
+	},
+	"tasks-tab-visible": {
+		available: true,
+		value: MockTasksTabVisible,
 	},
 };
 

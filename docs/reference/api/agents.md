@@ -777,8 +777,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
   "containers": [
     {
       "created_at": "2019-08-24T14:15:22Z",
-      "devcontainer_dirty": true,
-      "devcontainer_status": "running",
       "id": "string",
       "image": "string",
       "labels": {
@@ -802,6 +800,46 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
       }
     }
   ],
+  "devcontainers": [
+    {
+      "agent": {
+        "directory": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      },
+      "config_path": "string",
+      "container": {
+        "created_at": "2019-08-24T14:15:22Z",
+        "id": "string",
+        "image": "string",
+        "labels": {
+          "property1": "string",
+          "property2": "string"
+        },
+        "name": "string",
+        "ports": [
+          {
+            "host_ip": "string",
+            "host_port": 0,
+            "network": "string",
+            "port": 0
+          }
+        ],
+        "running": true,
+        "status": "string",
+        "volumes": {
+          "property1": "string",
+          "property2": "string"
+        }
+      },
+      "dirty": true,
+      "error": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "status": "running",
+      "workspace_folder": "string"
+    }
+  ],
   "warnings": [
     "string"
   ]
@@ -822,19 +860,19 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/container/{container}/recreate \
+curl -X POST http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /workspaceagents/{workspaceagent}/containers/devcontainers/container/{container}/recreate`
+`POST /workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate`
 
 ### Parameters
 
-| Name             | In   | Type         | Required | Description          |
-|------------------|------|--------------|----------|----------------------|
-| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID   |
-| `container`      | path | string       | true     | Container ID or name |
+| Name             | In   | Type         | Required | Description        |
+|------------------|------|--------------|----------|--------------------|
+| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
+| `devcontainer`   | path | string       | true     | Devcontainer ID    |
 
 ### Example responses
 

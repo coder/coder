@@ -11,6 +11,7 @@ import (
 	"time"
 
 	gliderssh "github.com/gliderlabs/ssh"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -345,4 +346,101 @@ func newAsyncCloser(ctx context.Context, t *testing.T) *asyncCloser {
 		isComplete: make(chan struct{}),
 		started:    make(chan struct{}),
 	}
+}
+
+func Test_getWorkspaceAgent(t *testing.T) {
+	t.Parallel()
+
+	createWorkspaceWithAgents := func(agents []codersdk.WorkspaceAgent) codersdk.Workspace {
+		return codersdk.Workspace{
+			Name: "test-workspace",
+			LatestBuild: codersdk.WorkspaceBuild{
+				Resources: []codersdk.WorkspaceResource{
+					{
+						Agents: agents,
+					},
+				},
+			},
+		}
+	}
+
+	createAgent := func(name string) codersdk.WorkspaceAgent {
+		return codersdk.WorkspaceAgent{
+			ID:   uuid.New(),
+			Name: name,
+		}
+	}
+
+	t.Run("SingleAgent_NoNameSpecified", func(t *testing.T) {
+		t.Parallel()
+		agent := createAgent("main")
+		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent})
+
+		result, _, err := getWorkspaceAgent(workspace, "")
+		require.NoError(t, err)
+		assert.Equal(t, agent.ID, result.ID)
+		assert.Equal(t, "main", result.Name)
+	})
+
+	t.Run("MultipleAgents_NoNameSpecified", func(t *testing.T) {
+		t.Parallel()
+		agent1 := createAgent("main1")
+		agent2 := createAgent("main2")
+		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent1, agent2})
+
+		_, _, err := getWorkspaceAgent(workspace, "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "multiple agents found")
+		assert.Contains(t, err.Error(), "available agents: [main1 main2]")
+	})
+
+	t.Run("AgentNameSpecified_Found", func(t *testing.T) {
+		t.Parallel()
+		agent1 := createAgent("main1")
+		agent2 := createAgent("main2")
+		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent1, agent2})
+
+		result, other, err := getWorkspaceAgent(workspace, "main1")
+		require.NoError(t, err)
+		assert.Equal(t, agent1.ID, result.ID)
+		assert.Equal(t, "main1", result.Name)
+		assert.Len(t, other, 1)
+		assert.Equal(t, agent2.ID, other[0].ID)
+		assert.Equal(t, "main2", other[0].Name)
+	})
+
+	t.Run("AgentNameSpecified_NotFound", func(t *testing.T) {
+		t.Parallel()
+		agent1 := createAgent("main1")
+		agent2 := createAgent("main2")
+		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent1, agent2})
+
+		_, _, err := getWorkspaceAgent(workspace, "nonexistent")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `agent not found by name "nonexistent"`)
+		assert.Contains(t, err.Error(), "available agents: [main1 main2]")
+	})
+
+	t.Run("NoAgents", func(t *testing.T) {
+		t.Parallel()
+		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{})
+
+		_, _, err := getWorkspaceAgent(workspace, "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `workspace "test-workspace" has no agents`)
+	})
+
+	t.Run("AvailableAgentNames_SortedCorrectly", func(t *testing.T) {
+		t.Parallel()
+		// Define agents in non-alphabetical order.
+		agent2 := createAgent("zod")
+		agent1 := createAgent("clark")
+		agent3 := createAgent("krypton")
+		workspace := createWorkspaceWithAgents([]codersdk.WorkspaceAgent{agent2, agent1, agent3})
+
+		_, _, err := getWorkspaceAgent(workspace, "nonexistent")
+		require.Error(t, err)
+		// Available agents should be sorted alphabetically.
+		assert.Contains(t, err.Error(), "available agents: [clark krypton zod]")
+	})
 }

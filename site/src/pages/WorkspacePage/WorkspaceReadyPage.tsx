@@ -1,5 +1,6 @@
 import { API } from "api/api";
-import { getErrorMessage } from "api/errors";
+import { type ApiError, getErrorMessage } from "api/errors";
+import { isApiError } from "api/errors";
 import { templateVersion } from "api/queries/templates";
 import { workspaceBuildTimings } from "api/queries/workspaceBuilds";
 import {
@@ -17,6 +18,9 @@ import {
 } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
+import { EphemeralParametersDialog } from "modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
+import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
+import { WorkspaceBuildCancelDialog } from "modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
 import {
 	WorkspaceUpdateDialogs,
 	useWorkspaceUpdate,
@@ -53,9 +57,38 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		open: boolean;
 		buildParameters?: TypesGen.WorkspaceBuildParameter[];
 	}>({ open: false });
+
+	const [workspaceErrorDialog, setWorkspaceErrorDialog] = useState<{
+		open: boolean;
+		error?: ApiError;
+	}>({ open: false });
+
+	const handleError = (error: unknown) => {
+		if (isApiError(error) && error.code === "ERR_BAD_REQUEST") {
+			setWorkspaceErrorDialog({
+				open: true,
+				error: error,
+			});
+		} else {
+			displayError(getErrorMessage(error, "Failed to build workspace."));
+		}
+	};
+
+	const [ephemeralParametersDialog, setEphemeralParametersDialog] = useState<{
+		open: boolean;
+		action: "start" | "restart";
+		buildParameters?: TypesGen.WorkspaceBuildParameter[];
+		ephemeralParameters: TypesGen.TemplateVersionParameter[];
+	}>({ open: false, action: "start", ephemeralParameters: [] });
+
+	const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+
 	const { mutate: mutateRestartWorkspace, isPending: isRestarting } =
 		useMutation({
 			mutationFn: API.restartWorkspace,
+			onError: (error: unknown) => {
+				handleError(error);
+			},
 		});
 
 	// Favicon
@@ -84,32 +117,52 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	});
 
 	// Delete workspace
-	const deleteWorkspaceMutation = useMutation(
-		deleteWorkspace(workspace, queryClient),
-	);
+	const deleteWorkspaceMutation = useMutation({
+		...deleteWorkspace(workspace, queryClient),
+		onError: (error: unknown) => {
+			handleError(error);
+		},
+	});
 
 	// Activate workspace
-	const activateWorkspaceMutation = useMutation(
-		activate(workspace, queryClient),
-	);
+	const activateWorkspaceMutation = useMutation({
+		...activate(workspace, queryClient),
+		onError: (error: unknown) => {
+			handleError(error);
+		},
+	});
 
 	// Stop workspace
-	const stopWorkspaceMutation = useMutation(
-		stopWorkspace(workspace, queryClient),
-	);
+	const stopWorkspaceMutation = useMutation({
+		...stopWorkspace(workspace, queryClient),
+		onError: (error: unknown) => {
+			handleError(error);
+		},
+	});
 
 	// Start workspace
-	const startWorkspaceMutation = useMutation(
-		startWorkspace(workspace, queryClient),
-	);
+	const startWorkspaceMutation = useMutation({
+		...startWorkspace(workspace, queryClient),
+		onError: (error: unknown) => {
+			handleError(error);
+		},
+	});
 
 	// Toggle workspace favorite
-	const toggleFavoriteMutation = useMutation(
-		toggleFavorite(workspace, queryClient),
-	);
+	const toggleFavoriteMutation = useMutation({
+		...toggleFavorite(workspace, queryClient),
+		onError: (error: unknown) => {
+			handleError(error);
+		},
+	});
 
 	// Cancel build
-	const cancelBuildMutation = useMutation(cancelBuild(workspace, queryClient));
+	const cancelBuildMutation = useMutation({
+		...cancelBuild(workspace, queryClient),
+		onError: (error: unknown) => {
+			handleError(error);
+		},
+	});
 
 	// Workspace Timings.
 	const timingsQuery = useQuery({
@@ -137,38 +190,76 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		},
 	});
 
-	const runLastBuild = (
+	const checkEphemeralParameters = async (
+		buildParameters?: TypesGen.WorkspaceBuildParameter[],
+	) => {
+		if (workspace.template_use_classic_parameter_flow) {
+			return { hasEphemeral: false, ephemeralParameters: [] };
+		}
+
+		try {
+			const dynamicParameters = await API.getDynamicParameters(
+				workspace.latest_build.template_version_id,
+				workspace.owner_id,
+				buildParameters || [],
+			);
+
+			const ephemeralParameters = dynamicParameters.filter(
+				(param) => param.ephemeral,
+			);
+
+			return {
+				hasEphemeral: ephemeralParameters.length > 0,
+				ephemeralParameters,
+			};
+		} catch (error) {
+			return { hasEphemeral: false, ephemeralParameters: [] };
+		}
+	};
+
+	const runLastBuild = async (
 		buildParameters: TypesGen.WorkspaceBuildParameter[] | undefined,
 		debug: boolean,
 	) => {
 		const logLevel = debug ? "debug" : undefined;
 
-		switch (workspace.latest_build.transition) {
-			case "start":
-				startWorkspaceMutation.mutate({
-					logLevel,
-					buildParameters,
-				});
-				break;
-			case "stop":
-				stopWorkspaceMutation.mutate({ logLevel });
-				break;
-			case "delete":
-				deleteWorkspaceMutation.mutate({ log_level: logLevel });
-				break;
+		const { hasEphemeral, ephemeralParameters } =
+			await checkEphemeralParameters(buildParameters);
+		if (hasEphemeral) {
+			setEphemeralParametersDialog({
+				open: true,
+				action: "start",
+				buildParameters,
+				ephemeralParameters,
+			});
+		} else {
+			switch (workspace.latest_build.transition) {
+				case "start":
+					startWorkspaceMutation.mutate({
+						logLevel,
+						buildParameters,
+					});
+					break;
+				case "stop":
+					stopWorkspaceMutation.mutate({ logLevel });
+					break;
+				case "delete":
+					deleteWorkspaceMutation.mutate({ log_level: logLevel });
+					break;
+			}
 		}
 	};
 
-	const handleRetry = (
+	const handleRetry = async (
 		buildParameters?: TypesGen.WorkspaceBuildParameter[],
 	) => {
-		runLastBuild(buildParameters, false);
+		await runLastBuild(buildParameters, false);
 	};
 
-	const handleDebug = (
+	const handleDebug = async (
 		buildParameters?: TypesGen.WorkspaceBuildParameter[],
 	) => {
-		runLastBuild(buildParameters, true);
+		await runLastBuild(buildParameters, true);
 	};
 
 	return (
@@ -196,17 +287,39 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				template={template}
 				buildLogs={buildLogs}
 				timings={timingsQuery.data}
-				handleStart={(buildParameters) => {
-					startWorkspaceMutation.mutate({ buildParameters });
+				handleStart={async (buildParameters) => {
+					const { hasEphemeral, ephemeralParameters } =
+						await checkEphemeralParameters(buildParameters);
+					if (hasEphemeral) {
+						setEphemeralParametersDialog({
+							open: true,
+							action: "start",
+							buildParameters,
+							ephemeralParameters,
+						});
+					} else {
+						startWorkspaceMutation.mutate({ buildParameters });
+					}
 				}}
 				handleStop={() => {
 					stopWorkspaceMutation.mutate({});
 				}}
-				handleRestart={(buildParameters) => {
-					setConfirmingRestart({ open: true, buildParameters });
+				handleRestart={async (buildParameters) => {
+					const { hasEphemeral, ephemeralParameters } =
+						await checkEphemeralParameters(buildParameters);
+					if (hasEphemeral) {
+						setEphemeralParametersDialog({
+							open: true,
+							action: "restart",
+							buildParameters,
+							ephemeralParameters,
+						});
+					} else {
+						setConfirmingRestart({ open: true, buildParameters });
+					}
 				}}
 				handleUpdate={workspaceUpdate.update}
-				handleCancel={cancelBuildMutation.mutate}
+				handleCancel={() => setIsCancelConfirmOpen(true)}
 				handleRetry={handleRetry}
 				handleDebug={handleDebug}
 				handleDormantActivate={async () => {
@@ -242,7 +355,58 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				}
 			/>
 
+			<WorkspaceBuildCancelDialog
+				open={isCancelConfirmOpen}
+				onClose={() => setIsCancelConfirmOpen(false)}
+				onConfirm={() => {
+					cancelBuildMutation.mutate();
+					setIsCancelConfirmOpen(false);
+				}}
+				workspace={workspace}
+			/>
+
+			<EphemeralParametersDialog
+				open={ephemeralParametersDialog.open}
+				onClose={() =>
+					setEphemeralParametersDialog({
+						...ephemeralParametersDialog,
+						open: false,
+					})
+				}
+				onContinue={() => {
+					if (ephemeralParametersDialog.action === "start") {
+						startWorkspaceMutation.mutate({
+							buildParameters: ephemeralParametersDialog.buildParameters,
+						});
+					} else {
+						setConfirmingRestart({
+							open: true,
+							buildParameters: ephemeralParametersDialog.buildParameters,
+						});
+					}
+					setEphemeralParametersDialog({
+						...ephemeralParametersDialog,
+						open: false,
+					});
+				}}
+				ephemeralParameters={ephemeralParametersDialog.ephemeralParameters}
+				workspaceOwner={workspace.owner_name}
+				workspaceName={workspace.name}
+				templateVersionId={workspace.latest_build.template_version_id}
+			/>
+
 			<WorkspaceUpdateDialogs {...workspaceUpdate.dialogs} />
+
+			<WorkspaceErrorDialog
+				open={workspaceErrorDialog.open}
+				error={workspaceErrorDialog.error}
+				onClose={() => setWorkspaceErrorDialog({ open: false })}
+				showDetail={workspace.template_use_classic_parameter_flow}
+				workspaceOwner={workspace.owner_name}
+				workspaceName={workspace.name}
+				templateVersionId={workspace.latest_build.template_version_id}
+				isDeleting={false}
+			/>
 		</>
 	);
 };

@@ -171,7 +171,7 @@ resource "coder_agent" "main" {
 Because Docker is running locally in the Coder server, there is no need to
 authenticate `coder_agent`. But if your `coder_agent` is running on a remote
 host, your template will need
-[authentication credentials](../admin/external-auth.md).
+[authentication credentials](../admin/external-auth/index.md).
 
 This template's agent also runs a startup script, sets environment variables,
 and provides metadata.
@@ -181,7 +181,7 @@ and provides metadata.
   - Installs [code-server](https://coder.com/docs/code-server), a browser-based
     [VS Code](https://code.visualstudio.com/) app that runs in the workspace.
 
-    We'll give users access to code-server through `coder_app`, later.
+    We'll give users access to code-server through `coder_app` later.
 
 - [`env` block](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#env)
 
@@ -351,11 +351,11 @@ use the Coder CLI.
 
 1. In your web browser, enter your credentials:
 
-   <Image height="412px" src="../images/templates/coder-login-web.png" alt="Log in to your Coder deployment" align="center" />
+   ![Log in to your Coder deployment](../images/screenshots/coder-login.png)
 
 1. Copy the session token to the clipboard:
 
-   <Image height="472px" src="../images/templates/coder-session-token.png" alt="Copy session token" align="center" />
+   ![Copy session token](../images/templates/coder-session-token.png)
 
 1. Paste it into the CLI:
 

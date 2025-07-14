@@ -58,7 +58,7 @@ func TestAPIKey(t *testing.T) {
 			assert.NoError(t, err, "actor rego ok")
 		}
 
-		auth, ok := httpmw.UserAuthorizationOptional(r)
+		auth, ok := httpmw.UserAuthorizationOptional(r.Context())
 		assert.True(t, ok, "httpmw auth ok")
 		if ok {
 			_, err := auth.Roles.Expand()
@@ -904,7 +904,7 @@ func TestAPIKey(t *testing.T) {
 		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			assertActorOk(t, r)
 
-			auth := httpmw.UserAuthorization(r)
+			auth := httpmw.UserAuthorization(r.Context())
 
 			roles, err := auth.Roles.Expand()
 			assert.NoError(t, err, "expand user roles")
@@ -968,7 +968,7 @@ func TestAPIKey(t *testing.T) {
 			RedirectToLogin: false,
 		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			assertActorOk(t, r)
-			auth := httpmw.UserAuthorization(r)
+			auth := httpmw.UserAuthorization(r.Context())
 
 			roles, err := auth.Roles.Expand()
 			assert.NoError(t, err, "expand user roles")

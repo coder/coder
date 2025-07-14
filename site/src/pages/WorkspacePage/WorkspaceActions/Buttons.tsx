@@ -3,9 +3,9 @@ import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
 import {
 	BanIcon,
-	CirclePlayIcon,
 	CircleStopIcon,
 	CloudIcon,
+	PlayIcon,
 	PowerIcon,
 	RotateCcwIcon,
 	StarIcon,
@@ -19,21 +19,41 @@ export interface ActionButtonProps {
 	handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
 	disabled?: boolean;
 	tooltipText?: string;
+	isRunning?: boolean;
+	requireActiveVersion?: boolean;
 }
 
 export const UpdateButton: FC<ActionButtonProps> = ({
 	handleAction,
 	loading,
+	isRunning,
+	requireActiveVersion,
 }) => {
 	return (
-		<TopbarButton
-			disabled={loading}
-			data-testid="workspace-update-button"
-			onClick={() => handleAction()}
+		<Tooltip
+			title={
+				requireActiveVersion
+					? "This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version."
+					: isRunning
+						? "Stop workspace and restart it with the latest template version."
+						: "Start workspace with the latest template version."
+			}
 		>
-			<CloudIcon />
-			{loading ? <>Updating&hellip;</> : <>Update&hellip;</>}
-		</TopbarButton>
+			<TopbarButton
+				data-testid="workspace-update-button"
+				disabled={loading}
+				onClick={() => handleAction()}
+			>
+				{requireActiveVersion ? <PlayIcon /> : <CloudIcon />}
+				{loading ? (
+					<>Updating&hellip;</>
+				) : isRunning ? (
+					<>Update and restart&hellip;</>
+				) : (
+					<>Update and start&hellip;</>
+				)}
+			</TopbarButton>
+		</Tooltip>
 	);
 };
 
@@ -62,7 +82,7 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
 }) => {
 	let mainButton = (
 		<TopbarButton onClick={() => handleAction()} disabled={disabled || loading}>
-			<CirclePlayIcon />
+			<PlayIcon />
 			{loading ? <>Starting&hellip;</> : "Start"}
 		</TopbarButton>
 	);
@@ -81,19 +101,6 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
 				onSubmit={handleAction}
 			/>
 		</div>
-	);
-};
-
-export const UpdateAndStartButton: FC<ActionButtonProps> = ({
-	handleAction,
-}) => {
-	return (
-		<Tooltip title="This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version.">
-			<TopbarButton onClick={() => handleAction()}>
-				<CirclePlayIcon />
-				Update and start&hellip;
-			</TopbarButton>
-		</Tooltip>
 	);
 };
 
@@ -135,19 +142,6 @@ export const RestartButton: FC<ActionButtonPropsWithWorkspace> = ({
 				onSubmit={handleAction}
 			/>
 		</div>
-	);
-};
-
-export const UpdateAndRestartButton: FC<ActionButtonProps> = ({
-	handleAction,
-}) => {
-	return (
-		<Tooltip title="This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version.">
-			<TopbarButton onClick={() => handleAction()}>
-				<RotateCcwIcon />
-				Update and restart&hellip;
-			</TopbarButton>
-		</Tooltip>
 	);
 };
 

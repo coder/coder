@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/prebuilds"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -465,6 +463,32 @@ func TestPatchGroup(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 	})
 
+	// For quotas to work with prebuilds, it's currently required to add the
+	// prebuilds user into a group with a quota allowance.
+	// See: docs/admin/templates/extending-templates/prebuilt-workspaces.md
+	t.Run("PrebuildsUser", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name:           "prebuilds",
+			QuotaAllowance: 123,
+		})
+		require.NoError(t, err)
+
+		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			Name:     "prebuilds",
+			AddUsers: []string{database.PrebuildsSystemUserID.String()},
+		})
+		require.NoError(t, err)
+	})
+
 	t.Run("Everyone", func(t *testing.T) {
 		t.Parallel()
 		t.Run("NoUpdateName", func(t *testing.T) {
@@ -833,7 +857,7 @@ func TestGroup(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// nolint:gocritic // "This client is operating as the owner user" is fine in this case.
-		prebuildsUser, err := client.User(ctx, prebuilds.SystemUserID.String())
+		prebuildsUser, err := client.User(ctx, database.PrebuildsSystemUserID.String())
 		require.NoError(t, err)
 		// The 'Everyone' group always has an ID that matches the organization ID.
 		group, err := userAdminClient.Group(ctx, user.OrganizationID)

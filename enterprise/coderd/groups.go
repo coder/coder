@@ -171,6 +171,12 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		// Skip membership checks for the prebuilds user. There is a valid use case
+		// for adding the prebuilds user to a single group: in order to set a quota
+		// allowance specifically for prebuilds.
+		if id == database.PrebuildsSystemUserID.String() {
+			continue
+		}
 		_, err := database.ExpectOne(api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
 			OrganizationID: group.OrganizationID,
 			UserID:         uuid.MustParse(id),

@@ -1,7 +1,7 @@
-# Coder Desktop (Beta)
+# Coder Desktop
 
-Use Coder Desktop to work on your workspaces as though they're on your LAN, no
-port-forwarding required.
+Coder Desktop provides seamless access to your remote workspaces without the need to install a CLI or configure manual port forwarding.
+Connect to workspace services using simple hostnames like `myworkspace.coder`, launch native applications with one click, and synchronize files between local and remote environments.
 
 > [!NOTE]
 > Coder Desktop requires a Coder deployment running [v2.20.0](https://github.com/coder/coder/releases/tag/v2.20.0) or later.
@@ -34,11 +34,11 @@ You can install Coder Desktop on macOS or Windows.
 
 1. Continue to the [configuration section](#configure).
 
-> Do not install more than one copy of Coder Desktop.
->
-> To avoid system VPN configuration conflicts, only one copy of `Coder Desktop.app` should exist on your Mac, and it must remain in `/Applications`.
-
 ### Windows
+
+If you use [WinGet](https://github.com/microsoft/winget-cli), run `winget install Coder.CoderDesktop`.
+
+To manually install Coder Desktop:
 
 1. Download the latest `CoderDesktop` installer executable (`.exe`) from the [coder-desktop-windows release page](https://github.com/coder/coder-desktop-windows/releases).
 
@@ -118,6 +118,10 @@ Before you can use Coder Desktop, you will need to sign in.
 1. macOS: You may be prompted to enter your password to allow Coder Connect to start.
 
 1. Coder Connect is now running!
+
+## Troubleshooting
+
+Do not install more than one copy of Coder Desktop. To avoid system VPN configuration conflicts, only one copy of `Coder Desktop.app` should exist on your Mac, and it must remain in `/Applications`.
 
 ## Next Steps
 

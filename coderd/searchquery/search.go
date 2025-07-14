@@ -33,7 +33,9 @@ import (
 //   - resource_type: string (enum)
 //   - action: string (enum)
 //   - build_reason: string (enum)
-func AuditLogs(ctx context.Context, db database.Store, query string) (database.GetAuditLogsOffsetParams, []codersdk.ValidationError) {
+func AuditLogs(ctx context.Context, db database.Store, query string) (database.GetAuditLogsOffsetParams,
+	database.CountAuditLogsParams, []codersdk.ValidationError,
+) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
@@ -41,7 +43,8 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 		return nil
 	})
 	if len(errors) > 0 {
-		return database.GetAuditLogsOffsetParams{}, errors
+		// nolint:exhaustruct // We don't need to initialize these structs because we return an error.
+		return database.GetAuditLogsOffsetParams{}, database.CountAuditLogsParams{}, errors
 	}
 
 	const dateLayout = "2006-01-02"
@@ -63,8 +66,24 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 		filter.DateTo = filter.DateTo.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
 	}
 
+	// Prepare the count filter, which uses the same parameters as the GetAuditLogsOffsetParams.
+	// nolint:exhaustruct // UserID is not obtained from the query parameters.
+	countFilter := database.CountAuditLogsParams{
+		RequestID:      filter.RequestID,
+		ResourceID:     filter.ResourceID,
+		ResourceTarget: filter.ResourceTarget,
+		Username:       filter.Username,
+		Email:          filter.Email,
+		DateFrom:       filter.DateFrom,
+		DateTo:         filter.DateTo,
+		OrganizationID: filter.OrganizationID,
+		ResourceType:   filter.ResourceType,
+		Action:         filter.Action,
+		BuildReason:    filter.BuildReason,
+	}
+
 	parser.ErrorExcessParams(values)
-	return filter, parser.Errors
+	return filter, countFilter, parser.Errors
 }
 
 func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
@@ -146,6 +165,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 		// which will return all workspaces.
 		Valid: values.Has("outdated"),
 	}
+	filter.HasAITask = parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 
 	type paramMatch struct {
@@ -206,6 +226,7 @@ func Templates(ctx context.Context, db database.Store, query string) (database.G
 		IDs:            parser.UUIDs(values, []uuid.UUID{}, "ids"),
 		Deprecated:     parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
 		OrganizationID: parseOrganization(ctx, db, parser, values, "organization"),
+		HasAITask:      parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
 	}
 
 	parser.ErrorExcessParams(values)

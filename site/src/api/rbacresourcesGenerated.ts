@@ -31,12 +31,6 @@ export const RBACResourceActions: Partial<
 		create: "create new audit log entries",
 		read: "read audit logs",
 	},
-	chat: {
-		create: "create a chat",
-		delete: "delete a chat",
-		read: "read a chat",
-		update: "update a chat",
-	},
 	crypto_key: {
 		create: "create crypto keys",
 		delete: "delete crypto keys",
@@ -122,6 +116,10 @@ export const RBACResourceActions: Partial<
 		delete: "delete member",
 		read: "read member",
 		update: "update an organization member",
+	},
+	prebuilt_workspace: {
+		delete: "delete prebuilt workspace",
+		update: "update prebuilt workspace settings",
 	},
 	provisioner_daemon: {
 		create: "create a provisioner daemon/key",

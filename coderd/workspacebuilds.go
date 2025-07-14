@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -26,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -384,71 +386,81 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			builder = builder.State(createBuild.ProvisionerState)
 		}
 
-		// Only defer to dynamic parameters if the experiment is enabled.
-		if api.Experiments.Enabled(codersdk.ExperimentDynamicParameters) {
-			if createBuild.EnableDynamicParameters != nil {
-				// Explicit opt-in
-				builder = builder.DynamicParameters(*createBuild.EnableDynamicParameters)
-			}
-		} else {
-			if createBuild.EnableDynamicParameters != nil {
-				api.Logger.Warn(ctx, "ignoring dynamic parameter field sent by request, the experiment is not enabled",
-					slog.F("field", *createBuild.EnableDynamicParameters),
-					slog.F("user", apiKey.UserID.String()),
-					slog.F("transition", string(createBuild.Transition)),
-				)
-			}
-		}
-
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
 			ctx,
 			tx,
+			api.FileCache,
 			func(action policy.Action, object rbac.Objecter) bool {
-				return api.Authorize(r, action, object)
+				if auth := api.Authorize(r, action, object); auth {
+					return true
+				}
+				// Special handling for prebuilt workspace deletion
+				if action == policy.ActionDelete {
+					if workspaceObj, ok := object.(database.PrebuiltWorkspaceResource); ok && workspaceObj.IsPrebuild() {
+						return api.Authorize(r, action, workspaceObj.AsPrebuild())
+					}
+				}
+				return false
 			},
 			audit.WorkspaceBuildBaggageFromRequest(r),
 		)
 		return err
 	}, nil)
-	var buildErr wsbuilder.BuildError
-	if xerrors.As(err, &buildErr) {
-		var authErr dbauthz.NotAuthorizedError
-		if xerrors.As(err, &authErr) {
-			buildErr.Status = http.StatusForbidden
-		}
-
-		if buildErr.Status == http.StatusInternalServerError {
-			api.Logger.Error(ctx, "workspace build error", slog.Error(buildErr.Wrapped))
-		}
-
-		httpapi.Write(ctx, rw, buildErr.Status, codersdk.Response{
-			Message: buildErr.Message,
-			Detail:  buildErr.Error(),
-		})
-		return
-	}
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error posting new build",
-			Detail:  err.Error(),
-		})
+		httperror.WriteWorkspaceBuildError(ctx, rw, err)
 		return
 	}
 
+	var queuePos database.GetProvisionerJobsByIDsWithQueuePositionRow
 	if provisionerJob != nil {
+		queuePos.ProvisionerJob = *provisionerJob
+		queuePos.QueuePosition = 0
 		if err := provisionerjobs.PostJob(api.Pubsub, *provisionerJob); err != nil {
 			// Client probably doesn't care about this error, so just log it.
 			api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+		}
+
+		// We may need to complete the audit if wsbuilder determined that
+		// no provisioner could handle an orphan-delete job and completed it.
+		if createBuild.Orphan && createBuild.Transition == codersdk.WorkspaceTransitionDelete && provisionerJob.CompletedAt.Valid {
+			api.Logger.Warn(ctx, "orphan delete handled by wsbuilder due to no eligible provisioners",
+				slog.F("workspace_id", workspace.ID),
+				slog.F("workspace_build_id", workspaceBuild.ID),
+				slog.F("provisioner_job_id", provisionerJob.ID),
+			)
+			buildResourceInfo := audit.AdditionalFields{
+				WorkspaceName:  workspace.Name,
+				BuildNumber:    strconv.Itoa(int(workspaceBuild.BuildNumber)),
+				BuildReason:    workspaceBuild.Reason,
+				WorkspaceID:    workspace.ID,
+				WorkspaceOwner: workspace.OwnerName,
+			}
+			briBytes, err := json.Marshal(buildResourceInfo)
+			if err != nil {
+				api.Logger.Error(ctx, "failed to marshal build resource info for audit", slog.Error(err))
+			}
+			auditor := api.Auditor.Load()
+			bag := audit.BaggageFromContext(ctx)
+			audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceBuild]{
+				Audit:            *auditor,
+				Log:              api.Logger,
+				UserID:           provisionerJob.InitiatorID,
+				OrganizationID:   workspace.OrganizationID,
+				RequestID:        provisionerJob.ID,
+				IP:               bag.IP,
+				Action:           database.AuditActionDelete,
+				Old:              previousWorkspaceBuild,
+				New:              *workspaceBuild,
+				Status:           http.StatusOK,
+				AdditionalFields: briBytes,
+			})
 		}
 	}
 
 	apiBuild, err := api.convertWorkspaceBuild(
 		*workspaceBuild,
 		workspace,
-		database.GetProvisionerJobsByIDsWithQueuePositionRow{
-			ProvisionerJob: *provisionerJob,
-			QueuePosition:  0,
-		},
+		queuePos,
 		[]database.WorkspaceResource{},
 		[]database.WorkspaceResourceMetadatum{},
 		[]database.WorkspaceAgent{},
@@ -569,10 +581,24 @@ func (api *API) notifyWorkspaceUpdated(
 // @Produce json
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
+// @Param expect_status query string false "Expected status of the job. If expect_status is supplied, the request will be rejected with 412 Precondition Failed if the job doesn't match the state when performing the cancellation." Enums(running, pending)
 // @Success 200 {object} codersdk.Response
 // @Router /workspacebuilds/{workspacebuild}/cancel [patch]
 func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	var expectStatus database.ProvisionerJobStatus
+	expectStatusParam := r.URL.Query().Get("expect_status")
+	if expectStatusParam != "" {
+		if expectStatusParam != "running" && expectStatusParam != "pending" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Invalid expect_status %q. Only 'running' or 'pending' are allowed.", expectStatusParam),
+			})
+			return
+		}
+		expectStatus = database.ProvisionerJobStatus(expectStatusParam)
+	}
+
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 	if err != nil {
@@ -582,58 +608,78 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	valid, err := api.verifyUserCanCancelWorkspaceBuilds(ctx, httpmw.APIKey(r).UserID, workspace.TemplateID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error verifying permission to cancel workspace build.",
-			Detail:  err.Error(),
-		})
-		return
+	code := http.StatusInternalServerError
+	resp := codersdk.Response{
+		Message: "Internal error canceling workspace build.",
 	}
-	if !valid {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "User is not allowed to cancel workspace builds. Owner role is required.",
-		})
-		return
-	}
+	err = api.Database.InTx(func(db database.Store) error {
+		valid, err := verifyUserCanCancelWorkspaceBuilds(ctx, db, httpmw.APIKey(r).UserID, workspace.TemplateID, expectStatus)
+		if err != nil {
+			code = http.StatusInternalServerError
+			resp.Message = "Internal error verifying permission to cancel workspace build."
+			resp.Detail = err.Error()
 
-	job, err := api.Database.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
+			return xerrors.Errorf("verify user can cancel workspace builds: %w", err)
+		}
+		if !valid {
+			code = http.StatusForbidden
+			resp.Message = "User is not allowed to cancel workspace builds. Owner role is required."
+
+			return xerrors.New("user is not allowed to cancel workspace builds")
+		}
+
+		job, err := db.GetProvisionerJobByIDForUpdate(ctx, workspaceBuild.JobID)
+		if err != nil {
+			code = http.StatusInternalServerError
+			resp.Message = "Internal error fetching provisioner job."
+			resp.Detail = err.Error()
+
+			return xerrors.Errorf("get provisioner job: %w", err)
+		}
+		if job.CompletedAt.Valid {
+			code = http.StatusBadRequest
+			resp.Message = "Job has already completed!"
+
+			return xerrors.New("job has already completed")
+		}
+		if job.CanceledAt.Valid {
+			code = http.StatusBadRequest
+			resp.Message = "Job has already been marked as canceled!"
+
+			return xerrors.New("job has already been marked as canceled")
+		}
+
+		if expectStatus != "" && job.JobStatus != expectStatus {
+			code = http.StatusPreconditionFailed
+			resp.Message = "Job is not in the expected state."
+
+			return xerrors.Errorf("job is not in the expected state: expected: %q, got %q", expectStatus, job.JobStatus)
+		}
+
+		err = db.UpdateProvisionerJobWithCancelByID(ctx, database.UpdateProvisionerJobWithCancelByIDParams{
+			ID: job.ID,
+			CanceledAt: sql.NullTime{
+				Time:  dbtime.Now(),
+				Valid: true,
+			},
+			CompletedAt: sql.NullTime{
+				Time: dbtime.Now(),
+				// If the job is running, don't mark it completed!
+				Valid: !job.WorkerID.Valid,
+			},
+		})
+		if err != nil {
+			code = http.StatusInternalServerError
+			resp.Message = "Internal error updating provisioner job."
+			resp.Detail = err.Error()
+
+			return xerrors.Errorf("update provisioner job: %w", err)
+		}
+
+		return nil
+	}, nil)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Job has already completed!",
-		})
-		return
-	}
-	if job.CanceledAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Job has already been marked as canceled!",
-		})
-		return
-	}
-	err = api.Database.UpdateProvisionerJobWithCancelByID(ctx, database.UpdateProvisionerJobWithCancelByIDParams{
-		ID: job.ID,
-		CanceledAt: sql.NullTime{
-			Time:  dbtime.Now(),
-			Valid: true,
-		},
-		CompletedAt: sql.NullTime{
-			Time: dbtime.Now(),
-			// If the job is running, don't mark it completed!
-			Valid: !job.WorkerID.Valid,
-		},
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating provisioner job.",
-			Detail:  err.Error(),
-		})
+		httpapi.Write(ctx, rw, code, resp)
 		return
 	}
 
@@ -647,8 +693,14 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
-func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID uuid.UUID, templateID uuid.UUID) (bool, error) {
-	template, err := api.Database.GetTemplateByID(ctx, templateID)
+func verifyUserCanCancelWorkspaceBuilds(ctx context.Context, store database.Store, userID uuid.UUID, templateID uuid.UUID, jobStatus database.ProvisionerJobStatus) (bool, error) {
+	// If the jobStatus is pending, we always allow cancellation regardless of
+	// the template setting as it's non-destructive to Terraform resources.
+	if jobStatus == database.ProvisionerJobStatusPending {
+		return true, nil
+	}
+
+	template, err := store.GetTemplateByID(ctx, templateID)
 	if err != nil {
 		return false, xerrors.New("no template exists for this workspace")
 	}
@@ -657,7 +709,7 @@ func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID u
 		return true, nil // all users can cancel workspace builds
 	}
 
-	user, err := api.Database.GetUserByID(ctx, userID)
+	user, err := store.GetUserByID(ctx, userID)
 	if err != nil {
 		return false, xerrors.New("user does not exist")
 	}
@@ -1090,6 +1142,14 @@ func (api *API) convertWorkspaceBuild(
 	if build.TemplateVersionPresetID.Valid {
 		presetID = &build.TemplateVersionPresetID.UUID
 	}
+	var hasAITask *bool
+	if build.HasAITask.Valid {
+		hasAITask = &build.HasAITask.Bool
+	}
+	var aiTasksSidebarAppID *uuid.UUID
+	if build.AITaskSidebarAppID.Valid {
+		aiTasksSidebarAppID = &build.AITaskSidebarAppID.UUID
+	}
 
 	apiJob := convertProvisionerJob(job)
 	transition := codersdk.WorkspaceTransition(build.Transition)
@@ -1117,6 +1177,8 @@ func (api *API) convertWorkspaceBuild(
 		DailyCost:               build.DailyCost,
 		MatchedProvisioners:     &matchedProvisioners,
 		TemplateVersionPresetID: presetID,
+		HasAITask:               hasAITask,
+		AITaskSidebarAppID:      aiTasksSidebarAppID,
 	}, nil
 }
 

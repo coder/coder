@@ -61,7 +61,6 @@ import (
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
 
-	"github.com/coder/coder/v2/coderd/ai"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -78,7 +77,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbmetrics"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
 	"github.com/coder/coder/v2/coderd/database/migrations"
@@ -424,7 +422,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			builtinPostgres := false
 			// Only use built-in if PostgreSQL URL isn't specified!
-			if !vals.InMemoryDatabase && vals.PostgresURL == "" {
+			if vals.PostgresURL == "" {
 				var closeFunc func() error
 				cliui.Infof(inv.Stdout, "Using built-in PostgreSQL (%s)", config.PostgresPath())
 				customPostgresCacheDir := ""
@@ -611,22 +609,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				)
 			}
 
-			aiProviders, err := ReadAIProvidersFromEnv(os.Environ())
-			if err != nil {
-				return xerrors.Errorf("read ai providers from env: %w", err)
-			}
-			vals.AI.Value.Providers = append(vals.AI.Value.Providers, aiProviders...)
-			for _, provider := range aiProviders {
-				logger.Debug(
-					ctx, "loaded ai provider",
-					slog.F("type", provider.Type),
-				)
-			}
-			languageModels, err := ai.ModelsFromConfig(ctx, vals.AI.Value.Providers)
-			if err != nil {
-				return xerrors.Errorf("create language models: %w", err)
-			}
-
 			realIPConfig, err := httpmw.ParseRealIPConfig(vals.ProxyTrustedHeaders, vals.ProxyTrustedOrigins)
 			if err != nil {
 				return xerrors.Errorf("parse real ip config: %w", err)
@@ -657,7 +639,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
 				ExternalAuthConfigs:         externalAuthConfigs,
-				LanguageModels:              languageModels,
 				RealIPConfig:                realIPConfig,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
@@ -744,42 +725,37 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// nil, that case of the select will just never fire, but it's important not to have a
 			// "bare" read on this channel.
 			var pubsubWatchdogTimeout <-chan struct{}
-			if vals.InMemoryDatabase {
-				// This is only used for testing.
-				options.Database = dbmem.New()
-				options.Pubsub = pubsub.NewInMemory()
-			} else {
-				sqlDB, dbURL, err := getAndMigratePostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
-				if err != nil {
-					return xerrors.Errorf("connect to postgres: %w", err)
-				}
-				defer func() {
-					_ = sqlDB.Close()
-				}()
 
-				if options.DeploymentValues.Prometheus.Enable {
-					// At this stage we don't think the database name serves much purpose in these metrics.
-					// It requires parsing the DSN to determine it, which requires pulling in another dependency
-					// (i.e. https://github.com/jackc/pgx), but it's rather heavy.
-					// The conn string (https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING) can
-					// take different forms, which make parsing non-trivial.
-					options.PrometheusRegistry.MustRegister(collectors.NewDBStatsCollector(sqlDB, ""))
-				}
-
-				options.Database = database.New(sqlDB)
-				ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
-				if err != nil {
-					return xerrors.Errorf("create pubsub: %w", err)
-				}
-				options.Pubsub = ps
-				if options.DeploymentValues.Prometheus.Enable {
-					options.PrometheusRegistry.MustRegister(ps)
-				}
-				defer options.Pubsub.Close()
-				psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), ps)
-				pubsubWatchdogTimeout = psWatchdog.Timeout()
-				defer psWatchdog.Close()
+			sqlDB, dbURL, err := getAndMigratePostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
+			if err != nil {
+				return xerrors.Errorf("connect to postgres: %w", err)
 			}
+			defer func() {
+				_ = sqlDB.Close()
+			}()
+
+			if options.DeploymentValues.Prometheus.Enable {
+				// At this stage we don't think the database name serves much purpose in these metrics.
+				// It requires parsing the DSN to determine it, which requires pulling in another dependency
+				// (i.e. https://github.com/jackc/pgx), but it's rather heavy.
+				// The conn string (https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING) can
+				// take different forms, which make parsing non-trivial.
+				options.PrometheusRegistry.MustRegister(collectors.NewDBStatsCollector(sqlDB, ""))
+			}
+
+			options.Database = database.New(sqlDB)
+			ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
+			if err != nil {
+				return xerrors.Errorf("create pubsub: %w", err)
+			}
+			options.Pubsub = ps
+			if options.DeploymentValues.Prometheus.Enable {
+				options.PrometheusRegistry.MustRegister(ps)
+			}
+			defer options.Pubsub.Close()
+			psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), ps)
+			pubsubWatchdogTimeout = psWatchdog.Timeout()
+			defer psWatchdog.Close()
 
 			if options.DeploymentValues.Prometheus.Enable && options.DeploymentValues.Prometheus.CollectDBMetrics {
 				options.Database = dbmetrics.NewQueryMetrics(options.Database, options.Logger, options.PrometheusRegistry)
@@ -1125,7 +1101,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			autobuildTicker := time.NewTicker(vals.AutobuildPollInterval.Value())
 			defer autobuildTicker.Stop()
 			autobuildExecutor := autobuild.NewExecutor(
-				ctx, options.Database, options.Pubsub, options.PrometheusRegistry, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, logger, autobuildTicker.C, options.NotificationsEnqueuer, coderAPI.Experiments)
+				ctx, options.Database, options.Pubsub, coderAPI.FileCache, options.PrometheusRegistry, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, logger, autobuildTicker.C, options.NotificationsEnqueuer, coderAPI.Experiments)
 			autobuildExecutor.Run()
 
 			jobReaperTicker := time.NewTicker(vals.JobReaperDetectorInterval.Value())
@@ -1202,7 +1178,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			var wg sync.WaitGroup
 			for i, provisionerDaemon := range provisionerDaemons {
 				id := i + 1
-				provisionerDaemon := provisionerDaemon
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
@@ -1680,7 +1655,6 @@ func configureServerTLS(ctx context.Context, logger slog.Logger, tlsMinVersion, 
 
 		// Expensively check which certificate matches the client hello.
 		for _, cert := range certs {
-			cert := cert
 			if err := hi.SupportsCertificate(&cert); err == nil {
 				return &cert, nil
 			}
@@ -2312,19 +2286,20 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 
 	var err error
 	var sqlDB *sql.DB
+	dbNeedsClosing := true
 	// Try to connect for 30 seconds.
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	defer func() {
-		if err == nil {
+		if !dbNeedsClosing {
 			return
 		}
 		if sqlDB != nil {
 			_ = sqlDB.Close()
 			sqlDB = nil
+			logger.Debug(ctx, "closed db before returning from ConnectToPostgres")
 		}
-		logger.Error(ctx, "connect to postgres failed", slog.Error(err))
 	}()
 
 	var tries int
@@ -2360,11 +2335,8 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 		return nil, xerrors.Errorf("get postgres version: %w", err)
 	}
 	defer version.Close()
-	if version.Err() != nil {
-		return nil, xerrors.Errorf("version select: %w", version.Err())
-	}
 	if !version.Next() {
-		return nil, xerrors.Errorf("no rows returned for version select")
+		return nil, xerrors.Errorf("no rows returned for version select: %w", version.Err())
 	}
 	var versionNum int
 	err = version.Scan(&versionNum)
@@ -2406,6 +2378,7 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	// of connection churn.
 	sqlDB.SetMaxIdleConns(3)
 
+	dbNeedsClosing = false
 	return sqlDB, nil
 }
 
@@ -2641,77 +2614,6 @@ func redirectHTTPToHTTPSDeprecation(ctx context.Context, logger slog.Logger, inv
 		logger.Warn(ctx, "⚠️ --tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead")
 		cfg.RedirectToAccessURL = cfg.TLS.RedirectHTTP
 	}
-}
-
-func ReadAIProvidersFromEnv(environ []string) ([]codersdk.AIProviderConfig, error) {
-	// The index numbers must be in-order.
-	sort.Strings(environ)
-
-	var providers []codersdk.AIProviderConfig
-	for _, v := range serpent.ParseEnviron(environ, "CODER_AI_PROVIDER_") {
-		tokens := strings.SplitN(v.Name, "_", 2)
-		if len(tokens) != 2 {
-			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
-		}
-
-		providerNum, err := strconv.Atoi(tokens[0])
-		if err != nil {
-			return nil, xerrors.Errorf("parse number: %s", v.Name)
-		}
-
-		var provider codersdk.AIProviderConfig
-		switch {
-		case len(providers) < providerNum:
-			return nil, xerrors.Errorf(
-				"provider num %v skipped: %s",
-				len(providers),
-				v.Name,
-			)
-		case len(providers) == providerNum:
-			// At the next next provider.
-			providers = append(providers, provider)
-		case len(providers) == providerNum+1:
-			// At the current provider.
-			provider = providers[providerNum]
-		}
-
-		key := tokens[1]
-		switch key {
-		case "TYPE":
-			provider.Type = v.Value
-		case "API_KEY":
-			provider.APIKey = v.Value
-		case "BASE_URL":
-			provider.BaseURL = v.Value
-		case "MODELS":
-			provider.Models = strings.Split(v.Value, ",")
-		}
-		providers[providerNum] = provider
-	}
-	for _, envVar := range environ {
-		tokens := strings.SplitN(envVar, "=", 2)
-		if len(tokens) != 2 {
-			continue
-		}
-		switch tokens[0] {
-		case "OPENAI_API_KEY":
-			providers = append(providers, codersdk.AIProviderConfig{
-				Type:   "openai",
-				APIKey: tokens[1],
-			})
-		case "ANTHROPIC_API_KEY":
-			providers = append(providers, codersdk.AIProviderConfig{
-				Type:   "anthropic",
-				APIKey: tokens[1],
-			})
-		case "GOOGLE_API_KEY":
-			providers = append(providers, codersdk.AIProviderConfig{
-				Type:   "google",
-				APIKey: tokens[1],
-			})
-		}
-	}
-	return providers, nil
 }
 
 // ReadExternalAuthProvidersFromEnv is provided for compatibility purposes with

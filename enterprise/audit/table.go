@@ -135,6 +135,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_by_name":         ActionIgnore,
 		"archived":                ActionTrack,
 		"source_example_id":       ActionIgnore, // Never changes.
+		"has_ai_task":             ActionIgnore, // Never changes.
 	},
 	&database.User{}: {
 		"id":                           ActionTrack,
@@ -193,6 +194,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"initiator_by_username":      ActionIgnore,
 		"initiator_by_name":          ActionIgnore,
 		"template_version_preset_id": ActionIgnore, // Never changes.
+		"has_ai_task":                ActionIgnore, // Never changes.
+		"ai_task_sidebar_app_id":     ActionIgnore, // Never changes.
 	},
 	&database.AuditableGroup{}: {
 		"id":              ActionTrack,
@@ -233,6 +236,10 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"id":              ActionIgnore,
 		"notifier_paused": ActionTrack,
 	},
+	&database.PrebuildsSettings{}: {
+		"id":                    ActionIgnore,
+		"reconciliation_paused": ActionTrack,
+	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012
 	&database.License{}: {
@@ -259,12 +266,34 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"version":             ActionTrack,
 	},
 	&database.OAuth2ProviderApp{}: {
-		"id":           ActionIgnore,
-		"created_at":   ActionIgnore,
-		"updated_at":   ActionIgnore,
-		"name":         ActionTrack,
-		"icon":         ActionTrack,
-		"callback_url": ActionTrack,
+		"id":                     ActionIgnore,
+		"created_at":             ActionIgnore,
+		"updated_at":             ActionIgnore,
+		"name":                   ActionTrack,
+		"icon":                   ActionTrack,
+		"callback_url":           ActionTrack,
+		"redirect_uris":          ActionTrack,
+		"client_type":            ActionTrack,
+		"dynamically_registered": ActionTrack,
+		// RFC 7591 Dynamic Client Registration fields
+		"client_id_issued_at":        ActionIgnore, // Timestamp, not security relevant
+		"client_secret_expires_at":   ActionTrack,  // Security relevant - expiration policy
+		"grant_types":                ActionTrack,  // Security relevant - authorization capabilities
+		"response_types":             ActionTrack,  // Security relevant - response flow types
+		"token_endpoint_auth_method": ActionTrack,  // Security relevant - auth method
+		"scope":                      ActionTrack,  // Security relevant - permissions scope
+		"contacts":                   ActionTrack,  // Contact info for responsible parties
+		"client_uri":                 ActionTrack,  // Client identification info
+		"logo_uri":                   ActionTrack,  // Client branding
+		"tos_uri":                    ActionTrack,  // Legal compliance
+		"policy_uri":                 ActionTrack,  // Legal compliance
+		"jwks_uri":                   ActionTrack,  // Security relevant - key location
+		"jwks":                       ActionSecret, // Security sensitive - actual keys
+		"software_id":                ActionTrack,  // Client software identification
+		"software_version":           ActionTrack,  // Client software version
+		// RFC 7592 Management fields - sensitive data
+		"registration_access_token": ActionSecret, // Secret token for client management
+		"registration_client_uri":   ActionTrack,  // Management endpoint URI
 	},
 	&database.OAuth2ProviderAppSecret{}: {
 		"id":             ActionIgnore,
@@ -348,6 +377,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"display_order":              ActionIgnore,
 		"parent_id":                  ActionIgnore,
 		"api_key_scope":              ActionIgnore,
+		"deleted":                    ActionIgnore,
 	},
 	&database.WorkspaceApp{}: {
 		"id":                    ActionIgnore,

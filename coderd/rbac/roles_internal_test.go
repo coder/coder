@@ -229,7 +229,6 @@ func TestRoleByName(t *testing.T) {
 		}
 
 		for _, c := range testCases {
-			c := c
 			t.Run(c.Role.Identifier.String(), func(t *testing.T) {
 				role, err := RoleByName(c.Role.Identifier)
 				require.NoError(t, err, "role exists")

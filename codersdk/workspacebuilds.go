@@ -37,15 +37,18 @@ const (
 type BuildReason string
 
 const (
-	// "initiator" is used when a workspace build is triggered by a user.
+	// BuildReasonInitiator "initiator" is used when a workspace build is triggered by a user.
 	// Combined with the initiator id/username, it indicates which user initiated the build.
 	BuildReasonInitiator BuildReason = "initiator"
-	// "autostart" is used when a build to start a workspace is triggered by Autostart.
+	// BuildReasonAutostart "autostart" is used when a build to start a workspace is triggered by Autostart.
 	// The initiator id/username in this case is the workspace owner and can be ignored.
 	BuildReasonAutostart BuildReason = "autostart"
-	// "autostop" is used when a build to stop a workspace is triggered by Autostop.
+	// BuildReasonAutostop "autostop" is used when a build to stop a workspace is triggered by Autostop.
 	// The initiator id/username in this case is the workspace owner and can be ignored.
 	BuildReasonAutostop BuildReason = "autostop"
+	// BuildReasonDormancy "dormancy" is used when a build to stop a workspace is triggered due to inactivity (dormancy).
+	// The initiator id/username in this case is the workspace owner and can be ignored.
+	BuildReasonDormancy BuildReason = "dormancy"
 )
 
 // WorkspaceBuild is an at-point representation of a workspace state.
@@ -75,6 +78,8 @@ type WorkspaceBuild struct {
 	DailyCost               int32                `json:"daily_cost"`
 	MatchedProvisioners     *MatchedProvisioners `json:"matched_provisioners,omitempty"`
 	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id" format:"uuid"`
+	HasAITask               *bool                `json:"has_ai_task,omitempty"`
+	AITaskSidebarAppID      *uuid.UUID           `json:"ai_task_sidebar_app_id,omitempty" format:"uuid"`
 }
 
 // WorkspaceResource describes resources used to create a workspace, for instance:
@@ -121,9 +126,29 @@ func (c *Client) WorkspaceBuild(ctx context.Context, id uuid.UUID) (WorkspaceBui
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
 }
 
+type CancelWorkspaceBuildStatus string
+
+const (
+	CancelWorkspaceBuildStatusRunning CancelWorkspaceBuildStatus = "running"
+	CancelWorkspaceBuildStatusPending CancelWorkspaceBuildStatus = "pending"
+)
+
+type CancelWorkspaceBuildParams struct {
+	// ExpectStatus ensures the build is in the expected status before canceling.
+	ExpectStatus CancelWorkspaceBuildStatus `json:"expect_status,omitempty"`
+}
+
+func (c *CancelWorkspaceBuildParams) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		q.Set("expect_status", string(c.ExpectStatus))
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
 // CancelWorkspaceBuild marks a workspace build job as canceled.
-func (c *Client) CancelWorkspaceBuild(ctx context.Context, id uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/workspacebuilds/%s/cancel", id), nil)
+func (c *Client) CancelWorkspaceBuild(ctx context.Context, id uuid.UUID, req CancelWorkspaceBuildParams) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/workspacebuilds/%s/cancel", id), nil, req.asRequestOption())
 	if err != nil {
 		return err
 	}

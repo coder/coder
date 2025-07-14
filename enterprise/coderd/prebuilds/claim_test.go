@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -128,7 +129,6 @@ func TestClaimPrebuild(t *testing.T) {
 	for name, tc := range cases {
 		// Ensure that prebuilt workspaces can be claimed in non-default organizations:
 		for _, useDefaultOrg := range []bool{true, false} {
-			tc := tc
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 
@@ -165,7 +165,8 @@ func TestClaimPrebuild(t *testing.T) {
 				})
 				defer provisionerCloser.Close()
 
-				reconciler := prebuilds.NewStoreReconciler(spy, pubsub, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
+				cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+				reconciler := prebuilds.NewStoreReconciler(spy, pubsub, cache, codersdk.PrebuildsConfig{}, logger, quartz.NewMock(t), prometheus.NewRegistry(), newNoopEnqueuer())
 				var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(spy)
 				api.AGPL.PrebuildsClaimer.Store(&claimer)
 

@@ -393,12 +393,6 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
 }
 
-// WorkspaceAgentDevcontainersResponse is the response to the devcontainers
-// request.
-type WorkspaceAgentDevcontainersResponse struct {
-	Devcontainers []WorkspaceAgentDevcontainer `json:"devcontainers"`
-}
-
 // WorkspaceAgentDevcontainerStatus is the status of a devcontainer.
 type WorkspaceAgentDevcontainerStatus string
 
@@ -422,6 +416,17 @@ type WorkspaceAgentDevcontainer struct {
 	Status    WorkspaceAgentDevcontainerStatus `json:"status"`
 	Dirty     bool                             `json:"dirty"`
 	Container *WorkspaceAgentContainer         `json:"container,omitempty"`
+	Agent     *WorkspaceAgentDevcontainerAgent `json:"agent,omitempty"`
+
+	Error string `json:"error,omitempty"`
+}
+
+// WorkspaceAgentDevcontainerAgent represents the sub agent for a
+// devcontainer.
+type WorkspaceAgentDevcontainerAgent struct {
+	ID        uuid.UUID `json:"id" format:"uuid"`
+	Name      string    `json:"name"`
+	Directory string    `json:"directory"`
 }
 
 // WorkspaceAgentContainer describes a devcontainer of some sort
@@ -450,14 +455,6 @@ type WorkspaceAgentContainer struct {
 	// Volumes is a map of "things" mounted into the container. Again, this
 	// is somewhat implementation-dependent.
 	Volumes map[string]string `json:"volumes"`
-	// DevcontainerStatus is the status of the devcontainer, if this
-	// container is a devcontainer. This is used to determine if the
-	// devcontainer is running, stopped, starting, or in an error state.
-	DevcontainerStatus WorkspaceAgentDevcontainerStatus `json:"devcontainer_status,omitempty"`
-	// DevcontainerDirty is true if the devcontainer configuration has changed
-	// since the container was created. This is used to determine if the
-	// container needs to be rebuilt.
-	DevcontainerDirty bool `json:"devcontainer_dirty"`
 }
 
 func (c *WorkspaceAgentContainer) Match(idOrName string) bool {
@@ -486,6 +483,8 @@ type WorkspaceAgentContainerPort struct {
 // WorkspaceAgentListContainersResponse is the response to the list containers
 // request.
 type WorkspaceAgentListContainersResponse struct {
+	// Devcontainers is a list of devcontainers visible to the workspace agent.
+	Devcontainers []WorkspaceAgentDevcontainer `json:"devcontainers"`
 	// Containers is a list of containers visible to the workspace agent.
 	Containers []WorkspaceAgentContainer `json:"containers"`
 	// Warnings is a list of warnings that may have occurred during the
@@ -522,8 +521,8 @@ func (c *Client) WorkspaceAgentListContainers(ctx context.Context, agentID uuid.
 }
 
 // WorkspaceAgentRecreateDevcontainer recreates the devcontainer with the given ID.
-func (c *Client) WorkspaceAgentRecreateDevcontainer(ctx context.Context, agentID uuid.UUID, containerIDOrName string) (Response, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/containers/devcontainers/container/%s/recreate", agentID, containerIDOrName), nil)
+func (c *Client) WorkspaceAgentRecreateDevcontainer(ctx context.Context, agentID uuid.UUID, devcontainerID string) (Response, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/containers/devcontainers/%s/recreate", agentID, devcontainerID), nil)
 	if err != nil {
 		return Response{}, err
 	}

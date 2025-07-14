@@ -130,7 +130,6 @@ func TestAgent_Stats_SSH(t *testing.T) {
 	t.Parallel()
 
 	for _, port := range sshPorts {
-		port := port
 		t.Run(fmt.Sprintf("(:%d)", port), func(t *testing.T) {
 			t.Parallel()
 
@@ -342,7 +341,6 @@ func TestAgent_SessionExec(t *testing.T) {
 	t.Parallel()
 
 	for _, port := range sshPorts {
-		port := port
 		t.Run(fmt.Sprintf("(:%d)", port), func(t *testing.T) {
 			t.Parallel()
 
@@ -468,7 +466,6 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 	}
 
 	for _, port := range sshPorts {
-		port := port
 		t.Run(fmt.Sprintf("(%d)", port), func(t *testing.T) {
 			t.Parallel()
 
@@ -611,7 +608,6 @@ func TestAgent_Session_TTY_MOTD(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			session := setupSSHSession(t, test.manifest, test.banner, func(fs afero.Fs) {
@@ -688,8 +684,6 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 
 	//nolint:paralleltest // These tests need to swap the banner func.
 	for _, port := range sshPorts {
-		port := port
-
 		sshClient, err := conn.SSHClientOnPort(ctx, port)
 		require.NoError(t, err)
 		t.Cleanup(func() {
@@ -697,7 +691,6 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 		})
 
 		for i, test := range tests {
-			test := test
 			t.Run(fmt.Sprintf("(:%d)/%d", port, i), func(t *testing.T) {
 				// Set new banner func and wait for the agent to call it to update the
 				// banner.
@@ -1209,8 +1202,7 @@ func TestAgent_EnvironmentVariableExpansion(t *testing.T) {
 func TestAgent_CoderEnvVars(t *testing.T) {
 	t.Parallel()
 
-	for _, key := range []string{"CODER", "CODER_WORKSPACE_NAME", "CODER_WORKSPACE_AGENT_NAME"} {
-		key := key
+	for _, key := range []string{"CODER", "CODER_WORKSPACE_NAME", "CODER_WORKSPACE_OWNER_NAME", "CODER_WORKSPACE_AGENT_NAME"} {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
 
@@ -1233,7 +1225,6 @@ func TestAgent_SSHConnectionEnvVars(t *testing.T) {
 	// For some reason this test produces a TTY locally and a non-TTY in CI
 	// so we don't test for the absence of SSH_TTY.
 	for _, key := range []string{"SSH_CONNECTION", "SSH_CLIENT"} {
-		key := key
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
 
@@ -1276,7 +1267,6 @@ func TestAgent_SSHConnectionLoginVars(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.key, func(t *testing.T) {
 			t.Parallel()
 
@@ -1796,7 +1786,6 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 	t.Setenv("LANG", "C")
 
 	for _, backendType := range backends {
-		backendType := backendType
 		t.Run(backendType, func(t *testing.T) {
 			if backendType == "Screen" {
 				if runtime.GOOS != "linux" {
@@ -1965,8 +1954,8 @@ func TestAgent_ReconnectingPTYContainer(t *testing.T) {
 
 	// nolint: dogsled
 	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
-		o.ExperimentalDevcontainersEnabled = true
-		o.ContainerAPIOptions = append(o.ContainerAPIOptions,
+		o.Devcontainers = true
+		o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
 			agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
 		)
 	})
@@ -2080,6 +2069,10 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 	subAgentConnected := make(chan subAgentRequestPayload, 1)
 	subAgentReady := make(chan struct{}, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v2/workspaceagents/me/") {
+			return
+		}
+
 		t.Logf("Sub-agent request received: %s %s", r.Method, r.URL.Path)
 
 		if r.Method != http.MethodPost {
@@ -2137,7 +2130,7 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 		"name": "mywork",
 		"image": "ubuntu:latest",
 		"cmd": ["sleep", "infinity"],
-		"runArgs": ["--network=host"]
+		"runArgs": ["--network=host", "--label=`+agentcontainers.DevcontainerIsTestRunLabel+`=true"]
     }`), 0o600)
 	require.NoError(t, err, "write devcontainer.json")
 
@@ -2168,12 +2161,13 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 
 	//nolint:dogsled
 	_, agentClient, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
-		o.ExperimentalDevcontainersEnabled = true
-		o.ContainerAPIOptions = append(
-			o.ContainerAPIOptions,
+		o.Devcontainers = true
+		o.DevcontainerAPIOptions = append(
+			o.DevcontainerAPIOptions,
 			// Only match this specific dev container.
 			agentcontainers.WithClock(mClock),
 			agentcontainers.WithContainerLabelIncludeFilter("devcontainer.local_folder", tempWorkspaceFolder),
+			agentcontainers.WithContainerLabelIncludeFilter(agentcontainers.DevcontainerIsTestRunLabel, "true"),
 			agentcontainers.WithSubAgentURL(srv.URL),
 			// The agent will copy "itself", but in the case of this test, the
 			// agent is actually this test binary. So we'll tell the test binary
@@ -2226,11 +2220,22 @@ func TestAgent_DevcontainerAutostart(t *testing.T) {
 	// Ensure the container update routine runs.
 	tickerFuncTrap.MustWait(ctx).MustRelease(ctx)
 	tickerFuncTrap.Close()
-	_, next := mClock.AdvanceNext()
-	next.MustWait(ctx)
 
-	// Verify that a subagent was created.
-	subAgents := agentClient.GetSubAgents()
+	// Since the agent does RefreshContainers, and the ticker function
+	// is set to skip instead of queue, we must advance the clock
+	// multiple times to ensure that the sub-agent is created.
+	var subAgents []*proto.SubAgent
+	for {
+		_, next := mClock.AdvanceNext()
+		next.MustWait(ctx)
+
+		// Verify that a subagent was created.
+		subAgents = agentClient.GetSubAgents()
+		if len(subAgents) > 0 {
+			t.Logf("Found sub-agents: %d", len(subAgents))
+			break
+		}
+	}
 	require.Len(t, subAgents, 1, "expected one sub agent")
 
 	subAgent := subAgents[0]
@@ -2284,7 +2289,8 @@ func TestAgent_DevcontainerRecreate(t *testing.T) {
 	err = os.WriteFile(devcontainerFile, []byte(`{
         "name": "mywork",
         "image": "busybox:latest",
-        "cmd": ["sleep", "infinity"]
+        "cmd": ["sleep", "infinity"],
+		"runArgs": ["--label=`+agentcontainers.DevcontainerIsTestRunLabel+`=true"]
     }`), 0o600)
 	require.NoError(t, err, "write devcontainer.json")
 
@@ -2308,9 +2314,10 @@ func TestAgent_DevcontainerRecreate(t *testing.T) {
 
 	//nolint:dogsled
 	conn, client, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
-		o.ExperimentalDevcontainersEnabled = true
-		o.ContainerAPIOptions = append(o.ContainerAPIOptions,
+		o.Devcontainers = true
+		o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
 			agentcontainers.WithContainerLabelIncludeFilter("devcontainer.local_folder", workspaceFolder),
+			agentcontainers.WithContainerLabelIncludeFilter(agentcontainers.DevcontainerIsTestRunLabel, "true"),
 		)
 	})
 
@@ -2365,7 +2372,7 @@ func TestAgent_DevcontainerRecreate(t *testing.T) {
 	// devcontainer, we do it in a goroutine so we can process logs
 	// concurrently.
 	go func(container codersdk.WorkspaceAgentContainer) {
-		_, err := conn.RecreateDevcontainer(ctx, container.ID)
+		_, err := conn.RecreateDevcontainer(ctx, devcontainerID.String())
 		assert.NoError(t, err, "recreate devcontainer should succeed")
 	}(container)
 
@@ -2435,7 +2442,7 @@ func TestAgent_DevcontainersDisabledForSubAgent(t *testing.T) {
 	// Setup the agent with devcontainers enabled initially.
 	//nolint:dogsled
 	conn, _, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, o *agent.Options) {
-		o.ExperimentalDevcontainersEnabled = true
+		o.Devcontainers = true
 	})
 
 	// Query the containers API endpoint. This should fail because
@@ -2447,8 +2454,8 @@ func TestAgent_DevcontainersDisabledForSubAgent(t *testing.T) {
 	require.Error(t, err)
 
 	// Verify the error message contains the expected text.
-	require.Contains(t, err.Error(), "The agent dev containers feature is experimental and not enabled by default.")
-	require.Contains(t, err.Error(), "To enable this feature, set CODER_AGENT_DEVCONTAINERS_ENABLE=true in your template.")
+	require.Contains(t, err.Error(), "Dev Container feature not supported.")
+	require.Contains(t, err.Error(), "Dev Container integration inside other Dev Containers is explicitly not supported.")
 }
 
 func TestAgent_Dial(t *testing.T) {
@@ -2481,7 +2488,6 @@ func TestAgent_Dial(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -3063,6 +3069,9 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	}
 	if metadata.WorkspaceName == "" {
 		metadata.WorkspaceName = "test-workspace"
+	}
+	if metadata.OwnerName == "" {
+		metadata.OwnerName = "test-user"
 	}
 	if metadata.WorkspaceID == uuid.Nil {
 		metadata.WorkspaceID = uuid.New()

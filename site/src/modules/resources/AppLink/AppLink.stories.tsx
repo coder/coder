@@ -99,6 +99,17 @@ export const SharingLevelAuthenticated: Story = {
 	},
 };
 
+export const SharingLevelOrganization: Story = {
+	args: {
+		workspace: MockWorkspace,
+		app: {
+			...MockWorkspaceApp,
+			sharing_level: "organization",
+		},
+		agent: MockWorkspaceAgent,
+	},
+};
+
 export const SharingLevelPublic: Story = {
 	args: {
 		workspace: MockWorkspace,

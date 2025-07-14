@@ -26,10 +26,11 @@ import {
 } from "components/Tooltip/Tooltip";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
-import { ArrowLeft, CircleHelp, Undo2 } from "lucide-react";
+import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
+import { ArrowLeft, CircleHelp } from "lucide-react";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
-import { Diagnostics } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import {
+	Diagnostics,
 	DynamicParameter,
 	getInitialParameterValues,
 	useValidationSchemaForDynamicParameters,
@@ -38,7 +39,6 @@ import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName"
 import {
 	type FC,
 	useCallback,
-	useContext,
 	useEffect,
 	useId,
 	useRef,
@@ -48,11 +48,7 @@ import { docs } from "utils/docs";
 import { nameValidator } from "utils/formUtils";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
-import type {
-	CreateWorkspaceMode,
-	ExternalAuthPollingState,
-} from "./CreateWorkspacePage";
-import { ExperimentalFormContext } from "./ExperimentalFormContext";
+import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
@@ -112,7 +108,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 	owner,
 	setOwner,
 }) => {
-	const experimentalFormContext = useContext(ExperimentalFormContext);
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
 	);
@@ -195,13 +190,25 @@ export const CreateWorkspacePageViewExperimental: FC<
 		setPresetOptions([
 			{ label: "None", value: "None" },
 			...presets.map((preset) => ({
-				label: preset.Name,
+				label: preset.Default ? `${preset.Name} (Default)` : preset.Name,
 				value: preset.ID,
 			})),
 		]);
 	}, [presets]);
 
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
+
+	// Set default preset when presets are loaded
+	useEffect(() => {
+		const defaultPreset = presets.find((preset) => preset.Default);
+		if (defaultPreset) {
+			// +1 because "None" is at index 0
+			const defaultIndex =
+				presets.findIndex((preset) => preset.ID === defaultPreset.ID) + 1;
+			setSelectedPresetIndex(defaultIndex);
+		}
+	}, [presets]);
+
 	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
 		[],
 	);
@@ -372,16 +379,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 								</Badge>
 							)}
 						</span>
-						{experimentalFormContext && (
-							<Button
-								size="sm"
-								variant="outline"
-								onClick={experimentalFormContext.toggleOptedOut}
-							>
-								<Undo2 />
-								Classic workspace creation
-							</Button>
-						)}
 					</div>
 					<span className="flex flex-row items-center gap-2">
 						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
@@ -408,7 +405,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 						</TooltipProvider>
 					</span>
 					<FeatureStageBadge
-						contentType={"early_access"}
+						contentType={"beta"}
 						size="sm"
 						labelText="Dynamic parameters"
 					/>
@@ -565,11 +562,11 @@ export const CreateWorkspacePageViewExperimental: FC<
 								<div className="flex flex-col gap-2">
 									<div className="flex gap-2 items-center">
 										<Label className="text-sm">Preset</Label>
-										<FeatureStageBadge contentType={"beta"} size="sm" />
 									</div>
 									<div className="flex flex-col gap-4">
 										<div className="max-w-lg">
 											<Select
+												value={presetOptions[selectedPresetIndex]?.value}
 												onValueChange={(option) => {
 													const index = presetOptions.findIndex(
 														(preset) => preset.value === option,
@@ -578,6 +575,10 @@ export const CreateWorkspacePageViewExperimental: FC<
 														return;
 													}
 													setSelectedPresetIndex(index);
+													form.setFieldValue(
+														"template_version_preset_id",
+														index === 0 ? undefined : option,
+													);
 												}}
 											>
 												<SelectTrigger>
@@ -592,16 +593,19 @@ export const CreateWorkspacePageViewExperimental: FC<
 												</SelectContent>
 											</Select>
 										</div>
-										<span className="flex items-center gap-3">
-											<Switch
-												id="show-preset-parameters"
-												checked={showPresetParameters}
-												onCheckedChange={setShowPresetParameters}
-											/>
-											<Label htmlFor="show-preset-parameters">
-												Show preset parameters
-											</Label>
-										</span>
+										{/* Only show the preset parameter visibility toggle if preset parameters are actually being modified, otherwise it is ineffectual */}
+										{presetParameterNames.length > 0 && (
+											<span className="flex items-center gap-3">
+												<Switch
+													id="show-preset-parameters"
+													checked={showPresetParameters}
+													onCheckedChange={setShowPresetParameters}
+												/>
+												<Label htmlFor="show-preset-parameters">
+													Show preset parameters
+												</Label>
+											</span>
+										)}
 									</div>
 								</div>
 							)}
@@ -611,11 +615,18 @@ export const CreateWorkspacePageViewExperimental: FC<
 									const currentParameterValueIndex =
 										form.values.rich_parameter_values?.findIndex(
 											(p) => p.name === parameter.name,
-										) ?? -1;
+										);
 									const parameterFieldIndex =
-										currentParameterValueIndex !== -1
+										currentParameterValueIndex !== undefined
 											? currentParameterValueIndex
 											: index;
+									// Get the form value by parameter name to ensure correct value mapping
+									const formValue =
+										currentParameterValueIndex !== undefined
+											? form.values?.rich_parameter_values?.[
+													currentParameterValueIndex
+												]?.value || ""
+											: "";
 									const parameterField = `rich_parameter_values.${parameterFieldIndex}`;
 									const isPresetParameter = presetParameterNames.includes(
 										parameter.name,
@@ -636,14 +647,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 									) {
 										return null;
 									}
-
-									// Get the form value by parameter name to ensure correct value mapping
-									const formValue =
-										currentParameterValueIndex !== -1
-											? form.values?.rich_parameter_values?.[
-													currentParameterValueIndex
-												]?.value || ""
-											: "";
 
 									return (
 										<DynamicParameter
