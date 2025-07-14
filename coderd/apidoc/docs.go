@@ -2605,6 +2605,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/oauth2-provider/apps/{app}/revoke": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Revoke OAuth2 application tokens for the authenticated user.",
+                "operationId": "revoke-oauth2-application-tokens-for-the-authenticated-user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Application ID",
+                        "name": "app",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/oauth2-provider/apps/{app}/secrets": {
             "get": {
                 "security": [
