@@ -1125,7 +1125,7 @@ func (m queryMetricsStore) GetOAuth2ProviderAppByClientID(ctx context.Context, i
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
+func (m queryMetricsStore) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.GetOAuth2ProviderAppByIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOAuth2ProviderAppByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetOAuth2ProviderAppByID").Observe(time.Since(start).Seconds())
@@ -1188,10 +1188,17 @@ func (m queryMetricsStore) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetOAuth2ProviderApps(ctx context.Context) ([]database.OAuth2ProviderApp, error) {
+func (m queryMetricsStore) GetOAuth2ProviderApps(ctx context.Context) ([]database.GetOAuth2ProviderAppsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOAuth2ProviderApps(ctx)
 	m.queryLatencies.WithLabelValues("GetOAuth2ProviderApps").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOAuth2ProviderAppsByOwnerID(ctx context.Context, userID uuid.NullUUID) ([]database.GetOAuth2ProviderAppsByOwnerIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuth2ProviderAppsByOwnerID(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetOAuth2ProviderAppsByOwnerID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

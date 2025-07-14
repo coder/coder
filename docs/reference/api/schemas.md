@@ -5599,18 +5599,25 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ```json
 {
+  "created_at": "2019-08-24T14:15:22Z",
+  "email": "string",
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
     "revocation": "string",
     "token": "string"
   },
+  "grant_types": [
+    "string"
+  ],
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "redirect_uris": [
     "string"
-  ]
+  ],
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
 }
 ```
 
@@ -5618,17 +5625,23 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 | Name            | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                             |
 |-----------------|------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`    | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `email`         | string                                                     | false    |              |                                                                                                                                                                                                         |
 | `endpoints`     | [codersdk.OAuth2AppEndpoints](#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
+| `grant_types`   | array of string                                            | false    |              |                                                                                                                                                                                                         |
 | `icon`          | string                                                     | false    |              |                                                                                                                                                                                                         |
 | `id`            | string                                                     | false    |              |                                                                                                                                                                                                         |
 | `name`          | string                                                     | false    |              |                                                                                                                                                                                                         |
 | `redirect_uris` | array of string                                            | false    |              |                                                                                                                                                                                                         |
+| `user_id`       | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `username`      | string                                                     | false    |              |                                                                                                                                                                                                         |
 
 ## codersdk.OAuth2ProviderAppSecret
 
 ```json
 {
   "client_secret_truncated": "string",
+  "created_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_used_at": "string"
 }
@@ -5639,6 +5652,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | Name                      | Type   | Required | Restrictions | Description |
 |---------------------------|--------|----------|--------------|-------------|
 | `client_secret_truncated` | string | false    |              |             |
+| `created_at`              | string | false    |              |             |
 | `id`                      | string | false    |              |             |
 | `last_used_at`            | string | false    |              |             |
 
@@ -6271,7 +6285,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `grant_types`   | array of [codersdk.OAuth2ProviderGrantType](#codersdkoauth2providergranttype) | false    |              |             |
 | `icon`          | string                                                                        | false    |              |             |
 | `name`          | string                                                                        | true     |              |             |
-| `redirect_uris` | array of string                                                               | true     |              |             |
+| `redirect_uris` | array of string                                                               | false    |              |             |
 
 ## codersdk.PostWorkspaceUsageRequest
 
@@ -7128,7 +7142,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `grant_types`   | array of [codersdk.OAuth2ProviderGrantType](#codersdkoauth2providergranttype) | false    |              |             |
 | `icon`          | string                                                                        | false    |              |             |
 | `name`          | string                                                                        | true     |              |             |
-| `redirect_uris` | array of string                                                               | true     |              |             |
+| `redirect_uris` | array of string                                                               | false    |              |             |
 
 ## codersdk.RBACAction
 

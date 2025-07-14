@@ -359,29 +359,89 @@ func TemplateVersionParameterOptionFromPreview(option *previewtypes.ParameterOpt
 	}
 }
 
+// oauth2AppEndpoints generates the OAuth2 endpoints for an app
+func oauth2AppEndpoints(accessURL *url.URL) codersdk.OAuth2AppEndpoints {
+	return codersdk.OAuth2AppEndpoints{
+		Authorization: accessURL.ResolveReference(&url.URL{
+			Path: "/oauth2/authorize",
+		}).String(),
+		Token: accessURL.ResolveReference(&url.URL{
+			Path: "/oauth2/token",
+		}).String(),
+		DeviceAuth: accessURL.ResolveReference(&url.URL{
+			Path: "/oauth2/device",
+		}).String(),
+		Revocation: accessURL.ResolveReference(&url.URL{
+			Path: "/oauth2/revoke",
+		}).String(),
+	}
+}
+
 func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
 	return codersdk.OAuth2ProviderApp{
 		ID:           dbApp.ID,
 		Name:         dbApp.Name,
 		RedirectURIs: dbApp.RedirectUris,
 		Icon:         dbApp.Icon,
-		Endpoints: codersdk.OAuth2AppEndpoints{
-			Authorization: accessURL.ResolveReference(&url.URL{
-				Path: "/oauth2/authorize",
-			}).String(),
-			Token: accessURL.ResolveReference(&url.URL{
-				Path: "/oauth2/token",
-			}).String(),
-			DeviceAuth: accessURL.ResolveReference(&url.URL{
-				Path: "/oauth2/device/authorize",
-			}).String(),
-		},
+		CreatedAt:    dbApp.CreatedAt,
+		GrantTypes:   dbApp.GrantTypes,
+		UserID:       dbApp.UserID.UUID,
+		Endpoints:    oauth2AppEndpoints(accessURL),
 	}
 }
 
 func OAuth2ProviderApps(accessURL *url.URL, dbApps []database.OAuth2ProviderApp) []codersdk.OAuth2ProviderApp {
 	return List(dbApps, func(dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
 		return OAuth2ProviderApp(accessURL, dbApp)
+	})
+}
+
+func OAuth2ProviderAppRow(accessURL *url.URL, dbApp database.GetOAuth2ProviderAppByIDRow) codersdk.OAuth2ProviderApp {
+	return codersdk.OAuth2ProviderApp{
+		ID:           dbApp.ID,
+		Name:         dbApp.Name,
+		RedirectURIs: dbApp.RedirectUris,
+		Icon:         dbApp.Icon,
+		CreatedAt:    dbApp.CreatedAt,
+		GrantTypes:   dbApp.GrantTypes,
+		UserID:       dbApp.UserID.UUID,
+		Username:     dbApp.Username.String,
+		Email:        dbApp.Email.String,
+		Endpoints:    oauth2AppEndpoints(accessURL),
+	}
+}
+
+func OAuth2ProviderAppsRows(accessURL *url.URL, dbApps []database.GetOAuth2ProviderAppsRow) []codersdk.OAuth2ProviderApp {
+	return List(dbApps, func(dbApp database.GetOAuth2ProviderAppsRow) codersdk.OAuth2ProviderApp {
+		return codersdk.OAuth2ProviderApp{
+			ID:           dbApp.ID,
+			Name:         dbApp.Name,
+			RedirectURIs: dbApp.RedirectUris,
+			Icon:         dbApp.Icon,
+			CreatedAt:    dbApp.CreatedAt,
+			GrantTypes:   dbApp.GrantTypes,
+			UserID:       dbApp.UserID.UUID,
+			Username:     dbApp.Username.String,
+			Email:        dbApp.Email.String,
+			Endpoints:    oauth2AppEndpoints(accessURL),
+		}
+	})
+}
+
+func OAuth2ProviderAppsByOwnerIDRows(accessURL *url.URL, dbApps []database.GetOAuth2ProviderAppsByOwnerIDRow) []codersdk.OAuth2ProviderApp {
+	return List(dbApps, func(dbApp database.GetOAuth2ProviderAppsByOwnerIDRow) codersdk.OAuth2ProviderApp {
+		return codersdk.OAuth2ProviderApp{
+			ID:           dbApp.ID,
+			Name:         dbApp.Name,
+			RedirectURIs: dbApp.RedirectUris,
+			Icon:         dbApp.Icon,
+			CreatedAt:    dbApp.CreatedAt,
+			GrantTypes:   dbApp.GrantTypes,
+			UserID:       dbApp.UserID.UUID,
+			Username:     dbApp.Username.String,
+			Email:        dbApp.Email.String,
+			Endpoints:    oauth2AppEndpoints(accessURL),
+		}
 	})
 }
 

@@ -2238,17 +2238,24 @@ export interface OAuth2ProviderApp {
 	readonly name: string;
 	readonly redirect_uris: readonly string[];
 	readonly icon: string;
+	readonly created_at: string;
+	readonly grant_types: readonly string[];
+	readonly user_id?: string;
+	readonly username?: string;
+	readonly email?: string;
 	readonly endpoints: OAuth2AppEndpoints;
 }
 
 // From codersdk/oauth2.go
 export interface OAuth2ProviderAppFilter {
 	readonly user_id?: string;
+	readonly owner_id?: string;
 }
 
 // From codersdk/oauth2.go
 export interface OAuth2ProviderAppSecret {
 	readonly id: string;
+	readonly created_at: string;
 	readonly last_used_at: string | null;
 	readonly client_secret_truncated: string;
 }

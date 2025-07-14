@@ -2149,6 +2149,12 @@
 						"description": "Filter by applications authorized for a user",
 						"name": "user_id",
 						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "Filter by applications owned by a user",
+						"name": "owner_id",
+						"in": "query"
 					}
 				],
 				"responses": {
@@ -14258,6 +14264,13 @@
 		"codersdk.OAuth2ProviderApp": {
 			"type": "object",
 			"properties": {
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"email": {
+					"type": "string"
+				},
 				"endpoints": {
 					"description": "Endpoints are included in the app response for easier discovery. The OAuth2\nspec does not have a defined place to find these (for comparison, OIDC has\na '/.well-known/openid-configuration' endpoint).",
 					"allOf": [
@@ -14265,6 +14278,12 @@
 							"$ref": "#/definitions/codersdk.OAuth2AppEndpoints"
 						}
 					]
+				},
+				"grant_types": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
 				},
 				"icon": {
 					"type": "string"
@@ -14281,6 +14300,13 @@
 					"items": {
 						"type": "string"
 					}
+				},
+				"user_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"username": {
+					"type": "string"
 				}
 			}
 		},
@@ -14289,6 +14315,10 @@
 			"properties": {
 				"client_secret_truncated": {
 					"type": "string"
+				},
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
 				},
 				"id": {
 					"type": "string",
@@ -14878,7 +14908,7 @@
 		},
 		"codersdk.PostOAuth2ProviderAppRequest": {
 			"type": "object",
-			"required": ["name", "redirect_uris"],
+			"required": ["name"],
 			"properties": {
 				"grant_types": {
 					"type": "array",
@@ -14894,7 +14924,6 @@
 				},
 				"redirect_uris": {
 					"type": "array",
-					"minItems": 1,
 					"items": {
 						"type": "string"
 					}
@@ -15598,7 +15627,7 @@
 		},
 		"codersdk.PutOAuth2ProviderAppRequest": {
 			"type": "object",
-			"required": ["name", "redirect_uris"],
+			"required": ["name"],
 			"properties": {
 				"grant_types": {
 					"type": "array",
@@ -15614,7 +15643,6 @@
 				},
 				"redirect_uris": {
 					"type": "array",
-					"minItems": 1,
 					"items": {
 						"type": "string"
 					}

@@ -301,13 +301,14 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"registration_client_uri":   ActionTrack,  // Management endpoint URI
 	},
 	&database.OAuth2ProviderAppSecret{}: {
-		"id":             ActionIgnore,
-		"created_at":     ActionIgnore,
-		"last_used_at":   ActionIgnore,
-		"hashed_secret":  ActionIgnore,
-		"display_secret": ActionIgnore,
-		"app_id":         ActionIgnore,
-		"secret_prefix":  ActionIgnore,
+		"id":                ActionIgnore,
+		"created_at":        ActionIgnore,
+		"last_used_at":      ActionIgnore,
+		"hashed_secret":     ActionIgnore,
+		"display_secret":    ActionIgnore,
+		"app_id":            ActionIgnore,
+		"secret_prefix":     ActionIgnore,
+		"app_owner_user_id": ActionIgnore, // Denormalized field for performance
 	},
 	&database.OAuth2ProviderDeviceCode{}: {
 		"id":                        ActionIgnore,

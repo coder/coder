@@ -525,16 +525,50 @@ func (t OAuth2ProviderAppToken) RBACObject() rbac.Object {
 	return rbac.ResourceOauth2AppCodeToken.WithOwner(t.UserID.String()).WithID(t.ID)
 }
 
-func (OAuth2ProviderAppSecret) RBACObject() rbac.Object {
-	return rbac.ResourceOauth2AppSecret
+func (s OAuth2ProviderAppSecret) RBACObject() rbac.Object {
+	if s.AppOwnerUserID.Valid {
+		return rbac.ResourceOauth2AppSecret.WithID(s.ID).WithOwner(s.AppOwnerUserID.UUID.String())
+	}
+	return rbac.ResourceOauth2AppSecret.WithID(s.ID)
 }
 
-func (OAuth2ProviderApp) RBACObject() rbac.Object {
+func (app OAuth2ProviderApp) RBACObject() rbac.Object {
+	if app.UserID.Valid {
+		return rbac.ResourceOauth2App.WithOwner(app.UserID.UUID.String())
+	}
 	return rbac.ResourceOauth2App
 }
 
 func (a GetOAuth2ProviderAppsByUserIDRow) RBACObject() rbac.Object {
 	return a.OAuth2ProviderApp.RBACObject()
+}
+
+func (a GetOAuth2ProviderAppByIDRow) RBACObject() rbac.Object {
+	if a.UserID.Valid {
+		return rbac.ResourceOauth2App.WithOwner(a.UserID.UUID.String())
+	}
+	return rbac.ResourceOauth2App
+}
+
+func (a GetOAuth2ProviderAppsRow) RBACObject() rbac.Object {
+	if a.UserID.Valid {
+		return rbac.ResourceOauth2App.WithOwner(a.UserID.UUID.String())
+	}
+	return rbac.ResourceOauth2App
+}
+
+func (params InsertOAuth2ProviderAppParams) RBACObject() rbac.Object {
+	if params.UserID.Valid {
+		return rbac.ResourceOauth2App.WithOwner(params.UserID.UUID.String())
+	}
+	return rbac.ResourceOauth2App
+}
+
+func (a GetOAuth2ProviderAppsByOwnerIDRow) RBACObject() rbac.Object {
+	if a.UserID.Valid {
+		return rbac.ResourceOauth2App.WithOwner(a.UserID.UUID.String())
+	}
+	return rbac.ResourceOauth2App
 }
 
 func (d OAuth2ProviderDeviceCode) RBACObject() rbac.Object {

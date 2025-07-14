@@ -2443,6 +2443,12 @@ const docTemplate = `{
                         "description": "Filter by applications authorized for a user",
                         "name": "user_id",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by applications owned by a user",
+                        "name": "owner_id",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -15707,6 +15713,13 @@ const docTemplate = `{
         "codersdk.OAuth2ProviderApp": {
             "type": "object",
             "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "email": {
+                    "type": "string"
+                },
                 "endpoints": {
                     "description": "Endpoints are included in the app response for easier discovery. The OAuth2\nspec does not have a defined place to find these (for comparison, OIDC has\na '/.well-known/openid-configuration' endpoint).",
                     "allOf": [
@@ -15714,6 +15727,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.OAuth2AppEndpoints"
                         }
                     ]
+                },
+                "grant_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "icon": {
                     "type": "string"
@@ -15730,6 +15749,13 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },
@@ -15738,6 +15764,10 @@ const docTemplate = `{
             "properties": {
                 "client_secret_truncated": {
                     "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "id": {
                     "type": "string",
@@ -16347,8 +16377,7 @@ const docTemplate = `{
         "codersdk.PostOAuth2ProviderAppRequest": {
             "type": "object",
             "required": [
-                "name",
-                "redirect_uris"
+                "name"
             ],
             "properties": {
                 "grant_types": {
@@ -16365,7 +16394,6 @@ const docTemplate = `{
                 },
                 "redirect_uris": {
                     "type": "array",
-                    "minItems": 1,
                     "items": {
                         "type": "string"
                     }
@@ -17101,8 +17129,7 @@ const docTemplate = `{
         "codersdk.PutOAuth2ProviderAppRequest": {
             "type": "object",
             "required": [
-                "name",
-                "redirect_uris"
+                "name"
             ],
             "properties": {
                 "grant_types": {
@@ -17119,7 +17146,6 @@ const docTemplate = `{
                 },
                 "redirect_uris": {
                     "type": "array",
-                    "minItems": 1,
                     "items": {
                         "type": "string"
                     }
