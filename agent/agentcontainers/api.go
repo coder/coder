@@ -663,7 +663,7 @@ func (api *API) updateContainers(ctx context.Context) error {
 			})
 
 		if !statesAreEqual {
-			// Broadcast our updates
+			// Broadcast state changes to WebSocket listeners.
 			for _, ch := range api.updateChans {
 				select {
 				case ch <- struct{}{}:
