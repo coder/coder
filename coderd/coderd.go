@@ -1232,6 +1232,16 @@ func New(options *Options) *API {
 				r.Route("/roles", func(r chi.Router) {
 					r.Get("/", api.AssignableSiteRoles)
 				})
+				r.Route("/secrets", func(r chi.Router) {
+					//GET    /api/v2/users/secrets                    // List user secrets (metadata only)
+					//POST   /api/v2/users/secrets                    // Create new user secret
+					//GET    /api/v2/users/secrets/{secretID}         // Get secret metadata
+					//PUT    /api/v2/users/secrets/{secretID}         // Update secret metadata and value
+					//DELETE /api/v2/users/secrets/{secretID}         // Delete secret
+					//GET    /api/v2/users/secrets/{secretID}/value   // Get secret value
+
+					r.Post("/", api.createUserSecret)
+				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Group(func(r chi.Router) {
 						r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
