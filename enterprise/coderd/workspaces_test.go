@@ -2644,6 +2644,7 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 				}
 			}
 		}
+
 		provider "coder" {}
 		data "coder_workspace" "me" {}
 		data "coder_workspace_owner" "me" {}
@@ -2817,10 +2818,28 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 			member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-			_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, tc.provisionerTags)
+			// Provisioner for the empty file
+			emptyProvisioner := coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, map[string]string{})
 
 			// This can take a while, so set a relatively long timeout.
 			ctx := testutil.Context(t, 2*testutil.WaitSuperLong)
+
+			emptyTar := testutil.CreateTar(t, map[string]string{"main.tf": ""})
+			emptyFi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(emptyTar))
+			emptyTv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+				Name:          testutil.GetRandomName(t),
+				FileID:        emptyFi.ID,
+				StorageMethod: codersdk.ProvisionerStorageMethodFile,
+				Provisioner:   codersdk.ProvisionerTypeTerraform,
+			})
+			coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, emptyTv.ID)
+			tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, emptyTv.ID, func(request *codersdk.CreateTemplateRequest) {
+				request.UseClassicParameterFlow = ptr.Ref(false)
+			})
+			_ = emptyProvisioner.Close() // No longer needed
+
+			// The provisioner for the next template version
+			_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, tc.provisionerTags)
 
 			// Creating a template as a template admin must succeed
 			templateFiles := map[string]string{"main.tf": fmt.Sprintf(mainTfTemplate, tc.tfWorkspaceTags)}
@@ -2834,10 +2853,10 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 				Provisioner:        codersdk.ProvisionerTypeTerraform,
 				ProvisionerTags:    tc.createTemplateVersionRequestTags,
 				UserVariableValues: tc.templateImportUserVariableValues,
+				TemplateID:         tpl.ID,
 			})
 			require.NoError(t, err, "failed to create template version")
 			coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
-			tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
 
 			if !tc.skipCreateWorkspace {
 				// Creating a workspace as a non-privileged user must succeed
