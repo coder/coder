@@ -587,6 +587,17 @@ func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
 
 	encoder := json.NewEncoder(wsNetConn)
 
+	ct, err := api.getContainers()
+	if err != nil {
+		api.logger.Error(ctx, "unable to get containers", slog.Error(err))
+		return
+	}
+
+	if err := encoder.Encode(ct); err != nil {
+		api.logger.Error(ctx, "encode container list", slog.Error(err))
+		return
+	}
+
 	for {
 		select {
 		case <-api.ctx.Done():

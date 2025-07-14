@@ -1431,10 +1431,6 @@ func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
 			Running: true,
 			Status:  "running",
 		}
-
-		makeResponse = func(cts ...codersdk.WorkspaceAgentContainer) codersdk.WorkspaceAgentListContainersResponse {
-			return codersdk.WorkspaceAgentListContainersResponse{Containers: cts}
-		}
 	)
 
 	stages := []struct {
@@ -1502,7 +1498,9 @@ func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
 		},
 	}
 
-	mCCLI.EXPECT().List(gomock.Any()).Return(makeResponse(), nil)
+	// Set up initial state for immediate send on connection
+	mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{Containers: stages[0].containers}, nil)
+	mCCLI.EXPECT().DetectArchitecture(gomock.Any(), gomock.Any()).Return("<none>", nil).AnyTimes()
 
 	_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
 		o.Logger = logger.Named("agent")
@@ -1528,8 +1526,27 @@ func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
 		closer.Close()
 	}()
 
-	mCCLI.EXPECT().DetectArchitecture(gomock.Any(), gomock.Any()).Return("<none>", nil).AnyTimes()
-	for _, stage := range stages {
+	// Read initial state sent immediately on connection
+	var got codersdk.WorkspaceAgentListContainersResponse
+	select {
+	case <-ctx.Done():
+	case got = <-containers:
+	}
+	require.NoError(t, ctx.Err())
+
+	require.Equal(t, stages[0].expected.Containers, got.Containers)
+	require.Len(t, got.Devcontainers, len(stages[0].expected.Devcontainers))
+	for j, expectedDev := range stages[0].expected.Devcontainers {
+		gotDev := got.Devcontainers[j]
+		require.Equal(t, expectedDev.Name, gotDev.Name)
+		require.Equal(t, expectedDev.WorkspaceFolder, gotDev.WorkspaceFolder)
+		require.Equal(t, expectedDev.ConfigPath, gotDev.ConfigPath)
+		require.Equal(t, expectedDev.Status, gotDev.Status)
+		require.Equal(t, expectedDev.Container, gotDev.Container)
+	}
+
+	// Process remaining stages through updater loop
+	for i, stage := range stages[1:] {
 		mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{Containers: stage.containers}, nil)
 
 		_, aw := mClock.AdvanceNext()
@@ -1542,9 +1559,9 @@ func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
 		}
 		require.NoError(t, ctx.Err())
 
-		require.Equal(t, stage.expected.Containers, got.Containers)
-		require.Len(t, got.Devcontainers, len(stage.expected.Devcontainers))
-		for j, expectedDev := range stage.expected.Devcontainers {
+		require.Equal(t, stages[i+1].expected.Containers, got.Containers)
+		require.Len(t, got.Devcontainers, len(stages[i+1].expected.Devcontainers))
+		for j, expectedDev := range stages[i+1].expected.Devcontainers {
 			gotDev := got.Devcontainers[j]
 			require.Equal(t, expectedDev.Name, gotDev.Name)
 			require.Equal(t, expectedDev.WorkspaceFolder, gotDev.WorkspaceFolder)

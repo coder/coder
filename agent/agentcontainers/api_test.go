@@ -445,10 +445,6 @@ func TestAPI(t *testing.T) {
 	t.Run("Watch", func(t *testing.T) {
 		t.Parallel()
 
-		makeResponse := func(cts ...codersdk.WorkspaceAgentContainer) codersdk.WorkspaceAgentListContainersResponse {
-			return codersdk.WorkspaceAgentListContainersResponse{Containers: cts}
-		}
-
 		fakeContainer1 := fakeContainer(t, func(c *codersdk.WorkspaceAgentContainer) {
 			c.ID = "container1"
 			c.FriendlyName = "devcontainer1"
@@ -543,7 +539,9 @@ func TestAPI(t *testing.T) {
 			logger            = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		)
 
-		mLister.EXPECT().List(gomock.Any()).Return(makeResponse(), nil)
+		// Set up initial state for immediate send on connection
+		mLister.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{Containers: stages[0].containers}, nil)
+		mLister.EXPECT().DetectArchitecture(gomock.Any(), gomock.Any()).Return("<none>", nil).AnyTimes()
 
 		api := agentcontainers.NewAPI(logger,
 			agentcontainers.WithClock(mClock),
@@ -565,9 +563,28 @@ func TestAPI(t *testing.T) {
 			defer res.Body.Close()
 		}
 
-		mLister.EXPECT().DetectArchitecture(gomock.Any(), gomock.Any()).Return("<none>", nil).AnyTimes()
+		// Read initial state sent immediately on connection
+		mt, msg, err := client.Read(ctx)
+		require.NoError(t, err)
+		require.Equal(t, websocket.MessageText, mt)
 
-		for _, stage := range stages {
+		var got codersdk.WorkspaceAgentListContainersResponse
+		err = json.Unmarshal(msg, &got)
+		require.NoError(t, err)
+
+		require.Equal(t, stages[0].expected.Containers, got.Containers)
+		require.Len(t, got.Devcontainers, len(stages[0].expected.Devcontainers))
+		for j, expectedDev := range stages[0].expected.Devcontainers {
+			gotDev := got.Devcontainers[j]
+			require.Equal(t, expectedDev.Name, gotDev.Name)
+			require.Equal(t, expectedDev.WorkspaceFolder, gotDev.WorkspaceFolder)
+			require.Equal(t, expectedDev.ConfigPath, gotDev.ConfigPath)
+			require.Equal(t, expectedDev.Status, gotDev.Status)
+			require.Equal(t, expectedDev.Container, gotDev.Container)
+		}
+
+		// Process remaining stages through updater loop
+		for i, stage := range stages[1:] {
 			mLister.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{Containers: stage.containers}, nil)
 
 			// Given: We allow the update loop to progress
@@ -584,9 +601,9 @@ func TestAPI(t *testing.T) {
 			err = json.Unmarshal(msg, &got)
 			require.NoError(t, err)
 
-			require.Equal(t, stage.expected.Containers, got.Containers)
-			require.Len(t, got.Devcontainers, len(stage.expected.Devcontainers))
-			for j, expectedDev := range stage.expected.Devcontainers {
+			require.Equal(t, stages[i+1].expected.Containers, got.Containers)
+			require.Len(t, got.Devcontainers, len(stages[i+1].expected.Devcontainers))
+			for j, expectedDev := range stages[i+1].expected.Devcontainers {
 				gotDev := got.Devcontainers[j]
 				require.Equal(t, expectedDev.Name, gotDev.Name)
 				require.Equal(t, expectedDev.WorkspaceFolder, gotDev.WorkspaceFolder)
