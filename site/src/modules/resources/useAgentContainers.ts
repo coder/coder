@@ -19,6 +19,7 @@ export function useAgentContainers(
 		queryFn: () => API.getAgentContainers(agent.id),
 		enabled: agent.status === "connected",
 		select: (res) => res.devcontainers,
+		staleTime: Infinity,
 	});
 
 	const updateDevcontainersCache = useEffectEvent(

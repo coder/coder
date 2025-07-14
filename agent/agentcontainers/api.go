@@ -549,6 +549,16 @@ func (api *API) Routes() http.Handler {
 	return r
 }
 
+func (api *API) broadcastUpdatesLocked() {
+	// Broadcast state changes to WebSocket listeners.
+	for _, ch := range api.updateChans {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}
+}
+
 func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -676,13 +686,7 @@ func (api *API) updateContainers(ctx context.Context) error {
 			})
 
 		if !statesAreEqual {
-			// Broadcast state changes to WebSocket listeners.
-			for _, ch := range api.updateChans {
-				select {
-				case ch <- struct{}{}:
-				default:
-				}
-			}
+			api.broadcastUpdatesLocked()
 		}
 	}
 
@@ -1056,6 +1060,8 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	dc.Container = nil
 	dc.Error = ""
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
+	api.broadcastUpdatesLocked()
+
 	go func() {
 		_ = api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath, WithRemoveExistingContainer())
 	}()
@@ -1171,6 +1177,7 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 	dc.Error = ""
 	api.recreateSuccessTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "successTimes")
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
+	api.broadcastUpdatesLocked()
 	api.mu.Unlock()
 
 	// Ensure an immediate refresh to accurately reflect the
