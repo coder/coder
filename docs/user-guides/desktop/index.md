@@ -1,24 +1,24 @@
 # Coder Desktop
 
 Coder Desktop provides seamless access to your remote workspaces without the need to install a CLI or configure manual port forwarding.
-Connect to workspace services using simple hostnames like `myworkspace.coder`, launch native applications with one click, and synchronize files between local and remote environments.
+Connect to workspace services using simple hostnames like `myworkspace.coder`, launch native applications with one click,
+and synchronize files between local and remote environments.
 
-> [!NOTE]
-> Coder Desktop requires a Coder deployment running [v2.20.0](https://github.com/coder/coder/releases/tag/v2.20.0) or later.
+Coder Desktop requires a Coder deployment running [v2.20.0](https://github.com/coder/coder/releases/tag/v2.20.0) or later.
 
 ## Install Coder Desktop
+
+> [!IMPORTANT]
+> Coder Desktop can't connect through another VPN.
+>
+> Due to a [known issue](#coder-desktop-cant-connect-through-another-vpn),
+> if your Coder deployment is requires that you connect through a VPN, Desktop will timeout when it tries to connect.
 
 <div class="tabs">
 
 You can install Coder Desktop on macOS or Windows.
 
 ### macOS
-
-> [!IMPORTANT]
-> Coder Desktop can't connect through another VPN.
->
-> Due to a [known issue](#mac-coder-desktop-cant-connect-through-another-vpn),
-> if your Coder deployment is requires that you connect through a VPN, Desktop will timeout when it tries to connect.
 
 1. Use [Homebrew](https://brew.sh/) to install Coder Desktop:
 
@@ -135,17 +135,19 @@ Coder Desktop for [macOS](https://github.com/coder/coder-desktop-macos/issues) o
 
 ### Known Issues
 
-#### Do not install more than one copy of Coder Desktop
+#### macOS: Do not install more than one copy of Coder Desktop
 
 To avoid system VPN configuration conflicts, only one copy of `Coder Desktop.app` should exist on your Mac, and it must remain in `/Applications`.
 
-#### macOS: Coder Desktop can't connect through another VPN
+#### Coder Desktop can't connect through another VPN
 
 If the logged in Coder deployment requires a VPN to connect, Coder Connect can't establish communication through the VPN,
 and will time out.
 
-This is due to a [known issue](https://github.com/coder/coder-desktop-macos/issues/201) with how macOS network extensions
-communicate with each other and a resolution is in progress.
+This is due to known issues with how [macOS](https://github.com/coder/coder-desktop-macos/issues/201) and
+[Windows](https://github.com/coder/coder-desktop-windows/issues/147)
+network extensions communicate with each other.
+A resolution is in progress.
 
 ## Next Steps
 
