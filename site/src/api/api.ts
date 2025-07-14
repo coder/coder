@@ -1818,7 +1818,7 @@ class ApiMethods {
 	};
 
 	revokeOAuth2ProviderApp = async (appId: string): Promise<void> => {
-		await this.axios.delete(`/oauth2/tokens?client_id=${appId}`);
+		await this.axios.post(`/api/v2/oauth2-provider/apps/${appId}/revoke`);
 	};
 
 	getAuditLogs = async (

@@ -1547,6 +1547,7 @@ func New(options *Options) *API {
 					r.Get("/", api.oAuth2ProviderApp())
 					r.Put("/", api.putOAuth2ProviderApp())
 					r.Delete("/", api.deleteOAuth2ProviderApp())
+					r.Post("/revoke", api.revokeOAuth2ProviderApp())
 
 					r.Route("/secrets", func(r chi.Router) {
 						r.Get("/", api.oAuth2ProviderAppSecrets())
