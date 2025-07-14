@@ -12,7 +12,7 @@ Coder Desktop requires a Coder deployment running [v2.20.0](https://github.com/c
 > Coder Desktop can't connect through another VPN.
 >
 > Due to a [known issue](#coder-desktop-cant-connect-through-another-vpn),
-> if your Coder deployment is requires that you connect through a VPN, Desktop will timeout when it tries to connect.
+> if your Coder deployment requires that you connect through a corporate VPN, Desktop will timeout when it tries to connect.
 
 <div class="tabs">
 
