@@ -2883,8 +2883,21 @@ func TestAPI(t *testing.T) {
 			Op:   fsnotify.Write,
 		})
 
-		err = api.RefreshContainers(ctx)
-		require.NoError(t, err)
+		// Retry RefreshContainers until subagent injection succeeds
+		// This handles the race condition where the watcher loop may not have
+		// finished processing the config change yet
+		var subAgentCreated bool
+		for i := 0; i < 10; i++ {
+			err = api.RefreshContainers(ctx)
+			require.NoError(t, err)
+
+			if len(fakeSAC.created) > 0 {
+				subAgentCreated = true
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		require.True(t, subAgentCreated, "subagent should be created after config change")
 
 		t.Log("Phase 2: Cont, waiting for sub agent to exit")
 		exitSubAgentOnce.Do(func() {
@@ -2919,8 +2932,21 @@ func TestAPI(t *testing.T) {
 			Op:   fsnotify.Write,
 		})
 
-		err = api.RefreshContainers(ctx)
-		require.NoError(t, err)
+		// Retry RefreshContainers until subagent injection succeeds
+		// This handles the race condition where the watcher loop may not have
+		// finished processing the config change yet
+		subAgentCreated = false
+		for i := 0; i < 10; i++ {
+			err = api.RefreshContainers(ctx)
+			require.NoError(t, err)
+
+			if len(fakeSAC.created) > 0 {
+				subAgentCreated = true
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		require.True(t, subAgentCreated, "subagent should be created after config change")
 
 		req = httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 		rec = httptest.NewRecorder()
