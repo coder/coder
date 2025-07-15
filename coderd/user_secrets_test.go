@@ -32,6 +32,7 @@ func TestUserSecrets(t *testing.T) {
 
 	_, _, _ = ctx, templateAdminClient, member
 
+	// test create API
 	userSecretName := "open-ai-api-key"
 	userSecretDescription := "api key for open ai"
 	userSecret, err := templateAdminClient.CreateUserSecret(ctx, codersdk.CreateUserSecretRequest{
@@ -49,6 +50,7 @@ func TestUserSecrets(t *testing.T) {
 	require.Equal(t, userSecretName, userSecret.Name)
 	require.Equal(t, userSecretDescription, userSecret.Description)
 
+	// test list API
 	userSecretList, err := templateAdminClient.ListUserSecrets(ctx)
 	require.NoError(t, err)
 	require.Len(t, userSecretList.Secrets, 1)
