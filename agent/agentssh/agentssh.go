@@ -1358,6 +1358,6 @@ func CoderSigner(seed int64, algorithm string) (gossh.Signer, error) {
 		return gossh.NewSignerFromKey(coderHostKey)
 
 	default:
-		return nil, fmt.Errorf("unsupported host key algorithm: %s", algorithm)
+		return nil, xerrors.Errorf("unsupported host key algorithm: %s", algorithm)
 	}
 }
