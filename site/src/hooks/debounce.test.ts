@@ -11,7 +11,7 @@ afterAll(() => {
 	jest.clearAllMocks();
 });
 
-function renderDebouncedValue<T = unknown>(value: T, time: number) {
+function renderDebouncedValue<T>(value: T, time: number) {
 	return renderHook(
 		({ value, time }: { value: T; time: number }) => {
 			return useDebouncedValue(value, time);
