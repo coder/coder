@@ -11,7 +11,6 @@ Aliases:
 * role
 
 ## Usage
-
 ```console
 coder organizations roles
 ```

@@ -11,7 +11,6 @@ Aliases:
 * key
 
 ## Usage
-
 ```console
 coder provisioner keys
 ```

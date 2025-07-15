@@ -8,7 +8,6 @@ Outputs specified organization setting.
 
 
 ## Usage
-
 ```console
 coder organizations settings show
 ```
@@ -17,7 +16,7 @@ coder organizations settings show
 ```console
   - Output group sync settings.:
 
-      $ coder organization settings show groupsync 
+     $ coder organization settings show groupsync
 ```
 
 ## Subcommands

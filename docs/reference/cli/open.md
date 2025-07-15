@@ -8,7 +8,6 @@ Open a workspace
 
 
 ## Usage
-
 ```console
 coder open
 ```

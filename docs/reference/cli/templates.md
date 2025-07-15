@@ -11,7 +11,6 @@ Aliases:
 * template
 
 ## Usage
-
 ```console
 coder templates
 ```
@@ -22,7 +21,7 @@ Templates are written in standard Terraform and describe the infrastructure for 
   - Create or push an update to the template. Your developers can update their
 workspaces:
 
-      $ coder templates push my-template 
+     $ coder templates push my-template
 ```
 
 ## Subcommands

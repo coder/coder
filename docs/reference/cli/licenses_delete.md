@@ -12,7 +12,7 @@ Aliases:
 * rm
 
 ## Usage
-
 ```console
 coder licenses delete <id>
 ```
+

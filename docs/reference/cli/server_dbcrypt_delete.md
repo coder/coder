@@ -11,7 +11,6 @@ Aliases:
 * rm
 
 ## Usage
-
 ```console
 coder server dbcrypt delete [flags]
 ```

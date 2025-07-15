@@ -8,7 +8,6 @@ Stop a workspace
 
 
 ## Usage
-
 ```console
 coder stop [flags] <workspace>
 ```

@@ -8,7 +8,6 @@ Run a provisioner daemon
 
 
 ## Usage
-
 ```console
 coder provisioner start [flags]
 ```

@@ -8,7 +8,6 @@ Show resource usage for the current workspace.
 
 
 ## Usage
-
 ```console
 coder stat [flags]
 ```

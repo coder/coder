@@ -8,7 +8,6 @@ Generate a support bundle to troubleshoot issues connecting to a workspace.
 
 
 ## Usage
-
 ```console
 coder support bundle [flags] <workspace> [<agent>]
 ```

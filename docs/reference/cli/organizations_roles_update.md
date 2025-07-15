@@ -8,7 +8,6 @@ Update an organization custom role
 
 
 ## Usage
-
 ```console
 coder organizations roles update [flags] <role_name>
 ```
@@ -17,7 +16,7 @@ coder organizations roles update [flags] <role_name>
 ```console
   - Run with an input.json file:
 
-      $ coder roles update --stdin < role.json 
+     $ coder roles update --stdin < role.json
 ```
 
 

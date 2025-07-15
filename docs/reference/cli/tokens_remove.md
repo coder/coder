@@ -12,7 +12,7 @@ Aliases:
 * rm
 
 ## Usage
-
 ```console
 coder tokens remove <name|id|token>
 ```
+

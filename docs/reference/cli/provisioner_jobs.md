@@ -11,7 +11,6 @@ Aliases:
 * job
 
 ## Usage
-
 ```console
 coder provisioner jobs
 ```

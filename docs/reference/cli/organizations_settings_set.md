@@ -8,7 +8,6 @@ Update specified organization setting.
 
 
 ## Usage
-
 ```console
 coder organizations settings set
 ```
@@ -17,7 +16,7 @@ coder organizations settings set
 ```console
   - Update group sync settings.:
 
-      $ coder organization settings set groupsync < input.json 
+     $ coder organization settings set groupsync < input.json
 ```
 
 ## Subcommands

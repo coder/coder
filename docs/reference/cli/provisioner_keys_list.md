@@ -11,7 +11,6 @@ Aliases:
 * ls
 
 ## Usage
-
 ```console
 coder provisioner keys list [flags]
 ```

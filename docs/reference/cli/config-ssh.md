@@ -8,7 +8,6 @@ Add an SSH Host entry for your workspaces "ssh workspace.coder"
 
 
 ## Usage
-
 ```console
 coder config-ssh [flags]
 ```
@@ -18,11 +17,11 @@ coder config-ssh [flags]
   - You can use -o (or --ssh-option) so set SSH options to be used for all your
 workspaces:
 
-      $ coder config-ssh -o ForwardAgent=yes 
+     $ coder config-ssh -o ForwardAgent=yes
 
   - You can use --dry-run (or -n) to see the changes that would be made:
 
-      $ coder config-ssh --dry-run 
+     $ coder config-ssh --dry-run
 ```
 
 

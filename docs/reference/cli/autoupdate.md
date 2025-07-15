@@ -8,7 +8,6 @@ Toggle auto-update policy for a workspace
 
 
 ## Usage
-
 ```console
 coder autoupdate [flags] <workspace> <always|never>
 ```

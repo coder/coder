@@ -11,7 +11,6 @@ Aliases:
 * group
 
 ## Usage
-
 ```console
 coder groups
 ```

@@ -8,7 +8,6 @@ Create a workspace
 
 
 ## Usage
-
 ```console
 coder create [flags] [workspace]
 ```
@@ -17,7 +16,7 @@ coder create [flags] [workspace]
 ```console
   - Create a workspace for another user (if you have permission):
 
-      $ coder create <username>/<workspace_name> 
+     $ coder create <username>/<workspace_name>
 ```
 
 

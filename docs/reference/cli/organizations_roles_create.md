@@ -8,7 +8,6 @@ Create a new organization custom role
 
 
 ## Usage
-
 ```console
 coder organizations roles create [flags] <role_name>
 ```
@@ -17,7 +16,7 @@ coder organizations roles create [flags] <role_name>
 ```console
   - Run with an input.json file:
 
-      $ coder organization -O <organization_name> roles create --stidin < role.json 
+     $ coder organization -O <organization_name> roles create --stidin < role.json
 ```
 
 

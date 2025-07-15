@@ -8,7 +8,6 @@ Archive unused or failed template versions from a given template(s)
 
 
 ## Usage
-
 ```console
 coder templates archive [flags] [template-name...] 
 ```

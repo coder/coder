@@ -8,7 +8,6 @@ Show role(s)
 
 
 ## Usage
-
 ```console
 coder organizations roles show [flags] [role_names ...]
 ```

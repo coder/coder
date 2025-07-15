@@ -11,7 +11,7 @@ Aliases:
 * groupsync
 
 ## Usage
-
 ```console
 coder organizations settings show group-sync
 ```
+

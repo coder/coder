@@ -8,7 +8,6 @@ DEPRECATED: Create a template from the current directory or as specified by flag
 
 
 ## Usage
-
 ```console
 coder templates create [flags] [name]
 ```

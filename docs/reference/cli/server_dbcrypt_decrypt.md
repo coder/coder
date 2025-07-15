@@ -8,7 +8,6 @@ Decrypt a previously encrypted database.
 
 
 ## Usage
-
 ```console
 coder server dbcrypt decrypt [flags]
 ```

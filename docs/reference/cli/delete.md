@@ -11,7 +11,6 @@ Aliases:
 * rm
 
 ## Usage
-
 ```console
 coder delete [flags] <workspace>
 ```
@@ -20,7 +19,7 @@ coder delete [flags] <workspace>
 ```console
   - Delete a workspace for another user (if you have permission):
 
-      $ coder delete <username>/<workspace_name> 
+     $ coder delete <username>/<workspace_name>
 ```
 
 

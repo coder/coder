@@ -8,7 +8,6 @@ List user groups
 
 
 ## Usage
-
 ```console
 coder groups list [flags]
 ```

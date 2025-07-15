@@ -11,7 +11,6 @@ Aliases:
 * rm
 
 ## Usage
-
 ```console
 coder templates delete [flags] [name...]
 ```

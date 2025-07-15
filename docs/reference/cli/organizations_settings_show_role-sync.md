@@ -11,7 +11,7 @@ Aliases:
 * rolesync
 
 ## Usage
-
 ```console
 coder organizations settings show role-sync
 ```
+

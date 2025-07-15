@@ -8,7 +8,6 @@ Create a user group
 
 
 ## Usage
-
 ```console
 coder groups create [flags] <name>
 ```

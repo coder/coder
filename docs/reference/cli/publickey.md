@@ -11,7 +11,6 @@ Aliases:
 * pubkey
 
 ## Usage
-
 ```console
 coder publickey [flags]
 ```

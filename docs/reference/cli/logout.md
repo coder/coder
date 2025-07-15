@@ -8,7 +8,6 @@ Unauthenticate your local session
 
 
 ## Usage
-
 ```console
 coder logout [flags]
 ```

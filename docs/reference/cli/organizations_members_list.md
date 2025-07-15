@@ -8,7 +8,6 @@ List all organization members
 
 
 ## Usage
-
 ```console
 coder organizations members list [flags]
 ```

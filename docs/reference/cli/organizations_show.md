@@ -8,7 +8,6 @@ Show the organization. Using "selected" will show the selected organization from
 
 
 ## Usage
-
 ```console
 coder organizations show [flags] ["selected"|"me"|uuid|org_name]
 ```
@@ -17,19 +16,19 @@ coder organizations show [flags] ["selected"|"me"|uuid|org_name]
 ```console
   - coder org show selected:
 
-      $ Shows the organizations selected with '--org=<org_name>'. This organization is the organization used by the cli. 
+     $ Shows the organizations selected with '--org=<org_name>'. This organization is the organization used by the cli.
 
   - coder org show me:
 
-      $ List of all organizations you are a member of. 
+     $ List of all organizations you are a member of.
 
   - coder org show developers:
 
-      $ Show organization with name 'developers' 
+     $ Show organization with name 'developers'
 
   - coder org show 90ee1875-3db5-43b3-828e-af3687522e43:
 
-      $ Show organization with the given ID. 
+     $ Show organization with the given ID.
 ```
 
 

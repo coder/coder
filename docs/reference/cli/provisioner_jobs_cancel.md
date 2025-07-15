@@ -8,7 +8,6 @@ Cancel a provisioner job
 
 
 ## Usage
-
 ```console
 coder provisioner jobs cancel [flags] <job_id>
 ```

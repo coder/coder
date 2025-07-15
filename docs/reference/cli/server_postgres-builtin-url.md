@@ -8,7 +8,6 @@ Output the connection URL for the built-in PostgreSQL deployment.
 
 
 ## Usage
-
 ```console
 coder server postgres-builtin-url [flags]
 ```

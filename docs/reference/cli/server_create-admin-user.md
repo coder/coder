@@ -8,7 +8,6 @@ Create a new admin user with the given username, email and password and adds it 
 
 
 ## Usage
-
 ```console
 coder server create-admin-user [flags]
 ```

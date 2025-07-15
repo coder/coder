@@ -8,7 +8,7 @@ Print network debug information for DERP and STUN
 
 
 ## Usage
-
 ```console
 coder netcheck
 ```
+

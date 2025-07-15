@@ -11,7 +11,6 @@ Aliases:
 * prebuild
 
 ## Usage
-
 ```console
 coder prebuilds
 ```
@@ -21,11 +20,11 @@ coder prebuilds
 Administrators can use these commands to manage prebuilt workspace settings.
   - Pause Coder prebuilt workspace reconciliation.:
 
-      $ coder prebuilds pause 
+     $ coder prebuilds pause
 
   - Resume Coder prebuilt workspace reconciliation if it has been paused.:
 
-      $ coder prebuilds resume 
+     $ coder prebuilds resume
 ```
 
 ## Subcommands

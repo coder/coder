@@ -8,7 +8,6 @@ Archive a template version(s).
 
 
 ## Usage
-
 ```console
 coder templates versions archive [flags] <template-name> [template-version-names...] 
 ```

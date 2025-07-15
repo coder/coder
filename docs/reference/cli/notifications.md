@@ -11,7 +11,6 @@ Aliases:
 * notification
 
 ## Usage
-
 ```console
 coder notifications
 ```
@@ -23,16 +22,16 @@ Administrators can use these commands to change notification settings.
 dispatching messages in case of the target outage (for example: unavailable SMTP
 server or Webhook not responding).:
 
-      $ coder notifications pause 
+     $ coder notifications pause
 
   - Resume Coder notifications:
 
-      $ coder notifications resume 
+     $ coder notifications resume
 
   - Send a test notification. Administrators can use this to verify the notification
 target settings.:
 
-      $ coder notifications test 
+     $ coder notifications test
 ```
 
 ## Subcommands

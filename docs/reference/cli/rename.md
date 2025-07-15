@@ -8,7 +8,6 @@ Rename a workspace
 
 
 ## Usage
-
 ```console
 coder rename [flags] <workspace> <new name>
 ```

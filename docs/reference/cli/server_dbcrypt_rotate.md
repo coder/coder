@@ -8,7 +8,6 @@ Rotate database encryption keys.
 
 
 ## Usage
-
 ```console
 coder server dbcrypt rotate [flags]
 ```

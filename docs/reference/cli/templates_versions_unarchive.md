@@ -8,7 +8,6 @@ Unarchive a template version(s).
 
 
 ## Usage
-
 ```console
 coder templates versions unarchive [flags] <template-name> [template-version-names...] 
 ```

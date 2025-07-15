@@ -8,7 +8,6 @@ Ping a workspace
 
 
 ## Usage
-
 ```console
 coder ping [flags] <workspace>
 ```

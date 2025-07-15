@@ -13,7 +13,6 @@ Aliases:
 * orgs
 
 ## Usage
-
 ```console
 coder organizations [flags] [subcommand]
 ```

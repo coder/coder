@@ -8,7 +8,6 @@ Create a new user.
 
 
 ## Usage
-
 ```console
 coder users create [flags]
 ```

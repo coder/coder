@@ -8,7 +8,6 @@ Manage database encryption.
 
 
 ## Usage
-
 ```console
 coder server dbcrypt
 ```

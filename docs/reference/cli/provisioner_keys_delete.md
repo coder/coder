@@ -11,7 +11,6 @@ Aliases:
 * rm
 
 ## Usage
-
 ```console
 coder provisioner keys delete [flags] <name>
 ```

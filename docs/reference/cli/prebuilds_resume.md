@@ -8,7 +8,7 @@ Resume prebuilds
 
 
 ## Usage
-
 ```console
 coder prebuilds resume
 ```
+

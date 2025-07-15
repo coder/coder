@@ -8,7 +8,7 @@ Pause prebuilds
 
 
 ## Usage
-
 ```console
 coder prebuilds pause
 ```
+
