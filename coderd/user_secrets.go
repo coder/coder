@@ -10,6 +10,18 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// Creates a new user secret.
+// Returns a newly created user secret.
+//
+// @Summary Create a new user secret
+// @ID create-user-secret
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags User-Secrets
+// @Param request body codersdk.CreateUserSecretRequest true "Request body"
+// @Success 200 {object} codersdk.UserSecret
+// @Router /users/secrets [post]
 func (api *API) createUserSecret(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -33,6 +45,15 @@ func (api *API) createUserSecret(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.UserSecret(secret))
 }
 
+// Returns a list of user secrets.
+//
+// @Summary Returns a list of user secrets.
+// @ID list-user-secrets
+// @Security CoderSessionToken
+// @Produce json
+// @Tags User-Secrets
+// @Success 200 {object} codersdk.ListUserSecretsResponse
+// @Router /users/secrets [get]
 func (api *API) listUserSecrets(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
