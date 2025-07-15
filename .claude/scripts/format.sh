@@ -126,6 +126,9 @@ md)
 	make fmt/markdown FILE="$file_path"
 	echo "✓ Formatted Markdown file: $file_path"
 	;;
+sql)
+	run_formatter "fmt/sql" "SQL"
+	;;
 *)
 	echo "No formatter available for file extension: $file_ext"
 	exit 0

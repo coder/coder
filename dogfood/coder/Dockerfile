@@ -207,6 +207,9 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
 
+# Install sqlfluff for SQL formatting
+RUN pip3 install sqlfluff
+
 # NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.12.2.
 # Installing the same version here to match.
 RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.13.0/terraform_1.13.0_linux_amd64.zip" && \

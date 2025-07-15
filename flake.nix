@@ -153,6 +153,7 @@
             openssh
             openssl
             pango
+            sqlfluff
             pixman
             pkg-config
             playwright-driver.browsers
