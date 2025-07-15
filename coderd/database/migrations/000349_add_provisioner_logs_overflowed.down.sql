@@ -1,0 +1,1 @@
+ALTER TABLE provisioner_jobs DROP COLUMN logs_overflowed;

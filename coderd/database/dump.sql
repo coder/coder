@@ -1360,7 +1360,8 @@ CASE
         WHEN (started_at IS NULL) THEN 'pending'::provisioner_job_status
         ELSE 'running'::provisioner_job_status
     END
-END) STORED NOT NULL
+END) STORED NOT NULL,
+    logs_overflowed boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN provisioner_jobs.job_status IS 'Computed column to track the status of the job.';

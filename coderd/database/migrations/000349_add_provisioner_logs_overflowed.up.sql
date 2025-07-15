@@ -1,0 +1,1 @@
+ALTER TABLE provisioner_jobs ADD COLUMN logs_overflowed boolean NOT NULL DEFAULT false;
