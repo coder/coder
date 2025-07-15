@@ -13,7 +13,7 @@ There are multiple ways to forward ports in Coder:
 | [Coder Desktop](../desktop/index.md)                            | Uses a VPN tunnel to your workspace and provides access to all running ports.                                               |
 | [`coder port-forward` command](#the-coder-port-forward-command) | Can be used to forward TCP or UDP ports from the remote workspace so they can be accessed locally.                          |
 | [Dashboard](#dashboard)                                         | Proxies traffic through the Coder control plane versus peer-to-peer which is possible with the Coder CLI and Coder Desktop. |
-| [SSH](#ssh)                                                     | Double-encrypts traffic with both Wireguard and SSH.                                                                        |
+| [SSH](#ssh)                                                     | Forwards ports over an SSH connection.                                                                                      |
 
 ## Coder Desktop
 
