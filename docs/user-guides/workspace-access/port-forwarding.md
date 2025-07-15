@@ -6,17 +6,25 @@ Port forwarding lets developers securely access processes on their Coder
 workspace from a local machine. A common use case is testing web applications in
 a browser.
 
-There are three ways to forward ports in Coder:
+There are multiple ways to forward ports in Coder:
 
+- [Coder Desktop](../desktop/index.md)
 - The `coder port-forward` command
 - Dashboard
 - SSH
 
-The `coder port-forward` command is generally more performant than:
+The performance of these methods generally follows in the following order.
 
-1. The Dashboard which proxies traffic through the Coder control plane versus
-   peer-to-peer which is possible with the Coder CLI
-1. `sshd` which does double encryption of traffic with both Wireguard and SSH
+1. Coder Desktop: as it uses a VPN tunnel to your workspace and provides access to all running ports.
+1. The `coder port-forward` command.
+1. The Dashboard, which proxies traffic through the Coder control plane versus
+   peer-to-pee,r which is possible with the Coder CLI and Coder Desktop.
+1. `ssh`, which does double encryption of traffic with both Wireguard and SSH.
+
+## Coder Desktop
+
+[Coder Desktop](../desktop/index.md) provides seamless access to your remote workspaces, eliminating the need to install a CLI or manually configure port forwarding.
+Just install and access all your ports at `<workspace-name>.coder:PORT`.
 
 ## The `coder port-forward` command
 
@@ -62,7 +70,7 @@ where each segment of hostnames must not exceed 63 characters. If your app
 name, agent name, workspace name and username exceed 63 characters in the
 hostname, port forwarding via the dashboard will not work.
 
-### From an coder_app resource
+### From a coder_app resource
 
 One way to port forward is to configure a `coder_app` resource in the
 workspace's template. This approach shows a visual application icon in the
