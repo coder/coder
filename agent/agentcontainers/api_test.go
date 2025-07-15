@@ -2883,8 +2883,12 @@ func TestAPI(t *testing.T) {
 			Op:   fsnotify.Write,
 		})
 
-		err = api.RefreshContainers(ctx)
-		require.NoError(t, err)
+		require.Eventuallyf(t, func() bool {
+			err = api.RefreshContainers(ctx)
+			require.NoError(t, err)
+
+			return len(fakeSAC.agents) == 1
+		}, testutil.WaitShort, testutil.IntervalFast, "subagent should be created after config change")
 
 		t.Log("Phase 2: Cont, waiting for sub agent to exit")
 		exitSubAgentOnce.Do(func() {
@@ -2919,8 +2923,12 @@ func TestAPI(t *testing.T) {
 			Op:   fsnotify.Write,
 		})
 
-		err = api.RefreshContainers(ctx)
-		require.NoError(t, err)
+		require.Eventuallyf(t, func() bool {
+			err = api.RefreshContainers(ctx)
+			require.NoError(t, err)
+
+			return len(fakeSAC.agents) == 0
+		}, testutil.WaitShort, testutil.IntervalFast, "subagent should be deleted after config change")
 
 		req = httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 		rec = httptest.NewRecorder()

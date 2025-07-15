@@ -193,4 +193,22 @@ describe("useAgentContainers", () => {
 		displayErrorSpy.mockRestore();
 		watchAgentContainersSpy.mockRestore();
 	});
+
+	it("does not establish WebSocket connection when agent is not connected", () => {
+		const watchAgentContainersSpy = jest.spyOn(API, "watchAgentContainers");
+
+		const disconnectedAgent = {
+			...MockWorkspaceAgent,
+			status: "disconnected" as const,
+		};
+
+		const { result } = renderHook(() => useAgentContainers(disconnectedAgent), {
+			wrapper: createWrapper(),
+		});
+
+		expect(watchAgentContainersSpy).not.toHaveBeenCalled();
+		expect(result.current).toBeUndefined();
+
+		watchAgentContainersSpy.mockRestore();
+	});
 });
