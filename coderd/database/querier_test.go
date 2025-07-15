@@ -2168,6 +2168,10 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 		require.NoError(t, err)
 		// Then: No logs returned
 		require.Len(t, logs, 0, "no logs should be returned")
+		// And: The count matches the number of logs returned
+		count, err := authDb.CountConnectionLogs(memberCtx, database.CountConnectionLogsParams{})
+		require.NoError(t, err)
+		require.EqualValues(t, len(logs), count)
 	})
 
 	t.Run("SiteWideAuditor", func(t *testing.T) {
@@ -2186,6 +2190,10 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 		require.NoError(t, err)
 		// Then: All logs are returned
 		require.ElementsMatch(t, connectionOnlyIDs(allLogs), connectionOnlyIDs(logs))
+		// And: The count matches the number of logs returned
+		count, err := authDb.CountConnectionLogs(siteAuditorCtx, database.CountConnectionLogsParams{})
+		require.NoError(t, err)
+		require.EqualValues(t, len(logs), count)
 	})
 
 	t.Run("SingleOrgAuditor", func(t *testing.T) {
@@ -2205,6 +2213,10 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 		require.NoError(t, err)
 		// Then: Only the logs for the organization are returned
 		require.ElementsMatch(t, orgConnectionLogs[orgID], connectionOnlyIDs(logs))
+		// And: The count matches the number of logs returned
+		count, err := authDb.CountConnectionLogs(orgAuditCtx, database.CountConnectionLogsParams{})
+		require.NoError(t, err)
+		require.EqualValues(t, len(logs), count)
 	})
 
 	t.Run("TwoOrgAuditors", func(t *testing.T) {
@@ -2225,6 +2237,10 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 		require.NoError(t, err)
 		// Then: All logs for both organizations are returned
 		require.ElementsMatch(t, append(orgConnectionLogs[first], orgConnectionLogs[second]...), connectionOnlyIDs(logs))
+		// And: The count matches the number of logs returned
+		count, err := authDb.CountConnectionLogs(multiOrgAuditCtx, database.CountConnectionLogsParams{})
+		require.NoError(t, err)
+		require.EqualValues(t, len(logs), count)
 	})
 
 	t.Run("ErroneousOrg", func(t *testing.T) {
@@ -2243,7 +2259,69 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 		require.NoError(t, err)
 		// Then: No logs are returned
 		require.Len(t, logs, 0, "no logs should be returned")
+		// And: The count matches the number of logs returned
+		count, err := authDb.CountConnectionLogs(userCtx, database.CountConnectionLogsParams{})
+		require.NoError(t, err)
+		require.EqualValues(t, len(logs), count)
 	})
+}
+
+func TestCountConnectionLogs(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	db, _ := dbtestutil.NewDB(t)
+
+	orgA := dbfake.Organization(t, db).Do()
+	userA := dbgen.User(t, db, database.User{})
+	tplA := dbgen.Template(t, db, database.Template{OrganizationID: orgA.Org.ID, CreatedBy: userA.ID})
+	wsA := dbgen.Workspace(t, db, database.WorkspaceTable{OwnerID: userA.ID, OrganizationID: orgA.Org.ID, TemplateID: tplA.ID})
+
+	orgB := dbfake.Organization(t, db).Do()
+	userB := dbgen.User(t, db, database.User{})
+	tplB := dbgen.Template(t, db, database.Template{OrganizationID: orgB.Org.ID, CreatedBy: userB.ID})
+	wsB := dbgen.Workspace(t, db, database.WorkspaceTable{OwnerID: userB.ID, OrganizationID: orgB.Org.ID, TemplateID: tplB.ID})
+
+	// Create logs for two different orgs.
+	for i := 0; i < 20; i++ {
+		dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+			OrganizationID:   wsA.OrganizationID,
+			WorkspaceOwnerID: wsA.OwnerID,
+			WorkspaceID:      wsA.ID,
+			Type:             database.ConnectionTypeSsh,
+		})
+	}
+	for i := 0; i < 10; i++ {
+		dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+			OrganizationID:   wsB.OrganizationID,
+			WorkspaceOwnerID: wsB.OwnerID,
+			WorkspaceID:      wsB.ID,
+			Type:             database.ConnectionTypeSsh,
+		})
+	}
+
+	// Count with a filter for orgA.
+	countParams := database.CountConnectionLogsParams{
+		OrganizationID: orgA.Org.ID,
+	}
+	totalCount, err := db.CountConnectionLogs(ctx, countParams)
+	require.NoError(t, err)
+	require.Equal(t, int64(20), totalCount)
+
+	// Get a paginated result for the same filter.
+	getParams := database.GetConnectionLogsOffsetParams{
+		OrganizationID: orgA.Org.ID,
+		LimitOpt:       5,
+		OffsetOpt:      10,
+	}
+	logs, err := db.GetConnectionLogsOffset(ctx, getParams)
+	require.NoError(t, err)
+	require.Len(t, logs, 5)
+
+	// The count with the filter should remain the same, independent of pagination.
+	countAfterGet, err := db.CountConnectionLogs(ctx, countParams)
+	require.NoError(t, err)
+	require.Equal(t, int64(20), countAfterGet)
 }
 
 func TestConnectionLogsOffsetFilters(t *testing.T) {
@@ -2484,7 +2562,24 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			t.Parallel()
 			logs, err := db.GetConnectionLogsOffset(ctx, tc.params)
 			require.NoError(t, err)
+			count, err := db.CountConnectionLogs(ctx, database.CountConnectionLogsParams{
+				OrganizationID:      tc.params.OrganizationID,
+				WorkspaceOwner:      tc.params.WorkspaceOwner,
+				Type:                tc.params.Type,
+				UserID:              tc.params.UserID,
+				Username:            tc.params.Username,
+				UserEmail:           tc.params.UserEmail,
+				ConnectedAfter:      tc.params.ConnectedAfter,
+				ConnectedBefore:     tc.params.ConnectedBefore,
+				WorkspaceID:         tc.params.WorkspaceID,
+				ConnectionID:        tc.params.ConnectionID,
+				Status:              tc.params.Status,
+				WorkspaceOwnerID:    tc.params.WorkspaceOwnerID,
+				WorkspaceOwnerEmail: tc.params.WorkspaceOwnerEmail,
+			})
+			require.NoError(t, err)
 			require.ElementsMatch(t, tc.expectedLogIDs, connectionOnlyIDs(logs))
+			require.Equal(t, len(tc.expectedLogIDs), int(count), "CountConnectionLogs should match the number of returned logs (no offset or limit)")
 		})
 	}
 }

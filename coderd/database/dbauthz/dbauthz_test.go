@@ -406,6 +406,42 @@ func (s *MethodTestSuite) TestConnectionLogs() {
 			LimitOpt: 10,
 		}, emptyPreparedAuthorized{}).Asserts(rbac.ResourceConnectionLog, policy.ActionRead)
 	}))
+	s.Run("CountConnectionLogs", s.Subtest(func(db database.Store, check *expects) {
+		ws := createWorkspace(s.T(), db)
+		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
+			Type:             database.ConnectionTypeSsh,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+		})
+		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
+			Type:             database.ConnectionTypeSsh,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+		})
+		check.Args(database.CountConnectionLogsParams{}).Asserts(
+			rbac.ResourceConnectionLog, policy.ActionRead,
+		).WithNotAuthorized("nil")
+	}))
+	s.Run("CountAuthorizedConnectionLogs", s.Subtest(func(db database.Store, check *expects) {
+		ws := createWorkspace(s.T(), db)
+		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
+			Type:             database.ConnectionTypeSsh,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+		})
+		_ = dbgen.ConnectionLog(s.T(), db, database.UpsertConnectionLogParams{
+			Type:             database.ConnectionTypeSsh,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+		})
+		check.Args(database.CountConnectionLogsParams{}, emptyPreparedAuthorized{}).Asserts(
+			rbac.ResourceConnectionLog, policy.ActionRead,
+		)
+	}))
 }
 
 func (s *MethodTestSuite) TestFile() {
