@@ -8,6 +8,7 @@ Run upload and download tests from your machine to a workspace
 
 
 ## Usage
+
 ```console
 coder speedtest [flags] <workspace>
 ```

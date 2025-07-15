@@ -8,6 +8,7 @@ Send a test notification
 
 
 ## Usage
+
 ```console
 coder notifications test
 ```

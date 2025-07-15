@@ -13,6 +13,7 @@ Aliases:
 * orgsync
 
 ## Usage
+
 ```console
 coder organizations settings show organization-sync
 ```

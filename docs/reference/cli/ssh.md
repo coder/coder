@@ -8,6 +8,7 @@ Start a shell into a workspace or run a command
 
 
 ## Usage
+
 ```console
 coder ssh [flags] <workspace> [command]
 ```

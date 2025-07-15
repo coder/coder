@@ -8,6 +8,7 @@ Update a user's status to 'suspended'. A suspended user cannot log into the plat
 
 
 ## Usage
+
 ```console
 coder users suspend [flags] <username|user_id>
 ```

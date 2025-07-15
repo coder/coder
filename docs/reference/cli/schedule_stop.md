@@ -8,6 +8,7 @@ Edit workspace stop schedule
 
 
 ## Usage
+
 ```console
 coder schedule stop <workspace-name> { <duration> | manual }
 ```

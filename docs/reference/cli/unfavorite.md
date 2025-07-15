@@ -12,6 +12,7 @@ Aliases:
 * unfavourite
 
 ## Usage
+
 ```console
 coder unfavorite <workspace>
 ```

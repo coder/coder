@@ -8,6 +8,7 @@ Show memory usage, in gigabytes.
 
 
 ## Usage
+
 ```console
 coder stat mem [flags]
 ```

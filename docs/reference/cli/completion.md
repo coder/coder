@@ -8,6 +8,7 @@ Install or update shell completion scripts for the detected or chosen shell.
 
 
 ## Usage
+
 ```console
 coder completion [flags]
 ```

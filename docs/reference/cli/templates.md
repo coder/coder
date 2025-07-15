@@ -11,6 +11,7 @@ Aliases:
 * template
 
 ## Usage
+
 ```console
 coder templates
 ```

@@ -8,6 +8,7 @@ Open a workspace in VS Code Desktop
 
 
 ## Usage
+
 ```console
 coder open vscode [flags] <workspace> [<directory in workspace>]
 ```

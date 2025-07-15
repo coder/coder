@@ -8,6 +8,7 @@ Create a new organization.
 
 
 ## Usage
+
 ```console
 coder organizations create [flags] <organization name>
 ```

@@ -8,6 +8,7 @@ Promote a template version to active.
 
 
 ## Usage
+
 ```console
 coder templates versions promote [flags] --template=<template_name> --template-version=<template_version_name>
 ```

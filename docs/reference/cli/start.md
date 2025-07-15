@@ -8,6 +8,7 @@ Start a workspace
 
 
 ## Usage
+
 ```console
 coder start [flags] <workspace>
 ```

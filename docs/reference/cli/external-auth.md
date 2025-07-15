@@ -8,6 +8,7 @@ Manage external authentication
 
 
 ## Usage
+
 ```console
 coder external-auth
 ```

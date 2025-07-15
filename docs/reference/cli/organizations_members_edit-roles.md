@@ -11,6 +11,7 @@ Aliases:
 * edit-role
 
 ## Usage
+
 ```console
 coder organizations members edit-roles <username | user_id> [roles...]
 ```

@@ -8,6 +8,7 @@ Show the organization. Using "selected" will show the selected organization from
 
 
 ## Usage
+
 ```console
 coder organizations show [flags] ["selected"|"me"|uuid|org_name]
 ```

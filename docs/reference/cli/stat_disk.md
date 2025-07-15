@@ -8,6 +8,7 @@ Show disk usage, in gigabytes.
 
 
 ## Usage
+
 ```console
 coder stat disk [flags]
 ```

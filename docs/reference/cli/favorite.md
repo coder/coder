@@ -12,6 +12,7 @@ Aliases:
 * favourite
 
 ## Usage
+
 ```console
 coder favorite <workspace>
 ```

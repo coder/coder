@@ -8,6 +8,7 @@ Start a Coder server
 
 
 ## Usage
+
 ```console
 coder server [flags]
 ```

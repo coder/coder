@@ -8,6 +8,7 @@ Edit a user's roles by username or id
 
 
 ## Usage
+
 ```console
 coder users edit-roles [flags] <username|user_id>
 ```

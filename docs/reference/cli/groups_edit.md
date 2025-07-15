@@ -8,6 +8,7 @@ Edit a user group
 
 
 ## Usage
+
 ```console
 coder groups edit [flags] <name>
 ```

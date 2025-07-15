@@ -8,6 +8,7 @@ Schedule automated start and stop times for workspaces
 
 
 ## Usage
+
 ```console
 coder schedule { show | start | stop | extend } <workspace>
 ```

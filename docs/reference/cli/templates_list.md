@@ -11,6 +11,7 @@ Aliases:
 * ls
 
 ## Usage
+
 ```console
 coder templates list [flags]
 ```

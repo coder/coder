@@ -8,6 +8,7 @@ Show a single user. Use 'me' to indicate the currently authenticated user.
 
 
 ## Usage
+
 ```console
 coder users show [flags] <username|user_id|'me'>
 ```

@@ -8,6 +8,7 @@ Will update and start a given workspace if it is out of date. If the workspace i
 
 
 ## Usage
+
 ```console
 coder update [flags] <workspace>
 ```

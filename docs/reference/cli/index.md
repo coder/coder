@@ -5,6 +5,7 @@
 
 
 ## Usage
+
 ```console
 coder [global-flags] <subcommand>
 ```

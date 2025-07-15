@@ -8,6 +8,7 @@ Commands for troubleshooting issues with a Coder deployment.
 
 
 ## Usage
+
 ```console
 coder support
 ```

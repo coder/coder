@@ -8,6 +8,7 @@ Add an SSH Host entry for your workspaces "ssh workspace.coder"
 
 
 ## Usage
+
 ```console
 coder config-ssh [flags]
 ```

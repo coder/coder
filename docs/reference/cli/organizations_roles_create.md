@@ -8,6 +8,7 @@ Create a new organization custom role
 
 
 ## Usage
+
 ```console
 coder organizations roles create [flags] <role_name>
 ```

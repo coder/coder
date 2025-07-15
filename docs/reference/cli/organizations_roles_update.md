@@ -8,6 +8,7 @@ Update an organization custom role
 
 
 ## Usage
+
 ```console
 coder organizations roles update [flags] <role_name>
 ```

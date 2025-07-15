@@ -11,6 +11,7 @@ Aliases:
 * override-stop
 
 ## Usage
+
 ```console
 coder schedule extend <workspace-name> <duration from now>
 ```

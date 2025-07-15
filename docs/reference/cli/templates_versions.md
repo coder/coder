@@ -11,6 +11,7 @@ Aliases:
 * version
 
 ## Usage
+
 ```console
 coder templates versions
 ```

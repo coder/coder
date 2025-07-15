@@ -11,6 +11,7 @@ Aliases:
 * active
 
 ## Usage
+
 ```console
 coder users activate [flags] <username|user_id>
 ```

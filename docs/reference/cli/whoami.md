@@ -4,6 +4,7 @@
 Fetch authenticated user info for Coder deployment
 
 ## Usage
+
 ```console
 coder whoami
 ```

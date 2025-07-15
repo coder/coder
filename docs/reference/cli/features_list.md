@@ -8,6 +8,7 @@ Aliases:
 * ls
 
 ## Usage
+
 ```console
 coder features list [flags]
 ```

@@ -8,6 +8,7 @@ Resume notifications
 
 
 ## Usage
+
 ```console
 coder notifications resume
 ```

@@ -8,6 +8,7 @@ Edit the metadata of a template by name.
 
 
 ## Usage
+
 ```console
 coder templates edit [flags] <template>
 ```

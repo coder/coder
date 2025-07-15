@@ -11,6 +11,7 @@ Aliases:
 * feature
 
 ## Usage
+
 ```console
 coder features
 ```

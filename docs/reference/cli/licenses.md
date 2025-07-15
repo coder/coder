@@ -11,6 +11,7 @@ Aliases:
 * license
 
 ## Usage
+
 ```console
 coder licenses
 ```

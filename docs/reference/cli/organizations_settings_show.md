@@ -8,6 +8,7 @@ Outputs specified organization setting.
 
 
 ## Usage
+
 ```console
 coder organizations settings show
 ```

@@ -8,6 +8,7 @@ Pause notifications
 
 
 ## Usage
+
 ```console
 coder notifications pause
 ```

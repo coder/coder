@@ -8,6 +8,7 @@ Personalize your workspace by applying a canonical dotfiles repository
 
 
 ## Usage
+
 ```console
 coder dotfiles [flags] <git_repo_url>
 ```

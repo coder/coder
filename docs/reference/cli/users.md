@@ -11,6 +11,7 @@ Aliases:
 * user
 
 ## Usage
+
 ```console
 coder users [subcommand]
 ```

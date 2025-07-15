@@ -8,6 +8,7 @@ Print auth for an external provider
 
 
 ## Usage
+
 ```console
 coder external-auth access-token [flags] <provider>
 ```

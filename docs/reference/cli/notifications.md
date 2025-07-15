@@ -11,6 +11,7 @@ Aliases:
 * notification
 
 ## Usage
+
 ```console
 coder notifications
 ```

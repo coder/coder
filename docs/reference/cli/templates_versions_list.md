@@ -8,6 +8,7 @@ List all the versions of the specified template
 
 
 ## Usage
+
 ```console
 coder templates versions list [flags] <template>
 ```

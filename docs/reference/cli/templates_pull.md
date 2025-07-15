@@ -8,6 +8,7 @@ Download the active, latest, or specified version of a template to a path.
 
 
 ## Usage
+
 ```console
 coder templates pull [flags] <name> [destination]
 ```

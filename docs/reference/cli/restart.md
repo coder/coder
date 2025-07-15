@@ -8,6 +8,7 @@ Restart a workspace
 
 
 ## Usage
+
 ```console
 coder restart [flags] <workspace>
 ```

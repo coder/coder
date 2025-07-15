@@ -11,6 +11,7 @@ Aliases:
 * setting
 
 ## Usage
+
 ```console
 coder organizations settings
 ```

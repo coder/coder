@@ -8,6 +8,7 @@ Create a token
 
 
 ## Usage
+
 ```console
 coder tokens create [flags]
 ```

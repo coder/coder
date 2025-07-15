@@ -11,6 +11,7 @@ Aliases:
 * rm
 
 ## Usage
+
 ```console
 coder users delete <username|user_id>
 ```

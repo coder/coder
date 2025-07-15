@@ -8,6 +8,7 @@ Show CPU usage, in cores.
 
 
 ## Usage
+
 ```console
 coder stat cpu [flags]
 ```
