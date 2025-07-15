@@ -16,10 +16,10 @@ coder show [flags] <workspace>
 ## Options
 ### --details
  
-| | |
-| --- | --- |
-| Type | <code>bool</code> |
-| Default |<code>false</code> |
+|         |                    |
+|---------|--------------------|
+| Type    | <code>bool</code>  |
+| Default | <code>false</code> |
 
 
 

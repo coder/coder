@@ -37,8 +37,8 @@ fi
 ## Options
 ### --extra
  
-| | |
-| --- | --- |
+|      |                     |
+|------|---------------------|
 | Type | <code>string</code> |
 
 Extract a field from the "extra" properties of the OAuth token.

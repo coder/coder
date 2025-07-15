@@ -16,7 +16,7 @@ coder organizations settings
 ```
 
 ## Subcommands
-| Name |   Purpose |
-| ---- |   ----- |
+| Name                                                  | Purpose                                 |
+|-------------------------------------------------------|-----------------------------------------|
 | [<code>show</code>](./organizations_settings_show.md) | Outputs specified organization setting. |
-| [<code>set</code>](./organizations_settings_set.md) | Update specified organization setting. |
+| [<code>set</code>](./organizations_settings_set.md)   | Update specified organization setting.  |

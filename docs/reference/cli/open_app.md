@@ -16,11 +16,11 @@ coder open app [flags] <workspace> <app slug>
 ## Options
 ### --region
  
-| | |
-| --- | --- |
-| Type | <code>string</code> |
+|             |                                     |
+|-------------|-------------------------------------|
+| Type        | <code>string</code>                 |
 | Environment | <code>$CODER_OPEN_APP_REGION</code> |
-| Default |<code>primary</code> |
+| Default     | <code>primary</code>                |
 
 
 

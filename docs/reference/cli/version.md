@@ -16,10 +16,10 @@ coder version [flags]
 ## Options
 ### -o, --output
  
-| | |
-| --- | --- |
-| Type | <code>text\|json</code> |
-| Default |<code>text</code> |
+|         |                         |
+|---------|-------------------------|
+| Type    | <code>text\|json</code> |
+| Default | <code>text</code>       |
 
 
 

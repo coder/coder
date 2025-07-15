@@ -35,8 +35,8 @@ target settings.:
 ```
 
 ## Subcommands
-| Name |   Purpose |
-| ---- |   ----- |
-| [<code>pause</code>](./notifications_pause.md) | Pause notifications |
-| [<code>resume</code>](./notifications_resume.md) | Resume notifications |
-| [<code>test</code>](./notifications_test.md) | Send a test notification |
+| Name                                             | Purpose                  |
+|--------------------------------------------------|--------------------------|
+| [<code>pause</code>](./notifications_pause.md)   | Pause notifications      |
+| [<code>resume</code>](./notifications_resume.md) | Resume notifications     |
+| [<code>test</code>](./notifications_test.md)     | Send a test notification |

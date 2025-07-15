@@ -21,10 +21,10 @@ coder users suspend [flags] <username|user_id>
 ## Options
 ### -c, --column
  
-| | |
-| --- | --- |
-| Type | <code>[username\|email\|created at\|status]</code> |
-| Default |<code>username,email,created at,status</code> |
+|         |                                                    |
+|---------|----------------------------------------------------|
+| Type    | <code>[username\|email\|created at\|status]</code> |
+| Default | <code>username,email,created at,status</code>      |
 
 
 

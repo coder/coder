@@ -16,16 +16,16 @@ coder templates versions unarchive [flags] <template-name> [template-version-nam
 ## Options
 ### -y, --yes
  
-| | |
-| --- | --- |
+|      |                   |
+|------|-------------------|
 | Type | <code>bool</code> |
 
 Bypass prompts.
 ### -O, --org
  
-| | |
-| --- | --- |
-| Type | <code>string</code> |
+|             |                                  |
+|-------------|----------------------------------|
+| Type        | <code>string</code>              |
 | Environment | <code>$CODER_ORGANIZATION</code> |
 
 Select which organization (uuid or name) to use.

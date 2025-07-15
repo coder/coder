@@ -16,15 +16,15 @@ coder users edit-roles [flags] <username|user_id>
 ## Options
 ### -y, --yes
  
-| | |
-| --- | --- |
+|      |                   |
+|------|-------------------|
 | Type | <code>bool</code> |
 
 Bypass prompts.
 ### --roles
  
-| | |
-| --- | --- |
+|      |                           |
+|------|---------------------------|
 | Type | <code>string-array</code> |
 
 A list of roles to give to the user. This removes any existing roles the user may have.

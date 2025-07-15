@@ -44,27 +44,27 @@ machine:
 ## Options
 ### -p, --tcp
  
-| | |
-| --- | --- |
-| Type | <code>string-array</code> |
+|             |                                      |
+|-------------|--------------------------------------|
+| Type        | <code>string-array</code>            |
 | Environment | <code>$CODER_PORT_FORWARD_TCP</code> |
 
 Forward TCP port(s) from the workspace to the local machine.
 ### --udp
  
-| | |
-| --- | --- |
-| Type | <code>string-array</code> |
+|             |                                      |
+|-------------|--------------------------------------|
+| Type        | <code>string-array</code>            |
 | Environment | <code>$CODER_PORT_FORWARD_UDP</code> |
 
 Forward UDP port(s) from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols.
 ### --disable-autostart
  
-| | |
-| --- | --- |
-| Type | <code>bool</code> |
+|             |                                           |
+|-------------|-------------------------------------------|
+| Type        | <code>bool</code>                         |
 | Environment | <code>$CODER_SSH_DISABLE_AUTOSTART</code> |
-| Default |<code>false</code> |
+| Default     | <code>false</code>                        |
 
 
 

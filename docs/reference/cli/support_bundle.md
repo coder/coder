@@ -21,24 +21,24 @@ This command generates a file containing detailed troubleshooting information ab
 ## Options
 ### -y, --yes
  
-| | |
-| --- | --- |
+|      |                   |
+|------|-------------------|
 | Type | <code>bool</code> |
 
 Bypass prompts.
 ### -O, --output-file
  
-| | |
-| --- | --- |
-| Type | <code>string</code> |
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>string</code>                            |
 | Environment | <code>$CODER_SUPPORT_BUNDLE_OUTPUT_FILE</code> |
 
 File path for writing the generated support bundle. Defaults to coder-support-$(date +%s).zip.
 ### --url-override
  
-| | |
-| --- | --- |
-| Type | <code>string</code> |
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>string</code>                             |
 | Environment | <code>$CODER_SUPPORT_BUNDLE_URL_OVERRIDE</code> |
 
 Override the URL to your Coder deployment. This may be useful, for example, if you need to troubleshoot a specific Coder replica.

@@ -16,19 +16,19 @@ coder reset-password [flags] <username>
 ## Options
 ### --postgres-url
  
-| | |
-| --- | --- |
-| Type | <code>string</code> |
+|             |                                       |
+|-------------|---------------------------------------|
+| Type        | <code>string</code>                   |
 | Environment | <code>$CODER_PG_CONNECTION_URL</code> |
 
 URL of a PostgreSQL database to connect to.
 ### --postgres-connection-auth
  
-| | |
-| --- | --- |
-| Type | <code>password\|awsiamrds</code> |
+|             |                                        |
+|-------------|----------------------------------------|
+| Type        | <code>password\|awsiamrds</code>       |
 | Environment | <code>$CODER_PG_CONNECTION_AUTH</code> |
-| Default |<code>password</code> |
+| Default     | <code>password</code>                  |
 
 
 
