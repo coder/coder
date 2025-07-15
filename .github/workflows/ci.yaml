@@ -1259,6 +1259,8 @@ jobs:
           # do (see above).
           CODER_SIGN_WINDOWS: "1"
           CODER_WINDOWS_RESOURCES: "1"
+          CODER_SIGN_GPG: "1"
+          CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
           EV_KEY: ${{ secrets.EV_KEY }}
           EV_KEYSTORE: ${{ secrets.EV_KEYSTORE }}
           EV_TSA_URL: ${{ secrets.EV_TSA_URL }}
