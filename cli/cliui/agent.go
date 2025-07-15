@@ -25,6 +25,7 @@ type AgentOptions struct {
 	Fetch         func(ctx context.Context, agentID uuid.UUID) (codersdk.WorkspaceAgent, error)
 	FetchLogs     func(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []codersdk.WorkspaceAgentLog, io.Closer, error)
 	Wait          bool // If true, wait for the agent to be ready (startup script).
+	Quiet         bool // If true, suppress startup logs and connection indicators.
 	DocsURL       string
 }
 
@@ -101,6 +102,18 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 		// shutting down, we don't know if it's coming back.
 		if agent.LifecycleState.ShuttingDown() {
 			return errAgentShuttingDown
+		}
+
+		// In quiet mode, skip all logging and just wait for ready state
+		if opts.Quiet {
+			if agent.Status == codersdk.WorkspaceAgentConnected && agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady {
+				return nil
+			}
+			// Just fetch the next state without showing any output
+			if agent, err = fetch(); err != nil {
+				return xerrors.Errorf("fetch: %w", err)
+			}
+			continue
 		}
 
 		switch agent.Status {

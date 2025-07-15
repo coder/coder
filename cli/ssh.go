@@ -74,6 +74,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		wsPollInterval      time.Duration
 		waitEnum            string
 		noWait              bool
+		quiet               bool
 		logDirPath          string
 		remoteForwards      []string
 		env                 []string
@@ -288,6 +289,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				Fetch:         client.WorkspaceAgent,
 				FetchLogs:     client.WorkspaceAgentLogsAfter,
 				Wait:          wait,
+				Quiet:         quiet,
 				DocsURL:       appearanceConfig.DocsURL,
 			})
 			if err != nil {
@@ -669,6 +671,13 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Description: "Enter workspace immediately after the agent has connected. This is the default if the template has configured the agent startup script behavior as non-blocking.",
 			Value:       serpent.BoolOf(&noWait),
 			UseInstead:  []serpent.Option{waitOption},
+		},
+		{
+			Flag:        "quiet",
+			FlagShorthand: "q",
+			Env:         "CODER_SSH_QUIET",
+			Description: "Suppress machine setup logs and connection indicators.",
+			Value:       serpent.BoolOf(&quiet),
 		},
 		{
 			Flag:          "log-dir",
