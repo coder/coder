@@ -344,29 +344,6 @@ jobs:
       - name: Delete Windows EV Signing Cert
         run: rm /tmp/ev_cert.pem
 
-      - name: Publish Coder CLI binaries and detached signatures to GCS
-        if: ${{ !inputs.dry_run && github.ref == 'refs/heads/main' && github.repository_owner == 'coder'}}
-        run: |
-          set -euxo pipefail
-
-          version="$(./scripts/version.sh)"
-
-          binaries=(
-              "coder-darwin-amd64"
-              "coder-darwin-arm64"
-              "coder-linux-amd64"
-              "coder-linux-arm64"
-              "coder-linux-armv7"
-              "coder-windows-amd64.exe"
-              "coder-windows-arm64.exe"
-          )
-
-          for binary in "${binaries[@]}"; do
-            detached_signature="${binary}.asc"
-            gcloud storage cp "./site/out/bin/${binary}" "gs://releases.coder.com/coder-cli/${version}/${binary}"
-            gcloud storage cp "./site/out/bin/${detached_signature}" "gs://releases.coder.com/coder-cli/${version}/${detached_signature}"
-          done
-
       - name: Determine base image tag
         id: image-base-tag
         run: |
@@ -656,6 +633,29 @@ jobs:
 
       - name: ls build
         run: ls -lh build
+
+      - name: Publish Coder CLI binaries and detached signatures to GCS
+        if: ${{ !inputs.dry_run && github.ref == 'refs/heads/main' && github.repository_owner == 'coder'}}
+        run: |
+          set -euxo pipefail
+
+          version="$(./scripts/version.sh)"
+
+          binaries=(
+              "coder-darwin-amd64"
+              "coder-darwin-arm64"
+              "coder-linux-amd64"
+              "coder-linux-arm64"
+              "coder-linux-armv7"
+              "coder-windows-amd64.exe"
+              "coder-windows-arm64.exe"
+          )
+
+          for binary in "${binaries[@]}"; do
+            detached_signature="${binary}.asc"
+            gcloud storage cp "./site/out/bin/${binary}" "gs://releases.coder.com/coder-cli/${version}/${binary}"
+            gcloud storage cp "./site/out/bin/${detached_signature}" "gs://releases.coder.com/coder-cli/${version}/${detached_signature}"
+          done  
 
       - name: Publish release
         run: |
