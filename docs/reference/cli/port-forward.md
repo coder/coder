@@ -1,20 +1,21 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # port-forward
 
+
 Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R".
 
-Aliases:
 
+
+
+Aliases:
 * tunnel
 
 ## Usage
-
 ```console
 coder port-forward [flags] <workspace>
 ```
 
 ## Description
-
 ```console
   - Port forward a single TCP port from 1234 in the workspace to port 5678 on your
 local machine:
@@ -39,32 +40,32 @@ machine:
      $ coder port-forward <workspace> --tcp 1.2.3.4:8080:8080
 ```
 
+
 ## Options
-
 ### -p, --tcp
-
-|             |                                      |
-|-------------|--------------------------------------|
-| Type        | <code>string-array</code>            |
+ 
+| | |
+| --- | --- |
+| Type | <code>string-array</code> |
 | Environment | <code>$CODER_PORT_FORWARD_TCP</code> |
 
 Forward TCP port(s) from the workspace to the local machine.
-
 ### --udp
-
-|             |                                      |
-|-------------|--------------------------------------|
-| Type        | <code>string-array</code>            |
+ 
+| | |
+| --- | --- |
+| Type | <code>string-array</code> |
 | Environment | <code>$CODER_PORT_FORWARD_UDP</code> |
 
 Forward UDP port(s) from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols.
-
 ### --disable-autostart
-
-|             |                                           |
-|-------------|-------------------------------------------|
-| Type        | <code>bool</code>                         |
+ 
+| | |
+| --- | --- |
+| Type | <code>bool</code> |
 | Environment | <code>$CODER_SSH_DISABLE_AUTOSTART</code> |
-| Default     | <code>false</code>                        |
+| Default |<code>false</code> |
+
+
 
 Disable starting the workspace automatically when connecting via SSH.

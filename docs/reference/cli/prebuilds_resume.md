@@ -1,10 +1,14 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # prebuilds resume
 
+
 Resume prebuilds
 
-## Usage
 
+
+
+## Usage
 ```console
 coder prebuilds resume
 ```
+
