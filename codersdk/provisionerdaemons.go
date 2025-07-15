@@ -183,6 +183,7 @@ type ProvisionerJob struct {
 	Tags             map[string]string      `json:"tags" table:"tags"`
 	QueuePosition    int                    `json:"queue_position" table:"queue position"`
 	QueueSize        int                    `json:"queue_size" table:"queue size"`
+	Priority         int32                  `json:"priority" table:"priority"`
 	OrganizationID   uuid.UUID              `json:"organization_id" format:"uuid" table:"organization id"`
 	Input            ProvisionerJobInput    `json:"input" table:"input,recursive_inline"`
 	Type             ProvisionerJobType     `json:"type" table:"type"`

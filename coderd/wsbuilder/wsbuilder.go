@@ -371,6 +371,12 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	}
 
 	now := dbtime.Now()
+	// Set priority: 1 for human-initiated jobs, 0 for prebuilds
+	priority := int32(1) // Default to human-initiated
+	if b.initiator == database.PrebuildsSystemUserID {
+		priority = 0 // Prebuild jobs have lower priority
+	}
+
 	provisionerJob, err := b.store.InsertProvisionerJob(b.ctx, database.InsertProvisionerJobParams{
 		ID:             uuid.New(),
 		CreatedAt:      now,
@@ -383,6 +389,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		FileID:         templateVersionJob.FileID,
 		Input:          input,
 		Tags:           tags,
+		Priority:       priority,
 		TraceMetadata: pqtype.NullRawMessage{
 			Valid:      true,
 			RawMessage: traceMetadataRaw,
