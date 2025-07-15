@@ -1,21 +1,20 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # notifications
 
-
 Manage Coder notifications
 
-
-
-
 Aliases:
+
 * notification
 
 ## Usage
+
 ```console
 coder notifications
 ```
 
 ## Description
+
 ```console
 Administrators can use these commands to change notification settings.
   - Pause Coder notifications. Administrators can temporarily stop notifiers from
@@ -35,8 +34,9 @@ target settings.:
 ```
 
 ## Subcommands
-| Name |   Purpose |
-| ---- |   ----- |
-| [<code>pause</code>](./notifications_pause.md) | Pause notifications |
-| [<code>resume</code>](./notifications_resume.md) | Resume notifications |
-| [<code>test</code>](./notifications_test.md) | Send a test notification |
+
+| Name                                             | Purpose                  |
+|--------------------------------------------------|--------------------------|
+| [<code>pause</code>](./notifications_pause.md)   | Pause notifications      |
+| [<code>resume</code>](./notifications_resume.md) | Resume notifications     |
+| [<code>test</code>](./notifications_test.md)     | Send a test notification |
