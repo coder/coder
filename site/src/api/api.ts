@@ -129,6 +129,14 @@ export const watchWorkspace = (
 	});
 };
 
+export const watchAgentContainers = (
+	agentId: string,
+): OneWayWebSocket<TypesGen.WorkspaceAgentListContainersResponse> => {
+	return new OneWayWebSocket({
+		apiRoute: `/api/v2/workspaceagents/${agentId}/containers/watch`,
+	});
+};
+
 type WatchInboxNotificationsParams = Readonly<{
 	read_status?: "read" | "unread" | "all";
 }>;
