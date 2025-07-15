@@ -21,6 +21,7 @@ import {
 	determineGroupDiff,
 	determineIdPSyncMappingDiff,
 } from "./AuditLogDiff/auditUtils";
+import { getDisplayInitiatorBuildReason } from "utils/workspace";
 
 const httpStatusColor = (httpStatus: number): ThemeRole => {
 	// Treat server errors (500) as errors
@@ -182,10 +183,10 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 															</Link>
 														</div>
 													)}
-													{auditLog.additional_fields?.reason && (
+													{getDisplayInitiatorBuildReason(auditLog.additional_fields?.build_reason) && auditLog.action === 'start' && (
 														<div>
 															<h4 css={styles.auditLogInfoHeader}>Reason:</h4>
-															<div>{auditLog.additional_fields?.reason}</div>
+															<div>{getDisplayInitiatorBuildReason(auditLog.additional_fields?.build_reason)}</div>
 														</div>
 													)}
 												</div>
@@ -217,6 +218,12 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 													<strong>
 														{userAgent.browser.name} {userAgent.browser.version}
 													</strong>
+												</span>
+											)}
+											{getDisplayInitiatorBuildReason(auditLog.additional_fields?.build_reason) && auditLog.action === 'start' && (
+												<span css={styles.auditLogInfo}>
+													<span>Reason: </span>
+													<strong>{getDisplayInitiatorBuildReason(auditLog.additional_fields?.build_reason)}</strong>
 												</span>
 											)}
 										</Stack>

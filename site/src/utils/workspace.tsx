@@ -78,11 +78,24 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
 ): string | undefined => {
 	switch (build.reason) {
 		case "initiator":
+		case "dashboard":
+		case "cli":
+		case "ssh_connection":
+		case "vscode_connection":
+		case "jetbrains_connection":
 			return build.initiator_name;
 		case "autostart":
 		case "autostop":
 		case "dormancy":
 			return "Coder";
+	}
+	return undefined;
+};
+
+export const getDisplayInitiatorBuildReason = (buildReason: string): string | undefined => {
+	switch (buildReason) {
+		case "initiator":
+			return "API";
 		case "dashboard":
 			return "Dashboard";
 		case "cli":
