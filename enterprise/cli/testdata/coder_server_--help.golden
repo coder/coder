@@ -658,6 +658,13 @@ when required by your organization's security policy.
           Whether telemetry is enabled or not. Coder collects anonymized usage
           data to help improve our product.
 
+USER AUTHENTICATION OPTIONS: 
+Configure general user authentication and signup settings.
+
+      --signups-disabled-text string, $CODER_SIGNUPS_DISABLED_TEXT
+          The custom text to show on the error page when signups are disabled.
+          Markdown format is supported.
+
 USER QUIET HOURS SCHEDULE OPTIONS: 
 Allow users to set quiet hours schedules each day for workspaces to avoid
 workspaces stopping during the day due to template scheduling.
