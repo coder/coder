@@ -421,6 +421,19 @@ type WorkspaceAgentDevcontainer struct {
 	Error string `json:"error,omitempty"`
 }
 
+func (d WorkspaceAgentDevcontainer) Equals(other WorkspaceAgentDevcontainer) bool {
+	return d.ID == other.ID &&
+		d.Name == other.Name &&
+		d.WorkspaceFolder == other.WorkspaceFolder &&
+		d.Status == other.Status &&
+		d.Dirty == other.Dirty &&
+		(d.Container == nil && other.Container == nil ||
+			(d.Container != nil && other.Container != nil && d.Container.ID == other.Container.ID)) &&
+		(d.Agent == nil && other.Agent == nil ||
+			(d.Agent != nil && other.Agent != nil && *d.Agent == *other.Agent)) &&
+		d.Error == other.Error
+}
+
 // WorkspaceAgentDevcontainerAgent represents the sub agent for a
 // devcontainer.
 type WorkspaceAgentDevcontainerAgent struct {
@@ -518,6 +531,40 @@ func (c *Client) WorkspaceAgentListContainers(ctx context.Context, agentID uuid.
 	var cr WorkspaceAgentListContainersResponse
 
 	return cr, json.NewDecoder(res.Body).Decode(&cr)
+}
+
+func (c *Client) WatchWorkspaceAgentContainers(ctx context.Context, agentID uuid.UUID) (<-chan WorkspaceAgentListContainersResponse, io.Closer, error) {
+	reqURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/containers/watch", agentID))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
+	}
+
+	jar.SetCookies(reqURL, []*http.Cookie{{
+		Name:  SessionTokenCookie,
+		Value: c.SessionToken(),
+	}})
+
+	conn, res, err := websocket.Dial(ctx, reqURL.String(), &websocket.DialOptions{
+		CompressionMode: websocket.CompressionDisabled,
+		HTTPClient: &http.Client{
+			Jar:       jar,
+			Transport: c.HTTPClient.Transport,
+		},
+	})
+	if err != nil {
+		if res == nil {
+			return nil, nil, err
+		}
+		return nil, nil, ReadBodyAsError(res)
+	}
+
+	d := wsjson.NewDecoder[WorkspaceAgentListContainersResponse](conn, websocket.MessageText, c.logger)
+	return d.Chan(), d, nil
 }
 
 // WorkspaceAgentRecreateDevcontainer recreates the devcontainer with the given ID.

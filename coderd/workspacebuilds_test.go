@@ -494,11 +494,14 @@ func TestWorkspaceBuildsProvisionerState(t *testing.T) {
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
-			// Validate that the deletion was audited.
-			require.True(t, auditor.Contains(t, database.AuditLog{
-				ResourceID: build.ID,
-				Action:     database.AuditActionDelete,
-			}))
+			// Validate that the deletion was audited. This happens after the transaction
+			// is committed, so it may not show up in the mock auditor immediately.
+			testutil.Eventually(ctx, t, func(context.Context) bool {
+				return auditor.Contains(t, database.AuditLog{
+					ResourceID: build.ID,
+					Action:     database.AuditActionDelete,
+				})
+			}, testutil.IntervalFast)
 		})
 
 		t.Run("NoProvisioners", func(t *testing.T) {
@@ -535,11 +538,14 @@ func TestWorkspaceBuildsProvisionerState(t *testing.T) {
 			require.Empty(t, ws)
 			require.Equal(t, http.StatusGone, coderdtest.SDKError(t, err).StatusCode())
 
-			// Validate that the deletion was audited.
-			require.True(t, auditor.Contains(t, database.AuditLog{
-				ResourceID: build.ID,
-				Action:     database.AuditActionDelete,
-			}))
+			// Validate that the deletion was audited. This happens after the transaction
+			// is committed, so it may not show up in the mock auditor immediately.
+			testutil.Eventually(ctx, t, func(context.Context) bool {
+				return auditor.Contains(t, database.AuditLog{
+					ResourceID: build.ID,
+					Action:     database.AuditActionDelete,
+				})
+			}, testutil.IntervalFast)
 		})
 	})
 }
