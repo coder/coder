@@ -880,6 +880,246 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
+const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
+SELECT
+	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason,
+	-- sqlc.embed(users) would be nice but it does not seem to play well with
+	-- left joins. This user metadata is necessary for parity with the audit logs
+	-- API.
+	users.username AS user_username,
+	users.name AS user_name,
+	users.email AS user_email,
+	users.created_at AS user_created_at,
+	users.updated_at AS user_updated_at,
+	users.last_seen_at AS user_last_seen_at,
+	users.status AS user_status,
+	users.login_type AS user_login_type,
+	users.rbac_roles AS user_roles,
+	users.avatar_url AS user_avatar_url,
+	users.deleted AS user_deleted,
+	users.quiet_hours_schedule AS user_quiet_hours_schedule,
+	workspace_owner.username AS workspace_owner_username,
+	organizations.name AS organization_name,
+	organizations.display_name AS organization_display_name,
+	organizations.icon AS organization_icon
+FROM
+	connection_logs
+JOIN users AS workspace_owner ON
+	connection_logs.workspace_owner_id = workspace_owner.id
+LEFT JOIN users ON
+	connection_logs.user_id = users.id
+JOIN organizations ON
+	connection_logs.organization_id = organizations.id
+WHERE TRUE
+	-- Authorize Filter clause will be injected below in
+	-- GetAuthorizedConnectionLogsOffset
+	-- @authorize_filter
+ORDER BY
+	connect_time DESC
+LIMIT
+	-- a limit of 0 means "no limit". The connection log table is unbounded
+	-- in size, and is expected to be quite large. Implement a default
+	-- limit of 100 to prevent accidental excessively large queries.
+	COALESCE(NULLIF($2 :: int, 0), 100)
+OFFSET
+	$1
+`
+
+type GetConnectionLogsOffsetParams struct {
+	OffsetOpt int32 `db:"offset_opt" json:"offset_opt"`
+	LimitOpt  int32 `db:"limit_opt" json:"limit_opt"`
+}
+
+type GetConnectionLogsOffsetRow struct {
+	ConnectionLog           ConnectionLog  `db:"connection_log" json:"connection_log"`
+	UserUsername            sql.NullString `db:"user_username" json:"user_username"`
+	UserName                sql.NullString `db:"user_name" json:"user_name"`
+	UserEmail               sql.NullString `db:"user_email" json:"user_email"`
+	UserCreatedAt           sql.NullTime   `db:"user_created_at" json:"user_created_at"`
+	UserUpdatedAt           sql.NullTime   `db:"user_updated_at" json:"user_updated_at"`
+	UserLastSeenAt          sql.NullTime   `db:"user_last_seen_at" json:"user_last_seen_at"`
+	UserStatus              NullUserStatus `db:"user_status" json:"user_status"`
+	UserLoginType           NullLoginType  `db:"user_login_type" json:"user_login_type"`
+	UserRoles               pq.StringArray `db:"user_roles" json:"user_roles"`
+	UserAvatarUrl           sql.NullString `db:"user_avatar_url" json:"user_avatar_url"`
+	UserDeleted             sql.NullBool   `db:"user_deleted" json:"user_deleted"`
+	UserQuietHoursSchedule  sql.NullString `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
+	WorkspaceOwnerUsername  string         `db:"workspace_owner_username" json:"workspace_owner_username"`
+	OrganizationName        string         `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName string         `db:"organization_display_name" json:"organization_display_name"`
+	OrganizationIcon        string         `db:"organization_icon" json:"organization_icon"`
+}
+
+func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error) {
+	rows, err := q.db.QueryContext(ctx, getConnectionLogsOffset, arg.OffsetOpt, arg.LimitOpt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetConnectionLogsOffsetRow
+	for rows.Next() {
+		var i GetConnectionLogsOffsetRow
+		if err := rows.Scan(
+			&i.ConnectionLog.ID,
+			&i.ConnectionLog.ConnectTime,
+			&i.ConnectionLog.OrganizationID,
+			&i.ConnectionLog.WorkspaceOwnerID,
+			&i.ConnectionLog.WorkspaceID,
+			&i.ConnectionLog.WorkspaceName,
+			&i.ConnectionLog.AgentName,
+			&i.ConnectionLog.Type,
+			&i.ConnectionLog.Ip,
+			&i.ConnectionLog.Code,
+			&i.ConnectionLog.UserAgent,
+			&i.ConnectionLog.UserID,
+			&i.ConnectionLog.SlugOrPort,
+			&i.ConnectionLog.ConnectionID,
+			&i.ConnectionLog.DisconnectTime,
+			&i.ConnectionLog.DisconnectReason,
+			&i.UserUsername,
+			&i.UserName,
+			&i.UserEmail,
+			&i.UserCreatedAt,
+			&i.UserUpdatedAt,
+			&i.UserLastSeenAt,
+			&i.UserStatus,
+			&i.UserLoginType,
+			&i.UserRoles,
+			&i.UserAvatarUrl,
+			&i.UserDeleted,
+			&i.UserQuietHoursSchedule,
+			&i.WorkspaceOwnerUsername,
+			&i.OrganizationName,
+			&i.OrganizationDisplayName,
+			&i.OrganizationIcon,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertConnectionLog = `-- name: UpsertConnectionLog :one
+INSERT INTO connection_logs (
+	id,
+	connect_time,
+	organization_id,
+	workspace_owner_id,
+	workspace_id,
+	workspace_name,
+	agent_name,
+	type,
+	code,
+	ip,
+	user_agent,
+	user_id,
+	slug_or_port,
+	connection_id,
+	disconnect_reason,
+	disconnect_time
+) VALUES
+	($1, $15, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+	-- If we've only received a disconnect event, mark the event as immediately
+	-- closed.
+	 CASE
+		 WHEN $16::connection_status = 'disconnected'
+		 THEN $15 :: timestamp with time zone
+		 ELSE NULL
+	 END)
+ON CONFLICT (connection_id, workspace_id, agent_name)
+DO UPDATE SET
+	-- No-op if the connection is still open.
+	disconnect_time = CASE
+		WHEN $16::connection_status = 'disconnected'
+		-- Can only be set once
+		AND connection_logs.disconnect_time IS NULL
+		THEN EXCLUDED.connect_time
+		ELSE connection_logs.disconnect_time
+	END,
+	disconnect_reason = CASE
+		WHEN $16::connection_status = 'disconnected'
+		-- Can only be set once
+		AND connection_logs.disconnect_reason IS NULL
+		THEN EXCLUDED.disconnect_reason
+		ELSE connection_logs.disconnect_reason
+	END,
+	code = CASE
+		WHEN $16::connection_status = 'disconnected'
+		-- Can only be set once
+		AND connection_logs.code IS NULL
+		THEN EXCLUDED.code
+		ELSE connection_logs.code
+	END
+RETURNING id, connect_time, organization_id, workspace_owner_id, workspace_id, workspace_name, agent_name, type, ip, code, user_agent, user_id, slug_or_port, connection_id, disconnect_time, disconnect_reason
+`
+
+type UpsertConnectionLogParams struct {
+	ID               uuid.UUID        `db:"id" json:"id"`
+	OrganizationID   uuid.UUID        `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID uuid.UUID        `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      uuid.UUID        `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    string           `db:"workspace_name" json:"workspace_name"`
+	AgentName        string           `db:"agent_name" json:"agent_name"`
+	Type             ConnectionType   `db:"type" json:"type"`
+	Code             sql.NullInt32    `db:"code" json:"code"`
+	Ip               pqtype.Inet      `db:"ip" json:"ip"`
+	UserAgent        sql.NullString   `db:"user_agent" json:"user_agent"`
+	UserID           uuid.NullUUID    `db:"user_id" json:"user_id"`
+	SlugOrPort       sql.NullString   `db:"slug_or_port" json:"slug_or_port"`
+	ConnectionID     uuid.NullUUID    `db:"connection_id" json:"connection_id"`
+	DisconnectReason sql.NullString   `db:"disconnect_reason" json:"disconnect_reason"`
+	Time             time.Time        `db:"time" json:"time"`
+	ConnectionStatus ConnectionStatus `db:"connection_status" json:"connection_status"`
+}
+
+func (q *sqlQuerier) UpsertConnectionLog(ctx context.Context, arg UpsertConnectionLogParams) (ConnectionLog, error) {
+	row := q.db.QueryRowContext(ctx, upsertConnectionLog,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceOwnerID,
+		arg.WorkspaceID,
+		arg.WorkspaceName,
+		arg.AgentName,
+		arg.Type,
+		arg.Code,
+		arg.Ip,
+		arg.UserAgent,
+		arg.UserID,
+		arg.SlugOrPort,
+		arg.ConnectionID,
+		arg.DisconnectReason,
+		arg.Time,
+		arg.ConnectionStatus,
+	)
+	var i ConnectionLog
+	err := row.Scan(
+		&i.ID,
+		&i.ConnectTime,
+		&i.OrganizationID,
+		&i.WorkspaceOwnerID,
+		&i.WorkspaceID,
+		&i.WorkspaceName,
+		&i.AgentName,
+		&i.Type,
+		&i.Ip,
+		&i.Code,
+		&i.UserAgent,
+		&i.UserID,
+		&i.SlugOrPort,
+		&i.ConnectionID,
+		&i.DisconnectTime,
+		&i.DisconnectReason,
+	)
+	return i, err
+}
+
 const deleteCryptoKey = `-- name: DeleteCryptoKey :one
 UPDATE crypto_keys
 SET secret = NULL, secret_key_id = NULL
