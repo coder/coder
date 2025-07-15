@@ -1049,6 +1049,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `initiator` |
 | `autostart` |
 | `autostop`  |
+| `dormancy`  |
 
 ## codersdk.ChangePasswordWithOneTimePasscodeRequest
 

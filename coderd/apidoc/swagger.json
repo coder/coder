@@ -9858,11 +9858,12 @@
 		},
 		"codersdk.BuildReason": {
 			"type": "string",
-			"enum": ["initiator", "autostart", "autostop"],
+			"enum": ["initiator", "autostart", "autostop", "dormancy"],
 			"x-enum-varnames": [
 				"BuildReasonInitiator",
 				"BuildReasonAutostart",
-				"BuildReasonAutostop"
+				"BuildReasonAutostop",
+				"BuildReasonDormancy"
 			]
 		},
 		"codersdk.ChangePasswordWithOneTimePasscodeRequest": {
