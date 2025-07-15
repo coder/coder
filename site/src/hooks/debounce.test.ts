@@ -11,18 +11,18 @@ afterAll(() => {
 	jest.clearAllMocks();
 });
 
-function renderDebouncedValue<T>(value: T, time: number) {
-	return renderHook(
-		({ value, time }: { value: T; time: number }) => {
-			return useDebouncedValue(value, time);
-		},
-		{
-			initialProps: { value, time },
-		},
-	);
-}
-
 describe(`${useDebouncedValue.name}`, () => {
+	function renderDebouncedValue<T>(value: T, time: number) {
+		return renderHook(
+			({ value, time }: { value: T; time: number }) => {
+				return useDebouncedValue(value, time);
+			},
+			{
+				initialProps: { value, time },
+			},
+		);
+	}
+
 	it("Should throw for non-nonnegative integer timeouts", () => {
 		const invalidInputs: readonly number[] = [
 			Number.NaN,
@@ -97,21 +97,21 @@ describe(`${useDebouncedValue.name}`, () => {
 	});
 });
 
-function renderDebouncedFunction<Args extends unknown[]>(
-	callbackArg: (...args: Args) => void | Promise<void>,
-	time: number,
-) {
-	return renderHook(
-		({ callback, time }: { callback: typeof callbackArg; time: number }) => {
-			return useDebouncedFunction<Args>(callback, time);
-		},
-		{
-			initialProps: { callback: callbackArg, time },
-		},
-	);
-}
-
 describe(`${useDebouncedFunction.name}`, () => {
+	function renderDebouncedFunction<Args extends unknown[]>(
+		callbackArg: (...args: Args) => void | Promise<void>,
+		time: number,
+	) {
+		return renderHook(
+			({ callback, time }: { callback: typeof callbackArg; time: number }) => {
+				return useDebouncedFunction<Args>(callback, time);
+			},
+			{
+				initialProps: { callback: callbackArg, time },
+			},
+		);
+	}
+
 	describe("input validation", () => {
 		it("Should throw for non-nonnegative integer timeouts", () => {
 			const invalidInputs: readonly number[] = [
