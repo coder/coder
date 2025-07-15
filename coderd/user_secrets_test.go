@@ -18,7 +18,7 @@ func TestUserSecrets(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	db, ps := dbtestutil.NewDB(t)
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 		Database:                 db,
@@ -45,7 +45,19 @@ func TestUserSecrets(t *testing.T) {
 	fmt.Printf("userSecretInJSON: %s\n", userSecretInJSON)
 
 	require.NotNil(t, userSecret.ID)
-	require.Equal(t, userSecret.UserID, templateAdmin.ID)
-	require.Equal(t, userSecret.Name, userSecretName)
-	require.Equal(t, userSecret.Description, userSecretDescription)
+	require.Equal(t, templateAdmin.ID, userSecret.UserID)
+	require.Equal(t, userSecretName, userSecret.Name)
+	require.Equal(t, userSecretDescription, userSecret.Description)
+
+	userSecretList, err := templateAdminClient.ListUserSecrets(ctx)
+	require.NoError(t, err)
+	require.Len(t, userSecretList.Secrets, 1)
+	userSecretListInJSON, err := json.Marshal(userSecretList)
+	require.NoError(t, err)
+	fmt.Printf("userSecretListInJSON: %s\n", userSecretListInJSON)
+
+	require.NotNil(t, userSecretList.Secrets[0].ID)
+	require.Equal(t, templateAdmin.ID, userSecretList.Secrets[0].UserID)
+	require.Equal(t, userSecretName, userSecretList.Secrets[0].Name)
+	require.Equal(t, userSecretDescription, userSecretList.Secrets[0].Description)
 }

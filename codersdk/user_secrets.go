@@ -60,3 +60,21 @@ func (c *Client) CreateUserSecret(ctx context.Context, req CreateUserSecretReque
 	var userSecret UserSecret
 	return userSecret, json.NewDecoder(res.Body).Decode(&userSecret)
 }
+
+func (c *Client) ListUserSecrets(ctx context.Context) (ListUserSecretsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/users/secrets"),
+		nil,
+	)
+	if err != nil {
+		return ListUserSecretsResponse{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return ListUserSecretsResponse{}, ReadBodyAsError(res)
+	}
+
+	var userSecrets ListUserSecretsResponse
+	return userSecrets, json.NewDecoder(res.Body).Decode(&userSecrets)
+}

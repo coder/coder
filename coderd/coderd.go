@@ -1248,6 +1248,7 @@ func New(options *Options) *API {
 					//GET    /api/v2/users/secrets/{secretID}/value   // Get secret value
 
 					r.Post("/", api.createUserSecret)
+					r.Get("/", api.listUserSecrets)
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Group(func(r chi.Router) {
