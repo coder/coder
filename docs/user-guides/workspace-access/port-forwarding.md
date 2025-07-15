@@ -6,6 +6,8 @@ Port forwarding lets developers securely access processes on their Coder
 workspace from a local machine. A common use case is testing web applications in
 a browser.
 
+There are multiple ways to forward ports in Coder:
+
 | Method                                                          | Details                                                                                                                     |
 |:----------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
 | [Coder Desktop](../desktop/index.md)                            | Uses a VPN tunnel to your workspace and provides access to all running ports.                                               |
