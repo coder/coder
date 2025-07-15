@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { getAuthorizationKey } from "api/queries/authCheck";
 import { templateByNameKey } from "api/queries/templates";
+import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
+import type { Workspace } from "api/typesGenerated";
 import {
 	reactRouterNestedAncestors,
 	reactRouterParameters,
@@ -11,11 +13,9 @@ import {
 	MockUserOwner,
 	MockWorkspace,
 } from "testHelpers/entities";
-import WorkspaceSchedulePage from "./WorkspaceSchedulePage";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import { WorkspaceSettingsLayout } from "../WorkspaceSettingsLayout";
-import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
-import type { Workspace } from "api/typesGenerated";
+import WorkspaceSchedulePage from "./WorkspaceSchedulePage";
 
 const meta = {
 	title: "pages/WorkspaceSchedulePage",
