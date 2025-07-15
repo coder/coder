@@ -4206,10 +4206,6 @@ func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) 
 	return q.db.RevokeDBCryptKey(ctx, activeKeyDigest)
 }
 
-func (q *querier) SetProvisionerJobLogsOverflowed(ctx context.Context, arg database.SetProvisionerJobLogsOverflowedParams) error {
-	panic("not implemented")
-}
-
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
 	return q.db.TryAcquireLock(ctx, id)
 }
@@ -4437,6 +4433,14 @@ func (q *querier) UpdateProvisionerJobByID(ctx context.Context, arg database.Upd
 		return err
 	}
 	return q.db.UpdateProvisionerJobByID(ctx, arg)
+}
+
+func (q *querier) UpdateProvisionerJobLogsLength(ctx context.Context, arg database.UpdateProvisionerJobLogsLengthParams) error {
+	panic("not implemented")
+}
+
+func (q *querier) UpdateProvisionerJobLogsOverflowed(ctx context.Context, arg database.UpdateProvisionerJobLogsOverflowedParams) error {
+	panic("not implemented")
 }
 
 func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {

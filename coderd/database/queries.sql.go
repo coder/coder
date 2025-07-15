@@ -8001,7 +8001,26 @@ func (q *sqlQuerier) InsertProvisionerJobLogs(ctx context.Context, arg InsertPro
 	return items, nil
 }
 
-const setProvisionerJobLogsOverflowed = `-- name: SetProvisionerJobLogsOverflowed :exec
+const updateProvisionerJobLogsLength = `-- name: UpdateProvisionerJobLogsLength :exec
+UPDATE 
+	provisioner_jobs
+SET 
+	logs_length = logs_length + $2
+WHERE 
+	id = $1
+`
+
+type UpdateProvisionerJobLogsLengthParams struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	LogsLength int32     `db:"logs_length" json:"logs_length"`
+}
+
+func (q *sqlQuerier) UpdateProvisionerJobLogsLength(ctx context.Context, arg UpdateProvisionerJobLogsLengthParams) error {
+	_, err := q.db.ExecContext(ctx, updateProvisionerJobLogsLength, arg.ID, arg.LogsLength)
+	return err
+}
+
+const updateProvisionerJobLogsOverflowed = `-- name: UpdateProvisionerJobLogsOverflowed :exec
 UPDATE 
 	provisioner_jobs
 SET 
@@ -8010,13 +8029,13 @@ WHERE
 	id = $1
 `
 
-type SetProvisionerJobLogsOverflowedParams struct {
+type UpdateProvisionerJobLogsOverflowedParams struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	LogsOverflowed bool      `db:"logs_overflowed" json:"logs_overflowed"`
 }
 
-func (q *sqlQuerier) SetProvisionerJobLogsOverflowed(ctx context.Context, arg SetProvisionerJobLogsOverflowedParams) error {
-	_, err := q.db.ExecContext(ctx, setProvisionerJobLogsOverflowed, arg.ID, arg.LogsOverflowed)
+func (q *sqlQuerier) UpdateProvisionerJobLogsOverflowed(ctx context.Context, arg UpdateProvisionerJobLogsOverflowedParams) error {
+	_, err := q.db.ExecContext(ctx, updateProvisionerJobLogsOverflowed, arg.ID, arg.LogsOverflowed)
 	return err
 }
 

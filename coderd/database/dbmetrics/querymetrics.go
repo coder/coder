@@ -2609,13 +2609,6 @@ func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest
 	return r0
 }
 
-func (m queryMetricsStore) SetProvisionerJobLogsOverflowed(ctx context.Context, arg database.SetProvisionerJobLogsOverflowedParams) error {
-	start := time.Now()
-	r0 := m.s.SetProvisionerJobLogsOverflowed(ctx, arg)
-	m.queryLatencies.WithLabelValues("SetProvisionerJobLogsOverflowed").Observe(time.Since(start).Seconds())
-	return r0
-}
-
 func (m queryMetricsStore) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error) {
 	start := time.Now()
 	ok, err := m.s.TryAcquireLock(ctx, pgTryAdvisoryXactLock)
@@ -2775,6 +2768,20 @@ func (m queryMetricsStore) UpdateProvisionerJobByID(ctx context.Context, arg dat
 	err := m.s.UpdateProvisionerJobByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateProvisionerJobByID").Observe(time.Since(start).Seconds())
 	return err
+}
+
+func (m queryMetricsStore) UpdateProvisionerJobLogsLength(ctx context.Context, arg database.UpdateProvisionerJobLogsLengthParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateProvisionerJobLogsLength(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateProvisionerJobLogsLength").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) UpdateProvisionerJobLogsOverflowed(ctx context.Context, arg database.UpdateProvisionerJobLogsOverflowedParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateProvisionerJobLogsOverflowed(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateProvisionerJobLogsOverflowed").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
