@@ -362,6 +362,13 @@ func (m queryMetricsStore) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx conte
 	return r0
 }
 
+func (m queryMetricsStore) DeleteOldAuditLogConnectionEvents(ctx context.Context, threshold database.DeleteOldAuditLogConnectionEventsParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteOldAuditLogConnectionEvents(ctx, threshold)
+	m.queryLatencies.WithLabelValues("DeleteOldAuditLogConnectionEvents").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) DeleteOldNotificationMessages(ctx context.Context) error {
 	start := time.Now()
 	r0 := m.s.DeleteOldNotificationMessages(ctx)
