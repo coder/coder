@@ -4,6 +4,7 @@ import type {
 	WorkspaceAgentDevcontainer,
 	WorkspaceAgentListContainersResponse,
 } from "api/typesGenerated";
+import { AxiosError } from "axios";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useEffect } from "react";
@@ -14,7 +15,11 @@ export function useAgentContainers(
 ): readonly WorkspaceAgentDevcontainer[] | undefined {
 	const queryClient = useQueryClient();
 
-	const { data: devcontainers } = useQuery({
+	const {
+		data: devcontainers,
+		error: queryError,
+		isLoading: queryIsLoading,
+	} = useQuery({
 		queryKey: ["agents", agent.id, "containers"],
 		queryFn: () => API.getAgentContainers(agent.id),
 		enabled: agent.status === "connected",
@@ -31,7 +36,20 @@ export function useAgentContainers(
 	);
 
 	useEffect(() => {
-		if (agent.status !== "connected") {
+		const devcontainerFeatureDisabled =
+			queryError instanceof AxiosError &&
+			queryError.status === 403 &&
+			queryError.response?.data.message ===
+				"Dev Container feature not enabled.";
+
+		// We do not want to attempt to call the `/watch` endpoint
+		// if the agent isn't connected yet as the endpoint will
+		// not be ready to call.
+		if (
+			agent.status !== "connected" ||
+			queryIsLoading ||
+			devcontainerFeatureDisabled
+		) {
 			return;
 		}
 
@@ -57,7 +75,13 @@ export function useAgentContainers(
 		});
 
 		return () => socket.close();
-	}, [agent.id, agent.status, updateDevcontainersCache]);
+	}, [
+		agent.id,
+		agent.status,
+		queryIsLoading,
+		queryError,
+		updateDevcontainersCache,
+	]);
 
 	return devcontainers;
 }
