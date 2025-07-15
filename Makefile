@@ -456,7 +456,10 @@ BOLD := $(shell tput bold 2>/dev/null)
 GREEN := $(shell tput setaf 2 2>/dev/null)
 RESET := $(shell tput sgr0 2>/dev/null)
 
-fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/biome fmt/markdown
+# SQL directories for formatting and linting
+SQL_DIRS := coderd/database/migrations coderd/database/queries coderd/database/migrations/testdata/fixtures
+
+fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/biome fmt/markdown fmt/sql
 .PHONY: fmt
 
 fmt/go:
@@ -559,9 +562,22 @@ else
 endif
 .PHONY: fmt/markdown
 
+fmt/sql:
+ifdef FILE
+	# Format single SQL file
+	if [[ -f "$(FILE)" ]] && [[ "$(FILE)" == *.sql ]]; then \
+		echo "$(GREEN)==>$(RESET) $(BOLD)fmt/sql$(RESET) $(FILE)"; \
+		sqlfluff format "$(FILE)"; \
+	fi
+else
+	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/sql$(RESET)"
+	sqlfluff format $(SQL_DIRS)
+endif
+.PHONY: fmt/sql
+
 # Note: we don't run zizmor in the lint target because it takes a while. CI
 #       runs it explicitly.
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/actions/actionlint lint/check-scopes
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/sql lint/actions/actionlint lint/check-scopes
 .PHONY: lint
 
 lint/site-icons:
@@ -595,6 +611,19 @@ lint/helm:
 	cd helm/
 	make lint
 .PHONY: lint/helm
+
+lint/sql:
+ifdef FILE
+	# Lint single SQL file
+	if [[ -f "$(FILE)" ]] && [[ "$(FILE)" == *.sql ]]; then \
+		echo "$(GREEN)==>$(RESET) $(BOLD)lint/sql$(RESET) $(FILE)"; \
+		sqlfluff lint "$(FILE)"; \
+	fi
+else
+	echo "$(GREEN)==>$(RESET) $(BOLD)lint/sql$(RESET)"
+	sqlfluff lint $(SQL_DIRS)
+endif
+.PHONY: lint/sql
 
 lint/markdown: node_modules/.installed
 	pnpm lint-docs

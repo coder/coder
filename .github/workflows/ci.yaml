@@ -314,6 +314,9 @@ jobs:
       - name: Install shfmt
         run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0
 
+      - name: Install sqlfluff
+        run: pip3 install sqlfluff
+
       - name: make fmt
         run: |
           PATH="${PATH}:$(go env GOPATH)/bin" \
