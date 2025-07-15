@@ -262,43 +262,45 @@ Use registry modules for common features:
 ```terraform
 # VS Code in browser
 module "code-server" {
+  count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/code-server/coder"
-  version  = "~> 1.0"
-  agent_id = coder_agent.main.id
-  folder   = "/home/coder"
+  version  = "1.3.0"
+  agent_id = coder_agent.example.id
 }
 
 # JetBrains IDEs
-module "jetbrains_gateway" {
-  source         = "registry.coder.com/coder/jetbrains-gateway/coder"
-  version        = "~> 1.0"
-  agent_id       = coder_agent.main.id
-  jetbrains_ides = ["IU", "PS", "WS", "PY", "GO"]
-  default        = "IU"
-  folder         = "/home/coder"
+module "jetbrains" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/coder/jetbrains/coder"
+  version  = "1.0.0"
+  agent_id = coder_agent.example.id
+  folder   = "/home/coder/project"
 }
 
 # Git repository cloning
 module "git-clone" {
+  count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/git-clone/coder"
-  version  = "~> 1.0"
-  agent_id = coder_agent.main.id
-  url      = "https://github.com/example/project.git"
+  version  = "1.1.0"
+  agent_id = coder_agent.example.id
+  url      = "https://github.com/coder/coder"
+  base_dir = "~/projects/coder"
 }
 
 # File browser interface
 module "filebrowser" {
+  count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/filebrowser/coder"
-  version  = "~> 1.0"
-  agent_id = coder_agent.main.id
+  version  = "1.1.1"
+  agent_id = coder_agent.example.id
 }
 
 # Dotfiles management
 module "dotfiles" {
+  count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/dotfiles/coder"
-  version  = "~> 1.0"
-  agent_id = coder_agent.main.id
-  repo_url = "https://github.com/example/dotfiles.git"
+  version  = "1.2.0"
+  agent_id = coder_agent.example.id
 }
 ```
 
