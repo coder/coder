@@ -66,6 +66,7 @@ type sqlcQuerier interface {
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
+	CountConnectionLogs(ctx context.Context, arg CountConnectionLogsParams) (int64, error)
 	// CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.
 	// Prebuild considered in-progress if it's in the "starting", "stopping", or "deleting" state.
 	CountInProgressPrebuilds(ctx context.Context) ([]CountInProgressPrebuildsRow, error)
@@ -95,6 +96,7 @@ type sqlcQuerier interface {
 	DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppCodesByAppAndUserIDParams) error
 	DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) error
 	DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppTokensByAppAndUserIDParams) error
+	DeleteOldAuditLogConnectionEvents(ctx context.Context, arg DeleteOldAuditLogConnectionEventsParams) error
 	// Delete all notification messages which have not been updated for over a week.
 	DeleteOldNotificationMessages(ctx context.Context) error
 	// Delete provisioner daemons that have been created at least a week ago
@@ -156,6 +158,7 @@ type sqlcQuerier interface {
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
+	GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error)
 	GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error)
 	GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg GetCryptoKeyByFeatureAndSequenceParams) (CryptoKey, error)
 	GetCryptoKeys(ctx context.Context) ([]CryptoKey, error)
@@ -648,6 +651,7 @@ type sqlcQuerier interface {
 	UpsertAnnouncementBanners(ctx context.Context, value string) error
 	UpsertAppSecurityKey(ctx context.Context, value string) error
 	UpsertApplicationName(ctx context.Context, value string) error
+	UpsertConnectionLog(ctx context.Context, arg UpsertConnectionLogParams) (ConnectionLog, error)
 	UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error
 	// The default proxy is implied and not actually stored in the database.
 	// So we need to store it's configuration here for display purposes.

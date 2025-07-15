@@ -2,8 +2,10 @@ package agentcontainers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"os"
 	"path"
@@ -30,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/quartz"
+	"github.com/coder/websocket"
 )
 
 const (
@@ -74,6 +77,7 @@ type API struct {
 
 	mu                       sync.RWMutex  // Protects the following fields.
 	initDone                 chan struct{} // Closed by Init.
+	updateChans              []chan struct{}
 	closed                   bool
 	containers               codersdk.WorkspaceAgentListContainersResponse  // Output from the last list operation.
 	containersErr            error                                          // Error from the last list operation.
@@ -535,6 +539,7 @@ func (api *API) Routes() http.Handler {
 	r.Use(ensureInitDoneMW)
 
 	r.Get("/", api.handleList)
+	r.Get("/watch", api.watchContainers)
 	// TODO(mafredri): Simplify this route as the previous /devcontainers
 	// /-route was dropped. We can drop the /devcontainers prefix here too.
 	r.Route("/devcontainers/{devcontainer}", func(r chi.Router) {
@@ -542,6 +547,88 @@ func (api *API) Routes() http.Handler {
 	})
 
 	return r
+}
+
+func (api *API) broadcastUpdatesLocked() {
+	// Broadcast state changes to WebSocket listeners.
+	for _, ch := range api.updateChans {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to upgrade connection to websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Here we close the websocket for reading, so that the websocket library will handle pings and
+	// close frames.
+	_ = conn.CloseRead(context.Background())
+
+	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
+	defer wsNetConn.Close()
+
+	go httpapi.Heartbeat(ctx, conn)
+
+	updateCh := make(chan struct{}, 1)
+
+	api.mu.Lock()
+	api.updateChans = append(api.updateChans, updateCh)
+	api.mu.Unlock()
+
+	defer func() {
+		api.mu.Lock()
+		api.updateChans = slices.DeleteFunc(api.updateChans, func(ch chan struct{}) bool {
+			return ch == updateCh
+		})
+		close(updateCh)
+		api.mu.Unlock()
+	}()
+
+	encoder := json.NewEncoder(wsNetConn)
+
+	ct, err := api.getContainers()
+	if err != nil {
+		api.logger.Error(ctx, "unable to get containers", slog.Error(err))
+		return
+	}
+
+	if err := encoder.Encode(ct); err != nil {
+		api.logger.Error(ctx, "encode container list", slog.Error(err))
+		return
+	}
+
+	for {
+		select {
+		case <-api.ctx.Done():
+			return
+
+		case <-ctx.Done():
+			return
+
+		case <-updateCh:
+			ct, err := api.getContainers()
+			if err != nil {
+				api.logger.Error(ctx, "unable to get containers", slog.Error(err))
+				continue
+			}
+
+			if err := encoder.Encode(ct); err != nil {
+				api.logger.Error(ctx, "encode container list", slog.Error(err))
+				return
+			}
+		}
+	}
 }
 
 // handleList handles the HTTP request to list containers.
@@ -583,7 +670,25 @@ func (api *API) updateContainers(ctx context.Context) error {
 	api.mu.Lock()
 	defer api.mu.Unlock()
 
+	var previouslyKnownDevcontainers map[string]codersdk.WorkspaceAgentDevcontainer
+	if len(api.updateChans) > 0 {
+		previouslyKnownDevcontainers = maps.Clone(api.knownDevcontainers)
+	}
+
 	api.processUpdatedContainersLocked(ctx, updated)
+
+	if len(api.updateChans) > 0 {
+		statesAreEqual := maps.EqualFunc(
+			previouslyKnownDevcontainers,
+			api.knownDevcontainers,
+			func(dc1, dc2 codersdk.WorkspaceAgentDevcontainer) bool {
+				return dc1.Equals(dc2)
+			})
+
+		if !statesAreEqual {
+			api.broadcastUpdatesLocked()
+		}
+	}
 
 	api.logger.Debug(ctx, "containers updated successfully", slog.F("container_count", len(api.containers.Containers)), slog.F("warning_count", len(api.containers.Warnings)), slog.F("devcontainer_count", len(api.knownDevcontainers)))
 
@@ -955,6 +1060,8 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	dc.Container = nil
 	dc.Error = ""
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
+	api.broadcastUpdatesLocked()
+
 	go func() {
 		_ = api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath, WithRemoveExistingContainer())
 	}()
@@ -1070,6 +1177,7 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 	dc.Error = ""
 	api.recreateSuccessTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "successTimes")
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
+	api.broadcastUpdatesLocked()
 	api.mu.Unlock()
 
 	// Ensure an immediate refresh to accurately reflect the
