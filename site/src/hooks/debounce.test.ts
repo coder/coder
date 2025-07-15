@@ -11,18 +11,18 @@ afterAll(() => {
 	jest.clearAllMocks();
 });
 
-describe(`${useDebouncedValue.name}`, () => {
-	function renderDebouncedValue<T = unknown>(value: T, time: number) {
-		return renderHook(
-			({ value, time }: { value: T; time: number }) => {
-				return useDebouncedValue(value, time);
-			},
-			{
-				initialProps: { value, time },
-			},
-		);
-	}
+function renderDebouncedValue<T = unknown>(value: T, time: number) {
+	return renderHook(
+		({ value, time }: { value: T; time: number }) => {
+			return useDebouncedValue(value, time);
+		},
+		{
+			initialProps: { value, time },
+		},
+	);
+}
 
+describe(`${useDebouncedValue.name}`, () => {
 	it("Should immediately return out the exact same value (by reference) on mount", () => {
 		const value = {};
 		const { result } = renderDebouncedValue(value, 2000);
@@ -58,6 +58,24 @@ describe(`${useDebouncedValue.name}`, () => {
 		await jest.runAllTimersAsync();
 		await waitFor(() => expect(result.current).toEqual(true));
 	});
+
+	// Very important that we not do any async logic for this test
+	it("Should immediately resync without any render/event loop delays if timeout is zero", () => {
+		const initialValue = false;
+		const time = 5000;
+
+		const { result, rerender } = renderDebouncedValue(initialValue, time);
+		expect(result.current).toEqual(false);
+
+		// Just to be on the safe side, re-render once with the old timeout to
+		// verify that nothing has been flushed yet
+		rerender({ value: !initialValue, time });
+		expect(result.current).toEqual(false);
+
+		// Then do the real re-render we want
+		rerender({ value: !initialValue, time: 0 });
+		expect(result.current).toBe(true);
+	})
 });
 
 describe(`${useDebouncedFunction.name}`, () => {
