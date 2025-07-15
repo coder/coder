@@ -1,15 +1,14 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder
 
-
-
-
 ## Usage
+
 ```console
 coder [global-flags] <subcommand>
 ```
 
 ## Description
+
 ```console
 Coder — A tool for provisioning self-hosted development environments with Terraform.
   - Start a Coder server:
@@ -22,6 +21,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 ```
 
 ## Subcommands
+
 | Name                                               | Purpose                                                                                                                      |
 |----------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
 | [<code>completion</code>](./completion.md)         | Install or update shell completion scripts for the detected or chosen shell.                                                 |
@@ -69,101 +69,111 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>provisioner</code>](./provisioner.md)       | View and manage provisioner daemons and jobs                                                                                 |
 
 ## Options
+
 ### --url
- 
+
 |             |                         |
 |-------------|-------------------------|
 | Type        | <code>url</code>        |
 | Environment | <code>$CODER_URL</code> |
 
 URL to a deployment.
+
 ### --debug-options
- 
+
 |      |                   |
 |------|-------------------|
 | Type | <code>bool</code> |
 
 Print all options, how they're set, then exit.
+
 ### --token
- 
+
 |             |                                   |
 |-------------|-----------------------------------|
 | Type        | <code>string</code>               |
 | Environment | <code>$CODER_SESSION_TOKEN</code> |
 
 Specify an authentication token. For security reasons setting CODER_SESSION_TOKEN is preferred.
+
 ### --no-version-warning
- 
+
 |             |                                        |
 |-------------|----------------------------------------|
 | Type        | <code>bool</code>                      |
 | Environment | <code>$CODER_NO_VERSION_WARNING</code> |
 
 Suppress warning when client and server versions do not match.
+
 ### --no-feature-warning
- 
+
 |             |                                        |
 |-------------|----------------------------------------|
 | Type        | <code>bool</code>                      |
 | Environment | <code>$CODER_NO_FEATURE_WARNING</code> |
 
 Suppress warnings about unlicensed features.
+
 ### --header
- 
+
 |             |                            |
 |-------------|----------------------------|
 | Type        | <code>string-array</code>  |
 | Environment | <code>$CODER_HEADER</code> |
 
 Additional HTTP headers added to all requests. Provide as key=value. Can be specified multiple times.
+
 ### --header-command
- 
+
 |             |                                    |
 |-------------|------------------------------------|
 | Type        | <code>string</code>                |
 | Environment | <code>$CODER_HEADER_COMMAND</code> |
 
 An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line.
+
 ### --force-tty
- 
+
 |             |                               |
 |-------------|-------------------------------|
 | Type        | <code>bool</code>             |
 | Environment | <code>$CODER_FORCE_TTY</code> |
 
 Force the use of a TTY.
+
 ### -v, --verbose
- 
+
 |             |                             |
 |-------------|-----------------------------|
 | Type        | <code>bool</code>           |
 | Environment | <code>$CODER_VERBOSE</code> |
 
 Enable verbose output.
+
 ### --disable-direct-connections
- 
+
 |             |                                                |
 |-------------|------------------------------------------------|
 | Type        | <code>bool</code>                              |
 | Environment | <code>$CODER_DISABLE_DIRECT_CONNECTIONS</code> |
 
 Disable direct (P2P) connections to workspaces.
+
 ### --disable-network-telemetry
- 
+
 |             |                                               |
 |-------------|-----------------------------------------------|
 | Type        | <code>bool</code>                             |
 | Environment | <code>$CODER_DISABLE_NETWORK_TELEMETRY</code> |
 
 Disable network telemetry. Network telemetry is collected when connecting to workspaces using the CLI, and is forwarded to the server. If telemetry is also enabled on the server, it may be sent to Coder. Network telemetry is used to measure network quality and detect regressions.
+
 ### --global-config
- 
+
 |             |                                |
 |-------------|--------------------------------|
 | Type        | <code>string</code>            |
 | Environment | <code>$CODER_CONFIG_DIR</code> |
 | Default     | <code>~/.config/coderv2</code> |
-
-
 
 Path to the global `coder` config directory.
