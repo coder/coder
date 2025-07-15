@@ -1,15 +1,15 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Tooltip from "@mui/material/Tooltip";
 import Skeleton from "@mui/material/Skeleton";
+import Tooltip from "@mui/material/Tooltip";
 import type { WorkspaceBuild } from "api/typesGenerated";
 import { BuildIcon } from "components/BuildIcon/BuildIcon";
+import { InfoIcon } from "lucide-react";
 import { createDayString } from "utils/createDayString";
 import {
 	getDisplayInitiatorBuildReason,
 	getDisplayWorkspaceBuildInitiatedBy,
 	getDisplayWorkspaceBuildStatus,
 } from "utils/workspace";
-import { InfoIcon } from "lucide-react";
 
 export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
 	const theme = useTheme();
@@ -42,16 +42,17 @@ export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
 					<span css={{ fontWeight: 500 }}>
 						{getDisplayWorkspaceBuildInitiatedBy(build)}
 					</span>
-					{getDisplayInitiatorBuildReason(build.reason) && build.transition === 'start' && (
-						<Tooltip title={getDisplayInitiatorBuildReason(build.reason)}>
-							<InfoIcon
-								css={(theme) => ({
-									color: theme.palette.info.light,
-								})}
-								className="size-icon-xs -mt-px"
-							/>
-						</Tooltip>
-					)}
+					{getDisplayInitiatorBuildReason(build.reason) &&
+						build.transition === "start" && (
+							<Tooltip title={getDisplayInitiatorBuildReason(build.reason)}>
+								<InfoIcon
+									css={(theme) => ({
+										color: theme.palette.info.light,
+									})}
+									className="size-icon-xs -mt-px"
+								/>
+							</Tooltip>
+						)}
 				</div>
 				<div
 					css={{

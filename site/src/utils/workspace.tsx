@@ -92,7 +92,9 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
 	return undefined;
 };
 
-export const getDisplayInitiatorBuildReason = (buildReason: string): string | undefined => {
+export const getDisplayInitiatorBuildReason = (
+	buildReason: string,
+): string | undefined => {
 	switch (buildReason) {
 		case "initiator":
 			return "API";
