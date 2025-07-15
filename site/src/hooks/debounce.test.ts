@@ -122,7 +122,7 @@ describe(`${useDebouncedFunction.name}`, () => {
 				-42,
 			];
 
-			const dummyFunction = jest.fn()
+			const dummyFunction = jest.fn();
 			for (const input of invalidInputs) {
 				expect(() => {
 					renderDebouncedFunction(dummyFunction, input);
