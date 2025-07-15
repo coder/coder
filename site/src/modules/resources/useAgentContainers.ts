@@ -37,19 +37,13 @@ export function useAgentContainers(
 
 	useEffect(() => {
 		const devcontainerFeatureDisabled =
-			queryError instanceof AxiosError &&
-			queryError.status === 403 &&
-			queryError.response?.data.message ===
-				"Dev Container feature not enabled.";
-
-		// We do not want to attempt to call the `/watch` endpoint
-		// if the agent isn't connected yet as the endpoint will
-		// not be ready to call.
-		if (
-			agent.status !== "connected" ||
 			queryIsLoading ||
-			devcontainerFeatureDisabled
-		) {
+			(queryError instanceof AxiosError &&
+				queryError.status === 403 &&
+				queryError.response?.data.message ===
+					"Dev Container feature not enabled.");
+
+		if (agent.status !== "connected" || devcontainerFeatureDisabled) {
 			return;
 		}
 
