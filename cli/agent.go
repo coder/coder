@@ -46,6 +46,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		pprofAddress        string
 		noReap              bool
 		sshMaxTimeout       time.Duration
+		sshHostKeyAlgorithm string
 		tailnetListenPort   int64
 		prometheusAddress   string
 		debugAddress        string
@@ -356,6 +357,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					EnvironmentVariables: environmentVariables,
 					IgnorePorts:          ignorePorts,
 					SSHMaxTimeout:        sshMaxTimeout,
+					SSHHostKeyAlgorithm:  sshHostKeyAlgorithm,
 					Subsystems:           subsystems,
 
 					PrometheusRegistry: prometheusRegistry,
@@ -450,6 +452,13 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_SSH_MAX_TIMEOUT",
 			Description: "Specify the max timeout for a SSH connection, it is advisable to set it to a minimum of 60s, but no more than 72h.",
 			Value:       serpent.DurationOf(&sshMaxTimeout),
+		},
+		{
+			Flag:        "ssh-host-key-algorithm",
+			Default:     "rsa",
+			Env:         "CODER_AGENT_SSH_HOST_KEY_ALGORITHM",
+			Description: "Specify the SSH host key algorithm to use. Valid values: rsa, ed25519.",
+			Value:       serpent.StringOf(&sshHostKeyAlgorithm),
 		},
 		{
 			Flag:        "tailnet-listen-port",

@@ -3,9 +3,11 @@ package agentssh
 import (
 	"bufio"
 	"context"
+	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"os"
 	"os/exec"
@@ -113,6 +115,9 @@ type Config struct {
 	BlockFileTransfer bool
 	// ReportConnection.
 	ReportConnection reportConnectionFunc
+	// HostKeyAlgorithm specifies the SSH host key algorithm to use.
+	// Valid values: "rsa", "ed25519". Default: "rsa" for backward compatibility.
+	HostKeyAlgorithm string
 	// Experimental: allow connecting to running containers via Docker exec.
 	// Note that this is different from the devcontainers feature, which uses
 	// subagents.
@@ -1312,7 +1317,11 @@ func userHomeDir() (string, error) {
 // UpdateHostSigner updates the host signer with a new key generated from the provided seed.
 // If an existing host key exists with the same algorithm, it is overwritten
 func (s *Server) UpdateHostSigner(seed int64) error {
-	key, err := CoderSigner(seed)
+	algorithm := s.config.HostKeyAlgorithm
+	if algorithm == "" {
+		algorithm = "rsa" // Default to RSA for backward compatibility
+	}
+	key, err := CoderSigner(seed, algorithm)
 	if err != nil {
 		return err
 	}
@@ -1325,14 +1334,29 @@ func (s *Server) UpdateHostSigner(seed int64) error {
 	return nil
 }
 
-// CoderSigner generates a deterministic SSH signer based on the provided seed.
-// It uses RSA with a key size of 2048 bits.
-func CoderSigner(seed int64) (gossh.Signer, error) {
+// CoderSigner generates a deterministic SSH signer based on the provided seed and algorithm.
+// Supported algorithms: "rsa" (2048 bits), "ed25519".
+func CoderSigner(seed int64, algorithm string) (gossh.Signer, error) {
 	// Clients should ignore the host key when connecting.
 	// The agent needs to authenticate with coderd to SSH,
 	// so SSH authentication doesn't improve security.
-	coderHostKey := agentrsa.GenerateDeterministicKey(seed)
-
-	coderSigner, err := gossh.NewSignerFromKey(coderHostKey)
-	return coderSigner, err
+	
+	switch algorithm {
+	case "ed25519":
+		// Generate deterministic Ed25519 key
+		rand := rand.New(rand.NewSource(seed))
+		_, privateKey, err := ed25519.GenerateKey(rand)
+		if err != nil {
+			return nil, err
+		}
+		return gossh.NewSignerFromKey(privateKey)
+	
+	case "rsa", "":
+		// Default to RSA for backward compatibility
+		coderHostKey := agentrsa.GenerateDeterministicKey(seed)
+		return gossh.NewSignerFromKey(coderHostKey)
+	
+	default:
+		return nil, fmt.Errorf("unsupported host key algorithm: %s", algorithm)
+	}
 }
