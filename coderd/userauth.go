@@ -1682,7 +1682,11 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 
 		if user.ID == uuid.Nil && !allowSignup {
 			signupsDisabledText := "Please contact your Coder administrator to request access."
-			if api.OIDCConfig != nil && api.OIDCConfig.SignupsDisabledText != "" {
+			// Use general signups disabled text if configured
+			if api.SignupsDisabledText != "" {
+				signupsDisabledText = render.HTMLFromMarkdown(api.SignupsDisabledText)
+			} else if api.OIDCConfig != nil && api.OIDCConfig.SignupsDisabledText != "" {
+				// Fallback to OIDC-specific text for backward compatibility
 				signupsDisabledText = render.HTMLFromMarkdown(api.OIDCConfig.SignupsDisabledText)
 			}
 			return &idpsync.HTTPError{

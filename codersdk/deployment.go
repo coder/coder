@@ -366,6 +366,7 @@ type DeploymentValues struct {
 	Trace                           TraceConfig                          `json:"trace,omitempty" typescript:",notnull"`
 	HTTPCookies                     HTTPCookieConfig                     `json:"http_cookies,omitempty" typescript:",notnull"`
 	StrictTransportSecurity         serpent.Int64                        `json:"strict_transport_security,omitempty" typescript:",notnull"`
+	SignupsDisabledText             serpent.String                       `json:"signups_disabled_text,omitempty" typescript:",notnull"`
 	StrictTransportSecurityOptions  serpent.StringArray                  `json:"strict_transport_security_options,omitempty" typescript:",notnull"`
 	SSHKeygenAlgorithm              serpent.String                       `json:"ssh_keygen_algorithm,omitempty" typescript:",notnull"`
 	MetricsCacheRefreshInterval     serpent.Duration                     `json:"metrics_cache_refresh_interval,omitempty" typescript:",notnull"`
@@ -973,6 +974,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		deploymentGroupOIDC = serpent.Group{
 			Name: "OIDC",
 			YAML: "oidc",
+		}
+		deploymentGroupUserAuth = serpent.Group{
+			Name:        "User Authentication",
+			Description: "Configure general user authentication and signup settings.",
+			YAML:        "userAuth",
 		}
 		deploymentGroupTelemetry = serpent.Group{
 			Name: "Telemetry",
@@ -2493,6 +2499,15 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Default:     "ed25519",
 			Value:       &c.SSHKeygenAlgorithm,
 			YAML:        "sshKeygenAlgorithm",
+		},
+		{
+			Name:        "Signups Disabled Text",
+			Description: "The custom text to show on the error page when signups are disabled. Markdown format is supported.",
+			Flag:        "signups-disabled-text",
+			Env:         "CODER_SIGNUPS_DISABLED_TEXT",
+			Value:       &c.SignupsDisabledText,
+			Group:       &deploymentGroupUserAuth,
+			YAML:        "signupsDisabledText",
 		},
 		{
 			Name:        "Metrics Cache Refresh Interval",
