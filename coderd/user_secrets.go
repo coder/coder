@@ -4,6 +4,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/google/uuid"
 	"net/http"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -32,6 +33,7 @@ func (api *API) createUserSecret(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	secret, err := api.Database.InsertUserSecret(ctx, database.InsertUserSecretParams{
+		ID:          uuid.New(),
 		UserID:      apiKey.UserID,
 		Name:        req.Name,
 		Description: req.Description,

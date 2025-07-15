@@ -1,8 +1,14 @@
 package codersdk
 
 import (
-	"github.com/google/uuid"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"time"
+
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 )
 
 // TODO: add and register custom validator functions. check codersdk/name.go for examples.
@@ -35,4 +41,22 @@ type UserSecretValue struct {
 
 type ListUserSecretsResponse struct {
 	Secrets []UserSecret `json:"secrets"`
+}
+
+func (c *Client) CreateUserSecret(ctx context.Context, req CreateUserSecretRequest) (UserSecret, error) {
+	res, err := c.Request(ctx, http.MethodPost,
+		fmt.Sprintf("/api/v2/users/secrets"),
+		req,
+	)
+	if err != nil {
+		return UserSecret{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusCreated {
+		return UserSecret{}, ReadBodyAsError(res)
+	}
+
+	var userSecret UserSecret
+	return userSecret, json.NewDecoder(res.Body).Decode(&userSecret)
 }
