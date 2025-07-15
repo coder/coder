@@ -673,11 +673,11 @@ func (r *RootCmd) ssh() *serpent.Command {
 			UseInstead:  []serpent.Option{waitOption},
 		},
 		{
-			Flag:        "quiet",
+			Flag:          "quiet",
 			FlagShorthand: "q",
-			Env:         "CODER_SSH_QUIET",
-			Description: "Suppress machine setup logs and connection indicators.",
-			Value:       serpent.BoolOf(&quiet),
+			Env:           "CODER_SSH_QUIET",
+			Description:   "Suppress machine setup logs and connection indicators.",
+			Value:         serpent.BoolOf(&quiet),
 		},
 		{
 			Flag:          "log-dir",
