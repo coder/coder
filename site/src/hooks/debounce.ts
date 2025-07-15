@@ -2,18 +2,15 @@
  * @file Defines hooks for created debounced versions of functions and arbitrary
  * values.
  *
- * It is not safe to call a general-purpose debounce utility inside a React
- * render. It will work on the initial render, but the memory reference for the
- * value will change on re-renders. Most debounce functions create a "stateful"
- * version of a function by leveraging closure; but by calling it repeatedly,
- * you create multiple "pockets" of state, rather than a centralized one.
- *
- * Debounce utilities can make sense if they can be called directly outside the
- * component or in a useEffect call, though.
+ * It is not safe to call most general-purpose debounce utility functions inside
+ * a React render. This is because the state for handling the debounce logic
+ * lives in the utility instead of React. If you call a general-purpose debounce
+ * function inline, that will create a new stateful function on every render,
+ * which has a lot of risks around conflicting/contradictory state.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
-type useDebouncedFunctionReturn<Args extends unknown[]> = Readonly<{
+type UseDebouncedFunctionReturn<Args extends unknown[]> = Readonly<{
 	debounced: (...args: Args) => void;
 
 	// Mainly here to make interfacing with useEffect cleanup functions easier
@@ -34,12 +31,18 @@ type useDebouncedFunctionReturn<Args extends unknown[]> = Readonly<{
  */
 export function useDebouncedFunction<
 	// Parameterizing on the args instead of the whole callback function type to
-	// avoid type contra-variance issues
+	// avoid type contravariance issues
 	Args extends unknown[] = unknown[],
 >(
 	callback: (...args: Args) => void | Promise<void>,
 	debounceTimeMs: number,
-): useDebouncedFunctionReturn<Args> {
+): UseDebouncedFunctionReturn<Args> {
+  if (!Number.isInteger(debounceTimeMs) || debounceTimeMs < 0) {
+    throw new Error(
+      `Provided debounce value ${debounceTimeMs} is not a non-negative integer`,
+    );
+  }
+
 	const timeoutIdRef = useRef<number | null>(null);
 	const cancelDebounce = useCallback(() => {
 		if (timeoutIdRef.current !== null) {
@@ -81,19 +84,32 @@ export function useDebouncedFunction<
 /**
  * Takes any value, and returns out a debounced version of it.
  */
-export function useDebouncedValue<T = unknown>(
-	value: T,
-	debounceTimeMs: number,
-): T {
-	const [debouncedValue, setDebouncedValue] = useState(value);
+export function useDebouncedValue<T>(value: T, debounceTimeoutMs: number): T {
+  if (!Number.isInteger(debounceTimeoutMs) || debounceTimeoutMs < 0) {
+    throw new Error(
+      `Provided debounce value ${debounceTimeoutMs} is not a non-negative integer`,
+    );
+  }
 
-	useEffect(() => {
-		const timeoutId = window.setTimeout(() => {
-			setDebouncedValue(value);
-		}, debounceTimeMs);
+  const [debounced, setDebounced] = useState(value);
 
-		return () => window.clearTimeout(timeoutId);
-	}, [value, debounceTimeMs]);
+  // If the debounce timeout is ever zero, synchronously flush any state syncs.
+  // Doing this mid-render instead of in useEffect means that we drastically cut
+  // down on needless re-renders, and we also avoid going through the event loop
+  // to do a state sync that is *intended* to happen immediately
+  if (value !== debounced && debounceTimeoutMs === 0) {
+    setDebounced(value);
+  }
+  useEffect(() => {
+    if (debounceTimeoutMs === 0) {
+      return;
+    }
 
-	return debouncedValue;
+    const timeoutId = window.setTimeout(() => {
+      setDebounced(value);
+    }, debounceTimeoutMs);
+    return () => window.clearTimeout(timeoutId);
+  }, [value, debounceTimeoutMs]);
+
+  return debounced;
 }
