@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -62,9 +63,9 @@ func TestListMembers(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		members, err := client.OrganizationMembers(ctx, first.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, members, 2)
+		require.Len(t, members, 3)
 		require.ElementsMatch(t,
-			[]uuid.UUID{first.UserID, user.ID},
+			[]uuid.UUID{first.UserID, user.ID, database.PrebuildsSystemUserID},
 			db2sdk.List(members, onlyIDs))
 	})
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -360,9 +361,9 @@ func TestCustomOrganizationRole(t *testing.T) {
 		// Verify members have the custom role
 		originalMembers, err := orgAdmin.OrganizationMembers(ctx, first.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, originalMembers, 5) // 3 members + org admin + owner
+		require.Len(t, originalMembers, 6) // 3 members + org admin + owner + prebuilds system user
 		for _, member := range originalMembers {
-			if member.UserID == orgAdminUser.ID || member.UserID == first.UserID {
+			if member.UserID == orgAdminUser.ID || member.UserID == first.UserID || member.UserID == database.PrebuildsSystemUserID {
 				continue
 			}
 
@@ -377,7 +378,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		// Verify the role was removed from all members
 		members, err := orgAdmin.OrganizationMembers(ctx, first.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, members, 5) // 3 members + org admin + owner
+		require.Len(t, members, 6) // 3 members + org admin + owner + prebuilds system user
 		for _, member := range members {
 			require.False(t, slices.ContainsFunc(member.Roles, func(role codersdk.SlimRole) bool {
 				return role.Name == customRoleIdentifier.Name

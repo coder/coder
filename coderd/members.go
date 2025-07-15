@@ -161,7 +161,7 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 	members, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
 		OrganizationID: organization.ID,
 		UserID:         uuid.Nil,
-		IncludeSystem:  false,
+		IncludeSystem:  true,
 	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
@@ -203,6 +203,7 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 
 	paginatedMemberRows, err := api.Database.PaginatedOrganizationMembers(ctx, database.PaginatedOrganizationMembersParams{
 		OrganizationID: organization.ID,
+		IncludeSystem:  true,
 		// #nosec G115 - Pagination limits are small and fit in int32
 		LimitOpt: int32(paginationParams.Limit),
 		// #nosec G115 - Pagination offsets are small and fit in int32
