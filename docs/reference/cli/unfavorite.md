@@ -15,4 +15,3 @@ Aliases:
 ```console
 coder unfavorite <workspace>
 ```
-

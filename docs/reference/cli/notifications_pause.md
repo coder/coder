@@ -11,4 +11,3 @@ Pause notifications
 ```console
 coder notifications pause
 ```
-

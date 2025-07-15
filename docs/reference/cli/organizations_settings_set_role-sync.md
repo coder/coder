@@ -14,4 +14,3 @@ Aliases:
 ```console
 coder organizations settings set role-sync
 ```
-

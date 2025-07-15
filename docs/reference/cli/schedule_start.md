@@ -28,4 +28,3 @@ Schedule format: <start-time> [day-of-week] [location].
 
       $ coder schedule start my-workspace 9:30AM Mon-Fri Europe/Dublin 
 ```
-

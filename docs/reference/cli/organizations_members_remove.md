@@ -14,4 +14,3 @@ Aliases:
 ```console
 coder organizations members remove <username | user_id>
 ```
-

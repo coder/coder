@@ -29,4 +29,3 @@ When enabling scheduled stop, enter a duration in one of the following formats:
 
   $ coder schedule stop my-workspace 2h30m 
 ```
-

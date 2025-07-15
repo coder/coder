@@ -24,4 +24,3 @@ coder schedule extend <workspace-name> <duration from now>
 
   $ coder schedule extend my-workspace 90m 
 ```
-

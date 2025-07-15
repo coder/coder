@@ -15,4 +15,3 @@ Aliases:
 ```console
 coder tokens remove <name|id|token>
 ```
-

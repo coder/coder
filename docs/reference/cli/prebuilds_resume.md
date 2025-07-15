@@ -11,4 +11,3 @@ Resume prebuilds
 ```console
 coder prebuilds resume
 ```
-

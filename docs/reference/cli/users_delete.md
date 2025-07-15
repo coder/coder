@@ -14,4 +14,3 @@ Aliases:
 ```console
 coder users delete <username|user_id>
 ```
-

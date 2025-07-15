@@ -11,4 +11,3 @@ Resume notifications
 ```console
 coder notifications resume
 ```
-

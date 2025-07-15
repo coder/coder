@@ -11,4 +11,3 @@ Add a new member to the current organization
 ```console
 coder organizations members add <username | user_id>
 ```
-

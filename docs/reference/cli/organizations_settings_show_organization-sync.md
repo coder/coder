@@ -16,4 +16,3 @@ Aliases:
 ```console
 coder organizations settings show organization-sync
 ```
-

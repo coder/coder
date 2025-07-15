@@ -11,4 +11,3 @@ Send a test notification
 ```console
 coder notifications test
 ```
-

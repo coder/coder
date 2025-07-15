@@ -11,4 +11,3 @@ Pause prebuilds
 ```console
 coder prebuilds pause
 ```
-
