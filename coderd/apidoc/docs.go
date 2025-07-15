@@ -383,6 +383,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/connectionlog": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get connection logs",
+                "operationId": "get-connection-logs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ConnectionLogResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/csp/reports": {
             "post": {
                 "security": [
@@ -8778,6 +8824,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/{workspaceagent}/containers/watch": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Watch workspace agent for container updates.",
+                "operationId": "watch-workspace-agent-for-container-updates",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentListContainersResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/{workspaceagent}/coordinate": {
             "get": {
                 "security": [
@@ -11408,6 +11489,139 @@ const docTemplate = `{
                     "example": 119.832
                 }
             }
+        },
+        "codersdk.ConnectionLog": {
+            "type": "object",
+            "properties": {
+                "agent_name": {
+                    "type": "string"
+                },
+                "connect_time": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "organization": {
+                    "$ref": "#/definitions/codersdk.MinimalOrganization"
+                },
+                "ssh_info": {
+                    "description": "SSHInfo is only set when ` + "`" + `type` + "`" + ` is one of:\n- ` + "`" + `ConnectionTypeSSH` + "`" + `\n- ` + "`" + `ConnectionTypeReconnectingPTY` + "`" + `\n- ` + "`" + `ConnectionTypeVSCode` + "`" + `\n- ` + "`" + `ConnectionTypeJetBrains` + "`" + `",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ConnectionLogSSHInfo"
+                        }
+                    ]
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.ConnectionType"
+                },
+                "web_info": {
+                    "description": "WebInfo is only set when ` + "`" + `type` + "`" + ` is one of:\n- ` + "`" + `ConnectionTypePortForwarding` + "`" + `\n- ` + "`" + `ConnectionTypeWorkspaceApp` + "`" + `",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ConnectionLogWebInfo"
+                        }
+                    ]
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "workspace_name": {
+                    "type": "string"
+                },
+                "workspace_owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "workspace_owner_username": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ConnectionLogResponse": {
+            "type": "object",
+            "properties": {
+                "connection_logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ConnectionLog"
+                    }
+                },
+                "count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.ConnectionLogSSHInfo": {
+            "type": "object",
+            "properties": {
+                "connection_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "disconnect_reason": {
+                    "description": "DisconnectReason is omitted if a disconnect event with the same connection ID\nhas not yet been seen.",
+                    "type": "string"
+                },
+                "disconnect_time": {
+                    "description": "DisconnectTime is omitted if a disconnect event with the same connection ID\nhas not yet been seen.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "exit_code": {
+                    "description": "ExitCode is the exit code of the SSH session. It is omitted if a\ndisconnect event with the same connection ID has not yet been seen.",
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.ConnectionLogWebInfo": {
+            "type": "object",
+            "properties": {
+                "slug_or_port": {
+                    "type": "string"
+                },
+                "status_code": {
+                    "description": "StatusCode is the HTTP status code of the request.",
+                    "type": "integer"
+                },
+                "user": {
+                    "description": "User is omitted if the connection event was from an unauthenticated user.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.User"
+                        }
+                    ]
+                },
+                "user_agent": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ConnectionType": {
+            "type": "string",
+            "enum": [
+                "ssh",
+                "vscode",
+                "jetbrains",
+                "reconnecting_pty",
+                "workspace_app",
+                "port_forwarding"
+            ],
+            "x-enum-varnames": [
+                "ConnectionTypeSSH",
+                "ConnectionTypeVSCode",
+                "ConnectionTypeJetBrains",
+                "ConnectionTypeReconnectingPTY",
+                "ConnectionTypeWorkspaceApp",
+                "ConnectionTypePortForwarding"
+            ]
         },
         "codersdk.ConvertLoginRequest": {
             "type": "object",
@@ -15329,6 +15543,7 @@ const docTemplate = `{
                 "assign_org_role",
                 "assign_role",
                 "audit_log",
+                "connection_log",
                 "crypto_key",
                 "debug_info",
                 "deployment_config",
@@ -15368,6 +15583,7 @@ const docTemplate = `{
                 "ResourceAssignOrgRole",
                 "ResourceAssignRole",
                 "ResourceAuditLog",
+                "ResourceConnectionLog",
                 "ResourceCryptoKey",
                 "ResourceDebugInfo",
                 "ResourceDeploymentConfig",
@@ -19376,7 +19592,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "expiry": {
-                    "description": "Expiry is the optional expiration time of the access token.\n\nIf zero, TokenSource implementations will reuse the same\ntoken forever and RefreshToken or equivalent\nmechanisms for that TokenSource will not be used.",
+                    "description": "Expiry is the optional expiration time of the access token.\n\nIf zero, [TokenSource] implementations will reuse the same\ntoken forever and RefreshToken or equivalent\nmechanisms for that TokenSource will not be used.",
                     "type": "string"
                 },
                 "refresh_token": {

@@ -1085,6 +1085,228 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `p50` | number | false    |              |             |
 | `p95` | number | false    |              |             |
 
+## codersdk.ConnectionLog
+
+```json
+{
+  "agent_name": "string",
+  "connect_time": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "ip": "string",
+  "organization": {
+    "display_name": "string",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string"
+  },
+  "ssh_info": {
+    "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
+    "disconnect_reason": "string",
+    "disconnect_time": "2019-08-24T14:15:22Z",
+    "exit_code": 0
+  },
+  "type": "ssh",
+  "web_info": {
+    "slug_or_port": "string",
+    "status_code": 0,
+    "user": {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "organization_ids": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "roles": [
+        {
+          "display_name": "string",
+          "name": "string",
+          "organization_id": "string"
+        }
+      ],
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    },
+    "user_agent": "string"
+  },
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string",
+  "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+  "workspace_owner_username": "string"
+}
+```
+
+### Properties
+
+| Name                       | Type                                                           | Required | Restrictions | Description                                                                                                                                              |
+|----------------------------|----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name`               | string                                                         | false    |              |                                                                                                                                                          |
+| `connect_time`             | string                                                         | false    |              |                                                                                                                                                          |
+| `id`                       | string                                                         | false    |              |                                                                                                                                                          |
+| `ip`                       | string                                                         | false    |              |                                                                                                                                                          |
+| `organization`             | [codersdk.MinimalOrganization](#codersdkminimalorganization)   | false    |              |                                                                                                                                                          |
+| `ssh_info`                 | [codersdk.ConnectionLogSSHInfo](#codersdkconnectionlogsshinfo) | false    |              | Ssh info is only set when `type` is one of: - `ConnectionTypeSSH` - `ConnectionTypeReconnectingPTY` - `ConnectionTypeVSCode` - `ConnectionTypeJetBrains` |
+| `type`                     | [codersdk.ConnectionType](#codersdkconnectiontype)             | false    |              |                                                                                                                                                          |
+| `web_info`                 | [codersdk.ConnectionLogWebInfo](#codersdkconnectionlogwebinfo) | false    |              | Web info is only set when `type` is one of: - `ConnectionTypePortForwarding` - `ConnectionTypeWorkspaceApp`                                              |
+| `workspace_id`             | string                                                         | false    |              |                                                                                                                                                          |
+| `workspace_name`           | string                                                         | false    |              |                                                                                                                                                          |
+| `workspace_owner_id`       | string                                                         | false    |              |                                                                                                                                                          |
+| `workspace_owner_username` | string                                                         | false    |              |                                                                                                                                                          |
+
+## codersdk.ConnectionLogResponse
+
+```json
+{
+  "connection_logs": [
+    {
+      "agent_name": "string",
+      "connect_time": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "ip": "string",
+      "organization": {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      },
+      "ssh_info": {
+        "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
+        "disconnect_reason": "string",
+        "disconnect_time": "2019-08-24T14:15:22Z",
+        "exit_code": 0
+      },
+      "type": "ssh",
+      "web_info": {
+        "slug_or_port": "string",
+        "status_code": 0,
+        "user": {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "organization_ids": [
+            "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+          ],
+          "roles": [
+            {
+              "display_name": "string",
+              "name": "string",
+              "organization_id": "string"
+            }
+          ],
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        },
+        "user_agent": "string"
+      },
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string",
+      "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+      "workspace_owner_username": "string"
+    }
+  ],
+  "count": 0
+}
+```
+
+### Properties
+
+| Name              | Type                                                      | Required | Restrictions | Description |
+|-------------------|-----------------------------------------------------------|----------|--------------|-------------|
+| `connection_logs` | array of [codersdk.ConnectionLog](#codersdkconnectionlog) | false    |              |             |
+| `count`           | integer                                                   | false    |              |             |
+
+## codersdk.ConnectionLogSSHInfo
+
+```json
+{
+  "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
+  "disconnect_reason": "string",
+  "disconnect_time": "2019-08-24T14:15:22Z",
+  "exit_code": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                                                                           |
+|---------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `connection_id`     | string  | false    |              |                                                                                                                                       |
+| `disconnect_reason` | string  | false    |              | Disconnect reason is omitted if a disconnect event with the same connection ID has not yet been seen.                                 |
+| `disconnect_time`   | string  | false    |              | Disconnect time is omitted if a disconnect event with the same connection ID has not yet been seen.                                   |
+| `exit_code`         | integer | false    |              | Exit code is the exit code of the SSH session. It is omitted if a disconnect event with the same connection ID has not yet been seen. |
+
+## codersdk.ConnectionLogWebInfo
+
+```json
+{
+  "slug_or_port": "string",
+  "status_code": 0,
+  "user": {
+    "avatar_url": "http://example.com",
+    "created_at": "2019-08-24T14:15:22Z",
+    "email": "user@example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_seen_at": "2019-08-24T14:15:22Z",
+    "login_type": "",
+    "name": "string",
+    "organization_ids": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
+    "roles": [
+      {
+        "display_name": "string",
+        "name": "string",
+        "organization_id": "string"
+      }
+    ],
+    "status": "active",
+    "theme_preference": "string",
+    "updated_at": "2019-08-24T14:15:22Z",
+    "username": "string"
+  },
+  "user_agent": "string"
+}
+```
+
+### Properties
+
+| Name           | Type                           | Required | Restrictions | Description                                                               |
+|----------------|--------------------------------|----------|--------------|---------------------------------------------------------------------------|
+| `slug_or_port` | string                         | false    |              |                                                                           |
+| `status_code`  | integer                        | false    |              | Status code is the HTTP status code of the request.                       |
+| `user`         | [codersdk.User](#codersdkuser) | false    |              | User is omitted if the connection event was from an unauthenticated user. |
+| `user_agent`   | string                         | false    |              |                                                                           |
+
+## codersdk.ConnectionType
+
+```json
+"ssh"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value              |
+|--------------------|
+| `ssh`              |
+| `vscode`           |
+| `jetbrains`        |
+| `reconnecting_pty` |
+| `workspace_app`    |
+| `port_forwarding`  |
+
 ## codersdk.ConvertLoginRequest
 
 ```json
@@ -6052,6 +6274,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `assign_org_role`                  |
 | `assign_role`                      |
 | `audit_log`                        |
+| `connection_log`                   |
 | `crypto_key`                       |
 | `debug_info`                       |
 | `deployment_config`                |
@@ -11930,7 +12153,7 @@ None
 | `access_token` | string  | false    |              | Access token is the token that authorizes and authenticates the requests.                                                                                                                                                                                                   |
 | `expires_in`   | integer | false    |              | Expires in is the OAuth2 wire format "expires_in" field, which specifies how many seconds later the token expires, relative to an unknown time base approximately around "now". It is the application's responsibility to populate `Expiry` from `ExpiresIn` when required. |
 |`expiry`|string|false||Expiry is the optional expiration time of the access token.
-If zero, TokenSource implementations will reuse the same token forever and RefreshToken or equivalent mechanisms for that TokenSource will not be used.|
+If zero, [TokenSource] implementations will reuse the same token forever and RefreshToken or equivalent mechanisms for that TokenSource will not be used.|
 |`refresh_token`|string|false||Refresh token is a token that's used by the application (as opposed to the user) to refresh the access token if it expires.|
 |`token_type`|string|false||Token type is the type of token. The Type method returns either this or "Bearer", the default.|
 

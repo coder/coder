@@ -655,6 +655,7 @@ func TestLicenseEntitlements(t *testing.T) {
 	// maybe some should be moved to "AlwaysEnabled" instead.
 	defaultEnablements := map[codersdk.FeatureName]bool{
 		codersdk.FeatureAuditLog:                   true,
+		codersdk.FeatureConnectionLog:              true,
 		codersdk.FeatureBrowserOnly:                true,
 		codersdk.FeatureSCIM:                       true,
 		codersdk.FeatureMultipleExternalAuth:       true,
