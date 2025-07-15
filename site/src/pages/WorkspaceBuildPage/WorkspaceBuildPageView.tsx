@@ -212,7 +212,24 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 						</Alert>
 					)}
 
-					{tabState.value === "build" && <BuildLogsContent logs={logs} />}
+					{build?.job?.logs_overflowed && (
+						<Alert
+							severity="warning"
+							css={{
+								borderRadius: 0,
+								border: 0,
+								background: theme.roles.warning.background,
+								borderBottom: `1px solid ${theme.palette.divider}`,
+							}}
+						>
+							Provisioner logs exceeded the maximum size of 1MB and were
+							truncated.
+						</Alert>
+					)}
+
+					{tabState.value === "build" && (
+						<BuildLogsContent logs={logs} build={build} />
+					)}
 					{tabState.value !== "build" && selectedAgent && (
 						<AgentLogsContent agent={selectedAgent} />
 					)}
@@ -261,7 +278,10 @@ const ScrollArea: FC<HTMLProps<HTMLDivElement>> = (props) => {
 	);
 };
 
-const BuildLogsContent: FC<{ logs?: ProvisionerJobLog[] }> = ({ logs }) => {
+const BuildLogsContent: FC<{
+	logs?: ProvisionerJobLog[];
+	build?: WorkspaceBuild;
+}> = ({ logs, build }) => {
 	if (!logs) {
 		return <Loader />;
 	}
@@ -278,6 +298,7 @@ const BuildLogsContent: FC<{ logs?: ProvisionerJobLog[] }> = ({ logs }) => {
 				},
 			}}
 			logs={sortLogsByCreatedAt(logs)}
+			build={build}
 		/>
 	);
 };

@@ -1018,6 +1018,51 @@ func TestUpdateJob(t *testing.T) {
 		require.Equal(t, expectedSize, jobResult.LogsLength)
 		require.False(t, jobResult.LogsOverflowed)
 	})
+
+	t.Run("LogOverflowStopsProcessing", func(t *testing.T) {
+		t.Parallel()
+		srv, db, _, pd := setup(t, false, &overrides{})
+		job := setupJob(t, db, pd.ID, pd.Tags)
+
+		// First: trigger overflow
+		largeOutput := strings.Repeat("a", 1048577) // 1MB + 1 byte
+		_, err := srv.UpdateJob(ctx, &proto.UpdateJobRequest{
+			JobId: job.String(),
+			Logs: []*proto.Log{{
+				Source: proto.LogSource_PROVISIONER,
+				Level:  sdkproto.LogLevel_INFO,
+				Output: largeOutput,
+			}},
+		})
+		require.NoError(t, err)
+
+		// Get the initial log count
+		initialLogs, err := db.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
+			JobID:        job,
+			CreatedAfter: -1,
+		})
+		require.NoError(t, err)
+		initialCount := len(initialLogs)
+
+		// Second: try to send more logs - should be ignored
+		_, err = srv.UpdateJob(ctx, &proto.UpdateJobRequest{
+			JobId: job.String(),
+			Logs: []*proto.Log{{
+				Source: proto.LogSource_PROVISIONER,
+				Level:  sdkproto.LogLevel_INFO,
+				Output: "this should be ignored",
+			}},
+		})
+		require.NoError(t, err)
+
+		// Verify no new logs were added
+		finalLogs, err := db.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
+			JobID:        job,
+			CreatedAfter: -1,
+		})
+		require.NoError(t, err)
+		require.Equal(t, initialCount, len(finalLogs))
+	})
 }
 
 func TestFailJob(t *testing.T) {

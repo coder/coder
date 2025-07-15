@@ -903,6 +903,12 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 	}
 
 	if len(request.Logs) > 0 {
+		if job.LogsOverflowed {
+			return &proto.UpdateJobResponse{
+				Canceled: job.CanceledAt.Valid,
+			}, nil
+		}
+
 		//nolint:exhaustruct // We append to the additional fields below.
 		insertParams := database.InsertProvisionerJobLogsParams{
 			JobID: parsedID,
