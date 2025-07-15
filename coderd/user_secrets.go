@@ -13,7 +13,7 @@ import (
 // Creates a new user secret.
 // Returns a newly created user secret.
 //
-// @Summary Create a new user secret
+// @Summary Create user secret
 // @ID create-user-secret
 // @Security CoderSessionToken
 // @Accept json
