@@ -122,10 +122,10 @@ describe(`${useDebouncedFunction.name}`, () => {
 				-42,
 			];
 
-			const dummyValue = false;
+			const dummyFunction = jest.fn()
 			for (const input of invalidInputs) {
 				expect(() => {
-					renderDebouncedValue(dummyValue, input);
+					renderDebouncedFunction(dummyFunction, input);
 				}).toThrow(
 					`Provided debounce value ${input} must be a non-negative integer`,
 				);
