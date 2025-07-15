@@ -22,6 +22,7 @@ const ALLOWED_EXTERNAL_APP_PROTOCOLS = [
 	"cursor:",
 	"jetbrains-gateway:",
 	"jetbrains:",
+	"kiro:",
 ];
 
 type GetVSCodeHrefParams = {
