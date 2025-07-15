@@ -91,14 +91,14 @@ export function useDebouncedValue<T>(value: T, debounceTimeoutMs: number): T {
     );
   }
 
-  const [debounced, setDebounced] = useState(value);
+  const [debouncedValue, setDebouncedValue] = useState(value);
 
   // If the debounce timeout is ever zero, synchronously flush any state syncs.
   // Doing this mid-render instead of in useEffect means that we drastically cut
   // down on needless re-renders, and we also avoid going through the event loop
   // to do a state sync that is *intended* to happen immediately
-  if (value !== debounced && debounceTimeoutMs === 0) {
-    setDebounced(value);
+  if (value !== debouncedValue && debounceTimeoutMs === 0) {
+    setDebouncedValue(value);
   }
   useEffect(() => {
     if (debounceTimeoutMs === 0) {
@@ -106,10 +106,10 @@ export function useDebouncedValue<T>(value: T, debounceTimeoutMs: number): T {
     }
 
     const timeoutId = window.setTimeout(() => {
-      setDebounced(value);
+      setDebouncedValue(value);
     }, debounceTimeoutMs);
     return () => window.clearTimeout(timeoutId);
   }, [value, debounceTimeoutMs]);
 
-  return debounced;
+  return debouncedValue;
 }
