@@ -282,6 +282,7 @@ type sqlcQuerier interface {
 	// Gets a single provisioner job by ID for update.
 	// This is used to securely reap jobs that have been hung/pending for a long time.
 	GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UUID) (ProvisionerJob, error)
+	GetProvisionerJobLogSize(ctx context.Context, jobID uuid.UUID) (interface{}, error)
 	GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]ProvisionerJobTiming, error)
 	GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]ProvisionerJob, error)
 	GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, arg GetProvisionerJobsByIDsWithQueuePositionParams) ([]GetProvisionerJobsByIDsWithQueuePositionRow, error)
@@ -561,6 +562,7 @@ type sqlcQuerier interface {
 	RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
+	SetProvisionerJobLogsOverflowed(ctx context.Context, arg SetProvisionerJobLogsOverflowedParams) error
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
 	// This must be called from within a transaction. The lock will be automatically

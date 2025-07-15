@@ -7878,6 +7878,22 @@ func (q *sqlQuerier) UpsertProvisionerDaemon(ctx context.Context, arg UpsertProv
 	return i, err
 }
 
+const getProvisionerJobLogSize = `-- name: GetProvisionerJobLogSize :one
+ SELECT
+ 	COALESCE(SUM(LENGTH(output)), 0) AS total_size
+ FROM
+ 	provisioner_job_logs
+ WHERE
+ 	job_id = $1
+`
+
+func (q *sqlQuerier) GetProvisionerJobLogSize(ctx context.Context, jobID uuid.UUID) (interface{}, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerJobLogSize, jobID)
+	var total_size interface{}
+	err := row.Scan(&total_size)
+	return total_size, err
+}
+
 const getProvisionerLogsAfterID = `-- name: GetProvisionerLogsAfterID :many
 SELECT
 	job_id, created_at, source, level, stage, output, id
@@ -7983,6 +7999,25 @@ func (q *sqlQuerier) InsertProvisionerJobLogs(ctx context.Context, arg InsertPro
 		return nil, err
 	}
 	return items, nil
+}
+
+const setProvisionerJobLogsOverflowed = `-- name: SetProvisionerJobLogsOverflowed :exec
+UPDATE 
+	provisioner_jobs
+SET 
+	logs_overflowed = $2
+WHERE 
+	id = $1
+`
+
+type SetProvisionerJobLogsOverflowedParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	LogsOverflowed bool      `db:"logs_overflowed" json:"logs_overflowed"`
+}
+
+func (q *sqlQuerier) SetProvisionerJobLogsOverflowed(ctx context.Context, arg SetProvisionerJobLogsOverflowedParams) error {
+	_, err := q.db.ExecContext(ctx, setProvisionerJobLogsOverflowed, arg.ID, arg.LogsOverflowed)
+	return err
 }
 
 const acquireProvisionerJob = `-- name: AcquireProvisionerJob :one
@@ -8681,10 +8716,11 @@ INSERT INTO
 		"type",
 		"input",
 		tags,
-		trace_metadata
+		trace_metadata,
+		logs_overflowed
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_overflowed
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_overflowed
 `
 
 type InsertProvisionerJobParams struct {
@@ -8700,6 +8736,7 @@ type InsertProvisionerJobParams struct {
 	Input          json.RawMessage          `db:"input" json:"input"`
 	Tags           StringMap                `db:"tags" json:"tags"`
 	TraceMetadata  pqtype.NullRawMessage    `db:"trace_metadata" json:"trace_metadata"`
+	LogsOverflowed bool                     `db:"logs_overflowed" json:"logs_overflowed"`
 }
 
 func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error) {
@@ -8716,6 +8753,7 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		arg.Input,
 		arg.Tags,
 		arg.TraceMetadata,
+		arg.LogsOverflowed,
 	)
 	var i ProvisionerJob
 	err := row.Scan(

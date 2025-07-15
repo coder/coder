@@ -2486,6 +2486,10 @@ func (q *querier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UU
 	return job, nil
 }
 
+func (q *querier) GetProvisionerJobLogSize(ctx context.Context, jobID uuid.UUID) (interface{}, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
 	_, err := q.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
@@ -4200,6 +4204,10 @@ func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) 
 		return err
 	}
 	return q.db.RevokeDBCryptKey(ctx, activeKeyDigest)
+}
+
+func (q *querier) SetProvisionerJobLogsOverflowed(ctx context.Context, arg database.SetProvisionerJobLogsOverflowedParams) error {
+	panic("not implemented")
 }
 
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {

@@ -2553,6 +2553,21 @@ func (mr *MockStoreMockRecorder) GetProvisionerJobByIDForUpdate(ctx, id any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobByIDForUpdate), ctx, id)
 }
 
+// GetProvisionerJobLogSize mocks base method.
+func (m *MockStore) GetProvisionerJobLogSize(ctx context.Context, jobID uuid.UUID) (any, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProvisionerJobLogSize", ctx, jobID)
+	ret0, _ := ret[0].(any)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProvisionerJobLogSize indicates an expected call of GetProvisionerJobLogSize.
+func (mr *MockStoreMockRecorder) GetProvisionerJobLogSize(ctx, jobID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobLogSize", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobLogSize), ctx, jobID)
+}
+
 // GetProvisionerJobTimingsByJobID mocks base method.
 func (m *MockStore) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
 	m.ctrl.T.Helper()
@@ -5547,6 +5562,20 @@ func (m *MockStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string
 func (mr *MockStoreMockRecorder) RevokeDBCryptKey(ctx, activeKeyDigest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeDBCryptKey", reflect.TypeOf((*MockStore)(nil).RevokeDBCryptKey), ctx, activeKeyDigest)
+}
+
+// SetProvisionerJobLogsOverflowed mocks base method.
+func (m *MockStore) SetProvisionerJobLogsOverflowed(ctx context.Context, arg database.SetProvisionerJobLogsOverflowedParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetProvisionerJobLogsOverflowed", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetProvisionerJobLogsOverflowed indicates an expected call of SetProvisionerJobLogsOverflowed.
+func (mr *MockStoreMockRecorder) SetProvisionerJobLogsOverflowed(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetProvisionerJobLogsOverflowed", reflect.TypeOf((*MockStore)(nil).SetProvisionerJobLogsOverflowed), ctx, arg)
 }
 
 // TryAcquireLock mocks base method.

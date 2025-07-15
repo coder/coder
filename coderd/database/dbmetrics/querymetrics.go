@@ -1230,6 +1230,13 @@ func (m queryMetricsStore) GetProvisionerJobByIDForUpdate(ctx context.Context, i
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetProvisionerJobLogSize(ctx context.Context, jobID uuid.UUID) (interface{}, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetProvisionerJobLogSize(ctx, jobID)
+	m.queryLatencies.WithLabelValues("GetProvisionerJobLogSize").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetProvisionerJobTimingsByJobID(ctx, jobID)
@@ -2599,6 +2606,13 @@ func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest
 	start := time.Now()
 	r0 := m.s.RevokeDBCryptKey(ctx, activeKeyDigest)
 	m.queryLatencies.WithLabelValues("RevokeDBCryptKey").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) SetProvisionerJobLogsOverflowed(ctx context.Context, arg database.SetProvisionerJobLogsOverflowedParams) error {
+	start := time.Now()
+	r0 := m.s.SetProvisionerJobLogsOverflowed(ctx, arg)
+	m.queryLatencies.WithLabelValues("SetProvisionerJobLogsOverflowed").Observe(time.Since(start).Seconds())
 	return r0
 }
 
