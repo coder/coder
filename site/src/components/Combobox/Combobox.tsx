@@ -57,27 +57,30 @@ export const Combobox: FC<ComboboxProps> = ({
 	const [managedOpen, setManagedOpen] = useState(false);
 	const [managedInputValue, setManagedInputValue] = useState("");
 
-	const optionsMap = new Map<string, ComboboxOption>();
-	for (const option of options) {
-		if (typeof option === "string") {
-			optionsMap.set(option, { displayName: option, value: option });
-			continue;
-		}
-
-		optionsMap.set(option.value, option);
-	}
+	const optionsMap = new Map<string, ComboboxOption>(
+		options.map((option) =>
+			typeof option === "string"
+				? [option, { displayName: option, value: option }]
+				: [option.value, option],
+		),
+	);
 	const optionObjects = [...optionsMap.values()];
 	const showIcons = optionObjects.some((it) => it.icon);
 
+	const isOpen = open ?? managedOpen;
+
 	return (
 		<Popover
-			open={open ?? managedOpen}
-			onOpenChange={onOpenChange ?? setManagedOpen}
+			open={isOpen}
+			onOpenChange={(newOpen) => {
+				setManagedOpen(newOpen);
+				onOpenChange?.(newOpen);
+			}}
 		>
 			<PopoverTrigger asChild>
 				<Button
 					variant="outline"
-					aria-expanded={open ?? managedOpen}
+					aria-expanded={isOpen}
 					className="w-72 justify-between group"
 				>
 					<span className={cn(!value && "text-content-secondary")}>
@@ -91,7 +94,10 @@ export const Combobox: FC<ComboboxProps> = ({
 					<CommandInput
 						placeholder="Search or enter custom value"
 						value={inputValue ?? managedInputValue}
-						onValueChange={onInputChange ?? setManagedInputValue}
+						onValueChange={(newValue) => {
+							setManagedInputValue(newValue);
+							onInputChange?.(newValue);
+						}}
 						onKeyDown={onKeyDown}
 					/>
 					<CommandList>
