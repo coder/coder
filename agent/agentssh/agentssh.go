@@ -1345,8 +1345,8 @@ func CoderSigner(seed int64, algorithm string) (gossh.Signer, error) {
 	case "ed25519":
 		// Generate deterministic Ed25519 key
 		// nolint: gosec
-		rand := rand.New(rand.NewSource(seed))
-		_, privateKey, err := ed25519.GenerateKey(rand)
+		rng := rand.New(rand.NewSource(seed))
+		_, privateKey, err := ed25519.GenerateKey(rng)
 		if err != nil {
 			return nil, err
 		}
