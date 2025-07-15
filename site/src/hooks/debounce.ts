@@ -35,28 +35,28 @@ export function useDebouncedFunction<
 	Args extends unknown[] = unknown[],
 >(
 	callback: (...args: Args) => void | Promise<void>,
-	debounceTimeMs: number,
+	debounceTimeoutMs: number,
 ): UseDebouncedFunctionReturn<Args> {
-  if (!Number.isInteger(debounceTimeMs) || debounceTimeMs < 0) {
-    throw new Error(
-      `Provided debounce value ${debounceTimeMs} is not a non-negative integer`,
-    );
-  }
+	if (!Number.isInteger(debounceTimeoutMs) || debounceTimeoutMs < 0) {
+		throw new Error(
+			`Provided debounce value ${debounceTimeoutMs} must be a non-negative integer`,
+		);
+	}
 
-	const timeoutIdRef = useRef<number | null>(null);
+	const timeoutIdRef = useRef<number | undefined>(undefined);
 	const cancelDebounce = useCallback(() => {
-		if (timeoutIdRef.current !== null) {
+		if (timeoutIdRef.current !== undefined) {
 			window.clearTimeout(timeoutIdRef.current);
 		}
 
-		timeoutIdRef.current = null;
+		timeoutIdRef.current = undefined;
 	}, []);
 
-	const debounceTimeRef = useRef(debounceTimeMs);
+	const debounceTimeRef = useRef(debounceTimeoutMs);
 	useEffect(() => {
 		cancelDebounce();
-		debounceTimeRef.current = debounceTimeMs;
-	}, [cancelDebounce, debounceTimeMs]);
+		debounceTimeRef.current = debounceTimeoutMs;
+	}, [cancelDebounce, debounceTimeoutMs]);
 
 	const callbackRef = useRef(callback);
 	useEffect(() => {
@@ -85,31 +85,31 @@ export function useDebouncedFunction<
  * Takes any value, and returns out a debounced version of it.
  */
 export function useDebouncedValue<T>(value: T, debounceTimeoutMs: number): T {
-  if (!Number.isInteger(debounceTimeoutMs) || debounceTimeoutMs < 0) {
-    throw new Error(
-      `Provided debounce value ${debounceTimeoutMs} is not a non-negative integer`,
-    );
-  }
+	if (!Number.isInteger(debounceTimeoutMs) || debounceTimeoutMs < 0) {
+		throw new Error(
+			`Provided debounce value ${debounceTimeoutMs} must be a non-negative integer`,
+		);
+	}
 
-  const [debouncedValue, setDebouncedValue] = useState(value);
+	const [debouncedValue, setDebouncedValue] = useState(value);
 
-  // If the debounce timeout is ever zero, synchronously flush any state syncs.
-  // Doing this mid-render instead of in useEffect means that we drastically cut
-  // down on needless re-renders, and we also avoid going through the event loop
-  // to do a state sync that is *intended* to happen immediately
-  if (value !== debouncedValue && debounceTimeoutMs === 0) {
-    setDebouncedValue(value);
-  }
-  useEffect(() => {
-    if (debounceTimeoutMs === 0) {
-      return;
-    }
+	// If the debounce timeout is ever zero, synchronously flush any state syncs.
+	// Doing this mid-render instead of in useEffect means that we drastically cut
+	// down on needless re-renders, and we also avoid going through the event loop
+	// to do a state sync that is *intended* to happen immediately
+	if (value !== debouncedValue && debounceTimeoutMs === 0) {
+		setDebouncedValue(value);
+	}
+	useEffect(() => {
+		if (debounceTimeoutMs === 0) {
+			return;
+		}
 
-    const timeoutId = window.setTimeout(() => {
-      setDebouncedValue(value);
-    }, debounceTimeoutMs);
-    return () => window.clearTimeout(timeoutId);
-  }, [value, debounceTimeoutMs]);
+		const timeoutId = window.setTimeout(() => {
+			setDebouncedValue(value);
+		}, debounceTimeoutMs);
+		return () => window.clearTimeout(timeoutId);
+	}, [value, debounceTimeoutMs]);
 
-  return debouncedValue;
+	return debouncedValue;
 }

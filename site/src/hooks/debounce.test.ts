@@ -23,6 +23,25 @@ function renderDebouncedValue<T = unknown>(value: T, time: number) {
 }
 
 describe(`${useDebouncedValue.name}`, () => {
+	it("Should throw for non-nonnegative integer timeouts", () => {
+		const invalidInputs: readonly number[] = [
+			Number.NaN,
+			Number.NEGATIVE_INFINITY,
+			Number.POSITIVE_INFINITY,
+			Math.PI,
+			-42,
+		];
+
+		const dummyValue = false;
+		for (const input of invalidInputs) {
+			expect(() => {
+				renderDebouncedValue(dummyValue, input);
+			}).toThrow(
+				`Provided debounce value ${input} must be a non-negative integer`,
+			);
+		}
+	});
+
 	it("Should immediately return out the exact same value (by reference) on mount", () => {
 		const value = {};
 		const { result } = renderDebouncedValue(value, 2000);
@@ -72,26 +91,47 @@ describe(`${useDebouncedValue.name}`, () => {
 		rerender({ value: !initialValue, time });
 		expect(result.current).toEqual(false);
 
-		// Then do the real re-render we want
+		// Then do the real re-render once we know the coast is clear
 		rerender({ value: !initialValue, time: 0 });
 		expect(result.current).toBe(true);
-	})
+	});
 });
 
+function renderDebouncedFunction<Args extends unknown[]>(
+	callbackArg: (...args: Args) => void | Promise<void>,
+	time: number,
+) {
+	return renderHook(
+		({ callback, time }: { callback: typeof callbackArg; time: number }) => {
+			return useDebouncedFunction<Args>(callback, time);
+		},
+		{
+			initialProps: { callback: callbackArg, time },
+		},
+	);
+}
+
 describe(`${useDebouncedFunction.name}`, () => {
-	function renderDebouncedFunction<Args extends unknown[]>(
-		callbackArg: (...args: Args) => void | Promise<void>,
-		time: number,
-	) {
-		return renderHook(
-			({ callback, time }: { callback: typeof callbackArg; time: number }) => {
-				return useDebouncedFunction<Args>(callback, time);
-			},
-			{
-				initialProps: { callback: callbackArg, time },
-			},
-		);
-	}
+	describe("input validation", () => {
+		it("Should throw for non-nonnegative integer timeouts", () => {
+			const invalidInputs: readonly number[] = [
+				Number.NaN,
+				Number.NEGATIVE_INFINITY,
+				Number.POSITIVE_INFINITY,
+				Math.PI,
+				-42,
+			];
+
+			const dummyValue = false;
+			for (const input of invalidInputs) {
+				expect(() => {
+					renderDebouncedValue(dummyValue, input);
+				}).toThrow(
+					`Provided debounce value ${input} must be a non-negative integer`,
+				);
+			}
+		});
+	});
 
 	describe("hook", () => {
 		it("Should provide stable function references across re-renders", () => {
