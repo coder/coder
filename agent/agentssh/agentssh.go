@@ -1340,7 +1340,7 @@ func CoderSigner(seed int64, algorithm string) (gossh.Signer, error) {
 	// Clients should ignore the host key when connecting.
 	// The agent needs to authenticate with coderd to SSH,
 	// so SSH authentication doesn't improve security.
-	
+
 	switch algorithm {
 	case "ed25519":
 		// Generate deterministic Ed25519 key
@@ -1350,12 +1350,12 @@ func CoderSigner(seed int64, algorithm string) (gossh.Signer, error) {
 			return nil, err
 		}
 		return gossh.NewSignerFromKey(privateKey)
-	
+
 	case "rsa", "":
 		// Default to RSA for backward compatibility
 		coderHostKey := agentrsa.GenerateDeterministicKey(seed)
 		return gossh.NewSignerFromKey(coderHostKey)
-	
+
 	default:
 		return nil, fmt.Errorf("unsupported host key algorithm: %s", algorithm)
 	}
