@@ -183,6 +183,11 @@ type LicenseOptions struct {
 	Features license.Features
 }
 
+func (opts *LicenseOptions) WithIssuedAt(now time.Time) *LicenseOptions {
+	opts.IssuedAt = now
+	return opts
+}
+
 func (opts *LicenseOptions) Expired(now time.Time) *LicenseOptions {
 	opts.NotBefore = now.Add(time.Hour * 24 * -4) // needs to be before the grace period
 	opts.ExpiresAt = now.Add(time.Hour * 24 * -2)
@@ -212,6 +217,14 @@ func (opts *LicenseOptions) FutureTerm(now time.Time) *LicenseOptions {
 
 func (opts *LicenseOptions) UserLimit(limit int64) *LicenseOptions {
 	return opts.Feature(codersdk.FeatureUserLimit, limit)
+}
+
+func (opts *LicenseOptions) ManagedAgentLimit(soft int64, hard int64) *LicenseOptions {
+	// These don't use named or exported feature names, see
+	// enterprise/coderd/license/license.go.
+	opts = opts.Feature(codersdk.FeatureName("managed_agent_limit_soft"), soft)
+	opts = opts.Feature(codersdk.FeatureName("managed_agent_limit_hard"), hard)
+	return opts
 }
 
 func (opts *LicenseOptions) Feature(name codersdk.FeatureName, value int64) *LicenseOptions {

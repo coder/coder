@@ -439,10 +439,10 @@ func LicensesEntitlements(
 			if hardLimit > softLimit && softLimit > 0 {
 				softWarningThreshold = softLimit + int64(float64(hardLimit-softLimit)*0.75)
 			}
-			if managedAgentCount > *agentLimit.Limit {
+			if managedAgentCount >= *agentLimit.Limit {
 				entitlements.Warnings = append(entitlements.Warnings,
 					"You have built more workspaces with managed agents than your license allows. Further managed agent builds will be blocked.")
-			} else if managedAgentCount > softWarningThreshold {
+			} else if managedAgentCount >= softWarningThreshold {
 				entitlements.Warnings = append(entitlements.Warnings,
 					"You are approaching the managed agent limit in your license. Please refer to the Deployment Licenses page for more information.")
 			}

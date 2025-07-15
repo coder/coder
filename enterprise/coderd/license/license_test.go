@@ -888,6 +888,164 @@ func TestLicenseEntitlements(t *testing.T) {
 					entitlements.Features[codersdk.FeatureCustomRoles].Entitlement)
 			},
 		},
+		{
+			Name: "ManagedAgentLimit",
+			Licenses: []*coderdenttest.LicenseOptions{
+				enterpriseLicense().UserLimit(100).ManagedAgentLimit(100, 200),
+			},
+			Arguments: license.FeatureArguments{
+				ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
+					// 175 will generate a warning as it's over 75% of the
+					// difference between the soft and hard limit.
+					return 174, nil
+				},
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoErrors(t, entitlements)
+				assertNoWarnings(t, entitlements)
+				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
+				assert.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
+				assert.True(t, feature.Enabled)
+				assert.Equal(t, int64(100), *feature.SoftLimit)
+				assert.Equal(t, int64(200), *feature.Limit)
+				assert.Equal(t, int64(174), *feature.Actual)
+			},
+		},
+		{
+			Name: "ManagedAgentLimitWithGrace",
+			Licenses: []*coderdenttest.LicenseOptions{
+				// Add another license that is not entitled to managed agents to
+				// suppress warnings for other features.
+				enterpriseLicense().
+					UserLimit(100).
+					WithIssuedAt(time.Now().Add(-time.Hour * 2)),
+				enterpriseLicense().
+					UserLimit(100).
+					ManagedAgentLimit(100, 100).
+					WithIssuedAt(time.Now().Add(-time.Hour * 1)).
+					GracePeriod(time.Now()),
+			},
+			Arguments: license.FeatureArguments{
+				ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
+					// When the soft and hard limit are equal, the warning is
+					// triggered at 75% of the hard limit.
+					return 74, nil
+				},
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoErrors(t, entitlements)
+				assertNoWarnings(t, entitlements)
+				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
+				assert.Equal(t, codersdk.EntitlementGracePeriod, feature.Entitlement)
+				assert.True(t, feature.Enabled)
+				assert.Equal(t, int64(100), *feature.SoftLimit)
+				assert.Equal(t, int64(100), *feature.Limit)
+				assert.Equal(t, int64(74), *feature.Actual)
+			},
+		},
+		{
+			Name: "ManagedAgentLimitWithExpired",
+			Licenses: []*coderdenttest.LicenseOptions{
+				// Add another license that is not entitled to managed agents to
+				// suppress warnings for other features.
+				enterpriseLicense().
+					UserLimit(100).
+					WithIssuedAt(time.Now().Add(-time.Hour * 2)),
+				enterpriseLicense().
+					UserLimit(100).
+					ManagedAgentLimit(100, 200).
+					WithIssuedAt(time.Now().Add(-time.Hour * 1)).
+					Expired(time.Now()),
+			},
+			Arguments: license.FeatureArguments{
+				ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
+					return 10, nil
+				},
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
+				assert.Equal(t, codersdk.EntitlementNotEntitled, feature.Entitlement)
+				assert.False(t, feature.Enabled)
+				assert.Nil(t, feature.SoftLimit)
+				assert.Nil(t, feature.Limit)
+				assert.Nil(t, feature.Actual)
+			},
+		},
+		{
+			Name: "ManagedAgentLimitWarning/ApproachingLimit/DifferentSoftAndHardLimit",
+			Licenses: []*coderdenttest.LicenseOptions{
+				enterpriseLicense().
+					UserLimit(100).
+					ManagedAgentLimit(100, 200),
+			},
+			Arguments: license.FeatureArguments{
+				ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
+					return 175, nil
+				},
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assert.Len(t, entitlements.Warnings, 1)
+				assert.Equal(t, "You are approaching the managed agent limit in your license. Please refer to the Deployment Licenses page for more information.", entitlements.Warnings[0])
+				assertNoErrors(t, entitlements)
+
+				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
+				assert.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
+				assert.True(t, feature.Enabled)
+				assert.Equal(t, int64(100), *feature.SoftLimit)
+				assert.Equal(t, int64(200), *feature.Limit)
+				assert.Equal(t, int64(175), *feature.Actual)
+			},
+		},
+		{
+			Name: "ManagedAgentLimitWarning/ApproachingLimit/EqualSoftAndHardLimit",
+			Licenses: []*coderdenttest.LicenseOptions{
+				enterpriseLicense().
+					UserLimit(100).
+					ManagedAgentLimit(100, 100),
+			},
+			Arguments: license.FeatureArguments{
+				ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
+					return 75, nil
+				},
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assert.Len(t, entitlements.Warnings, 1)
+				assert.Equal(t, "You are approaching the managed agent limit in your license. Please refer to the Deployment Licenses page for more information.", entitlements.Warnings[0])
+				assertNoErrors(t, entitlements)
+
+				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
+				assert.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
+				assert.True(t, feature.Enabled)
+				assert.Equal(t, int64(100), *feature.SoftLimit)
+				assert.Equal(t, int64(100), *feature.Limit)
+				assert.Equal(t, int64(75), *feature.Actual)
+			},
+		},
+		{
+			Name: "ManagedAgentLimitWarning/BreachedLimit",
+			Licenses: []*coderdenttest.LicenseOptions{
+				enterpriseLicense().
+					UserLimit(100).
+					ManagedAgentLimit(100, 200),
+			},
+			Arguments: license.FeatureArguments{
+				ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
+					return 200, nil
+				},
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assert.Len(t, entitlements.Warnings, 1)
+				assert.Equal(t, "You have built more workspaces with managed agents than your license allows. Further managed agent builds will be blocked.", entitlements.Warnings[0])
+				assertNoErrors(t, entitlements)
+
+				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
+				assert.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
+				assert.True(t, feature.Enabled)
+				assert.Equal(t, int64(100), *feature.SoftLimit)
+				assert.Equal(t, int64(200), *feature.Limit)
+				assert.Equal(t, int64(200), *feature.Actual)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
