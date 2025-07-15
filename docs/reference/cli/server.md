@@ -1056,6 +1056,16 @@ Two optional fields can be set in the Strict-Transport-Security header; 'include
 
 The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ecdsa", or "rsa4096".
 
+### --signups-disabled-text
+
+|             |                                           |
+|-------------|-------------------------------------------|
+| Type        | <code>string</code>                       |
+| Environment | <code>$CODER_SIGNUPS_DISABLED_TEXT</code> |
+| YAML        | <code>userAuth.signupsDisabledText</code> |
+
+The custom text to show on the error page when signups are disabled. Markdown format is supported.
+
 ### --browser-only
 
 |             |                                     |
