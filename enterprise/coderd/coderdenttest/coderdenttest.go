@@ -176,16 +176,22 @@ type LicenseOptions struct {
 	// zero value, the `nbf` claim on the license is set to 1 minute in the
 	// past.
 	NotBefore time.Time
-	Features  license.Features
+	// IssuedAt is the time at which the license was issued. If set to the
+	// zero value, the `iat` claim on the license is set to 1 minute in the
+	// past.
+	IssuedAt time.Time
+	Features license.Features
 }
 
 func (opts *LicenseOptions) Expired(now time.Time) *LicenseOptions {
+	opts.NotBefore = now.Add(time.Hour * 24 * -4) // needs to be before the grace period
 	opts.ExpiresAt = now.Add(time.Hour * 24 * -2)
 	opts.GraceAt = now.Add(time.Hour * 24 * -3)
 	return opts
 }
 
 func (opts *LicenseOptions) GracePeriod(now time.Time) *LicenseOptions {
+	opts.NotBefore = now.Add(time.Hour * 24 * -2) // needs to be before the grace period
 	opts.ExpiresAt = now.Add(time.Hour * 24)
 	opts.GraceAt = now.Add(time.Hour * 24 * -1)
 	return opts
@@ -236,6 +242,7 @@ func AddLicense(t *testing.T, client *codersdk.Client, options LicenseOptions) c
 
 // GenerateLicense returns a signed JWT using the test key.
 func GenerateLicense(t *testing.T, options LicenseOptions) string {
+	t.Helper()
 	if options.ExpiresAt.IsZero() {
 		options.ExpiresAt = time.Now().Add(time.Hour)
 	}
@@ -246,13 +253,18 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		options.NotBefore = time.Now().Add(-time.Minute)
 	}
 
+	issuedAt := options.IssuedAt
+	if issuedAt.IsZero() {
+		issuedAt = time.Now().Add(-time.Minute)
+	}
+
 	c := &license.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        uuid.NewString(),
 			Issuer:    "test@testing.test",
 			ExpiresAt: jwt.NewNumericDate(options.ExpiresAt),
 			NotBefore: jwt.NewNumericDate(options.NotBefore),
-			IssuedAt:  jwt.NewNumericDate(time.Now().Add(-time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(issuedAt),
 		},
 		LicenseExpires: jwt.NewNumericDate(options.GraceAt),
 		AccountType:    options.AccountType,
@@ -264,7 +276,12 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		FeatureSet:     options.FeatureSet,
 		Features:       options.Features,
 	}
-	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)
+	return GenerateLicenseRaw(t, c)
+}
+
+func GenerateLicenseRaw(t *testing.T, claims jwt.Claims) string {
+	t.Helper()
+	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, claims)
 	tok.Header[license.HeaderKeyID] = testKeyID
 	signedTok, err := tok.SignedString(testPrivateKey)
 	require.NoError(t, err)
