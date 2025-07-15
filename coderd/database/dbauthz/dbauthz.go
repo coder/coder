@@ -306,6 +306,24 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
+	subjectConnectionLogger = rbac.Subject{
+		Type:         rbac.SubjectTypeConnectionLogger,
+		FriendlyName: "Connection Logger",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "connectionlogger"},
+				DisplayName: "Connection Logger",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceConnectionLog.Type: {policy.ActionUpdate, policy.ActionRead},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
 	subjectNotifier = rbac.Subject{
 		Type:         rbac.SubjectTypeNotifier,
 		FriendlyName: "Notifier",
@@ -519,6 +537,10 @@ func AsKeyRotator(ctx context.Context) context.Context {
 // AsKeyReader returns a context with an actor that has permissions required for reading crypto keys.
 func AsKeyReader(ctx context.Context) context.Context {
 	return As(ctx, subjectCryptoKeyReader)
+}
+
+func AsConnectionLogger(ctx context.Context) context.Context {
+	return As(ctx, subjectConnectionLogger)
 }
 
 // AsNotifier returns a context with an actor that has permissions required for
@@ -1331,13 +1353,24 @@ func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLog
 	if err == nil {
 		return q.db.CountAuditLogs(ctx, arg)
 	}
-
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAuditLog.Type)
 	if err != nil {
 		return 0, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
-
 	return q.db.CountAuthorizedAuditLogs(ctx, arg, prep)
+}
+
+func (q *querier) CountConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams) (int64, error) {
+	// Just like the actual query, shortcut if the user is an owner.
+	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog)
+	if err == nil {
+		return q.db.CountConnectionLogs(ctx, arg)
+	}
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceConnectionLog.Type)
+	if err != nil {
+		return 0, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	return q.db.CountAuthorizedConnectionLogs(ctx, arg, prep)
 }
 
 func (q *querier) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
@@ -1517,6 +1550,16 @@ func (q *querier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Contex
 		return err
 	}
 	return q.db.DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, arg)
+}
+
+func (q *querier) DeleteOldAuditLogConnectionEvents(ctx context.Context, threshold database.DeleteOldAuditLogConnectionEventsParams) error {
+	// `ResourceSystem` is deprecated, but it doesn't make sense to add
+	// `policy.ActionDelete` to `ResourceAuditLog`, since this is the one and
+	// only time we'll be deleting from the audit log.
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteOldAuditLogConnectionEvents(ctx, threshold)
 }
 
 func (q *querier) DeleteOldNotificationMessages(ctx context.Context) error {
@@ -1854,6 +1897,21 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 		return database.GetAuthorizationUserRolesRow{}, err
 	}
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
+}
+
+func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
+	// Just like with the audit logs query, shortcut if the user is an owner.
+	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog)
+	if err == nil {
+		return q.db.GetConnectionLogsOffset(ctx, arg)
+	}
+
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceConnectionLog.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+
+	return q.db.GetAuthorizedConnectionLogsOffset(ctx, arg, prep)
 }
 
 func (q *querier) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
@@ -5099,6 +5157,13 @@ func (q *querier) UpsertApplicationName(ctx context.Context, value string) error
 	return q.db.UpsertApplicationName(ctx, value)
 }
 
+func (q *querier) UpsertConnectionLog(ctx context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceConnectionLog); err != nil {
+		return database.ConnectionLog{}, err
+	}
+	return q.db.UpsertConnectionLog(ctx, arg)
+}
+
 func (q *querier) UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
@@ -5343,4 +5408,12 @@ func (q *querier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg database
 
 func (q *querier) CountAuthorizedAuditLogs(ctx context.Context, arg database.CountAuditLogsParams, _ rbac.PreparedAuthorized) (int64, error) {
 	return q.CountAuditLogs(ctx, arg)
+}
+
+func (q *querier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams, _ rbac.PreparedAuthorized) ([]database.GetConnectionLogsOffsetRow, error) {
+	return q.GetConnectionLogsOffset(ctx, arg)
+}
+
+func (q *querier) CountAuthorizedConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams, _ rbac.PreparedAuthorized) (int64, error) {
+	return q.CountConnectionLogs(ctx, arg)
 }

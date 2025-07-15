@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -530,4 +531,113 @@ func completeWithAgentAndApp() *echo.Responses {
 			},
 		},
 	}
+}
+
+// TestDeprecatedConnEvents tests the deprecated connection and disconnection
+// events in the audit logs. These events are no longer created, but need to be
+// returned by the API.
+func TestDeprecatedConnEvents(t *testing.T) {
+	t.Parallel()
+	var (
+		ctx            = context.Background()
+		client, _, api = coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user           = coderdtest.CreateFirstUser(t, client)
+		version        = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, completeWithAgentAndApp())
+		template       = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	)
+
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	workspace.LatestBuild = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	type additionalFields struct {
+		audit.AdditionalFields
+		ConnectionType string `json:"connection_type"`
+	}
+
+	sshFields := additionalFields{
+		AdditionalFields: audit.AdditionalFields{
+			WorkspaceName:  workspace.Name,
+			BuildNumber:    "999",
+			BuildReason:    "initiator",
+			WorkspaceOwner: workspace.OwnerName,
+			WorkspaceID:    workspace.ID,
+		},
+		ConnectionType: "SSH",
+	}
+
+	sshFieldsBytes, err := json.Marshal(sshFields)
+	require.NoError(t, err)
+
+	appFields := audit.AdditionalFields{
+		WorkspaceName: workspace.Name,
+		// Deliberately empty
+		BuildNumber:    "",
+		BuildReason:    "",
+		WorkspaceOwner: workspace.OwnerName,
+		WorkspaceID:    workspace.ID,
+	}
+
+	appFieldsBytes, err := json.Marshal(appFields)
+	require.NoError(t, err)
+
+	dbgen.AuditLog(t, api.Database, database.AuditLog{
+		OrganizationID:   user.OrganizationID,
+		Action:           database.AuditActionConnect,
+		ResourceType:     database.ResourceTypeWorkspaceAgent,
+		ResourceID:       workspace.LatestBuild.Resources[0].Agents[0].ID,
+		ResourceTarget:   workspace.LatestBuild.Resources[0].Agents[0].Name,
+		Time:             time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
+		AdditionalFields: sshFieldsBytes,
+	})
+
+	dbgen.AuditLog(t, api.Database, database.AuditLog{
+		OrganizationID:   user.OrganizationID,
+		Action:           database.AuditActionDisconnect,
+		ResourceType:     database.ResourceTypeWorkspaceAgent,
+		ResourceID:       workspace.LatestBuild.Resources[0].Agents[0].ID,
+		ResourceTarget:   workspace.LatestBuild.Resources[0].Agents[0].Name,
+		Time:             time.Date(2022, 8, 15, 14, 35, 0o0, 100, time.UTC), // 2022-8-15 14:35:00
+		AdditionalFields: sshFieldsBytes,
+	})
+
+	dbgen.AuditLog(t, api.Database, database.AuditLog{
+		OrganizationID:   user.OrganizationID,
+		UserID:           user.UserID,
+		Action:           database.AuditActionOpen,
+		ResourceType:     database.ResourceTypeWorkspaceApp,
+		ResourceID:       workspace.LatestBuild.Resources[0].Agents[0].Apps[0].ID,
+		ResourceTarget:   workspace.LatestBuild.Resources[0].Agents[0].Apps[0].Slug,
+		Time:             time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
+		AdditionalFields: appFieldsBytes,
+	})
+
+	connLog, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
+		SearchQuery: "action:connect",
+	})
+	require.NoError(t, err)
+	require.Len(t, connLog.AuditLogs, 1)
+	var sshOutFields additionalFields
+	err = json.Unmarshal(connLog.AuditLogs[0].AdditionalFields, &sshOutFields)
+	require.NoError(t, err)
+	require.Equal(t, sshFields, sshOutFields)
+
+	dcLog, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
+		SearchQuery: "action:disconnect",
+	})
+	require.NoError(t, err)
+	require.Len(t, dcLog.AuditLogs, 1)
+	err = json.Unmarshal(dcLog.AuditLogs[0].AdditionalFields, &sshOutFields)
+	require.NoError(t, err)
+	require.Equal(t, sshFields, sshOutFields)
+
+	openLog, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
+		SearchQuery: "action:open",
+	})
+	require.NoError(t, err)
+	require.Len(t, openLog.AuditLogs, 1)
+	var appOutFields audit.AdditionalFields
+	err = json.Unmarshal(openLog.AuditLogs[0].AdditionalFields, &appOutFields)
+	require.NoError(t, err)
+	require.Equal(t, appFields, appOutFields)
 }

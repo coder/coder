@@ -451,16 +451,21 @@ jobs:
             # Postgres tends not to choke.
             NUM_PARALLEL_PACKAGES=8
             NUM_PARALLEL_TESTS=16
+            # Only the CLI and Agent are officially supported on Windows and the rest are too flaky
+            PACKAGES="./cli/... ./enterprise/cli/... ./agent/..."
           elif [ "${{ runner.os }}" == "macOS" ]; then
             # Our macOS runners have 8 cores. We set NUM_PARALLEL_TESTS to 16
             # because the tests complete faster and Postgres doesn't choke. It seems
             # that macOS's tmpfs is faster than the one on Windows.
             NUM_PARALLEL_PACKAGES=8
             NUM_PARALLEL_TESTS=16
+            # Only the CLI and Agent are officially supported on macOS and the rest are too flaky
+            PACKAGES="./cli/... ./enterprise/cli/... ./agent/..."
           elif [ "${{ runner.os }}" == "Linux" ]; then
             # Our Linux runners have 8 cores.
             NUM_PARALLEL_PACKAGES=8
             NUM_PARALLEL_TESTS=8
+            PACKAGES="./..."
           fi
 
           # by default, run tests with cache
@@ -477,10 +482,7 @@ jobs:
           # invalidated. See scripts/normalize_path.sh for more details.
           normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname $(which terraform))"
 
-          # We rerun failing tests to counteract flakiness coming from Postgres
-          # choking on macOS and Windows sometimes.
-          gotestsum --rerun-fails=2 --rerun-fails-max-failures=50 \
-            --format standard-quiet --packages "./..." \
+          gotestsum --format standard-quiet --packages "$PACKAGES" \
             -- -timeout=20m -v -p $NUM_PARALLEL_PACKAGES -parallel=$NUM_PARALLEL_TESTS $TESTCOUNT
 
       - name: Upload Go Build Cache
@@ -550,7 +552,6 @@ jobs:
         env:
           POSTGRES_VERSION: "17"
           TS_DEBUG_DISCO: "true"
-          TEST_RETRIES: 2
         run: |
           make test-postgres
 
@@ -604,7 +605,7 @@ jobs:
           POSTGRES_VERSION: "17"
         run: |
           make test-postgres-docker
-          gotestsum --junitfile="gotests.xml" --packages="./..." --rerun-fails=2 --rerun-fails-abort-on-data-race -- -race -parallel 4 -p 4
+          gotestsum --junitfile="gotests.xml" --packages="./..." -- -race -parallel 4 -p 4
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
@@ -726,7 +727,6 @@ jobs:
         if: ${{ !matrix.variant.premium }}
         env:
           DEBUG: pw:api
-          CODER_E2E_TEST_RETRIES: 2
         working-directory: site
 
       # Run all of the tests with a premium license
@@ -736,7 +736,6 @@ jobs:
           DEBUG: pw:api
           CODER_E2E_LICENSE: ${{ secrets.CODER_E2E_LICENSE }}
           CODER_E2E_REQUIRE_PREMIUM_TESTS: "1"
-          CODER_E2E_TEST_RETRIES: 2
         working-directory: site
 
       - name: Upload Playwright Failed Tests
@@ -1406,7 +1405,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
 
       - name: Set up Flux CLI
-        uses: fluxcd/flux2/action@bda4c8187e436462be0d072e728b67afa215c593 # v2.6.3
+        uses: fluxcd/flux2/action@6bf37f6a560fd84982d67f853162e4b3c2235edb # v2.6.4
         with:
           # Keep this and the github action up to date with the version of flux installed in dogfood cluster
           version: "2.5.1"

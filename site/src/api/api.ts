@@ -129,6 +129,14 @@ export const watchWorkspace = (
 	});
 };
 
+export const watchAgentContainers = (
+	agentId: string,
+): OneWayWebSocket<TypesGen.WorkspaceAgentListContainersResponse> => {
+	return new OneWayWebSocket({
+		apiRoute: `/api/v2/workspaceagents/${agentId}/containers/watch`,
+	});
+};
+
 type WatchInboxNotificationsParams = Readonly<{
 	read_status?: "read" | "unread" | "all";
 }>;
@@ -1802,6 +1810,14 @@ class ApiMethods {
 		options: TypesGen.AuditLogsRequest,
 	): Promise<TypesGen.AuditLogResponse> => {
 		const url = getURLWithSearchParams("/api/v2/audit", options);
+		const response = await this.axios.get(url);
+		return response.data;
+	};
+
+	getConnectionLogs = async (
+		options: TypesGen.ConnectionLogsRequest,
+	): Promise<TypesGen.ConnectionLogResponse> => {
+		const url = getURLWithSearchParams("/api/v2/connectionlog", options);
 		const response = await this.axios.get(url);
 		return response.data;
 	};
