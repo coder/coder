@@ -62,6 +62,16 @@ export const useFilter = ({
 			return;
 		}
 
+		/**
+		 * @todo 2025-07-15 - We have a slightly nasty bug here, where trying to
+		 * update state the "React way" causes our code to break.
+		 *
+		 * In theory, it would be better to make a copy of the search params. We
+		 * can then mutate and dispatch the copy instead of the original. Doing
+		 * that causes other parts of our existing logic to break, though.
+		 * That's a sign that our other code is slightly broken, and only just
+		 * happens to work by chance right now.
+		 */
 		searchParams.set(useFilterParamsKey, serialized);
 		onSearchParamsChange(searchParams);
 		onUpdate?.(serialized);
