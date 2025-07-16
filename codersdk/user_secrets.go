@@ -3,7 +3,6 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -45,7 +44,7 @@ type ListUserSecretsResponse struct {
 
 func (c *Client) CreateUserSecret(ctx context.Context, req CreateUserSecretRequest) (UserSecret, error) {
 	res, err := c.Request(ctx, http.MethodPost,
-		fmt.Sprintf("/api/v2/users/secrets"),
+		"/api/v2/users/secrets",
 		req,
 	)
 	if err != nil {
@@ -63,7 +62,7 @@ func (c *Client) CreateUserSecret(ctx context.Context, req CreateUserSecretReque
 
 func (c *Client) ListUserSecrets(ctx context.Context) (ListUserSecretsResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/users/secrets"),
+		"/api/v2/users/secrets",
 		nil,
 	)
 	if err != nil {
