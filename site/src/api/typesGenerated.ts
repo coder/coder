@@ -3467,6 +3467,7 @@ export interface Workspace {
 	readonly allow_renames: boolean;
 	readonly favorite: boolean;
 	readonly next_start_at: string | null;
+	readonly is_prebuild: boolean;
 }
 
 // From codersdk/workspaceagents.go

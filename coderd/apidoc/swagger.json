@@ -16141,6 +16141,10 @@
 					"type": "string",
 					"format": "uuid"
 				},
+				"is_prebuild": {
+					"description": "IsPrebuild indicates whether the workspace is a prebuilt workspace.\nPrebuilt workspaces are owned by the prebuilds system user and have specific behavior,\nsuch as being managed differently from regular workspaces.\nOnce a prebuilt workspace is claimed by a user, it transitions to a regular workspace,\nand IsPrebuild returns false.",
+					"type": "boolean"
+				},
 				"last_used_at": {
 					"type": "string",
 					"format": "date-time"

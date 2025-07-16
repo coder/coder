@@ -452,6 +452,10 @@ func LoggingMiddleware(req *http.Request, next option.MiddlewareNext) (res *http
 	fmt.Printf("[req] %s\n", reqOut)
 
 	// Handle stuff after the request
+	if err != nil {
+		return res, err
+	}
+
 	respOut, _ := httputil.DumpResponse(res, true)
 	fmt.Printf("[resp] %s\n", respOut)
 

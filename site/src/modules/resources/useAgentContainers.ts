@@ -31,6 +31,10 @@ export function useAgentContainers(
 	);
 
 	useEffect(() => {
+		if (agent.status !== "connected") {
+			return;
+		}
+
 		const socket = watchAgentContainers(agent.id);
 
 		socket.addEventListener("message", (event) => {
@@ -53,7 +57,7 @@ export function useAgentContainers(
 		});
 
 		return () => socket.close();
-	}, [agent.id, updateDevcontainersCache]);
+	}, [agent.id, agent.status, updateDevcontainersCache]);
 
 	return devcontainers;
 }
