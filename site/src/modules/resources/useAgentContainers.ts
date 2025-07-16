@@ -4,7 +4,6 @@ import type {
 	WorkspaceAgentDevcontainer,
 	WorkspaceAgentListContainersResponse,
 } from "api/typesGenerated";
-import { AxiosError } from "axios";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useEffect } from "react";
