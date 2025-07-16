@@ -16,6 +16,7 @@ func (r *RootCmd) secrets() *serpent.Command {
 		},
 		Children: []*serpent.Command{
 			r.secretCreate(),
+			r.secretList(),
 		},
 	}
 }
@@ -59,6 +60,38 @@ func (r *RootCmd) secretCreate() *serpent.Command {
 			Description: "Description of the secret.",
 			Value:       serpent.StringOf(&description),
 		},
+	}
+	return cmd
+}
+
+func (r *RootCmd) secretList() *serpent.Command {
+	client := new(codersdk.Client)
+	//var value string
+	cmd := &serpent.Command{
+		Use:   "list",
+		Short: "List user secrets",
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(0),
+			r.InitClient(client),
+		),
+		Handler: func(inv *serpent.Invocation) error {
+			secretList, err := client.ListUserSecrets(inv.Context())
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(inv.Stdout, "ID | Name | Description\n")
+			for _, secret := range secretList.Secrets {
+				fmt.Fprintf(inv.Stdout, "%v - %v - %v\n", secret.ID, secret.Name, secret.Description)
+			}
+			return nil
+		},
+	}
+	cmd.Options = serpent.OptionSet{
+		//{
+		//	Flag:        "value",
+		//	Description: "Value of the secret (required).",
+		//	Value:       serpent.StringOf(&value),
+		//},
 	}
 	return cmd
 }
