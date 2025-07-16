@@ -31,6 +31,7 @@ import {
 	withProxyProvider,
 } from "testHelpers/storybook";
 import { WorkspacesPageView } from "./WorkspacesPageView";
+import { WorkspaceFilterState } from "./filter/WorkspacesFilter";
 
 const createWorkspace = (
 	name: string,
@@ -134,9 +135,7 @@ const allWorkspaces = [
 	...Object.values(additionalWorkspaces),
 ];
 
-type FilterProps = ComponentProps<typeof WorkspacesPageView>["filterState"];
-
-const defaultFilterProps = getDefaultFilterProps<FilterProps>({
+const defaultFilterProps = getDefaultFilterProps<WorkspaceFilterState>({
 	query: "owner:me",
 	menus: {
 		user: MockMenu,
