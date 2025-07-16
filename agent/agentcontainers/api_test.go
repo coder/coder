@@ -369,9 +369,9 @@ func TestAPI(t *testing.T) {
 		api.Start()
 		defer api.Close()
 
-		// Wait for the watcher to have initialized. As the
-		// watcher logs, it can interfere with the test and
-		// cause a flake.
+		// The watcherLoop writes a log when it is initialized.
+		// We want to ensure this has happened before we start
+		// the test so that it does not intefere.
 		testutil.RequireReceive(ctx, t, fWatcher.nextCalled)
 
 		// Make sure the ticker function has been registered
