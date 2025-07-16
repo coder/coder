@@ -1,0 +1,225 @@
+name: Coverage Report
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  issue_comment:
+    types: [created]
+
+jobs:
+  check-trigger:
+    runs-on: ubuntu-latest
+    outputs:
+      should-run: ${{ steps.check.outputs.should-run }}
+      pr-number: ${{ steps.check.outputs.pr-number }}
+    steps:
+      - name: Check if coverage should run
+        id: check
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "should-run=true" >> $GITHUB_OUTPUT
+            echo "pr-number=${{ github.event.number }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "issue_comment" ]] && [[ "${{ github.event.comment.body }}" == "/update-coverage" ]]; then
+            echo "should-run=true" >> $GITHUB_OUTPUT
+            echo "pr-number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+          else
+            echo "should-run=false" >> $GITHUB_OUTPUT
+          fi
+
+  coverage:
+    needs: check-trigger
+    if: needs.check-trigger.outputs.should-run == 'true'
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup PostgreSQL
+        env:
+          POSTGRES_VERSION: "17"
+        run: |
+          make test-postgres-docker
+
+      - name: Run test-postgres with coverage
+        env:
+          POSTGRES_VERSION: "17"
+        run: |
+          # Run tests with coverage
+          gotestsum \
+            --junitfile="gotests.xml" \
+            --jsonfile="gotests.json" \
+            --packages="./coderd/database/..." \
+            -- \
+            -coverprofile=coverage-postgres.out \
+            -covermode=atomic \
+            -timeout=20m \
+            -count=1
+
+      - name: Generate coverage report
+        run: |
+          go tool cover -html=coverage-postgres.out -o coverage-postgres.html
+          go tool cover -func=coverage-postgres.out > coverage-postgres.txt
+
+      - name: Get base branch coverage
+        if: github.event_name == 'pull_request'
+        run: |
+          # Checkout base branch and run coverage
+          git fetch origin ${{ github.base_ref }}
+          git checkout origin/${{ github.base_ref }}
+          
+          # Setup PostgreSQL for base branch
+          make test-postgres-docker
+          
+          # Run tests with coverage on base branch
+          gotestsum \
+            --junitfile="gotests-base.xml" \
+            --jsonfile="gotests-base.json" \
+            --packages="./coderd/database/..." \
+            -- \
+            -coverprofile=coverage-postgres-base.out \
+            -covermode=atomic \
+            -timeout=20m \
+            -count=1 || true
+          
+          # Generate base coverage report
+          if [ -f coverage-postgres-base.out ]; then
+            go tool cover -func=coverage-postgres-base.out > coverage-postgres-base.txt
+          fi
+          
+          # Switch back to PR branch
+          git checkout ${{ github.sha }}
+
+      - name: Generate coverage diff
+        if: github.event_name == 'pull_request'
+        run: |
+          cat > coverage-diff.py << 'EOF'
+          #!/usr/bin/env python3
+          import re
+          import sys
+          
+          def parse_coverage(filename):
+              coverage = {}
+              try:
+                  with open(filename, 'r') as f:
+                      for line in f:
+                          if line.startswith('total:'):
+                              match = re.search(r'(\d+\.\d+)%', line)
+                              if match:
+                                  return float(match.group(1))
+              except FileNotFoundError:
+                  return None
+              return None
+          
+          def main():
+              current_coverage = parse_coverage('coverage-postgres.txt')
+              base_coverage = parse_coverage('coverage-postgres-base.txt')
+              
+              if current_coverage is None:
+                  print("❌ Could not parse current coverage")
+                  return
+              
+              print(f"## 📊 Coverage Report (test-postgres)")
+              print(f"")
+              print(f"**Current Coverage:** {current_coverage:.2f}%")
+              
+              if base_coverage is not None:
+                  diff = current_coverage - base_coverage
+                  if diff > 0:
+                      print(f"**Base Coverage:** {base_coverage:.2f}%")
+                      print(f"**Coverage Change:** +{diff:.2f}% 📈")
+                  elif diff < 0:
+                      print(f"**Base Coverage:** {base_coverage:.2f}%")
+                      print(f"**Coverage Change:** {diff:.2f}% 📉")
+                  else:
+                      print(f"**Base Coverage:** {base_coverage:.2f}%")
+                      print(f"**Coverage Change:** No change")
+              else:
+                  print(f"**Base Coverage:** Unable to determine")
+              
+              print(f"")
+              print(f"<details>")
+              print(f"<summary>📋 Detailed Coverage Report</summary>")
+              print(f"")
+              print(f"```")
+              try:
+                  with open('coverage-postgres.txt', 'r') as f:
+                      print(f.read())
+              except FileNotFoundError:
+                  print("Coverage report not found")
+              print(f"```")
+              print(f"")
+              print(f"</details>")
+          
+          if __name__ == '__main__':
+              main()
+          EOF
+          
+          python3 coverage-diff.py > coverage-comment.md
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && github.event.comment.body == '/update-coverage')
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let commentBody;
+            try {
+              commentBody = fs.readFileSync('coverage-comment.md', 'utf8');
+            } catch (error) {
+              commentBody = '❌ Failed to generate coverage report';
+            }
+            
+            const prNumber = ${{ needs.check-trigger.outputs.pr-number }};
+            
+            // Check if there's already a coverage comment
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber
+            });
+            
+            const existingComment = comments.data.find(comment => 
+              comment.body.includes('📊 Coverage Report (test-postgres)')
+            );
+            
+            if (existingComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: commentBody
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: commentBody
+              });
+            }
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: coverage-postgres
+          path: |
+            coverage-postgres.out
+            coverage-postgres.html
+            coverage-postgres.txt
+            gotests.xml
+            gotests.json
+          retention-days: 30
