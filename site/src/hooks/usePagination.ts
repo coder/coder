@@ -19,8 +19,8 @@ export function usePagination(
 ): UsePaginationResult {
 	const { searchParams, onSearchParamsChange } = options;
 	const limit = DEFAULT_RECORDS_PER_PAGE;
-	const rawPage = Number.parseInt(searchParams.get(paginationKey) || "0", 10);
-	const page = Number.isNaN(rawPage) ? 1 : rawPage;
+	const rawPage = Number.parseInt(searchParams.get(paginationKey) || "1", 10);
+	const page = Number.isNaN(rawPage) || rawPage <= 0 ? 1 : rawPage;
 
 	return {
 		page,
