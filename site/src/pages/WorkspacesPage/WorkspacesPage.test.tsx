@@ -123,10 +123,11 @@ describe("WorkspacesPage", () => {
 				{ ...MockOutdatedWorkspace, id: "3" },
 				// Out of date but running; should issue warning
 				{
-					...MockOutdatedWorkspace, id: "4",
+					...MockOutdatedWorkspace,
+					id: "4",
 					latest_build: {
 						...MockOutdatedWorkspace.latest_build,
-						status: "running"
+						status: "running",
 					},
 				},
 			];
@@ -149,12 +150,16 @@ describe("WorkspacesPage", () => {
 			});
 			await user.click(dropdownItem);
 
-			const modal = await screen.findByRole("dialog", { name: /Review Updates/i });
+			const modal = await screen.findByRole("dialog", {
+				name: /Review Updates/i,
+			});
 			const confirmCheckbox = within(modal).getByRole("checkbox", {
 				name: /I acknowledge these consequences\./,
 			});
 			await user.click(confirmCheckbox);
-			const updateModalButton = within(modal).getByRole("button", {name: /Update/});
+			const updateModalButton = within(modal).getByRole("button", {
+				name: /Update/,
+			});
 			await user.click(updateModalButton);
 
 			// `workspaces[0]` was up-to-date, and running
@@ -164,8 +169,8 @@ describe("WorkspacesPage", () => {
 			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[3], [], false);
 		});
 
-		it("warns about and updates running workspaces", async () => {
-			const workspaces = [
+		it("lets user update a running workspace (after user goes through warning)", async () => {
+			const workspaces: readonly Workspace[] = [
 				{ ...MockRunningOutdatedWorkspace, id: "1" },
 				{ ...MockOutdatedWorkspace, id: "2" },
 				{ ...MockOutdatedWorkspace, id: "3" },
@@ -173,6 +178,7 @@ describe("WorkspacesPage", () => {
 			jest
 				.spyOn(API, "getWorkspaces")
 				.mockResolvedValue({ workspaces, count: workspaces.length });
+
 			const updateWorkspace = jest.spyOn(API, "updateWorkspace");
 			const user = userEvent.setup();
 			renderWithAuth(<WorkspacesPage />);
@@ -183,20 +189,24 @@ describe("WorkspacesPage", () => {
 			}
 
 			await user.click(screen.getByRole("button", { name: /bulk actions/i }));
-			const updateButton = await screen.findByTestId("bulk-action-update");
-			await user.click(updateButton);
-
-			// Two clicks: 1 running workspace, no dormant workspaces warning.
-			const confirmButton = await screen.findByTestId("confirm-button");
-			const dialog = await screen.findByRole("dialog");
-			expect(dialog).toHaveTextContent(/1 running workspace/i);
-			await user.click(confirmButton);
-			expect(dialog).toHaveTextContent(/used by/i);
-			await user.click(confirmButton);
-
-			await waitFor(() => {
-				expect(updateWorkspace).toHaveBeenCalledTimes(3);
+			const dropdownItem = await screen.findByRole("menuitem", {
+				name: /Update/,
 			});
+			await user.click(dropdownItem);
+
+			const modal = await screen.findByRole("dialog", {
+				name: /Review Updates/i,
+			});
+			const confirmCheckbox = within(modal).getByRole("checkbox", {
+				name: /I acknowledge these consequences\./,
+			});
+			await user.click(confirmCheckbox);
+			const updateModalButton = within(modal).getByRole("button", {
+				name: /Update/,
+			});
+			await user.click(updateModalButton);
+
+			await waitFor(() => expect(updateWorkspace).toHaveBeenCalledTimes(3));
 			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[0], [], false);
 			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[1], [], false);
 			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2], [], false);
@@ -221,66 +231,23 @@ describe("WorkspacesPage", () => {
 			}
 
 			await user.click(screen.getByRole("button", { name: /bulk actions/i }));
-			const updateButton = await screen.findByTestId("bulk-action-update");
-			await user.click(updateButton);
+			const dropdownItem = await screen.findByRole("menuitem", {
+				name: /Update/,
+			});
+			await user.click(dropdownItem);
 
-			// Two clicks: no running workspaces warning, 1 dormant workspace.
-			const confirmButton = await screen.findByTestId("confirm-button");
-			const dialog = await screen.findByRole("dialog");
-			expect(dialog).toHaveTextContent(/dormant/i);
-			await user.click(confirmButton);
-			expect(dialog).toHaveTextContent(/used by/i);
-			await user.click(confirmButton);
+			const modal = await screen.findByRole("dialog", {
+				name: /Review Updates/i,
+			});
+			const updateModalButton = within(modal).getByRole("button", {
+				name: /Update/,
+			});
+			await user.click(updateModalButton);
 
 			// `workspaces[0]` was dormant
-			await waitFor(() => {
-				expect(updateWorkspace).toHaveBeenCalledTimes(2);
-			});
+			await waitFor(() => expect(updateWorkspace).toHaveBeenCalledTimes(2));
 			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[1], [], false);
 			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2], [], false);
-		});
-
-		it("warns about running workspaces and then dormant workspaces", async () => {
-			const workspaces = [
-				{ ...MockRunningOutdatedWorkspace, id: "1" },
-				{ ...MockDormantOutdatedWorkspace, id: "2" },
-				{ ...MockOutdatedWorkspace, id: "3" },
-				{ ...MockOutdatedWorkspace, id: "4" },
-				{ ...MockWorkspace, id: "5" },
-			];
-			jest
-				.spyOn(API, "getWorkspaces")
-				.mockResolvedValue({ workspaces, count: workspaces.length });
-			const updateWorkspace = jest.spyOn(API, "updateWorkspace");
-			const user = userEvent.setup();
-			renderWithAuth(<WorkspacesPage />);
-			await waitForLoaderToBeRemoved();
-
-			for (const workspace of workspaces) {
-				await user.click(getWorkspaceCheckbox(workspace));
-			}
-
-			await user.click(screen.getByRole("button", { name: /bulk actions/i }));
-			const updateButton = await screen.findByTestId("bulk-action-update");
-			await user.click(updateButton);
-
-			// Three clicks: 1 running workspace, 1 dormant workspace.
-			const confirmButton = await screen.findByTestId("confirm-button");
-			const dialog = await screen.findByRole("dialog");
-			expect(dialog).toHaveTextContent(/1 running workspace/i);
-			await user.click(confirmButton);
-			expect(dialog).toHaveTextContent(/dormant/i);
-			await user.click(confirmButton);
-			expect(dialog).toHaveTextContent(/used by/i);
-			await user.click(confirmButton);
-
-			// `workspaces[1]` was dormant, and `workspaces[4]` was up-to-date
-			await waitFor(() => {
-				expect(updateWorkspace).toHaveBeenCalledTimes(3);
-			});
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[0], [], false);
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2], [], false);
-			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[3], [], false);
 		});
 	});
 
