@@ -134,7 +134,7 @@ const allWorkspaces = [
 	...Object.values(additionalWorkspaces),
 ];
 
-type FilterProps = ComponentProps<typeof WorkspacesPageView>["filterProps"];
+type FilterProps = ComponentProps<typeof WorkspacesPageView>["filterState"];
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 	query: "owner:me",
@@ -169,7 +169,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
 	component: WorkspacesPageView,
 	args: {
 		limit: DEFAULT_RECORDS_PER_PAGE,
-		filterProps: defaultFilterProps,
+		filterState: defaultFilterProps,
 		checkedWorkspaces: [],
 		canCheckWorkspaces: true,
 		templates: mockTemplates,
@@ -266,7 +266,7 @@ export const UserHasNoWorkspacesAndNoTemplates: Story = {
 export const NoSearchResults: Story = {
 	args: {
 		workspaces: [],
-		filterProps: {
+		filterState: {
 			...defaultFilterProps,
 			filter: {
 				...defaultFilterProps.filter,

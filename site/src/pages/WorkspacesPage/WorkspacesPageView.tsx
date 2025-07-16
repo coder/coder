@@ -26,7 +26,7 @@ import { mustUpdateWorkspace } from "utils/workspace";
 import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip";
 import { WorkspacesButton } from "./WorkspacesButton";
 import {
-	type WorkspaceFilterProps,
+	type WorkspaceFilterState,
 	WorkspacesFilter,
 } from "./filter/WorkspacesFilter";
 
@@ -45,7 +45,7 @@ interface WorkspacesPageViewProps {
 	workspaces?: readonly Workspace[];
 	checkedWorkspaces: readonly Workspace[];
 	count?: number;
-	filterProps: WorkspaceFilterProps;
+	filterState: WorkspaceFilterState;
 	page: number;
 	limit: number;
 	onPageChange: (page: number) => void;
@@ -69,15 +69,15 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	error,
 	limit,
 	count,
-	filterProps,
+	filterState,
 	onPageChange,
 	page,
 	checkedWorkspaces,
 	onCheckChange,
-	onBatchDeleteTransition: onDeleteAll,
-	onBatchUpdateTransition: onUpdateAll,
-	onBatchStopTransition: onStopAll,
-	onBatchStartTransition: onStartAll,
+	onBatchDeleteTransition,
+	onBatchUpdateTransition,
+	onBatchStopTransition,
+	onBatchStartTransition,
 	isRunningBatchAction,
 	canCheckWorkspaces,
 	templates,
@@ -117,9 +117,12 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					<ErrorAlert error={error} />
 				)}
 				<WorkspacesFilter
-					filter={filterProps.filter}
-					menus={filterProps.menus}
+					filter={filterState.filter}
 					error={error}
+					statusMenu={filterState.menus.status}
+					templateMenu={filterState.menus.template}
+					userMenu={filterState.menus.user}
+					organizationsMenu={filterState.menus.organizations}
 				/>
 			</Stack>
 
@@ -155,7 +158,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 												!mustUpdateWorkspace(w, canChangeVersions),
 										)
 									}
-									onClick={onStartAll}
+									onClick={onBatchStartTransition}
 								>
 									<PlayIcon /> Start
 								</DropdownMenuItem>
@@ -165,12 +168,12 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 											(w) => w.latest_build.status === "running",
 										)
 									}
-									onClick={onStopAll}
+									onClick={onBatchStopTransition}
 								>
 									<SquareIcon /> Stop
 								</DropdownMenuItem>
 								<DropdownMenuSeparator />
-								<DropdownMenuItem onClick={onUpdateAll}>
+								<DropdownMenuItem onClick={onBatchUpdateTransition}>
 									<CloudIcon
 										className="size-icon-sm"
 										data-testid="bulk-action-update"
@@ -179,7 +182,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 								</DropdownMenuItem>
 								<DropdownMenuItem
 									className="text-content-destructive focus:text-content-destructive"
-									onClick={onDeleteAll}
+									onClick={onBatchDeleteTransition}
 								>
 									<TrashIcon /> Delete&hellip;
 								</DropdownMenuItem>
@@ -221,7 +224,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 				<WorkspacesTable
 					canCreateTemplate={canCreateTemplate}
 					workspaces={workspaces}
-					isUsingFilter={filterProps.filter.used}
+					isUsingFilter={filterState.filter.used}
 					checkedWorkspaces={checkedWorkspaces}
 					onCheckChange={onCheckChange}
 					canCheckWorkspaces={canCheckWorkspaces}
