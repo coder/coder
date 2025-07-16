@@ -15,6 +15,7 @@ import {
 import { server } from "testHelpers/server";
 import * as CreateDayString from "utils/createDayString";
 import AuditPage from "./AuditPage";
+import type { AuditLogsRequest } from "api/typesGenerated";
 
 interface RenderPageOptions {
 	filter?: string;
@@ -106,7 +107,7 @@ describe("AuditPage", () => {
 			await userEvent.type(filterField, query);
 
 			await waitFor(() =>
-				expect(getAuditLogsSpy).toBeCalledWith({
+				expect(getAuditLogsSpy).toHaveBeenCalledWith<[AuditLogsRequest]>({
 					limit: DEFAULT_RECORDS_PER_PAGE,
 					offset: 0,
 					q: query,

@@ -57,14 +57,13 @@ export const useFilter = ({
 	const update = (newValues: string | FilterValues) => {
 		const serialized =
 			typeof newValues === "string" ? newValues : stringifyFilter(newValues);
-		const noUpdateNeeded = searchParams.get(useFilterParamsKey) === serialized;
+		const noUpdateNeeded = query === serialized;
 		if (noUpdateNeeded) {
 			return;
 		}
 
-		const copy = new URLSearchParams(searchParams);
-		copy.set(useFilterParamsKey, serialized);
-		onSearchParamsChange(copy);
+		searchParams.set(useFilterParamsKey, serialized);
+		onSearchParamsChange(searchParams);
 		onUpdate?.(serialized);
 	};
 
