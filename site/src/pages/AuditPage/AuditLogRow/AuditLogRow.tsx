@@ -172,9 +172,12 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 															<div>
 																<h4 css={styles.auditLogInfoHeader}>Reason:</h4>
 																<div>
-																	{buildReasonLabels[
-																		auditLog.additional_fields.build_reason as BuildReason
-																	]}
+																	{
+																		buildReasonLabels[
+																			auditLog.additional_fields
+																				.build_reason as BuildReason
+																		]
+																	}
 																</div>
 															</div>
 														)}
@@ -214,9 +217,12 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 													<span css={styles.auditLogInfo}>
 														<span>Reason: </span>
 														<strong>
-															{buildReasonLabels[
-																auditLog.additional_fields.build_reason as BuildReason
-															]}
+															{
+																buildReasonLabels[
+																	auditLog.additional_fields
+																		.build_reason as BuildReason
+																]
+															}
 														</strong>
 													</span>
 												)}
