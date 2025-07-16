@@ -36,14 +36,7 @@ export function useAgentContainers(
 	);
 
 	useEffect(() => {
-		const devcontainerFeatureDisabled =
-			queryIsLoading ||
-			(queryError instanceof AxiosError &&
-				queryError.status === 403 &&
-				queryError.response?.data.message ===
-					"Dev Container feature not enabled.");
-
-		if (agent.status !== "connected" || devcontainerFeatureDisabled) {
+		if (agent.status !== "connected" || queryIsLoading || queryError) {
 			return;
 		}
 
