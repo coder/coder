@@ -12,7 +12,6 @@ import {
 import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
 import dayjs from "dayjs";
 import uniqueId from "lodash/uniqueId";
-import type { ComponentProps } from "react";
 import {
 	MockBuildInfo,
 	MockOrganization,
@@ -31,7 +30,7 @@ import {
 	withProxyProvider,
 } from "testHelpers/storybook";
 import { WorkspacesPageView } from "./WorkspacesPageView";
-import { WorkspaceFilterState } from "./filter/WorkspacesFilter";
+import type { WorkspaceFilterState } from "./filter/WorkspacesFilter";
 
 const createWorkspace = (
 	name: string,
