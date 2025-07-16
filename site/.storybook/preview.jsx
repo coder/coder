@@ -101,6 +101,13 @@ function withHelmet(Story) {
 	);
 }
 
+/**
+ * This JSX file isn't part of the main project, so it doesn't get to use the
+ * ambient types defined in `storybook.d.ts` to provide extra type-safety.
+ * Extracting main key to avoid typos.
+ */
+const queryParametersKey = "queries";
+
 /** @type {Decorator} */
 function withQuery(Story, { parameters }) {
 	const queryClient = new QueryClient({
@@ -112,8 +119,8 @@ function withQuery(Story, { parameters }) {
 		},
 	});
 
-	if (parameters.queries) {
-		for (const query of parameters.queries) {
+	if (parameters[queryParametersKey]) {
+		for (const query of parameters[queryParametersKey]) {
 			queryClient.setQueryData(query.key, query.data);
 		}
 	}
