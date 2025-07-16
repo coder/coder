@@ -5468,7 +5468,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "name": "string",
       "value": "string"
     }
-  ]
+  ],
+  "prebuilds": 0
 }
 ```
 
@@ -5480,6 +5481,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `id`         | string                                                        | false    |              |             |
 | `name`       | string                                                        | false    |              |             |
 | `parameters` | array of [codersdk.PresetParameter](#codersdkpresetparameter) | false    |              |             |
+| `prebuilds`  | integer                                                       | false    |              |             |
 
 ## codersdk.PresetParameter
 

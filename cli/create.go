@@ -21,10 +21,15 @@ import (
 	"github.com/coder/serpent"
 )
 
+// DefaultPresetName is used when a user runs `create --preset default`.
+// It instructs the CLI to use the default preset defined for the template version, if one exists.
+const DefaultPresetName = "default"
+
 func (r *RootCmd) create() *serpent.Command {
 	var (
 		templateName    string
 		templateVersion string
+		presetName      string
 		startAt         string
 		stopAfter       time.Duration
 		workspaceName   string
@@ -263,11 +268,58 @@ func (r *RootCmd) create() *serpent.Command {
 				}
 			}
 
+			// If a preset name is provided, resolve the preset to use.
+			var preset *codersdk.Preset
+			var presetParameters []codersdk.WorkspaceBuildParameter
+			isDefaultPreset := false
+			if len(presetName) > 0 {
+				tvPresets, err := client.TemplateVersionPresets(inv.Context(), templateVersionID)
+				if err != nil {
+					return xerrors.Errorf("failed to get presets: %w", err)
+				}
+
+				for _, tvPreset := range tvPresets {
+					// If the preset name is the special "default" keyword,
+					// fetch the template version's default preset (if any).
+					if presetName == DefaultPresetName && tvPreset.Default {
+						preset = &tvPreset
+						isDefaultPreset = true
+						break
+					}
+					if tvPreset.Name == presetName {
+						preset = &tvPreset
+						break
+					}
+				}
+
+				if preset == nil {
+					return xerrors.Errorf("preset %q not found", presetName)
+				}
+
+				// Convert preset parameters into workspace build parameters.
+				presetBuildParameters, err := presetParameterAsWorkspaceBuildParameters(preset.Parameters)
+				if err != nil {
+					return xerrors.Errorf("failed to parse preset parameters: %w", err)
+				}
+				presetParameters = append(presetParameters, presetBuildParameters...)
+
+				// Inform the user which preset was applied and its parameters.
+				presetLabel := fmt.Sprintf("Preset '%s'", preset.Name)
+				if isDefaultPreset {
+					presetLabel += " (default)"
+				}
+				_, _ = fmt.Fprintf(inv.Stdout, "%s applied:", cliui.Bold(presetLabel))
+				for _, p := range presetParameters {
+					_, _ = fmt.Fprintf(inv.Stdout, "  %s: '%s'\n", cliui.Bold(p.Name), p.Value)
+				}
+			}
+
 			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
 				Action:            WorkspaceCreate,
 				TemplateVersionID: templateVersionID,
 				NewWorkspaceName:  workspaceName,
 
+				PresetParameters:      presetParameters,
 				RichParameterFile:     parameterFlags.richParameterFile,
 				RichParameters:        cliBuildParameters,
 				RichParameterDefaults: cliBuildParameterDefaults,
@@ -291,14 +343,21 @@ func (r *RootCmd) create() *serpent.Command {
 				ttlMillis = ptr.Ref(stopAfter.Milliseconds())
 			}
 
-			workspace, err := client.CreateUserWorkspace(inv.Context(), workspaceOwner, codersdk.CreateWorkspaceRequest{
+			req := codersdk.CreateWorkspaceRequest{
 				TemplateVersionID:   templateVersionID,
 				Name:                workspaceName,
 				AutostartSchedule:   schedSpec,
 				TTLMillis:           ttlMillis,
 				RichParameterValues: richParameters,
 				AutomaticUpdates:    codersdk.AutomaticUpdates(autoUpdates),
-			})
+			}
+
+			// If a preset exists, update the create workspace request's preset ID
+			if preset != nil {
+				req.TemplateVersionPresetID = preset.ID
+			}
+
+			workspace, err := client.CreateUserWorkspace(inv.Context(), workspaceOwner, req)
 			if err != nil {
 				return xerrors.Errorf("create workspace: %w", err)
 			}
@@ -332,6 +391,12 @@ func (r *RootCmd) create() *serpent.Command {
 			Env:         "CODER_TEMPLATE_VERSION",
 			Description: "Specify a template version name.",
 			Value:       serpent.StringOf(&templateVersion),
+		},
+		serpent.Option{
+			Flag:        "preset",
+			Env:         "CODER_PRESET_NAME",
+			Description: "Specify a template version preset name. Use 'default' to apply the default preset defined in the template version, if available.",
+			Value:       serpent.StringOf(&presetName),
 		},
 		serpent.Option{
 			Flag:        "start-at",
@@ -377,6 +442,7 @@ type prepWorkspaceBuildArgs struct {
 	PromptEphemeralParameters bool
 	EphemeralParameters       []codersdk.WorkspaceBuildParameter
 
+	PresetParameters      []codersdk.WorkspaceBuildParameter
 	PromptRichParameters  bool
 	RichParameters        []codersdk.WorkspaceBuildParameter
 	RichParameterFile     string
@@ -411,6 +477,7 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		WithSourceWorkspaceParameters(args.SourceWorkspaceParameters).
 		WithPromptEphemeralParameters(args.PromptEphemeralParameters).
 		WithEphemeralParameters(args.EphemeralParameters).
+		WithPresetParameters(args.PresetParameters).
 		WithPromptRichParameters(args.PromptRichParameters).
 		WithRichParameters(args.RichParameters).
 		WithRichParametersFile(parameterFile).

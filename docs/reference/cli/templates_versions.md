@@ -23,9 +23,10 @@ coder templates versions
 
 ## Subcommands
 
-| Name                                                        | Purpose                                         |
-|-------------------------------------------------------------|-------------------------------------------------|
-| [<code>list</code>](./templates_versions_list.md)           | List all the versions of the specified template |
-| [<code>archive</code>](./templates_versions_archive.md)     | Archive a template version(s).                  |
-| [<code>unarchive</code>](./templates_versions_unarchive.md) | Unarchive a template version(s).                |
-| [<code>promote</code>](./templates_versions_promote.md)     | Promote a template version to active.           |
+| Name                                                        | Purpose                                          |
+|-------------------------------------------------------------|--------------------------------------------------|
+| [<code>list</code>](./templates_versions_list.md)           | List all the versions of the specified template  |
+| [<code>archive</code>](./templates_versions_archive.md)     | Archive a template version(s).                   |
+| [<code>unarchive</code>](./templates_versions_unarchive.md) | Unarchive a template version(s).                 |
+| [<code>promote</code>](./templates_versions_promote.md)     | Promote a template version to active.            |
+| [<code>presets</code>](./templates_versions_presets.md)     | Manage presets of the specified template version |

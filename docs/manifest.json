@@ -1665,6 +1665,16 @@
 							"path": "reference/cli/templates_versions_list.md"
 						},
 						{
+							"title": "templates versions presets",
+							"description": "Manage presets of the specified template version",
+							"path": "reference/cli/templates_versions_presets.md"
+						},
+						{
+							"title": "templates versions presets list",
+							"description": "List all the presets of the specified template version",
+							"path": "reference/cli/templates_versions_presets_list.md"
+						},
+						{
 							"title": "templates versions promote",
 							"description": "Promote a template version to active.",
 							"path": "reference/cli/templates_versions_promote.md"
