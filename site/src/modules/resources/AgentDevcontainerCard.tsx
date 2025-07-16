@@ -181,6 +181,8 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 	const appsClasses = "flex flex-wrap gap-4 empty:hidden md:justify-start";
 
+	console.log(devcontainer);
+
 	return (
 		<Stack
 			key={devcontainer.id}
@@ -218,7 +220,8 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							text-sm font-semibold text-content-primary
 							md:overflow-visible"
 						>
-							{subAgent?.name ?? devcontainer.name}
+							{subAgent?.name ??
+								(devcontainer.name || devcontainer.config_path)}
 							{devcontainer.container && (
 								<span className="text-content-tertiary">
 									{" "}
@@ -253,7 +256,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						disabled={devcontainer.status === "starting"}
 					>
 						<Spinner loading={devcontainer.status === "starting"} />
-						Rebuild
+						{devcontainer.container === undefined ? <>Start</> : <>Rebuild</>}
 					</Button>
 
 					{showDevcontainerControls && displayApps.includes("ssh_helper") && (

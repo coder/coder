@@ -1678,7 +1678,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithSubAgentClient(fakeSAC),
 			agentcontainers.WithSubAgentURL("test-subagent-url"),
 			agentcontainers.WithDevcontainerCLI(fakeDCCLI),
-			agentcontainers.WithManifestInfo("test-user", "test-workspace", "test-parent-agent"),
+			agentcontainers.WithManifestInfo("test-user", "test-workspace", "test-parent-agent", "/parent-agent"),
 		)
 		api.Start()
 		apiClose := func() {
@@ -2662,7 +2662,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithSubAgentClient(fSAC),
 			agentcontainers.WithSubAgentURL("test-subagent-url"),
 			agentcontainers.WithWatcher(watcher.NewNoop()),
-			agentcontainers.WithManifestInfo("test-user", "test-workspace", "test-parent-agent"),
+			agentcontainers.WithManifestInfo("test-user", "test-workspace", "test-parent-agent", "/parent-agent"),
 		)
 		api.Start()
 		defer api.Close()

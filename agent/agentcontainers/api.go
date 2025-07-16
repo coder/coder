@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"net/http"
 	"os"
@@ -21,6 +22,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -60,6 +62,7 @@ type API struct {
 	updateInterval              time.Duration   // Interval for periodic container updates.
 	logger                      slog.Logger
 	watcher                     watcher.Watcher
+	fs                          afero.Fs
 	execer                      agentexec.Execer
 	commandEnv                  CommandEnv
 	ccli                        ContainerCLI
@@ -71,9 +74,10 @@ type API struct {
 	subAgentURL                 string
 	subAgentEnv                 []string
 
-	ownerName     string
-	workspaceName string
-	parentAgent   string
+	ownerName      string
+	workspaceName  string
+	parentAgent    string
+	agentDirectory string
 
 	mu                       sync.RWMutex  // Protects the following fields.
 	initDone                 chan struct{} // Closed by Init.
@@ -192,11 +196,12 @@ func WithSubAgentEnv(env ...string) Option {
 
 // WithManifestInfo sets the owner name, and workspace name
 // for the sub-agent.
-func WithManifestInfo(owner, workspace, parentAgent string) Option {
+func WithManifestInfo(owner, workspace, parentAgent, agentDirectory string) Option {
 	return func(api *API) {
 		api.ownerName = owner
 		api.workspaceName = workspace
 		api.parentAgent = parentAgent
+		api.agentDirectory = agentDirectory
 	}
 }
 
@@ -258,6 +263,13 @@ func WithDevcontainers(devcontainers []codersdk.WorkspaceAgentDevcontainer, scri
 func WithWatcher(w watcher.Watcher) Option {
 	return func(api *API) {
 		api.watcher = w
+	}
+}
+
+// WithFileSystem sets the file system used for discovering projects.
+func WithFileSystem(fs afero.Fs) Option {
+	return func(api *API) {
+		api.fs = fs
 	}
 }
 
@@ -331,6 +343,9 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 			api.watcher = watcher.NewNoop()
 		}
 	}
+	if api.fs == nil {
+		api.fs = afero.NewOsFs()
+	}
 	if api.subAgentClient.Load() == nil {
 		var c SubAgentClient = noopSubAgentClient{}
 		api.subAgentClient.Store(&c)
@@ -375,8 +390,83 @@ func (api *API) Start() {
 	api.watcherDone = make(chan struct{})
 	api.updaterDone = make(chan struct{})
 
+	go func() {
+		if err := api.discoverDevcontainerProjects(); err != nil {
+			api.logger.Error(api.ctx, "discovering dev container projects", slog.Error(err))
+		}
+	}()
+
 	go api.watcherLoop()
 	go api.updaterLoop()
+}
+
+func (api *API) discoverDevcontainerProjects() error {
+	isGitProject, err := afero.DirExists(api.fs, filepath.Join(api.agentDirectory, "/.git"))
+	if err != nil {
+		return xerrors.Errorf(".git dir exists: %w", err)
+	}
+
+	// If the agent directory is a git project, we'll search
+	// the project for any `.devcontainer/devcontainer.json`
+	// files.
+	if isGitProject {
+		return api.discoverDevcontainersInProject(api.agentDirectory)
+	}
+
+	// The agent directory is _not_ a git project, so we'll
+	// search the top level of the agent directory for any
+	// git projects, and search those.
+	entries, err := afero.ReadDir(api.fs, api.agentDirectory)
+	if err != nil {
+		return xerrors.Errorf("read agent directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		isGitProject, err = afero.DirExists(api.fs, filepath.Join(api.agentDirectory, entry.Name(), ".git"))
+		if err != nil {
+			return xerrors.Errorf(".git dir exists: %w", err)
+		}
+
+		// If this directory is a git project, we'll search
+		// it for any `.devcontainer/devcontainer.json` files.
+		if isGitProject {
+			if err := api.discoverDevcontainersInProject(filepath.Join(api.agentDirectory, entry.Name())); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (api *API) discoverDevcontainersInProject(projectPath string) error {
+	return afero.Walk(api.fs, projectPath, func(path string, info fs.FileInfo, err error) error {
+		if strings.HasSuffix(path, ".devcontainer/devcontainer.json") {
+			workspaceFolder := strings.TrimSuffix(path, ".devcontainer/devcontainer.json")
+
+			api.mu.Lock()
+			if _, found := api.knownDevcontainers[workspaceFolder]; !found {
+				dc := codersdk.WorkspaceAgentDevcontainer{
+					ID:              uuid.New(),
+					Name:            "", // Updated later based on container state.
+					WorkspaceFolder: workspaceFolder,
+					ConfigPath:      path,
+					Status:          "",    // Updated later based on container state.
+					Dirty:           false, // Updated later based on config file changes.
+					Container:       nil,
+				}
+
+				api.knownDevcontainers[workspaceFolder] = dc
+			}
+			api.mu.Unlock()
+		}
+
+		return nil
+	})
 }
 
 func (api *API) watcherLoop() {
