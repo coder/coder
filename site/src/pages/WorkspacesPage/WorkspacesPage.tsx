@@ -17,7 +17,7 @@ import { useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
-import { BatchUpdateConfirmation } from "./BatchUpdateConfirmation";
+import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 import { useBatchActions } from "./batchActions";
 import { useStatusFilterMenu, useTemplateFilterMenu } from "./filter/menus";
@@ -27,7 +27,7 @@ import { useStatusFilterMenu, useTemplateFilterMenu } from "./filter/menus";
  * workspace is in the middle of a transition and will eventually reach a more
  * stable state/status.
  */
-const ACTIVE_BUILD_STATUSES: readonly WorkspaceStatus[] = [
+export const ACTIVE_BUILD_STATUSES: readonly WorkspaceStatus[] = [
 	"canceling",
 	"deleting",
 	"pending",
@@ -234,12 +234,12 @@ const WorkspacesPage: FC = () => {
 				}}
 			/>
 
-			<BatchUpdateConfirmation
+			<BatchUpdateModalForm
 				open={activeBatchAction === "update"}
-				checkedWorkspaces={checkedWorkspaces}
-				isLoading={batchActions.isProcessing}
-				onClose={() => setActiveBatchAction(undefined)}
-				onConfirm={async () => {
+				workspacesToUpdate={checkedWorkspaces}
+				isProcessing={batchActions.isProcessing}
+				onCancel={() => setActiveBatchAction(undefined)}
+				onSubmit={async () => {
 					await batchActions.updateTemplateVersions({
 						workspaces: checkedWorkspaces,
 						isDynamicParametersEnabled: false,
