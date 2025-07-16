@@ -16,7 +16,6 @@ import { useDebouncedFunction } from "hooks/debounce";
 import { ExternalLinkIcon } from "lucide-react";
 import { ChevronDownIcon } from "lucide-react";
 import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
-import type { useSearchParams } from "react-router-dom";
 
 type PresetFilter = {
 	name: string;
@@ -27,35 +26,46 @@ type FilterValues = Record<string, string | undefined>;
 
 type UseFilterConfig = {
 	/**
-	 * The fallback value to use in the event that no filter params can be parsed
-	 * from the search params object. This value is allowed to change on
-	 * re-renders.
+	 * The fallback value to use in the event that no filter params can be
+	 * parsed from the search params object.
 	 */
 	fallbackFilter?: string;
-	searchParamsResult: ReturnType<typeof useSearchParams>;
+	searchParams: URLSearchParams;
+	onSearchParamsChange: (newParams: URLSearchParams) => void;
 	onUpdate?: (newValue: string) => void;
 };
+
+export type UseFilterResult = Readonly<{
+	query: string;
+	values: FilterValues;
+	used: boolean;
+	update: (newValues: string | FilterValues) => void;
+	debounceUpdate: (newValues: string | FilterValues) => void;
+	cancelDebounce: () => void;
+}>;
 
 export const useFilterParamsKey = "filter";
 
 export const useFilter = ({
 	fallbackFilter = "",
-	searchParamsResult,
+	searchParams,
+	onSearchParamsChange,
 	onUpdate,
-}: UseFilterConfig) => {
-	const [searchParams, setSearchParams] = searchParamsResult;
+}: UseFilterConfig): UseFilterResult => {
 	const query = searchParams.get(useFilterParamsKey) ?? fallbackFilter;
 
 	const update = (newValues: string | FilterValues) => {
 		const serialized =
 			typeof newValues === "string" ? newValues : stringifyFilter(newValues);
-
-		searchParams.set(useFilterParamsKey, serialized);
-		setSearchParams(searchParams);
-
-		if (onUpdate !== undefined) {
-			onUpdate(serialized);
+		const noUpdateNeeded = searchParams.get(useFilterParamsKey) === serialized;
+		if (noUpdateNeeded) {
+			return;
 		}
+
+		const copy = new URLSearchParams(searchParams);
+		copy.set(useFilterParamsKey, serialized);
+		onSearchParamsChange(copy);
+		onUpdate?.(serialized);
 	};
 
 	const { debounced: debounceUpdate, cancelDebounce } = useDebouncedFunction(
@@ -72,8 +82,6 @@ export const useFilter = ({
 		used: query !== "" && query !== fallbackFilter,
 	};
 };
-
-export type UseFilterResult = ReturnType<typeof useFilter>;
 
 const parseFilterQuery = (filterQuery: string): FilterValues => {
 	if (filterQuery === "") {

@@ -14,10 +14,11 @@ const TemplatesPage: FC = () => {
 	const { permissions, user: me } = useAuthenticated();
 	const { showOrganizations } = useDashboard();
 
-	const searchParamsResult = useSearchParams();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const filter = useFilter({
 		fallbackFilter: "deprecated:false",
-		searchParamsResult,
+		searchParams,
+		onSearchParamsChange: setSearchParams,
 		onUpdate: () => {}, // reset pagination
 	});
 

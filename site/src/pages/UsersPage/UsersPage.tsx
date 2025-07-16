@@ -39,9 +39,8 @@ type UserPageProps = {
 const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
-	const searchParamsResult = useSearchParams();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const { entitlements } = useDashboard();
-	const [searchParams] = searchParamsResult;
 
 	const groupsByUserIdQuery = useQuery(groupsByUserId());
 	const authMethodsQuery = useQuery(authMethods());
@@ -58,9 +57,10 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 		enabled: viewDeploymentConfig,
 	});
 
-	const usersQuery = usePaginatedQuery(paginatedUsers(searchParamsResult[0]));
+	const usersQuery = usePaginatedQuery(paginatedUsers(searchParams));
 	const useFilterResult = useFilter({
-		searchParamsResult,
+		searchParams,
+		onSearchParamsChange: setSearchParams,
 		onUpdate: usersQuery.goToFirstPage,
 	});
 

@@ -51,10 +51,10 @@ interface WorkspacesPageViewProps {
 	onPageChange: (page: number) => void;
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
 	isRunningBatchAction: boolean;
-	onDeleteAll: () => void;
-	onUpdateAll: () => void;
-	onStartAll: () => void;
-	onStopAll: () => void;
+	onBatchDeleteTransition: () => void;
+	onBatchUpdateTransition: () => void;
+	onBatchStartTransition: () => void;
+	onBatchStopTransition: () => void;
 	canCheckWorkspaces: boolean;
 	templatesFetchStatus: TemplateQuery["status"];
 	templates: TemplateQuery["data"];
@@ -74,10 +74,10 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	page,
 	checkedWorkspaces,
 	onCheckChange,
-	onDeleteAll,
-	onUpdateAll,
-	onStopAll,
-	onStartAll,
+	onBatchDeleteTransition: onDeleteAll,
+	onBatchUpdateTransition: onUpdateAll,
+	onBatchStopTransition: onStopAll,
+	onBatchStartTransition: onStartAll,
 	isRunningBatchAction,
 	canCheckWorkspaces,
 	templates,
@@ -87,10 +87,10 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	onActionSuccess,
 	onActionError,
 }) => {
-	// Let's say the user has 5 workspaces, but tried to hit page 100, which does
-	// not exist. In this case, the page is not valid and we want to show a better
-	// error message.
-	const invalidPageNumber = page !== 1 && workspaces?.length === 0;
+	// Let's say the user has 5 workspaces, but tried to hit page 100, which
+	// does not exist. In this case, the page is not valid and we want to show a
+	// better error message.
+	const pageNumberIsInvalid = page !== 1 && workspaces?.length === 0;
 
 	return (
 		<Margins>
@@ -187,7 +187,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 						</DropdownMenu>
 					</>
 				) : (
-					!invalidPageNumber && (
+					!pageNumberIsInvalid && (
 						<PaginationHeader
 							paginationUnitLabel="workspaces"
 							limit={limit}
@@ -199,7 +199,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 				)}
 			</TableToolbar>
 
-			{invalidPageNumber ? (
+			{pageNumberIsInvalid ? (
 				<EmptyState
 					css={(theme) => ({
 						border: `1px solid ${theme.palette.divider}`,

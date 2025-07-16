@@ -106,7 +106,7 @@ export const templateExamples = () => {
 	};
 };
 
-export const templateVersionRoot: string = "templateVersion"
+export const templateVersionRoot: string = "templateVersion";
 
 export const templateVersion = (versionId: string) => {
 	return {
