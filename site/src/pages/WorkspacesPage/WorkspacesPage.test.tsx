@@ -85,33 +85,6 @@ describe("WorkspacesPage", () => {
 		expect(deleteWorkspace).toHaveBeenCalledWith(workspaces[1].id);
 	});
 
-	it("stops only the running and selected workspaces", async () => {
-		const workspaces = [
-			{ ...MockWorkspace, id: "1" },
-			{ ...MockWorkspace, id: "2" },
-			{ ...MockWorkspace, id: "3" },
-		];
-		jest
-			.spyOn(API, "getWorkspaces")
-			.mockResolvedValue({ workspaces, count: workspaces.length });
-		const stopWorkspace = jest.spyOn(API, "stopWorkspace");
-		const user = userEvent.setup();
-		renderWithAuth(<WorkspacesPage />);
-		await waitForLoaderToBeRemoved();
-
-		await user.click(getWorkspaceCheckbox(workspaces[0]));
-		await user.click(getWorkspaceCheckbox(workspaces[1]));
-		await user.click(screen.getByRole("button", { name: /bulk actions/i }));
-		const stopButton = await screen.findByRole("menuitem", { name: /stop/i });
-		await user.click(stopButton);
-
-		await waitFor(() => {
-			expect(stopWorkspace).toHaveBeenCalledTimes(2);
-		});
-		expect(stopWorkspace).toHaveBeenCalledWith(workspaces[0].id);
-		expect(stopWorkspace).toHaveBeenCalledWith(workspaces[1].id);
-	});
-
 	describe("batch updates", () => {
 		it("skips up-to-date workspaces after confirming update", async () => {
 			const workspaces: readonly Workspace[] = [
@@ -249,6 +222,33 @@ describe("WorkspacesPage", () => {
 			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[1], [], false);
 			expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2], [], false);
 		});
+	});
+
+	it("stops only the running and selected workspaces", async () => {
+		const workspaces = [
+			{ ...MockWorkspace, id: "1" },
+			{ ...MockWorkspace, id: "2" },
+			{ ...MockWorkspace, id: "3" },
+		];
+		jest
+			.spyOn(API, "getWorkspaces")
+			.mockResolvedValue({ workspaces, count: workspaces.length });
+		const stopWorkspace = jest.spyOn(API, "stopWorkspace");
+		const user = userEvent.setup();
+		renderWithAuth(<WorkspacesPage />);
+		await waitForLoaderToBeRemoved();
+
+		await user.click(getWorkspaceCheckbox(workspaces[0]));
+		await user.click(getWorkspaceCheckbox(workspaces[1]));
+		await user.click(screen.getByRole("button", { name: /bulk actions/i }));
+		const stopButton = await screen.findByRole("menuitem", { name: /stop/i });
+		await user.click(stopButton);
+
+		await waitFor(() => {
+			expect(stopWorkspace).toHaveBeenCalledTimes(2);
+		});
+		expect(stopWorkspace).toHaveBeenCalledWith(workspaces[0].id);
+		expect(stopWorkspace).toHaveBeenCalledWith(workspaces[1].id);
 	});
 
 	it("starts only the stopped and selected workspaces", async () => {
