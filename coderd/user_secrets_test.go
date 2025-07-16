@@ -72,4 +72,9 @@ func TestUserSecrets(t *testing.T) {
 	require.Equal(t, templateAdmin.ID, userSecret.UserID)
 	require.Equal(t, userSecretName, userSecret.Name)
 	require.Equal(t, userSecretDescription, userSecret.Description)
+
+	// test get value API
+	userSecretValue, err := templateAdminClient.GetUserSecretValue(ctx, userSecretName)
+	require.NoError(t, err)
+	require.Equal(t, "secretkey", userSecretValue.Value)
 }

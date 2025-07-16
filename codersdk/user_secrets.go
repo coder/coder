@@ -96,3 +96,21 @@ func (c *Client) GetUserSecret(ctx context.Context, secretName string) (UserSecr
 	var userSecret UserSecret
 	return userSecret, json.NewDecoder(res.Body).Decode(&userSecret)
 }
+
+func (c *Client) GetUserSecretValue(ctx context.Context, secretName string) (UserSecretValue, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/users/secrets/%v/value", secretName),
+		nil,
+	)
+	if err != nil {
+		return UserSecretValue{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return UserSecretValue{}, ReadBodyAsError(res)
+	}
+
+	var userSecretValue UserSecretValue
+	return userSecretValue, json.NewDecoder(res.Body).Decode(&userSecretValue)
+}

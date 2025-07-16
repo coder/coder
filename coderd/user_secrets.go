@@ -104,3 +104,33 @@ func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
+
+// Returns a user secret value.
+//
+// @Summary Returns a user secret value.
+// @ID get-user-secret-value
+// @Security CoderSessionToken
+// @Produce json
+// @Tags User-Secrets
+// @Success 200 {object} codersdk.UserSecretValue
+// @Router /users/secrets/{name}/value [get]
+func (api *API) getUserSecretValue(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	secretName := chi.URLParam(r, "name")
+
+	userSecret, err := api.Database.GetUserSecret(ctx, database.GetUserSecretParams{
+		UserID: apiKey.UserID,
+		Name:   secretName,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	response := codersdk.UserSecretValue{
+		Value: userSecret.Value,
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, response)
+}

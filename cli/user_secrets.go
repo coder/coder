@@ -92,7 +92,7 @@ func (r *RootCmd) secretList() *serpent.Command {
 
 func (r *RootCmd) secretGet() *serpent.Command {
 	client := new(codersdk.Client)
-	//var value string
+	var withValue bool
 	cmd := &serpent.Command{
 		Use:   "get <name>",
 		Short: "Get user secret",
@@ -107,17 +107,28 @@ func (r *RootCmd) secretGet() *serpent.Command {
 				return err
 			}
 
-			fmt.Fprintf(inv.Stdout, "ID | Name | Description\n")
-			fmt.Fprintf(inv.Stdout, "%v - %v - %v\n", secret.ID, secret.Name, secret.Description)
+			userSecretValue := codersdk.UserSecretValue{
+				Value: "hidden",
+			}
+			if withValue {
+				userSecretValue, err = client.GetUserSecretValue(inv.Context(), secretName)
+				if err != nil {
+					return err
+				}
+			}
+			value := userSecretValue.Value
+
+			fmt.Fprintf(inv.Stdout, "ID | Name | Description | Value\n")
+			fmt.Fprintf(inv.Stdout, "%v - %v - %v - %v\n", secret.ID, secret.Name, secret.Description, value)
 			return nil
 		},
 	}
 	cmd.Options = serpent.OptionSet{
-		//{
-		//	Flag:        "value",
-		//	Description: "Value of the secret (required).",
-		//	Value:       serpent.StringOf(&value),
-		//},
+		{
+			Flag:        "with-value",
+			Description: "Display value of the secret.",
+			Value:       serpent.BoolOf(&withValue),
+		},
 	}
 	return cmd
 }
