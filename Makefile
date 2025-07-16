@@ -981,6 +981,7 @@ test-postgres: test-postgres-docker
 		--jsonfile="gotests.json" \
 		$(GOTESTSUM_RETRY_FLAGS) \
 		--packages="./..." -- \
+			$(COVERAGE_FLAGS) \
 		-timeout=20m \
 		-count=1
 .PHONY: test-postgres

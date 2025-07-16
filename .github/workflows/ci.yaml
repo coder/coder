@@ -554,19 +554,9 @@ jobs:
         env:
           POSTGRES_VERSION: "17"
           TS_DEBUG_DISCO: "true"
+          COVERAGE_FLAGS: "-coverprofile=coverage-postgres.out -covermode=atomic"
         run: |
-          # Setup PostgreSQL
-          make test-postgres-docker
-          
-          # Run tests with coverage
-          gotestsum \
-            --junitfile="gotests.xml" \
-            --jsonfile="gotests.json" \
-            --packages="./..." -- \
-            -coverprofile=coverage-postgres.out \
-            -covermode=atomic \
-            -timeout=20m \
-            -count=1
+          make test-postgres
 
       - name: Generate coverage report
         if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && github.event.comment.body == '/update-coverage')
