@@ -27,7 +27,7 @@ import { useStatusFilterMenu, useTemplateFilterMenu } from "./filter/menus";
  * workspace is in the middle of a transition and will eventually reach a more
  * stable state/status.
  */
-export const ACTIVE_BUILD_STATUSES: readonly WorkspaceStatus[] = [
+const ACTIVE_BUILD_STATUSES: readonly WorkspaceStatus[] = [
 	"canceling",
 	"deleting",
 	"pending",
