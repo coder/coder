@@ -78,13 +78,14 @@ export function useBatchActions(
 		},
 	});
 
-	// We have to explicitly make the mutation functions for the
-	// favorite/unfavorite functionality be async and then void out the
-	// Promise.all result because otherwise the return type becomes a void
-	// array, which doesn't ever make sense with TypeScript's type system
+	// Not a great idea to return the promises from the Promise.all calls below
+	// because that then gives you a void array, which doesn't make sense with
+	// TypeScript's type system. Best to await them, and then have the wrapper
+	// mutation function return its own void promise
+
 	const favoriteAllMutation = useMutation({
 		mutationFn: async (workspaces: readonly Workspace[]) => {
-			void Promise.all(
+			await Promise.all(
 				workspaces
 					.filter((w) => !w.favorite)
 					.map((w) => API.putFavoriteWorkspace(w.id)),
@@ -98,7 +99,7 @@ export function useBatchActions(
 
 	const unfavoriteAllMutation = useMutation({
 		mutationFn: async (workspaces: readonly Workspace[]) => {
-			void Promise.all(
+			await Promise.all(
 				workspaces
 					.filter((w) => w.favorite)
 					.map((w) => API.deleteFavoriteWorkspace(w.id)),
