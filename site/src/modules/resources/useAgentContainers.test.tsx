@@ -230,9 +230,7 @@ describe("useAgentContainers", () => {
 				`/api/v2/workspaceagents/${MockWorkspaceAgent.id}/containers`,
 				() => {
 					return HttpResponse.json(
-						{
-							message: "Dev Container feature not enabled.",
-						},
+						{ message: "Dev Container feature not enabled." },
 						{ status: 403 },
 					);
 				},
