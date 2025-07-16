@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
-import type { Template, WorkspacesResponse, Workspace } from "api/typesGenerated";
+import type { Workspace, WorkspacesResponse } from "api/typesGenerated";
 import { http, HttpResponse } from "msw";
 import {
 	MockDormantOutdatedWorkspace,
@@ -30,7 +30,10 @@ describe("WorkspacesPage", () => {
 	it("renders an empty workspaces page", async () => {
 		server.use(
 			http.get("/api/v2/workspaces", async () => {
-				return HttpResponse.json<WorkspacesResponse>({ workspaces: [], count: 0 });
+				return HttpResponse.json<WorkspacesResponse>({
+					workspaces: [],
+					count: 0,
+				});
 			}),
 		);
 
