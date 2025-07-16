@@ -43,7 +43,7 @@ to install `devcontainers/cli` in your workspace:
 ```terraform
 module "devcontainers-cli" {
   count    = data.coder_workspace.me.start_count
-  source   = "dev.registry.coder.com/modules/devcontainers-cli/coder"
+  source   = "registry.coder.com/modules/devcontainers-cli/coder"
   agent_id = coder_agent.main.id
 }
 ```
@@ -195,16 +195,15 @@ terraform {
   }
 }
 
-provider "coder" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
 resource "coder_agent" "main" {
-  arch                    = "amd64"
-  os                      = "linux"
+  os   = "linux"
+  arch = "amd64"
   startup_script_behavior = "blocking"
-  startup_script          = "sudo service docker start"
-  shutdown_script         = "sudo service docker stop"
+  startup_script  = "sudo service docker start"
+  shutdown_script = "sudo service docker stop"
 }
 
 module "devcontainers-cli" {
@@ -213,25 +212,56 @@ module "devcontainers-cli" {
   agent_id = coder_agent.main.id
 }
 
+module "git-clone" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/modules/git-clone/coder"
+  agent_id = coder_agent.main.id
+  url      = "https://github.com/coder/coder.git"
+  base_dir = "/home/coder"
+}
+
 resource "coder_devcontainer" "my-repository" {
   count            = data.coder_workspace.me.start_count
-  agent_id         = coder_agent.dev.id
-  workspace_folder = "/home/coder/my-repository"
+  agent_id         = coder_agent.main.id
+  workspace_folder = module.git-clone[0].repo_dir
 }
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = "codercom/oss-dogfood:latest"
+  image = "codercom/enterprise-node:ubuntu"
+  name  = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+  runtime = "sysbox-runc"
+  entrypoint = ["sh", "-c", coder_agent.main.init_script]
   env = [
-    "CODER_AGENT_DEVCONTAINERS_ENABLE=true",
-    # ... Other environment variables.
-  ]
-  # ... Other container configuration.
+    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
+    "CODER_AGENT_URL=${data.coder_workspace.me.access_url}"
+	]
 }
 ```
 
+## Troubleshoot Common Issues
+
+### Disable dev containers integration
+
+To disable the dev containers integration in your workspace, set the `CODER_AGENT_DEVCONTAINERS_ENABLE=false`
+environment variable before starting the agent.
+
+### Dev container does not start
+
+1. Confirm that the Docker daemon is running inside the workspace:
+
+   ```shell
+	 sudo service docker start && \
+	 docker ps
+	 ```
+
+1. Confirm the location of `devcontainer.json`.
+
+1. Check the agent logs for errors.
+
 ## Next Steps
 
+- [Advanced dev containers](./advanced-dev-containers.md)
 - [Dev Containers Integration](../../../user-guides/devcontainers/index.md)
 - [Working with Dev Containers](../../../user-guides/devcontainers/working-with-dev-containers.md)
 - [Troubleshooting Dev Containers](../../../user-guides/devcontainers/troubleshooting-dev-containers.md)
