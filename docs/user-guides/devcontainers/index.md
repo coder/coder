@@ -32,7 +32,7 @@ When a workspace with the dev containers integration starts:
 
 ## Features
 
-### Detection & Lifecycle
+### Detection and Lifecycle
 
 - Automatic dev container detection from repositories.
 - Change detection with rebuild prompts.
