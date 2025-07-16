@@ -1,6 +1,10 @@
-# Dev container releases and known issues
+# Envbuilder Dev Container Releases and Known Issues
 
-## Release channels
+Envbuilder is a legacy implementation of dev containers.
+
+For the Docker-based Dev Containers integration, follow the [Configure a template for dev containers](../../extending-templates/devcontainers.md) documentation instead.
+
+## Release Channels
 
 Envbuilder provides two release channels:
 
@@ -18,7 +22,7 @@ Refer to the
 [Envbuilder GitHub repository](https://github.com/coder/envbuilder/) for more
 information and to submit feature requests or bug reports.
 
-## Known issues
+## Known Issues
 
 Visit the
 [Envbuilder repository](https://github.com/coder/envbuilder/blob/main/docs/devcontainer-spec-support.md)
