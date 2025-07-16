@@ -6,6 +6,8 @@ on:
       - main
 
   pull_request:
+  issue_comment:
+    types: [created]
   workflow_dispatch:
 
 permissions:
@@ -519,7 +521,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs:
       - changes
-    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    if: always() && ((github.event_name != 'issue_comment' && (needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main')) || (github.event_name == 'issue_comment' && github.event.comment.body == '/update-coverage'))
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
     # goroutines. Setting this to the timeout +5m should work quite well
@@ -534,7 +536,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -553,7 +555,143 @@ jobs:
           POSTGRES_VERSION: "17"
           TS_DEBUG_DISCO: "true"
         run: |
-          make test-postgres
+          # Setup PostgreSQL
+          make test-postgres-docker
+          
+          # Run tests with coverage
+          gotestsum \
+            --junitfile="gotests.xml" \
+            --jsonfile="gotests.json" \
+            --packages="./..." -- \
+            -coverprofile=coverage-postgres.out \
+            -covermode=atomic \
+            -timeout=20m \
+            -count=1
+
+      - name: Generate coverage report
+        if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && github.event.comment.body == '/update-coverage')
+        run: |
+          go tool cover -func=coverage-postgres.out > coverage-postgres.txt
+
+      - name: Get base branch coverage
+        if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && github.event.comment.body == '/update-coverage')
+        run: |
+          # Checkout base branch and run coverage
+          git fetch origin ${{ github.base_ref }}
+          git checkout origin/${{ github.base_ref }}
+          
+          # Setup PostgreSQL for base branch
+          make test-postgres-docker
+          
+          # Run tests with coverage on base branch
+          gotestsum \
+            --junitfile="gotests-base.xml" \
+            --jsonfile="gotests-base.json" \
+            --packages="./..." -- \
+            -coverprofile=coverage-postgres-base.out \
+            -covermode=atomic \
+            -timeout=20m \
+            -count=1 || true
+          
+          # Generate base coverage report
+          if [ -f coverage-postgres-base.out ]; then
+            go tool cover -func=coverage-postgres-base.out > coverage-postgres-base.txt
+          fi
+          
+          # Switch back to PR branch
+          git checkout ${{ github.sha }}
+
+      - name: Generate coverage diff and comment
+        if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && github.event.comment.body == '/update-coverage')
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+            
+            function parseCoverage(filename) {
+              try {
+                const content = fs.readFileSync(filename, 'utf8');
+                const match = content.match(/total:.*?(\d+\.\d+)%/);
+                return match ? parseFloat(match[1]) : null;
+              } catch (error) {
+                return null;
+              }
+            }
+            
+            const currentCoverage = parseCoverage('coverage-postgres.txt');
+            const baseCoverage = parseCoverage('coverage-postgres-base.txt');
+            
+            let commentBody = '## 📊 Coverage Report (test-postgres)\n\n';
+            
+            if (currentCoverage !== null) {
+              commentBody += `**Current Coverage:** ${currentCoverage.toFixed(2)}%\n`;
+              
+              if (baseCoverage !== null) {
+                const diff = currentCoverage - baseCoverage;
+                commentBody += `**Base Coverage:** ${baseCoverage.toFixed(2)}%\n`;
+                if (diff > 0) {
+                  commentBody += `**Coverage Change:** +${diff.toFixed(2)}% 📈\n`;
+                } else if (diff < 0) {
+                  commentBody += `**Coverage Change:** ${diff.toFixed(2)}% 📉\n`;
+                } else {
+                  commentBody += `**Coverage Change:** No change\n`;
+                }
+              } else {
+                commentBody += `**Base Coverage:** Unable to determine\n`;
+              }
+              
+              commentBody += '\n<details>\n<summary>📋 Detailed Coverage Report</summary>\n\n```\n';
+              try {
+                const detailedReport = fs.readFileSync('coverage-postgres.txt', 'utf8');
+                commentBody += detailedReport;
+              } catch (error) {
+                commentBody += 'Coverage report not found';
+              }
+              commentBody += '\n```\n\n</details>';
+            } else {
+              commentBody = '❌ Could not generate coverage report';
+            }
+            
+            // Check if there's already a coverage comment
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            
+            const existingComment = comments.data.find(comment => 
+              comment.body.includes('📊 Coverage Report (test-postgres)')
+            );
+            
+            if (existingComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: commentBody
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+            }
+
+      - name: Upload coverage artifacts
+        if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && github.event.comment.body == '/update-coverage')
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: coverage-postgres
+          path: |
+            coverage-postgres.out
+            coverage-postgres.txt
+            gotests.xml
+            gotests.json
+          retention-days: 30
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
