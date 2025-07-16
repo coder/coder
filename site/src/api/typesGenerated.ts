@@ -7,10 +7,16 @@ export interface ACLAvailable {
 }
 
 // From codersdk/deployment.go
+export interface AIBridgeAnthropicConfig {
+	readonly base_url: string;
+	readonly key: string;
+}
+
+// From codersdk/deployment.go
 export interface AIBridgeConfig {
 	readonly daemons: number;
 	readonly openai_base_url: string;
-	readonly anthropic_base_url: string;
+	readonly anthropic: AIBridgeAnthropicConfig;
 }
 
 // From codersdk/deployment.go

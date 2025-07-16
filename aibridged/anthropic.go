@@ -22,7 +22,6 @@ func ConvertStringContentToArrayTest(raw []byte) ([]byte, error) {
 //
 // Each input message content may be either a single string or an array of content blocks, where each block has a
 // specific type. Using a string for content is shorthand for an array of one content block of type "text".
-//
 func convertStringContentToArray(raw []byte) ([]byte, error) {
 	in := gjson.ParseBytes(raw)
 

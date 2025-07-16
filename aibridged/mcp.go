@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"cdr.dev/slog"
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 )
 
 type MCPToolBridge struct {
@@ -23,18 +24,18 @@ type MCPToolBridge struct {
 const MCPProxyDelimiter = "_"
 
 func NewMCPToolBridge(name, serverURL string, headers map[string]string, logger slog.Logger) (*MCPToolBridge, error) {
-	//ts := transport.NewMemoryTokenStore()
-	//if err := ts.SaveToken(&transport.Token{
+	// ts := transport.NewMemoryTokenStore()
+	// if err := ts.SaveToken(&transport.Token{
 	//	AccessToken: token,
-	//}); err != nil {
+	// }); err != nil {
 	//	return nil, xerrors.Errorf("save token: %w", err)
 	//}
 
 	mcpClient, err := client.NewStreamableHttpClient(serverURL,
 		transport.WithHTTPHeaders(headers))
-	//transport.WithHTTPOAuth(transport.OAuthConfig{
+	// transport.WithHTTPOAuth(transport.OAuthConfig{
 	//	TokenStore: ts,
-	//}))
+	// }))
 	if err != nil {
 		return nil, xerrors.Errorf("create streamable http client: %w", err)
 	}
@@ -65,7 +66,9 @@ func (b *MCPToolBridge) ListTools() []anthropic.BetaToolUnionParam {
 }
 
 func (b *MCPToolBridge) HasTool(name string) bool {
-	if b.foundTools == nil { return false }
+	if b.foundTools == nil {
+		return false
+	}
 
 	_, ok := b.foundTools[name]
 	return ok

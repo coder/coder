@@ -82,7 +82,10 @@ func New(rpcDialer Dialer, httpAddr string, logger slog.Logger, bridgeCfg coders
 
 	daemon.wg.Add(1)
 	go daemon.connect()
+
+	daemon.wg.Add(1)
 	go func() {
+		defer daemon.wg.Done()
 		err := bridge.Serve()
 		// TODO: better error handling.
 		// TODO: close on shutdown.
@@ -164,16 +167,6 @@ func (s *Server) client() (proto.DRPCAIBridgeDaemonClient, bool) {
 	}
 }
 
-func (s *Server) AuditPrompt(ctx context.Context, in *proto.AuditPromptRequest) (*proto.AuditPromptResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.AuditPromptResponse, error) {
-		return client.AuditPrompt(ctx, in)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (s *Server) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageRequest) (*proto.TrackTokenUsageResponse, error) {
 	out, err := clientDoWithRetries(ctx, s.client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.TrackTokenUsageResponse, error) {
 		return client.TrackTokenUsage(ctx, in)
@@ -184,9 +177,9 @@ func (s *Server) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageR
 	return out, nil
 }
 
-func (s *Server) TrackUserPrompts(ctx context.Context, in *proto.TrackUserPromptsRequest) (*proto.TrackUserPromptsResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.TrackUserPromptsResponse, error) {
-		return client.TrackUserPrompts(ctx, in)
+func (s *Server) TrackUserPrompt(ctx context.Context, in *proto.TrackUserPromptRequest) (*proto.TrackUserPromptResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.TrackUserPromptResponse, error) {
+		return client.TrackUserPrompt(ctx, in)
 	})
 	if err != nil {
 		return nil, err

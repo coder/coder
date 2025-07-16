@@ -69,14 +69,10 @@ func BasicSSESender(outerCtx context.Context, sessionID uuid.UUID, model string,
 					return
 				}
 
-
 				// TODO: https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/implement-tool-use#example-of-successful-tool-result see "Important formatting requirements"
 
-
-
-
 				// TODO: use logger, make configurable.
-				//_, _ = fmt.Fprintf(os.Stderr, "[%s] 	%s", sessionID, payload)
+				// _, _ = fmt.Fprintf(os.Stderr, "[%s] 	%s", sessionID, payload)
 				_, _ = os.Stderr.Write([]byte(fmt.Sprintf("[orig] %s\n[zero] %s\n[out] %s", ev.orig, ev.zero, ev.payload)))
 
 				_, err := w.Write(ev.payload)

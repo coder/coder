@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"cdr.dev/slog"
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 	ant_constant "github.com/anthropics/anthropic-sdk-go/shared/constant"
@@ -24,10 +23,9 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/shared/constant"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
-	"github.com/invopop/jsonschema"
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
@@ -90,47 +88,53 @@ func NewBridge(cfg codersdk.AIBridgeConfig, addr string, logger slog.Logger, cli
 	bridge.clientFn = clientFn
 	bridge.logger = logger
 
-	time.Sleep(time.Second * 3)
+	// const (
+	// 	githubMCPName = "github"
+	// 	coderMCPName  = "coder"
+	// )
+	// githubMCP, err := NewMCPToolBridge(githubMCPName, "https://api.githubcopilot.com/mcp/", map[string]string{
+	// 	"Authorization": "Bearer " + os.Getenv("GITHUB_MCP_TOKEN"),
+	// }, logger.Named("mcp-bridge-github"))
+	// if err != nil {
+	// 	return nil, xerrors.Errorf("github MCP bridge setup: %w", err)
+	// }
+	// coderMCP, err := NewMCPToolBridge(coderMCPName, "https://dev.coder.com/api/experimental/mcp/http", map[string]string{
+	// 	"Authorization": "Bearer " + os.Getenv("CODER_MCP_TOKEN"),
+	// 	// This is necessary to even access the MCP endpoint.
+	// 	"Coder-Session-Token": os.Getenv("CODER_MCP_SESSION_TOKEN"),
+	// }, logger.Named("mcp-bridge-coder"))
+	// if err != nil {
+	// 	return nil, xerrors.Errorf("coder MCP bridge setup: %w", err)
+	// }
 
-	const (
-		githubMCPName = "github"
-		coderMCPName  = "coder"
-	)
-	githubMCP, err := NewMCPToolBridge(githubMCPName, "https://api.githubcopilot.com/mcp/", map[string]string{
-		"Authorization": "Bearer " + os.Getenv("GITHUB_MCP_TOKEN"),
-	}, logger.Named("mcp-bridge-github"))
-	if err != nil {
-		return nil, xerrors.Errorf("github MCP bridge setup: %w", err)
-	}
-	coderMCP, err := NewMCPToolBridge(coderMCPName, "https://dev.coder.com/api/experimental/mcp/http", map[string]string{
-		"Authorization": "Bearer " + os.Getenv("CODER_MCP_TOKEN"),
-		// This is necessary to even access the MCP endpoint.
-		"Coder-Session-Token": os.Getenv("CODER_MCP_SESSION_TOKEN"),
-	}, logger.Named("mcp-bridge-coder"))
-	if err != nil {
-		return nil, xerrors.Errorf("coder MCP bridge setup: %w", err)
-	}
+	// bridge.mcpBridges = map[string]*MCPToolBridge{
+	// 	githubMCPName: githubMCP,
+	// 	coderMCPName:  coderMCP,
+	// }
 
-	bridge.mcpBridges = map[string]*MCPToolBridge{
-		githubMCPName: githubMCP,
-		coderMCPName:  coderMCP,
-	}
+	// ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	// defer cancel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
+	// var eg errgroup.Group
+	// eg.Go(func() error {
+	// 	err := githubMCP.Init(ctx)
+	// 	if err == nil {
+	// 		return nil
+	// 	}
+	// 	return xerrors.Errorf("github: %w", err)
+	// })
+	// eg.Go(func() error {
+	// 	err := coderMCP.Init(ctx)
+	// 	if err == nil {
+	// 		return nil
+	// 	}
+	// 	return xerrors.Errorf("coder: %w", err)
+	// })
 
-	var eg errgroup.Group
-	eg.Go(func() error {
-		return githubMCP.Init(ctx)
-	})
-	eg.Go(func() error {
-		return coderMCP.Init(ctx)
-	})
-
-	// This must block requests until MCP proxies are setup.
-	if err := eg.Wait(); err != nil {
-		return nil, xerrors.Errorf("MCP proxy init: %w", err)
-	}
+	// // This must block requests until MCP proxies are setup.
+	// if err := eg.Wait(); err != nil {
+	// 	return nil, xerrors.Errorf("MCP proxy init: %w", err)
+	// }
 
 	return &bridge, nil
 }
@@ -199,7 +203,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 
 	prompt, err := in.LastUserPrompt() // TODO: error handling.
 	if prompt != nil {
-		if _, err = coderdClient.TrackUserPrompts(ctx, &proto.TrackUserPromptsRequest{
+		if _, err = coderdClient.TrackUserPrompt(ctx, &proto.TrackUserPromptRequest{
 			Model:  in.Model,
 			Prompt: *prompt,
 		}); err != nil {
@@ -419,9 +423,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 
 		streamCancel(xerrors.New("gracefully done"))
 
-		select {
-		case <-streamCtx.Done():
-		}
+		<-streamCtx.Done()
 	} else {
 		completion, err := client.Chat.Completions.New(ctx, in.ChatCompletionNewParams)
 		if err != nil {
@@ -502,7 +504,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	// var in streamer
 	// if useBeta {
 	var in BetaMessageNewParamsWrapper
-	//} else {
+	// } else {
 	//	in = &MessageNewParamsWrapper{}
 	//}
 
@@ -550,12 +552,6 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	in.Tools = append(in.Tools, anthropic.BetaToolUnionParam{OfTool: &anthropic.BetaToolParam{
-		Name:        "get_coordinates",
-		Description: anthropic.String("Accepts a place as an address, then returns the latitude and longitude coordinates."),
-		InputSchema: GetCoordinatesInputSchema,
-	}})
-
 	for _, proxy := range b.mcpBridges {
 		in.Tools = append(in.Tools, proxy.ListTools()...)
 	}
@@ -567,7 +563,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	if !isSmallFastModel {
 		prompt, err := in.LastUserPrompt() // TODO: error handling.
 		if prompt != nil {
-			if _, err = coderdClient.TrackUserPrompts(ctx, &proto.TrackUserPromptsRequest{
+			if _, err = coderdClient.TrackUserPrompt(ctx, &proto.TrackUserPromptRequest{
 				Prompt: *prompt,
 				Model:  string(in.Model),
 			}); err != nil {
@@ -590,6 +586,13 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	if reqBetaHeader := r.Header.Get("anthropic-beta"); strings.TrimSpace(reqBetaHeader) != "" {
 		opts = append(opts, option.WithHeader("anthropic-beta", reqBetaHeader))
 	}
+	opts = append(opts, option.WithMiddleware(LoggingMiddleware))
+
+	// Lib will automatically look for ANTHROPIC_API_KEY env.
+	if _, ok := os.LookupEnv("ANTHROPIC_API_KEY"); !ok {
+		opts = append(opts, option.WithAPIKey(b.cfg.Anthropic.Key.String()))
+	}
+	opts = append(opts, option.WithBaseURL(b.cfg.Anthropic.BaseURL.String()))
 
 	// looks up API key with os.LookupEnv("ANTHROPIC_API_KEY")
 	client := anthropic.NewClient(opts...)
@@ -602,11 +605,11 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 
 	es := newEventStream(anthropicEventStream)
 
-	//var buf strings.Builder
-	//in.Messages[0].Content = []anthropic.BetaContentBlockParamUnion{in.Messages[0].Content[len(in.Messages[0].Content) - 1]}
+	// var buf strings.Builder
+	// in.Messages[0].Content = []anthropic.BetaContentBlockParamUnion{in.Messages[0].Content[len(in.Messages[0].Content) - 1]}
 	//
-	//json.NewEncoder(&buf).Encode(in)
-	//fmt.Println(strings.Replace(buf.String(), "'", "\\'", -1))
+	// json.NewEncoder(&buf).Encode(in)
+	// fmt.Println(strings.Replace(buf.String(), "'", "\\'", -1))
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -676,6 +679,25 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 			case string(ant_constant.ValueOf[ant_constant.MessageStart]()):
+				// Anthropic's docs only mention usage in message_delta events, but it's also present in message_start.
+				// See https://docs.anthropic.com/en/docs/build-with-claude/streaming#event-types.
+				start := event.AsMessageStart()
+				if _, err = coderdClient.TrackTokenUsage(streamCtx, &proto.TrackTokenUsageRequest{
+					MsgId:        message.ID,
+					Model:        string(message.Model),
+					InputTokens:  start.Message.Usage.InputTokens,
+					OutputTokens: start.Message.Usage.OutputTokens,
+					Other: map[string]int64{
+						"web_search_requests":      start.Message.Usage.ServerToolUse.WebSearchRequests,
+						"cache_creation_input":     start.Message.Usage.CacheCreationInputTokens,
+						"cache_read_input":         start.Message.Usage.CacheReadInputTokens,
+						"cache_ephemeral_1h_input": message.Usage.CacheCreation.Ephemeral1hInputTokens,
+						"cache_ephemeral_5m_input": message.Usage.CacheCreation.Ephemeral5mInputTokens,
+					},
+				}); err != nil {
+					b.logger.Error(ctx, "failed to track token usage", slog.Error(err))
+				}
+
 				if !isFirst {
 					// Don't send message_start unless first message!
 					// We're sending multiple messages back and forth with the API, but from the client's perspective
@@ -684,23 +706,20 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 				}
 			case string(ant_constant.ValueOf[ant_constant.MessageDelta]()):
 				delta := event.AsMessageDelta()
-				if delta.Delta.StopReason == anthropic.BetaStopReasonEndTurn {
-					// TODO: these figures don't seem to exactly match what Claude Code reports. Find the source of inconsistency!
-					if _, err = coderdClient.TrackTokenUsage(streamCtx, &proto.TrackTokenUsageRequest{
-						MsgId:        message.ID,
-						Model:        string(message.Model),
-						InputTokens:  delta.Usage.InputTokens,
-						OutputTokens: delta.Usage.OutputTokens,
-						Other: map[string]int64{
-							"web_search_requests":      delta.Usage.ServerToolUse.WebSearchRequests,
-							"cache_creation_input":     delta.Usage.CacheCreationInputTokens,
-							"cache_read_input":         delta.Usage.CacheReadInputTokens,
-							"cache_ephemeral_1h_input": message.Usage.CacheCreation.Ephemeral1hInputTokens,
-							"cache_ephemeral_5m_input": message.Usage.CacheCreation.Ephemeral5mInputTokens,
-						},
-					}); err != nil {
-						b.logger.Error(ctx, "failed to track token usage", slog.Error(err))
-					}
+				if _, err = coderdClient.TrackTokenUsage(streamCtx, &proto.TrackTokenUsageRequest{
+					MsgId:        message.ID,
+					Model:        string(message.Model),
+					InputTokens:  delta.Usage.InputTokens,
+					OutputTokens: delta.Usage.OutputTokens,
+					Other: map[string]int64{
+						"web_search_requests":      delta.Usage.ServerToolUse.WebSearchRequests,
+						"cache_creation_input":     delta.Usage.CacheCreationInputTokens,
+						"cache_read_input":         delta.Usage.CacheReadInputTokens,
+						"cache_ephemeral_1h_input": message.Usage.CacheCreation.Ephemeral1hInputTokens,
+						"cache_ephemeral_5m_input": message.Usage.CacheCreation.Ephemeral5mInputTokens,
+					},
+				}); err != nil {
+					b.logger.Error(ctx, "failed to track token usage", slog.Error(err))
 				}
 
 				// Don't relay message_delta events which indicate injected tool use.
@@ -802,7 +821,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 
 							switch cb := content.(type) {
 							case mcp.TextContent:
-								//messages.Messages = append(messages.Messages,
+								// messages.Messages = append(messages.Messages,
 								//	anthropic.NewBetaUserMessage(anthropic.NewBetaToolResultBlock(id, cb.Text, false)),
 								//)
 								toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.BetaToolResultBlockParamContentUnion{
@@ -819,7 +838,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 									// For text resources, include the text content
 									val := fmt.Sprintf("Binary resource (MIME: %s, URI: %s): %s",
 										resource.MIMEType, resource.URI, resource.Text)
-									//messages.Messages = append(messages.Messages,
+									// messages.Messages = append(messages.Messages,
 									//	anthropic.NewBetaUserMessage(anthropic.NewBetaToolResultBlock(id, val, false)),
 									//)
 
@@ -833,7 +852,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 									// For blob resources, include the base64 data with MIME type info
 									val := fmt.Sprintf("Binary resource (MIME: %s, URI: %s): %s",
 										resource.MIMEType, resource.URI, resource.Blob)
-									//messages.Messages = append(messages.Messages,
+									// messages.Messages = append(messages.Messages,
 									//	anthropic.NewBetaUserMessage(anthropic.NewBetaToolResultBlock(id, val, false)),
 									//)
 
@@ -845,7 +864,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 									hasValidResult = true
 								default:
 									b.logger.Error(ctx, "unknown embedded resource type", slog.F("type", fmt.Sprintf("%T", resource)))
-									//messages.Messages = append(messages.Messages,
+									// messages.Messages = append(messages.Messages,
 									//	anthropic.NewBetaUserMessage(anthropic.NewBetaToolResultBlock(id, "Error: unknown embedded resource type", true)),
 									//)
 
@@ -860,7 +879,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 							default:
 								// Not supported - but we must still provide a tool_result to match the tool_use
 								b.logger.Error(ctx, "not handling non-text tool result", slog.F("type", fmt.Sprintf("%T", cb)), slog.F("json", out.String()))
-								//messages.Messages = append(messages.Messages,
+								// messages.Messages = append(messages.Messages,
 								//	anthropic.NewBetaUserMessage(anthropic.NewBetaToolResultBlock(id, "Error: unsupported tool result type", true)),
 								//)
 
@@ -876,7 +895,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 
 						// If no content was processed, still add a tool_result
 						if !hasValidResult {
-							//messages.Messages = append(messages.Messages,
+							// messages.Messages = append(messages.Messages,
 							//	anthropic.NewBetaUserMessage(anthropic.NewBetaToolResultBlock(id, "Error: no valid tool result content", true)),
 							//)
 
@@ -967,19 +986,19 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 			streamCancel(xerrors.New("gracefully done"))
 		}
 
-		select {
-		case <-streamCtx.Done():
-		}
+		<-streamCtx.Done()
 
-		// Close the underlying connection by hijacking it
-		if hijacker, ok := w.(http.Hijacker); ok {
-			conn, _, err := hijacker.Hijack()
-			if err != nil {
-				b.logger.Error(ctx, "failed to hijack connection", slog.Error(err))
-			} else {
-				conn.Close() // This closes the TCP connection entirely
-			}
-		}
+		// TODO: do we need to do this?
+		// // Close the underlying connection by hijacking it
+		// if hijacker, ok := w.(http.Hijacker); ok {
+		// 	conn, _, err := hijacker.Hijack()
+		// 	if err != nil {
+		// 		b.logger.Error(ctx, "failed to hijack connection", slog.Error(err))
+		// 	} else {
+		// 		conn.Close() // This closes the TCP connection entirely
+		// 		b.logger.Debug(ctx, "connection closed, stream over")
+		// 	}
+		// }
 
 		break
 	}
@@ -1036,38 +1055,6 @@ type AnthropicErrorResponse struct {
 	*anthropic.BetaErrorResponse
 
 	StatusCode int `json:"-"`
-}
-
-type GetCoordinatesInput struct {
-	Location string `json:"location" jsonschema_description:"The location to look up."`
-}
-
-var GetCoordinatesInputSchema = GenerateSchema[GetCoordinatesInput]()
-
-type GetCoordinateResponse struct {
-	Long float64 `json:"long"`
-	Lat  float64 `json:"lat"`
-}
-
-func GetCoordinates(location string) GetCoordinateResponse {
-	return GetCoordinateResponse{
-		Long: -122.4194,
-		Lat:  37.7749,
-	}
-}
-
-func GenerateSchema[T any]() anthropic.BetaToolInputSchemaParam {
-	reflector := jsonschema.Reflector{
-		AllowAdditionalProperties: false,
-		DoNotReference:            true,
-	}
-	var v T
-
-	schema := reflector.Reflect(v)
-
-	return anthropic.BetaToolInputSchemaParam{
-		Properties: schema.Properties,
-	}
 }
 
 func (b *Bridge) Serve() error {

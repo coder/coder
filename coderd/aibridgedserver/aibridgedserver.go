@@ -18,10 +18,6 @@ type Server struct {
 	store        database.Store
 }
 
-func (s *Server) AuditPrompt(_ context.Context, req *proto.AuditPromptRequest) (*proto.AuditPromptResponse, error) {
-	return &proto.AuditPromptResponse{}, nil
-}
-
 func (s *Server) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageRequest) (*proto.TrackTokenUsageResponse, error) {
 	raw, err := json.Marshal(in)
 	if err != nil {
@@ -36,7 +32,7 @@ func (s *Server) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageR
 	return &proto.TrackTokenUsageResponse{}, nil
 }
 
-func (s *Server) TrackUserPrompts(ctx context.Context, in *proto.TrackUserPromptsRequest) (*proto.TrackUserPromptsResponse, error) {
+func (s *Server) TrackUserPrompt(ctx context.Context, in *proto.TrackUserPromptRequest) (*proto.TrackUserPromptResponse, error) {
 	raw, err := json.Marshal(in)
 	if err != nil {
 		return nil, xerrors.Errorf("marshal event: %w", err)
@@ -47,7 +43,7 @@ func (s *Server) TrackUserPrompts(ctx context.Context, in *proto.TrackUserPrompt
 		return nil, xerrors.Errorf("store event: %w", err)
 	}
 
-	return &proto.TrackUserPromptsResponse{}, nil
+	return &proto.TrackUserPromptResponse{}, nil
 }
 
 func (s *Server) TrackToolUsage(ctx context.Context, in *proto.TrackToolUsageRequest) (*proto.TrackToolUsageResponse, error) {

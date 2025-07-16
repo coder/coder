@@ -2,15 +2,15 @@ package util
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 
 	"github.com/jmespath/go-jmespath"
+	"golang.org/x/xerrors"
 )
 
-var ErrEmptyPath = errors.New("empty path provided")
+var ErrEmptyPath = xerrors.New("empty path provided")
 
 // MarshalNoZero serializes v to JSON, omitting any struct field whose entire
 // value graph is zero **unless** the field carries a `no_omit` tag or matches
@@ -80,7 +80,7 @@ func createTestObject(path string) (map[string]any, error) {
 					if nextMap, ok := arr[idx].(map[string]any); ok {
 						current = nextMap
 					} else {
-						return nil, fmt.Errorf("invalid path structure at %s", part)
+						return nil, xerrors.Errorf("invalid path structure at %s", part)
 					}
 				}
 			}
@@ -92,7 +92,7 @@ func createTestObject(path string) (map[string]any, error) {
 				if nextMap, ok := current[part].(map[string]any); ok {
 					current = nextMap
 				} else {
-					return nil, fmt.Errorf("invalid path structure at %s", part)
+					return nil, xerrors.Errorf("invalid path structure at %s", part)
 				}
 			}
 		}

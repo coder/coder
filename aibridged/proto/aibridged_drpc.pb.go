@@ -38,9 +38,8 @@ func (drpcEncoding_File_aibridged_proto_aibridged_proto) JSONUnmarshal(buf []byt
 type DRPCAIBridgeDaemonClient interface {
 	DRPCConn() drpc.Conn
 
-	AuditPrompt(ctx context.Context, in *AuditPromptRequest) (*AuditPromptResponse, error)
 	TrackTokenUsage(ctx context.Context, in *TrackTokenUsageRequest) (*TrackTokenUsageResponse, error)
-	TrackUserPrompts(ctx context.Context, in *TrackUserPromptsRequest) (*TrackUserPromptsResponse, error)
+	TrackUserPrompt(ctx context.Context, in *TrackUserPromptRequest) (*TrackUserPromptResponse, error)
 	TrackToolUsage(ctx context.Context, in *TrackToolUsageRequest) (*TrackToolUsageResponse, error)
 }
 
@@ -54,15 +53,6 @@ func NewDRPCAIBridgeDaemonClient(cc drpc.Conn) DRPCAIBridgeDaemonClient {
 
 func (c *drpcAIBridgeDaemonClient) DRPCConn() drpc.Conn { return c.cc }
 
-func (c *drpcAIBridgeDaemonClient) AuditPrompt(ctx context.Context, in *AuditPromptRequest) (*AuditPromptResponse, error) {
-	out := new(AuditPromptResponse)
-	err := c.cc.Invoke(ctx, "/aibridged.AIBridgeDaemon/AuditPrompt", drpcEncoding_File_aibridged_proto_aibridged_proto{}, in, out)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *drpcAIBridgeDaemonClient) TrackTokenUsage(ctx context.Context, in *TrackTokenUsageRequest) (*TrackTokenUsageResponse, error) {
 	out := new(TrackTokenUsageResponse)
 	err := c.cc.Invoke(ctx, "/aibridged.AIBridgeDaemon/TrackTokenUsage", drpcEncoding_File_aibridged_proto_aibridged_proto{}, in, out)
@@ -72,9 +62,9 @@ func (c *drpcAIBridgeDaemonClient) TrackTokenUsage(ctx context.Context, in *Trac
 	return out, nil
 }
 
-func (c *drpcAIBridgeDaemonClient) TrackUserPrompts(ctx context.Context, in *TrackUserPromptsRequest) (*TrackUserPromptsResponse, error) {
-	out := new(TrackUserPromptsResponse)
-	err := c.cc.Invoke(ctx, "/aibridged.AIBridgeDaemon/TrackUserPrompts", drpcEncoding_File_aibridged_proto_aibridged_proto{}, in, out)
+func (c *drpcAIBridgeDaemonClient) TrackUserPrompt(ctx context.Context, in *TrackUserPromptRequest) (*TrackUserPromptResponse, error) {
+	out := new(TrackUserPromptResponse)
+	err := c.cc.Invoke(ctx, "/aibridged.AIBridgeDaemon/TrackUserPrompt", drpcEncoding_File_aibridged_proto_aibridged_proto{}, in, out)
 	if err != nil {
 		return nil, err
 	}
@@ -91,23 +81,18 @@ func (c *drpcAIBridgeDaemonClient) TrackToolUsage(ctx context.Context, in *Track
 }
 
 type DRPCAIBridgeDaemonServer interface {
-	AuditPrompt(context.Context, *AuditPromptRequest) (*AuditPromptResponse, error)
 	TrackTokenUsage(context.Context, *TrackTokenUsageRequest) (*TrackTokenUsageResponse, error)
-	TrackUserPrompts(context.Context, *TrackUserPromptsRequest) (*TrackUserPromptsResponse, error)
+	TrackUserPrompt(context.Context, *TrackUserPromptRequest) (*TrackUserPromptResponse, error)
 	TrackToolUsage(context.Context, *TrackToolUsageRequest) (*TrackToolUsageResponse, error)
 }
 
 type DRPCAIBridgeDaemonUnimplementedServer struct{}
 
-func (s *DRPCAIBridgeDaemonUnimplementedServer) AuditPrompt(context.Context, *AuditPromptRequest) (*AuditPromptResponse, error) {
-	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
-}
-
 func (s *DRPCAIBridgeDaemonUnimplementedServer) TrackTokenUsage(context.Context, *TrackTokenUsageRequest) (*TrackTokenUsageResponse, error) {
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
-func (s *DRPCAIBridgeDaemonUnimplementedServer) TrackUserPrompts(context.Context, *TrackUserPromptsRequest) (*TrackUserPromptsResponse, error) {
+func (s *DRPCAIBridgeDaemonUnimplementedServer) TrackUserPrompt(context.Context, *TrackUserPromptRequest) (*TrackUserPromptResponse, error) {
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
@@ -117,20 +102,11 @@ func (s *DRPCAIBridgeDaemonUnimplementedServer) TrackToolUsage(context.Context, 
 
 type DRPCAIBridgeDaemonDescription struct{}
 
-func (DRPCAIBridgeDaemonDescription) NumMethods() int { return 4 }
+func (DRPCAIBridgeDaemonDescription) NumMethods() int { return 3 }
 
 func (DRPCAIBridgeDaemonDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
 	case 0:
-		return "/aibridged.AIBridgeDaemon/AuditPrompt", drpcEncoding_File_aibridged_proto_aibridged_proto{},
-			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
-				return srv.(DRPCAIBridgeDaemonServer).
-					AuditPrompt(
-						ctx,
-						in1.(*AuditPromptRequest),
-					)
-			}, DRPCAIBridgeDaemonServer.AuditPrompt, true
-	case 1:
 		return "/aibridged.AIBridgeDaemon/TrackTokenUsage", drpcEncoding_File_aibridged_proto_aibridged_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAIBridgeDaemonServer).
@@ -139,16 +115,16 @@ func (DRPCAIBridgeDaemonDescription) Method(n int) (string, drpc.Encoding, drpc.
 						in1.(*TrackTokenUsageRequest),
 					)
 			}, DRPCAIBridgeDaemonServer.TrackTokenUsage, true
-	case 2:
-		return "/aibridged.AIBridgeDaemon/TrackUserPrompts", drpcEncoding_File_aibridged_proto_aibridged_proto{},
+	case 1:
+		return "/aibridged.AIBridgeDaemon/TrackUserPrompt", drpcEncoding_File_aibridged_proto_aibridged_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAIBridgeDaemonServer).
-					TrackUserPrompts(
+					TrackUserPrompt(
 						ctx,
-						in1.(*TrackUserPromptsRequest),
+						in1.(*TrackUserPromptRequest),
 					)
-			}, DRPCAIBridgeDaemonServer.TrackUserPrompts, true
-	case 3:
+			}, DRPCAIBridgeDaemonServer.TrackUserPrompt, true
+	case 2:
 		return "/aibridged.AIBridgeDaemon/TrackToolUsage", drpcEncoding_File_aibridged_proto_aibridged_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAIBridgeDaemonServer).
@@ -164,22 +140,6 @@ func (DRPCAIBridgeDaemonDescription) Method(n int) (string, drpc.Encoding, drpc.
 
 func DRPCRegisterAIBridgeDaemon(mux drpc.Mux, impl DRPCAIBridgeDaemonServer) error {
 	return mux.Register(impl, DRPCAIBridgeDaemonDescription{})
-}
-
-type DRPCAIBridgeDaemon_AuditPromptStream interface {
-	drpc.Stream
-	SendAndClose(*AuditPromptResponse) error
-}
-
-type drpcAIBridgeDaemon_AuditPromptStream struct {
-	drpc.Stream
-}
-
-func (x *drpcAIBridgeDaemon_AuditPromptStream) SendAndClose(m *AuditPromptResponse) error {
-	if err := x.MsgSend(m, drpcEncoding_File_aibridged_proto_aibridged_proto{}); err != nil {
-		return err
-	}
-	return x.CloseSend()
 }
 
 type DRPCAIBridgeDaemon_TrackTokenUsageStream interface {
@@ -198,16 +158,16 @@ func (x *drpcAIBridgeDaemon_TrackTokenUsageStream) SendAndClose(m *TrackTokenUsa
 	return x.CloseSend()
 }
 
-type DRPCAIBridgeDaemon_TrackUserPromptsStream interface {
+type DRPCAIBridgeDaemon_TrackUserPromptStream interface {
 	drpc.Stream
-	SendAndClose(*TrackUserPromptsResponse) error
+	SendAndClose(*TrackUserPromptResponse) error
 }
 
-type drpcAIBridgeDaemon_TrackUserPromptsStream struct {
+type drpcAIBridgeDaemon_TrackUserPromptStream struct {
 	drpc.Stream
 }
 
-func (x *drpcAIBridgeDaemon_TrackUserPromptsStream) SendAndClose(m *TrackUserPromptsResponse) error {
+func (x *drpcAIBridgeDaemon_TrackUserPromptStream) SendAndClose(m *TrackUserPromptResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_aibridged_proto_aibridged_proto{}); err != nil {
 		return err
 	}

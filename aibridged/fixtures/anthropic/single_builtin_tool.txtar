@@ -1,0 +1,45 @@
+Claude Code has builtin tools to (e.g.) explore the filesystem.
+
+-- request --
+{
+	"model": "claude-sonnet-4-20250514",
+	"max_tokens": 1024,
+	"messages": [
+		{
+			"role": "user",
+			"content": "read the foo file"
+		}
+	],
+	"stream": true
+}
+
+-- response --
+event: message_start
+data: {"type":"message_start","message":{"id":"msg_015SQewixvT9s4cABCVvUE6g","type":"message","role":"assistant","model":"claude-sonnet-4-20250514","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":22,"cache_read_input_tokens":13993,"output_tokens":5,"service_tier":"standard"}}             }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_01RX68weRSquLx6HUTj65iBo","name":"Read","input":{}}           }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":""}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\": \"/tmp/blah/foo"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\"}"}  }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0          }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":61}              }
+
+event: message_stop
+data: {"type":"message_stop"              }
+
+
+---
