@@ -3,6 +3,7 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -76,4 +77,22 @@ func (c *Client) ListUserSecrets(ctx context.Context) (ListUserSecretsResponse, 
 
 	var userSecrets ListUserSecretsResponse
 	return userSecrets, json.NewDecoder(res.Body).Decode(&userSecrets)
+}
+
+func (c *Client) GetUserSecret(ctx context.Context, secretName string) (UserSecret, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/users/secrets/%v", secretName),
+		nil,
+	)
+	if err != nil {
+		return UserSecret{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return UserSecret{}, ReadBodyAsError(res)
+	}
+
+	var userSecret UserSecret
+	return userSecret, json.NewDecoder(res.Body).Decode(&userSecret)
 }

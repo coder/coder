@@ -4,6 +4,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"net/http"
 
@@ -72,6 +73,34 @@ func (api *API) listUserSecrets(rw http.ResponseWriter, r *http.Request) {
 	for i, secret := range secrets {
 		response.Secrets[i] = db2sdk.UserSecret(secret)
 	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, response)
+}
+
+// Returns a user secret.
+//
+// @Summary Returns a user secret.
+// @ID get-user-secret
+// @Security CoderSessionToken
+// @Produce json
+// @Tags User-Secrets
+// @Success 200 {object} codersdk.UserSecret
+// @Router /users/secrets/{name} [get]
+func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	secretName := chi.URLParam(r, "name")
+
+	userSecret, err := api.Database.GetUserSecret(ctx, database.GetUserSecretParams{
+		UserID: apiKey.UserID,
+		Name:   secretName,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	response := db2sdk.UserSecret(userSecret)
 
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }

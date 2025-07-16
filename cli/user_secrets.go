@@ -17,6 +17,7 @@ func (r *RootCmd) secrets() *serpent.Command {
 		Children: []*serpent.Command{
 			r.secretCreate(),
 			r.secretList(),
+			r.secretGet(),
 		},
 	}
 }
@@ -66,7 +67,6 @@ func (r *RootCmd) secretCreate() *serpent.Command {
 
 func (r *RootCmd) secretList() *serpent.Command {
 	client := new(codersdk.Client)
-	//var value string
 	cmd := &serpent.Command{
 		Use:   "list",
 		Short: "List user secrets",
@@ -83,6 +83,32 @@ func (r *RootCmd) secretList() *serpent.Command {
 			for _, secret := range secretList.Secrets {
 				fmt.Fprintf(inv.Stdout, "%v - %v - %v\n", secret.ID, secret.Name, secret.Description)
 			}
+			return nil
+		},
+	}
+	cmd.Options = serpent.OptionSet{}
+	return cmd
+}
+
+func (r *RootCmd) secretGet() *serpent.Command {
+	client := new(codersdk.Client)
+	//var value string
+	cmd := &serpent.Command{
+		Use:   "get <name>",
+		Short: "Get user secret",
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
+			r.InitClient(client),
+		),
+		Handler: func(inv *serpent.Invocation) error {
+			secretName := inv.Args[0]
+			secret, err := client.GetUserSecret(inv.Context(), secretName)
+			if err != nil {
+				return err
+			}
+
+			fmt.Fprintf(inv.Stdout, "ID | Name | Description\n")
+			fmt.Fprintf(inv.Stdout, "%v - %v - %v\n", secret.ID, secret.Name, secret.Description)
 			return nil
 		},
 	}

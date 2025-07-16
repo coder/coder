@@ -1,8 +1,6 @@
 package coderd_test
 
 import (
-	"encoding/json"
-	"fmt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -41,9 +39,9 @@ func TestUserSecrets(t *testing.T) {
 		Value:       "secretkey",
 	})
 	require.NoError(t, err)
-	userSecretInJSON, err := json.Marshal(userSecret)
-	require.NoError(t, err)
-	fmt.Printf("userSecretInJSON: %s\n", userSecretInJSON)
+	//userSecretInJSON, err := json.Marshal(userSecret)
+	//require.NoError(t, err)
+	//fmt.Printf("userSecretInJSON: %s\n", userSecretInJSON)
 
 	require.NotNil(t, userSecret.ID)
 	require.Equal(t, templateAdmin.ID, userSecret.UserID)
@@ -54,12 +52,24 @@ func TestUserSecrets(t *testing.T) {
 	userSecretList, err := templateAdminClient.ListUserSecrets(ctx)
 	require.NoError(t, err)
 	require.Len(t, userSecretList.Secrets, 1)
-	userSecretListInJSON, err := json.Marshal(userSecretList)
-	require.NoError(t, err)
-	fmt.Printf("userSecretListInJSON: %s\n", userSecretListInJSON)
+	//userSecretListInJSON, err := json.Marshal(userSecretList)
+	//require.NoError(t, err)
+	//fmt.Printf("userSecretListInJSON: %s\n", userSecretListInJSON)
 
 	require.NotNil(t, userSecretList.Secrets[0].ID)
 	require.Equal(t, templateAdmin.ID, userSecretList.Secrets[0].UserID)
 	require.Equal(t, userSecretName, userSecretList.Secrets[0].Name)
 	require.Equal(t, userSecretDescription, userSecretList.Secrets[0].Description)
+
+	// test get API
+	userSecret, err = templateAdminClient.GetUserSecret(ctx, userSecretName)
+	require.NoError(t, err)
+	//userSecretInJSON, err := json.Marshal(userSecret)
+	//require.NoError(t, err)
+	//fmt.Printf("userSecretInJSON: %s\n", userSecretInJSON)
+
+	require.NotNil(t, userSecret.ID)
+	require.Equal(t, templateAdmin.ID, userSecret.UserID)
+	require.Equal(t, userSecretName, userSecret.Name)
+	require.Equal(t, userSecretDescription, userSecret.Description)
 }
