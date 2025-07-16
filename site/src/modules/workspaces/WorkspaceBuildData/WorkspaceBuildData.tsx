@@ -6,9 +6,10 @@ import { BuildIcon } from "components/BuildIcon/BuildIcon";
 import { InfoIcon } from "lucide-react";
 import { createDayString } from "utils/createDayString";
 import {
-	getDisplayInitiatorBuildReason,
+	buildReasonLabels,
 	getDisplayWorkspaceBuildInitiatedBy,
 	getDisplayWorkspaceBuildStatus,
+	systemBuildReasons,
 } from "utils/workspace";
 
 export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
@@ -42,9 +43,9 @@ export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
 					<span css={{ fontWeight: 500 }}>
 						{getDisplayWorkspaceBuildInitiatedBy(build)}
 					</span>
-					{getDisplayInitiatorBuildReason(build.reason) &&
+					{!systemBuildReasons.includes(build.reason) &&
 						build.transition === "start" && (
-							<Tooltip title={getDisplayInitiatorBuildReason(build.reason)}>
+							<Tooltip title={buildReasonLabels[build.reason]}>
 								<InfoIcon
 									css={(theme) => ({
 										color: theme.palette.info.light,

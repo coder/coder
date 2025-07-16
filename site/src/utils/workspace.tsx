@@ -92,24 +92,21 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
 	return undefined;
 };
 
-export const getDisplayInitiatorBuildReason = (
-	buildReason: string,
-): string | undefined => {
-	switch (buildReason) {
-		case "initiator":
-			return "API";
-		case "dashboard":
-			return "Dashboard";
-		case "cli":
-			return "CLI";
-		case "ssh_connection":
-			return "SSH Connection";
-		case "vscode_connection":
-			return "VSCode Connection";
-		case "jetbrains_connection":
-			return "JetBrains Connection";
-	}
-	return undefined;
+export const systemBuildReasons = ["autostart", "autostop", "dormancy"];
+
+export const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
+	// User build reasons
+	initiator: "API",
+	dashboard: "Dashboard",
+	cli: "CLI",
+	ssh_connection: "SSH Connection",
+	vscode_connection: "VSCode Connection",
+	jetbrains_connection: "JetBrains Connection",
+
+	// System build reasons
+	autostart: "Autostart",
+	autostop: "Autostop",
+	dormancy: "Dormancy",
 };
 
 const getWorkspaceBuildDurationInSeconds = (

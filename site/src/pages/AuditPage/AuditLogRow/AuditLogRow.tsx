@@ -3,7 +3,7 @@ import Collapse from "@mui/material/Collapse";
 import Link from "@mui/material/Link";
 import TableCell from "@mui/material/TableCell";
 import Tooltip from "@mui/material/Tooltip";
-import type { AuditLog } from "api/typesGenerated";
+import type { AuditLog, BuildReason } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
@@ -14,7 +14,7 @@ import { NetworkIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import userAgentParser from "ua-parser-js";
-import { getDisplayInitiatorBuildReason } from "utils/workspace";
+import { buildReasonLabels } from "utils/workspace";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
 import {
@@ -167,16 +167,14 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 															</Link>
 														</div>
 													)}
-													{getDisplayInitiatorBuildReason(
-														auditLog.additional_fields?.build_reason,
-													) &&
+													{auditLog.additional_fields?.build_reason &&
 														auditLog.action === "start" && (
 															<div>
 																<h4 css={styles.auditLogInfoHeader}>Reason:</h4>
 																<div>
-																	{getDisplayInitiatorBuildReason(
-																		auditLog.additional_fields?.build_reason,
-																	)}
+																	{buildReasonLabels[
+																		auditLog.additional_fields.build_reason as BuildReason
+																	]}
 																</div>
 															</div>
 														)}
@@ -211,16 +209,14 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 													</strong>
 												</span>
 											)}
-											{getDisplayInitiatorBuildReason(
-												auditLog.additional_fields?.build_reason,
-											) &&
+											{auditLog.additional_fields?.build_reason &&
 												auditLog.action === "start" && (
 													<span css={styles.auditLogInfo}>
 														<span>Reason: </span>
 														<strong>
-															{getDisplayInitiatorBuildReason(
-																auditLog.additional_fields?.build_reason,
-															)}
+															{buildReasonLabels[
+																auditLog.additional_fields.build_reason as BuildReason
+															]}
 														</strong>
 													</span>
 												)}
