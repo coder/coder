@@ -1,4 +1,8 @@
-import { Filter, MenuSkeleton, type UseFilterResult } from "components/Filter/Filter";
+import {
+	Filter,
+	MenuSkeleton,
+	type UseFilterResult,
+} from "components/Filter/Filter";
 import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
@@ -80,8 +84,8 @@ type WorkspaceFilterProps = Readonly<{
 	statusMenu: StatusFilterMenu;
 
 	userMenu?: UserFilterMenu;
-	organizationsMenu?: OrganizationsFilterMenu
-}>
+	organizationsMenu?: OrganizationsFilterMenu;
+}>;
 
 export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	filter,
@@ -96,7 +100,8 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	const presets = entitlements.features.advanced_template_scheduling.enabled
 		? PRESETS_WITH_DORMANT
 		: PRESET_FILTERS;
-	const organizationsActive = showOrganizations && organizationsMenu !== undefined
+	const organizationsActive =
+		showOrganizations && organizationsMenu !== undefined;
 
 	return (
 		<Filter
