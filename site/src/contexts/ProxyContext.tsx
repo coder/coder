@@ -211,7 +211,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 			saveUserSelectedProxy(best.proxy);
 			updateProxy();
 		}
-	}, [latenciesLoaded, proxiesResp, proxyLatencies]);
+	}, [latenciesLoaded, proxiesResp, proxyLatencies, userSavedProxy]);
 
 	return (
 		<ProxyContext.Provider
