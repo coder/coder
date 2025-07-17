@@ -530,6 +530,13 @@ export interface CreateUserRequestWithOrgs {
 	readonly organization_ids: readonly string[];
 }
 
+// From codersdk/user_secrets.go
+export interface CreateUserSecretRequest {
+	readonly name: string;
+	readonly description?: string;
+	readonly value: string;
+}
+
 // From codersdk/workspaces.go
 export interface CreateWorkspaceBuildRequest {
 	readonly template_version_id?: string;
@@ -1346,6 +1353,11 @@ export interface ListInboxNotificationsResponse {
 export interface ListUserExternalAuthResponse {
 	readonly providers: readonly ExternalAuthLinkProvider[];
 	readonly links: readonly ExternalAuthLink[];
+}
+
+// From codersdk/user_secrets.go
+export interface ListUserSecretsResponse {
+	readonly secrets: readonly UserSecret[];
 }
 
 // From codersdk/provisionerdaemons.go
@@ -2343,6 +2355,7 @@ export type RBACResource =
 	| "tailnet_coordinator"
 	| "template"
 	| "user"
+	| "user_secret"
 	| "webpush_subscription"
 	| "*"
 	| "workspace"
@@ -2383,6 +2396,7 @@ export const RBACResources: RBACResource[] = [
 	"tailnet_coordinator",
 	"template",
 	"user",
+	"user_secret",
 	"webpush_subscription",
 	"*",
 	"workspace",
@@ -3188,6 +3202,13 @@ export interface UpdateUserQuietHoursScheduleRequest {
 	readonly schedule: string;
 }
 
+// From codersdk/user_secrets.go
+export interface UpdateUserSecretRequest {
+	readonly name: string;
+	readonly description?: string;
+	readonly value: string;
+}
+
 // From codersdk/workspaces.go
 export interface UpdateWorkspaceAutomaticUpdatesRequest {
 	readonly automatic_updates: AutomaticUpdates;
@@ -3350,6 +3371,21 @@ export interface UserQuietHoursScheduleResponse {
 export interface UserRoles {
 	readonly roles: readonly string[];
 	readonly organization_roles: Record<string, string[]>;
+}
+
+// From codersdk/user_secrets.go
+export interface UserSecret {
+	readonly id: string;
+	readonly user_id: string;
+	readonly name: string;
+	readonly description?: string;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/user_secrets.go
+export interface UserSecretValue {
+	readonly value: string;
 }
 
 // From codersdk/users.go
