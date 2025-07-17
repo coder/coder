@@ -12985,6 +12985,18 @@ const docTemplate = `{
                 },
                 "limit": {
                     "type": "integer"
+                },
+                "soft_limit": {
+                    "description": "SoftLimit is the soft limit of the feature, and is only used for showing\nincluded limits in the dashboard. No license validation or warnings are\ngenerated from this value.",
+                    "type": "integer"
+                },
+                "usage_period": {
+                    "description": "UsagePeriod denotes that the usage is a counter that accumulates over\nthis period (and most likely resets with the issuance of the next\nlicense).\n\nThese dates are determined from the license that this entitlement comes\nfrom, see enterprise/coderd/license/license.go.\n\nOnly certain features set these fields:\n- FeatureManagedAgentLimit",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.UsagePeriod"
+                        }
+                    ]
                 }
             }
         },
@@ -17241,6 +17253,23 @@ const docTemplate = `{
                 "UsageAppNameReconnectingPty",
                 "UsageAppNameSSH"
             ]
+        },
+        "codersdk.UsagePeriod": {
+            "type": "object",
+            "properties": {
+                "end": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "issued_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "start": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
         },
         "codersdk.User": {
             "type": "object",

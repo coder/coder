@@ -56,24 +56,48 @@ export const Dropdown: Story = {
 			type: "string",
 			options: [
 				{
-					name: "Option 1",
-					value: { valid: true, value: "option1" },
-					description: "this is option 1",
-					icon: "",
+					name: "Nissa, Worldsoul Speaker",
+					value: { valid: true, value: "nissa" },
+					description:
+						"Zendikar still seems so far off, but Chandra is my home.",
+					icon: "/emojis/1f7e2.png",
 				},
 				{
-					name: "Option 2",
-					value: { valid: true, value: "option2" },
-					description: "this is option 2",
-					icon: "",
+					name: "Canopy Spider",
+					value: { valid: true, value: "spider" },
+					description:
+						"It keeps the upper reaches of the forest free of every menace . . . except for the spider itself.",
+					icon: "/emojis/1f7e2.png",
 				},
 				{
-					name: "Option 3",
-					value: { valid: true, value: "option3" },
-					description: "this is option 3",
-					icon: "",
+					name: "Ajani, Nacatl Pariah",
+					value: { valid: true, value: "ajani" },
+					description: "His pride denied him; his brother did not.",
+					icon: "/emojis/26aa.png",
+				},
+				{
+					name: "Glowing Anemone",
+					value: { valid: true, value: "anemone" },
+					description: "Beautiful to behold, terrible to be held.",
+					icon: "/emojis/1f535.png",
+				},
+				{
+					name: "Springmantle Cleric",
+					value: { valid: true, value: "cleric" },
+					description: "Hope and courage bloom in her wake.",
+					icon: "/emojis/1f7e2.png",
+				},
+				{
+					name: "Aegar, the Freezing Flame",
+					value: { valid: true, value: "aegar" },
+					description:
+						"Though Phyrexian machines could adapt to extremes of heat or cold, they never figured out how to adapt to both at once.",
+					icon: "/emojis/1f308.png",
 				},
 			],
+			styling: {
+				placeholder: "Select a creature",
+			},
 		},
 	},
 };
