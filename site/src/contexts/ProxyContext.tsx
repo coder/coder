@@ -115,22 +115,6 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 		},
 	});
 
-	// Get user saved proxy from API or fallback to localStorage for migration
-	const userSavedProxy = useMemo(() => {
-		if (userProxyQuery.data?.preferred_proxy) {
-			// Find the proxy object from the preferred_proxy ID
-			const proxyId = userProxyQuery.data.preferred_proxy;
-			return proxiesResp?.find((p) => p.id === proxyId);
-		}
-		// Fallback to localStorage for migration
-		return loadUserSelectedProxy();
-	}, [userProxyQuery.data, proxiesResp]);
-
-	// Load the initial state from user preferences or localStorage.
-	const [proxy, setProxy] = useState<PreferredProxy>(
-		computeUsableURLS(userSavedProxy),
-	);
-
 	const { permissions } = useAuthenticated();
 	const { metadata } = useEmbeddedMetadata();
 
@@ -152,6 +136,22 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 				return resp.regions;
 			},
 		}),
+	);
+
+	// Get user saved proxy from API or fallback to localStorage for migration
+	const userSavedProxy = useMemo(() => {
+		if (userProxyQuery.data?.preferred_proxy) {
+			// Find the proxy object from the preferred_proxy ID
+			const proxyId = userProxyQuery.data.preferred_proxy;
+			return proxiesResp?.find((p) => p.id === proxyId);
+		}
+		// Fallback to localStorage for migration
+		return loadUserSelectedProxy();
+	}, [userProxyQuery.data, proxiesResp]);
+
+	// Load the initial state from user preferences or localStorage.
+	const [proxy, setProxy] = useState<PreferredProxy>(
+		computeUsableURLS(userSavedProxy),
 	);
 
 	// Every time we get a new proxiesResponse, update the latency check
