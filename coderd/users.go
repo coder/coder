@@ -1082,15 +1082,18 @@ func (api *API) userProxySettings(rw http.ResponseWriter, r *http.Request) {
 
 	preferredProxy, err := api.Database.GetUserPreferredProxy(ctx, user.ID)
 	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error reading user proxy settings.",
-				Detail:  err.Error(),
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "User proxy settings not found.",
 			})
 			return
 		}
 
-		preferredProxy = ""
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error reading user proxy settings.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserProxySettings{
