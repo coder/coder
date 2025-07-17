@@ -641,6 +641,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				ExternalAuthConfigs:         externalAuthConfigs,
 				RealIPConfig:                realIPConfig,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
+				SignupsDisabledText:         vals.SignupsDisabledText.String(),
 				TracerProvider:              tracerProvider,
 				Telemetry:                   telemetry.NewNoop(),
 				MetricsCacheRefreshInterval: vals.MetricsCacheRefreshInterval.Value(),

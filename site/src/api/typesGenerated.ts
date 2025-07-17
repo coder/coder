@@ -747,6 +747,7 @@ export interface DeploymentValues {
 	readonly trace?: TraceConfig;
 	readonly http_cookies?: HTTPCookieConfig;
 	readonly strict_transport_security?: number;
+	readonly signups_disabled_text?: string;
 	readonly strict_transport_security_options?: string;
 	readonly ssh_keygen_algorithm?: string;
 	readonly metrics_cache_refresh_interval?: number;
