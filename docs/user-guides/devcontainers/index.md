@@ -2,7 +2,7 @@
 
 The dev containers integration enables seamless creation and management of dev containers in Coder workspaces.
 
-This feature leverages the [`@devcontainers/cli`](https://github.com/devcontainers/cli) and [Docker](https://www.docker.com)
+This feature leverages [`@devcontainers/cli`](https://github.com/devcontainers/cli) and [Docker](https://www.docker.com)
 to provide a streamlined development experience.
 
 ## Prerequisites

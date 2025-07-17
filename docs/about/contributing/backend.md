@@ -49,7 +49,7 @@ Coder's backend is built using a collection of robust, modern Go libraries and i
 
 The Coder backend is organized into multiple packages and directories, each with a specific purpose. Here's a high-level overview of the most important ones:
 
-* [agent](https://github.com/coder/coder/tree/main/agent): core logic of a workspace agent, supports DevContainers, remote SSH, startup/shutdown script execution. Protobuf definitions for DRPC communication with `coderd` are kept in [proto](https://github.com/coder/coder/tree/main/agent/proto).
+* [agent](https://github.com/coder/coder/tree/main/agent): core logic of a workspace agent, supports dev containers, remote SSH, startup/shutdown script execution. Protobuf definitions for DRPC communication with `coderd` are kept in [proto](https://github.com/coder/coder/tree/main/agent/proto).
 * [cli](https://github.com/coder/coder/tree/main/cli): CLI interface for `coder` command built on [coder/serpent](https://github.com/coder/serpent). Input controls are defined in [cliui](https://github.com/coder/coder/tree/docs-backend-contrib-guide/cli/cliui), and [testdata](https://github.com/coder/coder/tree/docs-backend-contrib-guide/cli/testdata) contains golden files for common CLI calls
 * [cmd](https://github.com/coder/coder/tree/main/cmd): entry points for CLI and services, including `coderd`
 * [coderd](https://github.com/coder/coder/tree/main/coderd): the main API server implementation with [chi](https://github.com/go-chi/chi) endpoints
