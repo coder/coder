@@ -104,6 +104,15 @@ Specifies whether or not to wait for the startup script to finish executing. Aut
 
 Enter workspace immediately after the agent has connected. This is the default if the template has configured the agent startup script behavior as non-blocking.
 
+### -q, --quiet
+
+|             |                               |
+|-------------|-------------------------------|
+| Type        | <code>bool</code>             |
+| Environment | <code>$CODER_SSH_QUIET</code> |
+
+Suppress machine setup logs and connection indicators.
+
 ### -l, --log-dir
 
 |             |                                 |
