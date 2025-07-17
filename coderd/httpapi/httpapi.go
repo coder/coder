@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 	"time"
@@ -25,6 +26,61 @@ import (
 )
 
 var Validate *validator.Validate
+
+// isValidOAuth2RedirectURI validates OAuth2 redirect URIs according to RFC 6749.
+// It requires a proper scheme and host, rejecting malformed URIs that would be
+// problematic for OAuth2 flows.
+func isValidOAuth2RedirectURI(uri string) bool {
+	if uri == "" {
+		return false
+	}
+
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return false
+	}
+
+	// Must have a scheme
+	if parsed.Scheme == "" {
+		return false
+	}
+
+	// Reject patterns that look like "host:port" without proper scheme
+	// These get parsed as scheme="host" and path="port" which is ambiguous
+	if parsed.Host == "" && parsed.Path != "" && !strings.HasPrefix(uri, parsed.Scheme+"://") {
+		// Check if this looks like a host:port pattern (contains digits after colon)
+		if strings.Contains(parsed.Path, ":") {
+			return false
+		}
+		// Also reject if the "scheme" part looks like a hostname
+		if strings.Contains(parsed.Scheme, ".") || parsed.Scheme == "localhost" {
+			return false
+		}
+	}
+
+	// For standard schemes (http/https), host is required
+	if parsed.Scheme == "http" || parsed.Scheme == "https" {
+		if parsed.Host == "" {
+			return false
+		}
+	}
+
+	// Reject scheme-only URIs like "http://"
+	if parsed.Host == "" && parsed.Path == "" {
+		return false
+	}
+
+	// For custom schemes, we allow no host (like "myapp://callback")
+	// But if there's a host, it should be valid
+	if parsed.Host != "" {
+		// Basic host validation - should not be empty after parsing
+		if strings.TrimSpace(parsed.Host) == "" {
+			return false
+		}
+	}
+
+	return true
+}
 
 // This init is used to create a validator and register validation-specific
 // functionality for the HTTP API.
@@ -110,6 +166,19 @@ func init() {
 		return valid == nil
 	}
 	err = Validate.RegisterValidation("group_name", groupNameValidator)
+	if err != nil {
+		panic(err)
+	}
+
+	oauth2RedirectURIValidator := func(fl validator.FieldLevel) bool {
+		f := fl.Field().Interface()
+		str, ok := f.(string)
+		if !ok {
+			return false
+		}
+		return isValidOAuth2RedirectURI(str)
+	}
+	err = Validate.RegisterValidation("oauth2_redirect_uri", oauth2RedirectURIValidator)
 	if err != nil {
 		panic(err)
 	}
