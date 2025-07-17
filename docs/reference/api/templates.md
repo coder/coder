@@ -2921,7 +2921,8 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
         "name": "string",
         "value": "string"
       }
-    ]
+    ],
+    "prebuilds": 0
   }
 ]
 ```
@@ -2945,6 +2946,7 @@ Status Code **200**
 | `» parameters` | array   | false    |              |             |
 | `»» name`      | string  | false    |              |             |
 | `»» value`     | string  | false    |              |             |
+| `» prebuilds`  | integer | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

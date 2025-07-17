@@ -1962,6 +1962,7 @@ export interface Preset {
 	readonly Name: string;
 	readonly Parameters: readonly PresetParameter[];
 	readonly Default: boolean;
+	readonly Prebuilds: number | null;
 }
 
 // From codersdk/presets.go
