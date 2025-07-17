@@ -13,7 +13,7 @@ import {
 	useMemo,
 	useState,
 } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useQuery, useQueryClient } from "react-query";
 
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
 
@@ -141,7 +141,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 		setProxy(
 			getPreferredProxy(
 				proxiesResp ?? [],
-				userSavedProxy,
+				loadUserSelectedProxy(),
 				proxyLatencies,
 				// Do not auto select based on latencies, as inconsistent latencies can cause this
 				// to change on each call. updateProxy should be stable when selecting a proxy to
@@ -149,7 +149,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 				false,
 			),
 		);
-	}, [proxiesResp, proxyLatencies, userSavedProxy]);
+	}, [proxiesResp, proxyLatencies]);
 
 	// This useEffect ensures the proxy to be used is updated whenever the state changes.
 	// This includes proxies being loaded, latencies being calculated, and the user selecting a proxy.
