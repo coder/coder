@@ -755,9 +755,7 @@ export interface DynamicParametersResponse {
 
 // From codersdk/externalauth.go
 export type EnhancedExternalAuthProvider = "azure-devops" | "azure-devops-entra" | "bitbucket-cloud" | "bitbucket-server" | "github" | "gitlab" | "gitea" | "jfrog" | "slack";
-
 export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = ["azure-devops", "azure-devops-entra", "bitbucket-cloud", "bitbucket-server", "github", "gitlab", "gitea", "jfrog", "slack"];
-
 // From codersdk/deployment.go
 export type Entitlement = "entitled" | "grace_period" | "not_entitled";
 
@@ -2153,8 +2151,7 @@ export interface SerpentOption {
 	readonly yaml?: string;
 	readonly default?: string;
 	// interface type, falling back to unknown
-	// this is likely an enum in an external package "github.com/spf13/pflag.Value"
-	readonly value?: unknown;
+	// this is likely an enum in an external package "github.com/spf13/pflag.Value"    readonly value?: unknown;
 	readonly annotations?: SerpentAnnotations;
 	readonly group?: SerpentGroup;
 	readonly use_instead?: readonly SerpentOption[];
