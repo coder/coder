@@ -1066,6 +1066,101 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
+// @Summary Get user proxy settings
+// @ID get-user-proxy-settings
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.UserProxySettings
+// @Router /users/{user}/proxy [get]
+func (api *API) userProxySettings(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
+
+	preferredProxy, err := api.Database.GetUserPreferredProxy(ctx, user.ID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error reading user proxy settings.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		preferredProxy = ""
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserProxySettings{
+		PreferredProxy: preferredProxy,
+	})
+}
+
+// @Summary Update user proxy settings
+// @ID update-user-proxy-settings
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param request body codersdk.UpdateUserProxySettingsRequest true "New proxy settings"
+// @Success 200 {object} codersdk.UserProxySettings
+// @Router /users/{user}/proxy [put]
+func (api *API) putUserProxySettings(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
+
+	var params codersdk.UpdateUserProxySettingsRequest
+	if !httpapi.Read(ctx, rw, r, &params) {
+		return
+	}
+
+	updatedPreferredProxy, err := api.Database.UpdateUserPreferredProxy(ctx, database.UpdateUserPreferredProxyParams{
+		UserID:         user.ID,
+		PreferredProxy: params.PreferredProxy,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating user proxy preference.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserProxySettings{
+		PreferredProxy: updatedPreferredProxy.Value,
+	})
+}
+
+// @Summary Delete user proxy settings
+// @ID delete-user-proxy-settings
+// @Security CoderSessionToken
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Success 204
+// @Router /users/{user}/proxy [delete]
+func (api *API) deleteUserProxySettings(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
+
+	err := api.Database.DeleteUserPreferredProxy(ctx, user.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error deleting user proxy preference.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 func isValidFontName(font codersdk.TerminalFontName) bool {
 	return slices.Contains(codersdk.TerminalFontNames, font)
 }

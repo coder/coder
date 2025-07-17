@@ -3,6 +3,7 @@ import { cachedQuery } from "api/queries/util";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
 import { useAuthenticated } from "hooks";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -10,6 +11,7 @@ import {
 	useCallback,
 	useContext,
 	useEffect,
+	useMemo,
 	useState,
 } from "react";
 import { useQuery } from "react-query";
@@ -91,11 +93,42 @@ export const ProxyContext = createContext<ProxyContextValue | undefined>(
  * ProxyProvider interacts with local storage to indicate the preferred workspace proxy.
  */
 export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
-	// Using a useState so the caller always has the latest user saved
-	// proxy.
-	const [userSavedProxy, setUserSavedProxy] = useState(loadUserSelectedProxy());
+	const queryClient = useQueryClient();
+	
+	// Fetch user proxy settings from API
+	const userProxyQuery = useQuery({
+		queryKey: ["userProxySettings"],
+		queryFn: () => API.getProxySettings(),
+		retry: false, // Don't retry if user doesn't have proxy settings
+	});
+	
+	// Mutation for updating proxy settings
+	const updateProxyMutation = useMutation({
+		mutationFn: (proxyId: string) => API.updateProxySettings({ preferred_proxy: proxyId }),
+		onSuccess: () => {
+			queryClient.invalidateQueries(["userProxySettings"]);
+		},
+	});
+	
+	const deleteProxyMutation = useMutation({
+		mutationFn: () => API.deleteProxySettings(),
+		onSuccess: () => {
+			queryClient.invalidateQueries(["userProxySettings"]);
+		},
+	});
 
-	// Load the initial state from local storage.
+	// Get user saved proxy from API or fallback to localStorage for migration
+	const userSavedProxy = useMemo(() => {
+		if (userProxyQuery.data?.preferred_proxy) {
+			// Find the proxy object from the preferred_proxy ID
+			const proxyId = userProxyQuery.data.preferred_proxy;
+			return proxiesResp?.find(p => p.id === proxyId);
+		}
+		// Fallback to localStorage for migration
+		return loadUserSelectedProxy();
+	}, [userProxyQuery.data, proxiesResp]);
+
+	// Load the initial state from user preferences or localStorage.
 	const [proxy, setProxy] = useState<PreferredProxy>(
 		computeUsableURLS(userSavedProxy),
 	);
@@ -134,12 +167,10 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	// updateProxy is a helper function that when called will
 	// update the proxy being used.
 	const updateProxy = useCallback(() => {
-		// Update the saved user proxy for the caller.
-		setUserSavedProxy(loadUserSelectedProxy());
 		setProxy(
 			getPreferredProxy(
 				proxiesResp ?? [],
-				loadUserSelectedProxy(),
+				userSavedProxy,
 				proxyLatencies,
 				// Do not auto select based on latencies, as inconsistent latencies can cause this
 				// to change on each call. updateProxy should be stable when selecting a proxy to
@@ -147,14 +178,14 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 				false,
 			),
 		);
-	}, [proxiesResp, proxyLatencies]);
+	}, [proxiesResp, proxyLatencies, userSavedProxy]);
 
 	// This useEffect ensures the proxy to be used is updated whenever the state changes.
 	// This includes proxies being loaded, latencies being calculated, and the user selecting a proxy.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: Only update if the source data changes
 	useEffect(() => {
 		updateProxy();
-	}, [proxiesResp, proxyLatencies]);
+	}, [proxiesResp, proxyLatencies, userSavedProxy]);
 
 	// This useEffect will auto select the best proxy if the user has not selected one.
 	// It must wait until all latencies are loaded to select based on latency. This does mean
@@ -163,7 +194,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	// Once the page is loaded, or the user selects a proxy, this will not run again.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: Only update if the source data changes
 	useEffect(() => {
-		if (loadUserSelectedProxy() !== undefined) {
+		if (userSavedProxy !== undefined) {
 			return; // User has selected a proxy, do not auto select.
 		}
 		if (!latenciesLoaded) {
@@ -173,7 +204,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
 		const best = getPreferredProxy(
 			proxiesResp ?? [],
-			loadUserSelectedProxy(),
+			userSavedProxy,
 			proxyLatencies,
 			true,
 		);
@@ -199,13 +230,15 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
 				// These functions are exposed to allow the user to select a proxy.
 				setProxy: (proxy: Region) => {
-					// Save to local storage to persist the user's preference across reloads
-					saveUserSelectedProxy(proxy);
+					// Save to API and fallback to localStorage for immediate feedback
+					updateProxyMutation.mutate(proxy.id);
+					saveUserSelectedProxy(proxy); // Keep for immediate UI feedback
 					// Update the selected proxy
 					updateProxy();
 				},
 				clearProxy: () => {
-					// Clear the user's selection from local storage.
+					// Clear from API and localStorage
+					deleteProxyMutation.mutate();
 					clearUserSelectedProxy();
 					updateProxy();
 				},

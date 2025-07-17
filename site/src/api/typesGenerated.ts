@@ -3166,6 +3166,11 @@ export interface UpdateUserAppearanceSettingsRequest {
 	readonly terminal_font: TerminalFontName;
 }
 
+// From codersdk/users.go
+export interface UpdateUserProxySettingsRequest {
+	readonly preferred_proxy: string;
+}
+
 // From codersdk/notifications.go
 export interface UpdateUserNotificationPreferences {
 	readonly template_disabled_map: Record<string, boolean>;
@@ -3288,6 +3293,11 @@ export interface UserActivityInsightsResponse {
 export interface UserAppearanceSettings {
 	readonly theme_preference: string;
 	readonly terminal_font: TerminalFontName;
+}
+
+// From codersdk/users.go
+export interface UserProxySettings {
+	readonly preferred_proxy: string;
 }
 
 // From codersdk/insights.go
