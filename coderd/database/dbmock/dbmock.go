@@ -6404,6 +6404,50 @@ func (mr *MockStoreMockRecorder) UpdateUserThemePreference(ctx, arg any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserThemePreference", reflect.TypeOf((*MockStore)(nil).UpdateUserThemePreference), ctx, arg)
 }
 
+// GetUserPreferredProxy mocks base method.
+func (m *MockStore) GetUserPreferredProxy(ctx context.Context, userID uuid.UUID) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserPreferredProxy", ctx, userID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserPreferredProxy indicates an expected call of GetUserPreferredProxy.
+func (mr *MockStoreMockRecorder) GetUserPreferredProxy(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserPreferredProxy", reflect.TypeOf((*MockStore)(nil).GetUserPreferredProxy), ctx, userID)
+}
+
+// UpdateUserPreferredProxy mocks base method.
+func (m *MockStore) UpdateUserPreferredProxy(ctx context.Context, arg database.UpdateUserPreferredProxyParams) (database.UserConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserPreferredProxy", ctx, arg)
+	ret0, _ := ret[0].(database.UserConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserPreferredProxy indicates an expected call of UpdateUserPreferredProxy.
+func (mr *MockStoreMockRecorder) UpdateUserPreferredProxy(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserPreferredProxy", reflect.TypeOf((*MockStore)(nil).UpdateUserPreferredProxy), ctx, arg)
+}
+
+// DeleteUserPreferredProxy mocks base method.
+func (m *MockStore) DeleteUserPreferredProxy(ctx context.Context, userID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUserPreferredProxy", ctx, userID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteUserPreferredProxy indicates an expected call of DeleteUserPreferredProxy.
+func (mr *MockStoreMockRecorder) DeleteUserPreferredProxy(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserPreferredProxy", reflect.TypeOf((*MockStore)(nil).DeleteUserPreferredProxy), ctx, userID)
+}
+
 // UpdateVolumeResourceMonitor mocks base method.
 func (m *MockStore) UpdateVolumeResourceMonitor(ctx context.Context, arg database.UpdateVolumeResourceMonitorParams) error {
 	m.ctrl.T.Helper()

@@ -623,6 +623,9 @@ type sqlcQuerier interface {
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (User, error)
 	UpdateUserTerminalFont(ctx context.Context, arg UpdateUserTerminalFontParams) (UserConfig, error)
 	UpdateUserThemePreference(ctx context.Context, arg UpdateUserThemePreferenceParams) (UserConfig, error)
+	GetUserPreferredProxy(ctx context.Context, userID uuid.UUID) (string, error)
+	UpdateUserPreferredProxy(ctx context.Context, arg UpdateUserPreferredProxyParams) (UserConfig, error)
+	DeleteUserPreferredProxy(ctx context.Context, userID uuid.UUID) error
 	UpdateVolumeResourceMonitor(ctx context.Context, arg UpdateVolumeResourceMonitorParams) error
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (WorkspaceTable, error)
 	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error

@@ -4884,6 +4884,39 @@ func (q *querier) UpdateUserThemePreference(ctx context.Context, arg database.Up
 	return q.db.UpdateUserThemePreference(ctx, arg)
 }
 
+func (q *querier) GetUserPreferredProxy(ctx context.Context, userID uuid.UUID) (string, error) {
+	u, err := q.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, u); err != nil {
+		return "", err
+	}
+	return q.db.GetUserPreferredProxy(ctx, userID)
+}
+
+func (q *querier) UpdateUserPreferredProxy(ctx context.Context, arg database.UpdateUserPreferredProxyParams) (database.UserConfig, error) {
+	u, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return database.UserConfig{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
+		return database.UserConfig{}, err
+	}
+	return q.db.UpdateUserPreferredProxy(ctx, arg)
+}
+
+func (q *querier) DeleteUserPreferredProxy(ctx context.Context, userID uuid.UUID) error {
+	u, err := q.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
+		return err
+	}
+	return q.db.DeleteUserPreferredProxy(ctx, userID)
+}
+
 func (q *querier) UpdateVolumeResourceMonitor(ctx context.Context, arg database.UpdateVolumeResourceMonitorParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
 		return err
