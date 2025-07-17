@@ -105,6 +105,17 @@ func (api *API) deleteOAuth2ProviderAppSecret() http.HandlerFunc {
 	return oauth2provider.DeleteAppSecret(api.Database, api.Auditor.Load(), api.Logger)
 }
 
+// @Summary Revoke OAuth2 application tokens for the authenticated user.
+// @ID revoke-oauth2-application-tokens-for-the-authenticated-user
+// @Security CoderSessionToken
+// @Tags Enterprise
+// @Param app path string true "Application ID"
+// @Success 204
+// @Router /oauth2-provider/apps/{app}/revoke [post]
+func (api *API) revokeOAuth2ProviderApp() http.HandlerFunc {
+	return oauth2provider.RevokeAppTokens(api.Database)
+}
+
 // @Summary OAuth2 authorization request (GET - show authorization page).
 // @ID oauth2-authorization-request-get
 // @Security CoderSessionToken

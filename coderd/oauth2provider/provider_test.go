@@ -929,3 +929,53 @@ func TestOAuth2ProviderAppOwnershipAuthorization(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "not found")
 }
+
+// TestOAuth2ClientSecretUsageTracking tests that OAuth2 client secrets properly track their last usage
+func TestOAuth2ClientSecretUsageTracking(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Create an OAuth2 app
+	app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+		Name:         fmt.Sprintf("test-usage-tracking-%d", time.Now().UnixNano()),
+		RedirectURIs: []string{"http://localhost:3000"},
+		GrantTypes:   []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeClientCredentials},
+	})
+	require.NoError(t, err)
+
+	// Create a client secret
+	secret, err := client.PostOAuth2ProviderAppSecret(ctx, app.ID)
+	require.NoError(t, err)
+
+	// Check initial state - should be "Never" (null)
+	secrets, err := client.OAuth2ProviderAppSecrets(ctx, app.ID)
+	require.NoError(t, err)
+	require.Len(t, secrets, 1)
+	require.False(t, secrets[0].LastUsedAt.Valid, "Expected LastUsedAt to be null initially")
+
+	// Use the client secret in a token request
+	httpClient := &http.Client{}
+	tokenReq, err := http.NewRequestWithContext(ctx, http.MethodPost, client.URL.String()+"/oauth2/token", strings.NewReader(url.Values{
+		"grant_type":    []string{"client_credentials"},
+		"client_id":     []string{app.ID.String()},
+		"client_secret": []string{secret.ClientSecretFull},
+	}.Encode()))
+	require.NoError(t, err)
+	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	tokenResp, err := httpClient.Do(tokenReq)
+	require.NoError(t, err)
+	defer tokenResp.Body.Close()
+	require.Equal(t, http.StatusOK, tokenResp.StatusCode)
+
+	// Check if LastUsedAt is now updated
+	secrets, err = client.OAuth2ProviderAppSecrets(ctx, app.ID)
+	require.NoError(t, err)
+	require.True(t, secrets[0].LastUsedAt.Valid, "Expected LastUsedAt to be set after usage")
+
+	// Check that the timestamp is recent (within last minute)
+	timeSinceUsage := time.Since(secrets[0].LastUsedAt.Time)
+	require.True(t, timeSinceUsage < time.Minute, "LastUsedAt timestamp should be recent, but was %v ago", timeSinceUsage)
+}
