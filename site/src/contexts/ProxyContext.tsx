@@ -165,13 +165,14 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	// updateProxy is a helper function that when called will
 	// update the proxy being used.
 	const updateProxy = useCallback(() => {
-		// Use latency-based selection if no user proxy is saved and latencies are loaded
-		const shouldUseLatency = !userSavedProxy && latenciesLoaded;
+		// Use latency-based selection if no user proxy is saved
+		// Only skip latency selection if we have a saved proxy or latencies aren't loaded yet
+		const shouldUseLatency = !userSavedProxy;
 		setProxy(
 			getPreferredProxy(
 				proxiesResp ?? [],
 				userSavedProxy,
-				proxyLatencies,
+				latenciesLoaded ? proxyLatencies : undefined,
 				shouldUseLatency,
 			),
 		);
