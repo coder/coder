@@ -156,7 +156,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	// biome-ignore lint/correctness/useExhaustiveDependencies: Only update if the source data changes
 	useEffect(() => {
 		updateProxy();
-	}, [proxiesResp, proxyLatencies, userSavedProxy]);
+	}, [proxiesResp, proxyLatencies]);
 
 	// This useEffect will auto select the best proxy if the user has not selected one.
 	// It must wait until all latencies are loaded to select based on latency. This does mean
@@ -165,7 +165,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	// Once the page is loaded, or the user selects a proxy, this will not run again.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: Only update if the source data changes
 	useEffect(() => {
-		if (userSavedProxy !== undefined) {
+		if (loadUserSelectedProxy() !== undefined) {
 			return; // User has selected a proxy, do not auto select.
 		}
 		if (!latenciesLoaded) {
@@ -175,7 +175,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
 		const best = getPreferredProxy(
 			proxiesResp ?? [],
-			userSavedProxy,
+			loadUserSelectedProxy(),
 			proxyLatencies,
 			true,
 		);
@@ -184,7 +184,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 			saveUserSelectedProxy(best.proxy);
 			updateProxy();
 		}
-	}, [latenciesLoaded, proxiesResp, proxyLatencies, userSavedProxy]);
+	}, [latenciesLoaded, proxiesResp, proxyLatencies]);
 
 	return (
 		<ProxyContext.Provider
