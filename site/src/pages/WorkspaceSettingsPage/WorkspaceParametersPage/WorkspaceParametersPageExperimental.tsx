@@ -150,6 +150,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 				transition: "start",
 				template_version_id: templateVersionId,
 				rich_parameter_values: buildParameters,
+				reason: "dashboard",
 			}),
 		onSuccess: () => {
 			navigate(`/@${workspace.owner_name}/${workspace.name}`);

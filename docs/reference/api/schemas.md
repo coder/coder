@@ -1044,12 +1044,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value       |
-|-------------|
-| `initiator` |
-| `autostart` |
-| `autostop`  |
-| `dormancy`  |
+| Value                  |
+|------------------------|
+| `initiator`            |
+| `autostart`            |
+| `autostop`             |
+| `dormancy`             |
+| `dashboard`            |
+| `cli`                  |
+| `ssh_connection`       |
+| `vscode_connection`    |
+| `jetbrains_connection` |
 
 ## codersdk.ChangePasswordWithOneTimePasscodeRequest
 
@@ -1689,6 +1694,24 @@ This is required on creation to enable a user-flow of validating a template work
 | `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant.                                          |
 | `username`         | string                                     | true     |              |                                                                                     |
 
+## codersdk.CreateWorkspaceBuildReason
+
+```json
+"dashboard"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                  |
+|------------------------|
+| `dashboard`            |
+| `cli`                  |
+| `ssh_connection`       |
+| `vscode_connection`    |
+| `jetbrains_connection` |
+
 ## codersdk.CreateWorkspaceBuildRequest
 
 ```json
@@ -1696,6 +1719,7 @@ This is required on creation to enable a user-flow of validating a template work
   "dry_run": true,
   "log_level": "debug",
   "orphan": true,
+  "reason": "dashboard",
   "rich_parameter_values": [
     {
       "name": "string",
@@ -1718,6 +1742,7 @@ This is required on creation to enable a user-flow of validating a template work
 | `dry_run`                    | boolean                                                                       | false    |              |                                                                                                                                                                                                               |
 | `log_level`                  | [codersdk.ProvisionerLogLevel](#codersdkprovisionerloglevel)                  | false    |              | Log level changes the default logging verbosity of a provider ("info" if empty).                                                                                                                              |
 | `orphan`                     | boolean                                                                       | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                                 |
+| `reason`                     | [codersdk.CreateWorkspaceBuildReason](#codersdkcreateworkspacebuildreason)    | false    |              | Reason sets the reason for the workspace build.                                                                                                                                                               |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
 | `state`                      | array of integer                                                              | false    |              |                                                                                                                                                                                                               |
 | `template_version_id`        | string                                                                        | false    |              |                                                                                                                                                                                                               |
@@ -1726,12 +1751,17 @@ This is required on creation to enable a user-flow of validating a template work
 
 #### Enumerated Values
 
-| Property     | Value    |
-|--------------|----------|
-| `log_level`  | `debug`  |
-| `transition` | `start`  |
-| `transition` | `stop`   |
-| `transition` | `delete` |
+| Property     | Value                  |
+|--------------|------------------------|
+| `log_level`  | `debug`                |
+| `reason`     | `dashboard`            |
+| `reason`     | `cli`                  |
+| `reason`     | `ssh_connection`       |
+| `reason`     | `vscode_connection`    |
+| `reason`     | `jetbrains_connection` |
+| `transition` | `start`                |
+| `transition` | `stop`                 |
+| `transition` | `delete`               |
 
 ## codersdk.CreateWorkspaceProxyRequest
 

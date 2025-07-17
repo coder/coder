@@ -1808,6 +1808,30 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			assert.True(t, build.MatchedProvisioners.MostRecentlySeen.Valid)
 		}
 	})
+	t.Run("WithReason", func(t *testing.T) {
+		t.Parallel()
+		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		_ = closeDaemon.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+			Reason:            codersdk.CreateWorkspaceBuildReasonDashboard,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.BuildReasonDashboard, build.Reason)
+	})
 }
 
 func TestWorkspaceBuildTimings(t *testing.T) {
