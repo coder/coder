@@ -2151,7 +2151,8 @@ export interface SerpentOption {
 	readonly yaml?: string;
 	readonly default?: string;
 	// interface type, falling back to unknown
-	// this is likely an enum in an external package "github.com/spf13/pflag.Value"    readonly value?: unknown;
+	// this is likely an enum in an external package "github.com/spf13/pflag.Value"
+	readonly value?: unknown;
 	readonly annotations?: SerpentAnnotations;
 	readonly group?: SerpentGroup;
 	readonly use_instead?: readonly SerpentOption[];
