@@ -83,7 +83,11 @@ export interface AgentStatsReportResponse {
 // From codersdk/workspaceagents.go
 export type AgentSubsystem = "envbox" | "envbuilder" | "exectrace";
 
-export const AgentSubsystems: AgentSubsystem[] = ["envbox", "envbuilder", "exectrace"];
+export const AgentSubsystems: AgentSubsystem[] = [
+	"envbox",
+	"envbuilder",
+	"exectrace",
+];
 
 // From codersdk/deployment.go
 export interface AppHostResponse {
@@ -332,9 +336,22 @@ export interface ConnectionLogsRequest extends Pagination {
 }
 
 // From codersdk/connectionlog.go
-export type ConnectionType = "jetbrains" | "port_forwarding" | "reconnecting_pty" | "ssh" | "vscode" | "workspace_app";
+export type ConnectionType = 
+	| "jetbrains"
+	| "port_forwarding"
+	| "reconnecting_pty"
+	| "ssh"
+	| "vscode"
+	| "workspace_app";
 
-export const ConnectionTypes: ConnectionType[] = ["jetbrains", "port_forwarding", "reconnecting_pty", "ssh", "vscode", "workspace_app"];
+export const ConnectionTypes: ConnectionType[] = [
+	"jetbrains",
+	"port_forwarding",
+	"reconnecting_pty",
+	"ssh",
+	"vscode",
+	"workspace_app",
+];
 
 // From codersdk/files.go
 export const ContentTypeTar = "application/x-tar";
@@ -516,9 +533,18 @@ export interface CryptoKey {
 }
 
 // From codersdk/deployment.go
-export type CryptoKeyFeature = "oidc_convert" | "tailnet_resume" | "workspace_apps_api_key" | "workspace_apps_token";
+export type CryptoKeyFeature = 
+	| "oidc_convert"
+	| "tailnet_resume"
+	| "workspace_apps_api_key"
+	| "workspace_apps_token";
 
-export const CryptoKeyFeatures: CryptoKeyFeature[] = ["oidc_convert", "tailnet_resume", "workspace_apps_api_key", "workspace_apps_token"];
+export const CryptoKeyFeatures: CryptoKeyFeature[] = [
+	"oidc_convert",
+	"tailnet_resume",
+	"workspace_apps_api_key",
+	"workspace_apps_token",
+];
 
 // From codersdk/roles.go
 export interface CustomRoleRequest {
@@ -599,7 +625,7 @@ export interface DERPRegionReport {
 	readonly warnings: readonly HealthMessage[];
 	readonly error?: string;
 	readonly region: TailDERPRegion | null;
-	readonly node_reports: readonly (DERPNodeReport)[];
+	readonly node_reports: readonly DERPNodeReport[];
 }
 
 // From codersdk/deployment.go
@@ -732,12 +758,26 @@ export interface DiagnosticExtra {
 // From codersdk/parameters.go
 export type DiagnosticSeverityString = "error" | "warning";
 
-export const DiagnosticSeverityStrings: DiagnosticSeverityString[] = ["error", "warning"];
+export const DiagnosticSeverityStrings: DiagnosticSeverityString[] = [
+	"error",
+	"warning",
+];
 
 // From codersdk/workspaceagents.go
-export type DisplayApp = "port_forwarding_helper" | "ssh_helper" | "vscode" | "vscode_insiders" | "web_terminal";
+export type DisplayApp = 
+	| "port_forwarding_helper"
+	| "ssh_helper"
+	| "vscode"
+	| "vscode_insiders"
+	| "web_terminal";
 
-export const DisplayApps: DisplayApp[] = ["port_forwarding_helper", "ssh_helper", "vscode", "vscode_insiders", "web_terminal"];
+export const DisplayApps: DisplayApp[] = [
+	"port_forwarding_helper",
+	"ssh_helper",
+	"vscode",
+	"vscode_insiders",
+	"web_terminal",
+];
 
 // From codersdk/parameters.go
 export interface DynamicParametersRequest {
@@ -754,9 +794,28 @@ export interface DynamicParametersResponse {
 }
 
 // From codersdk/externalauth.go
-export type EnhancedExternalAuthProvider = "azure-devops" | "azure-devops-entra" | "bitbucket-cloud" | "bitbucket-server" | "github" | "gitlab" | "gitea" | "jfrog" | "slack";
+export type EnhancedExternalAuthProvider = 
+	| "azure-devops"
+	| "azure-devops-entra"
+	| "bitbucket-cloud"
+	| "bitbucket-server"
+	| "github"
+	| "gitlab"
+	| "gitea"
+	| "jfrog"
+	| "slack";
 
-export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = ["azure-devops", "azure-devops-entra", "bitbucket-cloud", "bitbucket-server", "github", "gitlab", "gitea", "jfrog", "slack"];
+export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = [
+	"azure-devops",
+	"azure-devops-entra",
+	"bitbucket-cloud",
+	"bitbucket-server",
+	"github",
+	"gitlab",
+	"gitea",
+	"jfrog",
+	"slack",
+];
 
 // From codersdk/deployment.go
 export type Entitlement = "entitled" | "grace_period" | "not_entitled";
@@ -776,9 +835,24 @@ export interface Entitlements {
 export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
-export type Experiment = "auto-fill-parameters" | "example" | "mcp-server-http" | "notifications" | "oauth2" | "web-push" | "workspace-usage";
+export type Experiment = 
+	| "auto-fill-parameters"
+	| "example"
+	| "mcp-server-http"
+	| "notifications"
+	| "oauth2"
+	| "web-push"
+	| "workspace-usage";
 
-export const Experiments: Experiment[] = ["auto-fill-parameters", "example", "mcp-server-http", "notifications", "oauth2", "web-push", "workspace-usage"];
+export const Experiments: Experiment[] = [
+	"auto-fill-parameters",
+	"example",
+	"mcp-server-http",
+	"notifications",
+	"oauth2",
+	"web-push",
+	"workspace-usage",
+];
 
 // From codersdk/externalauth.go
 export interface ExternalAuth {
@@ -873,9 +947,52 @@ export interface Feature {
 }
 
 // From codersdk/deployment.go
-export type FeatureName = "access_control" | "advanced_template_scheduling" | "appearance" | "audit_log" | "browser_only" | "connection_log" | "control_shared_ports" | "custom_roles" | "external_provisioner_daemons" | "external_token_encryption" | "high_availability" | "managed_agent_limit" | "multiple_external_auth" | "multiple_organizations" | "scim" | "template_rbac" | "user_limit" | "user_role_management" | "workspace_batch_actions" | "workspace_prebuilds" | "workspace_proxy";
+export type FeatureName = 
+	| "access_control"
+	| "advanced_template_scheduling"
+	| "appearance"
+	| "audit_log"
+	| "browser_only"
+	| "connection_log"
+	| "control_shared_ports"
+	| "custom_roles"
+	| "external_provisioner_daemons"
+	| "external_token_encryption"
+	| "high_availability"
+	| "managed_agent_limit"
+	| "multiple_external_auth"
+	| "multiple_organizations"
+	| "scim"
+	| "template_rbac"
+	| "user_limit"
+	| "user_role_management"
+	| "workspace_batch_actions"
+	| "workspace_prebuilds"
+	| "workspace_proxy";
 
-export const FeatureNames: FeatureName[] = ["access_control", "advanced_template_scheduling", "appearance", "audit_log", "browser_only", "connection_log", "control_shared_ports", "custom_roles", "external_provisioner_daemons", "external_token_encryption", "high_availability", "managed_agent_limit", "multiple_external_auth", "multiple_organizations", "scim", "template_rbac", "user_limit", "user_role_management", "workspace_batch_actions", "workspace_prebuilds", "workspace_proxy"];
+export const FeatureNames: FeatureName[] = [
+	"access_control",
+	"advanced_template_scheduling",
+	"appearance",
+	"audit_log",
+	"browser_only",
+	"connection_log",
+	"control_shared_ports",
+	"custom_roles",
+	"external_provisioner_daemons",
+	"external_token_encryption",
+	"high_availability",
+	"managed_agent_limit",
+	"multiple_external_auth",
+	"multiple_organizations",
+	"scim",
+	"template_rbac",
+	"user_limit",
+	"user_role_management",
+	"workspace_batch_actions",
+	"workspace_prebuilds",
+	"workspace_proxy",
+];
 
 // From codersdk/deployment.go
 export type FeatureSet = "enterprise" | "" | "premium";
@@ -977,7 +1094,25 @@ export interface HTTPCookieConfig {
 }
 
 // From health/model.go
-export type HealthCode = "EACS03" | "EACS02" | "EACS04" | "EACS01" | "EDERP01" | "EDERP02" | "EDB01" | "EDB02" | "EPD03" | "EPD02" | "EPD01" | "EWP02" | "EWP04" | "EWP01" | "EUNKNOWN" | "EWS01" | "EWS02" | "EWS03";
+export type HealthCode = 
+	| "EACS03"
+	| "EACS02"
+	| "EACS04"
+	| "EACS01"
+	| "EDERP01"
+	| "EDERP02"
+	| "EDB01"
+	| "EDB02"
+	| "EPD03"
+	| "EPD02"
+	| "EPD01"
+	| "EWP02"
+	| "EWP04"
+	| "EWP01"
+	| "EUNKNOWN"
+	| "EWS01"
+	| "EWS02"
+	| "EWS03";
 
 // From health/model.go
 export const HealthCodeInterfaceSmallMTU = "EIF01";
@@ -988,7 +1123,26 @@ export const HealthCodeSTUNMapVaryDest = "ESTUN02";
 // From health/model.go
 export const HealthCodeSTUNNoNodes = "ESTUN01";
 
-export const HealthCodes: HealthCode[] = ["EACS03", "EACS02", "EACS04", "EACS01", "EDERP01", "EDERP02", "EDB01", "EDB02", "EPD03", "EPD02", "EPD01", "EWP02", "EWP04", "EWP01", "EUNKNOWN", "EWS01", "EWS02", "EWS03"];
+export const HealthCodes: HealthCode[] = [
+	"EACS03",
+	"EACS02",
+	"EACS04",
+	"EACS01",
+	"EDERP01",
+	"EDERP02",
+	"EDB01",
+	"EDB02",
+	"EPD03",
+	"EPD02",
+	"EPD01",
+	"EWP02",
+	"EWP04",
+	"EWP01",
+	"EUNKNOWN",
+	"EWS01",
+	"EWS02",
+	"EWS03",
+];
 
 // From health/model.go
 export interface HealthMessage {
@@ -997,9 +1151,22 @@ export interface HealthMessage {
 }
 
 // From healthsdk/healthsdk.go
-export type HealthSection = "AccessURL" | "DERP" | "Database" | "ProvisionerDaemons" | "Websocket" | "WorkspaceProxy";
+export type HealthSection = 
+	| "AccessURL"
+	| "DERP"
+	| "Database"
+	| "ProvisionerDaemons"
+	| "Websocket"
+	| "WorkspaceProxy";
 
-export const HealthSections: HealthSection[] = ["AccessURL", "DERP", "Database", "ProvisionerDaemons", "Websocket", "WorkspaceProxy"];
+export const HealthSections: HealthSection[] = [
+	"AccessURL",
+	"DERP",
+	"Database",
+	"ProvisionerDaemons",
+	"Websocket",
+	"WorkspaceProxy",
+];
 
 // From healthsdk/healthsdk.go
 export interface HealthSettings {
@@ -2285,7 +2452,7 @@ export interface TailDERPRegion {
 	readonly RegionCode: string;
 	readonly RegionName: string;
 	readonly Avoid?: boolean;
-	readonly Nodes: readonly (TailDERPNode)[];
+	readonly Nodes: readonly TailDERPNode[];
 }
 
 // From codersdk/deployment.go
