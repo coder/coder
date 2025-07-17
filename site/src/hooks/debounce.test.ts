@@ -11,7 +11,7 @@ afterAll(() => {
 	jest.clearAllMocks();
 });
 
-describe(`${useDebouncedValue.name}`, () => {
+describe(useDebouncedValue.name, () => {
 	function renderDebouncedValue<T>(value: T, time: number) {
 		return renderHook(
 			({ value, time }: { value: T; time: number }) => {
@@ -37,7 +37,7 @@ describe(`${useDebouncedValue.name}`, () => {
 			expect(() => {
 				renderDebouncedValue(dummyValue, input);
 			}).toThrow(
-				`Provided debounce value ${input} must be a non-negative integer`,
+				`Invalid value ${input} for debounceTimeoutMs. Value must be an integer greater than or equal to zero.`,
 			);
 		}
 	});
@@ -127,7 +127,7 @@ describe(`${useDebouncedFunction.name}`, () => {
 				expect(() => {
 					renderDebouncedFunction(dummyFunction, input);
 				}).toThrow(
-					`Provided debounce value ${input} must be a non-negative integer`,
+					`Invalid value ${input} for debounceTimeoutMs. Value must be an integer greater than or equal to zero.`,
 				);
 			}
 		});

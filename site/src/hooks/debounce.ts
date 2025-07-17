@@ -39,7 +39,7 @@ export function useDebouncedFunction<
 ): UseDebouncedFunctionReturn<Args> {
 	if (!Number.isInteger(debounceTimeoutMs) || debounceTimeoutMs < 0) {
 		throw new Error(
-			`Provided debounce value ${debounceTimeoutMs} must be a non-negative integer`,
+			`Invalid value ${debounceTimeoutMs} for debounceTimeoutMs. Value must be an integer greater than or equal to zero.`,
 		);
 	}
 
@@ -87,7 +87,7 @@ export function useDebouncedFunction<
 export function useDebouncedValue<T>(value: T, debounceTimeoutMs: number): T {
 	if (!Number.isInteger(debounceTimeoutMs) || debounceTimeoutMs < 0) {
 		throw new Error(
-			`Provided debounce value ${debounceTimeoutMs} must be a non-negative integer`,
+			`Invalid value ${debounceTimeoutMs} for debounceTimeoutMs. Value must be an integer greater than or equal to zero.`,
 		);
 	}
 
