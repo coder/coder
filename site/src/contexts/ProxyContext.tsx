@@ -93,7 +93,6 @@ export const ProxyContext = createContext<ProxyContextValue | undefined>(
 export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	const queryClient = useQueryClient();
 
-
 	// Get user saved proxy from localStorage
 	const userSavedProxy = useMemo(() => {
 		return loadUserSelectedProxy();
@@ -185,7 +184,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 			saveUserSelectedProxy(best.proxy);
 			updateProxy();
 		}
-	}, [latenciesLoaded, proxiesResp, proxyLatencies]);
+	}, [latenciesLoaded, proxiesResp, proxyLatencies, userSavedProxy]);
 
 	return (
 		<ProxyContext.Provider
