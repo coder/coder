@@ -165,53 +165,26 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	// updateProxy is a helper function that when called will
 	// update the proxy being used.
 	const updateProxy = useCallback(() => {
+		// Use latency-based selection if no user proxy is saved and latencies are loaded
+		const shouldUseLatency = !userSavedProxy && latenciesLoaded;
 		setProxy(
 			getPreferredProxy(
 				proxiesResp ?? [],
 				userSavedProxy,
 				proxyLatencies,
-				// Do not auto select based on latencies, as inconsistent latencies can cause this
-				// to change on each call. updateProxy should be stable when selecting a proxy to
-				// prevent flickering.
-				false,
+				shouldUseLatency,
 			),
 		);
-	}, [proxiesResp, proxyLatencies, userSavedProxy]);
+	}, [proxiesResp, proxyLatencies, userSavedProxy, latenciesLoaded]);
 
 	// This useEffect ensures the proxy to be used is updated whenever the state changes.
 	// This includes proxies being loaded, latencies being calculated, and the user selecting a proxy.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: Only update if the source data changes
 	useEffect(() => {
 		updateProxy();
-	}, [proxiesResp, proxyLatencies, userSavedProxy]);
+	}, [proxiesResp, proxyLatencies, userSavedProxy, latenciesLoaded]);
 
-	// This useEffect will auto select the best proxy if the user has not selected one.
-	// It must wait until all latencies are loaded to select based on latency. This does mean
-	// the first time a user loads the page, the proxy will "flicker" to the best proxy.
-	//
-	// Once the page is loaded, or the user selects a proxy, this will not run again.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: Only update if the source data changes
-	useEffect(() => {
-		if (userSavedProxy !== undefined) {
-			return; // User has selected a proxy, do not auto select.
-		}
-		if (!latenciesLoaded) {
-			// Wait until the latencies are loaded first.
-			return;
-		}
 
-		const best = getPreferredProxy(
-			proxiesResp ?? [],
-			userSavedProxy,
-			proxyLatencies,
-			true,
-		);
-
-		if (best?.proxy) {
-			saveUserSelectedProxy(best.proxy);
-			updateProxy();
-		}
-	}, [latenciesLoaded, proxiesResp, proxyLatencies]);
 
 	return (
 		<ProxyContext.Provider
