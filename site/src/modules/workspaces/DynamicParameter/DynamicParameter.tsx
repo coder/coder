@@ -474,7 +474,10 @@ const ParameterField: FC<ParameterFieldProps> = ({
 
 			return (
 				<MultiSelectCombobox
-					inputProps={{ id }}
+					inputProps={{
+						id: id,
+					}}
+					data-testid={`multiselect-${parameter.name}`}
 					options={options}
 					defaultOptions={selectedOptions}
 					onChange={(newValues) => {
