@@ -21154,3 +21154,58 @@ func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg Insert
 	}
 	return items, nil
 }
+
+const getUserPreferredProxy = `-- name: GetUserPreferredProxy :one
+SELECT
+        value as preferred_proxy
+FROM
+        user_configs
+WHERE
+        user_id = $1
+        AND key = 'preferred_proxy'
+`
+
+func (q *sqlQuerier) GetUserPreferredProxy(ctx context.Context, userID uuid.UUID) (string, error) {
+        row := q.db.QueryRowContext(ctx, getUserPreferredProxy, userID)
+        var preferredProxy string
+        err := row.Scan(&preferredProxy)
+        return preferredProxy, err
+}
+
+const updateUserPreferredProxy = `-- name: UpdateUserPreferredProxy :one
+INSERT INTO
+        user_configs (user_id, key, value)
+VALUES
+        ($1, 'preferred_proxy', $2)
+ON CONFLICT
+        ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+        value = $2
+WHERE user_configs.user_id = $1
+        AND user_configs.key = 'preferred_proxy'
+RETURNING user_id, key, value
+`
+
+type UpdateUserPreferredProxyParams struct {
+        UserID         uuid.UUID `db:"user_id" json:"user_id"`
+        PreferredProxy string    `db:"preferred_proxy" json:"preferred_proxy"`
+}
+
+func (q *sqlQuerier) UpdateUserPreferredProxy(ctx context.Context, arg UpdateUserPreferredProxyParams) (UserConfig, error) {
+        row := q.db.QueryRowContext(ctx, updateUserPreferredProxy, arg.UserID, arg.PreferredProxy)
+        var i UserConfig
+        err := row.Scan(&i.UserID, &i.Key, &i.Value)
+        return i, err
+}
+
+const deleteUserPreferredProxy = `-- name: DeleteUserPreferredProxy :exec
+DELETE FROM user_configs
+WHERE user_id = $1
+        AND key = 'preferred_proxy'
+`
+
+func (q *sqlQuerier) DeleteUserPreferredProxy(ctx context.Context, userID uuid.UUID) error {
+        _, err := q.db.ExecContext(ctx, deleteUserPreferredProxy, userID)
+        return err
+}

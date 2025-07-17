@@ -4896,6 +4896,24 @@ func (s *MethodTestSuite) TestNotifications() {
 		}).Asserts(rbac.ResourceNotificationPreference.WithOwner(user.ID.String()), policy.ActionUpdate)
 	}))
 
+	s.Run("GetUserPreferredProxy", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(user.ID).
+			Asserts(rbac.ResourceUser.WithOwner(user.ID.String()), policy.ActionReadPersonal)
+	}))
+	s.Run("UpdateUserPreferredProxy", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(database.UpdateUserPreferredProxyParams{
+			UserID:         user.ID,
+			PreferredProxy: "proxy1",
+		}).Asserts(rbac.ResourceUser.WithOwner(user.ID.String()), policy.ActionUpdatePersonal)
+	}))
+	s.Run("DeleteUserPreferredProxy", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(user.ID).
+			Asserts(rbac.ResourceUser.WithOwner(user.ID.String()), policy.ActionUpdatePersonal)
+	}))
+
 	s.Run("GetInboxNotificationsByUserID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 

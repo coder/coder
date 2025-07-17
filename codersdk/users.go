@@ -216,6 +216,14 @@ type UpdateUserAppearanceSettingsRequest struct {
 	TerminalFont    TerminalFontName `json:"terminal_font" validate:"required"`
 }
 
+type UserProxySettings struct {
+	PreferredProxy string `json:"preferred_proxy"`
+}
+
+type UpdateUserProxySettingsRequest struct {
+	PreferredProxy string `json:"preferred_proxy" validate:"required"`
+}
+
 type UpdateUserPasswordRequest struct {
 	OldPassword string `json:"old_password" validate:""`
 	Password    string `json:"password" validate:"required"`
@@ -511,6 +519,47 @@ func (c *Client) UpdateUserAppearanceSettings(ctx context.Context, user string, 
 	}
 	var resp UserAppearanceSettings
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GetUserProxySettings fetches the proxy settings for a user.
+func (c *Client) GetUserProxySettings(ctx context.Context, user string) (UserProxySettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/proxy", user), nil)
+	if err != nil {
+		return UserProxySettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserProxySettings{}, ReadBodyAsError(res)
+	}
+	var resp UserProxySettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateUserProxySettings updates the proxy settings for a user.
+func (c *Client) UpdateUserProxySettings(ctx context.Context, user string, req UpdateUserProxySettingsRequest) (UserProxySettings, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/proxy", user), req)
+	if err != nil {
+		return UserProxySettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserProxySettings{}, ReadBodyAsError(res)
+	}
+	var resp UserProxySettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// DeleteUserProxySettings clears the proxy settings for a user.
+func (c *Client) DeleteUserProxySettings(ctx context.Context, user string) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/users/%s/proxy", user), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // UpdateUserPassword updates a user password.

@@ -1454,6 +1454,22 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getProxySettings = async (): Promise<TypesGen.UserProxySettings> => {
+		const response = await this.axios.get("/api/v2/users/me/proxy");
+		return response.data;
+	};
+
+	updateProxySettings = async (
+		data: TypesGen.UpdateUserProxySettingsRequest,
+	): Promise<TypesGen.UserProxySettings> => {
+		const response = await this.axios.put("/api/v2/users/me/proxy", data);
+		return response.data;
+	};
+
+	deleteProxySettings = async (): Promise<void> => {
+		await this.axios.delete("/api/v2/users/me/proxy");
+	};
+
 	getUserQuietHoursSchedule = async (
 		userId: TypesGen.User["id"],
 	): Promise<TypesGen.UserQuietHoursScheduleResponse> => {
