@@ -2544,6 +2544,14 @@ func (q *querier) GetProvisionerJobByIDForUpdate(ctx context.Context, id uuid.UU
 	return job, nil
 }
 
+func (q *querier) GetProvisionerJobLogSize(ctx context.Context, jobID uuid.UUID) (interface{}, error) {
+	_, err := q.GetProvisionerJobByID(ctx, jobID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetProvisionerJobLogSize(ctx, jobID)
+}
+
 func (q *querier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
 	_, err := q.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
@@ -4487,6 +4495,22 @@ func (q *querier) UpdateProvisionerJobByID(ctx context.Context, arg database.Upd
 		return err
 	}
 	return q.db.UpdateProvisionerJobByID(ctx, arg)
+}
+
+func (q *querier) UpdateProvisionerJobLogsLength(ctx context.Context, arg database.UpdateProvisionerJobLogsLengthParams) error {
+	// Not sure what the rbac should be here, going with this for now
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+		return err
+	}
+	return q.db.UpdateProvisionerJobLogsLength(ctx, arg)
+}
+
+func (q *querier) UpdateProvisionerJobLogsOverflowed(ctx context.Context, arg database.UpdateProvisionerJobLogsOverflowedParams) error {
+	// Not sure what the rbac should be here, going with this for now
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerJobs); err != nil {
+		return err
+	}
+	return q.db.UpdateProvisionerJobLogsOverflowed(ctx, arg)
 }
 
 func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {

@@ -2116,6 +2116,7 @@ export interface ProvisionerJob {
 	readonly type: ProvisionerJobType;
 	readonly available_workers?: readonly string[];
 	readonly metadata: ProvisionerJobMetadata;
+	readonly logs_overflowed: boolean;
 }
 
 // From codersdk/provisionerdaemons.go

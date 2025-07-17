@@ -689,6 +689,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
 		template_version_name: "test-version",
 		workspace_name: "test-workspace",
 	},
+	logs_overflowed: false,
 };
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
