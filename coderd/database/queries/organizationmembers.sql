@@ -89,6 +89,12 @@ WHERE
 			organization_id = @organization_id
 		ELSE true
 	END
+  -- Filter by system type
+	AND CASE
+		WHEN @include_system::bool THEN TRUE
+		ELSE
+			is_system = false
+	END
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
 	LOWER(username) ASC OFFSET @offset_opt
