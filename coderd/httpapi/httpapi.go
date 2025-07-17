@@ -49,7 +49,7 @@ func init() {
 		valid := codersdk.NameValid(str)
 		return valid == nil
 	}
-	for _, tag := range []string{"username", "organization_name", "template_name", "workspace_name", "oauth2_app_name"} {
+	for _, tag := range []string{"username", "organization_name", "template_name", "workspace_name"} {
 		err := Validate.RegisterValidation(tag, nameValidator)
 		if err != nil {
 			panic(err)
@@ -65,7 +65,7 @@ func init() {
 		valid := codersdk.DisplayNameValid(str)
 		return valid == nil
 	}
-	for _, displayNameTag := range []string{"organization_display_name", "template_display_name", "group_display_name"} {
+	for _, displayNameTag := range []string{"organization_display_name", "template_display_name", "group_display_name", "oauth2_app_display_name"} {
 		err := Validate.RegisterValidation(displayNameTag, displayNameValidator)
 		if err != nil {
 			panic(err)
@@ -188,7 +188,7 @@ func RouteNotFound(rw http.ResponseWriter) {
 // data a bit more since we have access to the actual interface{} we're
 // marshaling, such as the number of elements in an array, which could help us
 // spot routes that need to be paginated.
-func Write(ctx context.Context, rw http.ResponseWriter, status int, response interface{}) {
+func Write(ctx context.Context, rw http.ResponseWriter, status int, response any) {
 	// Pretty up JSON when testing.
 	if flag.Lookup("test.v") != nil {
 		WriteIndent(ctx, rw, status, response)
@@ -211,7 +211,7 @@ func Write(ctx context.Context, rw http.ResponseWriter, status int, response int
 	_ = enc.Encode(response)
 }
 
-func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, response interface{}) {
+func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, response any) {
 	_, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -233,7 +233,7 @@ func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, respon
 // go-validator to validate the incoming request body. ctx is used for tracing
 // and can be nil. Although tracing this function isn't likely too helpful, it
 // was done to be consistent with Write.
-func Read(ctx context.Context, rw http.ResponseWriter, r *http.Request, value interface{}) bool {
+func Read(ctx context.Context, rw http.ResponseWriter, r *http.Request, value any) bool {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -341,7 +341,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 			case event = <-eventC:
 			case <-ticker.C:
 				event = sseEvent{
-					payload: []byte(fmt.Sprintf("event: %s\n\n", codersdk.ServerSentEventTypePing)),
+					payload: fmt.Appendf(nil, "event: %s\n\n", codersdk.ServerSentEventTypePing),
 				}
 			}
 
@@ -358,7 +358,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 
 	sendEvent := func(newEvent codersdk.ServerSentEvent) error {
 		buf := &bytes.Buffer{}
-		_, err := buf.WriteString(fmt.Sprintf("event: %s\n", newEvent.Type))
+		_, err := fmt.Fprintf(buf, "event: %s\n", newEvent.Type)
 		if err != nil {
 			return err
 		}

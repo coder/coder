@@ -1246,7 +1246,7 @@ func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2
 	code, err := db.InsertOAuth2ProviderAppCode(genCtx, database.InsertOAuth2ProviderAppCodeParams{
 		ID:                  takeFirst(seed.ID, uuid.New()),
 		CreatedAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
-		ExpiresAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
+		ExpiresAt:           takeFirst(seed.ExpiresAt, dbtime.Now().Add(24*time.Hour)),
 		SecretPrefix:        takeFirstSlice(seed.SecretPrefix, []byte("prefix")),
 		HashedSecret:        takeFirstSlice(seed.HashedSecret, []byte("hashed-secret")),
 		AppID:               takeFirst(seed.AppID, uuid.New()),
@@ -1263,7 +1263,7 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 	token, err := db.InsertOAuth2ProviderAppToken(genCtx, database.InsertOAuth2ProviderAppTokenParams{
 		ID:          takeFirst(seed.ID, uuid.New()),
 		CreatedAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
-		ExpiresAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
+		ExpiresAt:   takeFirst(seed.ExpiresAt, dbtime.Now().Add(24*time.Hour)),
 		HashPrefix:  takeFirstSlice(seed.HashPrefix, []byte("prefix")),
 		RefreshHash: takeFirstSlice(seed.RefreshHash, []byte("hashed-secret")),
 		AppSecretID: takeFirst(seed.AppSecretID, uuid.New()),
@@ -1273,6 +1273,25 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 	})
 	require.NoError(t, err, "insert oauth2 app token")
 	return token
+}
+
+func OAuth2ProviderDeviceCode(t testing.TB, db database.Store, seed database.OAuth2ProviderDeviceCode) database.OAuth2ProviderDeviceCode {
+	deviceCode, err := db.InsertOAuth2ProviderDeviceCode(genCtx, database.InsertOAuth2ProviderDeviceCodeParams{
+		ID:                      takeFirst(seed.ID, uuid.New()),
+		CreatedAt:               takeFirst(seed.CreatedAt, dbtime.Now()),
+		ExpiresAt:               takeFirst(seed.ExpiresAt, dbtime.Now().Add(24*time.Hour)),
+		DeviceCodeHash:          takeFirstSlice(seed.DeviceCodeHash, []byte("device-hash")),
+		DeviceCodePrefix:        takeFirst(seed.DeviceCodePrefix, testutil.GetRandomName(t)[:8]),
+		UserCode:                takeFirst(seed.UserCode, testutil.GetRandomName(t)),
+		ClientID:                takeFirst(seed.ClientID, uuid.New()),
+		VerificationUri:         takeFirst(seed.VerificationUri, "https://example.com/device"),
+		VerificationUriComplete: seed.VerificationUriComplete,
+		Scope:                   seed.Scope,
+		ResourceUri:             seed.ResourceUri,
+		PollingInterval:         takeFirst(seed.PollingInterval, 5),
+	})
+	require.NoError(t, err, "insert oauth2 device code")
+	return deviceCode
 }
 
 func WorkspaceAgentMemoryResourceMonitor(t testing.TB, db database.Store, seed database.WorkspaceAgentMemoryResourceMonitor) database.WorkspaceAgentMemoryResourceMonitor {
