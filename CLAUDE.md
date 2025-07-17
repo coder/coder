@@ -47,9 +47,19 @@
 
 ### LSP Navigation (USE FIRST)
 
+#### Go LSP (for backend code)
+
 - **Find definitions**: `mcp__go-language-server__definition symbolName`
 - **Find references**: `mcp__go-language-server__references symbolName`
 - **Get type info**: `mcp__go-language-server__hover filePath line column`
+- **Rename symbol**: `mcp__go-language-server__rename_symbol filePath line column newName`
+
+#### TypeScript LSP (for frontend code in site/)
+
+- **Find definitions**: `mcp__typescript-language-server__definition symbolName`
+- **Find references**: `mcp__typescript-language-server__references symbolName`
+- **Get type info**: `mcp__typescript-language-server__hover filePath line column`
+- **Rename symbol**: `mcp__typescript-language-server__rename_symbol filePath line column newName`
 
 ### OAuth2 Error Handling
 
