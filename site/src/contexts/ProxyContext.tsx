@@ -3,7 +3,6 @@ import { cachedQuery } from "api/queries/util";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
 import { useAuthenticated } from "hooks";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -14,6 +13,7 @@ import {
 	useMemo,
 	useState,
 } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
 
@@ -92,7 +92,6 @@ export const ProxyContext = createContext<ProxyContextValue | undefined>(
  */
 export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	const queryClient = useQueryClient();
-	
 	// Fetch user proxy settings from API
 	const userProxyQuery = useQuery({
 		queryKey: ["userProxySettings"],
