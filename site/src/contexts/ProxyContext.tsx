@@ -99,15 +99,16 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 		queryFn: () => API.getProxySettings(),
 		retry: false, // Don't retry if user doesn't have proxy settings
 	});
-	
+
 	// Mutation for updating proxy settings
 	const updateProxyMutation = useMutation({
-		mutationFn: (proxyId: string) => API.updateProxySettings({ preferred_proxy: proxyId }),
+		mutationFn: (proxyId: string) =>
+			API.updateProxySettings({ preferred_proxy: proxyId }),
 		onSuccess: () => {
 			queryClient.invalidateQueries(["userProxySettings"]);
 		},
 	});
-	
+
 	const deleteProxyMutation = useMutation({
 		mutationFn: () => API.deleteProxySettings(),
 		onSuccess: () => {
@@ -120,7 +121,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 		if (userProxyQuery.data?.preferred_proxy) {
 			// Find the proxy object from the preferred_proxy ID
 			const proxyId = userProxyQuery.data.preferred_proxy;
-			return proxiesResp?.find(p => p.id === proxyId);
+			return proxiesResp?.find((p) => p.id === proxyId);
 		}
 		// Fallback to localStorage for migration
 		return loadUserSelectedProxy();
