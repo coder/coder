@@ -2799,7 +2799,10 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			t.Run("dynamic", func(t *testing.T) {
 				testWorkspaceTagsTerraform(t, tc, true)
 			})
-			t.Run("static", func(t *testing.T) {
+
+			// classic uses tfparse for tags. This sub test can be
+			// removed when tf parse is removed.
+			t.Run("classic", func(t *testing.T) {
 				testWorkspaceTagsTerraform(t, tc, false)
 			})
 		})
@@ -3172,7 +3175,7 @@ func TestWorkspaceLock(t *testing.T) {
 		require.NotNil(t, workspace.DeletingAt)
 		require.NotNil(t, workspace.DormantAt)
 		require.Equal(t, workspace.DormantAt.Add(dormantTTL), *workspace.DeletingAt)
-		require.WithinRange(t, *workspace.DormantAt, time.Now().Add(-time.Second*10), time.Now())
+		require.WithinRange(t, *workspace.DormantAt, time.Now().Add(-time.Second), time.Now())
 		// Locking a workspace shouldn't update the last_used_at.
 		require.Equal(t, lastUsedAt, workspace.LastUsedAt)
 

@@ -360,7 +360,7 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 			static: nil,
 		})
 
-		ctx := testutil.Context(t, testutil.WaitShort*100000)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		stream := setup.stream
 		previews := stream.Chan()
 

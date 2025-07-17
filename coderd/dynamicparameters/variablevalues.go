@@ -25,7 +25,12 @@ func VariableValues(vals []database.TemplateVersionVariable) (map[string]cty.Val
 
 		var err error
 		switch v.Type {
-		case "string":
+		// Defaulting the empty type to "string"
+		// TODO: This does not match the terraform behavior, however it is too late
+		// at this point in the code to determine this, as the database type stores all values
+		// as strings. The code needs to be fixed in the `Parse` step of the provisioner.
+		// That step should determine the type of the variable correctly and store it in the database.
+		case "string", "":
 			ctyVals[v.Name] = cty.StringVal(value)
 		case "number":
 			ctyVals[v.Name], err = cty.ParseNumberVal(value)
