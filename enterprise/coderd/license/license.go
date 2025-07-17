@@ -17,6 +17,17 @@ import (
 )
 
 const (
+	// These features are only included in the license and are not actually
+	// entitlements after the licenses are processed. These values will be
+	// merged into the codersdk.FeatureManagedAgentLimit feature.
+	//
+	// The reason we need two separate features is because the License v3 format
+	// uses map[string]int64 for features, so we're unable to use a single value
+	// with a struct like `{"soft": 100, "hard": 200}`. This is unfortunate and
+	// we should fix this with a new license format v4 in the future.
+	//
+	// These are intentionally not exported as they should not be used outside
+	// of this package (except tests).
 	featureManagedAgentLimitHard codersdk.FeatureName = "managed_agent_limit_hard"
 	featureManagedAgentLimitSoft codersdk.FeatureName = "managed_agent_limit_soft"
 )
@@ -88,8 +99,9 @@ func Entitlements(
 		ActiveUserCount:   activeUserCount,
 		ReplicaCount:      replicaCount,
 		ExternalAuthCount: externalAuthCount,
-		ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
-			// TODO: this
+		ManagedAgentCountFn: func(_ context.Context, _ time.Time, _ time.Time) (int64, error) {
+			// TODO(@deansheather): replace this with a real implementation in a
+			//                      follow up PR.
 			return 0, nil
 		},
 	})
@@ -107,8 +119,10 @@ type FeatureArguments struct {
 	// Unfortunately, managed agent count is not a simple count of the current
 	// state of the world, but a count between two points in time determined by
 	// the licenses.
-	ManagedAgentCountFn func(ctx context.Context, from time.Time, to time.Time) (int64, error)
+	ManagedAgentCountFn ManagedAgentCountFn
 }
+
+type ManagedAgentCountFn func(ctx context.Context, from time.Time, to time.Time) (int64, error)
 
 // LicensesEntitlements returns the entitlements for licenses. Entitlements are
 // merged from all licenses and the highest entitlement is used for each feature.
@@ -297,13 +311,15 @@ func LicensesEntitlements(
 						defaultHardAgentLimit = 1000 * featureValue
 					)
 					entitlements.AddFeature(codersdk.FeatureManagedAgentLimit, codersdk.Feature{
-						Enabled:             true,
-						Entitlement:         entitlement,
-						SoftLimit:           &defaultSoftAgentLimit,
-						Limit:               &defaultHardAgentLimit,
-						UsagePeriodIssuedAt: &issueTime,
-						UsagePeriodStart:    &usagePeriodStart,
-						UsagePeriodEnd:      &usagePeriodEnd,
+						Enabled:     true,
+						Entitlement: entitlement,
+						SoftLimit:   &defaultSoftAgentLimit,
+						Limit:       &defaultHardAgentLimit,
+						UsagePeriod: &codersdk.UsagePeriod{
+							IssuedAt: issueTime,
+							Start:    usagePeriodStart,
+							End:      usagePeriodEnd,
+						},
 					})
 				}
 			default:
@@ -342,11 +358,12 @@ func LicensesEntitlements(
 				Entitlement: entitlement,
 				SoftLimit:   ul.Soft,
 				Limit:       ul.Hard,
-				// Actual value will be populated below when warnings are
-				// generated.
-				UsagePeriodIssuedAt: &claims.IssuedAt.Time,
-				UsagePeriodStart:    &usagePeriodStart,
-				UsagePeriodEnd:      &usagePeriodEnd,
+				// `Actual` will be populated below when warnings are generated.
+				UsagePeriod: &codersdk.UsagePeriod{
+					IssuedAt: claims.IssuedAt.Time,
+					Start:    usagePeriodStart,
+					End:      usagePeriodEnd,
+				},
 			}
 			// If the hard limit is 0, the feature is disabled.
 			if *ul.Hard <= 0 {
@@ -404,7 +421,7 @@ func LicensesEntitlements(
 	// generate a warning if the license actually has managed agents.
 	// Note that agents are free when unlicensed.
 	agentLimit := entitlements.Features[codersdk.FeatureManagedAgentLimit]
-	if entitlements.HasLicense && agentLimit.UsagePeriodStart != nil && agentLimit.UsagePeriodEnd != nil {
+	if entitlements.HasLicense && agentLimit.UsagePeriod != nil {
 		// Calculate the amount of agents between the usage period start and
 		// end.
 		var (
@@ -412,7 +429,7 @@ func LicensesEntitlements(
 			err               = xerrors.New("dev error: managed agent count function is not set")
 		)
 		if featureArguments.ManagedAgentCountFn != nil {
-			managedAgentCount, err = featureArguments.ManagedAgentCountFn(ctx, *agentLimit.UsagePeriodStart, *agentLimit.UsagePeriodEnd)
+			managedAgentCount, err = featureArguments.ManagedAgentCountFn(ctx, agentLimit.UsagePeriod.Start, agentLimit.UsagePeriod.End)
 		}
 		if err != nil {
 			entitlements.Errors = append(entitlements.Errors,
@@ -421,30 +438,33 @@ func LicensesEntitlements(
 			agentLimit.Actual = &managedAgentCount
 			entitlements.AddFeature(codersdk.FeatureManagedAgentLimit, agentLimit)
 
-			var softLimit int64
-			if agentLimit.SoftLimit != nil {
-				softLimit = *agentLimit.SoftLimit
-			}
-			var hardLimit int64
-			if agentLimit.Limit != nil {
-				hardLimit = *agentLimit.Limit
-			}
+			// Only issue warnings if the feature is enabled.
+			if agentLimit.Enabled {
+				var softLimit int64
+				if agentLimit.SoftLimit != nil {
+					softLimit = *agentLimit.SoftLimit
+				}
+				var hardLimit int64
+				if agentLimit.Limit != nil {
+					hardLimit = *agentLimit.Limit
+				}
 
-			// Issue a warning early:
-			// 1. If the soft limit and hard limit are equal, at 75% of the hard
-			//    limit.
-			// 2. If the limit is greater than the soft limit, at 75% of the
-			//    difference between the hard limit and the soft limit.
-			softWarningThreshold := int64(float64(hardLimit) * 0.75)
-			if hardLimit > softLimit && softLimit > 0 {
-				softWarningThreshold = softLimit + int64(float64(hardLimit-softLimit)*0.75)
-			}
-			if managedAgentCount >= *agentLimit.Limit {
-				entitlements.Warnings = append(entitlements.Warnings,
-					"You have built more workspaces with managed agents than your license allows. Further managed agent builds will be blocked.")
-			} else if managedAgentCount >= softWarningThreshold {
-				entitlements.Warnings = append(entitlements.Warnings,
-					"You are approaching the managed agent limit in your license. Please refer to the Deployment Licenses page for more information.")
+				// Issue a warning early:
+				// 1. If the soft limit and hard limit are equal, at 75% of the hard
+				//    limit.
+				// 2. If the limit is greater than the soft limit, at 75% of the
+				//    difference between the hard limit and the soft limit.
+				softWarningThreshold := int64(float64(hardLimit) * 0.75)
+				if hardLimit > softLimit && softLimit > 0 {
+					softWarningThreshold = softLimit + int64(float64(hardLimit-softLimit)*0.75)
+				}
+				if managedAgentCount >= *agentLimit.Limit {
+					entitlements.Warnings = append(entitlements.Warnings,
+						"You have built more workspaces with managed agents than your license allows. Further managed agent builds will be blocked.")
+				} else if managedAgentCount >= softWarningThreshold {
+					entitlements.Warnings = append(entitlements.Warnings,
+						"You are approaching the managed agent limit in your license. Please refer to the Deployment Licenses page for more information.")
+				}
 			}
 		}
 	}

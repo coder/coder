@@ -119,7 +119,7 @@ var (
 
 	// FeatureNamesMap is a map of all feature names for quick lookups.
 	FeatureNamesMap = func() map[FeatureName]struct{} {
-		featureNamesMap := make(map[FeatureName]struct{})
+		featureNamesMap := make(map[FeatureName]struct{}, len(FeatureNames))
 		for _, featureName := range FeatureNames {
 			featureNamesMap[featureName] = struct{}{}
 		}
@@ -222,9 +222,6 @@ func (set FeatureSet) Features() []FeatureName {
 		})
 		// FeatureSetPremium is just all features.
 		return premiumFeatures
-	case FeatureSetNone:
-	default:
-		panic("unexpected codersdk.FeatureSet")
 	}
 	// By default, return an empty set.
 	return []FeatureName{}
@@ -242,7 +239,7 @@ type Feature struct {
 	// included limits in the dashboard. No license validation or warnings are
 	// generated from this value.
 	SoftLimit *int64 `json:"soft_limit,omitempty"`
-	// Usage period denotes that the usage is a counter that accumulates over
+	// UsagePeriod denotes that the usage is a counter that accumulates over
 	// this period (and most likely resets with the issuance of the next
 	// license).
 	//
@@ -251,9 +248,13 @@ type Feature struct {
 	//
 	// Only certain features set these fields:
 	// - FeatureManagedAgentLimit
-	UsagePeriodIssuedAt *time.Time `json:"usage_period_issued_at,omitempty" format:"date-time"`
-	UsagePeriodStart    *time.Time `json:"usage_period_start,omitempty" format:"date-time"`
-	UsagePeriodEnd      *time.Time `json:"usage_period_end,omitempty" format:"date-time"`
+	UsagePeriod *UsagePeriod `json:"usage_period,omitempty"`
+}
+
+type UsagePeriod struct {
+	IssuedAt time.Time `json:"issued_at" format:"date-time"`
+	Start    time.Time `json:"start" format:"date-time"`
+	End      time.Time `json:"end" format:"date-time"`
 }
 
 // Compare compares two features and returns an integer representing
@@ -262,14 +263,28 @@ type Feature struct {
 // than the second feature. It is assumed the features are for the same FeatureName.
 //
 // A feature is considered greater than another feature if:
-// 1. Graceful & capable > Entitled & not capable
+// 1. The usage period has a greater issued at date (note: only certain features use usage periods)
 // 2. The usage period has a greater end date (note: only certain features use usage periods)
-// 3. The usage period has a greater issued at date (note: only certain features use usage periods)
+// 3. Graceful & capable > Entitled & not capable (only if both have "Actual" values)
 // 4. The entitlement is greater
 // 5. The limit is greater
 // 6. Enabled is greater than disabled
 // 7. The actual is greater
 func (f Feature) Compare(b Feature) int {
+	// For features with usage period constraints only, check the issued at and
+	// end dates.
+	bothHaveUsagePeriod := f.UsagePeriod != nil && b.UsagePeriod != nil
+	if bothHaveUsagePeriod {
+		issuedAtCmp := f.UsagePeriod.IssuedAt.Compare(b.UsagePeriod.IssuedAt)
+		if issuedAtCmp != 0 {
+			return issuedAtCmp
+		}
+		endCmp := f.UsagePeriod.End.Compare(b.UsagePeriod.End)
+		if endCmp != 0 {
+			return endCmp
+		}
+	}
+
 	// Only perform capability comparisons if both features have actual values.
 	if f.Actual != nil && b.Actual != nil && (!f.Capable() || !b.Capable()) {
 		// If either is incapable, then it is possible a grace period
@@ -289,24 +304,9 @@ func (f Feature) Compare(b Feature) int {
 	// Strict entitlement check. Higher is better. We don't apply this check for
 	// usage period features as we always want the issued at date to be the main
 	// decision maker.
-	bothHaveIssuedAt := f.UsagePeriodIssuedAt != nil && b.UsagePeriodIssuedAt != nil
 	entitlementDifference := f.Entitlement.Weight() - b.Entitlement.Weight()
-	if !bothHaveIssuedAt && entitlementDifference != 0 {
+	if entitlementDifference != 0 {
 		return entitlementDifference
-	}
-
-	// For features with usage period constraints only:
-	if bothHaveIssuedAt {
-		cmp := f.UsagePeriodIssuedAt.Compare(*b.UsagePeriodIssuedAt)
-		if cmp != 0 {
-			return cmp
-		}
-	}
-	if f.UsagePeriodEnd != nil && b.UsagePeriodEnd != nil {
-		cmp := f.UsagePeriodEnd.Compare(*b.UsagePeriodEnd)
-		if cmp != 0 {
-			return cmp
-		}
 	}
 
 	// If the entitlement is the same, then we can compare the limits.
@@ -394,14 +394,11 @@ func (e *Entitlements) AddFeature(name FeatureName, add Feature) {
 	// If we're trying to add a feature that uses a usage period and it's not
 	// set, then we should not add it.
 	if name.UsesUsagePeriod() {
-		if add.UsagePeriodIssuedAt == nil || add.UsagePeriodStart == nil || add.UsagePeriodEnd == nil {
+		if add.UsagePeriod == nil || add.UsagePeriod.IssuedAt.IsZero() || add.UsagePeriod.Start.IsZero() || add.UsagePeriod.End.IsZero() {
 			return
 		}
 	} else {
-		// Ensure the usage period values are not set.
-		add.UsagePeriodIssuedAt = nil
-		add.UsagePeriodStart = nil
-		add.UsagePeriodEnd = nil
+		add.UsagePeriod = nil
 	}
 
 	// Compare the features, keep the one that is "better"

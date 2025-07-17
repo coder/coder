@@ -442,9 +442,9 @@ func TestEntitlements(t *testing.T) {
 				require.EqualValues(t, expectedAgentHardLimit, *agentEntitlement.Limit)
 				// This might be shocking, but there's a sound reason for this.
 				// See license.go for more details.
-				require.Equal(t, time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC), *agentEntitlement.UsagePeriodIssuedAt)
-				require.WithinDuration(t, licenseOptions.NotBefore, *agentEntitlement.UsagePeriodStart, time.Second)
-				require.WithinDuration(t, licenseOptions.ExpiresAt, *agentEntitlement.UsagePeriodEnd, time.Second)
+				require.Equal(t, time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC), agentEntitlement.UsagePeriod.IssuedAt)
+				require.WithinDuration(t, licenseOptions.NotBefore, agentEntitlement.UsagePeriod.Start, time.Second)
+				require.WithinDuration(t, licenseOptions.ExpiresAt, agentEntitlement.UsagePeriod.End, time.Second)
 				continue
 			}
 
@@ -497,7 +497,7 @@ func TestEntitlements(t *testing.T) {
 		// All enterprise features should be entitled
 		enterpriseFeatures := codersdk.FeatureSetEnterprise.Features()
 		for _, featureName := range codersdk.FeatureNames {
-			if featureName == codersdk.FeatureUserLimit || featureName == codersdk.FeatureManagedAgentLimit {
+			if featureName.UsesLimit() {
 				continue
 			}
 			if slices.Contains(enterpriseFeatures, featureName) {
@@ -526,7 +526,7 @@ func TestEntitlements(t *testing.T) {
 		// All enterprise features should be entitled
 		enterpriseFeatures := codersdk.FeatureSetEnterprise.Features()
 		for _, featureName := range codersdk.FeatureNames {
-			if featureName == codersdk.FeatureUserLimit || featureName == codersdk.FeatureManagedAgentLimit {
+			if featureName.UsesLimit() {
 				continue
 			}
 
@@ -1124,7 +1124,12 @@ func TestUsageLimitFeatures(t *testing.T) {
 							}),
 						}
 
-						entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), []database.License{lic}, map[codersdk.FeatureName]bool{}, coderdenttest.Keys, license.FeatureArguments{})
+						arguments := license.FeatureArguments{
+							ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
+								return 0, nil
+							},
+						}
+						entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), []database.License{lic}, map[codersdk.FeatureName]bool{}, coderdenttest.Keys, arguments)
 						require.NoError(t, err)
 
 						feature, ok := entitlements.Features[c.sdkFeatureName]
@@ -1153,7 +1158,12 @@ func TestUsageLimitFeatures(t *testing.T) {
 					}),
 				}
 
-				entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), []database.License{lic}, map[codersdk.FeatureName]bool{}, coderdenttest.Keys, license.FeatureArguments{})
+				arguments := license.FeatureArguments{
+					ManagedAgentCountFn: func(ctx context.Context, from time.Time, to time.Time) (int64, error) {
+						return 0, nil
+					},
+				}
+				entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), []database.License{lic}, map[codersdk.FeatureName]bool{}, coderdenttest.Keys, arguments)
 				require.NoError(t, err)
 
 				feature, ok := entitlements.Features[c.sdkFeatureName]
@@ -1234,12 +1244,10 @@ func TestUsageLimitFeatures(t *testing.T) {
 					require.EqualValues(t, 50, *feature.SoftLimit)
 					require.NotNil(t, feature.Actual)
 					require.EqualValues(t, actualAgents, *feature.Actual)
-					require.NotNil(t, feature.UsagePeriodIssuedAt)
-					require.WithinDuration(t, lic2Iat, *feature.UsagePeriodIssuedAt, 2*time.Second)
-					require.NotNil(t, feature.UsagePeriodStart)
-					require.WithinDuration(t, lic2Nbf, *feature.UsagePeriodStart, 2*time.Second)
-					require.NotNil(t, feature.UsagePeriodEnd)
-					require.WithinDuration(t, lic2Exp, *feature.UsagePeriodEnd, 2*time.Second)
+					require.NotNil(t, feature.UsagePeriod)
+					require.WithinDuration(t, lic2Iat, feature.UsagePeriod.IssuedAt, 2*time.Second)
+					require.WithinDuration(t, lic2Nbf, feature.UsagePeriod.Start, 2*time.Second)
+					require.WithinDuration(t, lic2Exp, feature.UsagePeriod.End, 2*time.Second)
 				}
 			})
 		})
@@ -1283,9 +1291,7 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 		require.Nil(t, feature.Limit)
 		require.Nil(t, feature.SoftLimit)
 		require.Nil(t, feature.Actual)
-		require.Nil(t, feature.UsagePeriodIssuedAt)
-		require.Nil(t, feature.UsagePeriodStart)
-		require.Nil(t, feature.UsagePeriodEnd)
+		require.Nil(t, feature.UsagePeriod)
 	})
 
 	// "Premium" licenses should receive a default managed agent limit of:
@@ -1332,9 +1338,10 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 		require.EqualValues(t, softLimit, *feature.SoftLimit)
 		require.NotNil(t, feature.Actual)
 		require.EqualValues(t, actualAgents, *feature.Actual)
-		require.NotNil(t, feature.UsagePeriodIssuedAt)
-		require.NotNil(t, feature.UsagePeriodStart)
-		require.NotNil(t, feature.UsagePeriodEnd)
+		require.NotNil(t, feature.UsagePeriod)
+		require.NotZero(t, feature.UsagePeriod.IssuedAt)
+		require.NotZero(t, feature.UsagePeriod.Start)
+		require.NotZero(t, feature.UsagePeriod.End)
 	})
 
 	// "Premium" licenses with an explicit managed agent limit should not
@@ -1379,9 +1386,10 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 		require.EqualValues(t, 100, *feature.SoftLimit)
 		require.NotNil(t, feature.Actual)
 		require.EqualValues(t, actualAgents, *feature.Actual)
-		require.NotNil(t, feature.UsagePeriodIssuedAt)
-		require.NotNil(t, feature.UsagePeriodStart)
-		require.NotNil(t, feature.UsagePeriodEnd)
+		require.NotNil(t, feature.UsagePeriod)
+		require.NotZero(t, feature.UsagePeriod.IssuedAt)
+		require.NotZero(t, feature.UsagePeriod.Start)
+		require.NotZero(t, feature.UsagePeriod.End)
 	})
 
 	// "Premium" licenses with an explicit 0 count should be entitled to 0
@@ -1427,9 +1435,10 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 		require.EqualValues(t, 0, *feature.SoftLimit)
 		require.NotNil(t, feature.Actual)
 		require.EqualValues(t, actualAgents, *feature.Actual)
-		require.NotNil(t, feature.UsagePeriodIssuedAt)
-		require.NotNil(t, feature.UsagePeriodStart)
-		require.NotNil(t, feature.UsagePeriodEnd)
+		require.NotNil(t, feature.UsagePeriod)
+		require.NotZero(t, feature.UsagePeriod.IssuedAt)
+		require.NotZero(t, feature.UsagePeriod.Start)
+		require.NotZero(t, feature.UsagePeriod.End)
 	})
 }
 
