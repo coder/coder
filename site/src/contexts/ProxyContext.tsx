@@ -93,25 +93,27 @@ export const ProxyContext = createContext<ProxyContextValue | undefined>(
 export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	const queryClient = useQueryClient();
 	// Fetch user proxy settings from API
+	// TODO: Temporarily disabled until backend endpoints are implemented
 	const userProxyQuery = useQuery({
 		queryKey: ["userProxySettings"],
-		queryFn: () => API.getProxySettings(),
+		queryFn: () => Promise.resolve({ preferred_proxy: undefined }),
 		retry: false, // Don't retry if user doesn't have proxy settings
+		enabled: false, // Disable the query for now
 	});
 
 	// Mutation for updating proxy settings
+	// TODO: Temporarily disabled until backend endpoints are implemented
 	const updateProxyMutation = useMutation({
-		mutationFn: (proxyId: string) =>
-			API.updateProxySettings({ preferred_proxy: proxyId }),
+		mutationFn: (proxyId: string) => Promise.resolve({ preferred_proxy: proxyId }),
 		onSuccess: () => {
-			queryClient.invalidateQueries(["userProxySettings"]);
+			// queryClient.invalidateQueries(["userProxySettings"]);
 		},
 	});
 
 	const deleteProxyMutation = useMutation({
-		mutationFn: () => API.deleteProxySettings(),
+		mutationFn: () => Promise.resolve(),
 		onSuccess: () => {
-			queryClient.invalidateQueries(["userProxySettings"]);
+			// queryClient.invalidateQueries(["userProxySettings"]);
 		},
 	});
 
@@ -127,9 +129,15 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	}, [userProxyQuery.data, proxiesResp]);
 
 	// Load the initial state from user preferences or localStorage.
-	const [proxy, setProxy] = useState<PreferredProxy>(
-		computeUsableURLS(userSavedProxy),
-	);
+	// Use safe initialization to avoid temporal dead zone with userSavedProxy
+	const [proxy, setProxy] = useState<PreferredProxy>(() => {
+		// Only use userSavedProxy if proxiesResp is available
+		if (proxiesResp && userSavedProxy) {
+			return computeUsableURLS(userSavedProxy);
+		}
+		// Safe fallback - let useEffect handle proper initialization
+		return computeUsableURLS(undefined);
+	});
 
 	const { permissions } = useAuthenticated();
 	const { metadata } = useEmbeddedMetadata();
