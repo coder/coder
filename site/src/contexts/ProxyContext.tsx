@@ -93,10 +93,9 @@ export const ProxyContext = createContext<ProxyContextValue | undefined>(
 export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	const queryClient = useQueryClient();
 
-	// Get user saved proxy from localStorage
-	const userSavedProxy = useMemo(() => {
-		return loadUserSelectedProxy();
-	}, []);
+	// Using a useState so the caller always has the latest user saved
+	// proxy.
+	const [userSavedProxy, setUserSavedProxy] = useState(loadUserSelectedProxy());
 
 	// Load the initial state from localStorage only
 	// Let useEffect handle proper initialization when data is available
@@ -182,6 +181,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
 		if (best?.proxy) {
 			saveUserSelectedProxy(best.proxy);
+			setUserSavedProxy(best.proxy);
 			updateProxy();
 		}
 	}, [latenciesLoaded, proxiesResp, proxyLatencies]);
@@ -203,12 +203,14 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 				setProxy: (proxy: Region) => {
 					// Save to localStorage
 					saveUserSelectedProxy(proxy);
+					setUserSavedProxy(proxy);
 					// Update the selected proxy
 					updateProxy();
 				},
 				clearProxy: () => {
 					// Clear from localStorage
 					clearUserSelectedProxy();
+					setUserSavedProxy(undefined);
 					updateProxy();
 				},
 			}}
