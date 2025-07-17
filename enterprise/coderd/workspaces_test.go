@@ -2858,14 +2858,21 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			require.NoError(t, err, "failed to create template version")
 			coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
 
+			err = templateAdmin.UpdateActiveTemplateVersion(ctx, tpl.ID, codersdk.UpdateActiveTemplateVersion{
+				ID: tv.ID,
+			})
+			require.NoError(t, err, "set to active template version")
+
 			if !tc.skipCreateWorkspace {
 				// Creating a workspace as a non-privileged user must succeed
 				ws, err := member.CreateUserWorkspace(ctx, memberUser.Username, codersdk.CreateWorkspaceRequest{
-					TemplateVersionID:   tv.ID,
+					TemplateID:          tpl.ID,
 					Name:                coderdtest.RandomUsername(t),
 					RichParameterValues: tc.workspaceBuildParameters,
 				})
 				require.NoError(t, err, "failed to create workspace")
+				tagJSON, _ := json.Marshal(ws.LatestBuild.Job.Tags)
+				t.Logf("Created workspace build with tags: %s", tagJSON)
 				coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
 			}
 		})
