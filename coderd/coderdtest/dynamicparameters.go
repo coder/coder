@@ -29,7 +29,8 @@ type DynamicParameterTemplateParams struct {
 	// TemplateID is used to update an existing template instead of creating a new one.
 	TemplateID uuid.UUID
 
-	Version func(request *codersdk.CreateTemplateVersionRequest)
+	Version   func(request *codersdk.CreateTemplateVersionRequest)
+	Variables []codersdk.TemplateVersionVariable
 }
 
 func DynamicParameterTemplate(t *testing.T, client *codersdk.Client, org uuid.UUID, args DynamicParameterTemplateParams) (codersdk.Template, codersdk.TemplateVersion) {
@@ -48,6 +49,32 @@ func DynamicParameterTemplate(t *testing.T, client *codersdk.Client, org uuid.UU
 		},
 	}}
 
+	userVars := make([]codersdk.VariableValue, 0, len(args.Variables))
+	parseVars := make([]*proto.TemplateVariable, 0, len(args.Variables))
+	for _, argv := range args.Variables {
+		parseVars = append(parseVars, &proto.TemplateVariable{
+			Name:         argv.Name,
+			Description:  argv.Description,
+			Type:         argv.Type,
+			DefaultValue: argv.DefaultValue,
+			Required:     argv.Required,
+			Sensitive:    argv.Sensitive,
+		})
+
+		userVars = append(userVars, codersdk.VariableValue{
+			Name:  argv.Name,
+			Value: argv.Value,
+		})
+	}
+
+	files.Parse = []*proto.Response{{
+		Type: &proto.Response_Parse{
+			Parse: &proto.ParseComplete{
+				TemplateVariables: parseVars,
+			},
+		},
+	}}
+
 	mime := codersdk.ContentTypeTar
 	if args.Zip {
 		mime = codersdk.ContentTypeZip
@@ -59,6 +86,7 @@ func DynamicParameterTemplate(t *testing.T, client *codersdk.Client, org uuid.UU
 		if args.Version != nil {
 			args.Version(request)
 		}
+		request.UserVariableValues = userVars
 	})
 	AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
