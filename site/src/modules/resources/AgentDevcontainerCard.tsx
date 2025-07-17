@@ -130,12 +130,6 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 			return { previousData };
 		},
-		onSuccess: async () => {
-			// Invalidate the containers query to refetch updated data.
-			await queryClient.invalidateQueries({
-				queryKey: ["agents", parentAgent.id, "containers"],
-			});
-		},
 		onError: (error, _, context) => {
 			// If the mutation fails, use the context returned from
 			// onMutate to roll back.
@@ -307,6 +301,8 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 										workspaceName={workspace.name}
 										devContainerName={devcontainer.container.name}
 										devContainerFolder={subAgent?.directory ?? ""}
+										localWorkspaceFolder={devcontainer.workspace_folder}
+										localConfigFile={devcontainer.config_path || ""}
 										displayApps={displayApps} // TODO(mafredri): We could use subAgent display apps here but we currently set none.
 										agentName={parentAgent.name}
 									/>
@@ -331,7 +327,9 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 							{wildcardHostname !== "" &&
 								devcontainer.container?.ports.map((port) => {
-									const portLabel = `${port.port}/${port.network.toUpperCase()}`;
+									const portLabel = `${
+										port.port
+									}/${port.network.toUpperCase()}`;
 									const hasHostBind =
 										port.host_port !== undefined && port.host_ip !== undefined;
 									const helperText = hasHostBind

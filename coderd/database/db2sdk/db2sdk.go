@@ -781,26 +781,31 @@ func TemplateRoleActions(role codersdk.TemplateRole) []policy.Action {
 	return []policy.Action{}
 }
 
-func AuditActionFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.AuditAction, error) {
-	switch action {
-	case agentproto.Connection_CONNECT:
-		return database.AuditActionConnect, nil
-	case agentproto.Connection_DISCONNECT:
-		return database.AuditActionDisconnect, nil
+func ConnectionLogConnectionTypeFromAgentProtoConnectionType(typ agentproto.Connection_Type) (database.ConnectionType, error) {
+	switch typ {
+	case agentproto.Connection_SSH:
+		return database.ConnectionTypeSsh, nil
+	case agentproto.Connection_JETBRAINS:
+		return database.ConnectionTypeJetbrains, nil
+	case agentproto.Connection_VSCODE:
+		return database.ConnectionTypeVscode, nil
+	case agentproto.Connection_RECONNECTING_PTY:
+		return database.ConnectionTypeReconnectingPty, nil
 	default:
-		// Also Connection_ACTION_UNSPECIFIED, no mapping.
-		return "", xerrors.Errorf("unknown agent connection action %q", action)
+		// Also Connection_TYPE_UNSPECIFIED, no mapping.
+		return "", xerrors.Errorf("unknown agent connection type %q", typ)
 	}
 }
 
-func AgentProtoConnectionActionToAuditAction(action database.AuditAction) (agentproto.Connection_Action, error) {
+func ConnectionLogStatusFromAgentProtoConnectionAction(action agentproto.Connection_Action) (database.ConnectionStatus, error) {
 	switch action {
-	case database.AuditActionConnect:
-		return agentproto.Connection_CONNECT, nil
-	case database.AuditActionDisconnect:
-		return agentproto.Connection_DISCONNECT, nil
+	case agentproto.Connection_CONNECT:
+		return database.ConnectionStatusConnected, nil
+	case agentproto.Connection_DISCONNECT:
+		return database.ConnectionStatusDisconnected, nil
 	default:
-		return agentproto.Connection_ACTION_UNSPECIFIED, xerrors.Errorf("unknown agent connection action %q", action)
+		// Also Connection_ACTION_UNSPECIFIED, no mapping.
+		return "", xerrors.Errorf("unknown agent connection action %q", action)
 	}
 }
 
@@ -816,6 +821,7 @@ func PreviewParameter(param previewtypes.Parameter) codersdk.PreviewParameter {
 				Placeholder: param.Styling.Placeholder,
 				Disabled:    param.Styling.Disabled,
 				Label:       param.Styling.Label,
+				MaskInput:   param.Styling.MaskInput,
 			},
 			Mutable:      param.Mutable,
 			DefaultValue: PreviewHCLString(param.DefaultValue),

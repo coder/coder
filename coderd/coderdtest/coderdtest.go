@@ -1,6 +1,7 @@
 package coderdtest
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"crypto"
@@ -52,6 +53,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/archive"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/quartz"
 
@@ -59,6 +61,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -123,6 +126,7 @@ type Options struct {
 	TemplateScheduleStore          schedule.TemplateScheduleStore
 	Coordinator                    tailnet.Coordinator
 	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
+	ConnectionLogger               connectionlog.ConnectionLogger
 
 	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport
 	HealthcheckTimeout time.Duration
@@ -354,6 +358,12 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 	auditor.Store(&options.Auditor)
 
+	var connectionLogger atomic.Pointer[connectionlog.ConnectionLogger]
+	if options.ConnectionLogger == nil {
+		options.ConnectionLogger = connectionlog.NewNop()
+	}
+	connectionLogger.Store(&options.ConnectionLogger)
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	experiments := coderd.ReadExperiments(*options.Logger, options.DeploymentValues.Experiments)
 	lifecycleExecutor := autobuild.NewExecutor(
@@ -541,6 +551,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			ExternalAuthConfigs:            options.ExternalAuthConfigs,
 
 			Auditor:                            options.Auditor,
+			ConnectionLogger:                   options.ConnectionLogger,
 			AWSCertificates:                    options.AWSCertificates,
 			AzureCertificates:                  options.AzureCertificates,
 			GithubOAuth2Config:                 options.GithubOAuth2Config,
@@ -886,14 +897,22 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 	return other, user
 }
 
-// CreateTemplateVersion creates a template import provisioner job
-// with the responses provided. It uses the "echo" provisioner for compatibility
-// with testing.
-func CreateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
+func CreateTemplateVersionMimeType(t testing.TB, client *codersdk.Client, mimeType string, organizationID uuid.UUID, res *echo.Responses, mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
 	t.Helper()
 	data, err := echo.TarWithOptions(context.Background(), client.Logger(), res)
 	require.NoError(t, err)
-	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))
+
+	switch mimeType {
+	case codersdk.ContentTypeTar:
+		// do nothing
+	case codersdk.ContentTypeZip:
+		data, err = archive.CreateZipFromTar(tar.NewReader(bytes.NewBuffer(data)), int64(len(data)))
+		require.NoError(t, err, "creating zip")
+	default:
+		t.Fatal("unexpected mime type", mimeType)
+	}
+
+	file, err := client.Upload(context.Background(), mimeType, bytes.NewReader(data))
 	require.NoError(t, err)
 
 	req := codersdk.CreateTemplateVersionRequest{
@@ -908,6 +927,13 @@ func CreateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID
 	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, req)
 	require.NoError(t, err)
 	return templateVersion
+}
+
+// CreateTemplateVersion creates a template import provisioner job
+// with the responses provided. It uses the "echo" provisioner for compatibility
+// with testing.
+func CreateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
+	return CreateTemplateVersionMimeType(t, client, codersdk.ContentTypeTar, organizationID, res, mutators...)
 }
 
 // CreateWorkspaceBuild creates a workspace build for the given workspace and transition.

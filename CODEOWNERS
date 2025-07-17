@@ -1,8 +1,16 @@
-# These APIs are versioned, so any changes need to be carefully reviewed for whether
-# to bump API major or minor versions.
+# These APIs are versioned, so any changes need to be carefully reviewed for
+# whether to bump API major or minor versions.
 agent/proto/ @spikecurtis @johnstcn
+provisionerd/proto/ @spikecurtis @johnstcn
+provisionersdk/proto/ @spikecurtis @johnstcn
 tailnet/proto/ @spikecurtis @johnstcn
 vpn/vpn.proto @spikecurtis @johnstcn
 vpn/version.go @spikecurtis @johnstcn
-provisionerd/proto/ @spikecurtis @johnstcn
-provisionersdk/proto/ @spikecurtis @johnstcn
+
+
+# This caching code is particularly tricky, and one must be very careful when
+# altering it.
+coderd/files/ @aslilac
+
+
+site/ @aslilac

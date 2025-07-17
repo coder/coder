@@ -20,6 +20,9 @@
 # binary will be signed using ./sign_darwin.sh. Read that file for more details
 # on the requirements.
 #
+# If the --sign-gpg parameter is specified, the output binary will be signed using ./sign_with_gpg.sh.
+# Read that file for more details on the requirements.
+#
 # If the --agpl parameter is specified, builds only the AGPL-licensed code (no
 # Coder enterprise features).
 #
@@ -41,6 +44,7 @@ slim="${CODER_SLIM_BUILD:-0}"
 agpl="${CODER_BUILD_AGPL:-0}"
 sign_darwin="${CODER_SIGN_DARWIN:-0}"
 sign_windows="${CODER_SIGN_WINDOWS:-0}"
+sign_gpg="${CODER_SIGN_GPG:-0}"
 boringcrypto=${CODER_BUILD_BORINGCRYPTO:-0}
 dylib=0
 windows_resources="${CODER_WINDOWS_RESOURCES:-0}"
@@ -83,6 +87,10 @@ while true; do
 		;;
 	--sign-windows)
 		sign_windows=1
+		shift
+		;;
+	--sign-gpg)
+		sign_gpg=1
 		shift
 		;;
 	--boringcrypto)
@@ -317,6 +325,11 @@ fi
 
 if [[ "$sign_windows" == 1 ]] && [[ "$os" == "windows" ]]; then
 	execrelative ./sign_windows.sh "$output_path" 1>&2
+fi
+
+# Platform agnostic signing
+if [[ "$sign_gpg" == 1 ]]; then
+	execrelative ./sign_with_gpg.sh "$output_path" 1>&2
 fi
 
 echo "$output_path"

@@ -14,7 +14,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -300,7 +300,7 @@ func TestSearchWorkspace(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			// TODO: Replace this with the mock database.
-			db := dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
 			if c.Setup != nil {
 				c.Setup(t, db)
 			}
@@ -331,7 +331,8 @@ func TestSearchWorkspace(t *testing.T) {
 
 		query := ``
 		timeout := 1337 * time.Second
-		values, errs := searchquery.Workspaces(context.Background(), dbmem.New(), query, codersdk.Pagination{}, timeout)
+		db, _ := dbtestutil.NewDB(t)
+		values, errs := searchquery.Workspaces(context.Background(), db, query, codersdk.Pagination{}, timeout)
 		require.Empty(t, errs)
 		require.Equal(t, int64(timeout.Seconds()), values.AgentInactiveDisconnectTimeoutSeconds)
 	})
@@ -343,6 +344,7 @@ func TestSearchAudit(t *testing.T) {
 		Name                  string
 		Query                 string
 		Expected              database.GetAuditLogsOffsetParams
+		ExpectedCountParams   database.CountAuditLogsParams
 		ExpectedErrorContains string
 	}{
 		{
@@ -372,6 +374,9 @@ func TestSearchAudit(t *testing.T) {
 			Expected: database.GetAuditLogsOffsetParams{
 				ResourceTarget: "foo",
 			},
+			ExpectedCountParams: database.CountAuditLogsParams{
+				ResourceTarget: "foo",
+			},
 		},
 		{
 			Name:                  "RequestID",
@@ -385,8 +390,8 @@ func TestSearchAudit(t *testing.T) {
 			t.Parallel()
 			// Do not use a real database, this is only used for an
 			// organization lookup.
-			db := dbmem.New()
-			values, errs := searchquery.AuditLogs(context.Background(), db, c.Query)
+			db, _ := dbtestutil.NewDB(t)
+			values, countValues, errs := searchquery.AuditLogs(context.Background(), db, c.Query)
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
@@ -397,9 +402,76 @@ func TestSearchAudit(t *testing.T) {
 			} else {
 				require.Len(t, errs, 0, "expected no error")
 				require.Equal(t, c.Expected, values, "expected values")
+				require.Equal(t, c.ExpectedCountParams, countValues, "expected count values")
 			}
 		})
 	}
+}
+
+func TestSearchConnectionLogs(t *testing.T) {
+	t.Parallel()
+	t.Run("All", func(t *testing.T) {
+		t.Parallel()
+
+		orgID := uuid.New()
+		workspaceOwnerID := uuid.New()
+		workspaceID := uuid.New()
+		connectionID := uuid.New()
+
+		db, _ := dbtestutil.NewDB(t)
+		dbgen.Organization(t, db, database.Organization{
+			ID:   orgID,
+			Name: "testorg",
+		})
+		dbgen.User(t, db, database.User{
+			ID:       workspaceOwnerID,
+			Username: "testowner",
+			Email:    "owner@example.com",
+		})
+
+		query := fmt.Sprintf(`organization:testorg workspace_owner:testowner `+
+			`workspace_owner_email:owner@example.com type:port_forwarding username:testuser `+
+			`user_email:test@example.com connected_after:"2023-01-01T00:00:00Z" `+
+			`connected_before:"2023-01-16T12:00:00+12:00" workspace_id:%s connection_id:%s status:ongoing`,
+			workspaceID.String(), connectionID.String())
+
+		values, _, errs := searchquery.ConnectionLogs(context.Background(), db, query, database.APIKey{})
+		require.Len(t, errs, 0)
+
+		expected := database.GetConnectionLogsOffsetParams{
+			OrganizationID:      orgID,
+			WorkspaceOwner:      "testowner",
+			WorkspaceOwnerEmail: "owner@example.com",
+			Type:                string(database.ConnectionTypePortForwarding),
+			Username:            "testuser",
+			UserEmail:           "test@example.com",
+			ConnectedAfter:      time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			ConnectedBefore:     time.Date(2023, 1, 16, 0, 0, 0, 0, time.UTC),
+			WorkspaceID:         workspaceID,
+			ConnectionID:        connectionID,
+			Status:              string(codersdk.ConnectionLogStatusOngoing),
+		}
+
+		require.Equal(t, expected, values)
+	})
+
+	t.Run("Me", func(t *testing.T) {
+		t.Parallel()
+
+		userID := uuid.New()
+		db, _ := dbtestutil.NewDB(t)
+
+		query := `username:me workspace_owner:me`
+		values, _, errs := searchquery.ConnectionLogs(context.Background(), db, query, database.APIKey{UserID: userID})
+		require.Len(t, errs, 0)
+
+		expected := database.GetConnectionLogsOffsetParams{
+			UserID:           userID,
+			WorkspaceOwnerID: userID,
+		}
+
+		require.Equal(t, expected, values)
+	})
 }
 
 func TestSearchUsers(t *testing.T) {
@@ -623,7 +695,7 @@ func TestSearchTemplates(t *testing.T) {
 			t.Parallel()
 			// Do not use a real database, this is only used for an
 			// organization lookup.
-			db := dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
 			values, errs := searchquery.Templates(context.Background(), db, c.Query)
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")

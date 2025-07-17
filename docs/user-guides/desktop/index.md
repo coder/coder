@@ -1,12 +1,18 @@
 # Coder Desktop
 
 Coder Desktop provides seamless access to your remote workspaces without the need to install a CLI or configure manual port forwarding.
-Connect to workspace services using simple hostnames like `myworkspace.coder`, launch native applications with one click, and synchronize files between local and remote environments.
+Connect to workspace services using simple hostnames like `myworkspace.coder`, launch native applications with one click,
+and synchronize files between local and remote environments.
 
-> [!NOTE]
-> Coder Desktop requires a Coder deployment running [v2.20.0](https://github.com/coder/coder/releases/tag/v2.20.0) or later.
+Coder Desktop requires a Coder deployment running [v2.20.0](https://github.com/coder/coder/releases/tag/v2.20.0) or later.
 
 ## Install Coder Desktop
+
+> [!IMPORTANT]
+> Coder Desktop can't connect through a corporate VPN.
+>
+> Due to a [known issue](#coder-desktop-cant-connect-through-another-vpn),
+> if your Coder deployment requires that you connect through a corporate VPN, Desktop will timeout when it tries to connect.
 
 <div class="tabs">
 
@@ -33,10 +39,6 @@ You can install Coder Desktop on macOS or Windows.
 1. In the **Network Extensions** system settings, enable the Coder Desktop extension.
 
 1. Continue to the [configuration section](#configure).
-
-> Do not install more than one copy of Coder Desktop.
->
-> To avoid system VPN configuration conflicts, only one copy of `Coder Desktop.app` should exist on your Mac, and it must remain in `/Applications`.
 
 ### Windows
 
@@ -117,11 +119,34 @@ Before you can use Coder Desktop, you will need to sign in.
 
    ![Coder Desktop on Windows - enable Coder Connect](../../images/user-guides/desktop/coder-desktop-win-enable-coder-connect.png)
 
-   This may take a few moments, as Coder Desktop will download the necessary components from the Coder server if they have been updated.
+   This may take a few moments, because Coder Desktop will download the necessary components from the Coder server if they have been updated.
 
 1. macOS: You may be prompted to enter your password to allow Coder Connect to start.
 
 1. Coder Connect is now running!
+
+## Troubleshooting
+
+If you encounter an issue with Coder Desktop that is not listed here, file an issue in the GitHub repository for
+Coder Desktop for [macOS](https://github.com/coder/coder-desktop-macos/issues) or
+[Windows](https://github.com/coder/coder-desktop-windows/issues), in the
+[main Coder repository](https://github.com/coder/coder/issues), or consult the
+[community on Discord](https://coder.com/chat).
+
+### Known Issues
+
+#### macOS: Do not install more than one copy of Coder Desktop
+
+To avoid system VPN configuration conflicts, only one copy of `Coder Desktop.app` should exist on your Mac, and it must remain in `/Applications`.
+
+#### Coder Desktop can't connect through another VPN
+
+If the logged in Coder deployment requires a corporate VPN to connect, Coder Connect can't establish communication
+through the VPN, and will time out.
+
+This is due to known issues with [macOS](https://github.com/coder/coder-desktop-macos/issues/201) and
+[Windows](https://github.com/coder/coder-desktop-windows/issues/147) networking.
+A resolution is in progress.
 
 ## Next Steps
 

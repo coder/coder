@@ -5,7 +5,9 @@ import type {
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
 import { Badge } from "components/Badge/Badge";
+import { Button } from "components/Button/Button";
 import { Checkbox } from "components/Checkbox/Checkbox";
+import { Combobox } from "components/Combobox/Combobox";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
@@ -15,14 +17,8 @@ import {
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
 import { RadioGroup, RadioGroupItem } from "components/RadioGroup/RadioGroup";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "components/Select/Select";
 import { Slider } from "components/Slider/Slider";
+import { Stack } from "components/Stack/Stack";
 import { Switch } from "components/Switch/Switch";
 import { TagInput } from "components/TagInput/TagInput";
 import { Textarea } from "components/Textarea/Textarea";
@@ -36,6 +32,8 @@ import { useDebouncedValue } from "hooks/debounce";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import {
 	CircleAlert,
+	Eye,
+	EyeOff,
 	Hourglass,
 	Info,
 	LinkIcon,
@@ -43,6 +41,7 @@ import {
 	TriangleAlert,
 } from "lucide-react";
 import { type FC, useEffect, useId, useRef, useState } from "react";
+import { cn } from "utils/cn";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
 
@@ -265,6 +264,7 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 	const [localValue, setLocalValue] = useState(
 		value !== undefined ? value : validValue(parameter.value),
 	);
+	const [showMaskedInput, setShowMaskedInput] = useState(false);
 	const debouncedLocalValue = useDebouncedValue(localValue, 500);
 	const onChangeEvent = useEffectEvent(onChange);
 	// prevDebouncedValueRef is to prevent calling the onChangeEvent on the initial render
@@ -309,27 +309,56 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 	switch (parameter.form_type) {
 		case "textarea": {
 			return (
-				<Textarea
-					ref={textareaRef}
-					id={id}
-					className="overflow-y-auto max-h-[500px]"
-					value={localValue}
-					onChange={(e) => {
-						const target = e.currentTarget;
-						target.style.height = "auto";
-						target.style.height = `${target.scrollHeight}px`;
+				<Stack direction="row" spacing={0} alignItems="center">
+					<Textarea
+						ref={textareaRef}
+						id={id}
+						className={cn(
+							"overflow-y-auto max-h-[500px]",
+							parameter.styling?.mask_input &&
+								!showMaskedInput &&
+								"[-webkit-text-security:disc]",
+						)}
+						value={localValue}
+						onChange={(e) => {
+							const target = e.currentTarget;
+							target.style.height = "auto";
+							target.style.height = `${target.scrollHeight}px`;
 
-						setLocalValue(e.target.value);
-					}}
-					disabled={disabled}
-					placeholder={parameter.styling?.placeholder}
-					required={parameter.required}
-				/>
+							setLocalValue(e.target.value);
+						}}
+						disabled={disabled}
+						placeholder={parameter.styling?.placeholder}
+						required={parameter.required}
+					/>
+					{parameter.styling?.mask_input && (
+						<Button
+							type="button"
+							variant="subtle"
+							size="icon"
+							onMouseDown={() => setShowMaskedInput(true)}
+							onMouseOut={() => setShowMaskedInput(false)}
+							onMouseUp={() => setShowMaskedInput(false)}
+							disabled={disabled}
+						>
+							{showMaskedInput ? (
+								<EyeOff className="h-4 w-4" />
+							) : (
+								<Eye className="h-4 w-4" />
+							)}
+						</Button>
+					)}
+				</Stack>
 			);
 		}
 
 		case "input": {
-			const inputType = parameter.type === "number" ? "number" : "text";
+			const inputType =
+				parameter.type === "number"
+					? "number"
+					: parameter.styling?.mask_input && !showMaskedInput
+						? "password"
+						: "text";
 			const inputProps: Record<string, unknown> = {};
 
 			if (parameter.type === "number") {
@@ -346,18 +375,37 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 			}
 
 			return (
-				<Input
-					id={id}
-					type={inputType}
-					value={localValue}
-					onChange={(e) => {
-						setLocalValue(e.target.value);
-					}}
-					disabled={disabled}
-					required={parameter.required}
-					placeholder={parameter.styling?.placeholder}
-					{...inputProps}
-				/>
+				<Stack direction="row" spacing={0} alignItems="center">
+					<Input
+						id={id}
+						type={inputType}
+						value={localValue}
+						onChange={(e) => {
+							setLocalValue(e.target.value);
+						}}
+						disabled={disabled}
+						required={parameter.required}
+						placeholder={parameter.styling?.placeholder}
+						{...inputProps}
+					/>
+					{parameter.styling?.mask_input && parameter.type !== "number" && (
+						<Button
+							type="button"
+							variant="subtle"
+							size="icon"
+							onMouseDown={() => setShowMaskedInput(true)}
+							onMouseOut={() => setShowMaskedInput(false)}
+							onMouseUp={() => setShowMaskedInput(false)}
+							disabled={disabled}
+						>
+							{showMaskedInput ? (
+								<EyeOff className="h-4 w-4" />
+							) : (
+								<Eye className="h-4 w-4" />
+							)}
+						</Button>
+					)}
+				</Stack>
 			);
 		}
 	}
@@ -380,43 +428,17 @@ const ParameterField: FC<ParameterFieldProps> = ({
 }) => {
 	switch (parameter.form_type) {
 		case "dropdown": {
-			const EMPTY_VALUE_PLACEHOLDER = "__EMPTY_STRING__";
-			const selectValue = value === "" ? EMPTY_VALUE_PLACEHOLDER : value;
-			const handleSelectChange = (newValue: string) => {
-				onChange(newValue === EMPTY_VALUE_PLACEHOLDER ? "" : newValue);
-			};
-
 			return (
-				<Select
-					onValueChange={handleSelectChange}
-					value={selectValue}
-					disabled={disabled}
-					required={parameter.required}
-				>
-					<SelectTrigger id={id}>
-						<SelectValue
-							placeholder={parameter.styling?.placeholder || "Select option"}
-						/>
-					</SelectTrigger>
-					<SelectContent>
-						{parameter.options.map((option, index) => {
-							const optionValue =
-								option.value.value === ""
-									? EMPTY_VALUE_PLACEHOLDER
-									: option.value.value;
-							return (
-								<SelectItem
-									key={
-										option.value.value || `${EMPTY_VALUE_PLACEHOLDER}:${index}`
-									}
-									value={optionValue}
-								>
-									<OptionDisplay option={option} />
-								</SelectItem>
-							);
-						})}
-					</SelectContent>
-				</Select>
+				<Combobox
+					value={value ?? ""}
+					onSelect={(value) => onChange(value)}
+					options={parameter.options.map((option) => ({
+						icon: option.icon,
+						displayName: option.name,
+						value: option.value.value,
+						description: option.description,
+					}))}
+				/>
 			);
 		}
 
@@ -434,6 +456,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 				value: opt.value.value,
 				label: opt.name,
 				icon: opt.icon,
+				description: opt.description,
 				disable: false,
 			}));
 
@@ -451,9 +474,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 
 			return (
 				<MultiSelectCombobox
-					inputProps={{
-						id: id,
-					}}
+					inputProps={{ id }}
 					options={options}
 					defaultOptions={selectedOptions}
 					onChange={(newValues) => {
@@ -698,7 +719,7 @@ const isValidParameterOption = (
 			if (Array.isArray(parsed)) {
 				values = parsed;
 			}
-		} catch (e) {
+		} catch {
 			return false;
 		}
 
@@ -899,12 +920,12 @@ export const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 			{diagnostics.map((diagnostic, index) => (
 				<div
 					key={`diagnostic-${diagnostic.summary}-${index}`}
-					className={`text-xs font-semibold flex flex-col rounded-md border px-3.5 py-3.5 border-solid
-                        ${
-													diagnostic.severity === "error"
-														? "text-content-primary border-border-destructive bg-content-destructive/15"
-														: "text-content-primary border-border-warning bg-content-warning/15"
-												}`}
+					className={cn(
+						"text-xs font-semibold flex flex-col rounded-md border px-3.5 py-3.5 border-solid",
+						diagnostic.severity === "error"
+							? "text-content-primary border-border-destructive bg-content-destructive/15"
+							: "text-content-primary border-border-warning bg-content-warning/15",
+					)}
 				>
 					<div className="flex flex-row items-start">
 						{diagnostic.severity === "error" && (

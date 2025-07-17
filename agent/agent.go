@@ -98,7 +98,7 @@ type Client interface {
 	ConnectRPC26(ctx context.Context) (
 		proto.DRPCAgentClient26, tailnetproto.DRPCTailnetClient26, error,
 	)
-	RewriteDERPMap(derpMap *tailcfg.DERPMap)
+	tailnet.DERPMapRewriter
 }
 
 type Agent interface {
@@ -336,18 +336,16 @@ func (a *agent) init() {
 	// will not report anywhere.
 	a.scriptRunner.RegisterMetrics(a.prometheusRegistry)
 
-	if a.devcontainers {
-		containerAPIOpts := []agentcontainers.Option{
-			agentcontainers.WithExecer(a.execer),
-			agentcontainers.WithCommandEnv(a.sshServer.CommandEnv),
-			agentcontainers.WithScriptLogger(func(logSourceID uuid.UUID) agentcontainers.ScriptLogger {
-				return a.logSender.GetScriptLogger(logSourceID)
-			}),
-		}
-		containerAPIOpts = append(containerAPIOpts, a.containerAPIOptions...)
-
-		a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
+	containerAPIOpts := []agentcontainers.Option{
+		agentcontainers.WithExecer(a.execer),
+		agentcontainers.WithCommandEnv(a.sshServer.CommandEnv),
+		agentcontainers.WithScriptLogger(func(logSourceID uuid.UUID) agentcontainers.ScriptLogger {
+			return a.logSender.GetScriptLogger(logSourceID)
+		}),
 	}
+	containerAPIOpts = append(containerAPIOpts, a.containerAPIOptions...)
+
+	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
@@ -1162,7 +1160,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				scripts             = manifest.Scripts
 				devcontainerScripts map[uuid.UUID]codersdk.WorkspaceAgentScript
 			)
-			if a.containerAPI != nil {
+			if a.devcontainers {
 				// Init the container API with the manifest and client so that
 				// we can start accepting requests. The final start of the API
 				// happens after the startup scripts have been executed to
@@ -1197,7 +1195,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// autostarted devcontainer will be included in this time.
 				err := a.scriptRunner.Execute(a.gracefulCtx, agentscripts.ExecuteStartScripts)
 
-				if a.containerAPI != nil {
+				if a.devcontainers {
 					// Start the container API after the startup scripts have
 					// been executed to ensure that the required tools can be
 					// installed.
@@ -1928,10 +1926,8 @@ func (a *agent) Close() error {
 		a.logger.Error(a.hardCtx, "script runner close", slog.Error(err))
 	}
 
-	if a.containerAPI != nil {
-		if err := a.containerAPI.Close(); err != nil {
-			a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
-		}
+	if err := a.containerAPI.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
 	}
 
 	// Wait for the graceful shutdown to complete, but don't wait forever so
