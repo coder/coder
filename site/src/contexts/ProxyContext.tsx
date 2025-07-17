@@ -92,41 +92,12 @@ export const ProxyContext = createContext<ProxyContextValue | undefined>(
  */
 export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 	const queryClient = useQueryClient();
-	// Fetch user proxy settings from API
-	// TODO: Temporarily disabled until backend endpoints are implemented
-	const userProxyQuery = useQuery({
-		queryKey: ["userProxySettings"],
-		queryFn: () => Promise.resolve({ preferred_proxy: undefined }),
-		retry: false, // Don't retry if user doesn't have proxy settings
-		enabled: false, // Disable the query for now
-	});
 
-	// Mutation for updating proxy settings
-	// TODO: Temporarily disabled until backend endpoints are implemented
-	const updateProxyMutation = useMutation({
-		mutationFn: (proxyId: string) => Promise.resolve({ preferred_proxy: proxyId }),
-		onSuccess: () => {
-			// queryClient.invalidateQueries(["userProxySettings"]);
-		},
-	});
 
-	const deleteProxyMutation = useMutation({
-		mutationFn: () => Promise.resolve(),
-		onSuccess: () => {
-			// queryClient.invalidateQueries(["userProxySettings"]);
-		},
-	});
-
-	// Get user saved proxy from API or fallback to localStorage for migration
+	// Get user saved proxy from localStorage
 	const userSavedProxy = useMemo(() => {
-		if (userProxyQuery.data?.preferred_proxy) {
-			// Find the proxy object from the preferred_proxy ID
-			const proxyId = userProxyQuery.data.preferred_proxy;
-			return proxiesResp?.find((p) => p.id === proxyId);
-		}
-		// Fallback to localStorage for migration
 		return loadUserSelectedProxy();
-	}, [userProxyQuery.data, proxiesResp]);
+	}, []);
 
 	// Load the initial state from localStorage only
 	// Let useEffect handle proper initialization when data is available
@@ -231,15 +202,13 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
 				// These functions are exposed to allow the user to select a proxy.
 				setProxy: (proxy: Region) => {
-					// Save to API and fallback to localStorage for immediate feedback
-					updateProxyMutation.mutate(proxy.id);
-					saveUserSelectedProxy(proxy); // Keep for immediate UI feedback
+					// Save to localStorage
+					saveUserSelectedProxy(proxy);
 					// Update the selected proxy
 					updateProxy();
 				},
 				clearProxy: () => {
-					// Clear from API and localStorage
-					deleteProxyMutation.mutate();
+					// Clear from localStorage
 					clearUserSelectedProxy();
 					updateProxy();
 				},
