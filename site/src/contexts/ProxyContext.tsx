@@ -128,16 +128,11 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 		return loadUserSelectedProxy();
 	}, [userProxyQuery.data, proxiesResp]);
 
-	// Load the initial state from user preferences or localStorage.
-	// Use safe initialization to avoid temporal dead zone with userSavedProxy
-	const [proxy, setProxy] = useState<PreferredProxy>(() => {
-		// Only use userSavedProxy if proxiesResp is available
-		if (proxiesResp && userSavedProxy) {
-			return computeUsableURLS(userSavedProxy);
-		}
-		// Safe fallback - let useEffect handle proper initialization
-		return computeUsableURLS(undefined);
-	});
+	// Load the initial state from localStorage only
+	// Let useEffect handle proper initialization when data is available
+	const [proxy, setProxy] = useState<PreferredProxy>(
+		computeUsableURLS(loadUserSelectedProxy()),
+	);
 
 	const { permissions } = useAuthenticated();
 	const { metadata } = useEmbeddedMetadata();
