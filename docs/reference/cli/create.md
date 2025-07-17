@@ -37,6 +37,15 @@ Specify a template name.
 
 Specify a template version name.
 
+### --preset
+
+|             |                                 |
+|-------------|---------------------------------|
+| Type        | <code>string</code>             |
+| Environment | <code>$CODER_PRESET_NAME</code> |
+
+Specify a template version preset name. Use 'default' to apply the default preset defined in the template version, if available.
+
 ### --start-at
 
 |             |                                        |
