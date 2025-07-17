@@ -2803,13 +2803,13 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			// classic uses tfparse for tags. This sub test can be
 			// removed when tf parse is removed.
 			t.Run("classic", func(t *testing.T) {
-				testWorkspaceTagsTerraform(t, tc, false)
+				workspaceTagsTerraform(t, tc, false)
 			})
 		})
 	}
 }
 
-func testWorkspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dynamic bool) {
+func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dynamic bool) {
 	mainTfTemplate := `
 		terraform {
 			required_providers {
