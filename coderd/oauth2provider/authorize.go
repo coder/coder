@@ -30,15 +30,15 @@ type authorizeParams struct {
 	accessType          string // OAuth2 access type (online/offline)
 }
 
-func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizeParams, []codersdk.ValidationError, error) {
+func extractAuthorizeParams(r *http.Request, registeredRedirectURIs []string) (authorizeParams, []codersdk.ValidationError, error) {
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 
-	p.RequiredNotEmpty("state", "response_type", "client_id")
+	p.RequiredNotEmpty("state", "response_type", "client_id", "redirect_uri")
 
 	params := authorizeParams{
 		clientID:            p.String(vals, "", "client_id"),
-		redirectURL:         p.RedirectURL(vals, callbackURL, "redirect_uri"),
+		redirectURL:         nil, // Will be validated below
 		responseType:        httpapi.ParseCustom(p, vals, "", "response_type", httpapi.ParseEnum[codersdk.OAuth2ProviderResponseType]),
 		scope:               p.Strings(vals, []string{}, "scope"),
 		state:               p.String(vals, "", "state"),
@@ -47,6 +47,10 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 		codeChallengeMethod: p.String(vals, "", "code_challenge_method"),
 		accessType:          p.String(vals, "", "access_type"),
 	}
+
+	// RFC 6749 compliant redirect URI validation
+	redirectURIParam := p.String(vals, "", "redirect_uri")
+	params.redirectURL = validateRedirectURI(p, redirectURIParam, registeredRedirectURIs)
 	// Validate resource indicator syntax (RFC 8707): must be absolute URI without fragment
 	if err := validateResourceParameter(params.resource); err != nil {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
@@ -91,13 +95,13 @@ func ProcessAuthorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 		apiKey := httpmw.APIKey(r)
 		app := httpmw.OAuth2ProviderApp(r)
 
-		callbackURL, err := url.Parse(app.CallbackURL)
-		if err != nil {
-			httpapi.WriteOAuth2Error(r.Context(), rw, http.StatusInternalServerError, "server_error", "Failed to validate query parameters")
+		// Validate that app has registered redirect URIs
+		if len(app.RedirectUris) == 0 {
+			httpapi.WriteOAuth2Error(r.Context(), rw, http.StatusInternalServerError, "server_error", "OAuth2 app has no registered redirect URIs")
 			return
 		}
 
-		params, _, err := extractAuthorizeParams(r, callbackURL)
+		params, _, err := extractAuthorizeParams(r, app.RedirectUris)
 		if err != nil {
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_request", err.Error())
 			return
