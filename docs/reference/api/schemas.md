@@ -5490,7 +5490,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "name": "string",
       "value": "string"
     }
-  ]
+  ],
+  "prebuilds": 0
 }
 ```
 
@@ -5502,6 +5503,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `id`         | string                                                        | false    |              |             |
 | `name`       | string                                                        | false    |              |             |
 | `parameters` | array of [codersdk.PresetParameter](#codersdkpresetparameter) | false    |              |             |
+| `prebuilds`  | integer                                                       | false    |              |             |
 
 ## codersdk.PresetParameter
 

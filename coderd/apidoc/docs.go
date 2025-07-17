@@ -14849,6 +14849,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.PresetParameter"
                     }
+                },
+                "prebuilds": {
+                    "type": "integer"
                 }
             }
         },

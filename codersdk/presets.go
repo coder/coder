@@ -15,6 +15,7 @@ type Preset struct {
 	Name       string
 	Parameters []PresetParameter
 	Default    bool
+	Prebuilds  *int
 }
 
 type PresetParameter struct {
