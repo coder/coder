@@ -1,8 +1,30 @@
 -- name: GetOAuth2ProviderApps :many
-SELECT * FROM oauth2_provider_apps ORDER BY (name, id) ASC;
+SELECT
+    oauth2_provider_apps.*,
+    users.username,
+    users.email
+FROM oauth2_provider_apps
+LEFT JOIN users ON oauth2_provider_apps.user_id = users.id
+ORDER BY (oauth2_provider_apps.name, oauth2_provider_apps.id) ASC;
 
 -- name: GetOAuth2ProviderAppByID :one
-SELECT * FROM oauth2_provider_apps WHERE id = $1;
+SELECT
+    oauth2_provider_apps.*,
+    users.username,
+    users.email
+FROM oauth2_provider_apps
+LEFT JOIN users ON oauth2_provider_apps.user_id = users.id
+WHERE oauth2_provider_apps.id = $1;
+
+-- name: GetOAuth2ProviderAppsByOwnerID :many
+SELECT
+    oauth2_provider_apps.*,
+    users.username,
+    users.email
+FROM oauth2_provider_apps
+LEFT JOIN users ON oauth2_provider_apps.user_id = users.id
+WHERE oauth2_provider_apps.user_id = $1
+ORDER BY (oauth2_provider_apps.name, oauth2_provider_apps.id) ASC;
 
 -- name: InsertOAuth2ProviderApp :one
 INSERT INTO oauth2_provider_apps (
@@ -104,14 +126,16 @@ INSERT INTO oauth2_provider_app_secrets (
     secret_prefix,
     hashed_secret,
     display_secret,
-    app_id
+    app_id,
+    app_owner_user_id
 ) VALUES(
     $1,
     $2,
     $3,
     $4,
     $5,
-    $6
+    $6,
+    $7
 ) RETURNING *;
 
 -- name: UpdateOAuth2ProviderAppSecretByID :one

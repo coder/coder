@@ -62,21 +62,23 @@ coderd/
 
 ### Running Tests
 
-| Command | Purpose |
-|---------|---------|
-| `make test` | Run all Go tests |
-| `make test RUN=TestFunctionName` | Run specific test |
-| `go test -v ./path/to/package -run TestFunctionName` | Run test with verbose output |
-| `make test-postgres` | Run tests with Postgres database |
-| `make test-race` | Run tests with Go race detector |
-| `make test-e2e` | Run end-to-end tests |
+| Command                                              | Purpose                          |
+|------------------------------------------------------|----------------------------------|
+| `make test`                                          | Run all Go tests                 |
+| `make test PACKAGE=./pkg/...`                        | Run tests for specific package   |
+| `make test RUN=TestFunctionName`                     | Run specific test                |
+| `make test PACKAGE=./pkg/... RUN=TestFunctionName`   | Run specific test in package     |
+| `go test -v ./path/to/package -run TestFunctionName` | Run test with verbose output     |
+| `make test-postgres`                                 | Run tests with Postgres database |
+| `make test-race`                                     | Run tests with Go race detector  |
+| `make test-e2e`                                      | Run end-to-end tests             |
 
 ### Frontend Testing
 
-| Command | Purpose |
-|---------|---------|
-| `pnpm test` | Run frontend tests |
-| `pnpm check` | Run code checks |
+| Command      | Purpose            |
+|--------------|--------------------|
+| `pnpm test`  | Run frontend tests |
+| `pnpm check` | Run code checks    |
 
 ## Common Testing Issues
 
@@ -207,6 +209,7 @@ func BenchmarkFunction(b *testing.B) {
 ```
 
 Run benchmarks with:
+
 ```bash
 go test -bench=. -benchmem ./package/path
 ```

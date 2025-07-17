@@ -7,19 +7,21 @@
 
 ## 🚀 Essential Commands
 
-| Task              | Command                  | Notes                            |
-|-------------------|--------------------------|----------------------------------|
-| **Development**   | `./scripts/develop.sh`   | ⚠️ Don't use manual build        |
-| **Build**         | `make build`             | Fat binaries (includes server)   |
-| **Build Slim**    | `make build-slim`        | Slim binaries                    |
-| **Test**          | `make test`              | Full test suite                  |
-| **Test Single**   | `make test RUN=TestName` | Faster than full suite           |
-| **Test Postgres** | `make test-postgres`     | Run tests with Postgres database |
-| **Test Race**     | `make test-race`         | Run tests with Go race detector  |
-| **Lint**          | `make lint`              | Always run after changes         |
-| **Generate**      | `make gen`               | After database changes           |
-| **Format**        | `make fmt`               | Auto-format code                 |
-| **Clean**         | `make clean`             | Clean build artifacts            |
+| Task              | Command                                    | Notes                            |
+|-------------------|--------------------------------------------|----------------------------------|
+| **Development**   | `./scripts/develop.sh`                     | ⚠️ Don't use manual build        |
+| **Build**         | `make build`                               | Fat binaries (includes server)   |
+| **Build Slim**    | `make build-slim`                          | Slim binaries                    |
+| **Test**          | `make test`                                | Full test suite                  |
+| **Test Package**  | `make test PACKAGE=./pkg/...`              | Test specific package            |
+| **Test Single**   | `make test RUN=TestName`                   | Faster than full suite           |
+| **Test Combined** | `make test PACKAGE=./pkg/... RUN=TestName` | Test specific test in package    |
+| **Test Postgres** | `make test-postgres`                       | Run tests with Postgres database |
+| **Test Race**     | `make test-race`                           | Run tests with Go race detector  |
+| **Lint**          | `make lint`                                | Always run after changes         |
+| **Generate**      | `make gen`                                 | After database changes           |
+| **Format**        | `make fmt`                                 | Auto-format code                 |
+| **Clean**         | `make clean`                               | Clean build artifacts            |
 
 ### Frontend Commands (site directory)
 

@@ -936,7 +936,7 @@ GOTESTSUM_RETRY_FLAGS :=
 endif
 
 test:
-	$(GIT_FLAGS) gotestsum --format standard-quiet $(GOTESTSUM_RETRY_FLAGS) --packages="./..." -- -v -short -count=1 $(if $(RUN),-run $(RUN))
+	$(GIT_FLAGS) gotestsum --format standard-quiet $(GOTESTSUM_RETRY_FLAGS) --packages="$(if $(PACKAGE),$(PACKAGE),./...)" -- -v -short -count=1 $(if $(RUN),-run $(RUN))
 .PHONY: test
 
 test-cli:
