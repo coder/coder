@@ -1,4 +1,4 @@
-{
+{"ghcr.io/wxw-matt/devcontainer-features/script_runner:0": {}
 	"name": "Development environments on your infrastructure",
 	"image": "codercom/oss-dogfood:latest",
 	"features": {
