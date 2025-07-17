@@ -2807,7 +2807,7 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			client, owner := coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					// We intentionally do not run a built-in provisioner daemon here.
-					IncludeProvisionerDaemon: false,
+					IncludeProvisionerDaemon: true,
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{
@@ -2817,9 +2817,6 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			})
 			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 			member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-
-			// Provisioner for the empty file
-			emptyProvisioner := coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, map[string]string{})
 
 			// This can take a while, so set a relatively long timeout.
 			ctx := testutil.Context(t, 2*testutil.WaitSuperLong)
@@ -2832,7 +2829,7 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 				Name:          testutil.GetRandomName(t),
 				FileID:        emptyFi.ID,
 				StorageMethod: codersdk.ProvisionerStorageMethodFile,
-				Provisioner:   codersdk.ProvisionerTypeTerraform,
+				Provisioner:   codersdk.ProvisionerTypeEcho,
 			})
 			require.NoError(t, err)
 
@@ -2840,7 +2837,6 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, emptyTv.ID, func(request *codersdk.CreateTemplateRequest) {
 				request.UseClassicParameterFlow = ptr.Ref(false)
 			})
-			_ = emptyProvisioner.Close() // No longer needed
 
 			// The provisioner for the next template version
 			_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, tc.provisionerTags)
@@ -2865,7 +2861,7 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			if !tc.skipCreateWorkspace {
 				// Creating a workspace as a non-privileged user must succeed
 				ws, err := member.CreateUserWorkspace(ctx, memberUser.Username, codersdk.CreateWorkspaceRequest{
-					TemplateID:          tpl.ID,
+					TemplateVersionID:   tv.ID,
 					Name:                coderdtest.RandomUsername(t),
 					RichParameterValues: tc.workspaceBuildParameters,
 				})

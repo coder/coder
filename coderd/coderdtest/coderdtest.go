@@ -1075,6 +1075,7 @@ func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, buil
 	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
 	require.Eventually(t, func() bool {
+
 		var err error
 		workspaceBuild, err = client.WorkspaceBuild(ctx, build)
 		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
