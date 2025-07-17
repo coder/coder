@@ -601,7 +601,88 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	// looks up API key with os.LookupEnv("ANTHROPIC_API_KEY")
 	client := anthropic.NewClient(opts...)
 	if !in.UseStreaming() {
-		http.Error(w, "streaming API supported only", http.StatusBadRequest)
+		var resp *anthropic.BetaMessage
+		for {
+			resp, err = client.Beta.Messages.New(ctx, messages, opts...)
+			if err != nil {
+				if isConnectionError(err) {
+					b.logger.Warn(ctx, "upstream connection closed", slog.Error(err))
+					return
+				}
+
+				b.logger.Error(ctx, "anthropic stream error", slog.Error(err))
+				if antErr := getAnthropicErrorResponse(err); antErr != nil {
+					fmt.Println("oops")
+				}
+			}
+
+			if _, err = coderdClient.TrackTokenUsage(ctx, &proto.TrackTokenUsageRequest{
+				MsgId:        resp.ID,
+				Model:        string(resp.Model),
+				InputTokens:  resp.Usage.InputTokens,
+				OutputTokens: resp.Usage.OutputTokens,
+				Other: map[string]int64{
+					"web_search_requests":      resp.Usage.ServerToolUse.WebSearchRequests,
+					"cache_creation_input":     resp.Usage.CacheCreationInputTokens,
+					"cache_read_input":         resp.Usage.CacheReadInputTokens,
+					"cache_ephemeral_1h_input": resp.Usage.CacheCreation.Ephemeral1hInputTokens,
+					"cache_ephemeral_5m_input": resp.Usage.CacheCreation.Ephemeral5mInputTokens,
+				},
+			}); err != nil {
+				b.logger.Error(ctx, "failed to track token usage", slog.Error(err))
+			}
+
+			messages.Messages = append(messages.Messages, resp.ToParam())
+
+			if resp.StopReason == anthropic.BetaStopReasonEndTurn {
+				break
+			}
+
+			if resp.StopReason == anthropic.BetaStopReasonToolUse {
+				var (
+					toolUse anthropic.BetaToolUseBlock
+					input   any
+				)
+				for _, c := range resp.Content {
+					toolUse = c.AsToolUse()
+					if toolUse.ID == "" {
+						continue
+					}
+
+					input = toolUse.Input
+				}
+
+				if input != nil {
+					var (
+						serialized map[string]string
+						buf        bytes.Buffer
+					)
+					_ = json.NewEncoder(&buf).Encode(input)
+					_ = json.NewDecoder(&buf).Decode(&serialized)
+
+					_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
+						Model: string(resp.Model),
+						Input: serialized,
+						Tool:  toolUse.Name,
+					})
+					if err != nil {
+						b.logger.Error(ctx, "failed to track injected tool usage", slog.Error(err))
+					}
+				}
+
+				break
+			}
+		}
+
+		out, err := json.Marshal(resp)
+		if err != nil {
+			http.Error(w, "error marshaling response", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(out)
 		return
 	}
 

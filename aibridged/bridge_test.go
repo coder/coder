@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync"
 	"testing"
 
@@ -33,7 +32,13 @@ var (
 	antSingleBuiltinTool []byte
 )
 
-func TestAnthropicMessagesStreaming(t *testing.T) {
+const (
+	FixtureRequest              = "request"
+	FixtureStreamingResponse    = "streaming"
+	FixtureNonStreamingResponse = "non-streaming"
+)
+
+func TestAnthropicMessages(t *testing.T) {
 	t.Parallel()
 
 	sessionToken := getSessionToken(t)
@@ -41,59 +46,93 @@ func TestAnthropicMessagesStreaming(t *testing.T) {
 	t.Run("single builtin tool", func(t *testing.T) {
 		t.Parallel()
 
-		arc := txtar.Parse(antSingleBuiltinTool)
-		t.Logf("%s: %s", t.Name(), arc.Comment)
-		require.Len(t, arc.Files, 2)
-		reqBody, respBody := arc.Files[0], arc.Files[1]
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		srv := newFakeSSEServer(ctx, respBody.Data)
-		t.Cleanup(srv.Close)
-
-		coderdClient := &fakeBridgeDaemonClient{}
-
-		logger := testutil.Logger(t)
-		b, err := aibridged.NewBridge(codersdk.AIBridgeConfig{
-			Daemons: 1,
-			Anthropic: codersdk.AIBridgeAnthropicConfig{
-				BaseURL: serpent.String(srv.URL),
-				Key:     serpent.String(sessionToken),
+		cases := []struct {
+			streaming bool
+		}{
+			// {
+			// 	streaming: true,
+			// },
+			{
+				streaming: false,
 			},
-		}, "127.0.0.1:0", logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
-			return coderdClient, true
-		})
-		require.NoError(t, err)
+		}
 
-		go func() {
-			assert.NoError(t, b.Serve())
-		}()
-		// Wait for bridge to come up.
-		require.Eventually(t, func() bool { return len(b.Addr()) > 0 }, testutil.WaitLong, testutil.IntervalFast)
+		for _, tc := range cases {
+			arc := txtar.Parse(antSingleBuiltinTool)
+			t.Logf("%s: %s", t.Name(), arc.Comment)
 
-		// Make API call to aibridge for Anthropic /v1/messages
-		req := createAnthropicMessagesReq(t, "http://"+b.Addr(), string(reqBody.Data))
-		client := &http.Client{}
-		resp, err := client.Do(req)
-		require.NoError(t, err)
-		defer resp.Body.Close()
+			files := filesMap(arc)
+			require.Len(t, files, 3)
+			require.Contains(t, files, FixtureRequest)
+			require.Contains(t, files, FixtureStreamingResponse)
+			require.Contains(t, files, FixtureNonStreamingResponse)
 
-		sp := aibridged.NewSSEParser()
-		require.NoError(t, sp.Parse(resp.Body))
+			// Replace macro to indicate whether request is streaming or not.
+			reqBody := files[FixtureRequest]
+			require.Contains(t, string(reqBody), "%STREAMING%", "missing %STREAMING% macro in request")
+			reqBody = bytes.Replace(reqBody, []byte("%STREAMING%"), fmt.Appendf(nil, "%v", tc.streaming), 1)
 
-		assert.Contains(t, sp.AllEvents(), "message_start")
-		assert.Contains(t, sp.AllEvents(), "message_stop")
+			ctx := testutil.Context(t, testutil.WaitLong)
+			srv := newMockServer(ctx, files)
+			t.Cleanup(srv.Close)
 
-		require.Len(t, coderdClient.tokenUsages, 2) // One from message_start, one from message_delta.
-		assert.NotZero(t, calculateTotalInputTokens(coderdClient.tokenUsages))
-		assert.NotZero(t, calculateTotalOutputTokens(coderdClient.tokenUsages))
+			coderdClient := &fakeBridgeDaemonClient{}
 
-		require.Len(t, coderdClient.toolUsages, 1)
-		assert.Equal(t, "Read", coderdClient.toolUsages[0].Tool)
-		require.Contains(t, coderdClient.toolUsages[0].Input, "file_path")
-		assert.Equal(t, "/tmp/blah/foo", coderdClient.toolUsages[0].Input["file_path"])
+			logger := testutil.Logger(t) // slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			b, err := aibridged.NewBridge(codersdk.AIBridgeConfig{
+				Daemons: 1,
+				Anthropic: codersdk.AIBridgeAnthropicConfig{
+					BaseURL: serpent.String(srv.URL),
+					Key:     serpent.String(sessionToken),
+				},
+			}, "127.0.0.1:0", logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
+				return coderdClient, true
+			})
+			require.NoError(t, err)
 
-		require.Len(t, coderdClient.userPrompts, 1)
-		assert.Equal(t, "read the foo file", coderdClient.userPrompts[0].Prompt)
+			go func() {
+				assert.NoError(t, b.Serve())
+			}()
+			// Wait for bridge to come up.
+			require.Eventually(t, func() bool { return len(b.Addr()) > 0 }, testutil.WaitLong, testutil.IntervalFast)
+
+			// Make API call to aibridge for Anthropic /v1/messages
+			req := createAnthropicMessagesReq(t, "http://"+b.Addr(), reqBody)
+			if tc.streaming {
+				req.Header.Set("Accept", "text/event-stream")
+			} else {
+				req.Header.Set("Accept", "application/json")
+			}
+			client := &http.Client{}
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			defer resp.Body.Close()
+
+			// Response-specific checks.
+			if tc.streaming {
+				sp := aibridged.NewSSEParser()
+				require.NoError(t, sp.Parse(resp.Body))
+
+				// Ensure the message starts and completes, at a minimum.
+				assert.Contains(t, sp.AllEvents(), "message_start")
+				assert.Contains(t, sp.AllEvents(), "message_stop")
+				require.Len(t, coderdClient.tokenUsages, 2) // One from message_start, one from message_delta.
+			} else {
+				require.Len(t, coderdClient.tokenUsages, 1)
+			}
+
+			assert.NotZero(t, calculateTotalInputTokens(coderdClient.tokenUsages))
+			assert.NotZero(t, calculateTotalOutputTokens(coderdClient.tokenUsages))
+
+			require.Len(t, coderdClient.toolUsages, 1)
+			assert.Equal(t, "Read", coderdClient.toolUsages[0].Tool)
+			require.Contains(t, coderdClient.toolUsages[0].Input, "file_path")
+			assert.Equal(t, "/tmp/blah/foo", coderdClient.toolUsages[0].Input["file_path"])
+
+			require.Len(t, coderdClient.userPrompts, 1)
+			assert.Equal(t, "read the foo file", coderdClient.userPrompts[0].Prompt)
+		}
 	})
 }
 
@@ -113,13 +152,26 @@ func calculateTotalInputTokens(in []*proto.TrackTokenUsageRequest) int64 {
 	return total
 }
 
-func createAnthropicMessagesReq(t *testing.T, baseURL string, input string) *http.Request {
+type archiveFileMap map[string][]byte
+
+func filesMap(archive *txtar.Archive) archiveFileMap {
+	if len(archive.Files) == 0 {
+		return nil
+	}
+
+	out := make(archiveFileMap, len(archive.Files))
+	for _, f := range archive.Files {
+		out[f.Name] = f.Data
+	}
+	return out
+}
+
+func createAnthropicMessagesReq(t *testing.T, baseURL string, input []byte) *http.Request {
 	t.Helper()
 
-	req, err := http.NewRequestWithContext(t.Context(), "POST", baseURL+"/v1/messages", strings.NewReader(input))
+	req, err := http.NewRequestWithContext(t.Context(), "POST", baseURL+"/v1/messages", bytes.NewReader(input))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "text/event-stream")
 
 	return req
 }
@@ -138,46 +190,46 @@ func getSessionToken(t *testing.T) string {
 	return resp.SessionToken
 }
 
-type fakeSSEServer struct {
+type mockServer struct {
 	*httptest.Server
 }
 
-func newFakeSSEServer(ctx context.Context, fixture []byte) *fakeSSEServer {
+func newMockServer(ctx context.Context, files archiveFileMap) *mockServer {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Set SSE headers
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		contentType := r.Header.Get("Accept")
+		switch contentType {
+		// SSE
+		case "text/event-stream":
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Connection", "keep-alive")
+			w.Header().Set("Access-Control-Allow-Origin", "*")
 
-		// Stream the fixture content with random intervals
-		scanner := bufio.NewScanner(bytes.NewReader(fixture))
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
-			return
-		}
+			scanner := bufio.NewScanner(bytes.NewReader(files[FixtureStreamingResponse]))
+			flusher, ok := w.(http.Flusher)
+			if !ok {
+				http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+				return
+			}
 
-		for scanner.Scan() {
-			line := scanner.Text()
+			for scanner.Scan() {
+				line := scanner.Text()
 
-			// Write the line
-			fmt.Fprintf(w, "%s\n", line)
-			flusher.Flush()
+				fmt.Fprintf(w, "%s\n", line)
+				flusher.Flush()
+			}
 
-			// // Add random delay between 10-50ms to mimic real streaming
-			// delay := time.Duration(rand.Intn(40)+10) * time.Millisecond
-			// select {
-			// case <-ctx.Done():
-			// 	return
-			// case <-time.After(delay):
-			// 	// Continue
-			// }
-		}
+			if err := scanner.Err(); err != nil {
+				http.Error(w, fmt.Sprintf("Error reading fixture: %v", err), http.StatusInternalServerError)
+				return
+			}
+		case "application/json":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write(files[FixtureNonStreamingResponse])
 
-		if err := scanner.Err(); err != nil {
-			http.Error(w, fmt.Sprintf("Error reading fixture: %v", err), http.StatusInternalServerError)
-			return
+		default:
+			panic(fmt.Sprintf("unsupported content type: %q", contentType))
 		}
 	}))
 
@@ -185,7 +237,7 @@ func newFakeSSEServer(ctx context.Context, fixture []byte) *fakeSSEServer {
 		return ctx
 	}
 
-	return &fakeSSEServer{
+	return &mockServer{
 		Server: srv,
 	}
 }
