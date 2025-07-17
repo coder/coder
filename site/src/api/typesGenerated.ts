@@ -34,7 +34,6 @@ export type APIKeyScope =
 	| "application_connect";
 
 export const APIKeyScopes: APIKeyScope[] = [
-	
 	"all",
 	"application_connect",
 ];
@@ -93,7 +92,6 @@ export type AgentSubsystem =
 	| "exectrace";
 
 export const AgentSubsystems: AgentSubsystem[] = [
-	
 	"envbox",
 	"envbuilder",
 	"exectrace",
@@ -148,7 +146,6 @@ export type AuditAction =
 	| "write";
 
 export const AuditActions: AuditAction[] = [
-	
 	"close",
 	"connect",
 	"create",
@@ -165,7 +162,8 @@ export const AuditActions: AuditAction[] = [
 ];
 
 // From codersdk/audit.go
-export type AuditDiff = Record<string, AuditDiffField>;
+export type AuditDiff =
+	| Record<string, AuditDiffField>;
 
 // From codersdk/audit.go
 export interface AuditDiffField {
@@ -244,7 +242,8 @@ export interface AuthorizationRequest {
 }
 
 // From codersdk/authorization.go
-export type AuthorizationResponse = Record<string, boolean>;
+export type AuthorizationResponse =
+	| Record<string, boolean>;
 
 // From codersdk/workspaces.go
 export type AutomaticUpdates =
@@ -252,7 +251,6 @@ export type AutomaticUpdates =
 	| "never";
 
 export const AutomaticUpdateses: AutomaticUpdates[] = [
-	
 	"always",
 	"never",
 ];
@@ -299,7 +297,6 @@ export type BuildReason =
 	| "initiator";
 
 export const BuildReasons: BuildReason[] = [
-	
 	"autostart",
 	"autostop",
 	"dormancy",
@@ -326,7 +323,6 @@ export type CancelWorkspaceBuildStatus =
 	| "running";
 
 export const CancelWorkspaceBuildStatuses: CancelWorkspaceBuildStatus[] = [
-	
 	"pending",
 	"running",
 ];
@@ -383,7 +379,6 @@ export type ConnectionLogStatus =
 	| "ongoing";
 
 export const ConnectionLogStatuses: ConnectionLogStatus[] = [
-	
 	"completed",
 	"ongoing",
 ];
@@ -411,7 +406,6 @@ export type ConnectionType =
 	| "workspace_app";
 
 export const ConnectionTypes: ConnectionType[] = [
-	
 	"jetbrains",
 	"port_forwarding",
 	"reconnecting_pty",
@@ -607,7 +601,6 @@ export type CryptoKeyFeature =
 	| "workspace_apps_token";
 
 export const CryptoKeyFeatures: CryptoKeyFeature[] = [
-	
 	"oidc_convert",
 	"tailnet_resume",
 	"workspace_apps_api_key",
@@ -829,7 +822,6 @@ export type DiagnosticSeverityString =
 	| "warning";
 
 export const DiagnosticSeverityStrings: DiagnosticSeverityString[] = [
-	
 	"error",
 	"warning",
 ];
@@ -843,7 +835,6 @@ export type DisplayApp =
 	| "web_terminal";
 
 export const DisplayApps: DisplayApp[] = [
-	
 	"port_forwarding_helper",
 	"ssh_helper",
 	"vscode",
@@ -878,7 +869,6 @@ export type EnhancedExternalAuthProvider =
 	| "slack";
 
 export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = [
-	
 	"azure-devops",
 	"azure-devops-entra",
 	"bitbucket-cloud",
@@ -921,7 +911,6 @@ export type Experiment =
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
-	
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
@@ -1048,7 +1037,6 @@ export type FeatureName =
 	| "workspace_proxy";
 
 export const FeatureNames: FeatureName[] = [
-	
 	"access_control",
 	"advanced_template_scheduling",
 	"appearance",
@@ -1073,10 +1061,12 @@ export const FeatureNames: FeatureName[] = [
 ];
 
 // From codersdk/deployment.go
-export type FeatureSet = "enterprise" | "" | "premium";
+export type FeatureSet =
+	| "enterprise"
+	| ""
+	| "premium";
 
 export const FeatureSets: FeatureSet[] = [
-	
 	"enterprise",
 	"",
 	"premium",
@@ -1162,7 +1152,6 @@ export type GroupSource =
 	| "user";
 
 export const GroupSources: GroupSource[] = [
-	
 	"oidc",
 	"user",
 ];
@@ -1213,7 +1202,6 @@ export const HealthCodeSTUNMapVaryDest = "ESTUN02";
 export const HealthCodeSTUNNoNodes = "ESTUN01";
 
 export const HealthCodes: HealthCode[] = [
-	
 	"EACS03",
 	"EACS02",
 	"EACS04",
@@ -1250,7 +1238,6 @@ export type HealthSection =
 	| "WorkspaceProxy";
 
 export const HealthSections: HealthSection[] = [
-	
 	"AccessURL",
 	"DERP",
 	"Database",
@@ -1271,7 +1258,6 @@ export type HealthSeverity =
 	| "warning";
 
 export const HealthSeveritys: HealthSeverity[] = [
-	
 	"error",
 	"ok",
 	"warning",
@@ -1348,7 +1334,6 @@ export type InsightsReportInterval =
 	| "week";
 
 export const InsightsReportIntervals: InsightsReportInterval[] = [
-	
 	"day",
 	"week",
 ];
@@ -1368,10 +1353,7 @@ export interface IssueReconnectingPTYSignedTokenResponse {
 export type JobErrorCode =
 	| "REQUIRED_TEMPLATE_VARIABLES";
 
-export const JobErrorCodes: JobErrorCode[] = [
-	
-	"REQUIRED_TEMPLATE_VARIABLES",
-];
+export const JobErrorCodes: JobErrorCode[] = ["REQUIRED_TEMPLATE_VARIABLES"];
 
 // From codersdk/licenses.go
 export interface License {
@@ -1424,7 +1406,6 @@ export type LogLevel =
 	| "warn";
 
 export const LogLevels: LogLevel[] = [
-	
 	"debug",
 	"error",
 	"info",
@@ -1438,7 +1419,6 @@ export type LogSource =
 	| "provisioner_daemon";
 
 export const LogSources: LogSource[] = [
-	
 	"provisioner",
 	"provisioner_daemon",
 ];
@@ -1452,10 +1432,15 @@ export interface LoggingConfig {
 }
 
 // From codersdk/apikey.go
-export type LoginType = "github" | "none" | "oidc" | "password" | "token" | "";
+export type LoginType =
+	| "github"
+	| "none"
+	| "oidc"
+	| "password"
+	| "token"
+	| "";
 
 export const LoginTypes: LoginType[] = [
-	
 	"github",
 	"none",
 	"oidc",
@@ -1764,7 +1749,6 @@ export type OAuth2ProviderGrantType =
 	| "refresh_token";
 
 export const OAuth2ProviderGrantTypes: OAuth2ProviderGrantType[] = [
-	
 	"authorization_code",
 	"refresh_token",
 ];
@@ -1773,10 +1757,7 @@ export const OAuth2ProviderGrantTypes: OAuth2ProviderGrantType[] = [
 export type OAuth2ProviderResponseType =
 	| "code";
 
-export const OAuth2ProviderResponseTypes: OAuth2ProviderResponseType[] = [
-	
-	"code",
-];
+export const OAuth2ProviderResponseTypes: OAuth2ProviderResponseType[] = ["code"];
 
 // From codersdk/client.go
 export const OAuth2RedirectCookie = "oauth_redirect";
@@ -1840,7 +1821,6 @@ export type OptionType =
 	| "string";
 
 export const OptionTypes: OptionType[] = [
-	
 	"bool",
 	"list(string)",
 	"number",
@@ -1915,10 +1895,20 @@ export interface Pagination {
 }
 
 // From codersdk/parameters.go
-export type ParameterFormType = "checkbox" | "" | "dropdown" | "error" | "input" | "multi-select" | "radio" | "slider" | "switch" | "tag-select" | "textarea";
+export type ParameterFormType =
+	| "checkbox"
+	| ""
+	| "dropdown"
+	| "error"
+	| "input"
+	| "multi-select"
+	| "radio"
+	| "slider"
+	| "switch"
+	| "tag-select"
+	| "textarea";
 
 export const ParameterFormTypes: ParameterFormType[] = [
-	
 	"checkbox",
 	"",
 	"dropdown",
@@ -2022,7 +2012,6 @@ export type PostgresAuth =
 	| "password";
 
 export const PostgresAuths: PostgresAuth[] = [
-	
 	"awsiamrds",
 	"password",
 ];
@@ -2168,7 +2157,6 @@ export type ProvisionerDaemonStatus =
 	| "offline";
 
 export const ProvisionerDaemonStatuses: ProvisionerDaemonStatus[] = [
-	
 	"busy",
 	"idle",
 	"offline",
@@ -2247,7 +2235,6 @@ export type ProvisionerJobStatus =
 	| "unknown";
 
 export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
-	
 	"canceled",
 	"canceling",
 	"failed",
@@ -2264,7 +2251,6 @@ export type ProvisionerJobType =
 	| "workspace_build";
 
 export const ProvisionerJobTypes: ProvisionerJobType[] = [
-	
 	"template_version_dry_run",
 	"template_version_import",
 	"workspace_build",
@@ -2304,25 +2290,20 @@ export const ProvisionerKeyNamePSK = "psk";
 export const ProvisionerKeyNameUserAuth = "user-auth";
 
 // From codersdk/provisionerdaemons.go
-export type ProvisionerKeyTags = Record<string, string>;
+export type ProvisionerKeyTags =
+	| Record<string, string>;
 
 // From codersdk/workspaces.go
 export type ProvisionerLogLevel =
 	| "debug";
 
-export const ProvisionerLogLevels: ProvisionerLogLevel[] = [
-	
-	"debug",
-];
+export const ProvisionerLogLevels: ProvisionerLogLevel[] = ["debug"];
 
 // From codersdk/organizations.go
 export type ProvisionerStorageMethod =
 	| "file";
 
-export const ProvisionerStorageMethods: ProvisionerStorageMethod[] = [
-	
-	"file",
-];
+export const ProvisionerStorageMethods: ProvisionerStorageMethod[] = ["file"];
 
 // From codersdk/workspacebuilds.go
 export interface ProvisionerTiming {
@@ -2341,7 +2322,6 @@ export type ProvisionerType =
 	| "terraform";
 
 export const ProvisionerTypes: ProvisionerType[] = [
-	
 	"echo",
 	"terraform",
 ];
@@ -2360,7 +2340,6 @@ export type ProxyHealthStatus =
 	| "unregistered";
 
 export const ProxyHealthStatuses: ProxyHealthStatus[] = [
-	
 	"ok",
 	"unhealthy",
 	"unreachable",
@@ -2399,7 +2378,6 @@ export type RBACAction =
 	| "stop";
 
 export const RBACActions: RBACAction[] = [
-	
 	"application_connect",
 	"assign",
 	"create",
@@ -2460,7 +2438,6 @@ export type RBACResource =
 	| "workspace_proxy";
 
 export const RBACResources: RBACResource[] = [
-	
 	"api_key",
 	"assign_org_role",
 	"assign_role",
@@ -2531,7 +2508,9 @@ export interface Region {
 }
 
 // From codersdk/workspaceproxy.go
-export type RegionTypes = Region | WorkspaceProxy;
+export type RegionTypes =
+	| Region
+	| WorkspaceProxy;
 
 // From codersdk/workspaceproxy.go
 export interface RegionsResponse<R extends RegionTypes> {
@@ -2588,7 +2567,6 @@ export type ResourceType =
 	| "workspace_proxy";
 
 export const ResourceTypes: ResourceType[] = [
-	
 	"api_key",
 	"convert_login",
 	"custom_role",
@@ -2693,7 +2671,8 @@ export interface STUNReport {
 }
 
 // From serpent/serpent.go
-export type SerpentAnnotations = Record<string, string>;
+export type SerpentAnnotations =
+	| Record<string, string>;
 
 // From serpent/serpent.go
 export interface SerpentGroup {
@@ -2724,13 +2703,15 @@ export interface SerpentOption {
 }
 
 // From serpent/option.go
-export type SerpentOptionSet = readonly SerpentOption[];
+export type SerpentOptionSet =
+	| readonly SerpentOption[];
 
 // From serpent/values.go
 export type SerpentStruct<T> = T;
 
 // From serpent/option.go
-export type SerpentValueSource = string;
+export type SerpentValueSource =
+	| string;
 
 // From derp/derp_client.go
 export interface ServerInfoMessage {
@@ -2752,7 +2733,6 @@ export type ServerSentEventType =
 	| "ping";
 
 export const ServerSentEventTypes: ServerSentEventType[] = [
-	
 	"data",
 	"error",
 	"ping",
@@ -2923,7 +2903,6 @@ export type TemplateAppsType =
 	| "builtin";
 
 export const TemplateAppsTypes: TemplateAppsType[] = [
-	
 	"app",
 	"builtin",
 ];
@@ -2940,7 +2919,8 @@ export interface TemplateAutostopRequirement {
 }
 
 // From codersdk/templates.go
-export type TemplateBuildTimeStats = Record<WorkspaceTransition, TransitionStats>;
+export type TemplateBuildTimeStats =
+	| Record<WorkspaceTransition, TransitionStats>;
 
 // From codersdk/insights.go
 export const TemplateBuiltinAppDisplayNameJetBrains = "JetBrains";
@@ -3018,7 +2998,6 @@ export type TemplateInsightsSection =
 	| "report";
 
 export const TemplateInsightsSections: TemplateInsightsSection[] = [
-	
 	"interval_reports",
 	"report",
 ];
@@ -3041,10 +3020,12 @@ export interface TemplateParameterValue {
 }
 
 // From codersdk/templates.go
-export type TemplateRole = "admin" | "" | "use";
+export type TemplateRole =
+	| "admin"
+	| ""
+	| "use";
 
 export const TemplateRoles: TemplateRole[] = [
-	
 	"admin",
 	"",
 	"use",
@@ -3127,10 +3108,7 @@ export interface TemplateVersionVariable {
 export type TemplateVersionWarning =
 	| "UNSUPPORTED_WORKSPACES";
 
-export const TemplateVersionWarnings: TemplateVersionWarning[] = [
-	
-	"UNSUPPORTED_WORKSPACES",
-];
+export const TemplateVersionWarnings: TemplateVersionWarning[] = ["UNSUPPORTED_WORKSPACES"];
 
 // From codersdk/templates.go
 export interface TemplateVersionsByTemplateRequest extends Pagination {
@@ -3139,10 +3117,14 @@ export interface TemplateVersionsByTemplateRequest extends Pagination {
 }
 
 // From codersdk/users.go
-export type TerminalFontName = "fira-code" | "ibm-plex-mono" | "jetbrains-mono" | "source-code-pro" | "";
+export type TerminalFontName =
+	| "fira-code"
+	| "ibm-plex-mono"
+	| "jetbrains-mono"
+	| "source-code-pro"
+	| "";
 
 export const TerminalFontNames: TerminalFontName[] = [
-	
 	"fira-code",
 	"ibm-plex-mono",
 	"jetbrains-mono",
@@ -3162,7 +3144,6 @@ export type TimingStage =
 	| "stop";
 
 export const TimingStages: TimingStage[] = [
-	
 	"apply",
 	"connect",
 	"cron",
@@ -3367,7 +3348,6 @@ export type UsageAppName =
 	| "vscode";
 
 export const UsageAppNames: UsageAppName[] = [
-	
 	"jetbrains",
 	"reconnecting-pty",
 	"ssh",
@@ -3502,7 +3482,6 @@ export interface UserStatusChangeCount {
 }
 
 export const UserStatuses: UserStatus[] = [
-	
 	"active",
 	"dormant",
 	"suspended",
@@ -3536,7 +3515,6 @@ export type ValidationMonotonicOrder =
 	| "increasing";
 
 export const ValidationMonotonicOrders: ValidationMonotonicOrder[] = [
-	
 	"decreasing",
 	"increasing",
 ];
@@ -3696,7 +3674,6 @@ export type WorkspaceAgentDevcontainerStatus =
 	| "stopped";
 
 export const WorkspaceAgentDevcontainerStatuses: WorkspaceAgentDevcontainerStatus[] = [
-	
 	"error",
 	"running",
 	"starting",
@@ -3722,7 +3699,6 @@ export type WorkspaceAgentLifecycle =
 	| "starting";
 
 export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
-	
 	"created",
 	"off",
 	"ready",
@@ -3811,7 +3787,6 @@ export type WorkspaceAgentPortShareLevel =
 	| "public";
 
 export const WorkspaceAgentPortShareLevels: WorkspaceAgentPortShareLevel[] = [
-	
 	"authenticated",
 	"organization",
 	"owner",
@@ -3824,7 +3799,6 @@ export type WorkspaceAgentPortShareProtocol =
 	| "https";
 
 export const WorkspaceAgentPortShareProtocols: WorkspaceAgentPortShareProtocol[] = [
-	
 	"http",
 	"https",
 ];
@@ -3854,7 +3828,6 @@ export type WorkspaceAgentStartupScriptBehavior =
 	| "non-blocking";
 
 export const WorkspaceAgentStartupScriptBehaviors: WorkspaceAgentStartupScriptBehavior[] = [
-	
 	"blocking",
 	"non-blocking",
 ];
@@ -3867,7 +3840,6 @@ export type WorkspaceAgentStatus =
 	| "timeout";
 
 export const WorkspaceAgentStatuses: WorkspaceAgentStatus[] = [
-	
 	"connected",
 	"connecting",
 	"disconnected",
@@ -3902,7 +3874,6 @@ export type WorkspaceAppHealth =
 	| "unhealthy";
 
 export const WorkspaceAppHealths: WorkspaceAppHealth[] = [
-	
 	"disabled",
 	"healthy",
 	"initializing",
@@ -3915,7 +3886,6 @@ export type WorkspaceAppOpenIn =
 	| "tab";
 
 export const WorkspaceAppOpenIns: WorkspaceAppOpenIn[] = [
-	
 	"slim-window",
 	"tab",
 ];
@@ -3928,7 +3898,6 @@ export type WorkspaceAppSharingLevel =
 	| "public";
 
 export const WorkspaceAppSharingLevels: WorkspaceAppSharingLevel[] = [
-	
 	"authenticated",
 	"organization",
 	"owner",
@@ -3957,7 +3926,6 @@ export type WorkspaceAppStatusState =
 	| "working";
 
 export const WorkspaceAppStatusStates: WorkspaceAppStatusState[] = [
-	
 	"complete",
 	"failure",
 	"idle",
@@ -4117,7 +4085,6 @@ export type WorkspaceStatus =
 	| "stopping";
 
 export const WorkspaceStatuses: WorkspaceStatus[] = [
-	
 	"canceled",
 	"canceling",
 	"deleted",
@@ -4137,7 +4104,6 @@ export type WorkspaceTransition =
 	| "stop";
 
 export const WorkspaceTransitions: WorkspaceTransition[] = [
-	
 	"delete",
 	"start",
 	"stop",
