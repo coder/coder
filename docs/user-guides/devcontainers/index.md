@@ -26,6 +26,7 @@ which allows for extensive customization of your development setup.
 
 When a workspace with the dev containers integration starts:
 
+1. The workspace initializes the Docker environment.
 1. The integration detects repositories with a `.devcontainer` directory or a `devcontainer.json` file.
 1. The integration starts the dev container based on the template and `devcontainer.json`.
 1. Your workspace automatically detects the running dev container.

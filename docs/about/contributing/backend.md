@@ -72,7 +72,7 @@ The Coder backend is organized into multiple packages and directories, each with
   * [dbpurge](https://github.com/coder/coder/tree/main/coderd/database/dbpurge): simple wrapper for periodic database cleanup operations
   * [migrations](https://github.com/coder/coder/tree/main/coderd/database/migrations): an ordered list of up/down database migrations, use `./create_migration.sh my_migration_name` to modify the database schema
   * [pubsub](https://github.com/coder/coder/tree/main/coderd/database/pubsub): PubSub implementation using PostgreSQL and in-memory drop-in replacement
-  * [queries](https://github.com/coder/coder/tree/main/coderd/database/queries): contains SQL files with queries, `sqlc` compiles them to [Go functions](https://github.com/coder/coder/blob/docs-backend-contrib-guide/coderd/database/queries.sql.go)
+  * [queries](https://github.com/coder/coder/tree/main/coderd/database/queries): contains SQL files with queries, `sqlc` compiles them to [Go functions](https://github.com/coder/coder/tree/main/coderd/database/queries.sql.go)
   * [sqlc.yaml](https://github.com/coder/coder/tree/main/coderd/database/sqlc.yaml): defines mappings between SQL types and custom Go structures
 * [codersdk](https://github.com/coder/coder/tree/main/codersdk): user-facing API entities used by CLI and site to communicate with `coderd` endpoints
 * [dogfood](https://github.com/coder/coder/tree/main/dogfood): Terraform definition of the dogfood cluster deployment
