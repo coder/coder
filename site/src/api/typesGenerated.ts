@@ -31,7 +31,10 @@ export interface APIKey {
 // From codersdk/apikey.go
 export type APIKeyScope = "all" | "application_connect";
 
-export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"];
+export const APIKeyScopes: APIKeyScope[] = [
+	"all",
+	"application_connect",
+];
 
 // From codersdk/apikey.go
 export interface APIKeyWithOwner extends APIKey {
@@ -83,7 +86,11 @@ export interface AgentStatsReportResponse {
 // From codersdk/workspaceagents.go
 export type AgentSubsystem = "envbox" | "envbuilder" | "exectrace";
 
-export const AgentSubsystems: AgentSubsystem[] = ["envbox", "envbuilder", "exectrace"];
+export const AgentSubsystems: AgentSubsystem[] = [
+	"envbox",
+	"envbuilder",
+	"exectrace",
+];
 
 // From codersdk/deployment.go
 export interface AppHostResponse {
@@ -234,7 +241,10 @@ export type AuthorizationResponse = Record<string, boolean>;
 // From codersdk/workspaces.go
 export type AutomaticUpdates = "always" | "never";
 
-export const AutomaticUpdateses: AutomaticUpdates[] = ["always", "never"];
+export const AutomaticUpdateses: AutomaticUpdates[] = [
+	"always",
+	"never",
+];
 
 // From codersdk/deployment.go
 export interface AvailableExperiments {
@@ -273,7 +283,12 @@ export interface BuildInfoResponse {
 // From codersdk/workspacebuilds.go
 export type BuildReason = "autostart" | "autostop" | "dormancy" | "initiator";
 
-export const BuildReasons: BuildReason[] = ["autostart", "autostop", "dormancy", "initiator"];
+export const BuildReasons: BuildReason[] = [
+	"autostart",
+	"autostop",
+	"dormancy",
+	"initiator",
+];
 
 // From codersdk/client.go
 export const BuildVersionHeader = "X-Coder-Build-Version";
@@ -292,7 +307,10 @@ export interface CancelWorkspaceBuildParams {
 // From codersdk/workspacebuilds.go
 export type CancelWorkspaceBuildStatus = "pending" | "running";
 
-export const CancelWorkspaceBuildStatuses: CancelWorkspaceBuildStatus[] = ["pending", "running"];
+export const CancelWorkspaceBuildStatuses: CancelWorkspaceBuildStatus[] = [
+	"pending",
+	"running",
+];
 
 // From codersdk/users.go
 export interface ChangePasswordWithOneTimePasscodeRequest {
@@ -343,7 +361,10 @@ export interface ConnectionLogSSHInfo {
 // From codersdk/connectionlog.go
 export type ConnectionLogStatus = "completed" | "ongoing";
 
-export const ConnectionLogStatuses: ConnectionLogStatus[] = ["completed", "ongoing"];
+export const ConnectionLogStatuses: ConnectionLogStatus[] = [
+	"completed",
+	"ongoing",
+];
 
 // From codersdk/connectionlog.go
 export interface ConnectionLogWebInfo {
@@ -558,7 +579,12 @@ export interface CryptoKey {
 // From codersdk/deployment.go
 export type CryptoKeyFeature = "oidc_convert" | "tailnet_resume" | "workspace_apps_api_key" | "workspace_apps_token";
 
-export const CryptoKeyFeatures: CryptoKeyFeature[] = ["oidc_convert", "tailnet_resume", "workspace_apps_api_key", "workspace_apps_token"];
+export const CryptoKeyFeatures: CryptoKeyFeature[] = [
+	"oidc_convert",
+	"tailnet_resume",
+	"workspace_apps_api_key",
+	"workspace_apps_token",
+];
 
 // From codersdk/roles.go
 export interface CustomRoleRequest {
@@ -772,12 +798,21 @@ export interface DiagnosticExtra {
 // From codersdk/parameters.go
 export type DiagnosticSeverityString = "error" | "warning";
 
-export const DiagnosticSeverityStrings: DiagnosticSeverityString[] = ["error", "warning"];
+export const DiagnosticSeverityStrings: DiagnosticSeverityString[] = [
+	"error",
+	"warning",
+];
 
 // From codersdk/workspaceagents.go
 export type DisplayApp = "port_forwarding_helper" | "ssh_helper" | "vscode" | "vscode_insiders" | "web_terminal";
 
-export const DisplayApps: DisplayApp[] = ["port_forwarding_helper", "ssh_helper", "vscode", "vscode_insiders", "web_terminal"];
+export const DisplayApps: DisplayApp[] = [
+	"port_forwarding_helper",
+	"ssh_helper",
+	"vscode",
+	"vscode_insiders",
+	"web_terminal",
+];
 
 // From codersdk/parameters.go
 export interface DynamicParametersRequest {
@@ -997,7 +1032,11 @@ export const FeatureNames: FeatureName[] = [
 // From codersdk/deployment.go
 export type FeatureSet = "enterprise" | "" | "premium";
 
-export const FeatureSets: FeatureSet[] = ["enterprise", "", "premium"];
+export const FeatureSets: FeatureSet[] = [
+	"enterprise",
+	"",
+	"premium",
+];
 
 // From codersdk/files.go
 export const FormatZip = "zip";
@@ -1076,7 +1115,10 @@ export interface GroupArguments {
 // From codersdk/groups.go
 export type GroupSource = "oidc" | "user";
 
-export const GroupSources: GroupSource[] = ["oidc", "user"];
+export const GroupSources: GroupSource[] = [
+	"oidc",
+	"user",
+];
 
 // From codersdk/idpsync.go
 export interface GroupSyncSettings {
@@ -1176,7 +1218,11 @@ export interface HealthSettings {
 // From health/model.go
 export type HealthSeverity = "error" | "ok" | "warning";
 
-export const HealthSeveritys: HealthSeverity[] = ["error", "ok", "warning"];
+export const HealthSeveritys: HealthSeverity[] = [
+	"error",
+	"ok",
+	"warning",
+];
 
 // From codersdk/workspaceapps.go
 export interface Healthcheck {
@@ -1246,7 +1292,10 @@ export const InboxNotificationFallbackIconWorkspace = "DEFAULT_ICON_WORKSPACE";
 // From codersdk/insights.go
 export type InsightsReportInterval = "day" | "week";
 
-export const InsightsReportIntervals: InsightsReportInterval[] = ["day", "week"];
+export const InsightsReportIntervals: InsightsReportInterval[] = [
+	"day",
+	"week",
+];
 
 // From codersdk/workspaceagents.go
 export interface IssueReconnectingPTYSignedTokenRequest {
@@ -1309,12 +1358,21 @@ export interface ListUserExternalAuthResponse {
 // From codersdk/provisionerdaemons.go
 export type LogLevel = "debug" | "error" | "info" | "trace" | "warn";
 
-export const LogLevels: LogLevel[] = ["debug", "error", "info", "trace", "warn"];
+export const LogLevels: LogLevel[] = [
+	"debug",
+	"error",
+	"info",
+	"trace",
+	"warn",
+];
 
 // From codersdk/provisionerdaemons.go
 export type LogSource = "provisioner" | "provisioner_daemon";
 
-export const LogSources: LogSource[] = ["provisioner", "provisioner_daemon"];
+export const LogSources: LogSource[] = [
+	"provisioner",
+	"provisioner_daemon",
+];
 
 // From codersdk/deployment.go
 export interface LoggingConfig {
@@ -1325,13 +1383,7 @@ export interface LoggingConfig {
 }
 
 // From codersdk/apikey.go
-export type LoginType =
-	| "github"
-	| "none"
-	| "oidc"
-	| "password"
-	| "token"
-	| "";
+export type LoginType = "github" | "none" | "oidc" | "password" | "token" | "";
 
 export const LoginTypes: LoginType[] = [
 	"github",
@@ -1639,12 +1691,17 @@ export interface OAuth2ProviderAppSecretFull {
 // From codersdk/oauth2.go
 export type OAuth2ProviderGrantType = "authorization_code" | "refresh_token";
 
-export const OAuth2ProviderGrantTypes: OAuth2ProviderGrantType[] = ["authorization_code", "refresh_token"];
+export const OAuth2ProviderGrantTypes: OAuth2ProviderGrantType[] = [
+	"authorization_code",
+	"refresh_token",
+];
 
 // From codersdk/oauth2.go
 export type OAuth2ProviderResponseType = "code";
 
-export const OAuth2ProviderResponseTypes: OAuth2ProviderResponseType[] = ["code"];
+export const OAuth2ProviderResponseTypes: OAuth2ProviderResponseType[] = [
+	"code",
+];
 
 // From codersdk/client.go
 export const OAuth2RedirectCookie = "oauth_redirect";
@@ -1703,7 +1760,12 @@ export interface OIDCConfig {
 // From codersdk/parameters.go
 export type OptionType = "bool" | "list(string)" | "number" | "string";
 
-export const OptionTypes: OptionType[] = ["bool", "list(string)", "number", "string"];
+export const OptionTypes: OptionType[] = [
+	"bool",
+	"list(string)",
+	"number",
+	"string",
+];
 
 // From codersdk/organizations.go
 export interface Organization extends MinimalOrganization {
@@ -1887,7 +1949,10 @@ export interface PostWorkspaceUsageRequest {
 // From codersdk/deployment.go
 export type PostgresAuth = "awsiamrds" | "password";
 
-export const PostgresAuths: PostgresAuth[] = ["awsiamrds", "password"];
+export const PostgresAuths: PostgresAuth[] = [
+	"awsiamrds",
+	"password",
+];
 
 // From codersdk/deployment.go
 export interface PprofConfig {
@@ -2026,7 +2091,11 @@ export const ProvisionerDaemonPSK = "Coder-Provisioner-Daemon-PSK";
 // From codersdk/provisionerdaemons.go
 export type ProvisionerDaemonStatus = "busy" | "idle" | "offline";
 
-export const ProvisionerDaemonStatuses: ProvisionerDaemonStatus[] = ["busy", "idle", "offline"];
+export const ProvisionerDaemonStatuses: ProvisionerDaemonStatus[] = [
+	"busy",
+	"idle",
+	"offline",
+];
 
 // From healthsdk/healthsdk.go
 export interface ProvisionerDaemonsReport extends BaseReport {
@@ -2113,7 +2182,11 @@ export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
 // From codersdk/provisionerdaemons.go
 export type ProvisionerJobType = "template_version_dry_run" | "template_version_import" | "workspace_build";
 
-export const ProvisionerJobTypes: ProvisionerJobType[] = ["template_version_dry_run", "template_version_import", "workspace_build"];
+export const ProvisionerJobTypes: ProvisionerJobType[] = [
+	"template_version_dry_run",
+	"template_version_import",
+	"workspace_build",
+];
 
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerKey {
@@ -2175,7 +2248,10 @@ export interface ProvisionerTiming {
 // From codersdk/organizations.go
 export type ProvisionerType = "echo" | "terraform";
 
-export const ProvisionerTypes: ProvisionerType[] = ["echo", "terraform"];
+export const ProvisionerTypes: ProvisionerType[] = [
+	"echo",
+	"terraform",
+];
 
 // From codersdk/workspaceproxy.go
 export interface ProxyHealthReport {
@@ -2186,7 +2262,12 @@ export interface ProxyHealthReport {
 // From codersdk/workspaceproxy.go
 export type ProxyHealthStatus = "ok" | "unhealthy" | "unreachable" | "unregistered";
 
-export const ProxyHealthStatuses: ProxyHealthStatus[] = ["ok", "unhealthy", "unreachable", "unregistered"];
+export const ProxyHealthStatuses: ProxyHealthStatus[] = [
+	"ok",
+	"unhealthy",
+	"unreachable",
+	"unregistered",
+];
 
 // From codersdk/workspaces.go
 export interface PutExtendWorkspaceRequest {
@@ -2566,7 +2647,11 @@ export interface ServerSentEvent {
 // From codersdk/serversentevents.go
 export type ServerSentEventType = "data" | "error" | "ping";
 
-export const ServerSentEventTypes: ServerSentEventType[] = ["data", "error", "ping"];
+export const ServerSentEventTypes: ServerSentEventType[] = [
+	"data",
+	"error",
+	"ping",
+];
 
 // From codersdk/deployment.go
 export interface ServiceBannerConfig {
@@ -2730,7 +2815,10 @@ export interface TemplateAppUsage {
 // From codersdk/insights.go
 export type TemplateAppsType = "app" | "builtin";
 
-export const TemplateAppsTypes: TemplateAppsType[] = ["app", "builtin"];
+export const TemplateAppsTypes: TemplateAppsType[] = [
+	"app",
+	"builtin",
+];
 
 // From codersdk/templates.go
 export interface TemplateAutostartRequirement {
@@ -2819,7 +2907,10 @@ export interface TemplateInsightsResponse {
 // From codersdk/insights.go
 export type TemplateInsightsSection = "interval_reports" | "report";
 
-export const TemplateInsightsSections: TemplateInsightsSection[] = ["interval_reports", "report"];
+export const TemplateInsightsSections: TemplateInsightsSection[] = [
+	"interval_reports",
+	"report",
+];
 
 // From codersdk/insights.go
 export interface TemplateParameterUsage {
@@ -2841,7 +2932,11 @@ export interface TemplateParameterValue {
 // From codersdk/templates.go
 export type TemplateRole = "admin" | "" | "use";
 
-export const TemplateRoles: TemplateRole[] = ["admin", "", "use"];
+export const TemplateRoles: TemplateRole[] = [
+	"admin",
+	"",
+	"use",
+];
 
 // From codersdk/templates.go
 export interface TemplateUser extends User {
@@ -2930,7 +3025,13 @@ export interface TemplateVersionsByTemplateRequest extends Pagination {
 // From codersdk/users.go
 export type TerminalFontName = "fira-code" | "ibm-plex-mono" | "jetbrains-mono" | "source-code-pro" | "";
 
-export const TerminalFontNames: TerminalFontName[] = ["fira-code", "ibm-plex-mono", "jetbrains-mono", "source-code-pro", ""];
+export const TerminalFontNames: TerminalFontName[] = [
+	"fira-code",
+	"ibm-plex-mono",
+	"jetbrains-mono",
+	"source-code-pro",
+	"",
+];
 
 // From codersdk/workspacebuilds.go
 export type TimingStage =
@@ -3143,7 +3244,12 @@ export interface UpsertWorkspaceAgentPortShareRequest {
 // From codersdk/workspaces.go
 export type UsageAppName = "jetbrains" | "reconnecting-pty" | "ssh" | "vscode";
 
-export const UsageAppNames: UsageAppName[] = ["jetbrains", "reconnecting-pty", "ssh", "vscode"];
+export const UsageAppNames: UsageAppName[] = [
+	"jetbrains",
+	"reconnecting-pty",
+	"ssh",
+	"vscode",
+];
 
 // From codersdk/deployment.go
 export interface UsagePeriod {
@@ -3269,7 +3375,11 @@ export interface UserStatusChangeCount {
 	readonly count: number;
 }
 
-export const UserStatuses: UserStatus[] = ["active", "dormant", "suspended"];
+export const UserStatuses: UserStatus[] = [
+	"active",
+	"dormant",
+	"suspended",
+];
 
 // From codersdk/users.go
 export interface UsersRequest extends Pagination {
@@ -3296,7 +3406,10 @@ export interface ValidationError {
 // From codersdk/templateversions.go
 export type ValidationMonotonicOrder = "decreasing" | "increasing";
 
-export const ValidationMonotonicOrders: ValidationMonotonicOrder[] = ["decreasing", "increasing"];
+export const ValidationMonotonicOrders: ValidationMonotonicOrder[] = [
+	"decreasing",
+	"increasing",
+];
 
 // From codersdk/organizations.go
 export interface VariableValue {
@@ -3448,7 +3561,12 @@ export interface WorkspaceAgentDevcontainerAgent {
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentDevcontainerStatus = "error" | "running" | "starting" | "stopped";
 
-export const WorkspaceAgentDevcontainerStatuses: WorkspaceAgentDevcontainerStatus[] = ["error", "running", "starting", "stopped"];
+export const WorkspaceAgentDevcontainerStatuses: WorkspaceAgentDevcontainerStatus[] = [
+	"error",
+	"running",
+	"starting",
+	"stopped",
+];
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentHealth {
@@ -3552,12 +3670,20 @@ export interface WorkspaceAgentPortShare {
 // From codersdk/workspaceagentportshare.go
 export type WorkspaceAgentPortShareLevel = "authenticated" | "organization" | "owner" | "public";
 
-export const WorkspaceAgentPortShareLevels: WorkspaceAgentPortShareLevel[] = ["authenticated", "organization", "owner", "public"];
+export const WorkspaceAgentPortShareLevels: WorkspaceAgentPortShareLevel[] = [
+	"authenticated",
+	"organization",
+	"owner",
+	"public",
+];
 
 // From codersdk/workspaceagentportshare.go
 export type WorkspaceAgentPortShareProtocol = "http" | "https";
 
-export const WorkspaceAgentPortShareProtocols: WorkspaceAgentPortShareProtocol[] = ["http", "https"];
+export const WorkspaceAgentPortShareProtocols: WorkspaceAgentPortShareProtocol[] = [
+	"http",
+	"https",
+];
 
 // From codersdk/workspaceagentportshare.go
 export interface WorkspaceAgentPortShares {
@@ -3581,12 +3707,20 @@ export interface WorkspaceAgentScript {
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentStartupScriptBehavior = "blocking" | "non-blocking";
 
-export const WorkspaceAgentStartupScriptBehaviors: WorkspaceAgentStartupScriptBehavior[] = ["blocking", "non-blocking"];
+export const WorkspaceAgentStartupScriptBehaviors: WorkspaceAgentStartupScriptBehavior[] = [
+	"blocking",
+	"non-blocking",
+];
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentStatus = "connected" | "connecting" | "disconnected" | "timeout";
 
-export const WorkspaceAgentStatuses: WorkspaceAgentStatus[] = ["connected", "connecting", "disconnected", "timeout"];
+export const WorkspaceAgentStatuses: WorkspaceAgentStatus[] = [
+	"connected",
+	"connecting",
+	"disconnected",
+	"timeout",
+];
 
 // From codersdk/workspaceapps.go
 export interface WorkspaceApp {
@@ -3611,17 +3745,30 @@ export interface WorkspaceApp {
 // From codersdk/workspaceapps.go
 export type WorkspaceAppHealth = "disabled" | "healthy" | "initializing" | "unhealthy";
 
-export const WorkspaceAppHealths: WorkspaceAppHealth[] = ["disabled", "healthy", "initializing", "unhealthy"];
+export const WorkspaceAppHealths: WorkspaceAppHealth[] = [
+	"disabled",
+	"healthy",
+	"initializing",
+	"unhealthy",
+];
 
 // From codersdk/workspaceapps.go
 export type WorkspaceAppOpenIn = "slim-window" | "tab";
 
-export const WorkspaceAppOpenIns: WorkspaceAppOpenIn[] = ["slim-window", "tab"];
+export const WorkspaceAppOpenIns: WorkspaceAppOpenIn[] = [
+	"slim-window",
+	"tab",
+];
 
 // From codersdk/workspaceapps.go
 export type WorkspaceAppSharingLevel = "authenticated" | "organization" | "owner" | "public";
 
-export const WorkspaceAppSharingLevels: WorkspaceAppSharingLevel[] = ["authenticated", "organization", "owner", "public"];
+export const WorkspaceAppSharingLevels: WorkspaceAppSharingLevel[] = [
+	"authenticated",
+	"organization",
+	"owner",
+	"public",
+];
 
 // From codersdk/workspaceapps.go
 export interface WorkspaceAppStatus {
@@ -3640,7 +3787,12 @@ export interface WorkspaceAppStatus {
 // From codersdk/workspaceapps.go
 export type WorkspaceAppStatusState = "complete" | "failure" | "idle" | "working";
 
-export const WorkspaceAppStatusStates: WorkspaceAppStatusState[] = ["complete", "failure", "idle", "working"];
+export const WorkspaceAppStatusStates: WorkspaceAppStatusState[] = [
+	"complete",
+	"failure",
+	"idle",
+	"working",
+];
 
 // From codersdk/workspacebuilds.go
 export interface WorkspaceBuild {
@@ -3810,7 +3962,11 @@ export const WorkspaceStatuses: WorkspaceStatus[] = [
 // From codersdk/workspacebuilds.go
 export type WorkspaceTransition = "delete" | "start" | "stop";
 
-export const WorkspaceTransitions: WorkspaceTransition[] = ["delete", "start", "stop"];
+export const WorkspaceTransitions: WorkspaceTransition[] = [
+	"delete",
+	"start",
+	"stop",
+];
 
 // From codersdk/workspaces.go
 export interface WorkspacesRequest extends Pagination {
