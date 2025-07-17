@@ -2797,7 +2797,7 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Run("dynamic", func(t *testing.T) {
-				testWorkspaceTagsTerraform(t, tc, true)
+				workspaceTagsTerraform(t, tc, true)
 			})
 
 			// classic uses tfparse for tags. This sub test can be
