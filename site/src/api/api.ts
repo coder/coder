@@ -24,6 +24,7 @@ import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
 import { OneWayWebSocket } from "../utils/OneWayWebSocket";
 import { delay } from "../utils/delay";
+import { type FieldError, isApiError } from "./errors";
 import type {
 	DynamicParametersRequest,
 	PostWorkspaceUsageRequest,
@@ -390,6 +391,14 @@ export class MissingBuildParameters extends Error {
 	}
 }
 
+export class ParameterValidationError extends Error {
+	constructor(
+		public readonly versionId: string,
+		public readonly validations: FieldError[],
+	) {
+		super("Parameters are not valid for new template version");
+	}
+}
 export type GetProvisionerJobsParams = {
 	status?: string;
 	limit?: number;
@@ -1239,7 +1248,6 @@ class ApiMethods {
 			`/api/v2/workspaces/${workspaceId}/builds`,
 			data,
 		);
-
 		return response.data;
 	};
 
@@ -2268,18 +2276,31 @@ class ApiMethods {
 
 		const activeVersionId = template.active_version_id;
 
-		let templateParameters: TypesGen.TemplateVersionParameter[] = [];
-
 		if (isDynamicParametersEnabled) {
-			templateParameters = await this.getDynamicParameters(
-				activeVersionId,
-				workspace.owner_id,
-				oldBuildParameters,
-			);
-		} else {
-			templateParameters =
-				await this.getTemplateVersionRichParameters(activeVersionId);
+			try {
+				return this.postWorkspaceBuild(workspace.id, {
+					transition: "start",
+					template_version_id: activeVersionId,
+					rich_parameter_values: newBuildParameters,
+				});
+			} catch (error) {
+				if (
+					isApiError(error) &&
+					error.response.status === 400 &&
+					error.response.data.validations &&
+					error.response.data.validations.length > 0
+				) {
+					throw new ParameterValidationError(
+						activeVersionId,
+						error.response.data.validations,
+					);
+				}
+				throw error;
+			}
 		}
+
+		const templateParameters =
+			await this.getTemplateVersionRichParameters(activeVersionId);
 
 		const missingParameters = getMissingParameters(
 			oldBuildParameters,
