@@ -371,8 +371,8 @@ func TestAPI(t *testing.T) {
 
 		// The watcherLoop writes a log when it is initialized.
 		// We want to ensure this has happened before we start
-		// the test so that it does not interfere.
-		testutil.RequireReceive(ctx, t, fWatcher.nextCalled)
+		// the test so that it does not intefere.
+		fWatcher.waitNext(ctx)
 
 		// Make sure the ticker function has been registered
 		// before advancing the clock.
