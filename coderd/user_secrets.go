@@ -50,7 +50,7 @@ func (api *API) createUserSecret(rw http.ResponseWriter, r *http.Request) {
 
 // Returns a list of user secrets.
 //
-// @Summary Returns a list of user secrets.
+// @Summary List user secrets.
 // @ID list-user-secrets
 // @Security CoderSessionToken
 // @Produce json
@@ -79,11 +79,12 @@ func (api *API) listUserSecrets(rw http.ResponseWriter, r *http.Request) {
 
 // Returns a user secret.
 //
-// @Summary Returns a user secret.
+// @Summary Get user secret.
 // @ID get-user-secret
 // @Security CoderSessionToken
 // @Produce json
 // @Tags User-Secrets
+// @Param name path string true "name" format(string)
 // @Success 200 {object} codersdk.UserSecret
 // @Router /users/secrets/{name} [get]
 func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) {
@@ -107,11 +108,12 @@ func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) {
 
 // Returns a user secret value.
 //
-// @Summary Returns a user secret value.
+// @Summary Get user secret value
 // @ID get-user-secret-value
 // @Security CoderSessionToken
 // @Produce json
 // @Tags User-Secrets
+// @Param name path string true "name" format(string)
 // @Success 200 {object} codersdk.UserSecretValue
 // @Router /users/secrets/{name}/value [get]
 func (api *API) getUserSecretValue(rw http.ResponseWriter, r *http.Request) {
