@@ -66,6 +66,7 @@ func (api *API) aiTasksPrompts(rw http.ResponseWriter, r *http.Request) {
 // generating public-facing documentation for it.
 func (api *API) aiTasksStats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	_ = api // Suppress unused receiver warning
 
 	stats := codersdk.AITasksStatsResponse{
 		ActiveTasks:                 3,
