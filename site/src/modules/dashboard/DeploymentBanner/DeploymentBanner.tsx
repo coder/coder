@@ -1,5 +1,6 @@
 import { health } from "api/queries/debug";
-import { deploymentStats } from "api/queries/deployment";
+import { deploymentStats, deploymentConfig } from "api/queries/deployment";
+import { aiTasksStats } from "api/queries/aitasks";
 import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useQuery } from "react-query";
@@ -19,9 +20,17 @@ const HIDE_DEPLOYMENT_BANNER_PATHS = [
 export const DeploymentBanner: FC = () => {
 	const { permissions } = useAuthenticated();
 	const deploymentStatsQuery = useQuery(deploymentStats());
+	const deploymentConfigQuery = useQuery({
+		...deploymentConfig(),
+		enabled: permissions.viewDeploymentConfig,
+	});
 	const healthQuery = useQuery({
 		...health(),
 		enabled: permissions.viewDeploymentConfig,
+	});
+	const aiTasksQuery = useQuery({
+		...aiTasksStats(),
+		enabled: permissions.viewDeploymentConfig && !deploymentConfigQuery.data?.config.hide_ai_tasks,
 	});
 	const location = useLocation();
 	const isHidden = HIDE_DEPLOYMENT_BANNER_PATHS.some((regex) =>
@@ -40,6 +49,7 @@ export const DeploymentBanner: FC = () => {
 		<DeploymentBannerView
 			health={healthQuery.data}
 			stats={deploymentStatsQuery.data}
+			aiTasksStats={aiTasksQuery.data}
 			fetchStats={() => deploymentStatsQuery.refetch()}
 		/>
 	);
