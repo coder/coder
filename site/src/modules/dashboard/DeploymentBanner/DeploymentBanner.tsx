@@ -30,7 +30,9 @@ export const DeploymentBanner: FC = () => {
 	});
 	const aiTasksQuery = useQuery({
 		...aiTasksStats(),
-		enabled: permissions.viewDeploymentConfig && !deploymentConfigQuery.data?.config.hide_ai_tasks,
+		enabled:
+			permissions.viewDeploymentConfig &&
+			!deploymentConfigQuery.data?.config.hide_ai_tasks,
 	});
 	const location = useLocation();
 	const isHidden = HIDE_DEPLOYMENT_BANNER_PATHS.some((regex) =>
