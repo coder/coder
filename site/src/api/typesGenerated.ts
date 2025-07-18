@@ -14,14 +14,6 @@ export interface AITasksPromptsResponse {
 	readonly prompts: Record<string, string>;
 }
 
-// From codersdk/aitasks.go
-export interface AITasksStatsResponse {
-	readonly active_tasks: number;
-	readonly completed_tasks: number;
-	readonly failed_tasks: number;
-	readonly total_workspaces_with_tasks: number;
-}
-
 // From codersdk/apikey.go
 export interface APIKey {
 	readonly id: string;

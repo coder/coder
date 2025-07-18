@@ -61,3 +61,18 @@ func (api *API) aiTasksPrompts(rw http.ResponseWriter, r *http.Request) {
 		Prompts: promptsByBuildID,
 	})
 }
+
+// This endpoint is experimental and not guaranteed to be stable, so we're not
+// generating public-facing documentation for it.
+func (api *API) aiTasksStats(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	stats := codersdk.AITasksStatsResponse{
+		ActiveTasks:                 3,
+		CompletedTasks:              15,
+		FailedTasks:                 2,
+		TotalWorkspacesWithTasks:    8,
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, stats)
+}
