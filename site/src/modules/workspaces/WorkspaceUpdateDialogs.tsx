@@ -157,7 +157,7 @@ const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
 	const missedParameters =
 		error instanceof MissingBuildParameters ? error.parameters : [];
 	const versionId =
-		error instanceof MissingBuildParameters ? error.versionId : undefined;
+		error instanceof ParameterValidationError ? error.versionId : undefined;
 	const isOpen =
 		error instanceof MissingBuildParameters ||
 		error instanceof ParameterValidationError;
@@ -177,9 +177,7 @@ const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
 			onClose={dialogProps.onClose}
 			workspaceOwnerName={workspace.owner_name}
 			workspaceName={workspace.name}
-			templateVersionId={
-				error instanceof ParameterValidationError ? error.versionId : undefined
-			}
+			templateVersionId={versionId}
 		/>
 	);
 };
