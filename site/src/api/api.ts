@@ -2278,7 +2278,7 @@ class ApiMethods {
 
 		if (isDynamicParametersEnabled) {
 			try {
-				return this.postWorkspaceBuild(workspace.id, {
+				return await this.postWorkspaceBuild(workspace.id, {
 					transition: "start",
 					template_version_id: activeVersionId,
 					rich_parameter_values: newBuildParameters,
