@@ -1,6 +1,6 @@
-import { health } from "api/queries/debug";
-import { deploymentStats, deploymentConfig } from "api/queries/deployment";
 import { aiTasksStats } from "api/queries/aitasks";
+import { health } from "api/queries/debug";
+import { deploymentConfig, deploymentStats } from "api/queries/deployment";
 import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useQuery } from "react-query";
