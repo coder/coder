@@ -18,6 +18,13 @@ type AITasksPromptsResponse struct {
 	Prompts map[string]string `json:"prompts"`
 }
 
+type AITasksStatsResponse struct {
+	ActiveTasks int `json:"active_tasks"`
+	CompletedTasks int `json:"completed_tasks"`
+	FailedTasks int `json:"failed_tasks"`
+	TotalWorkspacesWithTasks int `json:"total_workspaces_with_tasks"`
+}
+
 // AITaskPrompts returns prompts for multiple workspace builds by their IDs.
 func (c *ExperimentalClient) AITaskPrompts(ctx context.Context, buildIDs []uuid.UUID) (AITasksPromptsResponse, error) {
 	if len(buildIDs) == 0 {
