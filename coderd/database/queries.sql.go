@@ -16222,6 +16222,7 @@ type InsertWorkspaceAgentParams struct {
 	TroubleshootingURL       string                `db:"troubleshooting_url" json:"troubleshooting_url"`
 	MOTDFile                 string                `db:"motd_file" json:"motd_file"`
 	DisplayApps              []DisplayApp          `db:"display_apps" json:"display_apps"`
+	WorkspaceApps            []string              `db:"workspace_apps" json:"workspace_apps"`
 	DisplayOrder             int32                 `db:"display_order" json:"display_order"`
 	APIKeyScope              AgentKeyScopeEnum     `db:"api_key_scope" json:"api_key_scope"`
 }
