@@ -1,0 +1,36 @@
+From 550c22de57f4dbe68bf97482db5c675de2b2f19a Mon Sep 17 00:00:00 2001
+From: "blink-so[bot]" <211532188+blink-so[bot]@users.noreply.github.com>
+Date: Sat, 19 Jul 2025 19:01:00 +0000
+Subject: [PATCH] feat: update workspace button text to show 'Open VS Code in
+ Browser'
+
+Updated the button labels on the /workspaces page to clearly indicate that VS Code opens in the browser, matching the UI mockup provided.
+---
+ site/src/pages/WorkspacesPage/WorkspacesTable.tsx | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/site/src/pages/WorkspacesPage/WorkspacesTable.tsx b/site/src/pages/WorkspacesPage/WorkspacesTable.tsx
+index 23695d8..f0a8d3f 100644
+--- a/site/src/pages/WorkspacesPage/WorkspacesTable.tsx
++++ b/site/src/pages/WorkspacesPage/WorkspacesTable.tsx
+@@ -734,7 +734,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
+ 			<BaseIconLink
+ 				key="vscode"
+ 				isLoading={!token}
+-				label="Open VSCode"
++				label="Open VS Code in Browser"
+ 				href={getVSCodeHref("vscode", {
+ 					owner: workspace.owner_name,
+ 					workspace: workspace.name,
+@@ -752,7 +752,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
+ 		buttons.push(
+ 			<BaseIconLink
+ 				key="vscode-insiders"
+-				label="Open VSCode Insiders"
++				label="Open VS Code Insiders in Browser"
+ 				isLoading={!token}
+ 				href={getVSCodeHref("vscode-insiders", {
+ 					owner: workspace.owner_name,
+-- 
+2.43.0
+

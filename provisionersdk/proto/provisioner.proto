@@ -188,6 +188,7 @@ message Agent {
   ResourcesMonitoring resources_monitoring = 24;
   repeated Devcontainer devcontainers = 25;
   string api_key_scope = 26;
+  repeated string workspace_apps = 27;
 }
 
 enum AppSharingLevel {

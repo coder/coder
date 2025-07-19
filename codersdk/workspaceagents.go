@@ -169,6 +169,7 @@ type WorkspaceAgent struct {
 	Subsystems               []AgentSubsystem          `json:"subsystems"`
 	Health                   WorkspaceAgentHealth      `json:"health"` // Health reports the health of the agent.
 	DisplayApps              []DisplayApp              `json:"display_apps"`
+	WorkspaceApps            []string                  `json:"workspace_apps"`
 	LogSources               []WorkspaceAgentLogSource `json:"log_sources"`
 	Scripts                  []WorkspaceAgentScript    `json:"scripts"`
 

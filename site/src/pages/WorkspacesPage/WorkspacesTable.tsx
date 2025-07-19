@@ -718,16 +718,88 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 		return null;
 	}
 
-	const builtinApps = new Set(agent.display_apps);
-	builtinApps.delete("port_forwarding_helper");
-	builtinApps.delete("ssh_helper");
-
-	const remainingSlots = WORKSPACE_APPS_SLOTS - builtinApps.size;
-	const userApps = agent.apps
-		.filter((app) => app.health === "healthy" && !app.hidden)
-		.slice(0, remainingSlots);
-
+	// If workspace_apps is configured, use that list instead of display_apps
+	const configuredApps = (agent as any).workspace_apps as string[] | undefined;
 	const buttons: ReactNode[] = [];
+
+	if (configuredApps && configuredApps.length > 0) {
+		// Use the configured apps list
+		for (const appId of configuredApps.slice(0, WORKSPACE_APPS_SLOTS)) {
+			if (appId === "vscode") {
+				buttons.push(
+					<BaseIconLink
+						key="vscode"
+						isLoading={!token}
+						label="Open VS Code in Browser"
+						href={getVSCodeHref("vscode", {
+							owner: workspace.owner_name,
+							workspace: workspace.name,
+							agent: agent.name,
+							token: token ?? "",
+							folder: agent.expanded_directory,
+						})}
+					>
+						<VSCodeIcon />
+					</BaseIconLink>,
+				);
+			} else if (appId === "vscode_insiders") {
+				buttons.push(
+					<BaseIconLink
+						key="vscode-insiders"
+						label="Open VS Code Insiders in Browser"
+						isLoading={!token}
+						href={getVSCodeHref("vscode-insiders", {
+							owner: workspace.owner_name,
+							workspace: workspace.name,
+							agent: agent.name,
+							token: token ?? "",
+							folder: agent.expanded_directory,
+						})}
+					>
+						<VSCodeInsidersIcon />
+					</BaseIconLink>,
+				);
+			} else if (appId === "web_terminal") {
+				buttons.push(
+					<BaseIconLink
+						key="terminal"
+						isLoading={!token}
+						label="Open Terminal"
+						href={getTerminalHref({
+							owner: workspace.owner_name,
+							workspace: workspace.name,
+							agent: agent.name,
+							token: token ?? "",
+						})}
+					>
+						<SquareTerminalIcon />
+					</BaseIconLink>,
+				);
+			} else {
+				// Check if it's a user app
+				const app = agent.apps.find((a) => a.slug === appId || a.id === appId);
+				if (app && app.health === "healthy" && !app.hidden) {
+					buttons.push(
+						<IconAppLink
+							key={app.id}
+							app={app}
+							workspace={workspace}
+							agent={agent}
+						/>,
+					);
+				}
+			}
+		}
+	} else {
+		// Fall back to the original behavior
+		const builtinApps = new Set(agent.display_apps);
+		builtinApps.delete("port_forwarding_helper");
+		builtinApps.delete("ssh_helper");
+
+		const remainingSlots = WORKSPACE_APPS_SLOTS - builtinApps.size;
+		const userApps = agent.apps
+			.filter((app) => app.health === "healthy" && !app.hidden)
+			.slice(0, remainingSlots);
 
 	if (builtinApps.has("vscode")) {
 		buttons.push(
@@ -798,6 +870,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 			</BaseIconLink>,
 		);
 	}
+	} // Close the else block for fallback behavior
 
 	buttons.push();
 
