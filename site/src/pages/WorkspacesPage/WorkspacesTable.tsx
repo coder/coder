@@ -768,10 +768,9 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 						isLoading={!token}
 						label="Open Terminal"
 						href={getTerminalHref({
-							owner: workspace.owner_name,
+							username: workspace.owner_name,
 							workspace: workspace.name,
 							agent: agent.name,
-							token: token ?? "",
 						})}
 					>
 						<SquareTerminalIcon />
