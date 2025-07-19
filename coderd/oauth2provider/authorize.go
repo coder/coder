@@ -33,7 +33,7 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 
-	p.RequiredNotEmpty("state", "response_type", "client_id")
+	p.RequiredNotEmpty("response_type", "client_id")
 
 	params := authorizeParams{
 		clientID:            p.String(vals, "", "client_id"),
@@ -154,7 +154,9 @@ func ProcessAuthorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 
 		newQuery := params.redirectURL.Query()
 		newQuery.Add("code", code.Formatted)
-		newQuery.Add("state", params.state)
+		if params.state != "" {
+			newQuery.Add("state", params.state)
+		}
 		params.redirectURL.RawQuery = newQuery.Encode()
 
 		http.Redirect(rw, r, params.redirectURL.String(), http.StatusTemporaryRedirect)
