@@ -720,7 +720,10 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 
 	// Check if workspace_apps is configured via terraform
 	// Note: This field is only available if the template uses the workspace_apps configuration
-	const configuredApps = (agent as any).workspace_apps as string[] | undefined;
+	// TODO: Update WorkspaceAgent type to include workspace_apps field
+	const configuredApps = (
+		agent as WorkspaceAgent & { workspace_apps?: string[] }
+	).workspace_apps;
 	const buttons: ReactNode[] = [];
 
 	// Use configured apps if available, otherwise fall back to default behavior
@@ -802,75 +805,75 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 			.filter((app) => app.health === "healthy" && !app.hidden)
 			.slice(0, remainingSlots);
 
-	if (builtinApps.has("vscode")) {
-		buttons.push(
-			<BaseIconLink
-				key="vscode"
-				isLoading={!token}
-				label="Open VS Code in Browser"
-				href={getVSCodeHref("vscode", {
-					owner: workspace.owner_name,
-					workspace: workspace.name,
-					agent: agent.name,
-					token: token ?? "",
-					folder: agent.expanded_directory,
-				})}
-			>
-				<VSCodeIcon />
-			</BaseIconLink>,
-		);
-	}
+		if (builtinApps.has("vscode")) {
+			buttons.push(
+				<BaseIconLink
+					key="vscode"
+					isLoading={!token}
+					label="Open VS Code in Browser"
+					href={getVSCodeHref("vscode", {
+						owner: workspace.owner_name,
+						workspace: workspace.name,
+						agent: agent.name,
+						token: token ?? "",
+						folder: agent.expanded_directory,
+					})}
+				>
+					<VSCodeIcon />
+				</BaseIconLink>,
+			);
+		}
 
-	if (builtinApps.has("vscode_insiders")) {
-		buttons.push(
-			<BaseIconLink
-				key="vscode-insiders"
-				label="Open VS Code Insiders in Browser"
-				isLoading={!token}
-				href={getVSCodeHref("vscode-insiders", {
-					owner: workspace.owner_name,
-					workspace: workspace.name,
-					agent: agent.name,
-					token: token ?? "",
-					folder: agent.expanded_directory,
-				})}
-			>
-				<VSCodeInsidersIcon />
-			</BaseIconLink>,
-		);
-	}
+		if (builtinApps.has("vscode_insiders")) {
+			buttons.push(
+				<BaseIconLink
+					key="vscode-insiders"
+					label="Open VS Code Insiders in Browser"
+					isLoading={!token}
+					href={getVSCodeHref("vscode-insiders", {
+						owner: workspace.owner_name,
+						workspace: workspace.name,
+						agent: agent.name,
+						token: token ?? "",
+						folder: agent.expanded_directory,
+					})}
+				>
+					<VSCodeInsidersIcon />
+				</BaseIconLink>,
+			);
+		}
 
-	for (const app of userApps) {
-		buttons.push(
-			<IconAppLink
-				key={app.id}
-				app={app}
-				workspace={workspace}
-				agent={agent}
-			/>,
-		);
-	}
+		for (const app of userApps) {
+			buttons.push(
+				<IconAppLink
+					key={app.id}
+					app={app}
+					workspace={workspace}
+					agent={agent}
+				/>,
+			);
+		}
 
-	if (builtinApps.has("web_terminal")) {
-		const href = getTerminalHref({
-			username: workspace.owner_name,
-			workspace: workspace.name,
-			agent: agent.name,
-		});
-		buttons.push(
-			<BaseIconLink
-				key="terminal"
-				href={href}
-				onClick={(e) => {
-					e.preventDefault();
-					openAppInNewWindow(href);
-				}}
-				label="Open Terminal"
-			>
-				<SquareTerminalIcon />
-			</BaseIconLink>,
-		);
-	}
+		if (builtinApps.has("web_terminal")) {
+			const href = getTerminalHref({
+				username: workspace.owner_name,
+				workspace: workspace.name,
+				agent: agent.name,
+			});
+			buttons.push(
+				<BaseIconLink
+					key="terminal"
+					href={href}
+					onClick={(e) => {
+						e.preventDefault();
+						openAppInNewWindow(href);
+					}}
+					label="Open Terminal"
+				>
+					<SquareTerminalIcon />
+				</BaseIconLink>,
+			);
+		}
 	} // Close the else block for fallback behavior
 
 	buttons.push();
