@@ -718,10 +718,12 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 		return null;
 	}
 
-	// If workspace_apps is configured, use that list instead of display_apps
+	// Check if workspace_apps is configured via terraform
+	// Note: This field is only available if the template uses the workspace_apps configuration
 	const configuredApps = (agent as any).workspace_apps as string[] | undefined;
 	const buttons: ReactNode[] = [];
 
+	// Use configured apps if available, otherwise fall back to default behavior
 	if (configuredApps && configuredApps.length > 0) {
 		// Use the configured apps list
 		for (const appId of configuredApps.slice(0, WORKSPACE_APPS_SLOTS)) {

@@ -2428,6 +2428,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			TroubleshootingURL:       prAgent.GetTroubleshootingUrl(),
 			MOTDFile:                 prAgent.GetMotdFile(),
 			DisplayApps:              convertDisplayApps(prAgent.GetDisplayApps()),
+			WorkspaceApps:            prAgent.GetWorkspaceApps(),
 			InstanceMetadata:         pqtype.NullRawMessage{},
 			ResourceMetadata:         pqtype.NullRawMessage{},
 			// #nosec G115 - Order represents a display order value that's always small and fits in int32
