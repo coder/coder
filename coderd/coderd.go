@@ -790,6 +790,7 @@ func New(options *Options) *API {
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 		Logger:                        options.Logger,
+		AccessURL:                     options.AccessURL,
 	})
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -801,6 +802,7 @@ func New(options *Options) *API {
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 		Logger:                        options.Logger,
+		AccessURL:                     options.AccessURL,
 	})
 	// Same as the first but it's optional.
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -812,6 +814,7 @@ func New(options *Options) *API {
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 		Logger:                        options.Logger,
+		AccessURL:                     options.AccessURL,
 	})
 
 	workspaceAgentInfo := httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
