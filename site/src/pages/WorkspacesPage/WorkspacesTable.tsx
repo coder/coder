@@ -734,7 +734,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 			<BaseIconLink
 				key="vscode"
 				isLoading={!token}
-				label="Open VSCode"
+				label="Open VS Code in Browser"
 				href={getVSCodeHref("vscode", {
 					owner: workspace.owner_name,
 					workspace: workspace.name,
@@ -752,7 +752,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 		buttons.push(
 			<BaseIconLink
 				key="vscode-insiders"
-				label="Open VSCode Insiders"
+				label="Open VS Code Insiders in Browser"
 				isLoading={!token}
 				href={getVSCodeHref("vscode-insiders", {
 					owner: workspace.owner_name,
