@@ -306,8 +306,8 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	// DisableOwnerWorkspaceExec modifies the 'global' RBAC roles. Fast-fail tests if we detect this.
 	if !options.DeploymentValues.DisableOwnerWorkspaceExec.Value() {
 		ownerSubj := rbac.Subject{
-			Roles: rbac.RoleIdentifiers{rbac.RoleOwner()},
-			Scope: rbac.ScopeAll,
+			Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
+			Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 		}
 		if err := options.Authorizer.Authorize(context.Background(), ownerSubj, policy.ActionSSH, rbac.ResourceWorkspace); err != nil {
 			if rbac.IsUnauthorizedError(err) {
@@ -782,7 +782,7 @@ func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
 		ID:     user.ID.String(),
 		Roles:  roles,
 		Groups: []string{},
-		Scope:  rbac.ScopeAll,
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	}
 }
 
@@ -818,7 +818,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		// the client making this user.
 		token, err := client.CreateToken(context.Background(), user.ID.String(), codersdk.CreateTokenRequest{
 			Lifetime:  time.Hour * 24,
-			Scope:     codersdk.APIKeyScopeAll,
+			Scopes:    []codersdk.APIKeyScope{codersdk.APIKeyScopeAll},
 			TokenName: "no-password-user-token",
 		})
 		require.NoError(t, err)

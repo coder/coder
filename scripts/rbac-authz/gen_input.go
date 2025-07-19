@@ -17,10 +17,10 @@ import (
 )
 
 type SubjectJSON struct {
-	ID     string      `json:"id"`
-	Roles  []rbac.Role `json:"roles"`
-	Groups []string    `json:"groups"`
-	Scope  rbac.Scope  `json:"scope"`
+	ID     string       `json:"id"`
+	Roles  []rbac.Role  `json:"roles"`
+	Groups []string     `json:"groups"`
+	Scopes []rbac.Scope `json:"scopes"`
 }
 type OutputData struct {
 	Action  policy.Action `json:"action"`
@@ -33,15 +33,18 @@ func newSubjectJSON(s rbac.Subject) (*SubjectJSON, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("failed to expand subject roles: %w", err)
 	}
-	scopes, err := s.Scope.Expand()
-	if err != nil {
-		return nil, xerrors.Errorf("failed to expand subject scopes: %w", err)
+	scopes := make([]rbac.Scope, len(s.Scopes))
+	for i, scope := range s.Scopes {
+		scopes[i], err = scope.Expand()
+		if err != nil {
+			return nil, xerrors.Errorf("failed to expand subject scopes: %w", err)
+		}
 	}
 	return &SubjectJSON{
 		ID:     s.ID,
 		Roles:  roles,
 		Groups: s.Groups,
-		Scope:  scopes,
+		Scopes: scopes,
 	}, nil
 }
 
@@ -59,7 +62,7 @@ func main() {
 		Roles: rbac.RoleIdentifiers{
 			rbac.RoleTemplateAdmin(),
 		},
-		Scope: rbac.ScopeAll,
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	}
 
 	subjectJSON, err := newSubjectJSON(subject)

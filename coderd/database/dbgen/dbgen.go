@@ -42,7 +42,7 @@ var genCtx = dbauthz.As(context.Background(), rbac.Subject{
 	ID:     "owner",
 	Roles:  rbac.Roles(must(rbac.RoleIdentifiers{rbac.RoleOwner()}.Expand())),
 	Groups: []string{},
-	Scope:  rbac.ExpandableScope(rbac.ScopeAll),
+	Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 })
 
 func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.AuditLog {
@@ -186,7 +186,7 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 		CreatedAt:       takeFirst(seed.CreatedAt, dbtime.Now()),
 		UpdatedAt:       takeFirst(seed.UpdatedAt, dbtime.Now()),
 		LoginType:       takeFirst(seed.LoginType, database.LoginTypePassword),
-		Scope:           takeFirst(seed.Scope, database.APIKeyScopeAll),
+		Scopes:          takeFirstSlice(seed.Scopes, []database.APIKeyScope{database.APIKeyScopeAll}),
 		TokenName:       takeFirst(seed.TokenName),
 	})
 	require.NoError(t, err, "insert api key")
@@ -1212,7 +1212,7 @@ func OAuth2ProviderApp(t testing.TB, db database.Store, seed database.OAuth2Prov
 		GrantTypes:              takeFirstSlice(seed.GrantTypes, []string{"authorization_code", "refresh_token"}),
 		ResponseTypes:           takeFirstSlice(seed.ResponseTypes, []string{"code"}),
 		TokenEndpointAuthMethod: takeFirst(seed.TokenEndpointAuthMethod, sql.NullString{String: "client_secret_basic", Valid: true}),
-		Scope:                   takeFirst(seed.Scope, sql.NullString{}),
+		Scopes:                  takeFirstSlice(seed.Scopes, []database.APIKeyScope{}),
 		Contacts:                takeFirstSlice(seed.Contacts, []string{}),
 		ClientUri:               takeFirst(seed.ClientUri, sql.NullString{}),
 		LogoUri:                 takeFirst(seed.LogoUri, sql.NullString{}),

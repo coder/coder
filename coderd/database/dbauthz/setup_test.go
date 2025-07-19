@@ -153,7 +153,7 @@ func (s *MethodTestSuite) SubtestWithDB(db database.Store, testCaseF func(db dat
 			ID:     testActorID.String(),
 			Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
 			Groups: []string{},
-			Scope:  rbac.ScopeAll,
+			Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 		}
 		ctx := dbauthz.As(context.Background(), actor)
 

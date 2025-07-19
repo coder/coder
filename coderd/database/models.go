@@ -21,6 +21,19 @@ type APIKeyScope string
 const (
 	APIKeyScopeAll                APIKeyScope = "all"
 	APIKeyScopeApplicationConnect APIKeyScope = "application_connect"
+	ApiKeyScopeUserRead           APIKeyScope = "user:read"
+	ApiKeyScopeUserWrite          APIKeyScope = "user:write"
+	ApiKeyScopeWorkspaceRead      APIKeyScope = "workspace:read"
+	ApiKeyScopeWorkspaceWrite     APIKeyScope = "workspace:write"
+	ApiKeyScopeWorkspaceSsh       APIKeyScope = "workspace:ssh"
+	ApiKeyScopeWorkspaceApps      APIKeyScope = "workspace:apps"
+	ApiKeyScopeTemplateRead       APIKeyScope = "template:read"
+	ApiKeyScopeTemplateWrite      APIKeyScope = "template:write"
+	ApiKeyScopeOrganizationRead   APIKeyScope = "organization:read"
+	ApiKeyScopeOrganizationWrite  APIKeyScope = "organization:write"
+	ApiKeyScopeAuditRead          APIKeyScope = "audit:read"
+	ApiKeyScopeSystemRead         APIKeyScope = "system:read"
+	ApiKeyScopeSystemWrite        APIKeyScope = "system:write"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -61,7 +74,20 @@ func (ns NullAPIKeyScope) Value() (driver.Value, error) {
 func (e APIKeyScope) Valid() bool {
 	switch e {
 	case APIKeyScopeAll,
-		APIKeyScopeApplicationConnect:
+		APIKeyScopeApplicationConnect,
+		ApiKeyScopeUserRead,
+		ApiKeyScopeUserWrite,
+		ApiKeyScopeWorkspaceRead,
+		ApiKeyScopeWorkspaceWrite,
+		ApiKeyScopeWorkspaceSsh,
+		ApiKeyScopeWorkspaceApps,
+		ApiKeyScopeTemplateRead,
+		ApiKeyScopeTemplateWrite,
+		ApiKeyScopeOrganizationRead,
+		ApiKeyScopeOrganizationWrite,
+		ApiKeyScopeAuditRead,
+		ApiKeyScopeSystemRead,
+		ApiKeyScopeSystemWrite:
 		return true
 	}
 	return false
@@ -71,6 +97,19 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 	return []APIKeyScope{
 		APIKeyScopeAll,
 		APIKeyScopeApplicationConnect,
+		ApiKeyScopeUserRead,
+		ApiKeyScopeUserWrite,
+		ApiKeyScopeWorkspaceRead,
+		ApiKeyScopeWorkspaceWrite,
+		ApiKeyScopeWorkspaceSsh,
+		ApiKeyScopeWorkspaceApps,
+		ApiKeyScopeTemplateRead,
+		ApiKeyScopeTemplateWrite,
+		ApiKeyScopeOrganizationRead,
+		ApiKeyScopeOrganizationWrite,
+		ApiKeyScopeAuditRead,
+		ApiKeyScopeSystemRead,
+		ApiKeyScopeSystemWrite,
 	}
 }
 
@@ -3019,17 +3058,17 @@ func AllWorkspaceTransitionValues() []WorkspaceTransition {
 type APIKey struct {
 	ID string `db:"id" json:"id"`
 	// hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.
-	HashedSecret    []byte      `db:"hashed_secret" json:"hashed_secret"`
-	UserID          uuid.UUID   `db:"user_id" json:"user_id"`
-	LastUsed        time.Time   `db:"last_used" json:"last_used"`
-	ExpiresAt       time.Time   `db:"expires_at" json:"expires_at"`
-	CreatedAt       time.Time   `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time   `db:"updated_at" json:"updated_at"`
-	LoginType       LoginType   `db:"login_type" json:"login_type"`
-	LifetimeSeconds int64       `db:"lifetime_seconds" json:"lifetime_seconds"`
-	IPAddress       pqtype.Inet `db:"ip_address" json:"ip_address"`
-	Scope           APIKeyScope `db:"scope" json:"scope"`
-	TokenName       string      `db:"token_name" json:"token_name"`
+	HashedSecret    []byte        `db:"hashed_secret" json:"hashed_secret"`
+	UserID          uuid.UUID     `db:"user_id" json:"user_id"`
+	LastUsed        time.Time     `db:"last_used" json:"last_used"`
+	ExpiresAt       time.Time     `db:"expires_at" json:"expires_at"`
+	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
+	LoginType       LoginType     `db:"login_type" json:"login_type"`
+	LifetimeSeconds int64         `db:"lifetime_seconds" json:"lifetime_seconds"`
+	IPAddress       pqtype.Inet   `db:"ip_address" json:"ip_address"`
+	TokenName       string        `db:"token_name" json:"token_name"`
+	Scopes          []APIKeyScope `db:"scopes" json:"scopes"`
 }
 
 type AuditLog struct {
@@ -3290,8 +3329,6 @@ type OAuth2ProviderApp struct {
 	ResponseTypes []string `db:"response_types" json:"response_types"`
 	// RFC 7591: Authentication method for token endpoint
 	TokenEndpointAuthMethod sql.NullString `db:"token_endpoint_auth_method" json:"token_endpoint_auth_method"`
-	// RFC 7591: Space-delimited scope values the client can request
-	Scope sql.NullString `db:"scope" json:"scope"`
 	// RFC 7591: Array of email addresses for responsible parties
 	Contacts []string `db:"contacts" json:"contacts"`
 	// RFC 7591: URL of the client home page
@@ -3315,6 +3352,7 @@ type OAuth2ProviderApp struct {
 	// RFC 7592: URI for client configuration endpoint
 	RegistrationClientUri sql.NullString `db:"registration_client_uri" json:"registration_client_uri"`
 	UserID                uuid.NullUUID  `db:"user_id" json:"user_id"`
+	Scopes                []APIKeyScope  `db:"scopes" json:"scopes"`
 }
 
 // Codes are meant to be exchanged for access tokens.

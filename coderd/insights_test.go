@@ -1465,7 +1465,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			})
 			token, err := client.CreateToken(context.Background(), user.id.String(), codersdk.CreateTokenRequest{
 				Lifetime:  time.Hour * 24,
-				Scope:     codersdk.APIKeyScopeAll,
+				Scopes:    []codersdk.APIKeyScope{codersdk.APIKeyScopeAll},
 				TokenName: "no-password-user-token",
 			})
 			require.NoError(t, err)

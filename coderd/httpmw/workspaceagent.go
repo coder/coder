@@ -113,13 +113,13 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 				ctx,
 				opts.DB,
 				row.WorkspaceTable.OwnerID,
-				rbac.WorkspaceAgentScope(rbac.WorkspaceAgentScopeParams{
+				[]rbac.ExpandableScope{rbac.WorkspaceAgentScope(rbac.WorkspaceAgentScopeParams{
 					WorkspaceID:   row.WorkspaceTable.ID,
 					OwnerID:       row.WorkspaceTable.OwnerID,
 					TemplateID:    row.WorkspaceTable.TemplateID,
 					VersionID:     row.WorkspaceBuild.TemplateVersionID,
 					BlockUserData: row.WorkspaceAgent.APIKeyScope == database.AgentKeyScopeEnumNoUserData,
-				}),
+				})},
 			)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

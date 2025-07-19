@@ -81,7 +81,7 @@ default site := 0
 site := site_allow(input.subject.roles)
 
 default scope_site := 0
-scope_site := site_allow([input.subject.scope])
+scope_site := site_allow(input.subject.scopes)
 
 # site_allow receives a list of roles and returns a single number:
 #  -1 if any matching permission denies access
@@ -116,7 +116,7 @@ default org := 0
 org := org_allow(input.subject.roles)
 
 default scope_org := 0
-scope_org := org_allow([input.scope])
+scope_org := org_allow(input.scopes)
 
 # org_allow_set is a helper function that iterates over all orgs that the actor
 # is a member of. For each organization it sets the numerical allow value
@@ -187,6 +187,7 @@ org_allow(roles) := num if {
 	])
 }
 
+
 # 'org_mem' is set to true if the user is an org member
 # If 'any_org' is set to true, use the other block to determine org membership.
 org_mem if {
@@ -221,7 +222,7 @@ default user := 0
 user := user_allow(input.subject.roles)
 
 default scope_user := 0
-scope_user := user_allow([input.scope])
+scope_user := user_allow(input.scopes)
 
 user_allow(roles) := num if {
 	input.object.owner != ""
@@ -242,15 +243,16 @@ user_allow(roles) := num if {
 # Scope allow_list is a list of resource IDs explicitly allowed by the scope.
 # If the list is '*', then all resources are allowed.
 scope_allow_list if {
-	"*" in input.subject.scope.allow_list
+	# If ANY scope allows all resources
+	scope := input.subject.scopes[_]
+	"*" in scope.allow_list
 }
 
 scope_allow_list if {
-	# If the wildcard is listed in the allow_list, we do not care about the
-	# object.id. This line is included to prevent partial compilations from
-	# ever needing to include the object.id.
-	not "*" in input.subject.scope.allow_list
-	input.object.id in input.subject.scope.allow_list
+	# If ANY scope explicitly allows this resource
+	scope := input.subject.scopes[_]
+	not "*" in scope.allow_list
+	input.object.id in scope.allow_list
 }
 
 # -------------------

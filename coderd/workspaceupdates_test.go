@@ -47,7 +47,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 		FriendlyName: "member",
 		ID:           ownerID.String(),
 		Roles:        rbac.Roles{memberRole},
-		Scope:        rbac.ScopeAll,
+		Scopes:       []rbac.ExpandableScope{rbac.ScopeAll},
 	}
 
 	t.Run("Basic", func(t *testing.T) {

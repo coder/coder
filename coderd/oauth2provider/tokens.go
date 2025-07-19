@@ -327,7 +327,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	}
 
 	// Grab the user roles so we can perform the exchange as the user.
-	actor, _, err := httpmw.UserRBACSubject(ctx, db, dbCode.UserID, rbac.ScopeAll)
+	actor, _, err := httpmw.UserRBACSubject(ctx, db, dbCode.UserID, []rbac.ExpandableScope{rbac.ScopeAll})
 	if err != nil {
 		return oauth2.Token{}, xerrors.Errorf("fetch user actor: %w", err)
 	}
@@ -428,7 +428,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 		return oauth2.Token{}, err
 	}
 
-	actor, _, err := httpmw.UserRBACSubject(ctx, db, prevKey.UserID, rbac.ScopeAll)
+	actor, _, err := httpmw.UserRBACSubject(ctx, db, prevKey.UserID, []rbac.ExpandableScope{rbac.ScopeAll})
 	if err != nil {
 		return oauth2.Token{}, xerrors.Errorf("fetch user actor: %w", err)
 	}
@@ -579,7 +579,7 @@ func clientCredentialsGrant(ctx context.Context, db database.Store, app database
 	}
 
 	// Grab the user roles so we can perform the exchange as the user.
-	actor, _, err := httpmw.UserRBACSubject(ctx, db, app.UserID.UUID, rbac.ScopeAll)
+	actor, _, err := httpmw.UserRBACSubject(ctx, db, app.UserID.UUID, []rbac.ExpandableScope{rbac.ScopeAll})
 	if err != nil {
 		return oauth2.Token{}, xerrors.Errorf("fetch user actor: %w", err)
 	}
@@ -769,7 +769,7 @@ func deviceCodeGrant(ctx context.Context, db database.Store, app database.OAuth2
 	}
 
 	// Get user roles for authorization context
-	actor, _, err := httpmw.UserRBACSubject(ctx, db, dbDeviceCode.UserID.UUID, rbac.ScopeAll)
+	actor, _, err := httpmw.UserRBACSubject(ctx, db, dbDeviceCode.UserID.UUID, []rbac.ExpandableScope{rbac.ScopeAll})
 	if err != nil {
 		return oauth2.Token{}, xerrors.Errorf("fetch user actor: %w", err)
 	}

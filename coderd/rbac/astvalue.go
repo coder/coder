@@ -76,9 +76,13 @@ func (s Subject) regoValue() (ast.Value, error) {
 		return nil, xerrors.Errorf("expand roles: %w", err)
 	}
 
-	subjScope, err := s.Scope.Expand()
-	if err != nil {
-		return nil, xerrors.Errorf("expand scope: %w", err)
+	subjScopes := make([]Scope, len(s.Scopes))
+	for i, scope := range s.Scopes {
+		expanded, err := scope.Expand()
+		if err != nil {
+			return nil, xerrors.Errorf("expand scope %d: %w", i, err)
+		}
+		subjScopes[i] = expanded
 	}
 	subj := ast.NewObject(
 		[2]*ast.Term{
@@ -90,8 +94,8 @@ func (s Subject) regoValue() (ast.Value, error) {
 			ast.NewTerm(regoSlice(subjRoles)),
 		},
 		[2]*ast.Term{
-			ast.StringTerm("scope"),
-			ast.NewTerm(subjScope.regoValue()),
+			ast.StringTerm("scopes"),
+			ast.NewTerm(regoSlice(subjScopes)),
 		},
 		[2]*ast.Term{
 			ast.StringTerm("groups"),

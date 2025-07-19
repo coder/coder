@@ -35,7 +35,7 @@ func TestGenerate(t *testing.T) {
 				LifetimeSeconds: int64(time.Hour.Seconds()),
 				TokenName:       "hello",
 				RemoteAddr:      "1.2.3.4",
-				Scope:           database.APIKeyScopeApplicationConnect,
+				Scopes:          []database.APIKeyScope{database.APIKeyScopeApplicationConnect},
 			},
 		},
 		{
@@ -48,7 +48,7 @@ func TestGenerate(t *testing.T) {
 				LifetimeSeconds: int64(time.Hour.Seconds()),
 				TokenName:       "hello",
 				RemoteAddr:      "1.2.3.4",
-				Scope:           database.APIKeyScope("test"),
+				Scopes:          []database.APIKeyScope{database.APIKeyScope("test")},
 			},
 			fail: true,
 		},
@@ -62,7 +62,7 @@ func TestGenerate(t *testing.T) {
 				ExpiresAt:       time.Time{},
 				TokenName:       "hello",
 				RemoteAddr:      "1.2.3.4",
-				Scope:           database.APIKeyScopeApplicationConnect,
+				Scopes:          []database.APIKeyScope{database.APIKeyScopeApplicationConnect},
 			},
 		},
 		{
@@ -75,7 +75,7 @@ func TestGenerate(t *testing.T) {
 				ExpiresAt:       time.Time{},
 				TokenName:       "hello",
 				RemoteAddr:      "1.2.3.4",
-				Scope:           database.APIKeyScopeApplicationConnect,
+				Scopes:          []database.APIKeyScope{database.APIKeyScopeApplicationConnect},
 			},
 		},
 		{
@@ -88,7 +88,7 @@ func TestGenerate(t *testing.T) {
 				LifetimeSeconds: int64(time.Hour.Seconds()),
 				TokenName:       "hello",
 				RemoteAddr:      "",
-				Scope:           database.APIKeyScopeApplicationConnect,
+				Scopes:          []database.APIKeyScope{database.APIKeyScopeApplicationConnect},
 			},
 		},
 		{
@@ -101,7 +101,7 @@ func TestGenerate(t *testing.T) {
 				LifetimeSeconds: int64(time.Hour.Seconds()),
 				TokenName:       "hello",
 				RemoteAddr:      "1.2.3.4",
-				Scope:           "",
+				Scopes:          []database.APIKeyScope{},
 			},
 		},
 	}
@@ -158,10 +158,10 @@ func TestGenerate(t *testing.T) {
 				assert.Equal(t, "0.0.0.0", key.IPAddress.IPNet.IP.String())
 			}
 
-			if tc.params.Scope != "" {
-				assert.Equal(t, tc.params.Scope, key.Scope)
+			if len(tc.params.Scopes) > 0 {
+				assert.Equal(t, tc.params.Scopes, key.Scopes)
 			} else {
-				assert.Equal(t, database.APIKeyScopeAll, key.Scope)
+				assert.Equal(t, []database.APIKeyScope{database.APIKeyScopeAll}, key.Scopes)
 			}
 
 			if tc.params.TokenName != "" {

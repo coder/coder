@@ -1570,6 +1570,12 @@ func userOrganizationIDs(ctx context.Context, api *API, user database.User) ([]u
 }
 
 func convertAPIKey(k database.APIKey) codersdk.APIKey {
+	// Convert database scopes to SDK scopes
+	scopes := make([]codersdk.APIKeyScope, 0, len(k.Scopes))
+	for _, scope := range k.Scopes {
+		scopes = append(scopes, codersdk.APIKeyScope(scope))
+	}
+
 	return codersdk.APIKey{
 		ID:              k.ID,
 		UserID:          k.UserID,
@@ -1578,7 +1584,7 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 		CreatedAt:       k.CreatedAt,
 		UpdatedAt:       k.UpdatedAt,
 		LoginType:       codersdk.LoginType(k.LoginType),
-		Scope:           codersdk.APIKeyScope(k.Scope),
+		Scopes:          scopes,
 		LifetimeSeconds: k.LifetimeSeconds,
 		TokenName:       k.TokenName,
 	}

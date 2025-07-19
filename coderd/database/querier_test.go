@@ -962,7 +962,7 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		userSubject, _, err := httpmw.UserRBACSubject(ctx, db, user.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		userSubject, _, err := httpmw.UserRBACSubject(ctx, db, user.ID, []rbac.ExpandableScope{rbac.ScopeAll})
 		require.NoError(t, err)
 		preparedUser, err := authorizer.Prepare(ctx, userSubject, policy.ActionRead, rbac.ResourceWorkspace.Type)
 		require.NoError(t, err)
@@ -971,7 +971,7 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, userRows, 0)
 
-		ownerSubject, _, err := httpmw.UserRBACSubject(ctx, db, owner.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		ownerSubject, _, err := httpmw.UserRBACSubject(ctx, db, owner.ID, []rbac.ExpandableScope{rbac.ScopeAll})
 		require.NoError(t, err)
 		preparedOwner, err := authorizer.Prepare(ctx, ownerSubject, policy.ActionRead, rbac.ResourceWorkspace.Type)
 		require.NoError(t, err)
@@ -987,11 +987,11 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 
 		authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
 
-		userSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, user.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		userSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, user.ID, []rbac.ExpandableScope{rbac.ScopeAll})
 		require.NoError(t, err)
 		userCtx := dbauthz.As(ctx, userSubject)
 
-		ownerSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, owner.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		ownerSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, owner.ID, []rbac.ExpandableScope{rbac.ScopeAll})
 		require.NoError(t, err)
 		ownerCtx := dbauthz.As(ctx, ownerSubject)
 
@@ -1249,7 +1249,7 @@ func TestQueuePosition(t *testing.T) {
 	jobCount := 10
 	jobs := []database.ProvisionerJob{}
 	jobIDs := []uuid.UUID{}
-	for i := 0; i < jobCount; i++ {
+	for range jobCount {
 		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			OrganizationID: org.ID,
 			Tags:           database.StringMap{},
@@ -1652,7 +1652,7 @@ func TestAuditLogDefaultLimit(t *testing.T) {
 	require.NoError(t, err)
 	db := database.New(sqlDB)
 
-	for i := 0; i < 110; i++ {
+	for range 110 {
 		dbgen.AuditLog(t, db, database.AuditLog{})
 	}
 
@@ -1795,7 +1795,7 @@ func TestReadCustomRoles(t *testing.T) {
 	allRoles := make([]database.CustomRole, 0)
 	siteRoles := make([]database.CustomRole, 0)
 	orgRoles := make([]database.CustomRole, 0)
-	for i := 0; i < 15; i++ {
+	for i := range 15 {
 		orgID := uuid.NullUUID{
 			UUID:  orgIDs[i%len(orgIDs)],
 			Valid: true,
@@ -2060,7 +2060,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 			FriendlyName: "member",
 			ID:           uuid.NewString(),
 			Roles:        rbac.Roles{memberRole},
-			Scope:        rbac.ScopeAll,
+			Scopes:       []rbac.ExpandableScope{rbac.ScopeAll},
 		})
 
 		// When: The user queries for audit logs
@@ -2083,7 +2083,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 			FriendlyName: "owner",
 			ID:           uuid.NewString(),
 			Roles:        rbac.Roles{auditorRole},
-			Scope:        rbac.ScopeAll,
+			Scopes:       []rbac.ExpandableScope{rbac.ScopeAll},
 		})
 
 		// When: the auditor queries for audit logs
@@ -2107,7 +2107,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 			FriendlyName: "org-auditor",
 			ID:           uuid.NewString(),
 			Roles:        rbac.Roles{orgAuditorRoles(t, orgID)},
-			Scope:        rbac.ScopeAll,
+			Scopes:       []rbac.ExpandableScope{rbac.ScopeAll},
 		})
 
 		// When: The auditor queries for audit logs
@@ -2132,7 +2132,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 			FriendlyName: "org-auditor",
 			ID:           uuid.NewString(),
 			Roles:        rbac.Roles{orgAuditorRoles(t, first), orgAuditorRoles(t, second)},
-			Scope:        rbac.ScopeAll,
+			Scopes:       []rbac.ExpandableScope{rbac.ScopeAll},
 		})
 
 		// When: The user queries for audit logs
@@ -2157,7 +2157,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 			FriendlyName: "org-auditor",
 			ID:           uuid.NewString(),
 			Roles:        rbac.Roles{orgAuditorRoles(t, uuid.New())},
-			Scope:        rbac.ScopeAll,
+			Scopes:       []rbac.ExpandableScope{rbac.ScopeAll},
 		})
 
 		// When: The user queries for audit logs
@@ -2193,7 +2193,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 	var allLogs []database.ConnectionLog
 	db, _ := dbtestutil.NewDB(t)
 	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
-	authDb := dbauthz.New(db, authz, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+	authDB := dbauthz.New(db, authz, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
 
 	orgA := dbfake.Organization(t, db).Do()
 	orgB := dbfake.Organization(t, db).Do()
@@ -2226,7 +2226,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 	}
 	for orgID, ids := range orgConnectionLogs {
 		for _, id := range ids {
-			allLogs = append(allLogs, dbgen.ConnectionLog(t, authDb, database.UpsertConnectionLogParams{
+			allLogs = append(allLogs, dbgen.ConnectionLog(t, authDB, database.UpsertConnectionLogParams{
 				WorkspaceID:      wsID,
 				WorkspaceOwnerID: user.ID,
 				ID:               id,
@@ -2259,16 +2259,16 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 			FriendlyName: "member",
 			ID:           uuid.NewString(),
 			Roles:        rbac.Roles{memberRole},
-			Scope:        rbac.ScopeAll,
+			Scopes:       []rbac.ExpandableScope{rbac.ScopeAll},
 		})
 
 		// When: The user queries for connection logs
-		logs, err := authDb.GetConnectionLogsOffset(memberCtx, database.GetConnectionLogsOffsetParams{})
+		logs, err := authDB.GetConnectionLogsOffset(memberCtx, database.GetConnectionLogsOffsetParams{})
 		require.NoError(t, err)
 		// Then: No logs returned
 		require.Len(t, logs, 0, "no logs should be returned")
 		// And: The count matches the number of logs returned
-		count, err := authDb.CountConnectionLogs(memberCtx, database.CountConnectionLogsParams{})
+		count, err := authDB.CountConnectionLogs(memberCtx, database.CountConnectionLogsParams{})
 		require.NoError(t, err)
 		require.EqualValues(t, len(logs), count)
 	})
@@ -2282,16 +2282,16 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 			FriendlyName: "owner",
 			ID:           uuid.NewString(),
 			Roles:        rbac.Roles{auditorRole},
-			Scope:        rbac.ScopeAll,
+			Scopes:       []rbac.ExpandableScope{rbac.ScopeAll},
 		})
 
 		// When: the auditor queries for connection logs
-		logs, err := authDb.GetConnectionLogsOffset(siteAuditorCtx, database.GetConnectionLogsOffsetParams{})
+		logs, err := authDB.GetConnectionLogsOffset(siteAuditorCtx, database.GetConnectionLogsOffsetParams{})
 		require.NoError(t, err)
 		// Then: All logs are returned
 		require.ElementsMatch(t, connectionOnlyIDs(allLogs), connectionOnlyIDs(logs))
 		// And: The count matches the number of logs returned
-		count, err := authDb.CountConnectionLogs(siteAuditorCtx, database.CountConnectionLogsParams{})
+		count, err := authDB.CountConnectionLogs(siteAuditorCtx, database.CountConnectionLogsParams{})
 		require.NoError(t, err)
 		require.EqualValues(t, len(logs), count)
 	})
@@ -2306,16 +2306,16 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 			FriendlyName: "org-auditor",
 			ID:           uuid.NewString(),
 			Roles:        rbac.Roles{orgAuditorRoles(t, orgID)},
-			Scope:        rbac.ScopeAll,
+			Scopes:       []rbac.ExpandableScope{rbac.ScopeAll},
 		})
 
 		// When: The auditor queries for connection logs
-		logs, err := authDb.GetConnectionLogsOffset(orgAuditCtx, database.GetConnectionLogsOffsetParams{})
+		logs, err := authDB.GetConnectionLogsOffset(orgAuditCtx, database.GetConnectionLogsOffsetParams{})
 		require.NoError(t, err)
 		// Then: Only the logs for the organization are returned
 		require.ElementsMatch(t, orgConnectionLogs[orgID], connectionOnlyIDs(logs))
 		// And: The count matches the number of logs returned
-		count, err := authDb.CountConnectionLogs(orgAuditCtx, database.CountConnectionLogsParams{})
+		count, err := authDB.CountConnectionLogs(orgAuditCtx, database.CountConnectionLogsParams{})
 		require.NoError(t, err)
 		require.EqualValues(t, len(logs), count)
 	})
@@ -2331,16 +2331,16 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 			FriendlyName: "org-auditor",
 			ID:           uuid.NewString(),
 			Roles:        rbac.Roles{orgAuditorRoles(t, first), orgAuditorRoles(t, second)},
-			Scope:        rbac.ScopeAll,
+			Scopes:       []rbac.ExpandableScope{rbac.ScopeAll},
 		})
 
 		// When: The user queries for connection logs
-		logs, err := authDb.GetConnectionLogsOffset(multiOrgAuditCtx, database.GetConnectionLogsOffsetParams{})
+		logs, err := authDB.GetConnectionLogsOffset(multiOrgAuditCtx, database.GetConnectionLogsOffsetParams{})
 		require.NoError(t, err)
 		// Then: All logs for both organizations are returned
 		require.ElementsMatch(t, append(orgConnectionLogs[first], orgConnectionLogs[second]...), connectionOnlyIDs(logs))
 		// And: The count matches the number of logs returned
-		count, err := authDb.CountConnectionLogs(multiOrgAuditCtx, database.CountConnectionLogsParams{})
+		count, err := authDB.CountConnectionLogs(multiOrgAuditCtx, database.CountConnectionLogsParams{})
 		require.NoError(t, err)
 		require.EqualValues(t, len(logs), count)
 	})
@@ -2354,16 +2354,16 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 			FriendlyName: "org-auditor",
 			ID:           uuid.NewString(),
 			Roles:        rbac.Roles{orgAuditorRoles(t, uuid.New())},
-			Scope:        rbac.ScopeAll,
+			Scopes:       []rbac.ExpandableScope{rbac.ScopeAll},
 		})
 
 		// When: The user queries for audit logs
-		logs, err := authDb.GetConnectionLogsOffset(userCtx, database.GetConnectionLogsOffsetParams{})
+		logs, err := authDB.GetConnectionLogsOffset(userCtx, database.GetConnectionLogsOffsetParams{})
 		require.NoError(t, err)
 		// Then: No logs are returned
 		require.Len(t, logs, 0, "no logs should be returned")
 		// And: The count matches the number of logs returned
-		count, err := authDb.CountConnectionLogs(userCtx, database.CountConnectionLogsParams{})
+		count, err := authDB.CountConnectionLogs(userCtx, database.CountConnectionLogsParams{})
 		require.NoError(t, err)
 		require.EqualValues(t, len(logs), count)
 	})
@@ -2386,7 +2386,7 @@ func TestCountConnectionLogs(t *testing.T) {
 	wsB := dbgen.Workspace(t, db, database.WorkspaceTable{OwnerID: userB.ID, OrganizationID: orgB.Org.ID, TemplateID: tplB.ID})
 
 	// Create logs for two different orgs.
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 			OrganizationID:   wsA.OrganizationID,
 			WorkspaceOwnerID: wsA.OwnerID,
@@ -2394,7 +2394,7 @@ func TestCountConnectionLogs(t *testing.T) {
 			Type:             database.ConnectionTypeSsh,
 		})
 	}
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 			OrganizationID:   wsB.OrganizationID,
 			WorkspaceOwnerID: wsB.OwnerID,
@@ -4121,15 +4121,17 @@ func TestGetUserStatusCounts(t *testing.T) {
 							case row.Date.Before(createdAt):
 								require.Equal(t, int64(0), row.Count)
 							case row.Date.Before(firstTransitionTime):
-								if row.Status == tc.initialStatus {
+								switch row.Status {
+								case tc.initialStatus:
 									require.Equal(t, int64(1), row.Count)
-								} else if row.Status == tc.targetStatus {
+								case tc.targetStatus:
 									require.Equal(t, int64(0), row.Count)
 								}
 							case !row.Date.After(today):
-								if row.Status == tc.initialStatus {
+								switch row.Status {
+								case tc.initialStatus:
 									require.Equal(t, int64(0), row.Count)
-								} else if row.Status == tc.targetStatus {
+								case tc.targetStatus:
 									require.Equal(t, int64(1), row.Count)
 								}
 							default:

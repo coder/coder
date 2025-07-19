@@ -58,7 +58,7 @@ const CreateTokenPage: FC = () => {
 				{
 					lifetime: values.lifetime * 24 * NANO_HOUR,
 					token_name: values.name,
-					scope: "all", // tokens are currently unscoped
+					scopes: ["all"], // tokens are currently unscoped
 				},
 				{
 					onError: onCreateError,

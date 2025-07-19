@@ -58,7 +58,7 @@ func TestFilterError(t *testing.T) {
 			ID:     uuid.NewString(),
 			Roles:  RoleIdentifiers{},
 			Groups: []string{},
-			Scope:  ScopeAll,
+			Scopes: []ExpandableScope{ScopeAll},
 		}
 
 		_, err := Filter(context.Background(), auth, subject, policy.ActionRead, []Object{ResourceUser, ResourceWorkspace})
@@ -81,7 +81,7 @@ func TestFilterError(t *testing.T) {
 				RoleOwner(),
 			},
 			Groups: []string{},
-			Scope:  ScopeAll,
+			Scopes: []ExpandableScope{ScopeAll},
 		}
 
 		t.Run("SmallSet", func(t *testing.T) {
@@ -252,9 +252,9 @@ func TestFilter(t *testing.T) {
 
 			auth := NewAuthorizer(prometheus.NewRegistry())
 
-			if actor.Scope == nil {
+			if len(actor.Scopes) == 0 {
 				// Default to ScopeAll
-				actor.Scope = ScopeAll
+				actor.Scopes = []ExpandableScope{ScopeAll}
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -293,7 +293,7 @@ func TestAuthorizeDomain(t *testing.T) {
 	// orphanedUser has no organization
 	orphanedUser := Subject{
 		ID:     "me",
-		Scope:  must(ExpandScope(ScopeAll)),
+		Scopes: []ExpandableScope{must(ExpandScope(ScopeAll))},
 		Groups: []string{},
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
@@ -308,7 +308,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user := Subject{
 		ID:     "me",
-		Scope:  must(ExpandScope(ScopeAll)),
+		Scopes: []ExpandableScope{must(ExpandScope(ScopeAll))},
 		Groups: []string{allUsersGroup},
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
@@ -410,8 +410,8 @@ func TestAuthorizeDomain(t *testing.T) {
 	})
 
 	user = Subject{
-		ID:    "me",
-		Scope: must(ExpandScope(ScopeAll)),
+		ID:     "me",
+		Scopes: []ExpandableScope{must(ExpandScope(ScopeAll))},
 		Roles: Roles{{
 			Identifier: RoleIdentifier{Name: "deny-all"},
 			// List out deny permissions explicitly
@@ -451,8 +451,8 @@ func TestAuthorizeDomain(t *testing.T) {
 	})
 
 	user = Subject{
-		ID:    "me",
-		Scope: must(ExpandScope(ScopeAll)),
+		ID:     "me",
+		Scopes: []ExpandableScope{must(ExpandScope(ScopeAll))},
 		Roles: Roles{
 			must(RoleByName(ScopedRoleOrgAdmin(defOrg))),
 			must(RoleByName(RoleMember())),
@@ -491,8 +491,8 @@ func TestAuthorizeDomain(t *testing.T) {
 	})
 
 	user = Subject{
-		ID:    "me",
-		Scope: must(ExpandScope(ScopeAll)),
+		ID:     "me",
+		Scopes: []ExpandableScope{must(ExpandScope(ScopeAll))},
 		Roles: Roles{
 			must(RoleByName(RoleOwner())),
 			must(RoleByName(RoleMember())),
@@ -528,8 +528,8 @@ func TestAuthorizeDomain(t *testing.T) {
 	})
 
 	user = Subject{
-		ID:    "me",
-		Scope: must(ExpandScope(ScopeApplicationConnect)),
+		ID:     "me",
+		Scopes: []ExpandableScope{must(ExpandScope(ScopeApplicationConnect))},
 		Roles: Roles{
 			must(RoleByName(ScopedRoleOrgMember(defOrg))),
 			must(RoleByName(RoleMember())),
@@ -627,8 +627,8 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	// In practice this is a token scope on a regular subject
 	user = Subject{
-		ID:    "me",
-		Scope: must(ExpandScope(ScopeAll)),
+		ID:     "me",
+		Scopes: []ExpandableScope{must(ExpandScope(ScopeAll))},
 		Roles: Roles{
 			{
 				Identifier: RoleIdentifier{Name: "ReadOnlyOrgAndUser"},
@@ -720,8 +720,8 @@ func TestAuthorizeLevels(t *testing.T) {
 	unusedID := uuid.New()
 
 	user := Subject{
-		ID:    "me",
-		Scope: must(ExpandScope(ScopeAll)),
+		ID:     "me",
+		Scopes: []ExpandableScope{must(ExpandScope(ScopeAll))},
 		Roles: Roles{
 			must(RoleByName(RoleOwner())),
 			{
@@ -781,8 +781,8 @@ func TestAuthorizeLevels(t *testing.T) {
 		}))
 
 	user = Subject{
-		ID:    "me",
-		Scope: must(ExpandScope(ScopeAll)),
+		ID:     "me",
+		Scopes: []ExpandableScope{must(ExpandScope(ScopeAll))},
 		Roles: Roles{
 			{
 				Identifier: RoleIdentifier{Name: "site-noise"},
@@ -846,9 +846,9 @@ func TestAuthorizeScope(t *testing.T) {
 	defOrg := uuid.New()
 	unusedID := uuid.New()
 	user := Subject{
-		ID:    "me",
-		Roles: Roles{must(RoleByName(RoleOwner()))},
-		Scope: must(ExpandScope(ScopeApplicationConnect)),
+		ID:     "me",
+		Roles:  Roles{must(RoleByName(RoleOwner()))},
+		Scopes: []ExpandableScope{must(ExpandScope(ScopeApplicationConnect))},
 	}
 
 	testAuthorize(t, "Admin_ScopeApplicationConnect", user,
@@ -882,7 +882,7 @@ func TestAuthorizeScope(t *testing.T) {
 			must(RoleByName(RoleMember())),
 			must(RoleByName(ScopedRoleOrgMember(defOrg))),
 		},
-		Scope: must(ExpandScope(ScopeApplicationConnect)),
+		Scopes: []ExpandableScope{must(ExpandScope(ScopeApplicationConnect))},
 	}
 
 	testAuthorize(t, "User_ScopeApplicationConnect", user,
@@ -918,7 +918,7 @@ func TestAuthorizeScope(t *testing.T) {
 			must(RoleByName(RoleMember())),
 			must(RoleByName(ScopedRoleOrgMember(defOrg))),
 		},
-		Scope: Scope{
+		Scopes: []ExpandableScope{Scope{
 			Role: Role{
 				Identifier:  RoleIdentifier{Name: "workspace_agent"},
 				DisplayName: "Workspace Agent",
@@ -930,7 +930,7 @@ func TestAuthorizeScope(t *testing.T) {
 				User: []Permission{},
 			},
 			AllowIDList: []string{workspaceID.String()},
-		},
+		}},
 	}
 
 	testAuthorize(t, "User_WorkspaceAgent", user,
@@ -1007,7 +1007,7 @@ func TestAuthorizeScope(t *testing.T) {
 			must(RoleByName(RoleMember())),
 			must(RoleByName(ScopedRoleOrgMember(defOrg))),
 		},
-		Scope: Scope{
+		Scopes: []ExpandableScope{Scope{
 			Role: Role{
 				Identifier:  RoleIdentifier{Name: "create_workspace"},
 				DisplayName: "Create Workspace",
@@ -1020,7 +1020,7 @@ func TestAuthorizeScope(t *testing.T) {
 			},
 			// Empty string allow_list is allowed for actions like 'create'
 			AllowIDList: []string{""},
-		},
+		}},
 	}
 
 	testAuthorize(t, "CreatWorkspaceScope", user,
@@ -1060,7 +1060,7 @@ func TestAuthorizeScope(t *testing.T) {
 			must(RoleByName(RoleMember())),
 			must(RoleByName(ScopedRoleOrgMember(defOrg))),
 		},
-		Scope: must(ScopeNoUserData.Expand()),
+		Scopes: []ExpandableScope{must(ScopeNoUserData.Expand())},
 	}
 
 	// Test 1: Verify that no_user_data scope prevents accessing user data
@@ -1143,13 +1143,17 @@ func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTes
 
 					authError := authorizer.Authorize(ctx, subject, a, c.resource)
 
+					scopes := make([]Scope, len(subject.Scopes))
+					for i, scope := range subject.Scopes {
+						scopes[i] = must(scope.Expand())
+					}
 					d, _ := json.Marshal(map[string]interface{}{
 						// This is not perfect marshal, but it is good enough for debugging this test.
 						"subject": authSubject{
 							ID:     subject.ID,
 							Roles:  must(subject.Roles.Expand()),
 							Groups: subject.Groups,
-							Scope:  must(subject.Scope.Expand()),
+							Scopes: scopes,
 						},
 						"object": c.resource,
 						"action": a,

@@ -25,7 +25,8 @@ type CreateParams struct {
 	// Optional.
 	ExpiresAt       time.Time
 	LifetimeSeconds int64
-	Scope           database.APIKeyScope
+	Scope           database.APIKeyScope   // Legacy single scope (for backward compatibility)
+	Scopes          []database.APIKeyScope // New scopes array
 	TokenName       string
 	RemoteAddr      string
 }
@@ -62,14 +63,24 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 
 	bitlen := len(ip) * 8
 
-	scope := database.APIKeyScopeAll
-	if params.Scope != "" {
-		scope = params.Scope
+	// Determine scopes - prioritize Scopes array, fallback to legacy Scope
+	var scopes []database.APIKeyScope
+	if len(params.Scopes) > 0 {
+		scopes = params.Scopes
+	} else {
+		// Fallback to legacy single scope
+		scope := database.APIKeyScopeAll
+		if params.Scope != "" {
+			scope = params.Scope
+		}
+		scopes = []database.APIKeyScope{scope}
 	}
-	switch scope {
-	case database.APIKeyScopeAll, database.APIKeyScopeApplicationConnect:
-	default:
-		return database.InsertAPIKeyParams{}, "", xerrors.Errorf("invalid API key scope: %q", scope)
+
+	// Validate all scopes
+	for _, scope := range scopes {
+		if !scope.Valid() {
+			return database.InsertAPIKeyParams{}, "", xerrors.Errorf("invalid API key scope: %q", scope)
+		}
 	}
 
 	token := fmt.Sprintf("%s-%s", keyID, keySecret)
@@ -92,7 +103,7 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 		UpdatedAt:    dbtime.Now(),
 		HashedSecret: hashed[:],
 		LoginType:    params.LoginType,
-		Scope:        scope,
+		Scopes:       scopes, // New scopes array
 		TokenName:    params.TokenName,
 	}, token, nil
 }
