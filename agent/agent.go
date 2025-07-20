@@ -98,7 +98,7 @@ type Client interface {
 	ConnectRPC26(ctx context.Context) (
 		proto.DRPCAgentClient26, tailnetproto.DRPCTailnetClient26, error,
 	)
-	RewriteDERPMap(derpMap *tailcfg.DERPMap)
+	tailnet.DERPMapRewriter
 }
 
 type Agent interface {

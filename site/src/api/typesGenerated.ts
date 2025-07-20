@@ -322,6 +322,75 @@ export interface ConnectionLatency {
 	readonly p95: number;
 }
 
+// From codersdk/connectionlog.go
+export interface ConnectionLog {
+	readonly id: string;
+	readonly connect_time: string;
+	readonly organization: MinimalOrganization;
+	readonly workspace_owner_id: string;
+	readonly workspace_owner_username: string;
+	readonly workspace_id: string;
+	readonly workspace_name: string;
+	readonly agent_name: string;
+	readonly ip: string;
+	readonly type: ConnectionType;
+	readonly web_info?: ConnectionLogWebInfo;
+	readonly ssh_info?: ConnectionLogSSHInfo;
+}
+
+// From codersdk/connectionlog.go
+export interface ConnectionLogResponse {
+	readonly connection_logs: readonly ConnectionLog[];
+	readonly count: number;
+}
+
+// From codersdk/connectionlog.go
+export interface ConnectionLogSSHInfo {
+	readonly connection_id: string;
+	readonly disconnect_time?: string;
+	readonly disconnect_reason?: string;
+	readonly exit_code?: number;
+}
+
+// From codersdk/connectionlog.go
+export type ConnectionLogStatus = "completed" | "ongoing";
+
+export const ConnectionLogStatuses: ConnectionLogStatus[] = [
+	"completed",
+	"ongoing",
+];
+
+// From codersdk/connectionlog.go
+export interface ConnectionLogWebInfo {
+	readonly user_agent: string;
+	readonly user: User | null;
+	readonly slug_or_port: string;
+	readonly status_code: number;
+}
+
+// From codersdk/connectionlog.go
+export interface ConnectionLogsRequest extends Pagination {
+	readonly q?: string;
+}
+
+// From codersdk/connectionlog.go
+export type ConnectionType =
+	| "jetbrains"
+	| "port_forwarding"
+	| "reconnecting_pty"
+	| "ssh"
+	| "vscode"
+	| "workspace_app";
+
+export const ConnectionTypes: ConnectionType[] = [
+	"jetbrains",
+	"port_forwarding",
+	"reconnecting_pty",
+	"ssh",
+	"vscode",
+	"workspace_app",
+];
+
 // From codersdk/files.go
 export const ContentTypeTar = "application/x-tar";
 
@@ -911,6 +980,8 @@ export interface Feature {
 	readonly enabled: boolean;
 	readonly limit?: number;
 	readonly actual?: number;
+	readonly soft_limit?: number;
+	readonly usage_period?: UsagePeriod;
 }
 
 // From codersdk/deployment.go
@@ -920,11 +991,13 @@ export type FeatureName =
 	| "appearance"
 	| "audit_log"
 	| "browser_only"
+	| "connection_log"
 	| "control_shared_ports"
 	| "custom_roles"
 	| "external_provisioner_daemons"
 	| "external_token_encryption"
 	| "high_availability"
+	| "managed_agent_limit"
 	| "multiple_external_auth"
 	| "multiple_organizations"
 	| "scim"
@@ -941,11 +1014,13 @@ export const FeatureNames: FeatureName[] = [
 	"appearance",
 	"audit_log",
 	"browser_only",
+	"connection_log",
 	"control_shared_ports",
 	"custom_roles",
 	"external_provisioner_daemons",
 	"external_token_encryption",
 	"high_availability",
+	"managed_agent_limit",
 	"multiple_external_auth",
 	"multiple_organizations",
 	"scim",
@@ -2241,6 +2316,7 @@ export type RBACResource =
 	| "assign_org_role"
 	| "assign_role"
 	| "audit_log"
+	| "connection_log"
 	| "crypto_key"
 	| "debug_info"
 	| "deployment_config"
@@ -2280,6 +2356,7 @@ export const RBACResources: RBACResource[] = [
 	"assign_org_role",
 	"assign_role",
 	"audit_log",
+	"connection_log",
 	"crypto_key",
 	"debug_info",
 	"deployment_config",
@@ -3165,6 +3242,13 @@ export const UsageAppNames: UsageAppName[] = [
 	"vscode",
 ];
 
+// From codersdk/deployment.go
+export interface UsagePeriod {
+	readonly issued_at: string;
+	readonly start: string;
+	readonly end: string;
+}
+
 // From codersdk/users.go
 export interface User extends ReducedUser {
 	readonly organization_ids: readonly string[];
@@ -3375,6 +3459,7 @@ export interface Workspace {
 	readonly allow_renames: boolean;
 	readonly favorite: boolean;
 	readonly next_start_at: string | null;
+	readonly is_prebuild: boolean;
 }
 
 // From codersdk/workspaceagents.go

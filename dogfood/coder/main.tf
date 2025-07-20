@@ -354,6 +354,15 @@ module "zed" {
   folder     = local.repo_dir
 }
 
+module "jetbrains-fleet" {
+  count      = data.coder_workspace.me.start_count
+  source     = "registry.coder.com/coder/jetbrains-fleet/coder"
+  version    = "1.0.1"
+  agent_id   = coder_agent.dev.id
+  agent_name = "dev"
+  folder     = local.repo_dir
+}
+
 module "devcontainers-cli" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/modules/devcontainers-cli/coder"
