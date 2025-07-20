@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/site"
 )
 
 type authorizeParams struct {
@@ -67,16 +68,46 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 }
 
 // ShowAuthorizePage handles GET /oauth2/authorize requests to display the HTML authorization page.
-// It uses authorizeMW which intercepts GET requests to show the authorization form.
-func ShowAuthorizePage(db database.Store, accessURL *url.URL) http.HandlerFunc {
-	handler := authorizeMW(accessURL)(ProcessAuthorize(db, accessURL))
-	return handler.ServeHTTP
+func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		app := httpmw.OAuth2ProviderApp(r)
+		ua := httpmw.UserAuthorization(r.Context())
+
+		callbackURL, err := url.Parse(app.CallbackURL)
+		if err != nil {
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{Status: http.StatusInternalServerError, HideStatus: false, Title: "Internal Server Error", Description: err.Error(), RetryEnabled: false, DashboardURL: accessURL.String(), Warnings: nil})
+			return
+		}
+
+		params, validationErrs, err := extractAuthorizeParams(r, callbackURL)
+		if err != nil {
+			errStr := make([]string, len(validationErrs))
+			for i, err := range validationErrs {
+				errStr[i] = err.Detail
+			}
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{Status: http.StatusBadRequest, HideStatus: false, Title: "Invalid Query Parameters", Description: "One or more query parameters are missing or invalid.", RetryEnabled: false, DashboardURL: accessURL.String(), Warnings: errStr})
+			return
+		}
+
+		cancel := params.redirectURL
+		cancelQuery := params.redirectURL.Query()
+		cancelQuery.Add("error", "access_denied")
+		cancel.RawQuery = cancelQuery.Encode()
+
+		site.RenderOAuthAllowPage(rw, r, site.RenderOAuthAllowData{
+			AppIcon:     app.Icon,
+			AppName:     app.Name,
+			CancelURI:   cancel.String(),
+			RedirectURI: r.URL.String(),
+			Username:    ua.FriendlyName,
+		})
+	}
 }
 
 // ProcessAuthorize handles POST /oauth2/authorize requests to process the user's authorization decision
-// and generate an authorization code. GET requests are handled by authorizeMW.
-func ProcessAuthorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
-	handler := func(rw http.ResponseWriter, r *http.Request) {
+// and generate an authorization code.
+func ProcessAuthorize(db database.Store) http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		apiKey := httpmw.APIKey(r)
 		app := httpmw.OAuth2ProviderApp(r)
@@ -159,9 +190,8 @@ func ProcessAuthorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 		}
 		params.redirectURL.RawQuery = newQuery.Encode()
 
-		http.Redirect(rw, r, params.redirectURL.String(), http.StatusTemporaryRedirect)
+		// (ThomasK33): Use a 302 redirect as some (external) OAuth 2 apps and browsers
+		// do not work with the 307.
+		http.Redirect(rw, r, params.redirectURL.String(), http.StatusFound)
 	}
-
-	// Always wrap with its custom mw.
-	return authorizeMW(accessURL)(http.HandlerFunc(handler)).ServeHTTP
 }
