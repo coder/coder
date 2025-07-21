@@ -15191,6 +15191,9 @@ const docTemplate = `{
                 "input": {
                     "$ref": "#/definitions/codersdk.ProvisionerJobInput"
                 },
+                "logs_overflowed": {
+                    "type": "boolean"
+                },
                 "metadata": {
                     "$ref": "#/definitions/codersdk.ProvisionerJobMetadata"
                 },
