@@ -416,7 +416,9 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 					<Slider
 						id={id}
 						className="mt-2"
-						value={[Number.isFinite(Number(localValue)) ? Number(localValue) : 0]}
+						value={[
+							Number.isFinite(Number(localValue)) ? Number(localValue) : 0,
+						]}
 						onValueChange={([value]) => {
 							setLocalValue(value.toString());
 						}}
