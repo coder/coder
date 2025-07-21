@@ -48,6 +48,18 @@
 							"icon_path": "./images/icons/document.svg"
 						},
 						{
+							"title": "Modules",
+							"description": "Learn how to contribute modules to Coder",
+							"path": "./about/contributing/modules.md",
+							"icon_path": "./images/icons/gear.svg"
+						},
+						{
+							"title": "Templates",
+							"description": "Learn how to contribute templates to Coder",
+							"path": "./about/contributing/templates.md",
+							"icon_path": "./images/icons/picture.svg"
+						},
+						{
 							"title": "Backend",
 							"description": "Our guide for backend development",
 							"path": "./about/contributing/backend.md",
@@ -764,6 +776,12 @@
 							"title": "Health Check",
 							"description": "Learn about Coder's automated health checks",
 							"path": "./admin/monitoring/health-check.md"
+						},
+						{
+							"title": "Connection Logs",
+							"description": "Monitor connections to workspaces",
+							"path": "./admin/monitoring/connection-logs.md",
+							"state": ["premium"]
 						},
 						{
 							"title": "Notifications",

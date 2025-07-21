@@ -78,6 +78,19 @@ type Options struct {
 	UpdateHandler    tailnet.UpdatesHandler
 }
 
+type derpMapRewriter struct {
+	logger    slog.Logger
+	serverURL *url.URL
+}
+
+var _ tailnet.DERPMapRewriter = &derpMapRewriter{}
+
+// RewriteDERPMap implements tailnet.DERPMapRewriter. See
+// tailnet.RewriteDERPMapDefaultRelay for more details on why this is necessary.
+func (d *derpMapRewriter) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
+	tailnet.RewriteDERPMapDefaultRelay(context.Background(), d.logger, derpMap, d.serverURL)
+}
+
 func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string, options *Options) (vpnC Conn, err error) {
 	if options == nil {
 		options = &Options{}
@@ -135,6 +148,12 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 		WorkspaceOwnerId: tailnet.UUIDToByteSlice(me.ID),
 	}))
 
+	derpMapRewriter := &derpMapRewriter{
+		logger:    options.Logger,
+		serverURL: serverURL,
+	}
+	derpMapRewriter.RewriteDERPMap(connInfo.DERPMap)
+
 	clonedHeaders := headers.Clone()
 	ip := tailnet.CoderServicePrefix.RandomAddr()
 	conn, err := tailnet.NewConn(&tailnet.Options{
@@ -164,7 +183,7 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 	coordCtrl := tailnet.NewTunnelSrcCoordController(options.Logger, conn)
 	controller.ResumeTokenCtrl = tailnet.NewBasicResumeTokenController(options.Logger, clk)
 	controller.CoordCtrl = coordCtrl
-	controller.DERPCtrl = tailnet.NewBasicDERPController(options.Logger, conn)
+	controller.DERPCtrl = tailnet.NewBasicDERPController(options.Logger, derpMapRewriter, conn)
 	updatesCtrl := tailnet.NewTunnelAllWorkspaceUpdatesController(
 		options.Logger,
 		coordCtrl,

@@ -146,7 +146,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	page, ok := parsePagination(rw, r)
+	page, ok := ParsePagination(rw, r)
 	if !ok {
 		return
 	}
@@ -2231,6 +2231,7 @@ func convertWorkspace(
 	if latestAppStatus.ID == uuid.Nil {
 		appStatus = nil
 	}
+
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
 		CreatedAt:                            workspace.CreatedAt,
@@ -2265,6 +2266,7 @@ func convertWorkspace(
 		AllowRenames:     allowRenames,
 		Favorite:         requesterFavorite,
 		NextStartAt:      nextStartAt,
+		IsPrebuild:       workspace.IsPrebuild(),
 	}, nil
 }
 

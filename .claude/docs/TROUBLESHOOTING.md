@@ -116,20 +116,33 @@ When facing multiple failing tests or complex integration issues:
 
 ### Useful Debug Commands
 
-| Command | Purpose |
-|---------|---------|
-| `make lint` | Run all linters |
-| `make gen` | Generate mocks, database queries |
+| Command                                      | Purpose                               |
+|----------------------------------------------|---------------------------------------|
+| `make lint`                                  | Run all linters                       |
+| `make gen`                                   | Generate mocks, database queries      |
 | `go test -v ./path/to/package -run TestName` | Run specific test with verbose output |
-| `go test -race ./...` | Run tests with race detector |
+| `go test -race ./...`                        | Run tests with race detector          |
 
 ### LSP Debugging
 
-| Command | Purpose |
-|---------|---------|
-| `mcp__go-language-server__definition symbolName` | Find function definition |
-| `mcp__go-language-server__references symbolName` | Find all references |
-| `mcp__go-language-server__diagnostics filePath` | Check for compilation errors |
+#### Go LSP (Backend)
+
+| Command                                            | Purpose                      |
+|----------------------------------------------------|------------------------------|
+| `mcp__go-language-server__definition symbolName`   | Find function definition     |
+| `mcp__go-language-server__references symbolName`   | Find all references          |
+| `mcp__go-language-server__diagnostics filePath`    | Check for compilation errors |
+| `mcp__go-language-server__hover filePath line col` | Get type information         |
+
+#### TypeScript LSP (Frontend)
+
+| Command                                                                    | Purpose                            |
+|----------------------------------------------------------------------------|------------------------------------|
+| `mcp__typescript-language-server__definition symbolName`                   | Find component/function definition |
+| `mcp__typescript-language-server__references symbolName`                   | Find all component/type usages     |
+| `mcp__typescript-language-server__diagnostics filePath`                    | Check for TypeScript errors        |
+| `mcp__typescript-language-server__hover filePath line col`                 | Get type information               |
+| `mcp__typescript-language-server__rename_symbol filePath line col newName` | Rename across codebase             |
 
 ## Common Error Messages
 
@@ -197,6 +210,8 @@ When facing multiple failing tests or complex integration issues:
 
 - Check existing similar implementations in codebase
 - Use LSP tools to understand code relationships
+  - For Go code: Use `mcp__go-language-server__*` commands
+  - For TypeScript/React code: Use `mcp__typescript-language-server__*` commands
 - Read related test files for expected behavior
 
 ### External Resources

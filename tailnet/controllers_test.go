@@ -586,7 +586,7 @@ func TestNewBasicDERPController_Mainline(t *testing.T) {
 	t.Parallel()
 	fs := make(chan *tailcfg.DERPMap)
 	logger := testutil.Logger(t)
-	uut := tailnet.NewBasicDERPController(logger, fakeSetter(fs))
+	uut := tailnet.NewBasicDERPController(logger, nil, fakeSetter(fs))
 	fc := fakeDERPClient{
 		ch: make(chan *tailcfg.DERPMap),
 	}
@@ -609,7 +609,7 @@ func TestNewBasicDERPController_RecvErr(t *testing.T) {
 	t.Parallel()
 	fs := make(chan *tailcfg.DERPMap)
 	logger := testutil.Logger(t)
-	uut := tailnet.NewBasicDERPController(logger, fakeSetter(fs))
+	uut := tailnet.NewBasicDERPController(logger, nil, fakeSetter(fs))
 	expectedErr := xerrors.New("a bad thing happened")
 	fc := fakeDERPClient{
 		ch:  make(chan *tailcfg.DERPMap),
@@ -1041,7 +1041,7 @@ func TestController_Disconnects(t *testing.T) {
 		// darwin can be slow sometimes.
 		tailnet.WithGracefulTimeout(5*time.Second))
 	uut.CoordCtrl = tailnet.NewAgentCoordinationController(logger.Named("coord_ctrl"), fConn)
-	uut.DERPCtrl = tailnet.NewBasicDERPController(logger.Named("derp_ctrl"), fConn)
+	uut.DERPCtrl = tailnet.NewBasicDERPController(logger.Named("derp_ctrl"), nil, fConn)
 	uut.Run(ctx)
 
 	call := testutil.TryReceive(testCtx, t, fCoord.CoordinateCalls)
@@ -1945,6 +1945,52 @@ func TestTunnelAllWorkspaceUpdatesController_HandleErrors(t *testing.T) {
 	}
 }
 
+func TestBasicDERPController_RewriteDERPMap(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	testDERPMap := &tailcfg.DERPMap{
+		Regions: map[int]*tailcfg.DERPRegion{
+			1: {
+				RegionID: 1,
+			},
+		},
+	}
+
+	// Ensure the fake rewriter works as expected.
+	rewriter := &fakeDERPMapRewriter{
+		ctx:   ctx,
+		calls: make(chan rewriteDERPMapCall, 16),
+	}
+	rewriter.RewriteDERPMap(testDERPMap)
+	rewriteCall := testutil.TryReceive(ctx, t, rewriter.calls)
+	require.Same(t, testDERPMap, rewriteCall.derpMap)
+
+	derpClient := &fakeDERPClient{
+		ch:  make(chan *tailcfg.DERPMap),
+		err: nil,
+	}
+	defer derpClient.Close()
+
+	derpSetter := &fakeDERPMapSetter{
+		ctx:   ctx,
+		calls: make(chan *setDERPMapCall, 16),
+	}
+
+	derpCtrl := tailnet.NewBasicDERPController(logger, rewriter, derpSetter)
+	derpCtrl.New(derpClient)
+
+	// Simulate receiving a new DERP map from the server, which should be passed
+	// to the rewriter and setter.
+	testDERPMap = testDERPMap.Clone() // make a new pointer
+	derpClient.ch <- testDERPMap
+	rewriteCall = testutil.TryReceive(ctx, t, rewriter.calls)
+	require.Same(t, testDERPMap, rewriteCall.derpMap)
+	setterCall := testutil.TryReceive(ctx, t, derpSetter.calls)
+	require.Same(t, testDERPMap, setterCall.derpMap)
+}
+
 type fakeWorkspaceUpdatesController struct {
 	ctx   context.Context
 	t     testing.TB
@@ -2039,4 +2085,46 @@ type fakeCloser struct{}
 
 func (fakeCloser) Close() error {
 	return nil
+}
+
+type fakeDERPMapRewriter struct {
+	ctx   context.Context
+	calls chan rewriteDERPMapCall
+}
+
+var _ tailnet.DERPMapRewriter = &fakeDERPMapRewriter{}
+
+type rewriteDERPMapCall struct {
+	derpMap *tailcfg.DERPMap
+}
+
+func (f *fakeDERPMapRewriter) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
+	call := rewriteDERPMapCall{
+		derpMap: derpMap,
+	}
+	select {
+	case f.calls <- call:
+	case <-f.ctx.Done():
+	}
+}
+
+type fakeDERPMapSetter struct {
+	ctx   context.Context
+	calls chan *setDERPMapCall
+}
+
+var _ tailnet.DERPMapSetter = &fakeDERPMapSetter{}
+
+type setDERPMapCall struct {
+	derpMap *tailcfg.DERPMap
+}
+
+func (f *fakeDERPMapSetter) SetDERPMap(derpMap *tailcfg.DERPMap) {
+	call := &setDERPMapCall{
+		derpMap: derpMap,
+	}
+	select {
+	case <-f.ctx.Done():
+	case f.calls <- call:
+	}
 }
