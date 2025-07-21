@@ -4,7 +4,7 @@ import MuiLink from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import Tooltip from "@mui/material/Tooltip";
 import type { GetLicensesResponse } from "api/api";
-import type { Entitlements, Feature, UserStatusChangeCount } from "api/typesGenerated";
+import type { Feature, UserStatusChangeCount } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	SettingsHeader,
