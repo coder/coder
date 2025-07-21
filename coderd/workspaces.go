@@ -701,14 +701,13 @@ func createWorkspace(
 			return xerrors.Errorf("get workspace by ID: %w", err)
 		}
 
-		builder := wsbuilder.New(workspace, database.WorkspaceTransitionStart).
+		builder := wsbuilder.New(workspace, database.WorkspaceTransitionStart, *api.BuildUsageChecker.Load()).
 			Reason(database.BuildReasonInitiator).
 			Initiator(initiatorID).
 			ActiveVersion().
 			Experiments(api.Experiments).
 			DeploymentValues(api.DeploymentValues).
-			RichParameterValues(req.RichParameterValues).
-			UsageChecker(*api.BuildUsageChecker.Load())
+			RichParameterValues(req.RichParameterValues)
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
 		}

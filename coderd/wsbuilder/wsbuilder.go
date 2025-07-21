@@ -139,8 +139,8 @@ type stateTarget struct {
 	explicit *[]byte
 }
 
-func New(w database.Workspace, t database.WorkspaceTransition) Builder {
-	return Builder{workspace: w, trans: t}
+func New(w database.Workspace, t database.WorkspaceTransition, uc UsageChecker) Builder {
+	return Builder{workspace: w, trans: t, usageChecker: uc}
 }
 
 // Methods that customize the build are public, have a struct receiver and return a new Builder.
@@ -186,11 +186,6 @@ func (b Builder) Experiments(exp codersdk.Experiments) Builder {
 	cpy := make(codersdk.Experiments, len(exp))
 	copy(cpy, exp)
 	b.experiments = cpy
-	return b
-}
-
-func (b Builder) UsageChecker(uc UsageChecker) Builder {
-	b.usageChecker = uc
 	return b
 }
 
@@ -1278,11 +1273,6 @@ func (b *Builder) checkUsage() error {
 	templateVersion, err := b.getTemplateVersion()
 	if err != nil {
 		return BuildError{http.StatusInternalServerError, "failed to fetch template version", err}
-	}
-
-	// If no usage checker is set, we're AGPL.
-	if b.usageChecker == nil {
-		return nil
 	}
 
 	resp, err := b.usageChecker.CheckBuildUsage(b.ctx, b.store, templateVersion)

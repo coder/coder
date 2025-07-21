@@ -335,14 +335,13 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	builder := wsbuilder.New(workspace, database.WorkspaceTransition(createBuild.Transition)).
+	builder := wsbuilder.New(workspace, database.WorkspaceTransition(createBuild.Transition), *api.BuildUsageChecker.Load()).
 		Initiator(apiKey.UserID).
 		RichParameterValues(createBuild.RichParameterValues).
 		LogLevel(string(createBuild.LogLevel)).
 		DeploymentValues(api.Options.DeploymentValues).
 		Experiments(api.Experiments).
-		TemplateVersionPresetID(createBuild.TemplateVersionPresetID).
-		UsageChecker(*api.BuildUsageChecker.Load())
+		TemplateVersionPresetID(createBuild.TemplateVersionPresetID)
 
 	var (
 		previousWorkspaceBuild database.WorkspaceBuild

@@ -691,10 +691,10 @@ func TestEntitlements(t *testing.T) {
 
 		licenseOpts := (&coderdenttest.LicenseOptions{
 			FeatureSet: codersdk.FeatureSetPremium,
-			IssuedAt:   dbtime.Now().Add(-2 * time.Hour),
-			NotBefore:  dbtime.Now().Add(-time.Hour),
-			GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60), // 60 days to remove warning
-			ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90), // 90 days to remove warning
+			IssuedAt:   dbtime.Now().Add(-2 * time.Hour).Truncate(time.Second),
+			NotBefore:  dbtime.Now().Add(-time.Hour).Truncate(time.Second),
+			GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second), // 60 days to remove warning
+			ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second), // 90 days to remove warning
 		}).
 			UserLimit(100).
 			ManagedAgentLimit(100, 200)
@@ -713,6 +713,7 @@ func TestEntitlements(t *testing.T) {
 			Return(int64(1), nil)
 		mDB.EXPECT().
 			GetManagedAgentCount(gomock.Any(), gomock.Cond(func(params database.GetManagedAgentCountParams) bool {
+				// gomock doesn't seem to compare times very nicely.
 				if !assert.WithinDuration(t, licenseOpts.NotBefore, params.StartTime, time.Second) {
 					return false
 				}

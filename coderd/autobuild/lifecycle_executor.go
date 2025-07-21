@@ -281,11 +281,10 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 
 					if nextTransition != "" {
-						builder := wsbuilder.New(ws, nextTransition).
+						builder := wsbuilder.New(ws, nextTransition, *e.buildUsageChecker.Load()).
 							SetLastWorkspaceBuildInTx(&latestBuild).
 							SetLastWorkspaceBuildJobInTx(&latestJob).
 							Experiments(e.experiments).
-							UsageChecker(*e.buildUsageChecker.Load()).
 							Reason(reason)
 						log.Debug(e.ctx, "auto building workspace", slog.F("transition", nextTransition))
 						if nextTransition == database.WorkspaceTransitionStart &&

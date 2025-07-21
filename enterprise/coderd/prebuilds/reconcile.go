@@ -751,10 +751,9 @@ func (c *StoreReconciler) provision(
 		})
 	}
 
-	builder := wsbuilder.New(workspace, transition).
+	builder := wsbuilder.New(workspace, transition, *c.buildUsageChecker.Load()).
 		Reason(database.BuildReasonInitiator).
 		Initiator(database.PrebuildsSystemUserID).
-		UsageChecker(*c.buildUsageChecker.Load()).
 		MarkPrebuild()
 
 	if transition != database.WorkspaceTransitionDelete {
