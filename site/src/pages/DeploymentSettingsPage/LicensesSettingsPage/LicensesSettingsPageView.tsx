@@ -4,7 +4,7 @@ import MuiLink from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import Tooltip from "@mui/material/Tooltip";
 import type { GetLicensesResponse } from "api/api";
-import type { Entitlements, UserStatusChangeCount } from "api/typesGenerated";
+import type { Entitlements, Feature, UserStatusChangeCount } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	SettingsHeader,
@@ -33,7 +33,7 @@ type Props = {
 	removeLicense: (licenseId: number) => void;
 	refreshEntitlements: () => void;
 	activeUsers: UserStatusChangeCount[] | undefined;
-	entitlements?: Entitlements;
+	managedAgentFeature?: Feature;
 };
 
 const LicensesSettingsPageView: FC<Props> = ({
@@ -47,14 +47,13 @@ const LicensesSettingsPageView: FC<Props> = ({
 	removeLicense,
 	refreshEntitlements,
 	activeUsers,
-	entitlements,
+	managedAgentFeature,
 }) => {
 	const theme = useTheme();
 	const { width, height } = useWindowSize();
-	const managedAgentFeature = entitlements?.features?.managed_agent_limit;
-	const managedAgentLimitStarts = entitlements?.features?.managed_agent_limit?.usage_period?.start;
-	const managedAgentLimitExpires = entitlements?.features?.managed_agent_limit?.usage_period?.end;
-	const managedAgentFeatureEnabled = entitlements?.features?.managed_agent_limit?.enabled;
+	const managedAgentLimitStarts = managedAgentFeature?.usage_period?.start;
+	const managedAgentLimitExpires = managedAgentFeature?.usage_period?.end;
+	const managedAgentFeatureEnabled = managedAgentFeature?.enabled;
 
 	return (
 		<>
