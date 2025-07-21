@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -17,10 +18,12 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -188,6 +191,32 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
 	ctx := r.Context()
 	if !job.CompletedAt.Valid {
+		// Check if there are any active provisioners for this organization
+		daemons, err := api.Database.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
+			OrganizationID: job.OrganizationID,
+			WantTags:       database.StringMap{},
+		})
+		if err != nil {
+			// If we can't check provisioners, fall back to the original error
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Job hasn't completed!",
+			})
+			return
+		}
+
+		// Check if any provisioners are active (not stale)
+		now := dbtime.Now()
+		activeProvisioners := db2sdk.RecentProvisionerDaemons(now, provisionerdserver.StaleInterval, daemons)
+
+		if len(activeProvisioners) == 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "No provisioners are currently running for this organization. Please start a provisioner or contact your administrator to enable template parameter resolution.",
+				Detail:  "Template parameter resolution requires an active provisioner to process the job.",
+			})
+			return
+		}
+
+		// Provisioners are available but job still hasn't completed
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Job hasn't completed!",
 		})
