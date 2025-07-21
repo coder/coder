@@ -148,7 +148,7 @@ module "jetbrains_gateway" {
 
 module "filebrowser" {
   source   = "registry.coder.com/coder/filebrowser/coder"
-  version  = "1.0.31"
+  version  = "v1.1.1"
   agent_id = coder_agent.dev.id
 }
 
