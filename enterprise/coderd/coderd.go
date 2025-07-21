@@ -22,6 +22,7 @@ import (
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/enterprise/coderd/connectionlog"
 	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
 	"github.com/coder/coder/v2/enterprise/coderd/portsharing"
@@ -916,8 +917,68 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			reloadedEntitlements.Warnings = append(reloadedEntitlements.Warnings, msg)
 		}
 		reloadedEntitlements.Features[codersdk.FeatureExternalTokenEncryption] = featureExternalTokenEncryption
+
+		// If there's a license installed, we will use the enterprise build
+		// limit checker.
+		// This checker currently only enforces the managed agent limit.
+		if reloadedEntitlements.HasLicense {
+			var checker wsbuilder.UsageChecker = api
+			api.AGPL.BuildUsageChecker.Store(&checker)
+		} else {
+			// Don't check any usage, just like AGPL.
+			var checker wsbuilder.UsageChecker = wsbuilder.NoopUsageChecker{}
+			api.AGPL.BuildUsageChecker.Store(&checker)
+		}
+
 		return reloadedEntitlements, nil
 	})
+}
+
+var _ wsbuilder.UsageChecker = &API{}
+
+func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion) (wsbuilder.UsageCheckResponse, error) {
+	// We assume that if this function is called, a valid license is installed.
+	// When there are no licenses installed, a noop usage checker is used
+	// instead.
+
+	// If the template version doesn't have an AI task, we don't need to check
+	// usage.
+	if !templateVersion.HasAITask.Valid || !templateVersion.HasAITask.Bool {
+		return wsbuilder.UsageCheckResponse{
+			Permitted: true,
+		}, nil
+	}
+
+	// Otherwise, we need to check that we haven't breached the managed agent
+	// limit.
+	managedAgentLimit, ok := api.Entitlements.Feature(codersdk.FeatureManagedAgentLimit)
+	if !ok || !managedAgentLimit.Enabled || managedAgentLimit.Limit == nil || managedAgentLimit.UsagePeriod == nil {
+		return wsbuilder.UsageCheckResponse{
+			Permitted: false,
+			Message:   "Your license is not entitled to managed agents. Please contact sales to continue using managed agents.",
+		}, nil
+	}
+
+	// This check is intentionally not committed to the database. It's fine if
+	// it's not 100% accurate or allows for minor breaches due to build races.
+	managedAgentCount, err := store.GetManagedAgentCount(ctx, database.GetManagedAgentCountParams{
+		StartTime: managedAgentLimit.UsagePeriod.Start,
+		EndTime:   managedAgentLimit.UsagePeriod.End,
+	})
+	if err != nil {
+		return wsbuilder.UsageCheckResponse{}, xerrors.Errorf("get managed agent count: %w", err)
+	}
+
+	if managedAgentCount >= *managedAgentLimit.Limit {
+		return wsbuilder.UsageCheckResponse{
+			Permitted: false,
+			Message:   "You have breached the managed agent limit in your license. Please contact sales to continue using managed agents.",
+		}, nil
+	}
+
+	return wsbuilder.UsageCheckResponse{
+		Permitted: true,
+	}, nil
 }
 
 // getProxyDERPStartingRegionID returns the starting region ID that should be
@@ -1186,6 +1247,6 @@ func (api *API) setupPrebuilds(featureEnabled bool) (agplprebuilds.Reconciliatio
 	}
 
 	reconciler := prebuilds.NewStoreReconciler(api.Database, api.Pubsub, api.AGPL.FileCache, api.DeploymentValues.Prebuilds,
-		api.Logger.Named("prebuilds"), quartz.NewReal(), api.PrometheusRegistry, api.NotificationsEnqueuer)
+		api.Logger.Named("prebuilds"), quartz.NewReal(), api.PrometheusRegistry, api.NotificationsEnqueuer, api.AGPL.BuildUsageChecker)
 	return reconciler, prebuilds.NewEnterpriseClaimer(api.Database)
 }

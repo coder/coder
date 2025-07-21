@@ -341,7 +341,8 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		LogLevel(string(createBuild.LogLevel)).
 		DeploymentValues(api.Options.DeploymentValues).
 		Experiments(api.Experiments).
-		TemplateVersionPresetID(createBuild.TemplateVersionPresetID)
+		TemplateVersionPresetID(createBuild.TemplateVersionPresetID).
+		UsageChecker(*api.BuildUsageChecker.Load())
 
 	var (
 		previousWorkspaceBuild database.WorkspaceBuild

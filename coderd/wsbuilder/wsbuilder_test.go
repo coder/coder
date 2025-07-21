@@ -5,30 +5,30 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/files"
-	"github.com/coder/coder/v2/coderd/httpapi/httperror"
-	"github.com/coder/coder/v2/provisionersdk"
-
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionersdk"
 )
 
 var (
@@ -1001,6 +1001,117 @@ func TestWorkspaceBuildDeleteOrphan(t *testing.T) {
 	})
 }
 
+func TestWorkspaceBuildUsageChecker(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Permitted", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		var calls int64
+		fakeUsageChecker := &fakeUsageChecker{
+			checkBuildUsageFunc: func(_ context.Context, _ database.Store, templateVersion *database.TemplateVersion) (wsbuilder.UsageCheckResponse, error) {
+				atomic.AddInt64(&calls, 1)
+				return wsbuilder.UsageCheckResponse{Permitted: true}, nil
+			},
+		}
+
+		mDB := expectDB(t,
+			// Inputs
+			withTemplate,
+			withInactiveVersion(nil),
+			withLastBuildFound,
+			withTemplateVersionVariables(inactiveVersionID, nil),
+			withRichParameters(nil),
+			withParameterSchemas(inactiveJobID, nil),
+			withWorkspaceTags(inactiveVersionID, nil),
+			withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
+
+			// Outputs
+			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
+			withInTx,
+			expectBuild(func(bld database.InsertWorkspaceBuildParams) {}),
+			withBuild,
+			expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {}),
+		)
+		fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+
+		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
+		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).
+			UsageChecker(fakeUsageChecker)
+		// nolint: dogsled
+		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, calls)
+	})
+
+	// The failure cases are mostly identical from a test perspective.
+	const message = "fake test message"
+	cases := []struct {
+		name        string
+		response    wsbuilder.UsageCheckResponse
+		responseErr error
+		assertions  func(t *testing.T, err error)
+	}{
+		{
+			name: "NotPermitted",
+			response: wsbuilder.UsageCheckResponse{
+				Permitted: false,
+				Message:   message,
+			},
+			assertions: func(t *testing.T, err error) {
+				require.ErrorContains(t, err, message)
+				var buildErr wsbuilder.BuildError
+				require.ErrorAs(t, err, &buildErr)
+				require.Equal(t, http.StatusForbidden, buildErr.Status)
+			},
+		},
+		{
+			name:        "Error",
+			responseErr: xerrors.New("fake error"),
+			assertions: func(t *testing.T, err error) {
+				require.ErrorContains(t, err, "fake error")
+				require.ErrorAs(t, err, &wsbuilder.BuildError{})
+			},
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			var calls int64
+			fakeUsageChecker := &fakeUsageChecker{
+				checkBuildUsageFunc: func(_ context.Context, _ database.Store, templateVersion *database.TemplateVersion) (wsbuilder.UsageCheckResponse, error) {
+					atomic.AddInt64(&calls, 1)
+					return c.response, c.responseErr
+				},
+			}
+
+			mDB := expectDB(t,
+				withTemplate,
+				withInactiveVersionNoParams(),
+			)
+			fc := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+
+			ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
+			uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).
+				VersionID(inactiveVersionID).
+				UsageChecker(fakeUsageChecker)
+			// nolint: dogsled
+			_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
+			c.assertions(t, err)
+			require.EqualValues(t, 1, calls)
+		})
+	}
+}
+
 func TestWsbuildError(t *testing.T) {
 	t.Parallel()
 
@@ -1365,4 +1476,12 @@ func withProvisionerDaemons(provisionerDaemons []database.GetEligibleProvisioner
 	return func(mTx *dbmock.MockStore) {
 		mTx.EXPECT().GetEligibleProvisionerDaemonsByProvisionerJobIDs(gomock.Any(), gomock.Any()).Return(provisionerDaemons, nil)
 	}
+}
+
+type fakeUsageChecker struct {
+	checkBuildUsageFunc func(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion) (wsbuilder.UsageCheckResponse, error)
+}
+
+func (f *fakeUsageChecker) CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion) (wsbuilder.UsageCheckResponse, error) {
+	return f.checkBuildUsageFunc(ctx, store, templateVersion)
 }

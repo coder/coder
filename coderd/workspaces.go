@@ -707,7 +707,8 @@ func createWorkspace(
 			ActiveVersion().
 			Experiments(api.Experiments).
 			DeploymentValues(api.DeploymentValues).
-			RichParameterValues(req.RichParameterValues)
+			RichParameterValues(req.RichParameterValues).
+			UsageChecker(*api.BuildUsageChecker.Load())
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
 		}

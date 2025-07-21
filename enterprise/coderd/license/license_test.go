@@ -10,8 +10,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
@@ -677,6 +679,66 @@ func TestEntitlements(t *testing.T) {
 		require.True(t, entitlements.HasLicense)
 		require.Len(t, entitlements.Warnings, 1)
 		require.Equal(t, "You have multiple External Auth Providers configured but your license is expired. Reduce to one.", entitlements.Warnings[0])
+	})
+
+	t.Run("ManagedAgentLimitHasValue", func(t *testing.T) {
+		t.Parallel()
+
+		// Use a mock database for this test so I don't need to make real
+		// workspace builds.
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+
+		licenseOpts := (&coderdenttest.LicenseOptions{
+			FeatureSet: codersdk.FeatureSetPremium,
+			IssuedAt:   dbtime.Now().Add(-2 * time.Hour),
+			NotBefore:  dbtime.Now().Add(-time.Hour),
+			GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60), // 60 days to remove warning
+			ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90), // 90 days to remove warning
+		}).
+			UserLimit(100).
+			ManagedAgentLimit(100, 200)
+
+		lic := database.License{
+			ID:  1,
+			JWT: coderdenttest.GenerateLicense(t, *licenseOpts),
+			Exp: licenseOpts.ExpiresAt,
+		}
+
+		mDB.EXPECT().
+			GetUnexpiredLicenses(gomock.Any()).
+			Return([]database.License{lic}, nil)
+		mDB.EXPECT().
+			GetActiveUserCount(gomock.Any(), false).
+			Return(int64(1), nil)
+		mDB.EXPECT().
+			GetManagedAgentCount(gomock.Any(), gomock.Cond(func(params database.GetManagedAgentCountParams) bool {
+				if !assert.WithinDuration(t, licenseOpts.NotBefore, params.StartTime, time.Second) {
+					return false
+				}
+				if !assert.WithinDuration(t, licenseOpts.ExpiresAt, params.EndTime, time.Second) {
+					return false
+				}
+				return true
+			})).
+			Return(int64(175), nil)
+
+		entitlements, err := license.Entitlements(context.Background(), mDB, 1, 0, coderdenttest.Keys, all)
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+
+		managedAgentLimit, ok := entitlements.Features[codersdk.FeatureManagedAgentLimit]
+		require.True(t, ok)
+		require.NotNil(t, managedAgentLimit.SoftLimit)
+		require.EqualValues(t, 100, *managedAgentLimit.SoftLimit)
+		require.NotNil(t, managedAgentLimit.Limit)
+		require.EqualValues(t, 200, *managedAgentLimit.Limit)
+		require.NotNil(t, managedAgentLimit.Actual)
+		require.EqualValues(t, 175, *managedAgentLimit.Actual)
+
+		// Should've also populated a warning.
+		require.Len(t, entitlements.Warnings, 1)
+		require.Equal(t, "You are approaching the managed agent limit in your license. Please refer to the Deployment Licenses page for more information.", entitlements.Warnings[0])
 	})
 }
 

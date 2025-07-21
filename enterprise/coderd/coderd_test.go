@@ -32,6 +32,8 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 
 	"github.com/coder/retry"
@@ -619,6 +621,88 @@ func TestSCIMDisabled(t *testing.T) {
 			require.Contains(t, apiError.Message, "SCIM is disabled")
 		})
 	}
+}
+
+func TestManagedAgentLimit(t *testing.T) {
+	t.Parallel()
+
+	cli, _ := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		},
+		LicenseOptions: (&coderdenttest.LicenseOptions{}).ManagedAgentLimit(1, 1),
+	})
+
+	// It's fine that the app ID is only used in a single successful workspace
+	// build.
+	appID := uuid.NewString()
+	echoRes := &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Response{
+			{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						Plan:        []byte("{}"),
+						ModuleFiles: []byte{},
+						HasAiTasks:  true,
+					},
+				},
+			},
+		},
+		ProvisionApply: []*proto.Response{{
+			Type: &proto.Response_Apply{
+				Apply: &proto.ApplyComplete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id:   uuid.NewString(),
+							Name: "example",
+							Auth: &proto.Agent_Token{
+								Token: uuid.NewString(),
+							},
+							Apps: []*proto.App{{
+								Id:   appID,
+								Slug: "test",
+								Url:  "http://localhost:1234",
+							}},
+						}},
+					}},
+					AiTasks: []*proto.AITask{{
+						Id: uuid.NewString(),
+						SidebarApp: &proto.AITaskSidebarApp{
+							Id: appID,
+						},
+					}},
+				},
+			},
+		}},
+	}
+
+	// Create two templates, one with AI and one without.
+	aiVersion := coderdtest.CreateTemplateVersion(t, cli, uuid.Nil, echoRes)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, cli, aiVersion.ID)
+	aiTemplate := coderdtest.CreateTemplate(t, cli, uuid.Nil, aiVersion.ID)
+	noAiVersion := coderdtest.CreateTemplateVersion(t, cli, uuid.Nil, nil) // use default responses
+	coderdtest.AwaitTemplateVersionJobCompleted(t, cli, noAiVersion.ID)
+	noAiTemplate := coderdtest.CreateTemplate(t, cli, uuid.Nil, noAiVersion.ID)
+
+	// Create one AI workspace, which should succeed.
+	workspace := coderdtest.CreateWorkspace(t, cli, aiTemplate.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, cli, workspace.LatestBuild.ID)
+
+	// Create a second AI workspace, which should fail. This needs to be done
+	// manually because coderdtest.CreateWorkspace expects it to succeed.
+	_, err := cli.CreateUserWorkspace(context.Background(), codersdk.Me, codersdk.CreateWorkspaceRequest{ //nolint:gocritic // owners must still be subject to the limit
+		TemplateID:       aiTemplate.ID,
+		Name:             coderdtest.RandomUsername(t),
+		AutomaticUpdates: codersdk.AutomaticUpdatesNever,
+	})
+	require.ErrorContains(t, err, "You have breached the managed agent limit in your license")
+
+	// Create a third non-AI workspace, which should succeed.
+	workspace = coderdtest.CreateWorkspace(t, cli, noAiTemplate.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, cli, workspace.LatestBuild.ID)
 }
 
 // testDBAuthzRole returns a context with a subject that has a role
