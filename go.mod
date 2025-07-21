@@ -207,7 +207,7 @@ require (
 	golang.org/x/sys v0.34.0
 	golang.org/x/term v0.33.0
 	golang.org/x/text v0.27.0
-	golang.org/x/tools v0.34.0
+	golang.org/x/tools v0.35.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
 	google.golang.org/api v0.241.0
 	google.golang.org/grpc v1.73.0
