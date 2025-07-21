@@ -343,6 +343,36 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		require.Len(t, preview.Diagnostics, 1)
 		require.Equal(t, preview.Diagnostics[0].Extra.Code, "owner_not_found")
 	})
+
+	t.Run("TemplateVariables", func(t *testing.T) {
+		t.Parallel()
+
+		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/variables/main.tf")
+		require.NoError(t, err)
+
+		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
+			provisionerDaemonVersion: provProto.CurrentVersion.String(),
+			mainTF:                   dynamicParametersTerraformSource,
+			variables: []codersdk.TemplateVersionVariable{
+				{Name: "one", Value: "austin", DefaultValue: "alice", Type: "string"},
+			},
+			plan:   nil,
+			static: nil,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		stream := setup.stream
+		previews := stream.Chan()
+
+		// Should see the output of the module represented
+		preview := testutil.RequireReceive(ctx, t, previews)
+		require.Equal(t, -1, preview.ID)
+		require.Empty(t, preview.Diagnostics)
+
+		require.Len(t, preview.Parameters, 1)
+		coderdtest.AssertParameter(t, "variable_values", preview.Parameters).
+			Exists().Value("austin")
+	})
 }
 
 type setupDynamicParamsTestParams struct {
@@ -355,6 +385,7 @@ type setupDynamicParamsTestParams struct {
 
 	static               []*proto.RichParameter
 	expectWebsocketError bool
+	variables            []codersdk.TemplateVersionVariable
 }
 
 type dynamicParamsTest struct {
@@ -380,6 +411,7 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 		Plan:           args.plan,
 		ModulesArchive: args.modulesArchive,
 		StaticParams:   args.static,
+		Variables:      args.variables,
 	})
 
 	ctx := testutil.Context(t, testutil.WaitShort)
