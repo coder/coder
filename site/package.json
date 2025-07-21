@@ -128,6 +128,7 @@
 		"@chromatic-com/storybook": "^4.0.1",
 		"@octokit/types": "12.3.0",
 		"@playwright/test": "1.47.0",
+		"@storybook/addon-docs": "9.0.17",
 		"@storybook/addon-links": "9.0.17",
 		"@storybook/addon-themes": "9.0.17",
 		"@storybook/react-vite": "9.0.17",
@@ -182,10 +183,13 @@
 		"typescript": "5.6.3",
 		"vite": "6.3.5",
 		"vite-plugin-checker": "0.9.3",
-		"vite-plugin-turbosnap": "1.0.3",
-		"@storybook/addon-docs": "9.0.17"
+		"vite-plugin-turbosnap": "1.0.3"
 	},
-	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
+	"browserslist": [
+		"chrome 110",
+		"firefox 111",
+		"safari 16.0"
+	],
 	"resolutions": {
 		"optionator": "0.9.3",
 		"semver": "7.6.2"
