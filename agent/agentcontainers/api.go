@@ -267,9 +267,9 @@ func WithWatcher(w watcher.Watcher) Option {
 }
 
 // WithFileSystem sets the file system used for discovering projects.
-func WithFileSystem(fs afero.Fs) Option {
+func WithFileSystem(fileSystem afero.Fs) Option {
 	return func(api *API) {
-		api.fs = fs
+		api.fs = fileSystem
 	}
 }
 
@@ -449,7 +449,11 @@ func (api *API) discoverDevcontainersInProject(projectPath string) error {
 		"/.devcontainer.json",
 	}
 
-	return afero.Walk(api.fs, projectPath, func(path string, info fs.FileInfo, err error) error {
+	return afero.Walk(api.fs, projectPath, func(path string, info fs.FileInfo, _ error) error {
+		if info.IsDir() {
+			return nil
+		}
+
 		for _, relativeConfigPath := range devcontainerConfigPaths {
 			if !strings.HasSuffix(path, relativeConfigPath) {
 				continue

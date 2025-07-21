@@ -181,8 +181,6 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 	const appsClasses = "flex flex-wrap gap-4 empty:hidden md:justify-start";
 
-	console.log(devcontainer);
-
 	return (
 		<Stack
 			key={devcontainer.id}
