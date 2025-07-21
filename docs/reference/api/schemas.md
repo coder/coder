@@ -3261,13 +3261,25 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "actual": 0,
       "enabled": true,
       "entitlement": "entitled",
-      "limit": 0
+      "limit": 0,
+      "soft_limit": 0,
+      "usage_period": {
+        "end": "2019-08-24T14:15:22Z",
+        "issued_at": "2019-08-24T14:15:22Z",
+        "start": "2019-08-24T14:15:22Z"
+      }
     },
     "property2": {
       "actual": 0,
       "enabled": true,
       "entitlement": "entitled",
-      "limit": 0
+      "limit": 0,
+      "soft_limit": 0,
+      "usage_period": {
+        "end": "2019-08-24T14:15:22Z",
+        "issued_at": "2019-08-24T14:15:22Z",
+        "start": "2019-08-24T14:15:22Z"
+      }
     }
   },
   "has_license": true,
@@ -3503,18 +3515,28 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "actual": 0,
   "enabled": true,
   "entitlement": "entitled",
-  "limit": 0
+  "limit": 0,
+  "soft_limit": 0,
+  "usage_period": {
+    "end": "2019-08-24T14:15:22Z",
+    "issued_at": "2019-08-24T14:15:22Z",
+    "start": "2019-08-24T14:15:22Z"
+  }
 }
 ```
 
 ### Properties
 
-| Name          | Type                                         | Required | Restrictions | Description |
-|---------------|----------------------------------------------|----------|--------------|-------------|
-| `actual`      | integer                                      | false    |              |             |
-| `enabled`     | boolean                                      | false    |              |             |
-| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |             |
-| `limit`       | integer                                      | false    |              |             |
+| Name          | Type                                         | Required | Restrictions | Description                                                                                                                                                                  |
+|---------------|----------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `actual`      | integer                                      | false    |              |                                                                                                                                                                              |
+| `enabled`     | boolean                                      | false    |              |                                                                                                                                                                              |
+| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |                                                                                                                                                                              |
+| `limit`       | integer                                      | false    |              |                                                                                                                                                                              |
+| `soft_limit`  | integer                                      | false    |              | Soft limit is the soft limit of the feature, and is only used for showing included limits in the dashboard. No license validation or warnings are generated from this value. |
+|`usage_period`|[codersdk.UsagePeriod](#codersdkusageperiod)|false||Usage period denotes that the usage is a counter that accumulates over this period (and most likely resets with the issuance of the next license).
+These dates are determined from the license that this entitlement comes from, see enterprise/coderd/license/license.go.
+Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ## codersdk.FriendlyDiagnostic
 
@@ -8250,6 +8272,24 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `jetbrains`        |
 | `reconnecting-pty` |
 | `ssh`              |
+
+## codersdk.UsagePeriod
+
+```json
+{
+  "end": "2019-08-24T14:15:22Z",
+  "issued_at": "2019-08-24T14:15:22Z",
+  "start": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name        | Type   | Required | Restrictions | Description |
+|-------------|--------|----------|--------------|-------------|
+| `end`       | string | false    |              |             |
+| `issued_at` | string | false    |              |             |
+| `start`     | string | false    |              |             |
 
 ## codersdk.User
 
