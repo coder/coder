@@ -79,13 +79,12 @@ Examples:
 		}
 
 		// Wait for agent to be ready
-		err = cliui.Agent(ctx, nil, workspaceAgent.ID, cliui.AgentOptions{
+		if err := cliui.Agent(ctx, io.Discard, workspaceAgent.ID, cliui.AgentOptions{
 			FetchInterval: 0,
 			Fetch:         deps.coderClient.WorkspaceAgent,
 			FetchLogs:     deps.coderClient.WorkspaceAgentLogsAfter,
 			Wait:          true, // Always wait for startup scripts
-		})
-		if err != nil {
+		}); err != nil {
 			return WorkspaceBashResult{}, xerrors.Errorf("agent not ready: %w", err)
 		}
 

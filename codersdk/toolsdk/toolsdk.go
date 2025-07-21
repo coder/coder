@@ -6,12 +6,14 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"runtime/debug"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/aisdk-go"
 
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -122,7 +124,14 @@ func WithRecover(h GenericHandlerFunc) GenericHandlerFunc {
 	return func(ctx context.Context, deps Deps, args json.RawMessage) (ret json.RawMessage, err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				err = xerrors.Errorf("tool handler panic: %v", r)
+				if buildinfo.IsDev() {
+					// Capture stack trace in dev builds
+					stack := debug.Stack()
+					err = xerrors.Errorf("tool handler panic: %v\nstack trace:\n%s", r, stack)
+				} else {
+					// Simple error message in production builds
+					err = xerrors.Errorf("tool handler panic: %v", r)
+				}
 			}
 		}()
 		return h(ctx, deps, args)
