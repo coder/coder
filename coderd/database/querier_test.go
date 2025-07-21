@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -1320,6 +1321,80 @@ func TestQueuePosition(t *testing.T) {
 		require.Equal(t, job.QueuePosition, int64(index))
 		require.Equal(t, job.ProvisionerJob.ID, jobs[index].ID)
 	}
+}
+
+func TestAcquireProvisionerJob(t *testing.T) {
+	t.Parallel()
+
+	t.Run("HumanInitiatedJobsFirst", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _       = dbtestutil.NewDB(t)
+			ctx         = testutil.Context(t, testutil.WaitMedium)
+			org         = dbgen.Organization(t, db, database.Organization{})
+			now         = dbtime.Now()
+			numJobs     = 10
+			humanIDs    = make([]uuid.UUID, 0, numJobs/2)
+			prebuildIDs = make([]uuid.UUID, 0, numJobs/2)
+		)
+
+		// Given: a number of jobs in the queue, with prebuilds and non-prebuilds interleaved
+		for idx := range numJobs {
+			var initiator uuid.UUID
+			if idx%2 == 0 {
+				initiator = database.PrebuildsSystemUserID
+			} else {
+				initiator = uuid.New()
+			}
+			pj, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+				ID:             uuid.New(),
+				CreatedAt:      time.Now().Add(-time.Second * time.Duration(idx)),
+				UpdatedAt:      time.Now().Add(-time.Second * time.Duration(idx)),
+				InitiatorID:    initiator,
+				OrganizationID: org.ID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				FileID:         uuid.New(),
+				Input:          json.RawMessage(`{}`),
+				Tags:           database.StringMap{},
+				TraceMetadata:  pqtype.NullRawMessage{},
+			})
+			require.NoError(t, err)
+			// We expected prebuilds to be acquired after human-initiated jobs.
+			if initiator == database.PrebuildsSystemUserID {
+				prebuildIDs = append([]uuid.UUID{pj.ID}, prebuildIDs...)
+			} else {
+				humanIDs = append([]uuid.UUID{pj.ID}, humanIDs...)
+			}
+			t.Logf("created prebuild job id=%q initiator=%q created_at=%q", pj.ID.String(), pj.InitiatorID.String(), pj.CreatedAt.String())
+		}
+
+		expectedIDs := append(humanIDs, prebuildIDs...) //nolint:gocritic // not the same slice
+
+		// When: a job is acquired
+		// Then: human-initiated jobs are prioritized first.
+		for idx := range numJobs {
+			acquired, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+				OrganizationID:  org.ID,
+				StartedAt:       sql.NullTime{Time: time.Now(), Valid: true},
+				WorkerID:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
+				Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+				ProvisionerTags: json.RawMessage(`{}`),
+			})
+			require.NoError(t, err)
+			require.Equal(t, expectedIDs[idx].String(), acquired.ID.String(), "acquired job %d/%d with initiator %q", idx+1, numJobs, acquired.InitiatorID.String())
+			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+				ID:          acquired.ID,
+				UpdatedAt:   now,
+				CompletedAt: sql.NullTime{Time: now, Valid: true},
+				Error:       sql.NullString{},
+				ErrorCode:   sql.NullString{},
+			})
+			require.NoError(t, err, "mark job %d/%d as complete", idx+1, numJobs)
+		}
+
+	})
 }
 
 func TestUserLastSeenFilter(t *testing.T) {
