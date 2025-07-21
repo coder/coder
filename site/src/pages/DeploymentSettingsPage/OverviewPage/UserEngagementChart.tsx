@@ -26,11 +26,11 @@ const chartConfig = {
 
 type UserEngagementChartProps = {
 	data:
-	| {
-		date: string;
-		users: number;
-	}[]
-	| undefined;
+		| {
+				date: string;
+				users: number;
+		  }[]
+		| undefined;
 };
 
 export const UserEngagementChart: FC<UserEngagementChartProps> = ({ data }) => {

@@ -13,11 +13,7 @@ import { useFormik } from "formik";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation } from "react-query";
-import {
-	Link as RouterLink,
-	useNavigate,
-	useSearchParams,
-} from "react-router";
+import { Link as RouterLink, useNavigate, useSearchParams } from "react-router";
 import { getApplicationName } from "utils/appearance";
 import { getFormHelpers } from "utils/formUtils";
 import * as yup from "yup";
@@ -89,7 +85,7 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 						Choose a new password
 					</h1>
 					{changePasswordMutation.error &&
-						!isApiValidationError(changePasswordMutation.error) ? (
+					!isApiValidationError(changePasswordMutation.error) ? (
 						<ErrorAlert
 							error={changePasswordMutation.error}
 							css={{ marginBottom: 24 }}

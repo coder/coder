@@ -14,7 +14,7 @@ export const BuildAuditDescription: FC<BuildAuditDescriptionProps> = ({
 	// workspaces can be started/stopped/deleted by a user, or kicked off automatically by Coder
 	const user =
 		auditLog.additional_fields?.build_reason &&
-			auditLog.additional_fields?.build_reason !== "initiator"
+		auditLog.additional_fields?.build_reason !== "initiator"
 			? "Coder automatically"
 			: auditLog.user
 				? auditLog.user.username.trim()

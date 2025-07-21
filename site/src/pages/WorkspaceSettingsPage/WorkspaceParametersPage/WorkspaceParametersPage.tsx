@@ -111,59 +111,59 @@ export const WorkspaceParametersPageView: FC<
 	isSubmitting,
 	onCancel,
 }) => {
-		return (
-			<div className="flex flex-col gap-10">
-				<header className="flex flex-col items-start gap-2">
-					<span className="flex flex-row justify-between w-full items-center gap-2">
-						<h1 className="text-3xl m-0">Workspace parameters</h1>
-					</span>
-				</header>
+	return (
+		<div className="flex flex-col gap-10">
+			<header className="flex flex-col items-start gap-2">
+				<span className="flex flex-row justify-between w-full items-center gap-2">
+					<h1 className="text-3xl m-0">Workspace parameters</h1>
+				</span>
+			</header>
 
-				{submitError && !isApiValidationError(submitError) ? (
-					<ErrorAlert error={submitError} css={{ marginBottom: 48 }} />
-				) : null}
+			{submitError && !isApiValidationError(submitError) ? (
+				<ErrorAlert error={submitError} css={{ marginBottom: 48 }} />
+			) : null}
 
-				{data ? (
-					data.templateVersionRichParameters.length > 0 ? (
-						<WorkspaceParametersForm
-							workspace={workspace}
-							canChangeVersions={canChangeVersions}
-							autofillParams={data.buildParameters.map((p) => ({
-								...p,
-								source: "active_build",
-							}))}
-							templateVersionRichParameters={data.templateVersionRichParameters}
-							error={submitError}
-							isSubmitting={isSubmitting}
-							onSubmit={onSubmit}
-							onCancel={onCancel}
-						/>
-					) : (
-						<EmptyState
-							message="This workspace has no parameters"
-							cta={
-								<Button
-									component="a"
-									href={docs("/admin/templates/extending-templates/parameters")}
-									startIcon={<ExternalLinkIcon className="size-icon-xs" />}
-									variant="contained"
-									target="_blank"
-									rel="noreferrer"
-								>
-									Learn more about parameters
-								</Button>
-							}
-							css={(theme) => ({
-								border: `1px solid ${theme.palette.divider}`,
-								borderRadius: 8,
-							})}
-						/>
-					)
+			{data ? (
+				data.templateVersionRichParameters.length > 0 ? (
+					<WorkspaceParametersForm
+						workspace={workspace}
+						canChangeVersions={canChangeVersions}
+						autofillParams={data.buildParameters.map((p) => ({
+							...p,
+							source: "active_build",
+						}))}
+						templateVersionRichParameters={data.templateVersionRichParameters}
+						error={submitError}
+						isSubmitting={isSubmitting}
+						onSubmit={onSubmit}
+						onCancel={onCancel}
+					/>
 				) : (
-					<Loader />
-				)}
-			</div>
-		);
-	};
+					<EmptyState
+						message="This workspace has no parameters"
+						cta={
+							<Button
+								component="a"
+								href={docs("/admin/templates/extending-templates/parameters")}
+								startIcon={<ExternalLinkIcon className="size-icon-xs" />}
+								variant="contained"
+								target="_blank"
+								rel="noreferrer"
+							>
+								Learn more about parameters
+							</Button>
+						}
+						css={(theme) => ({
+							border: `1px solid ${theme.palette.divider}`,
+							borderRadius: 8,
+						})}
+					/>
+				)
+			) : (
+				<Loader />
+			)}
+		</div>
+	);
+};
 
 export default WorkspaceParametersPage;

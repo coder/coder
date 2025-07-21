@@ -65,10 +65,11 @@ const WorkspaceProxyPage: FC = () => {
 							key={region.id}
 							css={{
 								borderRadius: 8,
-								border: `1px solid ${region.healthy
+								border: `1px solid ${
+									region.healthy
 										? theme.palette.divider
 										: theme.palette.warning.light
-									}`,
+								}`,
 								fontSize: 14,
 							}}
 						>

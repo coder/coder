@@ -51,9 +51,9 @@ const NotificationsPage: FC = () => {
 					return permissions.viewDeploymentConfig
 						? groups
 						: {
-							// Members only have access to the "Workspace Notifications" group
-							"Workspace Events": groups["Workspace Events"],
-						};
+								// Members only have access to the "Workspace Notifications" group
+								"Workspace Events": groups["Workspace Events"],
+							};
 				},
 			},
 			notificationDispatchMethods(),

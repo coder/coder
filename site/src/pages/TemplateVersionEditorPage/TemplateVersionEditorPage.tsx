@@ -106,7 +106,8 @@ const TemplateVersionEditorPage: FC = () => {
 
 	const navigateToVersion = (version: TemplateVersion) => {
 		return navigate(
-			`${getLink(linkToTemplate(organizationName, templateName))}/versions/${version.name
+			`${getLink(linkToTemplate(organizationName, templateName))}/versions/${
+				version.name
 			}/edit`,
 			{ replace: true },
 		);

@@ -18,7 +18,7 @@ const TemplatesPage: FC = () => {
 	const filter = useFilter({
 		fallbackFilter: "deprecated:false",
 		searchParamsResult,
-		onUpdate: () => { }, // reset pagination
+		onUpdate: () => {}, // reset pagination
 	});
 
 	const templatesQuery = useQuery(templates({ q: filter.query }));

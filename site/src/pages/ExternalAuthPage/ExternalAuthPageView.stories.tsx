@@ -1,7 +1,5 @@
-import type { Meta, StoryFn } from "@storybook/react-vite";
-import ExternalAuthPageView, {
-	type ExternalAuthPageViewProps,
-} from "./ExternalAuthPageView";
+import type { Meta } from "@storybook/react-vite";
+import ExternalAuthPageView from "./ExternalAuthPageView";
 
 export default {
 	title: "pages/ExternalAuthPage",

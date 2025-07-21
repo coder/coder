@@ -85,9 +85,9 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 				description={
 					form.values.lifetime
 						? `The token will expire on ${dayjs()
-							.add(form.values.lifetime, "days")
-							.utc()
-							.format("MMMM DD, YYYY")}`
+								.add(form.values.lifetime, "days")
+								.utc()
+								.format("MMMM DD, YYYY")}`
 						: "Please set a token expiration."
 				}
 				classes={{ sectionInfo: classNames.sectionInfo }}
@@ -133,8 +133,8 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 									min: dayjs().add(1, "day").format("YYYY-MM-DD"),
 									max: maxTokenLifetime
 										? dayjs()
-											.add(maxTokenLifetime / NANO_HOUR / 24, "day")
-											.format("YYYY-MM-DD")
+												.add(maxTokenLifetime / NANO_HOUR / 24, "day")
+												.format("YYYY-MM-DD")
 										: undefined,
 									required: true,
 								}}

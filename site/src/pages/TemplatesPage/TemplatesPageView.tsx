@@ -55,8 +55,9 @@ import { TemplatesFilter } from "./TemplatesFilter";
 
 const Language = {
 	developerCount: (activeCount: number): string => {
-		return `${formatTemplateActiveDevelopers(activeCount)} developer${activeCount !== 1 ? "s" : ""
-			}`;
+		return `${formatTemplateActiveDevelopers(activeCount)} developer${
+			activeCount !== 1 ? "s" : ""
+		}`;
 	},
 	nameLabel: "Name",
 	buildTimeLabel: "Build time",
@@ -160,7 +161,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 				{template.deprecated ? (
 					<DeprecatedBadge />
 				) : workspacePermissions?.[template.organization_id]
-					?.createWorkspaceForUserID ? (
+						?.createWorkspaceForUserID ? (
 					<Button
 						asChild
 						variant="outline"

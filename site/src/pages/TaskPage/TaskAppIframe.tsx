@@ -99,8 +99,8 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 			)}
 
 			{app.health === "healthy" ||
-				app.health === "disabled" ||
-				app.health === "unhealthy" ? (
+			app.health === "disabled" ||
+			app.health === "unhealthy" ? (
 				<iframe
 					ref={frameRef}
 					src={frameSrc}

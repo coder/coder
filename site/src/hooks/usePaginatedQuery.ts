@@ -268,21 +268,21 @@ export function usePaginatedQuery<
 
 		...(query.isSuccess
 			? {
-				isSuccess: true,
-				hasNextPage,
-				hasPreviousPage,
-				totalRecords: totalRecords as number,
-				totalPages: totalPages as number,
-				currentOffsetStart: currentPageOffset + 1,
-			}
+					isSuccess: true,
+					hasNextPage,
+					hasPreviousPage,
+					totalRecords: totalRecords as number,
+					totalPages: totalPages as number,
+					currentOffsetStart: currentPageOffset + 1,
+				}
 			: {
-				isSuccess: false,
-				hasNextPage: false,
-				hasPreviousPage: false,
-				totalRecords: undefined,
-				totalPages: undefined,
-				currentOffsetStart: undefined,
-			}),
+					isSuccess: false,
+					hasNextPage: false,
+					hasPreviousPage: false,
+					totalRecords: undefined,
+					totalPages: undefined,
+					currentOffsetStart: undefined,
+				}),
 	};
 
 	return { ...query, ...info } as UsePaginatedQueryResult<TData, TError>;
@@ -316,23 +316,23 @@ export type PaginationResultInfo = {
 	goToNextPage: () => void;
 	goToFirstPage: () => void;
 } & (
-		| {
+	| {
 			isSuccess: false;
 			hasNextPage: false;
 			hasPreviousPage: false;
 			totalRecords: undefined;
 			totalPages: undefined;
 			currentOffsetStart: undefined;
-		}
-		| {
+	  }
+	| {
 			isSuccess: true;
 			hasNextPage: boolean;
 			hasPreviousPage: boolean;
 			totalRecords: number;
 			totalPages: number;
 			currentOffsetStart: number;
-		}
-	);
+	  }
+);
 
 /**
  * Papers over how the queryPayload function is defined at the type level, so
@@ -351,16 +351,16 @@ type QueryPayloadExtender<TQueryPayload = never> = [TQueryPayload] extends [
 ]
 	? { queryPayload?: never }
 	: {
-		/**
-		 * An optional function for defining reusable "patterns" for taking
-		 * pagination data (current page, etc.), which will be evaluated and
-		 * passed to queryKey and queryFn for active queries and prefetch queries.
-		 *
-		 * queryKey and queryFn can each access the result of queryPayload
-		 * by accessing the "payload" property from their main function argument
-		 */
-		queryPayload: (params: QueryPageParams) => TQueryPayload;
-	};
+			/**
+			 * An optional function for defining reusable "patterns" for taking
+			 * pagination data (current page, etc.), which will be evaluated and
+			 * passed to queryKey and queryFn for active queries and prefetch queries.
+			 *
+			 * queryKey and queryFn can each access the result of queryPayload
+			 * by accessing the "payload" property from their main function argument
+			 */
+			queryPayload: (params: QueryPageParams) => TQueryPayload;
+		};
 
 /**
  * Information about a paginated request. This information is passed into the

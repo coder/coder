@@ -35,11 +35,11 @@ const chartConfig = {
 type LicenseSeatConsumptionChartProps = {
 	limit: number | undefined;
 	data:
-	| {
-		date: string;
-		users: number;
-	}[]
-	| undefined;
+		| {
+				date: string;
+				users: number;
+		  }[]
+		| undefined;
 };
 
 export const LicenseSeatConsumptionChart: FC<

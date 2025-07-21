@@ -40,8 +40,8 @@ const WorkspaceBuildPage: FC = () => {
 				<title>
 					{build
 						? pageTitle(
-							`Build #${build.build_number} · ${build.workspace_name}`,
-						)
+								`Build #${build.build_number} · ${build.workspace_name}`,
+							)
 						: ""}
 				</title>
 			</Helmet>
