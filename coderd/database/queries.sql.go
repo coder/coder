@@ -8537,6 +8537,8 @@ WHERE
 			-- they are aliases and the code that calls this query already relies on a different type
 			AND provisioner_tagset_contains($5 :: jsonb, potential_job.tags :: jsonb)
 		ORDER BY
+			-- Ensure that human-initiated jobs are prioritized over prebuilds.
+			potential_job.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid,
 			potential_job.created_at
 		FOR UPDATE
 		SKIP LOCKED
