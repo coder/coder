@@ -1332,6 +1332,7 @@ func TestAcquireProvisionerJob(t *testing.T) {
 			db, _       = dbtestutil.NewDB(t)
 			ctx         = testutil.Context(t, testutil.WaitMedium)
 			org         = dbgen.Organization(t, db, database.Organization{})
+			_           = dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{}) // Required for queue position
 			now         = dbtime.Now()
 			numJobs     = 10
 			humanIDs    = make([]uuid.UUID, 0, numJobs/2)
@@ -1344,10 +1345,10 @@ func TestAcquireProvisionerJob(t *testing.T) {
 			if idx%2 == 0 {
 				initiator = database.PrebuildsSystemUserID
 			} else {
-				initiator = uuid.New()
+				initiator = uuid.MustParse("c0dec0de-c0de-c0de-c0de-c0dec0dec0de")
 			}
 			pj, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-				ID:             uuid.New(),
+				ID:             uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-00000000000%x", idx+1)),
 				CreatedAt:      time.Now().Add(-time.Second * time.Duration(idx)),
 				UpdatedAt:      time.Now().Add(-time.Second * time.Duration(idx)),
 				InitiatorID:    initiator,
@@ -1372,7 +1373,27 @@ func TestAcquireProvisionerJob(t *testing.T) {
 
 		expectedIDs := append(humanIDs, prebuildIDs...) //nolint:gocritic // not the same slice
 
-		// When: a job is acquired
+		// When: we query the queue positions for the jobs
+		qjs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+			IDs:             expectedIDs,
+			StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+		})
+		require.NoError(t, err)
+		require.Len(t, qjs, numJobs)
+		// Ensure the jobs are sorted by queue position.
+		sort.Slice(qjs, func(i, j int) bool {
+			return qjs[i].QueuePosition < qjs[j].QueuePosition
+		})
+
+		// Then: the queue positions for the jobs should indicate the order in which
+		// they will be acquired, with human-initiated jobs first.
+		for idx, qj := range qjs {
+			t.Logf("queued job %d/%d id=%q initiator=%q created_at=%q queue_position=%d", idx+1, numJobs, qj.ProvisionerJob.ID.String(), qj.ProvisionerJob.InitiatorID.String(), qj.ProvisionerJob.CreatedAt.String(), qj.QueuePosition)
+			require.Equal(t, expectedIDs[idx].String(), qj.ProvisionerJob.ID.String(), "job %d/%d should match expected id", idx+1, numJobs)
+			require.Equal(t, int64(idx+1), qj.QueuePosition, "job %d/%d should have queue position %d", idx+1, numJobs, idx+1)
+		}
+
+		// When: the jobs are acquired
 		// Then: human-initiated jobs are prioritized first.
 		for idx := range numJobs {
 			acquired, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
