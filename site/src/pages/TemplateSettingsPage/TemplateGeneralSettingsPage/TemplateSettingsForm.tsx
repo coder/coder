@@ -10,7 +10,6 @@ import {
 } from "api/typesGenerated";
 import { PremiumBadge } from "components/Badges/Badges";
 import { Button } from "components/Button/Button";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	FormFields,
 	FormFooter,
