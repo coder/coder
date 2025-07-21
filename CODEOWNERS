@@ -11,6 +11,3 @@ vpn/version.go @spikecurtis @johnstcn
 # This caching code is particularly tricky, and one must be very careful when
 # altering it.
 coderd/files/ @aslilac
-
-
-site/ @aslilac
