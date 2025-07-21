@@ -31,7 +31,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
   endDate,
   enabled = true,
 }) => {
-  // If feature is disabled, show disabled state
+
   if (!enabled) {
     return (
       <div css={styles.disabledRoot}>
@@ -52,7 +52,6 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
     );
   }
 
-  // Calculate percentages for the progress bar
   const usagePercentage = Math.min((usage / limit) * 100, 100);
   const includedPercentage = Math.min((included / limit) * 100, 100);
   const remainingPercentage = Math.max(100 - includedPercentage, 0);
@@ -88,8 +87,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
             `}
           >
             <p>
-              Managed agents are counted based on active agent connections during the billing period.
-              Each unique agent that connects to your deployment consumes one managed agent seat.
+              Managed agents are counted based on the amount of started workspaces with an AI agent.
             </p>
             <ul>
               <li className="flex items-center gap-2">
@@ -97,7 +95,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
                   className="rounded-[2px] bg-highlight-green size-3 inline-block"
                   aria-label="Legend for current usage in the chart"
                 />
-                Current usage represents active managed agents during this period.
+                Amount of started workspaces with an AI agent.
               </li>
               <li className="flex items-center gap-2">
                 <div
@@ -113,50 +111,25 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
                 >
                   <div className="w-full border-b-1 border-t-1 border-dashed border-content-disabled" />
                 </div>
-                Total limit including any additional purchased capacity.
+                Total limit after which the feature will be disabled.
               </li>
             </ul>
-            <div>
-              You might also check:
-              <ul>
-                <li>
-                  <Link asChild>
-                    <RouterLink to="/deployment/overview">
-                      Deployment overview
-                    </RouterLink>
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href={docs("/admin/managed-agents")}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    More details on managed agents
-                  </Link>
-                </li>
-              </ul>
-            </div>
           </CollapsibleContent>
         </Collapsible>
       </div>
 
       <div className="p-6 border-0 border-t border-solid">
-        {/* Date range */}
         <div className="flex justify-between text-sm text-content-secondary mb-4">
           <span>{startDate ? dayjs(startDate).format("MMMM D, YYYY") : ""}</span>
           <span>{endDate ? dayjs(endDate).format("MMMM D, YYYY") : ""}</span>
         </div>
 
-        {/* Progress bar container */}
         <div className="relative h-6 bg-surface-secondary rounded overflow-hidden">
-          {/* Usage bar (green) */}
           <div
             className="absolute top-0 left-0 h-full bg-highlight-green transition-all duration-300"
             style={{ width: `${usagePercentage}%` }}
           />
 
-          {/* Included allowance background (darker) */}
           <div
             className="absolute top-0 h-full bg-content-disabled opacity-30"
             style={{
@@ -166,16 +139,20 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
           />
         </div>
 
-        {/* Labels */}
-        <div className="flex justify-between mt-4 text-sm">
+        <div className="relative flex justify-between mt-4 text-sm">
           <div className="flex flex-col items-start">
-            <span className="text-content-secondary">Usage:</span>
+            <span className="text-content-secondary">Actual:</span>
             <span className="font-medium">{usage.toLocaleString()}</span>
           </div>
-          <div className="flex flex-col items-center">
+
+          <div
+            className="absolute flex flex-col items-center transform -translate-x-1/2"
+            style={{ left: `${Math.max(Math.min(includedPercentage, 90), 10)}%` }}
+          >
             <span className="text-content-secondary">Included:</span>
             <span className="font-medium">{included.toLocaleString()}</span>
           </div>
+
           <div className="flex flex-col items-end">
             <span className="text-content-secondary">Limit:</span>
             <span className="font-medium">{limit.toLocaleString()}</span>
