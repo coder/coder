@@ -404,11 +404,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 							</Tooltip>
 						</TooltipProvider>
 					</span>
-					<FeatureStageBadge
-						contentType={"beta"}
-						size="sm"
-						labelText="Dynamic parameters"
-					/>
 				</header>
 
 				<form

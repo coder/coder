@@ -236,11 +236,6 @@ const WorkspaceParametersPageExperimental: FC = () => {
 						</TooltipProvider>
 					</span>
 				</span>
-				<FeatureStageBadge
-					contentType={"beta"}
-					size="sm"
-					labelText="Dynamic parameters"
-				/>
 			</header>
 
 			{Boolean(error) && <ErrorAlert error={error} />}
