@@ -55,6 +55,7 @@ type DRPCAgentClient interface {
 	CreateSubAgent(ctx context.Context, in *CreateSubAgentRequest) (*CreateSubAgentResponse, error)
 	DeleteSubAgent(ctx context.Context, in *DeleteSubAgentRequest) (*DeleteSubAgentResponse, error)
 	ListSubAgents(ctx context.Context, in *ListSubAgentsRequest) (*ListSubAgentsResponse, error)
+	StreamPrebuildStatus(ctx context.Context, in *StreamPrebuildStatusRequest) (DRPCAgent_StreamPrebuildStatusClient, error)
 }
 
 type drpcAgentClient struct {
@@ -211,6 +212,46 @@ func (c *drpcAgentClient) ListSubAgents(ctx context.Context, in *ListSubAgentsRe
 	return out, nil
 }
 
+func (c *drpcAgentClient) StreamPrebuildStatus(ctx context.Context, in *StreamPrebuildStatusRequest) (DRPCAgent_StreamPrebuildStatusClient, error) {
+	stream, err := c.cc.NewStream(ctx, "/coder.agent.v2.Agent/StreamPrebuildStatus", drpcEncoding_File_agent_proto_agent_proto{})
+	if err != nil {
+		return nil, err
+	}
+	x := &drpcAgent_StreamPrebuildStatusClient{stream}
+	if err := x.MsgSend(in, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return nil, err
+	}
+	if err := x.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type DRPCAgent_StreamPrebuildStatusClient interface {
+	drpc.Stream
+	Recv() (*StreamPrebuildStatusResponse, error)
+}
+
+type drpcAgent_StreamPrebuildStatusClient struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_StreamPrebuildStatusClient) GetStream() drpc.Stream {
+	return x.Stream
+}
+
+func (x *drpcAgent_StreamPrebuildStatusClient) Recv() (*StreamPrebuildStatusResponse, error) {
+	m := new(StreamPrebuildStatusResponse)
+	if err := x.MsgRecv(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (x *drpcAgent_StreamPrebuildStatusClient) RecvMsg(m *StreamPrebuildStatusResponse) error {
+	return x.MsgRecv(m, drpcEncoding_File_agent_proto_agent_proto{})
+}
+
 type DRPCAgentServer interface {
 	GetManifest(context.Context, *GetManifestRequest) (*Manifest, error)
 	GetServiceBanner(context.Context, *GetServiceBannerRequest) (*ServiceBanner, error)
@@ -228,6 +269,7 @@ type DRPCAgentServer interface {
 	CreateSubAgent(context.Context, *CreateSubAgentRequest) (*CreateSubAgentResponse, error)
 	DeleteSubAgent(context.Context, *DeleteSubAgentRequest) (*DeleteSubAgentResponse, error)
 	ListSubAgents(context.Context, *ListSubAgentsRequest) (*ListSubAgentsResponse, error)
+	StreamPrebuildStatus(*StreamPrebuildStatusRequest, DRPCAgent_StreamPrebuildStatusStream) error
 }
 
 type DRPCAgentUnimplementedServer struct{}
@@ -296,9 +338,13 @@ func (s *DRPCAgentUnimplementedServer) ListSubAgents(context.Context, *ListSubAg
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCAgentUnimplementedServer) StreamPrebuildStatus(*StreamPrebuildStatusRequest, DRPCAgent_StreamPrebuildStatusStream) error {
+	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCAgentDescription struct{}
 
-func (DRPCAgentDescription) NumMethods() int { return 16 }
+func (DRPCAgentDescription) NumMethods() int { return 17 }
 
 func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -446,6 +492,15 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 						in1.(*ListSubAgentsRequest),
 					)
 			}, DRPCAgentServer.ListSubAgents, true
+	case 16:
+		return "/coder.agent.v2.Agent/StreamPrebuildStatus", drpcEncoding_File_agent_proto_agent_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return nil, srv.(DRPCAgentServer).
+					StreamPrebuildStatus(
+						in1.(*StreamPrebuildStatusRequest),
+						&drpcAgent_StreamPrebuildStatusStream{in2.(drpc.Stream)},
+					)
+			}, DRPCAgentServer.StreamPrebuildStatus, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -709,4 +764,17 @@ func (x *drpcAgent_ListSubAgentsStream) SendAndClose(m *ListSubAgentsResponse) e
 		return err
 	}
 	return x.CloseSend()
+}
+
+type DRPCAgent_StreamPrebuildStatusStream interface {
+	drpc.Stream
+	Send(*StreamPrebuildStatusResponse) error
+}
+
+type drpcAgent_StreamPrebuildStatusStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_StreamPrebuildStatusStream) Send(m *StreamPrebuildStatusResponse) error {
+	return x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{})
 }

@@ -65,3 +65,10 @@ type DRPCAgentClient26 interface {
 	DeleteSubAgent(ctx context.Context, in *DeleteSubAgentRequest) (*DeleteSubAgentResponse, error)
 	ListSubAgents(ctx context.Context, in *ListSubAgentsRequest) (*ListSubAgentsResponse, error)
 }
+
+// DRPCAgentClient27 is the Agent API at v2.7. It adds the WaitForPrebuiltWorkspaceClaim RPC.
+// Compatible with Coder v2.25+
+type DRPCAgentClient27 interface {
+	DRPCAgentClient26
+	StreamPrebuildStatus(ctx context.Context, in *StreamPrebuildStatusRequest) (DRPCAgent_StreamPrebuildStatusClient, error)
+}

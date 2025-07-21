@@ -460,6 +460,24 @@ message ListSubAgentsResponse {
 	repeated SubAgent agents = 1;
 }
 
+enum PrebuildStatus {
+  PREBUILD_CLAIM_STATUS_UNSPECIFIED = 0;
+  // Normal workspace that was never prebuilt and already belongs to a user.
+  PREBUILD_CLAIM_STATUS_NORMAL = 1;
+  // Unclaimed prebuilt workspace.
+  PREBUILD_CLAIM_STATUS_UNCLAIMED = 2;
+  // Prebuilt workspace that has been claimed and now belongs to a user.
+  PREBUILD_CLAIM_STATUS_CLAIMED = 3;
+}
+
+message StreamPrebuildStatusRequest {
+}
+
+message StreamPrebuildStatusResponse {
+  PrebuildStatus status = 1;
+  google.protobuf.Timestamp updated_at = 3;
+}
+
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
 	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
@@ -477,4 +495,5 @@ service Agent {
 	rpc CreateSubAgent(CreateSubAgentRequest) returns (CreateSubAgentResponse);
 	rpc DeleteSubAgent(DeleteSubAgentRequest) returns (DeleteSubAgentResponse);
 	rpc ListSubAgents(ListSubAgentsRequest) returns (ListSubAgentsResponse);
+  rpc StreamPrebuildStatus(StreamPrebuildStatusRequest) returns (stream StreamPrebuildStatusResponse);
 }

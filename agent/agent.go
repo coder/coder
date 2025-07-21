@@ -95,8 +95,8 @@ type Options struct {
 }
 
 type Client interface {
-	ConnectRPC26(ctx context.Context) (
-		proto.DRPCAgentClient26, tailnetproto.DRPCTailnetClient26, error,
+	ConnectRPC27(ctx context.Context) (
+		proto.DRPCAgentClient27, tailnetproto.DRPCTailnetClient26, error,
 	)
 	RewriteDERPMap(derpMap *tailcfg.DERPMap)
 }
@@ -105,6 +105,23 @@ type Agent interface {
 	HTTPDebug() http.Handler
 	// TailnetConn may be nil.
 	TailnetConn() *tailnet.Conn
+	// SubscribeToClaimEvents allows other routines to subscribe to workspace claim events
+	//
+	// Example usage:
+	//   unsubscribe := agent.SubscribeToClaimEvents(func(ctx context.Context, data interface{}) {
+	//       claimData := data.(map[string]interface{})
+	//       workspaceID := claimData["workspace_id"].(uuid.UUID)
+	//       agentID := claimData["agent_id"].(uuid.UUID)
+	//       claimedAt := claimData["claimed_at"].(time.Time)
+	//
+	//       // React to the claim event
+	//       // - Restart services that need user context
+	//       // - Update configuration files
+	//       // - Send notifications
+	//       // etc.
+	//   })
+	//   defer unsubscribe()
+	SubscribeToClaimEvents(listener func(ctx context.Context, data interface{})) func()
 	io.Closer
 }
 
@@ -196,6 +213,7 @@ func New(options Options) Agent {
 
 		devcontainers:       options.Devcontainers,
 		containerAPIOptions: options.DevcontainerAPIOptions,
+		eventPubsub:         newAgentEventPubsub(),
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -280,12 +298,87 @@ type agent struct {
 	devcontainers       bool
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
+
+	// In-memory pubsub for agent events
+	eventPubsub *agentEventPubsub
+}
+
+// agentEventPubsub provides an in-memory pubsub system for agent events
+type agentEventPubsub struct {
+	mu        sync.RWMutex
+	listeners map[string]map[uuid.UUID]func(ctx context.Context, data interface{})
+}
+
+func newAgentEventPubsub() *agentEventPubsub {
+	return &agentEventPubsub{
+		listeners: make(map[string]map[uuid.UUID]func(ctx context.Context, data interface{})),
+	}
+}
+
+func (p *agentEventPubsub) Subscribe(event string, listener func(ctx context.Context, data interface{})) func() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.listeners[event] == nil {
+		p.listeners[event] = make(map[uuid.UUID]func(ctx context.Context, data interface{}))
+	}
+
+	// Generate unique ID for this listener
+	listenerID := uuid.New()
+	p.listeners[event][listenerID] = listener
+
+	// Return unsubscribe function
+	return func() {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+
+		if listeners, exists := p.listeners[event]; exists {
+			delete(listeners, listenerID)
+			// Clean up empty event maps
+			if len(listeners) == 0 {
+				delete(p.listeners, event)
+			}
+		}
+	}
+}
+
+func (p *agentEventPubsub) Publish(ctx context.Context, event string, data interface{}) {
+	p.mu.RLock()
+	listeners, exists := p.listeners[event]
+	if !exists {
+		p.mu.RUnlock()
+		return
+	}
+
+	// Create a copy of listeners to avoid holding the lock while calling them
+	listenersCopy := make(map[uuid.UUID]func(ctx context.Context, data interface{}))
+	for id, listener := range listeners {
+		listenersCopy[id] = listener
+	}
+	p.mu.RUnlock()
+
+	// Call all listeners in goroutines to avoid blocking
+	for _, listener := range listenersCopy {
+		go func(l func(ctx context.Context, data interface{})) {
+			defer func() {
+				if r := recover(); r != nil {
+					// Log panic but don't crash the agent
+					fmt.Printf("panic in agent event listener: %v\n", r)
+				}
+			}()
+			l(ctx, data)
+		}(listener)
+	}
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
 	a.closeMutex.Lock()
 	defer a.closeMutex.Unlock()
 	return a.network
+}
+
+func (a *agent) SubscribeToClaimEvents(listener func(ctx context.Context, data interface{})) func() {
+	return a.eventPubsub.Subscribe("workspace_claimed", listener)
 }
 
 func (a *agent) init() {
@@ -472,7 +565,7 @@ func (t *trySingleflight) Do(key string, fn func()) {
 	fn()
 }
 
-func (a *agent) reportMetadata(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+func (a *agent) reportMetadata(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 	tickerDone := make(chan struct{})
 	collectDone := make(chan struct{})
 	ctx, cancel := context.WithCancel(ctx)
@@ -687,7 +780,7 @@ func (a *agent) reportMetadata(ctx context.Context, aAPI proto.DRPCAgentClient26
 
 // reportLifecycle reports the current lifecycle state once. All state
 // changes are reported in order.
-func (a *agent) reportLifecycle(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+func (a *agent) reportLifecycle(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 	for {
 		select {
 		case <-a.lifecycleUpdate:
@@ -767,7 +860,7 @@ func (a *agent) setLifecycle(state codersdk.WorkspaceAgentLifecycle) {
 }
 
 // reportConnectionsLoop reports connections to the agent for auditing.
-func (a *agent) reportConnectionsLoop(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+func (a *agent) reportConnectionsLoop(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 	for {
 		select {
 		case <-a.reportConnectionsUpdate:
@@ -887,7 +980,7 @@ func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_T
 // fetchServiceBannerLoop fetches the service banner on an interval.  It will
 // not be fetched immediately; the expectation is that it is primed elsewhere
 // (and must be done before the session actually starts).
-func (a *agent) fetchServiceBannerLoop(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+func (a *agent) fetchServiceBannerLoop(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 	ticker := time.NewTicker(a.announcementBannersRefreshInterval)
 	defer ticker.Stop()
 	for {
@@ -923,7 +1016,7 @@ func (a *agent) run() (retErr error) {
 	a.sessionToken.Store(&sessionToken)
 
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs
-	aAPI, tAPI, err := a.client.ConnectRPC26(a.hardCtx)
+	aAPI, tAPI, err := a.client.ConnectRPC27(a.hardCtx)
 	if err != nil {
 		return err
 	}
@@ -940,7 +1033,7 @@ func (a *agent) run() (retErr error) {
 	connMan := newAPIConnRoutineManager(a.gracefulCtx, a.hardCtx, a.logger, aAPI, tAPI)
 
 	connMan.startAgentAPI("init notification banners", gracefulShutdownBehaviorStop,
-		func(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+		func(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 			bannersProto, err := aAPI.GetAnnouncementBanners(ctx, &proto.GetAnnouncementBannersRequest{})
 			if err != nil {
 				return xerrors.Errorf("fetch service banner: %w", err)
@@ -957,7 +1050,7 @@ func (a *agent) run() (retErr error) {
 	// sending logs gets gracefulShutdownBehaviorRemain because we want to send logs generated by
 	// shutdown scripts.
 	connMan.startAgentAPI("send logs", gracefulShutdownBehaviorRemain,
-		func(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+		func(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 			err := a.logSender.SendLoop(ctx, aAPI)
 			if xerrors.Is(err, agentsdk.ErrLogLimitExceeded) {
 				// we don't want this error to tear down the API connection and propagate to the
@@ -976,7 +1069,7 @@ func (a *agent) run() (retErr error) {
 	connMan.startAgentAPI("report metadata", gracefulShutdownBehaviorStop, a.reportMetadata)
 
 	// resources monitor can cease as soon as we start gracefully shutting down.
-	connMan.startAgentAPI("resources monitor", gracefulShutdownBehaviorStop, func(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+	connMan.startAgentAPI("resources monitor", gracefulShutdownBehaviorStop, func(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 		logger := a.logger.Named("resources_monitor")
 		clk := quartz.NewReal()
 		config, err := aAPI.GetResourcesMonitoringConfiguration(ctx, &proto.GetResourcesMonitoringConfigurationRequest{})
@@ -1023,7 +1116,7 @@ func (a *agent) run() (retErr error) {
 	connMan.startAgentAPI("handle manifest", gracefulShutdownBehaviorStop, a.handleManifest(manifestOK))
 
 	connMan.startAgentAPI("app health reporter", gracefulShutdownBehaviorStop,
-		func(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+		func(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 			if err := manifestOK.wait(ctx); err != nil {
 				return xerrors.Errorf("no manifest: %w", err)
 			}
@@ -1056,12 +1149,92 @@ func (a *agent) run() (retErr error) {
 
 	connMan.startAgentAPI("fetch service banner loop", gracefulShutdownBehaviorStop, a.fetchServiceBannerLoop)
 
-	connMan.startAgentAPI("stats report loop", gracefulShutdownBehaviorStop, func(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+	connMan.startAgentAPI("stats report loop", gracefulShutdownBehaviorStop, func(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 		if err := networkOK.wait(ctx); err != nil {
 			return xerrors.Errorf("no network: %w", err)
 		}
 		return a.statsReporter.reportLoop(ctx, aAPI)
 	})
+
+	// Stream prebuild status to handle prebuilt workspace claims
+	connMan.startAgentAPI("stream prebuild status", gracefulShutdownBehaviorStop,
+		func(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
+			if err := manifestOK.wait(ctx); err != nil {
+				return xerrors.Errorf("no manifest: %w", err)
+			}
+
+			a.logger.Debug(ctx, "starting prebuild status stream")
+
+			// Start streaming prebuild status
+			stream, err := aAPI.StreamPrebuildStatus(ctx, &proto.StreamPrebuildStatusRequest{})
+			if err != nil {
+				return xerrors.Errorf("start prebuild status stream: %w", err)
+			}
+
+			// Track previous status to detect transitions
+			var previousStatus proto.PrebuildStatus
+			isFirstStatus := true
+
+			// Process prebuild status updates
+			for {
+				response, err := stream.Recv()
+				if err != nil {
+					if errors.Is(err, io.EOF) {
+						a.logger.Info(ctx, "prebuild status stream ended")
+						return nil
+					}
+					return xerrors.Errorf("receive prebuild status: %w", err)
+				}
+
+				a.logger.Debug(ctx, "received prebuild status update",
+					slog.F("status", response.Status.String()),
+					slog.F("updated_at", response.UpdatedAt.AsTime()),
+				)
+
+				// Handle different prebuild statuses
+				switch response.Status {
+				case proto.PrebuildStatus_PREBUILD_CLAIM_STATUS_UNCLAIMED:
+					a.logger.Info(ctx, "prebuilt workspace is unclaimed, waiting for claim")
+					// Continue waiting for claim
+				case proto.PrebuildStatus_PREBUILD_CLAIM_STATUS_CLAIMED:
+					// Check if this is a transition from UNCLAIMED to CLAIMED
+					if !isFirstStatus && previousStatus == proto.PrebuildStatus_PREBUILD_CLAIM_STATUS_UNCLAIMED {
+						a.logger.Info(ctx, "prebuilt workspace has been claimed")
+
+						// Publish claim event for other routines to react to
+						a.eventPubsub.Publish(ctx, "workspace_claimed", map[string]interface{}{
+							"workspace_id": a.manifest.Load().WorkspaceID,
+							"agent_id":     a.manifest.Load().AgentID,
+							"claimed_at":   response.UpdatedAt.AsTime(),
+						})
+					}
+
+					// Prebuilt workspace has been claimed, we can continue
+					return nil
+				case proto.PrebuildStatus_PREBUILD_CLAIM_STATUS_NORMAL:
+					// Check if this is a transition from UNCLAIMED to NORMAL
+					if !isFirstStatus && previousStatus == proto.PrebuildStatus_PREBUILD_CLAIM_STATUS_UNCLAIMED {
+						a.logger.Info(ctx, "prebuilt workspace has been claimed")
+
+						// Publish claim event for other routines to react to
+						a.eventPubsub.Publish(ctx, "workspace_claimed", map[string]interface{}{
+							"workspace_id": a.manifest.Load().WorkspaceID,
+							"agent_id":     a.manifest.Load().AgentID,
+							"claimed_at":   response.UpdatedAt.AsTime(),
+						})
+
+					}
+					// This is a normal workspace, no need to wait for claim
+					return nil
+				default:
+					a.logger.Warn(ctx, "unknown prebuild status", slog.F("status", response.Status))
+				}
+
+				// Update previous status for next iteration
+				previousStatus = response.Status
+				isFirstStatus = false
+			}
+		})
 
 	err = connMan.wait()
 	if err != nil {
@@ -1071,8 +1244,8 @@ func (a *agent) run() (retErr error) {
 }
 
 // handleManifest returns a function that fetches and processes the manifest
-func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
-	return func(ctx context.Context, aAPI proto.DRPCAgentClient26) error {
+func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
+	return func(ctx context.Context, aAPI proto.DRPCAgentClient27) error {
 		var (
 			sentResult = false
 			err        error
@@ -1267,8 +1440,8 @@ func (a *agent) createDevcontainer(
 
 // createOrUpdateNetwork waits for the manifest to be set using manifestOK, then creates or updates
 // the tailnet using the information in the manifest
-func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(context.Context, proto.DRPCAgentClient26) error {
-	return func(ctx context.Context, aAPI proto.DRPCAgentClient26) (retErr error) {
+func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(context.Context, proto.DRPCAgentClient27) error {
+	return func(ctx context.Context, aAPI proto.DRPCAgentClient27) (retErr error) {
 		if err := manifestOK.wait(ctx); err != nil {
 			return xerrors.Errorf("no manifest: %w", err)
 		}
@@ -2047,7 +2220,7 @@ const (
 
 type apiConnRoutineManager struct {
 	logger    slog.Logger
-	aAPI      proto.DRPCAgentClient26
+	aAPI      proto.DRPCAgentClient27
 	tAPI      tailnetproto.DRPCTailnetClient24
 	eg        *errgroup.Group
 	stopCtx   context.Context
@@ -2056,7 +2229,7 @@ type apiConnRoutineManager struct {
 
 func newAPIConnRoutineManager(
 	gracefulCtx, hardCtx context.Context, logger slog.Logger,
-	aAPI proto.DRPCAgentClient26, tAPI tailnetproto.DRPCTailnetClient24,
+	aAPI proto.DRPCAgentClient27, tAPI tailnetproto.DRPCTailnetClient24,
 ) *apiConnRoutineManager {
 	// routines that remain in operation during graceful shutdown use the remainCtx.  They'll still
 	// exit if the errgroup hits an error, which usually means a problem with the conn.
@@ -2089,7 +2262,7 @@ func newAPIConnRoutineManager(
 // but for Tailnet.
 func (a *apiConnRoutineManager) startAgentAPI(
 	name string, behavior gracefulShutdownBehavior,
-	f func(context.Context, proto.DRPCAgentClient26) error,
+	f func(context.Context, proto.DRPCAgentClient27) error,
 ) {
 	logger := a.logger.With(slog.F("name", name))
 	var ctx context.Context
