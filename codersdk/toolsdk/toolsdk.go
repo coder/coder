@@ -33,6 +33,7 @@ const (
 	ToolNameUploadTarFile               = "coder_upload_tar_file"
 	ToolNameCreateTemplate              = "coder_create_template"
 	ToolNameDeleteTemplate              = "coder_delete_template"
+	ToolNameWorkspaceBash               = "coder_workspace_bash"
 )
 
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
@@ -183,6 +184,7 @@ var All = []GenericTool{
 	ReportTask.Generic(),
 	UploadTarFile.Generic(),
 	UpdateTemplateActiveVersion.Generic(),
+	WorkspaceBash.Generic(),
 }
 
 type ReportTaskArgs struct {
