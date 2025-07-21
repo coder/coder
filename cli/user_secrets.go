@@ -26,6 +26,8 @@ func (r *RootCmd) secretCreate() *serpent.Command {
 	client := new(codersdk.Client)
 	var value string
 	var description string
+	var envName string
+	var filePath string
 	cmd := &serpent.Command{
 		Use:   "create <name>",
 		Short: "Create a new user secret",
@@ -42,6 +44,8 @@ func (r *RootCmd) secretCreate() *serpent.Command {
 				Name:        name,
 				Value:       value,
 				Description: description,
+				EnvName:     envName,
+				FilePath:    filePath,
 			})
 			if err != nil {
 				return err
@@ -61,6 +65,16 @@ func (r *RootCmd) secretCreate() *serpent.Command {
 			Description: "Description of the secret.",
 			Value:       serpent.StringOf(&description),
 		},
+		{
+			Flag:        "env_name",
+			Description: "Environment variable name of the secret.",
+			Value:       serpent.StringOf(&envName),
+		},
+		{
+			Flag:        "file_path",
+			Description: "File path of the secret.",
+			Value:       serpent.StringOf(&filePath),
+		},
 	}
 	return cmd
 }
@@ -79,9 +93,10 @@ func (r *RootCmd) secretList() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(inv.Stdout, "ID | Name | Description\n")
+			fmt.Fprintf(inv.Stdout, "ID | Name | Description | EnvName | FilePath\n")
 			for _, secret := range secretList.Secrets {
-				fmt.Fprintf(inv.Stdout, "%v - %v - %v\n", secret.ID, secret.Name, secret.Description)
+				fmt.Fprintf(inv.Stdout, "%v - %v - %v - %v - %v\n",
+					secret.ID, secret.Name, secret.Description, secret.EnvName, secret.FilePath)
 			}
 			return nil
 		},
@@ -118,8 +133,9 @@ func (r *RootCmd) secretGet() *serpent.Command {
 			}
 			value := userSecretValue.Value
 
-			fmt.Fprintf(inv.Stdout, "ID | Name | Description | Value\n")
-			fmt.Fprintf(inv.Stdout, "%v - %v - %v - %v\n", secret.ID, secret.Name, secret.Description, value)
+			fmt.Fprintf(inv.Stdout, "ID | Name | Description | Value | EnvName | FilePath\n")
+			fmt.Fprintf(inv.Stdout, "%v - %v - %v - %v - %v - %v\n",
+				secret.ID, secret.Name, secret.Description, value, secret.EnvName, secret.FilePath)
 			return nil
 		},
 	}

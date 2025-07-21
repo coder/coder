@@ -6847,7 +6847,7 @@ const docTemplate = `{
                 "tags": [
                     "User-Secrets"
                 ],
-                "summary": "Returns a list of user secrets.",
+                "summary": "List user secrets.",
                 "operationId": "list-user-secrets",
                 "responses": {
                     "200": {
@@ -6873,7 +6873,7 @@ const docTemplate = `{
                 "tags": [
                     "User-Secrets"
                 ],
-                "summary": "Create a new user secret",
+                "summary": "Create user secret",
                 "operationId": "create-user-secret",
                 "parameters": [
                     {
@@ -6891,6 +6891,76 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserSecret"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/secrets/{name}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "User-Secrets"
+                ],
+                "summary": "Get user secret.",
+                "operationId": "get-user-secret",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserSecret"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/secrets/{name}/value": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "User-Secrets"
+                ],
+                "summary": "Get user secret value",
+                "operationId": "get-user-secret-value",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserSecretValue"
                         }
                     }
                 }
@@ -17622,6 +17692,14 @@ const docTemplate = `{
                 "user_id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.UserSecretValue": {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "type": "string"
                 }
             }
         },

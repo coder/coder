@@ -3736,6 +3736,8 @@ type UserSecret struct {
 	Description string         `db:"description" json:"description"`
 	Value       string         `db:"value" json:"value"`
 	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
+	EnvName     string         `db:"env_name" json:"env_name"`
+	FilePath    string         `db:"file_path" json:"file_path"`
 	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 }

@@ -896,6 +896,8 @@ func UserSecret(secret database.UserSecret) codersdk.UserSecret {
 		UserID:      secret.UserID,
 		Name:        secret.Name,
 		Description: secret.Description,
+		EnvName:     secret.EnvName,
+		FilePath:    secret.FilePath,
 		CreatedAt:   secret.CreatedAt,
 		UpdatedAt:   secret.UpdatedAt,
 	}

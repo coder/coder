@@ -39,6 +39,8 @@ func (api *API) createUserSecret(rw http.ResponseWriter, r *http.Request) {
 		Name:        req.Name,
 		Description: req.Description,
 		Value:       req.Value,
+		EnvName:     req.EnvName,
+		FilePath:    req.FilePath,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

@@ -37,6 +37,8 @@ func TestUserSecrets(t *testing.T) {
 		Name:        userSecretName,
 		Description: userSecretDescription,
 		Value:       "secretkey",
+		EnvName:     "SECRET_KEY_ENV_NAME",
+		FilePath:    "SECRET_KEY_FILE_PATH",
 	})
 	require.NoError(t, err)
 	//userSecretInJSON, err := json.Marshal(userSecret)
@@ -47,6 +49,8 @@ func TestUserSecrets(t *testing.T) {
 	require.Equal(t, templateAdmin.ID, userSecret.UserID)
 	require.Equal(t, userSecretName, userSecret.Name)
 	require.Equal(t, userSecretDescription, userSecret.Description)
+	require.Equal(t, "SECRET_KEY_ENV_NAME", userSecret.EnvName)
+	require.Equal(t, "SECRET_KEY_FILE_PATH", userSecret.FilePath)
 
 	// test list API
 	userSecretList, err := templateAdminClient.ListUserSecrets(ctx)
@@ -60,6 +64,8 @@ func TestUserSecrets(t *testing.T) {
 	require.Equal(t, templateAdmin.ID, userSecretList.Secrets[0].UserID)
 	require.Equal(t, userSecretName, userSecretList.Secrets[0].Name)
 	require.Equal(t, userSecretDescription, userSecretList.Secrets[0].Description)
+	require.Equal(t, "SECRET_KEY_ENV_NAME", userSecretList.Secrets[0].EnvName)
+	require.Equal(t, "SECRET_KEY_FILE_PATH", userSecretList.Secrets[0].FilePath)
 
 	// test get API
 	userSecret, err = templateAdminClient.GetUserSecret(ctx, userSecretName)
@@ -72,6 +78,8 @@ func TestUserSecrets(t *testing.T) {
 	require.Equal(t, templateAdmin.ID, userSecret.UserID)
 	require.Equal(t, userSecretName, userSecret.Name)
 	require.Equal(t, userSecretDescription, userSecret.Description)
+	require.Equal(t, "SECRET_KEY_ENV_NAME", userSecret.EnvName)
+	require.Equal(t, "SECRET_KEY_FILE_PATH", userSecret.FilePath)
 
 	// test get value API
 	userSecretValue, err := templateAdminClient.GetUserSecretValue(ctx, userSecretName)

@@ -17,12 +17,16 @@ type CreateUserSecretRequest struct {
 	Name        string `json:"name" validate:"required"`
 	Description string `json:"description,omitempty" validate:"lt=1000"`
 	Value       string `json:"value" validate:"required"`
+	EnvName     string `json:"env_name,omitempty"`
+	FilePath    string `json:"file_path,omitempty"`
 }
 
 type UpdateUserSecretRequest struct {
 	Name        string `json:"name" validate:"required"`
 	Description string `json:"description,omitempty" validate:"lt=1000"`
 	Value       string `json:"value" validate:"required"`
+	EnvName     string `json:"env_name,omitempty"`
+	FilePath    string `json:"file_path,omitempty"`
 }
 
 // Response types
@@ -31,6 +35,8 @@ type UserSecret struct {
 	UserID      uuid.UUID `json:"user_id" format:"uuid"`
 	Name        string    `json:"name"`
 	Description string    `json:"description,omitempty"`
+	EnvName     string    `json:"env_name,omitempty"`
+	FilePath    string    `json:"file_path,omitempty"`
 	CreatedAt   time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt   time.Time `json:"updated_at" format:"date-time"`
 }

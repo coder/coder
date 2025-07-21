@@ -1495,6 +1495,26 @@
 							"path": "reference/cli/schedule_stop.md"
 						},
 						{
+							"title": "secrets",
+							"description": "Manage your user secrets",
+							"path": "reference/cli/secrets.md"
+						},
+						{
+							"title": "secrets create",
+							"description": "Create a new user secret",
+							"path": "reference/cli/secrets_create.md"
+						},
+						{
+							"title": "secrets get",
+							"description": "Get user secret",
+							"path": "reference/cli/secrets_get.md"
+						},
+						{
+							"title": "secrets list",
+							"description": "List user secrets",
+							"path": "reference/cli/secrets_list.md"
+						},
+						{
 							"title": "server",
 							"description": "Start a Coder server",
 							"path": "reference/cli/server.md"

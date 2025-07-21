@@ -13703,7 +13703,7 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 
 const getUserSecret = `-- name: GetUserSecret :one
 
-SELECT id, user_id, name, description, value, value_key_id, created_at, updated_at FROM user_secrets
+SELECT id, user_id, name, description, value, value_key_id, env_name, file_path, created_at, updated_at FROM user_secrets
 WHERE user_id = $1 AND name = $2
 `
 
@@ -13729,6 +13729,8 @@ func (q *sqlQuerier) GetUserSecret(ctx context.Context, arg GetUserSecretParams)
 		&i.Description,
 		&i.Value,
 		&i.ValueKeyID,
+		&i.EnvName,
+		&i.FilePath,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -13742,7 +13744,9 @@ INSERT INTO user_secrets (
 	name,
 	description,
 	value,
-	value_key_id
+	value_key_id,
+	env_name,
+	file_path
 )
 VALUES (
 	$1,
@@ -13750,8 +13754,10 @@ VALUES (
 	$3,
 	$4,
 	$5,
-	$6
-) RETURNING id, user_id, name, description, value, value_key_id, created_at, updated_at
+	$6,
+	$7,
+	$8
+) RETURNING id, user_id, name, description, value, value_key_id, env_name, file_path, created_at, updated_at
 `
 
 type InsertUserSecretParams struct {
@@ -13761,6 +13767,8 @@ type InsertUserSecretParams struct {
 	Description string         `db:"description" json:"description"`
 	Value       string         `db:"value" json:"value"`
 	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
+	EnvName     string         `db:"env_name" json:"env_name"`
+	FilePath    string         `db:"file_path" json:"file_path"`
 }
 
 func (q *sqlQuerier) InsertUserSecret(ctx context.Context, arg InsertUserSecretParams) (UserSecret, error) {
@@ -13771,6 +13779,8 @@ func (q *sqlQuerier) InsertUserSecret(ctx context.Context, arg InsertUserSecretP
 		arg.Description,
 		arg.Value,
 		arg.ValueKeyID,
+		arg.EnvName,
+		arg.FilePath,
 	)
 	var i UserSecret
 	err := row.Scan(
@@ -13780,6 +13790,8 @@ func (q *sqlQuerier) InsertUserSecret(ctx context.Context, arg InsertUserSecretP
 		&i.Description,
 		&i.Value,
 		&i.ValueKeyID,
+		&i.EnvName,
+		&i.FilePath,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -13787,7 +13799,7 @@ func (q *sqlQuerier) InsertUserSecret(ctx context.Context, arg InsertUserSecretP
 }
 
 const listUserSecrets = `-- name: ListUserSecrets :many
-SELECT id, user_id, name, description, value, value_key_id, created_at, updated_at FROM user_secrets
+SELECT id, user_id, name, description, value, value_key_id, env_name, file_path, created_at, updated_at FROM user_secrets
 WHERE user_id = $1
 `
 
@@ -13807,6 +13819,8 @@ func (q *sqlQuerier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]U
 			&i.Description,
 			&i.Value,
 			&i.ValueKeyID,
+			&i.EnvName,
+			&i.FilePath,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {

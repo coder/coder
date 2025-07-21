@@ -1843,6 +1843,8 @@ CREATE TABLE user_secrets (
     description text NOT NULL,
     value text NOT NULL,
     value_key_id text,
+    env_name text DEFAULT ''::text NOT NULL,
+    file_path text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );

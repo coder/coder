@@ -8588,6 +8588,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `updated_at`  | string | false    |              |             |
 | `user_id`     | string | false    |              |             |
 
+## codersdk.UserSecretValue
+
+```json
+{
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `value` | string | false    |              |             |
+
 ## codersdk.UserStatus
 
 ```json

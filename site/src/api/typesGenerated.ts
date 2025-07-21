@@ -535,6 +535,8 @@ export interface CreateUserSecretRequest {
 	readonly name: string;
 	readonly description?: string;
 	readonly value: string;
+	readonly env_name?: string;
+	readonly file_path?: string;
 }
 
 // From codersdk/workspaces.go
@@ -3203,6 +3205,8 @@ export interface UpdateUserSecretRequest {
 	readonly name: string;
 	readonly description?: string;
 	readonly value: string;
+	readonly env_name?: string;
+	readonly file_path?: string;
 }
 
 // From codersdk/workspaces.go
@@ -3368,6 +3372,8 @@ export interface UserSecret {
 	readonly user_id: string;
 	readonly name: string;
 	readonly description?: string;
+	readonly env_name?: string;
+	readonly file_path?: string;
 	readonly created_at: string;
 	readonly updated_at: string;
 }

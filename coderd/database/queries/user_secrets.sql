@@ -21,7 +21,9 @@ INSERT INTO user_secrets (
 	name,
 	description,
 	value,
-	value_key_id
+	value_key_id,
+	env_name,
+	file_path
 )
 VALUES (
 	@id,
@@ -29,5 +31,7 @@ VALUES (
 	@name,
 	@description,
 	@value,
-	@value_key_id
+	@value_key_id,
+	@env_name,
+	@file_path
 ) RETURNING *;
