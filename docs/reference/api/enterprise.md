@@ -207,6 +207,98 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get connection logs
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /connectionlog`
+
+### Parameters
+
+| Name     | In    | Type    | Required | Description  |
+|----------|-------|---------|----------|--------------|
+| `q`      | query | string  | false    | Search query |
+| `limit`  | query | integer | true     | Page limit   |
+| `offset` | query | integer | false    | Page offset  |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "connection_logs": [
+    {
+      "agent_name": "string",
+      "connect_time": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "ip": "string",
+      "organization": {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      },
+      "ssh_info": {
+        "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
+        "disconnect_reason": "string",
+        "disconnect_time": "2019-08-24T14:15:22Z",
+        "exit_code": 0
+      },
+      "type": "ssh",
+      "web_info": {
+        "slug_or_port": "string",
+        "status_code": 0,
+        "user": {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "organization_ids": [
+            "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+          ],
+          "roles": [
+            {
+              "display_name": "string",
+              "name": "string",
+              "organization_id": "string"
+            }
+          ],
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        },
+        "user_agent": "string"
+      },
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string",
+      "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+      "workspace_owner_username": "string"
+    }
+  ],
+  "count": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                     |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ConnectionLogResponse](schemas.md#codersdkconnectionlogresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get entitlements
 
 ### Code samples
@@ -234,13 +326,25 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
       "actual": 0,
       "enabled": true,
       "entitlement": "entitled",
-      "limit": 0
+      "limit": 0,
+      "soft_limit": 0,
+      "usage_period": {
+        "end": "2019-08-24T14:15:22Z",
+        "issued_at": "2019-08-24T14:15:22Z",
+        "start": "2019-08-24T14:15:22Z"
+      }
     },
     "property2": {
       "actual": 0,
       "enabled": true,
       "entitlement": "entitled",
-      "limit": 0
+      "limit": 0,
+      "soft_limit": 0,
+      "usage_period": {
+        "end": "2019-08-24T14:15:22Z",
+        "issued_at": "2019-08-24T14:15:22Z",
+        "start": "2019-08-24T14:15:22Z"
+      }
     }
   },
   "has_license": true,

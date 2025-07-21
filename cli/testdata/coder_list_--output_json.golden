@@ -86,6 +86,7 @@
     "automatic_updates": "never",
     "allow_renames": false,
     "favorite": false,
-    "next_start_at": "====[timestamp]====="
+    "next_start_at": "====[timestamp]=====",
+    "is_prebuild": false
   }
 ]
