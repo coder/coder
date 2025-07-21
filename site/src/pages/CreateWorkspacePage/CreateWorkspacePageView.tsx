@@ -27,8 +27,8 @@ import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
-import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { ExternalLinkIcon } from "lucide-react";
+import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { type FC, useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
