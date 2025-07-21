@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { BuildIcon } from "./BuildIcon";
 
 const meta: Meta<typeof BuildIcon> = {

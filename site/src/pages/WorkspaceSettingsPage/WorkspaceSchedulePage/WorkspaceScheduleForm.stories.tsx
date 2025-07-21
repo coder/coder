@@ -1,5 +1,4 @@
-import { action } from "@storybook/addon-actions";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import advancedFormat from "dayjs/plugin/advancedFormat";
 import timezone from "dayjs/plugin/timezone";
@@ -9,6 +8,7 @@ import {
 	emptySchedule,
 } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
 import { emptyTTL } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
+import { action } from "storybook/actions";
 import { MockTemplate, mockApiError } from "testHelpers/entities";
 import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
 

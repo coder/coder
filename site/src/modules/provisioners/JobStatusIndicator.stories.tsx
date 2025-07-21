@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { JobStatusIndicator } from "./JobStatusIndicator";
 
 const meta: Meta<typeof JobStatusIndicator> = {

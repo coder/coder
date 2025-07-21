@@ -27,7 +27,7 @@ import { useFormik } from "formik";
 import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
 import {

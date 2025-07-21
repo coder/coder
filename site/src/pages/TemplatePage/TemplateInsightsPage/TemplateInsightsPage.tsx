@@ -47,7 +47,7 @@ import {
 } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import { getLatencyColor } from "utils/latency";
 import {
 	addTime,
@@ -773,7 +773,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 	return <TextValue>{usage.value}</TextValue>;
 };
 
-interface PanelProps extends HTMLAttributes<HTMLDivElement> {}
+interface PanelProps extends HTMLAttributes<HTMLDivElement> { }
 
 const Panel: FC<PanelProps> = ({ children, ...attrs }) => {
 	const theme = useTheme();

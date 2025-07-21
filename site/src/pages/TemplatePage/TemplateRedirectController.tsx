@@ -1,7 +1,7 @@
 import type { Organization } from "api/typesGenerated";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
-import { Navigate, Outlet, useLocation, useParams } from "react-router-dom";
+import { Navigate, Outlet, useLocation, useParams } from "react-router";
 
 export const TemplateRedirectController: FC = () => {
 	const { organizations, showOrganizations } = useDashboard();

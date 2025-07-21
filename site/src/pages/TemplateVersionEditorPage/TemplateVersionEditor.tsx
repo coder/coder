@@ -39,7 +39,7 @@ import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import {
 	Link as RouterLink,
 	unstable_usePrompt as usePrompt,
-} from "react-router-dom";
+} from "react-router";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import {
 	type FileTree,

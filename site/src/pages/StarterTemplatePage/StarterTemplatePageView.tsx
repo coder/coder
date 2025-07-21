@@ -14,7 +14,7 @@ import {
 import { Stack } from "components/Stack/Stack";
 import { ExternalLinkIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 interface StarterTemplatePageViewProps {
 	starterTemplate?: TemplateExample;

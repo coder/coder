@@ -13,7 +13,7 @@ import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
 import { pageTitle } from "utils/page";
 import CreateEditRolePageView from "./CreateEditRolePageView";
 

@@ -1,9 +1,9 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { spyOn, userEvent, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import { getGroupQueryKey, groupPermissionsKey } from "api/queries/groups";
 import { organizationMembersKey } from "api/queries/organizations";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { spyOn, userEvent, within } from "storybook/test";
 import {
 	MockDefaultOrganization,
 	MockGroup,

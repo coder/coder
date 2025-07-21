@@ -5,7 +5,7 @@ import { Welcome } from "components/Welcome/Welcome";
 import { useClipboard } from "hooks";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 
 interface CliAuthPageViewProps {
 	sessionToken?: string;

@@ -1,7 +1,7 @@
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableContainer from "@mui/material/TableContainer";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { TableLoader } from "./TableLoader";
 
 const meta: Meta<typeof TableLoader> = {

@@ -8,7 +8,7 @@ import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { OrganizationProvisionersPageView } from "./OrganizationProvisionersPageView";
 

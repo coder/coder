@@ -35,7 +35,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { displayWorkspaceBuildDuration } from "utils/workspace";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 

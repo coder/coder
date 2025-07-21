@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
 import { MockRoleWithOrgPermissions } from "testHelpers/entities";
 import { PermissionPillsList } from "./PermissionPillsList";
 

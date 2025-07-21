@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogLine";
 import { AgentLogs } from "./AgentLogs";
 import { MockLogs, MockSources } from "./mocks";

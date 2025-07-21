@@ -6,7 +6,7 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
 
@@ -18,7 +18,7 @@ const TemplatesPage: FC = () => {
 	const filter = useFilter({
 		fallbackFilter: "deprecated:false",
 		searchParamsResult,
-		onUpdate: () => {}, // reset pagination
+		onUpdate: () => { }, // reset pagination
 	});
 
 	const templatesQuery = useQuery(templates({ q: filter.query }));

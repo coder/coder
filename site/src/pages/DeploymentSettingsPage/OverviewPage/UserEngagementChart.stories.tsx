@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { UserEngagementChart } from "./UserEngagementChart";
 
 const meta: Meta<typeof UserEngagementChart> = {

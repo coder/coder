@@ -1,7 +1,7 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { fn, userEvent, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { PointerEventsCheckLevel } from "@testing-library/user-event";
 import type { FC } from "react";
+import { fn, userEvent, within } from "storybook/test";
 import {
 	MockPrimaryWorkspaceProxy,
 	MockProxyLatencies,

@@ -17,7 +17,7 @@ import {
 	Link as RouterLink,
 	useNavigate,
 	useSearchParams,
-} from "react-router-dom";
+} from "react-router";
 import { getApplicationName } from "utils/appearance";
 import { getFormHelpers } from "utils/formUtils";
 import * as yup from "yup";
@@ -89,7 +89,7 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 						Choose a new password
 					</h1>
 					{changePasswordMutation.error &&
-					!isApiValidationError(changePasswordMutation.error) ? (
+						!isApiValidationError(changePasswordMutation.error) ? (
 						<ErrorAlert
 							error={changePasswordMutation.error}
 							css={{ marginBottom: 24 }}

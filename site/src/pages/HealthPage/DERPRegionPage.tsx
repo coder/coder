@@ -11,7 +11,7 @@ import { Alert } from "components/Alert/Alert";
 import { ChevronLeftIcon, CodeIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { Link, useOutletContext, useParams } from "react-router-dom";
+import { Link, useOutletContext, useParams } from "react-router";
 import { getLatencyColor } from "utils/latency";
 import { pageTitle } from "utils/page";
 import {

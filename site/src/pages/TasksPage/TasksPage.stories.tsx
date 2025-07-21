@@ -1,8 +1,8 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, spyOn, userEvent, waitFor, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
 	MockTemplate,
 	MockTemplateVersionExternalAuthGithub,

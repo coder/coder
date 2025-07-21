@@ -1,7 +1,7 @@
-import { action } from "@storybook/addon-actions";
-import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { within } from "@testing-library/react";
+import { action } from "storybook/actions";
+import { userEvent } from "storybook/test";
 import { DeleteDialog } from "./DeleteDialog";
 
 const meta: Meta<typeof DeleteDialog> = {

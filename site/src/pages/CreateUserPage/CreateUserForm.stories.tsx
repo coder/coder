@@ -1,8 +1,8 @@
-import { action } from "@storybook/addon-actions";
-import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { organizationsKey } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
+import { action } from "storybook/actions";
+import { userEvent, within } from "storybook/test";
 import {
 	MockOrganization,
 	MockOrganization2,

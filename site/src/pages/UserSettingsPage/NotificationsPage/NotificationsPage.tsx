@@ -32,7 +32,7 @@ import { type FC, Fragment } from "react";
 import { useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQueries, useQueryClient } from "react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { Section } from "../Section";
 
@@ -51,9 +51,9 @@ const NotificationsPage: FC = () => {
 					return permissions.viewDeploymentConfig
 						? groups
 						: {
-								// Members only have access to the "Workspace Notifications" group
-								"Workspace Events": groups["Workspace Events"],
-							};
+							// Members only have access to the "Workspace Notifications" group
+							"Workspace Events": groups["Workspace Events"],
+						};
 				},
 			},
 			notificationDispatchMethods(),

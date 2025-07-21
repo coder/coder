@@ -1,4 +1,4 @@
-import type { Meta, StoryFn } from "@storybook/react";
+import type { Meta, StoryFn } from "@storybook/react-vite";
 import ExternalAuthPageView, {
 	type ExternalAuthPageViewProps,
 } from "./ExternalAuthPageView";

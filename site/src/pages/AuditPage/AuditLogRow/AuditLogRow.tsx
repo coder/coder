@@ -12,7 +12,7 @@ import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { InfoIcon } from "lucide-react";
 import { NetworkIcon } from "lucide-react";
 import { type FC, useState } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import userAgentParser from "ua-parser-js";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";

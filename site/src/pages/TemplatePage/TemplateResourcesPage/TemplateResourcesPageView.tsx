@@ -2,7 +2,7 @@ import type { Template, WorkspaceResource } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
 import type { FC } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, useLocation } from "react-router";
 
 interface TemplateResourcesPageViewProps {
 	resources?: WorkspaceResource[];

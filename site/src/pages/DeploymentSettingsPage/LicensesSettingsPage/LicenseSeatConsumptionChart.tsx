@@ -14,7 +14,7 @@ import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
 import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import {
 	Area,
 	AreaChart,
@@ -35,11 +35,11 @@ const chartConfig = {
 type LicenseSeatConsumptionChartProps = {
 	limit: number | undefined;
 	data:
-		| {
-				date: string;
-				users: number;
-		  }[]
-		| undefined;
+	| {
+		date: string;
+		users: number;
+	}[]
+	| undefined;
 };
 
 export const LicenseSeatConsumptionChart: FC<

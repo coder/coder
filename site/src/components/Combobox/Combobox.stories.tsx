@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, screen, userEvent, waitFor, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { Combobox } from "./Combobox";
 
 const simpleOptions = ["Go", "Gleam", "Kotlin", "Rust"];

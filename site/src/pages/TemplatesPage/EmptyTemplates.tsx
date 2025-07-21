@@ -7,7 +7,7 @@ import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
 import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { docs } from "utils/docs";
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates

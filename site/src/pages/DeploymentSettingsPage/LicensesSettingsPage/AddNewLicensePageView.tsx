@@ -11,7 +11,7 @@ import {
 import { Stack } from "components/Stack/Stack";
 import { ChevronLeftIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { Fieldset } from "../Fieldset";
 import { DividerWithText } from "./DividerWithText";
 

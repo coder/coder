@@ -11,7 +11,7 @@ import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAl
 import { AgentRow } from "modules/resources/AgentRow";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import type { FC } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
@@ -253,22 +253,22 @@ export const Workspace: FC<WorkspaceProps> = ({
 
 							{(!selectedResource.agents ||
 								selectedResource.agents?.length === 0) && (
-								<div
-									css={{
-										display: "flex",
-										justifyContent: "center",
-										alignItems: "center",
-										width: "100%",
-										height: "100%",
-									}}
-								>
-									<div>
-										<h4 css={{ fontSize: 16, fontWeight: 500 }}>
-											No agents are currently assigned to this resource.
-										</h4>
+									<div
+										css={{
+											display: "flex",
+											justifyContent: "center",
+											alignItems: "center",
+											width: "100%",
+											height: "100%",
+										}}
+									>
+										<div>
+											<h4 css={{ fontSize: 16, fontWeight: 500 }}>
+												No agents are currently assigned to this resource.
+											</h4>
+										</div>
 									</div>
-								</div>
-							)}
+								)}
 						</section>
 					)}
 

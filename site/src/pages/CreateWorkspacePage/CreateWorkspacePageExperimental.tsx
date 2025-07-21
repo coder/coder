@@ -28,7 +28,7 @@ import {
 } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import { CreateWorkspacePageViewExperimental } from "./CreateWorkspacePageViewExperimental";
@@ -229,7 +229,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 
 	const hasAllRequiredExternalAuth = Boolean(
 		!isLoadingExternalAuth &&
-			externalAuth?.every((auth) => auth.optional || auth.authenticated),
+		externalAuth?.every((auth) => auth.optional || auth.authenticated),
 	);
 
 	let autoCreateReady = mode === "auto" && hasAllRequiredExternalAuth;
@@ -277,10 +277,10 @@ const CreateWorkspacePageExperimental: FC = () => {
 				<title>{pageTitle(title)}</title>
 			</Helmet>
 			{!latestResponse ||
-			!templateQuery.data ||
-			isLoadingFormData ||
-			isLoadingExternalAuth ||
-			autoCreateReady ? (
+				!templateQuery.data ||
+				isLoadingFormData ||
+				isLoadingExternalAuth ||
+				autoCreateReady ? (
 				<Loader />
 			) : (
 				<CreateWorkspacePageViewExperimental

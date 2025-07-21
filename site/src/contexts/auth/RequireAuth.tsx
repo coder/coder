@@ -4,7 +4,7 @@ import { Loader } from "components/Loader/Loader";
 import { ProxyProvider as ProductionProxyProvider } from "contexts/ProxyContext";
 import { DashboardProvider as ProductionDashboardProvider } from "modules/dashboard/DashboardProvider";
 import { type FC, useEffect } from "react";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router";
 import { embedRedirect } from "utils/redirect";
 import { useAuthContext } from "./AuthProvider";
 

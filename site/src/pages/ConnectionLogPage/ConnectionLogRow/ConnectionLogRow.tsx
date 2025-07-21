@@ -10,7 +10,7 @@ import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { InfoIcon } from "lucide-react";
 import { NetworkIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import userAgentParser from "ua-parser-js";
 import { connectionTypeIsWeb } from "utils/connection";
 import { ConnectionLogDescription } from "./ConnectionLogDescription/ConnectionLogDescription";

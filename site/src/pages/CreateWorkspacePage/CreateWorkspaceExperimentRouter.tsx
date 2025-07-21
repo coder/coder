@@ -3,7 +3,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 import CreateWorkspacePage from "./CreateWorkspacePage";
 import CreateWorkspacePageExperimental from "./CreateWorkspacePageExperimental";
 

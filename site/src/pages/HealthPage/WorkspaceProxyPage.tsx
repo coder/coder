@@ -6,7 +6,7 @@ import { Alert } from "components/Alert/Alert";
 import { HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext } from "react-router";
 import { createDayString } from "utils/createDayString";
 import { pageTitle } from "utils/page";
 import {
@@ -65,11 +65,10 @@ const WorkspaceProxyPage: FC = () => {
 							key={region.id}
 							css={{
 								borderRadius: 8,
-								border: `1px solid ${
-									region.healthy
+								border: `1px solid ${region.healthy
 										? theme.palette.divider
 										: theme.palette.warning.light
-								}`,
+									}`,
 								fontSize: 14,
 							}}
 						>

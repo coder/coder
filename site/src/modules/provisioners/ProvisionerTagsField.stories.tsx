@@ -1,7 +1,7 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ProvisionerDaemon } from "api/typesGenerated";
 import { type FC, useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
 import { ProvisionerTagsField } from "./ProvisionerTagsField";
 
 const meta: Meta<typeof ProvisionerTagsField> = {

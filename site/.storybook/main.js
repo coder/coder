@@ -5,18 +5,10 @@ module.exports = {
 
 	addons: [
 		"@chromatic-com/storybook",
-		{
-			name: "@storybook/addon-essentials",
-			options: {
-				backgrounds: false,
-			},
-		},
 		"@storybook/addon-links",
-		"@storybook/addon-mdx-gfm",
 		"@storybook/addon-themes",
-		"@storybook/addon-actions",
-		"@storybook/addon-interactions",
 		"storybook-addon-remix-react-router",
+		"@storybook/addon-docs",
 	],
 
 	staticDirs: ["../static"],

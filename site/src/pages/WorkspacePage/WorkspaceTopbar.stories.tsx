@@ -1,8 +1,8 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, screen, userEvent, waitFor, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { getWorkspaceQuotaQueryKey } from "api/queries/workspaceQuota";
 import type { Workspace, WorkspaceQuota } from "api/typesGenerated";
 import dayjs from "dayjs";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import {
 	MockOrganization,
 	MockTemplate,

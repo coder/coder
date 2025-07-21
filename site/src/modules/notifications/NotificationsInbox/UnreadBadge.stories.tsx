@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { UnreadBadge } from "./UnreadBadge";
 
 const meta: Meta<typeof UnreadBadge> = {

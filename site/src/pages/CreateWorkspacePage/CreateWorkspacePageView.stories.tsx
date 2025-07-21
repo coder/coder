@@ -1,7 +1,7 @@
-import { action } from "@storybook/addon-actions";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { action } from "storybook/actions";
 import { chromatic } from "testHelpers/chromatic";
 import {
 	MockTemplate,

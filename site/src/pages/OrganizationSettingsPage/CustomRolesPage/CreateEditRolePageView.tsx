@@ -32,7 +32,7 @@ import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { type ChangeEvent, type FC, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { getFormHelpers, nameValidator } from "utils/formUtils";
 import * as Yup from "yup";
 
@@ -208,16 +208,16 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 
 		const newPermissions = checked
 			? [
-					...checkedActions,
-					{
-						negate: false,
-						resource_type: resource_type as RBACResource,
-						action: action as RBACAction,
-					},
-				]
+				...checkedActions,
+				{
+					negate: false,
+					resource_type: resource_type as RBACResource,
+					action: action as RBACAction,
+				},
+			]
 			: checkedActions?.filter(
-					(p) => p.resource_type !== resource_type || p.action !== action,
-				);
+				(p) => p.resource_type !== resource_type || p.action !== action,
+			);
 
 		setCheckActions(newPermissions);
 		await form.setFieldValue("organization_permissions", newPermissions);
@@ -241,13 +241,13 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 		const newPermissions =
 			checked || indeterminate
 				? [
-						...newCheckedActions,
-						...Object.keys(resourceActionsForResource).map((resourceKey) => ({
-							negate: false,
-							resource_type: resource as RBACResource,
-							action: resourceKey as RBACAction,
-						})),
-					]
+					...newCheckedActions,
+					...Object.keys(resourceActionsForResource).map((resourceKey) => ({
+						negate: false,
+						resource_type: resource as RBACResource,
+						action: resourceKey as RBACAction,
+					})),
+				]
 				: [...newCheckedActions];
 
 		setCheckActions(newPermissions);
@@ -349,7 +349,7 @@ const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
 								e,
 								form,
 								checkedActions.length > 0 &&
-									checkedActions.length < Object.keys(value).length,
+								checkedActions.length < Object.keys(value).length,
 							)
 						}
 					/>

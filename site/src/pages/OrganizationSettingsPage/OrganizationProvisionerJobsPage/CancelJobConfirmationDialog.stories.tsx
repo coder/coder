@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, waitFor, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { Response } from "api/typesGenerated";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { MockProvisionerJob } from "testHelpers/entities";
 import { withGlobalSnackbar } from "testHelpers/storybook";
 import { CancelJobConfirmationDialog } from "./CancelJobConfirmationDialog";

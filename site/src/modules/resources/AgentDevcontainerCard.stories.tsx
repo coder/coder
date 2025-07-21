@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { getPreferredProxy } from "contexts/ProxyContext";
 import { chromatic } from "testHelpers/chromatic";
 import {

@@ -11,7 +11,7 @@ import { EllipsisVertical, ExternalLinkIcon, HouseIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import type { Task } from "modules/tasks/tasks";
 import { type FC, useRef } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
 
 type TaskAppIFrameProps = {
@@ -99,8 +99,8 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 			)}
 
 			{app.health === "healthy" ||
-			app.health === "disabled" ||
-			app.health === "unhealthy" ? (
+				app.health === "disabled" ||
+				app.health === "unhealthy" ? (
 				<iframe
 					ref={frameRef}
 					src={frameSrc}

@@ -43,7 +43,7 @@ import { PlusIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import type { FC } from "react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
 import {
@@ -55,9 +55,8 @@ import { TemplatesFilter } from "./TemplatesFilter";
 
 const Language = {
 	developerCount: (activeCount: number): string => {
-		return `${formatTemplateActiveDevelopers(activeCount)} developer${
-			activeCount !== 1 ? "s" : ""
-		}`;
+		return `${formatTemplateActiveDevelopers(activeCount)} developer${activeCount !== 1 ? "s" : ""
+			}`;
 	},
 	nameLabel: "Name",
 	buildTimeLabel: "Build time",
@@ -161,7 +160,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 				{template.deprecated ? (
 					<DeprecatedBadge />
 				) : workspacePermissions?.[template.organization_id]
-						?.createWorkspaceForUserID ? (
+					?.createWorkspaceForUserID ? (
 					<Button
 						asChild
 						variant="outline"
