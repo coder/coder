@@ -137,7 +137,7 @@ module "code-server" {
 
 module "jetbrains_gateway" {
   source         = "dev.registry.coder.com/coder/jetbrains-gateway/coder"
-  version        = "1.1.1"
+  version        = "1.2.1"
   agent_id       = coder_agent.dev.id
   agent_name     = "dev"
   folder         = local.repo_dir
