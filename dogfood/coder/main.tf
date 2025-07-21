@@ -295,7 +295,7 @@ module "code-server" {
 module "vscode-web" {
   count                   = data.coder_workspace.me.start_count
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
-  version                 = "1.2.0"
+  version                 = "v1.3.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   extensions              = ["github.copilot"]
