@@ -444,12 +444,25 @@ func (api *API) discoverDevcontainerProjects() error {
 }
 
 func (api *API) discoverDevcontainersInProject(projectPath string) error {
+	devcontainerConfigPaths := []string{
+		"/.devcontainer/devcontainer.json",
+		"/.devcontainer.json",
+	}
+
 	return afero.Walk(api.fs, projectPath, func(path string, info fs.FileInfo, err error) error {
-		if strings.HasSuffix(path, ".devcontainer/devcontainer.json") {
-			workspaceFolder := strings.TrimSuffix(path, ".devcontainer/devcontainer.json")
+		for _, relativeConfigPath := range devcontainerConfigPaths {
+			if !strings.HasSuffix(path, relativeConfigPath) {
+				continue
+			}
+
+			workspaceFolder := strings.TrimSuffix(path, relativeConfigPath)
+
+			api.logger.Debug(api.ctx, "discovered dev container project", slog.F("workspace_folder", workspaceFolder))
 
 			api.mu.Lock()
 			if _, found := api.knownDevcontainers[workspaceFolder]; !found {
+				api.logger.Debug(api.ctx, "adding dev container project", slog.F("workspace_folder", workspaceFolder))
+
 				dc := codersdk.WorkspaceAgentDevcontainer{
 					ID:              uuid.New(),
 					Name:            "", // Updated later based on container state.
