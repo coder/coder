@@ -1393,7 +1393,6 @@ func TestAcquireProvisionerJob(t *testing.T) {
 			})
 			require.NoError(t, err, "mark job %d/%d as complete", idx+1, numJobs)
 		}
-
 	})
 }
 
