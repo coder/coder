@@ -340,7 +340,7 @@ module "cursor" {
 module "windsurf" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/windsurf/coder"
-  version  = "1.0.0"
+  version  = "1.1.0"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
