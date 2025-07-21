@@ -107,6 +107,11 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 - Full suite: `./scripts/oauth2/test-mcp-oauth2.sh`
 - Manual testing: `./scripts/oauth2/test-manual-flow.sh`
 
+### Timing Issues
+
+NEVER use `time.Sleep` to mitigate timing issues. If an issue
+seems like it should use `time.Sleep`, read through https://github.com/coder/quartz and specifically the [README](https://github.com/coder/quartz/blob/main/README.md) to better understand how to handle timing issues.
+
 ## 🎯 Code Style
 
 ### Detailed guidelines in imported WORKFLOWS.md
