@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"context"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -193,6 +194,7 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		t.Parallel()
 
 		db, ps := dbtestutil.NewDB(t)
+		dbReject := &dbRejectGitSSHKey{Store: db}
 		dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/modules/main.tf")
 		require.NoError(t, err)
 
@@ -200,12 +202,14 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		require.NoError(t, err)
 
 		setup := setupDynamicParamsTest(t, setupDynamicParamsTestParams{
-			db:                       &dbRejectGitSSHKey{Store: db},
+			db:                       dbReject,
 			ps:                       ps,
 			provisionerDaemonVersion: provProto.CurrentVersion.String(),
 			mainTF:                   dynamicParametersTerraformSource,
 			modulesArchive:           modulesArchive,
 		})
+
+		dbReject.SetReject(true)
 
 		stream := setup.stream
 		previews := stream.Chan()
@@ -412,8 +416,25 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 // that is generally impossible to force an error.
 type dbRejectGitSSHKey struct {
 	database.Store
+	rejectMu sync.RWMutex
+	reject   bool
 }
 
-func (*dbRejectGitSSHKey) GetGitSSHKey(_ context.Context, _ uuid.UUID) (database.GitSSHKey, error) {
-	return database.GitSSHKey{}, xerrors.New("forcing a fake error")
+// SetReject toggles whether GetGitSSHKey should return an error or passthrough to the underlying store.
+func (d *dbRejectGitSSHKey) SetReject(reject bool) {
+	d.rejectMu.Lock()
+	defer d.rejectMu.Unlock()
+	d.reject = reject
+}
+
+func (d *dbRejectGitSSHKey) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
+	d.rejectMu.RLock()
+	reject := d.reject
+	d.rejectMu.RUnlock()
+
+	if reject {
+		return database.GitSSHKey{}, xerrors.New("forcing a fake error")
+	}
+
+	return d.Store.GetGitSSHKey(ctx, userID)
 }
