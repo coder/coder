@@ -410,12 +410,12 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 			);
 		}
 
-		case "slider":
-			const numericValue = Number.isFinite(Number(localValue)) ? Number(localValue) : 0;
-			const {
-				validation_min: min = 0,
-				validation_max: max = 100,
-			} = parameter.validations[0] ?? {};
+		case "slider": {
+			const numericValue = Number.isFinite(Number(localValue))
+				? Number(localValue)
+				: 0;
+			const { validation_min: min = 0, validation_max: max = 100 } =
+				parameter.validations[0] ?? {};
 
 			return (
 				<div className="flex flex-row items-baseline gap-3">
@@ -430,11 +430,10 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 						max={max ?? undefined}
 						disabled={disabled}
 					/>
-					<span className="w-4 font-medium">
-						{numericValue}
-					</span>
+					<span className="w-4 font-medium">{numericValue}</span>
 				</div>
 			);
+		}
 	}
 };
 
