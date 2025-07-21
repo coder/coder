@@ -1356,13 +1356,6 @@ func (m queryMetricsStore) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetRunningPrebuiltWorkspacesOptimized(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesOptimizedRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetRunningPrebuiltWorkspacesOptimized(ctx)
-	m.queryLatencies.WithLabelValues("GetRunningPrebuiltWorkspacesOptimized").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetRuntimeConfig(ctx, key)
