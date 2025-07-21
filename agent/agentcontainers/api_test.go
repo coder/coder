@@ -358,14 +358,21 @@ func TestAPI(t *testing.T) {
 			fakeCLI    = &fakeContainerCLI{
 				listErr: firstErr,
 			}
+			fWatcher = newFakeWatcher(t)
 		)
 
 		api := agentcontainers.NewAPI(logger,
+			agentcontainers.WithWatcher(fWatcher),
 			agentcontainers.WithClock(mClock),
 			agentcontainers.WithContainerCLI(fakeCLI),
 		)
 		api.Start()
 		defer api.Close()
+
+		// The watcherLoop writes a log when it is initialized.
+		// We want to ensure this has happened before we start
+		// the test so that it does not intefere.
+		fWatcher.waitNext(ctx)
 
 		// Make sure the ticker function has been registered
 		// before advancing the clock.
@@ -2883,8 +2890,12 @@ func TestAPI(t *testing.T) {
 			Op:   fsnotify.Write,
 		})
 
-		err = api.RefreshContainers(ctx)
-		require.NoError(t, err)
+		require.Eventuallyf(t, func() bool {
+			err = api.RefreshContainers(ctx)
+			require.NoError(t, err)
+
+			return len(fakeSAC.agents) == 1
+		}, testutil.WaitShort, testutil.IntervalFast, "subagent should be created after config change")
 
 		t.Log("Phase 2: Cont, waiting for sub agent to exit")
 		exitSubAgentOnce.Do(func() {
@@ -2919,8 +2930,12 @@ func TestAPI(t *testing.T) {
 			Op:   fsnotify.Write,
 		})
 
-		err = api.RefreshContainers(ctx)
-		require.NoError(t, err)
+		require.Eventuallyf(t, func() bool {
+			err = api.RefreshContainers(ctx)
+			require.NoError(t, err)
+
+			return len(fakeSAC.agents) == 0
+		}, testutil.WaitShort, testutil.IntervalFast, "subagent should be deleted after config change")
 
 		req = httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 		rec = httptest.NewRecorder()

@@ -14,7 +14,11 @@ export function useAgentContainers(
 ): readonly WorkspaceAgentDevcontainer[] | undefined {
 	const queryClient = useQueryClient();
 
-	const { data: devcontainers } = useQuery({
+	const {
+		data: devcontainers,
+		error: queryError,
+		isLoading: queryIsLoading,
+	} = useQuery({
 		queryKey: ["agents", agent.id, "containers"],
 		queryFn: () => API.getAgentContainers(agent.id),
 		enabled: agent.status === "connected",
@@ -31,6 +35,10 @@ export function useAgentContainers(
 	);
 
 	useEffect(() => {
+		if (agent.status !== "connected" || queryIsLoading || queryError) {
+			return;
+		}
+
 		const socket = watchAgentContainers(agent.id);
 
 		socket.addEventListener("message", (event) => {
@@ -53,7 +61,13 @@ export function useAgentContainers(
 		});
 
 		return () => socket.close();
-	}, [agent.id, updateDevcontainersCache]);
+	}, [
+		agent.id,
+		agent.status,
+		queryIsLoading,
+		queryError,
+		updateDevcontainersCache,
+	]);
 
 	return devcontainers;
 }

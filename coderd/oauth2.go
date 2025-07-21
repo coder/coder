@@ -116,7 +116,7 @@ func (api *API) deleteOAuth2ProviderAppSecret() http.HandlerFunc {
 // @Success 200 "Returns HTML authorization page"
 // @Router /oauth2/authorize [get]
 func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
-	return oauth2provider.ShowAuthorizePage(api.Database, api.AccessURL)
+	return oauth2provider.ShowAuthorizePage(api.AccessURL)
 }
 
 // @Summary OAuth2 authorization request (POST - process authorization).
@@ -131,7 +131,7 @@ func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Success 302 "Returns redirect with authorization code"
 // @Router /oauth2/authorize [post]
 func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
-	return oauth2provider.ProcessAuthorize(api.Database, api.AccessURL)
+	return oauth2provider.ProcessAuthorize(api.Database)
 }
 
 // @Summary OAuth2 token exchange.

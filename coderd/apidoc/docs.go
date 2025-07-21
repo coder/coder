@@ -12985,6 +12985,18 @@ const docTemplate = `{
                 },
                 "limit": {
                     "type": "integer"
+                },
+                "soft_limit": {
+                    "description": "SoftLimit is the soft limit of the feature, and is only used for showing\nincluded limits in the dashboard. No license validation or warnings are\ngenerated from this value.",
+                    "type": "integer"
+                },
+                "usage_period": {
+                    "description": "UsagePeriod denotes that the usage is a counter that accumulates over\nthis period (and most likely resets with the issuance of the next\nlicense).\n\nThese dates are determined from the license that this entitlement comes\nfrom, see enterprise/coderd/license/license.go.\n\nOnly certain features set these fields:\n- FeatureManagedAgentLimit",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.UsagePeriod"
+                        }
+                    ]
                 }
             }
         },
@@ -17242,6 +17254,23 @@ const docTemplate = `{
                 "UsageAppNameSSH"
             ]
         },
+        "codersdk.UsagePeriod": {
+            "type": "object",
+            "properties": {
+                "end": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "issued_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "start": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
         "codersdk.User": {
             "type": "object",
             "required": [
@@ -17652,6 +17681,10 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "is_prebuild": {
+                    "description": "IsPrebuild indicates whether the workspace is a prebuilt workspace.\nPrebuilt workspaces are owned by the prebuilds system user and have specific behavior,\nsuch as being managed differently from regular workspaces.\nOnce a prebuilt workspace is claimed by a user, it transitions to a regular workspace,\nand IsPrebuild returns false.",
+                    "type": "boolean"
                 },
                 "last_used_at": {
                     "type": "string",
@@ -19588,7 +19621,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "expiry": {
-                    "description": "Expiry is the optional expiration time of the access token.\n\nIf zero, TokenSource implementations will reuse the same\ntoken forever and RefreshToken or equivalent\nmechanisms for that TokenSource will not be used.",
+                    "description": "Expiry is the optional expiration time of the access token.\n\nIf zero, [TokenSource] implementations will reuse the same\ntoken forever and RefreshToken or equivalent\nmechanisms for that TokenSource will not be used.",
                     "type": "string"
                 },
                 "refresh_token": {

@@ -11,8 +11,8 @@ afterAll(() => {
 	jest.clearAllMocks();
 });
 
-describe(`${useDebouncedValue.name}`, () => {
-	function renderDebouncedValue<T = unknown>(value: T, time: number) {
+describe(useDebouncedValue.name, () => {
+	function renderDebouncedValue<T>(value: T, time: number) {
 		return renderHook(
 			({ value, time }: { value: T; time: number }) => {
 				return useDebouncedValue(value, time);
@@ -22,6 +22,25 @@ describe(`${useDebouncedValue.name}`, () => {
 			},
 		);
 	}
+
+	it("Should throw for non-nonnegative integer timeouts", () => {
+		const invalidInputs: readonly number[] = [
+			Number.NaN,
+			Number.NEGATIVE_INFINITY,
+			Number.POSITIVE_INFINITY,
+			Math.PI,
+			-42,
+		];
+
+		const dummyValue = false;
+		for (const input of invalidInputs) {
+			expect(() => {
+				renderDebouncedValue(dummyValue, input);
+			}).toThrow(
+				`Invalid value ${input} for debounceTimeoutMs. Value must be an integer greater than or equal to zero.`,
+			);
+		}
+	});
 
 	it("Should immediately return out the exact same value (by reference) on mount", () => {
 		const value = {};
@@ -58,6 +77,24 @@ describe(`${useDebouncedValue.name}`, () => {
 		await jest.runAllTimersAsync();
 		await waitFor(() => expect(result.current).toEqual(true));
 	});
+
+	// Very important that we not do any async logic for this test
+	it("Should immediately resync without any render/event loop delays if timeout is zero", () => {
+		const initialValue = false;
+		const time = 5000;
+
+		const { result, rerender } = renderDebouncedValue(initialValue, time);
+		expect(result.current).toEqual(false);
+
+		// Just to be on the safe side, re-render once with the old timeout to
+		// verify that nothing has been flushed yet
+		rerender({ value: !initialValue, time });
+		expect(result.current).toEqual(false);
+
+		// Then do the real re-render once we know the coast is clear
+		rerender({ value: !initialValue, time: 0 });
+		expect(result.current).toBe(true);
+	});
 });
 
 describe(`${useDebouncedFunction.name}`, () => {
@@ -74,6 +111,27 @@ describe(`${useDebouncedFunction.name}`, () => {
 			},
 		);
 	}
+
+	describe("input validation", () => {
+		it("Should throw for non-nonnegative integer timeouts", () => {
+			const invalidInputs: readonly number[] = [
+				Number.NaN,
+				Number.NEGATIVE_INFINITY,
+				Number.POSITIVE_INFINITY,
+				Math.PI,
+				-42,
+			];
+
+			const dummyFunction = jest.fn();
+			for (const input of invalidInputs) {
+				expect(() => {
+					renderDebouncedFunction(dummyFunction, input);
+				}).toThrow(
+					`Invalid value ${input} for debounceTimeoutMs. Value must be an integer greater than or equal to zero.`,
+				);
+			}
+		});
+	});
 
 	describe("hook", () => {
 		it("Should provide stable function references across re-renders", () => {

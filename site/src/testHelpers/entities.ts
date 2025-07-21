@@ -1411,6 +1411,14 @@ export const MockWorkspace: TypesGen.Workspace = {
 	deleting_at: null,
 	dormant_at: null,
 	next_start_at: null,
+	is_prebuild: false,
+};
+
+export const MockPrebuiltWorkspace = {
+	...MockWorkspace,
+	owner_name: "prebuilds",
+	name: "prebuilt-workspace",
+	is_prebuild: true,
 };
 
 export const MockFavoriteWorkspace: TypesGen.Workspace = {
