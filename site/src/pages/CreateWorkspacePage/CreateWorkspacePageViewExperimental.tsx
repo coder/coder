@@ -5,7 +5,6 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import { Link } from "components/Link/Link";
@@ -404,11 +403,6 @@ export const CreateWorkspacePageViewExperimental: FC<
 							</Tooltip>
 						</TooltipProvider>
 					</span>
-					<FeatureStageBadge
-						contentType={"beta"}
-						size="sm"
-						labelText="Dynamic parameters"
-					/>
 				</header>
 
 				<form
