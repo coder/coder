@@ -110,26 +110,26 @@ data "coder_workspace_owner" "me" {}
 
 module "slackme" {
   source           = "dev.registry.coder.com/coder/slackme/coder"
-  version          = "v1.0.30"
+  version          = "1.0.30"
   agent_id         = coder_agent.dev.id
   auth_provider_id = "slack"
 }
 
 module "dotfiles" {
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "v1.2.0"
+  version  = "1.2.0"
   agent_id = coder_agent.dev.id
 }
 
 module "personalize" {
   source   = "dev.registry.coder.com/coder/personalize/coder"
-  version  = "v1.0.30"
+  version  = "1.0.30"
   agent_id = coder_agent.dev.id
 }
 
 module "code-server" {
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "v1.3.0"
+  version                 = "1.3.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -148,13 +148,13 @@ module "jetbrains_gateway" {
 
 module "filebrowser" {
   source   = "dev.registry.coder.com/coder/filebrowser/coder"
-  version  = "v1.1.1"
+  version  = "1.1.1"
   agent_id = coder_agent.dev.id
 }
 
 module "coder-login" {
   source   = "dev.registry.coder.com/coder/coder-login/coder"
-  version  = "v1.0.30"
+  version  = "1.0.30"
   agent_id = coder_agent.dev.id
 }
 
