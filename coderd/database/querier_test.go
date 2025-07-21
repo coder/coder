@@ -1367,7 +1367,7 @@ func TestAcquireProvisionerJob(t *testing.T) {
 			} else {
 				humanIDs = append([]uuid.UUID{pj.ID}, humanIDs...)
 			}
-			t.Logf("created prebuild job id=%q initiator=%q created_at=%q", pj.ID.String(), pj.InitiatorID.String(), pj.CreatedAt.String())
+			t.Logf("created job id=%q initiator=%q created_at=%q", pj.ID.String(), pj.InitiatorID.String(), pj.CreatedAt.String())
 		}
 
 		expectedIDs := append(humanIDs, prebuildIDs...) //nolint:gocritic // not the same slice
@@ -1384,6 +1384,7 @@ func TestAcquireProvisionerJob(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, expectedIDs[idx].String(), acquired.ID.String(), "acquired job %d/%d with initiator %q", idx+1, numJobs, acquired.InitiatorID.String())
+			t.Logf("acquired job id=%q initiator=%q created_at=%q", acquired.ID.String(), acquired.InitiatorID.String(), acquired.CreatedAt.String())
 			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 				ID:          acquired.ID,
 				UpdatedAt:   now,
