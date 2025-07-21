@@ -77,7 +77,8 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 			/>
 			<div className="max-w-lg">
 				{parameter.form_type === "input" ||
-				parameter.form_type === "textarea" ? (
+				parameter.form_type === "textarea" ||
+				parameter.form_type === "slider" ? (
 					<DebouncedParameterField
 						id={id}
 						parameter={parameter}
@@ -408,6 +409,26 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 				</Stack>
 			);
 		}
+
+		case "slider":
+			return (
+				<div className="flex flex-row items-baseline gap-3">
+					<Slider
+						id={id}
+						className="mt-2"
+						value={[Number.isFinite(Number(localValue)) ? Number(localValue) : 0]}
+						onValueChange={([value]) => {
+							setLocalValue(value.toString());
+						}}
+						min={parameter.validations[0]?.validation_min ?? 0}
+						max={parameter.validations[0]?.validation_max ?? 100}
+						disabled={disabled}
+					/>
+					<span className="w-4 font-medium">
+						{Number.isFinite(Number(localValue)) ? localValue : "0"}
+					</span>
+				</div>
+			);
 	}
 };
 
@@ -564,25 +585,6 @@ const ParameterField: FC<ParameterFieldProps> = ({
 				</div>
 			);
 
-		case "slider":
-			return (
-				<div className="flex flex-row items-baseline gap-3">
-					<Slider
-						id={id}
-						className="mt-2"
-						value={[Number.isFinite(Number(value)) ? Number(value) : 0]}
-						onValueChange={([value]) => {
-							onChange(value.toString());
-						}}
-						min={parameter.validations[0]?.validation_min ?? 0}
-						max={parameter.validations[0]?.validation_max ?? 100}
-						disabled={disabled}
-					/>
-					<span className="w-4 font-medium">
-						{Number.isFinite(Number(value)) ? value : "0"}
-					</span>
-				</div>
-			);
 		case "error":
 			return <Diagnostics diagnostics={parameter.diagnostics} />;
 	}
