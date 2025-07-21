@@ -225,7 +225,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					<Stack direction="row" spacing={2}>
 						{canUpdateTemplate && (
 							<Button asChild size="sm" variant="outline">
-								<Link to={`/templates/${template.organization_name}/${template.name}/versions/${versionId}/edit`}>
+								<Link
+									to={`/templates/${template.organization_name}/${template.name}/versions/${versionId}/edit`}
+								>
 									<ExternalLinkIcon />
 									View source
 								</Link>
