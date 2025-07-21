@@ -1000,7 +1000,7 @@ func TestUpdateJob(t *testing.T) {
 		job := setupJob(t, db, pd.ID, pd.Tags)
 
 		logOutput := "test log message"
-		expectedSize := int32(len(logOutput))
+		expectedSize := int32(len(logOutput)) // #nosec G115 - Log length is 16.
 
 		_, err := srv.UpdateJob(ctx, &proto.UpdateJobRequest{
 			JobId: job.String(),

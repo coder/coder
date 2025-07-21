@@ -387,6 +387,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			Valid:      true,
 			RawMessage: traceMetadataRaw,
 		},
+		LogsOverflowed: false,
 	})
 	if err != nil {
 		return nil, nil, nil, BuildError{http.StatusInternalServerError, "insert provisioner job", err}

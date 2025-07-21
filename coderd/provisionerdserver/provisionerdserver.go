@@ -903,7 +903,6 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 	}
 
 	if len(request.Logs) > 0 && !job.LogsOverflowed {
-
 		//nolint:exhaustruct // We append to the additional fields below.
 		insertParams := database.InsertProvisionerJobLogsParams{
 			JobID: parsedID,
@@ -952,7 +951,6 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 			LogsLength: int32(newLogSize), // #nosec G115 - Log output length is limited to 1MB (2^20) which fits in an int32.
 		})
 		if err != nil {
-
 			// Even though we do the runtime check for the overflow, we still check for the database error
 			// as well.
 			if database.IsProvisionerJobLogsLimitError(err) {
