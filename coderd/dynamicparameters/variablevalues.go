@@ -10,6 +10,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
+// VariableValues is a helper function that converts a slice of TemplateVersionVariable
+// into a map of cty.Value for use in coder/preview.
 func VariableValues(vals []database.TemplateVersionVariable) (map[string]cty.Value, error) {
 	ctyVals := make(map[string]cty.Value, len(vals))
 	for _, v := range vals {

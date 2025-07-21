@@ -1802,6 +1802,7 @@ func (api *API) dynamicTemplateVersionTags(ctx context.Context, rw http.Response
 	}
 
 	// Pass in any manually specified template variables as TFVars.
+	// TODO: Does this break if the type is not a string?
 	tfVarValues := make(map[string]cty.Value)
 	for _, variable := range templateVariables {
 		tfVarValues[variable.Name] = cty.StringVal(variable.Value)
