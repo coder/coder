@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -363,7 +364,6 @@ func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionR
 		Tags:           provisionerJob.Tags,
 		QueuePosition:  int(pj.QueuePosition),
 		QueueSize:      int(pj.QueueSize),
-		Priority:       provisionerJob.Priority,
 	}
 	// Applying values optional to the struct.
 	if provisionerJob.StartedAt.Valid {
