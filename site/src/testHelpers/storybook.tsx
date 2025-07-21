@@ -1,4 +1,4 @@
-import type { StoryContext } from "@storybook/react";
+import type { StoryContext } from "@storybook/react-vite";
 import { withDefaultFeatures } from "api/api";
 import { getAuthorizationKey } from "api/queries/authCheck";
 import { hasFirstUserKey, meKey } from "api/queries/users";
@@ -106,9 +106,9 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 			}, 0);
 		}
 
-		removeEventListener(type: string, callback: CallbackFn) {}
+		removeEventListener(type: string, callback: CallbackFn) { }
 
-		close() {}
+		close() { }
 	} as unknown as typeof window.WebSocket;
 
 	return <Story />;

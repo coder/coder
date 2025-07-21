@@ -31,7 +31,9 @@ const advancedOptions = [
 
 const ComboboxWithHooks = ({
 	options = advancedOptions,
-}: { options?: React.ComponentProps<typeof Combobox>["options"] }) => {
+}: {
+	options?: React.ComponentProps<typeof Combobox>["options"];
+}) => {
 	const [value, setValue] = useState("");
 	const [open, setOpen] = useState(false);
 	const [inputValue, setInputValue] = useState("");

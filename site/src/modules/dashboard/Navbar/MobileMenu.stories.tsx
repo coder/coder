@@ -135,7 +135,9 @@ function setupUser() {
 
 async function openAdminSettings({
 	canvasElement,
-}: { canvasElement: HTMLElement }) {
+}: {
+	canvasElement: HTMLElement;
+}) {
 	const user = setupUser();
 	const body = within(canvasElement.ownerDocument.body);
 	const menuItem = await body.findByRole("menuitem", {

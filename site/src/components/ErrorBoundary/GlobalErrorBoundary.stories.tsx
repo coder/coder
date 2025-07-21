@@ -80,7 +80,7 @@ export const ReactRouterErrorResponse: Story = {
 
 export const UnparsableError: Story = {
 	args: {
-		error: class WellThisIsDefinitelyWrong { },
+		error: class WellThisIsDefinitelyWrong {},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
