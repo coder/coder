@@ -411,23 +411,27 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 		}
 
 		case "slider":
+			const numericValue = Number.isFinite(Number(localValue)) ? Number(localValue) : 0;
+			const {
+				validation_min: min = 0,
+				validation_max: max = 100,
+			} = parameter.validations[0] ?? {};
+
 			return (
 				<div className="flex flex-row items-baseline gap-3">
 					<Slider
 						id={id}
 						className="mt-2"
-						value={[
-							Number.isFinite(Number(localValue)) ? Number(localValue) : 0,
-						]}
+						value={[numericValue]}
 						onValueChange={([value]) => {
 							setLocalValue(value.toString());
 						}}
-						min={parameter.validations[0]?.validation_min ?? 0}
-						max={parameter.validations[0]?.validation_max ?? 100}
+						min={min ?? undefined}
+						max={max ?? undefined}
 						disabled={disabled}
 					/>
 					<span className="w-4 font-medium">
-						{Number.isFinite(Number(localValue)) ? localValue : "0"}
+						{numericValue}
 					</span>
 				</div>
 			);
