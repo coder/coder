@@ -54,6 +54,8 @@ func (api *API) templateVersionPresets(rw http.ResponseWriter, r *http.Request) 
 			Name:                     preset.Name,
 			Default:                  preset.IsDefault,
 			DesiredPrebuildInstances: convertPrebuildInstances(preset.DesiredInstances),
+			Description:              preset.Description,
+			Icon:                     preset.Icon,
 		}
 		for _, presetParam := range presetParams {
 			if presetParam.TemplateVersionPresetID != preset.ID {

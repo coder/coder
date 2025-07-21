@@ -2914,7 +2914,9 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
 [
   {
     "default": true,
+    "description": "string",
     "desiredPrebuildInstances": 0,
+    "icon": "string",
     "id": "string",
     "name": "string",
     "parameters": [
@@ -2941,7 +2943,9 @@ Status Code **200**
 |------------------------------|---------|----------|--------------|-------------|
 | `[array item]`               | array   | false    |              |             |
 | `» default`                  | boolean | false    |              |             |
+| `» description`              | string  | false    |              |             |
 | `» desiredPrebuildInstances` | integer | false    |              |             |
+| `» icon`                     | string  | false    |              |             |
 | `» id`                       | string  | false    |              |             |
 | `» name`                     | string  | false    |              |             |
 | `» parameters`               | array   | false    |              |             |
