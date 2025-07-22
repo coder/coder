@@ -34,11 +34,11 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 				<Stack alignItems="center" spacing={1}>
 					<Stack alignItems="center" spacing={0.5}>
 						<span css={styles.disabledTitle}>
-							Managed AI Agent Feature Disabled
+							Managed AI Agents Disabled
 						</span>
 						<span css={styles.disabledDescription}>
-							The managed AI agent feature is not included in your current
-							license. Contact{" "}
+							Managed AI agents are not included in your current license.
+							Contact{" "}
 							<MuiLink href="mailto:sales@coder.com">sales</MuiLink> to upgrade
 							your license and unlock this feature.
 						</span>
@@ -70,7 +70,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
                 `}
 							>
 								<ChevronRightIcon />
-								How we calculate managed agent consumption
+								How we calculate managed agents consumption
 							</Button>
 						</CollapsibleTrigger>
 					</header>
@@ -83,8 +83,8 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
             `}
 					>
 						<p>
-							Managed agents are counted based on the amount of started
-							workspaces with an AI agent.
+							Managed agents are counted based on the amount of successfully
+							started workspaces with an AI agent.
 						</p>
 						<ul>
 							<li className="flex items-center gap-2">
@@ -108,7 +108,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 								>
 									<div className="w-full border-b-1 border-t-1 border-dashed border-content-disabled" />
 								</div>
-								Total limit after which the feature will be disabled.
+								Total limit after which further AI workspace builds will be blocked.
 							</li>
 						</ul>
 					</CollapsibleContent>
@@ -138,7 +138,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 					/>
 				</div>
 
-				<div className="relative flex justify-between mt-4 text-sm">
+				<div className="relative hidden lg:flex justify-between mt-4 text-sm">
 					<div className="flex flex-col items-start">
 						<span className="text-content-secondary">Actual:</span>
 						<span className="font-medium">{usage.toLocaleString()}</span>
@@ -157,6 +157,23 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 					<div className="flex flex-col items-end">
 						<span className="text-content-secondary">Limit:</span>
 						<span className="font-medium">{limit.toLocaleString()}</span>
+					</div>
+				</div>
+
+				<div className="flex lg:hidden flex-col gap-3 mt-4 text-sm">
+					<div className="flex justify-between">
+						<div className="flex flex-col items-start">
+							<span className="text-content-secondary">Actual:</span>
+							<span className="font-medium">{usage.toLocaleString()}</span>
+						</div>
+						<div className="flex flex-col items-center">
+							<span className="text-content-secondary">Included:</span>
+							<span className="font-medium">{included.toLocaleString()}</span>
+						</div>
+						<div className="flex flex-col items-end">
+							<span className="text-content-secondary">Limit:</span>
+							<span className="font-medium">{limit.toLocaleString()}</span>
+						</div>
 					</div>
 				</div>
 			</div>

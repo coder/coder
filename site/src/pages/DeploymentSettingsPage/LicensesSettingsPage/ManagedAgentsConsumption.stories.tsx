@@ -43,8 +43,17 @@ export const LowUsage: Story = {
 	},
 };
 
+export const IncludedAtLimit: Story = {
+	args: {
+		usage: 25000,
+		included: 30500,
+		limit: 30500,
+	},
+};
+
 export const Disabled: Story = {
 	args: {
+		enabled: false,
 		usage: Number.NaN,
 		included: Number.NaN,
 		limit: Number.NaN,
