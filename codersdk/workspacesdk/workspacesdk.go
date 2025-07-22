@@ -380,7 +380,7 @@ func (c *Client) AgentReconnectingPTY(ctx context.Context, opts WorkspaceAgentRe
 			return nil, xerrors.Errorf("create cookie jar: %w", err)
 		}
 		jar.SetCookies(serverURL, []*http.Cookie{{
-			Name:  codersdk.SessionTokenCookie,
+			Name:  codersdk.GetSessionTokenCookie(),
 			Value: c.client.SessionToken(),
 		}})
 		httpClient = &http.Client{

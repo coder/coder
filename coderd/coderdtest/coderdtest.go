@@ -1333,7 +1333,7 @@ func RequestExternalAuthCallback(t testing.TB, providerID string, client *coders
 		Value: state,
 	})
 	req.AddCookie(&http.Cookie{
-		Name:  codersdk.SessionTokenCookie,
+		Name:  codersdk.GetSessionTokenCookie(),
 		Value: client.SessionToken(),
 	})
 	for _, opt := range opts {

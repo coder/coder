@@ -261,7 +261,7 @@ func appServer(t *testing.T, headers http.Header, isHTTPS bool) uint16 {
 	server := httptest.NewUnstartedServer(
 		http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
-				_, err := r.Cookie(codersdk.SessionTokenCookie)
+				_, err := r.Cookie(codersdk.GetSessionTokenCookie())
 				assert.ErrorIs(t, err, http.ErrNoCookie)
 				w.Header().Set("X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
 				w.Header().Set("X-Got-Host", r.Host)

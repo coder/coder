@@ -2476,7 +2476,7 @@ func i64ptr(i int64) *int64 {
 
 func authCookieValue(cookies []*http.Cookie) string {
 	for _, cookie := range cookies {
-		if cookie.Name == codersdk.SessionTokenCookie {
+		if cookie.Name == codersdk.GetSessionTokenCookie() {
 			return cookie.Value
 		}
 	}

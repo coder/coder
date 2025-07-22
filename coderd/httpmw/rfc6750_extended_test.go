@@ -262,7 +262,7 @@ func TestOAuth2BearerTokenPrecedence(t *testing.T) {
 		req := httptest.NewRequest("GET", "/test", nil)
 		// Set both cookie and Bearer header - cookie should take precedence
 		req.AddCookie(&http.Cookie{
-			Name:  codersdk.SessionTokenCookie,
+			Name:  codersdk.GetSessionTokenCookie(),
 			Value: validToken,
 		})
 		req.Header.Set("Authorization", "Bearer invalid-token")
@@ -279,7 +279,7 @@ func TestOAuth2BearerTokenPrecedence(t *testing.T) {
 		// Set both query parameter and Bearer header - query should take precedence
 		u, _ := url.Parse("/test")
 		q := u.Query()
-		q.Set(codersdk.SessionTokenCookie, validToken)
+		q.Set(codersdk.GetSessionTokenCookie(), validToken)
 		u.RawQuery = q.Encode()
 
 		req := httptest.NewRequest("GET", u.String(), nil)
@@ -329,13 +329,13 @@ func TestOAuth2BearerTokenPrecedence(t *testing.T) {
 		u, _ := url.Parse("/test")
 		q := u.Query()
 		q.Set("access_token", validToken)
-		q.Set(codersdk.SessionTokenCookie, validToken)
+		q.Set(codersdk.GetSessionTokenCookie(), validToken)
 		u.RawQuery = q.Encode()
 
 		req := httptest.NewRequest("GET", u.String(), nil)
 		req.Header.Set("Authorization", "Bearer "+validToken)
 		req.AddCookie(&http.Cookie{
-			Name:  codersdk.SessionTokenCookie,
+			Name:  codersdk.GetSessionTokenCookie(),
 			Value: validToken,
 		})
 		rec := httptest.NewRecorder()

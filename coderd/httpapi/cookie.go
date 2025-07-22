@@ -20,7 +20,7 @@ func StripCoderCookies(header string) string {
 			continue
 		}
 		name, _, _ := strings.Cut(part, "=")
-		if name == codersdk.SessionTokenCookie ||
+		if name == codersdk.GetSessionTokenCookie() ||
 			name == codersdk.OAuth2StateCookie ||
 			name == codersdk.OAuth2RedirectCookie ||
 			name == codersdk.PathAppSessionTokenCookie ||

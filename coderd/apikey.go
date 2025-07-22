@@ -418,7 +418,7 @@ func (api *API) createAPIKey(ctx context.Context, params apikey.CreateParams) (*
 	})
 
 	return api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
-		Name:     codersdk.SessionTokenCookie,
+		Name:     codersdk.GetSessionTokenCookie(),
 		Value:    sessionToken,
 		Path:     "/",
 		HttpOnly: true,

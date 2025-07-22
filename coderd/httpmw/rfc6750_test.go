@@ -204,7 +204,7 @@ func TestAPITokenFromRequest(t *testing.T) {
 			name: "CookiePriorityOverBearer",
 			setupReq: func(req *http.Request) {
 				req.AddCookie(&http.Cookie{
-					Name:  codersdk.SessionTokenCookie,
+					Name:  codersdk.GetSessionTokenCookie(),
 					Value: cookieToken,
 				})
 				req.Header.Set("Authorization", "Bearer "+token)

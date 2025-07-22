@@ -78,7 +78,7 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 			tokenValue := APITokenFromRequest(r)
 			if tokenValue == "" {
 				optionalWrite(http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf("Cookie %q must be provided.", codersdk.SessionTokenCookie),
+					Message: fmt.Sprintf("Cookie %q must be provided.", codersdk.GetSessionTokenCookie()),
 				})
 				return
 			}

@@ -320,7 +320,7 @@ func TestAPIKey(t *testing.T) {
 			rw = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  codersdk.SessionTokenCookie,
+			Name:  codersdk.GetSessionTokenCookie(),
 			Value: token,
 		})
 
@@ -357,7 +357,7 @@ func TestAPIKey(t *testing.T) {
 			rw = httptest.NewRecorder()
 		)
 		q := r.URL.Query()
-		q.Add(codersdk.SessionTokenCookie, token)
+		q.Add(codersdk.GetSessionTokenCookie(), token)
 		r.URL.RawQuery = q.Encode()
 
 		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{

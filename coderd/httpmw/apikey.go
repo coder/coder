@@ -159,7 +159,7 @@ func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc 
 	if token == "" {
 		return nil, codersdk.Response{
 			Message: SignedOutErrorMessage,
-			Detail:  fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.SessionTokenCookie),
+			Detail:  fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.GetSessionTokenCookie()),
 		}, false
 	}
 
@@ -711,12 +711,12 @@ func APITokenFromRequest(r *http.Request) string {
 	// Prioritize existing Coder custom authentication methods first
 	// to maintain backward compatibility and existing behavior
 
-	cookie, err := r.Cookie(codersdk.SessionTokenCookie)
+	cookie, err := r.Cookie(codersdk.GetSessionTokenCookie())
 	if err == nil && cookie.Value != "" {
 		return cookie.Value
 	}
 
-	urlValue := r.URL.Query().Get(codersdk.SessionTokenCookie)
+	urlValue := r.URL.Query().Get(codersdk.GetSessionTokenCookie())
 	if urlValue != "" {
 		return urlValue
 	}
