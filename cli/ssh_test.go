@@ -542,7 +542,7 @@ func TestSSH(t *testing.T) {
 		keySeed, err := agent.SSHKeySeed(user.Username, workspace.Name, "dev")
 		assert.NoError(t, err)
 
-		signer, err := agentssh.CoderSigner(keySeed)
+		signer, err := agentssh.CoderSigner(keySeed, "rsa")
 		assert.NoError(t, err)
 
 		conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{

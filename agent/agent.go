@@ -82,6 +82,7 @@ type Options struct {
 	IgnorePorts                  map[int]string
 	PortCacheDuration            time.Duration
 	SSHMaxTimeout                time.Duration
+	SSHHostKeyAlgorithm          string
 	TailnetListenPort            uint16
 	Subsystems                   []codersdk.AgentSubsystem
 	PrometheusRegistry           *prometheus.Registry
@@ -186,6 +187,7 @@ func New(options Options) Agent {
 		reportMetadataInterval:             options.ReportMetadataInterval,
 		announcementBannersRefreshInterval: options.ServiceBannerRefreshInterval,
 		sshMaxTimeout:                      options.SSHMaxTimeout,
+		sshHostKeyAlgorithm:                options.SSHHostKeyAlgorithm,
 		subsystems:                         options.Subsystems,
 		logSender:                          agentsdk.NewLogSender(options.Logger),
 		blockFileTransfer:                  options.BlockFileTransfer,
@@ -257,6 +259,7 @@ type agent struct {
 	sessionToken                       atomic.Pointer[string]
 	sshServer                          *agentssh.Server
 	sshMaxTimeout                      time.Duration
+	sshHostKeyAlgorithm                string
 	blockFileTransfer                  bool
 
 	lifecycleUpdate            chan struct{}
@@ -292,6 +295,7 @@ func (a *agent) init() {
 	// pass the "hard" context because we explicitly close the SSH server as part of graceful shutdown.
 	sshSrv, err := agentssh.NewServer(a.hardCtx, a.logger.Named("ssh-server"), a.prometheusRegistry, a.filesystem, a.execer, &agentssh.Config{
 		MaxTimeout:          a.sshMaxTimeout,
+		HostKeyAlgorithm:    a.sshHostKeyAlgorithm,
 		MOTDFile:            func() string { return a.manifest.Load().MOTDFile },
 		AnnouncementBanners: func() *[]codersdk.BannerConfig { return a.announcementBanners.Load() },
 		UpdateEnv:           a.updateCommandEnv,
