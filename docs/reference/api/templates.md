@@ -2914,6 +2914,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
 [
   {
     "default": true,
+    "desiredPrebuildInstances": 0,
     "id": "string",
     "name": "string",
     "parameters": [
@@ -2921,8 +2922,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
         "name": "string",
         "value": "string"
       }
-    ],
-    "prebuilds": 0
+    ]
   }
 ]
 ```
@@ -2937,16 +2937,16 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
 
 Status Code **200**
 
-| Name           | Type    | Required | Restrictions | Description |
-|----------------|---------|----------|--------------|-------------|
-| `[array item]` | array   | false    |              |             |
-| `» default`    | boolean | false    |              |             |
-| `» id`         | string  | false    |              |             |
-| `» name`       | string  | false    |              |             |
-| `» parameters` | array   | false    |              |             |
-| `»» name`      | string  | false    |              |             |
-| `»» value`     | string  | false    |              |             |
-| `» prebuilds`  | integer | false    |              |             |
+| Name                         | Type    | Required | Restrictions | Description |
+|------------------------------|---------|----------|--------------|-------------|
+| `[array item]`               | array   | false    |              |             |
+| `» default`                  | boolean | false    |              |             |
+| `» desiredPrebuildInstances` | integer | false    |              |             |
+| `» id`                       | string  | false    |              |             |
+| `» name`                     | string  | false    |              |             |
+| `» parameters`               | array   | false    |              |             |
+| `»» name`                    | string  | false    |              |             |
+| `»» value`                   | string  | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

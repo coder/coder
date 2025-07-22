@@ -14826,6 +14826,9 @@ const docTemplate = `{
                 "default": {
                     "type": "boolean"
                 },
+                "desiredPrebuildInstances": {
+                    "type": "integer"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -14837,9 +14840,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.PresetParameter"
                     }
-                },
-                "prebuilds": {
-                    "type": "integer"
                 }
             }
         },

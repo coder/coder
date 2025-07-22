@@ -5461,6 +5461,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "default": true,
+  "desiredPrebuildInstances": 0,
   "id": "string",
   "name": "string",
   "parameters": [
@@ -5468,20 +5469,19 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "name": "string",
       "value": "string"
     }
-  ],
-  "prebuilds": 0
+  ]
 }
 ```
 
 ### Properties
 
-| Name         | Type                                                          | Required | Restrictions | Description |
-|--------------|---------------------------------------------------------------|----------|--------------|-------------|
-| `default`    | boolean                                                       | false    |              |             |
-| `id`         | string                                                        | false    |              |             |
-| `name`       | string                                                        | false    |              |             |
-| `parameters` | array of [codersdk.PresetParameter](#codersdkpresetparameter) | false    |              |             |
-| `prebuilds`  | integer                                                       | false    |              |             |
+| Name                       | Type                                                          | Required | Restrictions | Description |
+|----------------------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `default`                  | boolean                                                       | false    |              |             |
+| `desiredPrebuildInstances` | integer                                                       | false    |              |             |
+| `id`                       | string                                                        | false    |              |             |
+| `name`                     | string                                                        | false    |              |             |
+| `parameters`               | array of [codersdk.PresetParameter](#codersdkpresetparameter) | false    |              |             |
 
 ## codersdk.PresetParameter
 
