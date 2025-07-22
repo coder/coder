@@ -419,6 +419,10 @@ func (api *API) discover() {
 	if err := api.discoverDevcontainerProjects(); err != nil {
 		api.logger.Error(api.ctx, "discovering dev container projects", slog.Error(err))
 	}
+
+	if err := api.RefreshContainers(api.ctx); err != nil {
+		api.logger.Error(api.ctx, "refreshing containers after discovery", slog.Error(err))
+	}
 }
 
 func (api *API) discoverDevcontainerProjects() error {
