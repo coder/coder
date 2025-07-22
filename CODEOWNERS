@@ -15,5 +15,5 @@ coderd/files/ @aslilac
 coderd/rbac/ @Emyrk
 coderd/dynamicparameters/ @Emyrk
 
-# Mainly dependent on `coder/guts`, which is maintained by @Emyrk
+# Mainly dependent on coder/guts, which is maintained by @Emyrk
 scripts/apitypings/ @Emyrk
