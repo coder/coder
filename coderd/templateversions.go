@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -1585,7 +1586,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	var parsedTags map[string]string
 	var ok bool
 	if dynamicTemplate {
-		parsedTags, ok = api.dynamicTemplateVersionTags(ctx, rw, organization.ID, apiKey.UserID, file)
+		parsedTags, ok = api.dynamicTemplateVersionTags(ctx, rw, organization.ID, apiKey.UserID, file, req.UserVariableValues)
 		if !ok {
 			return
 		}
@@ -1762,7 +1763,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		warnings))
 }
 
-func (api *API) dynamicTemplateVersionTags(ctx context.Context, rw http.ResponseWriter, orgID uuid.UUID, owner uuid.UUID, file database.File) (map[string]string, bool) {
+func (api *API) dynamicTemplateVersionTags(ctx context.Context, rw http.ResponseWriter, orgID uuid.UUID, owner uuid.UUID, file database.File, templateVariables []codersdk.VariableValue) (map[string]string, bool) {
 	ownerData, err := dynamicparameters.WorkspaceOwner(ctx, api.Database, orgID, owner)
 	if err != nil {
 		if httpapi.Is404Error(err) {
@@ -1800,11 +1801,19 @@ func (api *API) dynamicTemplateVersionTags(ctx context.Context, rw http.Response
 		return nil, false
 	}
 
+	// Pass in any manually specified template variables as TFVars.
+	// TODO: Does this break if the type is not a string?
+	tfVarValues := make(map[string]cty.Value)
+	for _, variable := range templateVariables {
+		tfVarValues[variable.Name] = cty.StringVal(variable.Value)
+	}
+
 	output, diags := preview.Preview(ctx, preview.Input{
 		PlanJSON:        nil, // Template versions are before `terraform plan`
 		ParameterValues: nil, // No user-specified parameters
 		Owner:           *ownerData,
 		Logger:          stdslog.New(stdslog.DiscardHandler),
+		TFVars:          tfVarValues,
 	}, files)
 	tagErr := dynamicparameters.CheckTags(output, diags)
 	if tagErr != nil {

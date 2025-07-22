@@ -19,7 +19,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
@@ -43,7 +42,7 @@ func TestWorkspaceRewriteDERPMap(t *testing.T) {
 	}
 	parsed, err := url.Parse("https://coconuts.org:44558")
 	require.NoError(t, err)
-	client := agentsdk.New(parsed)
+	client := workspacesdk.New(codersdk.New(parsed))
 	client.RewriteDERPMap(dm)
 	region := dm.Regions[1]
 	require.True(t, region.EmbeddedRelay)

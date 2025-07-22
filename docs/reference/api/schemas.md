@@ -1044,12 +1044,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value       |
-|-------------|
-| `initiator` |
-| `autostart` |
-| `autostop`  |
-| `dormancy`  |
+| Value                  |
+|------------------------|
+| `initiator`            |
+| `autostart`            |
+| `autostop`             |
+| `dormancy`             |
+| `dashboard`            |
+| `cli`                  |
+| `ssh_connection`       |
+| `vscode_connection`    |
+| `jetbrains_connection` |
 
 ## codersdk.ChangePasswordWithOneTimePasscodeRequest
 
@@ -1689,6 +1694,24 @@ This is required on creation to enable a user-flow of validating a template work
 | `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant.                                          |
 | `username`         | string                                     | true     |              |                                                                                     |
 
+## codersdk.CreateWorkspaceBuildReason
+
+```json
+"dashboard"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                  |
+|------------------------|
+| `dashboard`            |
+| `cli`                  |
+| `ssh_connection`       |
+| `vscode_connection`    |
+| `jetbrains_connection` |
+
 ## codersdk.CreateWorkspaceBuildRequest
 
 ```json
@@ -1696,6 +1719,7 @@ This is required on creation to enable a user-flow of validating a template work
   "dry_run": true,
   "log_level": "debug",
   "orphan": true,
+  "reason": "dashboard",
   "rich_parameter_values": [
     {
       "name": "string",
@@ -1718,6 +1742,7 @@ This is required on creation to enable a user-flow of validating a template work
 | `dry_run`                    | boolean                                                                       | false    |              |                                                                                                                                                                                                               |
 | `log_level`                  | [codersdk.ProvisionerLogLevel](#codersdkprovisionerloglevel)                  | false    |              | Log level changes the default logging verbosity of a provider ("info" if empty).                                                                                                                              |
 | `orphan`                     | boolean                                                                       | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                                 |
+| `reason`                     | [codersdk.CreateWorkspaceBuildReason](#codersdkcreateworkspacebuildreason)    | false    |              | Reason sets the reason for the workspace build.                                                                                                                                                               |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
 | `state`                      | array of integer                                                              | false    |              |                                                                                                                                                                                                               |
 | `template_version_id`        | string                                                                        | false    |              |                                                                                                                                                                                                               |
@@ -1726,12 +1751,17 @@ This is required on creation to enable a user-flow of validating a template work
 
 #### Enumerated Values
 
-| Property     | Value    |
-|--------------|----------|
-| `log_level`  | `debug`  |
-| `transition` | `start`  |
-| `transition` | `stop`   |
-| `transition` | `delete` |
+| Property     | Value                  |
+|--------------|------------------------|
+| `log_level`  | `debug`                |
+| `reason`     | `dashboard`            |
+| `reason`     | `cli`                  |
+| `reason`     | `ssh_connection`       |
+| `reason`     | `vscode_connection`    |
+| `reason`     | `jetbrains_connection` |
+| `transition` | `start`                |
+| `transition` | `stop`                 |
+| `transition` | `delete`               |
 
 ## codersdk.CreateWorkspaceProxyRequest
 
@@ -3210,13 +3240,25 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "actual": 0,
       "enabled": true,
       "entitlement": "entitled",
-      "limit": 0
+      "limit": 0,
+      "soft_limit": 0,
+      "usage_period": {
+        "end": "2019-08-24T14:15:22Z",
+        "issued_at": "2019-08-24T14:15:22Z",
+        "start": "2019-08-24T14:15:22Z"
+      }
     },
     "property2": {
       "actual": 0,
       "enabled": true,
       "entitlement": "entitled",
-      "limit": 0
+      "limit": 0,
+      "soft_limit": 0,
+      "usage_period": {
+        "end": "2019-08-24T14:15:22Z",
+        "issued_at": "2019-08-24T14:15:22Z",
+        "start": "2019-08-24T14:15:22Z"
+      }
     }
   },
   "has_license": true,
@@ -3452,18 +3494,28 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "actual": 0,
   "enabled": true,
   "entitlement": "entitled",
-  "limit": 0
+  "limit": 0,
+  "soft_limit": 0,
+  "usage_period": {
+    "end": "2019-08-24T14:15:22Z",
+    "issued_at": "2019-08-24T14:15:22Z",
+    "start": "2019-08-24T14:15:22Z"
+  }
 }
 ```
 
 ### Properties
 
-| Name          | Type                                         | Required | Restrictions | Description |
-|---------------|----------------------------------------------|----------|--------------|-------------|
-| `actual`      | integer                                      | false    |              |             |
-| `enabled`     | boolean                                      | false    |              |             |
-| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |             |
-| `limit`       | integer                                      | false    |              |             |
+| Name          | Type                                         | Required | Restrictions | Description                                                                                                                                                                  |
+|---------------|----------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `actual`      | integer                                      | false    |              |                                                                                                                                                                              |
+| `enabled`     | boolean                                      | false    |              |                                                                                                                                                                              |
+| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |                                                                                                                                                                              |
+| `limit`       | integer                                      | false    |              |                                                                                                                                                                              |
+| `soft_limit`  | integer                                      | false    |              | Soft limit is the soft limit of the feature, and is only used for showing included limits in the dashboard. No license validation or warnings are generated from this value. |
+|`usage_period`|[codersdk.UsagePeriod](#codersdkusageperiod)|false||Usage period denotes that the usage is a counter that accumulates over this period (and most likely resets with the issuance of the next license).
+These dates are determined from the license that this entitlement comes from, see enterprise/coderd/license/license.go.
+Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ## codersdk.FriendlyDiagnostic
 
@@ -8201,6 +8253,24 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `jetbrains`        |
 | `reconnecting-pty` |
 | `ssh`              |
+
+## codersdk.UsagePeriod
+
+```json
+{
+  "end": "2019-08-24T14:15:22Z",
+  "issued_at": "2019-08-24T14:15:22Z",
+  "start": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name        | Type   | Required | Restrictions | Description |
+|-------------|--------|----------|--------------|-------------|
+| `end`       | string | false    |              |             |
+| `issued_at` | string | false    |              |             |
+| `start`     | string | false    |              |             |
 
 ## codersdk.User
 

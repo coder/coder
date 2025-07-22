@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
-	"strconv"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -27,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
+	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
 
@@ -126,40 +126,13 @@ type Script struct {
 	Script string `json:"script"`
 }
 
-// RewriteDERPMap rewrites the DERP map to use the access URL of the SDK as the
-// "embedded relay" access URL. The passed derp map is modified in place.
+// RewriteDERPMap rewrites the DERP map to use the configured access URL of the
+// agent as the "embedded relay" access URL.
 //
-// Agents can provide an arbitrary access URL that may be different that the
-// globally configured one. This breaks the built-in DERP, which would continue
-// to reference the global access URL.
+// See tailnet.RewriteDERPMapDefaultRelay for more details on why this is
+// necessary.
 func (c *Client) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
-	accessingPort := c.SDK.URL.Port()
-	if accessingPort == "" {
-		accessingPort = "80"
-		if c.SDK.URL.Scheme == "https" {
-			accessingPort = "443"
-		}
-	}
-	accessPort, err := strconv.Atoi(accessingPort)
-	if err != nil {
-		// this should never happen because URL.Port() returns the empty string if the port is not
-		// valid.
-		c.SDK.Logger().Critical(context.Background(), "failed to parse URL port", slog.F("port", accessingPort))
-	}
-	for _, region := range derpMap.Regions {
-		if !region.EmbeddedRelay {
-			continue
-		}
-
-		for _, node := range region.Nodes {
-			if node.STUNOnly {
-				continue
-			}
-			node.HostName = c.SDK.URL.Hostname()
-			node.DERPPort = accessPort
-			node.ForceHTTP = c.SDK.URL.Scheme == "http"
-		}
-	}
+	tailnet.RewriteDERPMapDefaultRelay(context.Background(), c.SDK.Logger(), derpMap, c.SDK.URL)
 }
 
 // ConnectRPC20 returns a dRPC client to the Agent API v2.0.  Notably, it is missing

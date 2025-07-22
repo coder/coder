@@ -12,5 +12,8 @@ vpn/version.go @spikecurtis @johnstcn
 # altering it.
 coderd/files/ @aslilac
 
+coderd/dynamicparameters/ @Emyrk
+coderd/rbac/ @Emyrk
 
-site/ @aslilac
+# Mainly dependent on coder/guts, which is maintained by @Emyrk
+scripts/apitypings/ @Emyrk
