@@ -110,7 +110,10 @@ const CreateWorkspacePage: FC = () => {
 		templatePermissionsQuery.isLoading ||
 		richParametersQuery.isLoading;
 	const loadFormDataError =
-		templateQuery.error ?? permissionsQuery.error ?? templatePermissionsQuery.error ?? richParametersQuery.error;
+		templateQuery.error ??
+		permissionsQuery.error ??
+		templatePermissionsQuery.error ??
+		richParametersQuery.error;
 
 	const title = autoCreateWorkspaceMutation.isPending
 		? "Creating workspace..."
@@ -226,7 +229,9 @@ const CreateWorkspacePage: FC = () => {
 					startPollingExternalAuth={startPollingExternalAuth}
 					hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
 					permissions={permissionsQuery.data as CreateWorkspacePermissions}
-					templatePermissions={templatePermissionsQuery.data as { canUpdateTemplate: boolean }}
+					templatePermissions={
+						templatePermissionsQuery.data as { canUpdateTemplate: boolean }
+					}
 					parameters={realizedParameters as TemplateVersionParameter[]}
 					presets={templateVersionPresetsQuery.data ?? []}
 					creatingWorkspace={createWorkspaceMutation.isPending}

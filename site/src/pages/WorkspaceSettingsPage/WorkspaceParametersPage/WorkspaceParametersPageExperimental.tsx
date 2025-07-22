@@ -261,7 +261,9 @@ const WorkspaceParametersPageExperimental: FC = () => {
 					message="This workspace has no parameters"
 					cta={
 						<Link
-							href={docs("/admin/templates/extending-templates/dynamic-parameters")}
+							href={docs(
+								"/admin/templates/extending-templates/dynamic-parameters",
+							)}
 						>
 							Learn more about parameters
 						</Link>
