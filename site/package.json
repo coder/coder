@@ -125,7 +125,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "1.9.4",
-		"@chromatic-com/storybook": "^4.0.1",
+		"@chromatic-com/storybook": "4.0.1",
 		"@octokit/types": "12.3.0",
 		"@playwright/test": "1.47.0",
 		"@storybook/addon-docs": "9.0.17",
@@ -191,7 +191,7 @@
 		"semver": "7.6.2"
 	},
 	"engines": {
-		"npm": ">=9.0.0 <10.0.0",
+		"pnpm": ">=9.0.0 <10.0.0",
 		"node": ">=18.0.0 <21.0.0"
 	},
 	"pnpm": {
