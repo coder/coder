@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"syscall"
@@ -17,8 +16,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
-	"github.com/coder/coder/v2/aibridged/util"
 )
 
 // isConnectionError checks if an error is related to client disconnection
@@ -69,13 +66,7 @@ func BasicSSESender(outerCtx context.Context, sessionID uuid.UUID, model string,
 					return
 				}
 
-				// TODO: https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/implement-tool-use#example-of-successful-tool-result see "Important formatting requirements"
-
-				// TODO: use logger, make configurable.
-				// _, _ = fmt.Fprintf(os.Stderr, "[%s] 	%s", sessionID, payload)
-				_, _ = os.Stderr.Write([]byte(fmt.Sprintf("[orig] %s\n[zero] %s\n[out] %s", ev.orig, ev.zero, ev.payload)))
-
-				_, err := w.Write(ev.payload)
+				_, err := w.Write(ev)
 				if err != nil {
 					if isConnectionError(err) {
 						logger.Debug(ctx, "client disconnected during SSE write", slog.Error(err))
@@ -105,17 +96,13 @@ func flush(w http.ResponseWriter) {
 }
 
 type EventStreamer interface {
-	TrySend(ctx context.Context, data any, input string, exclusions ...string) error
+	TrySend(ctx context.Context, data any) error
 	Events() <-chan event
 	Close(ctx context.Context) error
 	Closed() <-chan any
 }
 
-type event struct {
-	payload []byte
-	zero    []byte // Marshaling with zero-value elements omitted.
-	orig    string
-}
+type event []byte
 
 type eventStream struct {
 	eventsCh chan event
@@ -148,7 +135,7 @@ func (s *eventStream) Closed() <-chan any {
 	return s.closedCh
 }
 
-func (s *eventStream) TrySend(ctx context.Context, data any, input string, exclusions ...string) error {
+func (s *eventStream) TrySend(ctx context.Context, data any) error {
 	// Save an unnecessary marshaling if possible.
 	select {
 	case <-ctx.Done():
@@ -158,31 +145,15 @@ func (s *eventStream) TrySend(ctx context.Context, data any, input string, exclu
 	default:
 	}
 
-	var (
-		payload []byte
-		err     error
-	)
-	switch s.kind {
-	case openAIEventStream:
-		// https://github.com/openai/openai-go#request-fields
-		// I noticed that Cursor would bork if it received streaming response payloads which had zero values.
-		// I'm not sure if this is a Cursor-specific issue or more widespread, but I've vibed a marshaler which will filter
-		// out all the zero value objects in the response, with optional exclusions.
-		payload, err = util.MarshalNoZero(data, exclusions...)
-	default:
-		payload, err = json.Marshal(data)
-	}
-
-	zero, _ := util.MarshalNoZero(data, exclusions...)
-
+	payload, err := json.Marshal(data)
 	if err != nil {
 		return xerrors.Errorf("marshal payload: %w", err)
 	}
 
-	return s.send(ctx, payload, zero, input)
+	return s.send(ctx, payload)
 }
 
-func (s *eventStream) send(ctx context.Context, payload, zero []byte, input string) error {
+func (s *eventStream) send(ctx context.Context, payload []byte) error {
 	switch s.kind {
 	case openAIEventStream:
 		var buf bytes.Buffer
@@ -217,7 +188,7 @@ func (s *eventStream) send(ctx context.Context, payload, zero []byte, input stri
 		return ctx.Err()
 	case <-s.closedCh:
 		return xerrors.New("closed")
-	case s.eventsCh <- event{payload: payload, orig: input, zero: zero}:
+	case s.eventsCh <- payload:
 		return nil
 	}
 }
@@ -227,7 +198,7 @@ func (s *eventStream) Close(ctx context.Context) error {
 	s.closedOnce.Do(func() {
 		switch s.kind {
 		case openAIEventStream:
-			err := s.send(ctx, []byte("[DONE]"), nil, "")
+			err := s.send(ctx, []byte("[DONE]"))
 			if err != nil {
 				out = xerrors.Errorf("close stream: %w", err)
 			}
