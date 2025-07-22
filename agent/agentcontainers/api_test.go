@@ -3194,6 +3194,10 @@ func TestWithDevcontainersNameGeneration(t *testing.T) {
 func TestDevcontainerDiscovery(t *testing.T) {
 	t.Parallel()
 
+	if runtime.GOOS == "windows" {
+		t.Skip("Dev Container tests are not supported on Windows")
+	}
+
 	// We discover dev container projects by searching
 	// for git repositories at the agent's directory,
 	// and then recursively walking through these git
