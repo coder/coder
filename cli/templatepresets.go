@@ -105,8 +105,13 @@ func (r *RootCmd) templatePresetsList() *serpent.Command {
 					inv.Stdout,
 					"No presets found for template %q and template-version %q.\n", template.Name, version.Name,
 				)
+				return nil
 			}
 
+			cliui.Infof(
+				inv.Stdout,
+				"Showing presets for template %q and template version %q.\n", template.Name, version.Name,
+			)
 			rows := templatePresetsToRows(presets...)
 			out, err := formatter.Format(inv.Context(), rows)
 			if err != nil {

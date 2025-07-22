@@ -4,17 +4,15 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/testutil"
-
-	"github.com/coder/coder/v2/provisioner/echo"
-	"github.com/coder/coder/v2/provisionersdk/proto"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestTemplatePresets(t *testing.T) {
@@ -114,6 +112,8 @@ func TestTemplatePresets(t *testing.T) {
 		require.NoError(t, runErr)
 
 		// Should: return the active version's presets sorted by name
+		message := fmt.Sprintf("Showing presets for template %q and template version %q.", template.Name, version.Name)
+		pty.ExpectMatch(message)
 		pty.ExpectRegexMatch(`preset-default\s+k1=v2\s+true\s+0`)
 		// The parameter order is not guaranteed in the output, so we match both possible orders
 		pty.ExpectRegexMatch(`preset-multiple-params\s+(k1=v1,k2=v2)|(k2=v2,k1=v1)\s+false\s+-`)
@@ -203,6 +203,8 @@ func TestTemplatePresets(t *testing.T) {
 		require.NoError(t, runErr)
 
 		// Should: return the specified version's presets sorted by name
+		message := fmt.Sprintf("Showing presets for template %q and template version %q.", template.Name, version.Name)
+		pty.ExpectMatch(message)
 		pty.ExpectRegexMatch(`preset-default\s+k1=v2\s+true\s+0`)
 		// The parameter order is not guaranteed in the output, so we match both possible orders
 		pty.ExpectRegexMatch(`preset-multiple-params\s+(k1=v1,k2=v2)|(k2=v2,k1=v1)\s+false\s+-`)
