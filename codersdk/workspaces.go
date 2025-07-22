@@ -66,6 +66,12 @@ type Workspace struct {
 	AllowRenames     bool             `json:"allow_renames"`
 	Favorite         bool             `json:"favorite"`
 	NextStartAt      *time.Time       `json:"next_start_at" format:"date-time"`
+	// IsPrebuild indicates whether the workspace is a prebuilt workspace.
+	// Prebuilt workspaces are owned by the prebuilds system user and have specific behavior,
+	// such as being managed differently from regular workspaces.
+	// Once a prebuilt workspace is claimed by a user, it transitions to a regular workspace,
+	// and IsPrebuild returns false.
+	IsPrebuild bool `json:"is_prebuild"`
 }
 
 func (w Workspace) FullName() string {

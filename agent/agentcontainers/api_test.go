@@ -358,14 +358,21 @@ func TestAPI(t *testing.T) {
 			fakeCLI    = &fakeContainerCLI{
 				listErr: firstErr,
 			}
+			fWatcher = newFakeWatcher(t)
 		)
 
 		api := agentcontainers.NewAPI(logger,
+			agentcontainers.WithWatcher(fWatcher),
 			agentcontainers.WithClock(mClock),
 			agentcontainers.WithContainerCLI(fakeCLI),
 		)
 		api.Start()
 		defer api.Close()
+
+		// The watcherLoop writes a log when it is initialized.
+		// We want to ensure this has happened before we start
+		// the test so that it does not intefere.
+		fWatcher.waitNext(ctx)
 
 		// Make sure the ticker function has been registered
 		// before advancing the clock.

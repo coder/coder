@@ -337,7 +337,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	transition := database.WorkspaceTransition(createBuild.Transition)
-	builder := wsbuilder.New(workspace, transition).
+	builder := wsbuilder.New(workspace, transition, *api.BuildUsageChecker.Load()).
 		Initiator(apiKey.UserID).
 		RichParameterValues(createBuild.RichParameterValues).
 		LogLevel(string(createBuild.LogLevel)).

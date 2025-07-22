@@ -4286,6 +4286,44 @@ func (q *sqlQuerier) GetLicenses(ctx context.Context) ([]License, error) {
 	return items, nil
 }
 
+const getManagedAgentCount = `-- name: GetManagedAgentCount :one
+SELECT
+	COUNT(DISTINCT wb.id) AS count
+FROM
+	workspace_builds AS wb
+JOIN
+	provisioner_jobs AS pj
+ON
+	wb.job_id = pj.id
+WHERE
+	wb.transition = 'start'::workspace_transition
+	AND wb.has_ai_task = true
+	-- Only count jobs that are pending, running or succeeded. Other statuses
+	-- like cancel(ed|ing), failed or unknown are not considered as managed
+	-- agent usage. These workspace builds are typically unusable anyway.
+	AND pj.job_status IN (
+		'pending'::provisioner_job_status,
+		'running'::provisioner_job_status,
+		'succeeded'::provisioner_job_status
+	)
+	-- Jobs are counted at the time they are created, not when they are
+	-- completed, as pending jobs haven't completed yet.
+	AND wb.created_at BETWEEN $1::timestamptz AND $2::timestamptz
+`
+
+type GetManagedAgentCountParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+// This isn't strictly a license query, but it's related to license enforcement.
+func (q *sqlQuerier) GetManagedAgentCount(ctx context.Context, arg GetManagedAgentCountParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getManagedAgentCount, arg.StartTime, arg.EndTime)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getUnexpiredLicenses = `-- name: GetUnexpiredLicenses :many
 SELECT id, uploaded_at, jwt, exp, uuid
 FROM licenses
@@ -7361,63 +7399,6 @@ func (q *sqlQuerier) GetPresetsBackoff(ctx context.Context, lookback time.Time) 
 }
 
 const getRunningPrebuiltWorkspaces = `-- name: GetRunningPrebuiltWorkspaces :many
-SELECT
-		p.id,
-		p.name,
-		p.template_id,
-		b.template_version_id,
-		p.current_preset_id AS current_preset_id,
-		p.ready,
-		p.created_at
-FROM workspace_prebuilds p
-		INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
-WHERE (b.transition = 'start'::workspace_transition
-	AND b.job_status = 'succeeded'::provisioner_job_status)
-ORDER BY p.id
-`
-
-type GetRunningPrebuiltWorkspacesRow struct {
-	ID                uuid.UUID     `db:"id" json:"id"`
-	Name              string        `db:"name" json:"name"`
-	TemplateID        uuid.UUID     `db:"template_id" json:"template_id"`
-	TemplateVersionID uuid.UUID     `db:"template_version_id" json:"template_version_id"`
-	CurrentPresetID   uuid.NullUUID `db:"current_preset_id" json:"current_preset_id"`
-	Ready             bool          `db:"ready" json:"ready"`
-	CreatedAt         time.Time     `db:"created_at" json:"created_at"`
-}
-
-func (q *sqlQuerier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRunningPrebuiltWorkspacesRow, error) {
-	rows, err := q.db.QueryContext(ctx, getRunningPrebuiltWorkspaces)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetRunningPrebuiltWorkspacesRow
-	for rows.Next() {
-		var i GetRunningPrebuiltWorkspacesRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.TemplateID,
-			&i.TemplateVersionID,
-			&i.CurrentPresetID,
-			&i.Ready,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getRunningPrebuiltWorkspacesOptimized = `-- name: GetRunningPrebuiltWorkspacesOptimized :many
 WITH latest_prebuilds AS (
 	-- All workspaces that match the following criteria:
 	-- 1. Owned by prebuilds user
@@ -7476,7 +7457,7 @@ LEFT JOIN workspace_latest_presets ON workspace_latest_presets.workspace_id = la
 ORDER BY latest_prebuilds.id
 `
 
-type GetRunningPrebuiltWorkspacesOptimizedRow struct {
+type GetRunningPrebuiltWorkspacesRow struct {
 	ID                uuid.UUID     `db:"id" json:"id"`
 	Name              string        `db:"name" json:"name"`
 	TemplateID        uuid.UUID     `db:"template_id" json:"template_id"`
@@ -7486,15 +7467,15 @@ type GetRunningPrebuiltWorkspacesOptimizedRow struct {
 	CreatedAt         time.Time     `db:"created_at" json:"created_at"`
 }
 
-func (q *sqlQuerier) GetRunningPrebuiltWorkspacesOptimized(ctx context.Context) ([]GetRunningPrebuiltWorkspacesOptimizedRow, error) {
-	rows, err := q.db.QueryContext(ctx, getRunningPrebuiltWorkspacesOptimized)
+func (q *sqlQuerier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRunningPrebuiltWorkspacesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getRunningPrebuiltWorkspaces)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetRunningPrebuiltWorkspacesOptimizedRow
+	var items []GetRunningPrebuiltWorkspacesRow
 	for rows.Next() {
-		var i GetRunningPrebuiltWorkspacesOptimizedRow
+		var i GetRunningPrebuiltWorkspacesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,

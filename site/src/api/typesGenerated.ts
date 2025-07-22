@@ -1011,6 +1011,8 @@ export interface Feature {
 	readonly enabled: boolean;
 	readonly limit?: number;
 	readonly actual?: number;
+	readonly soft_limit?: number;
+	readonly usage_period?: UsagePeriod;
 }
 
 // From codersdk/deployment.go
@@ -1026,6 +1028,7 @@ export type FeatureName =
 	| "external_provisioner_daemons"
 	| "external_token_encryption"
 	| "high_availability"
+	| "managed_agent_limit"
 	| "multiple_external_auth"
 	| "multiple_organizations"
 	| "scim"
@@ -1048,6 +1051,7 @@ export const FeatureNames: FeatureName[] = [
 	"external_provisioner_daemons",
 	"external_token_encryption",
 	"high_availability",
+	"managed_agent_limit",
 	"multiple_external_auth",
 	"multiple_organizations",
 	"scim",
@@ -3269,6 +3273,13 @@ export const UsageAppNames: UsageAppName[] = [
 	"vscode",
 ];
 
+// From codersdk/deployment.go
+export interface UsagePeriod {
+	readonly issued_at: string;
+	readonly start: string;
+	readonly end: string;
+}
+
 // From codersdk/users.go
 export interface User extends ReducedUser {
 	readonly organization_ids: readonly string[];
@@ -3479,6 +3490,7 @@ export interface Workspace {
 	readonly allow_renames: boolean;
 	readonly favorite: boolean;
 	readonly next_start_at: string | null;
+	readonly is_prebuild: boolean;
 }
 
 // From codersdk/workspaceagents.go
