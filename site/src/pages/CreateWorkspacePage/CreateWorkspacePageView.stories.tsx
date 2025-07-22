@@ -31,6 +31,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 			canUpdateTemplate: false,
 		},
 		onCancel: action("onCancel"),
+		templatePermissions: { canUpdateTemplate: true },
 	},
 };
 
