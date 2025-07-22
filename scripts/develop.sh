@@ -14,6 +14,7 @@ source "${SCRIPT_DIR}/lib.sh"
 set -euo pipefail
 
 CODER_DEV_ACCESS_URL="${CODER_DEV_ACCESS_URL:-http://127.0.0.1:3000}"
+CODER_DEV_SESSION_TOKEN_COOKIE_PREFIX="${CODER_DEV_SESSION_TOKEN_COOKIE_PREFIX:-dev}"
 debug=0
 DEFAULT_PASSWORD="SomeSecurePassword!"
 password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
@@ -150,7 +151,7 @@ fatal() {
 	trap 'fatal "Script encountered an error"' ERR
 
 	cdroot
-	DEBUG_DELVE="${debug}" start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "${CODER_DEV_ACCESS_URL}" --dangerous-allow-cors-requests=true --enable-terraform-debug-mode "$@"
+	DEBUG_DELVE="${debug}" CODER_DEV_SESSION_TOKEN_COOKIE_PREFIX="${CODER_DEV_SESSION_TOKEN_COOKIE_PREFIX}" start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "${CODER_DEV_ACCESS_URL}" --dangerous-allow-cors-requests=true --enable-terraform-debug-mode "$@"
 
 	echo '== Waiting for Coder to become ready'
 	# Start the timeout in the background so interrupting this script
