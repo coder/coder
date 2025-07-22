@@ -39,7 +39,7 @@ func (api *API) templateVersionPresets(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	getPrebuildInstances := func(desiredInstances sql.NullInt32) *int {
+	convertPrebuildInstances := func(desiredInstances sql.NullInt32) *int {
 		if desiredInstances.Valid {
 			value := int(desiredInstances.Int32)
 			return &value
@@ -50,10 +50,10 @@ func (api *API) templateVersionPresets(rw http.ResponseWriter, r *http.Request) 
 	var res []codersdk.Preset
 	for _, preset := range presets {
 		sdkPreset := codersdk.Preset{
-			ID:        preset.ID,
-			Name:      preset.Name,
-			Default:   preset.IsDefault,
-			Prebuilds: getPrebuildInstances(preset.DesiredInstances),
+			ID:                       preset.ID,
+			Name:                     preset.Name,
+			Default:                  preset.IsDefault,
+			DesiredPrebuildInstances: convertPrebuildInstances(preset.DesiredInstances),
 		}
 		for _, presetParam := range presetParams {
 			if presetParam.TemplateVersionPresetID != preset.ID {

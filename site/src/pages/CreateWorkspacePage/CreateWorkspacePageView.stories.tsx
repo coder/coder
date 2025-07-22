@@ -132,7 +132,7 @@ export const PresetsButNoneSelected: Story = {
 						Value: "preset 1 override",
 					},
 				],
-				Prebuilds: null,
+				DesiredPrebuildInstances: null,
 			},
 			{
 				ID: "preset-2",
@@ -144,7 +144,7 @@ export const PresetsButNoneSelected: Story = {
 						Value: "42",
 					},
 				],
-				Prebuilds: null,
+				DesiredPrebuildInstances: null,
 			},
 		],
 		parameters: [
@@ -258,7 +258,7 @@ export const PresetsWithDefault: Story = {
 						Value: "preset 1 override",
 					},
 				],
-				Prebuilds: null,
+				DesiredPrebuildInstances: null,
 			},
 			{
 				ID: "preset-2",
@@ -270,7 +270,7 @@ export const PresetsWithDefault: Story = {
 						Value: "150189",
 					},
 				],
-				Prebuilds: null,
+				DesiredPrebuildInstances: null,
 			},
 		],
 		parameters: [

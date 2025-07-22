@@ -101,7 +101,7 @@ func TestTemplateVersionPresets(t *testing.T) {
 		inv, root := clitest.New(t, "templates", "versions", "presets", "list", template.Name, version.Name)
 		clitest.SetupConfig(t, member, root)
 
-		ptytest.New(t).Attach(inv)
+		pty := ptytest.New(t).Attach(inv)
 		doneChan := make(chan struct{})
 		var runErr error
 		go func() {
@@ -109,15 +109,11 @@ func TestTemplateVersionPresets(t *testing.T) {
 			runErr = inv.Run()
 		}()
 		<-doneChan
+		require.NoError(t, runErr)
 
-		// Should return an error when no presets are found for the given template and version.
-		require.Error(t, runErr)
-		expectedErr := fmt.Sprintf(
-			"no presets found for template %q and template-version %q",
-			template.Name,
-			version.Name,
-		)
-		require.Contains(t, runErr.Error(), expectedErr)
+		// Should return a message when no presets are found for the given template and version.
+		notFoundMessage := fmt.Sprintf("No presets found for template %q and template-version %q.", template.Name, version.Name)
+		pty.ExpectRegexMatch(notFoundMessage)
 	})
 }
 

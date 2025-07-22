@@ -39,7 +39,7 @@ func (r *RootCmd) templateVersionPresetsList() *serpent.Command {
 		"name",
 		"parameters",
 		"default",
-		"prebuilds",
+		"desired prebuild instances",
 	}
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]templateVersionPresetRow{}, defaultColumns),
@@ -78,7 +78,10 @@ func (r *RootCmd) templateVersionPresetsList() *serpent.Command {
 			}
 
 			if len(presets) == 0 {
-				return xerrors.Errorf("no presets found for template %q and template-version %q", template.Name, version.Name)
+				cliui.Infof(
+					inv.Stdout,
+					"No presets found for template %q and template-version %q.\n", template.Name, version.Name,
+				)
 			}
 
 			rows := templateVersionPresetsToRows(presets...)
@@ -102,10 +105,10 @@ type templateVersionPresetRow struct {
 	TemplateVersionPreset codersdk.Preset `table:"-"`
 
 	// For table format:
-	Name       string `json:"-" table:"name,default_sort"`
-	Parameters string `json:"-" table:"parameters"`
-	Default    bool   `json:"-" table:"default"`
-	Prebuilds  string `json:"-" table:"prebuilds"`
+	Name                     string `json:"-" table:"name,default_sort"`
+	Parameters               string `json:"-" table:"parameters"`
+	Default                  bool   `json:"-" table:"default"`
+	DesiredPrebuildInstances string `json:"-" table:"desired prebuild instances"`
 }
 
 func formatPresetParameters(params []codersdk.PresetParameter) string {
@@ -121,15 +124,15 @@ func formatPresetParameters(params []codersdk.PresetParameter) string {
 func templateVersionPresetsToRows(presets ...codersdk.Preset) []templateVersionPresetRow {
 	rows := make([]templateVersionPresetRow, len(presets))
 	for i, preset := range presets {
-		prebuilds := "-"
-		if preset.Prebuilds != nil {
-			prebuilds = strconv.Itoa(*preset.Prebuilds)
+		prebuildInstances := "-"
+		if preset.DesiredPrebuildInstances != nil {
+			prebuildInstances = strconv.Itoa(*preset.DesiredPrebuildInstances)
 		}
 		rows[i] = templateVersionPresetRow{
-			Name:       preset.Name,
-			Parameters: formatPresetParameters(preset.Parameters),
-			Default:    preset.Default,
-			Prebuilds:  prebuilds,
+			Name:                     preset.Name,
+			Parameters:               formatPresetParameters(preset.Parameters),
+			Default:                  preset.Default,
+			DesiredPrebuildInstances: prebuildInstances,
 		}
 	}
 
