@@ -90,13 +90,9 @@ func TestPostFiles(t *testing.T) {
 				end.Done()
 				require.NoError(t, err)
 			}()
-
 		}
 		wg.Done()
 		end.Wait()
-
-		// _, err = client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(data))
-		// require.NoError(t, err)
 	})
 }
 
