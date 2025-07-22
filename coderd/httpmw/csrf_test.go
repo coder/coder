@@ -63,7 +63,7 @@ func TestCSRFExemptList(t *testing.T) {
 			r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, c.URL, nil)
 			require.NoError(t, err)
 
-			r.AddCookie(&http.Cookie{Name: codersdk.GetSessionTokenCookie(), Value: "test"})
+			r.AddCookie(&http.Cookie{Name: codersdk.SessionTokenCookie, Value: "test"})
 			exempt := csrfmw.IsExempt(r)
 			require.Equal(t, c.Exempt, exempt)
 		})
@@ -96,7 +96,7 @@ func TestCSRFError(t *testing.T) {
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, urlPath, nil)
 		require.NoError(t, err)
 
-		req.AddCookie(&http.Cookie{Name: codersdk.GetSessionTokenCookie(), Value: "session_token_value"})
+		req.AddCookie(&http.Cookie{Name: codersdk.SessionTokenCookie, Value: "session_token_value"})
 		req.AddCookie(&http.Cookie{Name: nosurf.CookieName, Value: csrfCookieValue})
 		req.Header.Add(nosurf.HeaderName, csrfHeaderValue)
 
@@ -113,7 +113,7 @@ func TestCSRFError(t *testing.T) {
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, urlPath, nil)
 		require.NoError(t, err)
 
-		req.AddCookie(&http.Cookie{Name: codersdk.GetSessionTokenCookie(), Value: "session_token_value"})
+		req.AddCookie(&http.Cookie{Name: codersdk.SessionTokenCookie, Value: "session_token_value"})
 		req.AddCookie(&http.Cookie{Name: nosurf.CookieName, Value: csrfCookieValue})
 
 		rec := httptest.NewRecorder()
@@ -132,7 +132,7 @@ func TestCSRFError(t *testing.T) {
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, urlPath, nil)
 		require.NoError(t, err)
 
-		req.AddCookie(&http.Cookie{Name: codersdk.GetSessionTokenCookie(), Value: "session_token_value"})
+		req.AddCookie(&http.Cookie{Name: codersdk.SessionTokenCookie, Value: "session_token_value"})
 		req.AddCookie(&http.Cookie{Name: nosurf.CookieName, Value: csrfCookieValue})
 		req.Header.Add(codersdk.SessionTokenHeader, "mismatched_value")
 

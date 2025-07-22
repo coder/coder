@@ -702,7 +702,7 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	cookie := &http.Cookie{
 		// MaxAge < 0 means to delete the cookie now.
 		MaxAge: -1,
-		Name:   codersdk.GetSessionTokenCookie(),
+		Name:   codersdk.SessionTokenCookie,
 		Path:   "/",
 	}
 	http.SetCookie(rw, cookie)
@@ -1914,7 +1914,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			)
 		}
 		cookies = append(cookies, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
-			Name:     codersdk.GetSessionTokenCookie(),
+			Name:     codersdk.SessionTokenCookie,
 			Path:     "/",
 			MaxAge:   -1,
 			HttpOnly: true,

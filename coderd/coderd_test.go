@@ -373,7 +373,7 @@ func TestCSRFExempt(t *testing.T) {
 		u := client.URL.JoinPath(fmt.Sprintf("/@%s/%s.%s/apps/%s", owner.Username, wrk.Workspace.Name, agentSlug, appSlug)).String()
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, nil)
 		req.AddCookie(&http.Cookie{
-			Name:   codersdk.GetSessionTokenCookie(),
+			Name:   codersdk.SessionTokenCookie,
 			Value:  client.SessionToken(),
 			Path:   "/",
 			Domain: client.URL.String(),

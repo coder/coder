@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 
@@ -21,7 +20,6 @@ import (
 	"go.opentelemetry.io/otel/semconv/v1.14.0/httpconv"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/websocket"
 
@@ -32,10 +30,7 @@ import (
 // shouldn't be likely to conflict with any user-application set cookies.
 // Be sure to strip additional cookies in httpapi.StripCoderCookies!
 const (
-	// SessionTokenCookie represents the name of the cookie or query parameter in
-	// which the API key is stored.
-	// DEVELOPER NOTE: Please avoid referencing this value directly and use
-	// GetSessionTokenCookie() instead.
+	// SessionTokenCookie represents the name of the cookie or query parameter the API key is stored in.
 	SessionTokenCookie = "coder_session_token"
 	// SessionTokenHeader is the custom header to use for authentication.
 	SessionTokenHeader = "Coder-Session-Token"
@@ -98,22 +93,6 @@ const (
 	// EntitlementsWarnings contains active warnings for the user's entitlements.
 	EntitlementsWarningHeader = "X-Coder-Entitlements-Warning"
 )
-
-// GetSessionTokenCookie returns the name of the session token cookie.
-// In almost all production cases, this will just be SessionTokenCookie.
-// However, when developing inside a Coder workspace and accessing the UI
-// proxied through a Coder deployment, we need to prefix the cookie name
-// to avoid conflicting with the "parent" deployment. The prefix is controlled
-// by the CODER_DEV_SESSION_TOKEN_COOKIE_PREFIX environment variable, and only
-// applies in development builds.
-func GetSessionTokenCookie() string {
-	if buildinfo.IsDev() {
-		if pfx, found := os.LookupEnv("CODER_DEV_SESSION_TOKEN_COOKIE_PREFIX"); found && pfx != "" {
-			return pfx + "_" + SessionTokenCookie
-		}
-	}
-	return SessionTokenCookie
-}
 
 // loggableMimeTypes is a list of MIME types that are safe to log
 // the output of. This is useful for debugging or testing.

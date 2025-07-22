@@ -262,7 +262,7 @@ func (c *Client) connectRPCVersion(ctx context.Context, version *apiversion.APIV
 		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(rpcURL, []*http.Cookie{{
-		Name:  codersdk.GetSessionTokenCookie(),
+		Name:  codersdk.SessionTokenCookie,
 		Value: c.SDK.SessionToken(),
 	}})
 	httpClient := &http.Client{
@@ -705,7 +705,7 @@ func (c *Client) WaitForReinit(ctx context.Context) (*ReinitializationEvent, err
 		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(rpcURL, []*http.Cookie{{
-		Name:  codersdk.GetSessionTokenCookie(),
+		Name:  codersdk.SessionTokenCookie,
 		Value: c.SDK.SessionToken(),
 	}})
 	httpClient := &http.Client{

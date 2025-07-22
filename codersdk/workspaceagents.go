@@ -545,7 +545,7 @@ func (c *Client) WatchWorkspaceAgentContainers(ctx context.Context, agentID uuid
 	}
 
 	jar.SetCookies(reqURL, []*http.Cookie{{
-		Name:  GetSessionTokenCookie(),
+		Name:  SessionTokenCookie,
 		Value: c.SessionToken(),
 	}})
 
@@ -630,7 +630,7 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(reqURL, []*http.Cookie{{
-		Name:  GetSessionTokenCookie(),
+		Name:  SessionTokenCookie,
 		Value: c.SessionToken(),
 	}})
 	httpClient := &http.Client{

@@ -215,7 +215,7 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(followURL, []*http.Cookie{{
-		Name:  GetSessionTokenCookie(),
+		Name:  SessionTokenCookie,
 		Value: c.SessionToken(),
 	}})
 	httpClient := &http.Client{
@@ -302,7 +302,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 			return nil, xerrors.Errorf("create cookie jar: %w", err)
 		}
 		jar.SetCookies(serverURL, []*http.Cookie{{
-			Name:  GetSessionTokenCookie(),
+			Name:  SessionTokenCookie,
 			Value: c.SessionToken(),
 		}})
 		httpClient.Jar = jar

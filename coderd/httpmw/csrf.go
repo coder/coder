@@ -21,7 +21,7 @@ func CSRF(cookieCfg codersdk.HTTPCookieConfig) func(next http.Handler) http.Hand
 		mw := nosurf.New(next)
 		mw.SetBaseCookie(*cookieCfg.Apply(&http.Cookie{Path: "/", HttpOnly: true}))
 		mw.SetFailureHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			sessCookie, err := r.Cookie(codersdk.GetSessionTokenCookie())
+			sessCookie, err := r.Cookie(codersdk.SessionTokenCookie)
 			if err == nil &&
 				r.Header.Get(codersdk.SessionTokenHeader) != "" &&
 				r.Header.Get(codersdk.SessionTokenHeader) != sessCookie.Value {
@@ -32,7 +32,7 @@ func CSRF(cookieCfg codersdk.HTTPCookieConfig) func(next http.Handler) http.Hand
 					fmt.Sprintf("CSRF error encountered. Authentication via %q cookie and %q header detected, but the values do not match. "+
 						"To resolve this issue ensure the values used in both match, or only use one of the authentication methods. "+
 						"You can also try clearing your cookies if this error persists.",
-						codersdk.GetSessionTokenCookie(), codersdk.SessionTokenHeader),
+						codersdk.SessionTokenCookie, codersdk.SessionTokenHeader),
 					http.StatusBadRequest)
 				return
 			}
@@ -70,7 +70,7 @@ func CSRF(cookieCfg codersdk.HTTPCookieConfig) func(next http.Handler) http.Hand
 			// CSRF only affects requests that automatically attach credentials via a cookie.
 			// If no cookie is present, then there is no risk of CSRF.
 			//nolint:govet
-			sessCookie, err := r.Cookie(codersdk.GetSessionTokenCookie())
+			sessCookie, err := r.Cookie(codersdk.SessionTokenCookie)
 			if xerrors.Is(err, http.ErrNoCookie) {
 				return true
 			}
@@ -82,7 +82,7 @@ func CSRF(cookieCfg codersdk.HTTPCookieConfig) func(next http.Handler) http.Hand
 				return true
 			}
 
-			if token := r.URL.Query().Get(codersdk.GetSessionTokenCookie()); token == sessCookie.Value {
+			if token := r.URL.Query().Get(codersdk.SessionTokenCookie); token == sessCookie.Value {
 				// If the auth is set in a url param and matches the cookie, it
 				// is the same as just using the url param.
 				return true

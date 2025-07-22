@@ -624,7 +624,7 @@ func (f *FakeIDP) LoginWithClient(t testing.TB, client *codersdk.Client, idToken
 	var user *codersdk.Client
 	cookies := cli.Jar.Cookies(client.URL)
 	for _, cookie := range cookies {
-		if cookie.Name == codersdk.GetSessionTokenCookie() {
+		if cookie.Name == codersdk.SessionTokenCookie {
 			user = codersdk.New(client.URL)
 			user.SetSessionToken(cookie.Value)
 		}
