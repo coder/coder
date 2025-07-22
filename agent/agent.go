@@ -339,7 +339,6 @@ func (a *agent) init() {
 	containerAPIOpts := []agentcontainers.Option{
 		agentcontainers.WithExecer(a.execer),
 		agentcontainers.WithCommandEnv(a.sshServer.CommandEnv),
-		agentcontainers.WithProjectDiscovery(true),
 		agentcontainers.WithScriptLogger(func(logSourceID uuid.UUID) agentcontainers.ScriptLogger {
 			return a.logSender.GetScriptLogger(logSourceID)
 		}),
