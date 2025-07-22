@@ -182,9 +182,21 @@ type DisplayWorkspaceStatus = {
 	icon: React.ReactNode;
 };
 
+// Helper function to check if any agents are still starting
+export const hasStartingAgents = (workspace: TypesGen.Workspace): boolean => {
+	return workspace.latest_build.resources.some((resource) =>
+		resource.agents?.some(
+			(agent) =>
+				agent.lifecycle_state === "starting" ||
+				agent.lifecycle_state === "created",
+		),
+	);
+};
+
 export const getDisplayWorkspaceStatus = (
 	workspaceStatus: TypesGen.WorkspaceStatus,
 	provisionerJob?: TypesGen.ProvisionerJob,
+	workspace?: TypesGen.Workspace,
 ): DisplayWorkspaceStatus => {
 	switch (workspaceStatus) {
 		case undefined:
@@ -194,10 +206,12 @@ export const getDisplayWorkspaceStatus = (
 				icon: <PillSpinner />,
 			} as const;
 		case "running":
+			// Check if workspace has agents that are still starting
+			const isStarting = workspace && hasStartingAgents(workspace);
 			return {
-				type: "success",
-				text: "Running",
-				icon: <PlayIcon />,
+				type: isStarting ? "active" : "success",
+				text: isStarting ? "Running (Starting...)" : "Running",
+				icon: isStarting ? <PillSpinner /> : <PlayIcon />,
 			} as const;
 		case "starting":
 			return {
