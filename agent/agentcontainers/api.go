@@ -426,7 +426,7 @@ func (api *API) discover() {
 }
 
 func (api *API) discoverDevcontainerProjects() error {
-	isGitProject, err := afero.DirExists(api.fs, filepath.Join(api.agentDirectory, "/.git"))
+	isGitProject, err := afero.DirExists(api.fs, filepath.Join(api.agentDirectory, ".git"))
 	if err != nil {
 		return xerrors.Errorf(".git dir exists: %w", err)
 	}
