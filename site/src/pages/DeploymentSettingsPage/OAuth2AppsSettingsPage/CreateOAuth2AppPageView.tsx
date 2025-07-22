@@ -9,7 +9,7 @@ import {
 import { Stack } from "components/Stack/Stack";
 import { ChevronLeftIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
 type CreateOAuth2AppProps = {

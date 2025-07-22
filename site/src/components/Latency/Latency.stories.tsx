@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Latency } from "./Latency";
 
 const meta: Meta<typeof Latency> = {

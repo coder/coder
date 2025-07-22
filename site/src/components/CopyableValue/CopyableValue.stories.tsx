@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { CopyableValue } from "./CopyableValue";
 
 const meta: Meta<typeof CopyableValue> = {

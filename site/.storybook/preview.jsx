@@ -9,8 +9,8 @@
  * @typedef {import("react").PropsWithChildren} PropsWithChildren
  * @typedef {import("react").FC<PropsWithChildren>} FC
  *
- * @typedef {import("@storybook/react").StoryContext} StoryContext
- * @typedef {import("@storybook/react").Preview} Preview
+ * @typedef {import("@storybook/react-vite").StoryContext} StoryContext
+ * @typedef {import("@storybook/react-vite").Preview} Preview
  *
  * @typedef {(Story: FC, Context: StoryContext) => React.JSX.Element} Decorator A
  * Storybook decorator function used to inject baseline data dependencies into

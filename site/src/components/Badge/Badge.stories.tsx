@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Settings, TriangleAlert } from "lucide-react";
 import { Badge } from "./Badge";
 

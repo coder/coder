@@ -1,7 +1,7 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { getWorkspaceResolveAutostartQueryKey } from "api/queries/workspaceQuota";
 import type { WorkspacePermissions } from "modules/workspaces/permissions";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import {
 	MockOutdatedWorkspace,
 	MockTemplate,

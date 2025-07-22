@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import { LastSeen } from "./LastSeen";
 

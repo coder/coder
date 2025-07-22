@@ -16,7 +16,7 @@ import { useDebouncedFunction } from "hooks/debounce";
 import { ExternalLinkIcon } from "lucide-react";
 import { ChevronDownIcon } from "lucide-react";
 import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
-import type { useSearchParams } from "react-router-dom";
+import type { useSearchParams } from "react-router";
 
 type PresetFilter = {
 	name: string;

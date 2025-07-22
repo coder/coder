@@ -9,7 +9,7 @@ import {
 	DialogTitle,
 } from "components/Dialog/Dialog";
 import type { FC } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 
 interface EphemeralParametersDialogProps {
 	open: boolean;

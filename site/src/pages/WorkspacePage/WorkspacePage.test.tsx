@@ -10,7 +10,7 @@ import {
 import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import { http, HttpResponse } from "msw";
 import type { FC } from "react";
-import { type Location, useLocation } from "react-router-dom";
+import { type Location, useLocation } from "react-router";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,

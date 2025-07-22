@@ -1,5 +1,5 @@
 import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
-import type { useSearchParams } from "react-router-dom";
+import type { useSearchParams } from "react-router";
 
 export const usePagination = ({
 	searchParamsResult,

@@ -4,7 +4,7 @@ import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "hooks";
 import { type FC, Suspense } from "react";
 import { Helmet } from "react-helmet-async";
-import { Outlet } from "react-router-dom";
+import { Outlet } from "react-router";
 import { pageTitle } from "utils/page";
 import { Sidebar } from "./Sidebar";
 

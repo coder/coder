@@ -16,7 +16,7 @@ import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useMemo } from "react";
 import { useQuery, useQueryClient } from "react-query";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router";
 import ExternalAuthPageView from "./ExternalAuthPageView";
 
 const ExternalAuthPage: FC = () => {

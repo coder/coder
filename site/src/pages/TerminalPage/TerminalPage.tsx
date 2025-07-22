@@ -18,7 +18,7 @@ import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import themes from "theme";
 import { DEFAULT_TERMINAL_FONT, terminalFonts } from "theme/constants";
 import { pageTitle } from "utils/page";

@@ -53,7 +53,7 @@ import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName"
 import { type FC, type ReactNode, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
 import { pageTitle } from "utils/page";
 import { relativeTime } from "utils/time";

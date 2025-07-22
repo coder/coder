@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { spyOn, userEvent, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
+import { spyOn, userEvent, within } from "storybook/test";
 import {
 	MockDeploymentSSH,
 	MockWorkspace,

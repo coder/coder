@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { MockDeploymentDAUResponse } from "testHelpers/entities";
 import { OverviewPageView } from "./OverviewPageView";
 

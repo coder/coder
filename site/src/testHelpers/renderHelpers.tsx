@@ -18,7 +18,7 @@ import {
 	type RouteObject,
 	RouterProvider,
 	createMemoryRouter,
-} from "react-router-dom";
+} from "react-router";
 import themes, { DEFAULT_THEME } from "theme";
 import { MockUserOwner } from "./entities";
 

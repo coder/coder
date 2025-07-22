@@ -13,7 +13,7 @@ import type { ProxyContextValue } from "contexts/ProxyContext";
 import { useAuthenticated } from "hooks";
 import { ChevronDownIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { sortProxiesByLatency } from "./proxyUtils";
 
 interface ProxyMenuProps {

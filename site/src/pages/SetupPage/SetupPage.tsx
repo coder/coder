@@ -6,7 +6,7 @@ import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router";
 import { pageTitle } from "utils/page";
 import { sendDeploymentEvent } from "utils/telemetry";
 import { SetupPageView } from "./SetupPageView";

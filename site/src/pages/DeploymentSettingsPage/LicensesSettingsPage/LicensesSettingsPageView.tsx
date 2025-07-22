@@ -17,7 +17,7 @@ import { useWindowSize } from "hooks/useWindowSize";
 import { PlusIcon, RotateCwIcon } from "lucide-react";
 import type { FC } from "react";
 import Confetti from "react-confetti";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { LicenseCard } from "./LicenseCard";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
 

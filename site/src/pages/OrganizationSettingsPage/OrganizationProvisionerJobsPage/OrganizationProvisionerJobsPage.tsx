@@ -2,7 +2,7 @@ import { provisionerJobs } from "api/queries/organizations";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import OrganizationProvisionerJobsPageView from "./OrganizationProvisionerJobsPageView";
 
 const OrganizationProvisionerJobsPage: FC = () => {

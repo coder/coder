@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { SerpentGroup } from "api/typesGenerated";
 import { UserAuthSettingsPageView } from "./UserAuthSettingsPageView";
 

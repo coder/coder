@@ -9,7 +9,7 @@ import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";
 import { CreateTokenForm } from "./CreateTokenForm";
 import { type CreateTokenData, NANO_HOUR } from "./utils";

@@ -13,7 +13,7 @@ import { Welcome } from "components/Welcome/Welcome";
 import { useEffect, useMemo } from "react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import LoginOAuthDevicePageView from "./LoginOAuthDevicePageView";
 
 // The page is hardcoded to only use GitHub,

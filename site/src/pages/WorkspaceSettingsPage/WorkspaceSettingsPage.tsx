@@ -3,7 +3,7 @@ import { displaySuccess } from "components/GlobalSnackbar/utils";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation } from "react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
 import { pageTitle } from "utils/page";
 import type { WorkspaceSettingsFormValues } from "./WorkspaceSettingsForm";
 import { useWorkspaceSettings } from "./WorkspaceSettingsLayout";

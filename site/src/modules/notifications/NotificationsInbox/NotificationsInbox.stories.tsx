@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, waitFor, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { MockNotifications, mockApiError } from "testHelpers/entities";
 import { withGlobalSnackbar } from "testHelpers/storybook";
 import { NotificationsInbox } from "./NotificationsInbox";

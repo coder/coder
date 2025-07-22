@@ -20,7 +20,7 @@ import { Check, ChevronDown, Plus } from "lucide-react";
 import type { Permissions } from "modules/permissions";
 import type { OrganizationPermissions } from "modules/permissions/organizations";
 import { type FC, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 
 interface OrganizationsSettingsNavigationProps {
 	/** The organization selected from the dropdown */

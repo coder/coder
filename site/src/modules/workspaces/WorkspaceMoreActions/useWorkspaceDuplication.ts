@@ -3,7 +3,7 @@ import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { useCallback } from "react";
 import { useQuery } from "react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import type { CreateWorkspaceMode } from "../../../pages/CreateWorkspacePage/CreateWorkspacePage";
 
 function getDuplicationUrlParams(

@@ -29,7 +29,7 @@ import { ProvisionerTagsField } from "modules/provisioners/ProvisionerTagsField"
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import { docs } from "utils/docs";
 import {
 	displayNameValidator,
