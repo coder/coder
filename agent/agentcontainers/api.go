@@ -58,6 +58,7 @@ type API struct {
 	cancel                      context.CancelFunc
 	watcherDone                 chan struct{}
 	updaterDone                 chan struct{}
+	discoverDone                chan struct{}
 	updateTrigger               chan chan error // Channel to trigger manual refresh.
 	updateInterval              time.Duration   // Interval for periodic container updates.
 	logger                      slog.Logger
@@ -73,6 +74,8 @@ type API struct {
 	subAgentClient              atomic.Pointer[SubAgentClient]
 	subAgentURL                 string
 	subAgentEnv                 []string
+
+	projectDiscovery bool // If we should perform project discovery or not.
 
 	ownerName      string
 	workspaceName  string
@@ -273,6 +276,14 @@ func WithFileSystem(fileSystem afero.Fs) Option {
 	}
 }
 
+// WithProjectDiscovery sets if the API should attempt to discover
+// projects on the filesystem.
+func WithProjectDiscovery(projectDiscovery bool) Option {
+	return func(api *API) {
+		api.projectDiscovery = projectDiscovery
+	}
+}
+
 // ScriptLogger is an interface for sending devcontainer logs to the
 // controlplane.
 type ScriptLogger interface {
@@ -387,17 +398,27 @@ func (api *API) Start() {
 		return
 	}
 
+	if api.projectDiscovery {
+		api.discoverDone = make(chan struct{})
+
+		go api.discover()
+	}
+
 	api.watcherDone = make(chan struct{})
 	api.updaterDone = make(chan struct{})
 
-	go func() {
-		if err := api.discoverDevcontainerProjects(); err != nil {
-			api.logger.Error(api.ctx, "discovering dev container projects", slog.Error(err))
-		}
-	}()
-
 	go api.watcherLoop()
 	go api.updaterLoop()
+}
+
+func (api *API) discover() {
+	defer close(api.discoverDone)
+	defer api.logger.Debug(api.ctx, "project discovery finished")
+	api.logger.Debug(api.ctx, "project discovery started")
+
+	if err := api.discoverDevcontainerProjects(); err != nil {
+		api.logger.Error(api.ctx, "discovering dev container projects", slog.Error(err))
+	}
 }
 
 func (api *API) discoverDevcontainerProjects() error {
@@ -1914,6 +1935,9 @@ func (api *API) Close() error {
 	}
 	if api.updaterDone != nil {
 		<-api.updaterDone
+	}
+	if api.discoverDone != nil {
+		<-api.discoverDone
 	}
 
 	// Wait for all async tasks to complete.

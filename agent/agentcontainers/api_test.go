@@ -3367,6 +3367,7 @@ func TestDevcontainerDiscovery(t *testing.T) {
 				agentcontainers.WithManifestInfo("owner", "workspace", "parent-agent", tt.agentDir),
 				agentcontainers.WithContainerCLI(&fakeContainerCLI{}),
 				agentcontainers.WithDevcontainerCLI(&fakeDevcontainerCLI{}),
+				agentcontainers.WithProjectDiscovery(true),
 			)
 			api.Start()
 			defer api.Close()
