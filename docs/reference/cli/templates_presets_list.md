@@ -1,15 +1,23 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# templates versions presets list
+# templates presets list
 
-List all the presets of the specified template version
+List all presets of the specified template. Defaults to the active template version.
 
 ## Usage
 
 ```console
-coder templates versions presets list [flags] <template> <version>
+coder templates presets list [flags] <template>
 ```
 
 ## Options
+
+### --template-version
+
+|      |                     |
+|------|---------------------|
+| Type | <code>string</code> |
+
+Specify a template version to list presets for. Defaults to the active version.
 
 ### -O, --org
 

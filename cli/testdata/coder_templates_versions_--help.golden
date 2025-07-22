@@ -14,7 +14,6 @@ USAGE:
 SUBCOMMANDS:
     archive      Archive a template version(s).
     list         List all the versions of the specified template
-    presets      Manage presets of the specified template version
     promote      Promote a template version to active.
     unarchive    Unarchive a template version(s).
 

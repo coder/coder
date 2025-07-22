@@ -1652,6 +1652,16 @@
 							"path": "reference/cli/templates_list.md"
 						},
 						{
+							"title": "templates presets",
+							"description": "Manage presets of the specified template",
+							"path": "reference/cli/templates_presets.md"
+						},
+						{
+							"title": "templates presets list",
+							"description": "List all presets of the specified template. Defaults to the active template version.",
+							"path": "reference/cli/templates_presets_list.md"
+						},
+						{
 							"title": "templates pull",
 							"description": "Download the active, latest, or specified version of a template to a path.",
 							"path": "reference/cli/templates_pull.md"
@@ -1675,16 +1685,6 @@
 							"title": "templates versions list",
 							"description": "List all the versions of the specified template",
 							"path": "reference/cli/templates_versions_list.md"
-						},
-						{
-							"title": "templates versions presets",
-							"description": "Manage presets of the specified template version",
-							"path": "reference/cli/templates_versions_presets.md"
-						},
-						{
-							"title": "templates versions presets list",
-							"description": "List all the presets of the specified template version",
-							"path": "reference/cli/templates_versions_presets_list.md"
 						},
 						{
 							"title": "templates versions promote",

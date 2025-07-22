@@ -12,29 +12,33 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) templateVersionPresets() *serpent.Command {
+func (r *RootCmd) templatePresets() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:     "presets",
-		Short:   "Manage presets of the specified template version",
+		Short:   "Manage presets of the specified template",
 		Aliases: []string{"preset"},
 		Long: FormatExamples(
 			Example{
-				Description: "List presets of a specific template version",
-				Command:     "coder templates versions presets list my-template my-template-version",
+				Description: "List presets for the active version of a template",
+				Command:     "coder templates presets list my-template",
+			},
+			Example{
+				Description: "List presets for a specific version of a template",
+				Command:     "coder templates presets list my-template --template-version my-template-version",
 			},
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*serpent.Command{
-			r.templateVersionPresetsList(),
+			r.templatePresetsList(),
 		},
 	}
 
 	return cmd
 }
 
-func (r *RootCmd) templateVersionPresetsList() *serpent.Command {
+func (r *RootCmd) templatePresetsList() *serpent.Command {
 	defaultColumns := []string{
 		"name",
 		"parameters",
@@ -42,20 +46,29 @@ func (r *RootCmd) templateVersionPresetsList() *serpent.Command {
 		"desired prebuild instances",
 	}
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]templateVersionPresetRow{}, defaultColumns),
+		cliui.TableFormat([]templatePresetRow{}, defaultColumns),
 		cliui.JSONFormat(),
 	)
 	client := new(codersdk.Client)
 	orgContext := NewOrganizationContext()
 
+	var templateVersion string
+
 	cmd := &serpent.Command{
-		Use: "list <template> <version>",
+		Use: "list <template>",
 		Middleware: serpent.Chain(
-			serpent.RequireNArgs(2),
+			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Short:   "List all the presets of the specified template version",
-		Options: serpent.OptionSet{},
+		Short: "List all presets of the specified template. Defaults to the active template version.",
+		Options: serpent.OptionSet{
+			{
+				Name:        "template-version",
+				Description: "Specify a template version to list presets for. Defaults to the active version.",
+				Flag:        "template-version",
+				Value:       serpent.StringOf(&templateVersion),
+			},
+		},
 		Handler: func(inv *serpent.Invocation) error {
 			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
@@ -67,9 +80,19 @@ func (r *RootCmd) templateVersionPresetsList() *serpent.Command {
 				return xerrors.Errorf("get template by name: %w", err)
 			}
 
-			version, err := client.TemplateVersionByName(inv.Context(), template.ID, inv.Args[1])
-			if err != nil {
-				return xerrors.Errorf("get template version by name: %w", err)
+			// If a template version is specified via flag, fetch that version by name
+			var version codersdk.TemplateVersion
+			if len(templateVersion) > 0 {
+				version, err = client.TemplateVersionByName(inv.Context(), template.ID, templateVersion)
+				if err != nil {
+					return xerrors.Errorf("get template version by name: %w", err)
+				}
+			} else {
+				// Otherwise, use the template's active version
+				version, err = client.TemplateVersion(inv.Context(), template.ActiveVersionID)
+				if err != nil {
+					return xerrors.Errorf("get active template version: %w", err)
+				}
 			}
 
 			presets, err := client.TemplateVersionPresets(inv.Context(), version.ID)
@@ -84,7 +107,7 @@ func (r *RootCmd) templateVersionPresetsList() *serpent.Command {
 				)
 			}
 
-			rows := templateVersionPresetsToRows(presets...)
+			rows := templatePresetsToRows(presets...)
 			out, err := formatter.Format(inv.Context(), rows)
 			if err != nil {
 				return xerrors.Errorf("render table: %w", err)
@@ -100,9 +123,9 @@ func (r *RootCmd) templateVersionPresetsList() *serpent.Command {
 	return cmd
 }
 
-type templateVersionPresetRow struct {
+type templatePresetRow struct {
 	// For json format:
-	TemplateVersionPreset codersdk.Preset `table:"-"`
+	TemplatePreset codersdk.Preset `table:"-"`
 
 	// For table format:
 	Name                     string `json:"-" table:"name,default_sort"`
@@ -119,16 +142,16 @@ func formatPresetParameters(params []codersdk.PresetParameter) string {
 	return strings.Join(paramsStr, ",")
 }
 
-// templateVersionPresetsToRows converts a list of presets to a list of rows
+// templatePresetsToRows converts a list of presets to a list of rows
 // for outputting.
-func templateVersionPresetsToRows(presets ...codersdk.Preset) []templateVersionPresetRow {
-	rows := make([]templateVersionPresetRow, len(presets))
+func templatePresetsToRows(presets ...codersdk.Preset) []templatePresetRow {
+	rows := make([]templatePresetRow, len(presets))
 	for i, preset := range presets {
 		prebuildInstances := "-"
 		if preset.DesiredPrebuildInstances != nil {
 			prebuildInstances = strconv.Itoa(*preset.DesiredPrebuildInstances)
 		}
-		rows[i] = templateVersionPresetRow{
+		rows[i] = templatePresetRow{
 			Name:                     preset.Name,
 			Parameters:               formatPresetParameters(preset.Parameters),
 			Default:                  preset.Default,

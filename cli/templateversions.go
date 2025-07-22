@@ -33,7 +33,6 @@ func (r *RootCmd) templateVersions() *serpent.Command {
 			r.archiveTemplateVersion(),
 			r.unarchiveTemplateVersion(),
 			r.templateVersionsPromote(),
-			r.templateVersionPresets(),
 		},
 	}
 
