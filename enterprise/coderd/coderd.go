@@ -961,7 +961,8 @@ func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templ
 
 	// This check is intentionally not committed to the database. It's fine if
 	// it's not 100% accurate or allows for minor breaches due to build races.
-	managedAgentCount, err := store.GetManagedAgentCount(ctx, database.GetManagedAgentCountParams{
+	// nolint:gocritic // Requires permission to read all workspaces to read managed agent count.
+	managedAgentCount, err := store.GetManagedAgentCount(agpldbauthz.AsSystemRestricted(ctx), database.GetManagedAgentCountParams{
 		StartTime: managedAgentLimit.UsagePeriod.Start,
 		EndTime:   managedAgentLimit.UsagePeriod.End,
 	})

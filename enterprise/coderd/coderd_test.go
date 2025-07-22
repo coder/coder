@@ -626,13 +626,38 @@ func TestSCIMDisabled(t *testing.T) {
 func TestManagedAgentLimit(t *testing.T) {
 	t.Parallel()
 
+	ctx := testutil.Context(t, testutil.WaitLong)
+
 	cli, _ := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 		},
-		LicenseOptions: (&coderdenttest.LicenseOptions{}).ManagedAgentLimit(1, 1),
+		LicenseOptions: (&coderdenttest.LicenseOptions{
+			FeatureSet: codersdk.FeatureSetPremium,
+			// Make it expire in the distant future so it doesn't generate
+			// expiry warnings.
+			GraceAt:   time.Now().Add(time.Hour * 24 * 60),
+			ExpiresAt: time.Now().Add(time.Hour * 24 * 90),
+		}).ManagedAgentLimit(1, 1),
 	})
 
+	// Get entitlements to check that the license is a-ok.
+	entitlements, err := cli.Entitlements(ctx) //nolint:gocritic // we're not testing authz on the entitlements endpoint, so using owner is fine
+	require.NoError(t, err)
+	require.True(t, entitlements.HasLicense)
+	agentLimit := entitlements.Features[codersdk.FeatureManagedAgentLimit]
+	require.True(t, agentLimit.Enabled)
+	require.NotNil(t, agentLimit.Limit)
+	require.EqualValues(t, 1, *agentLimit.Limit)
+	require.NotNil(t, agentLimit.SoftLimit)
+	require.EqualValues(t, 1, *agentLimit.SoftLimit)
+	require.Empty(t, entitlements.Errors)
+	// There should be a warning since we're really close to our agent limit.
+	require.Equal(t, entitlements.Warnings[0], "You are approaching the managed agent limit in your license. Please refer to the Deployment Licenses page for more information.")
+
+	// Create a fake provision response that claims there are agents in the
+	// template and every built workspace.
+	//
 	// It's fine that the app ID is only used in a single successful workspace
 	// build.
 	appID := uuid.NewString()
@@ -693,7 +718,7 @@ func TestManagedAgentLimit(t *testing.T) {
 
 	// Create a second AI workspace, which should fail. This needs to be done
 	// manually because coderdtest.CreateWorkspace expects it to succeed.
-	_, err := cli.CreateUserWorkspace(context.Background(), codersdk.Me, codersdk.CreateWorkspaceRequest{ //nolint:gocritic // owners must still be subject to the limit
+	_, err = cli.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{ //nolint:gocritic // owners must still be subject to the limit
 		TemplateID:       aiTemplate.ID,
 		Name:             coderdtest.RandomUsername(t),
 		AutomaticUpdates: codersdk.AutomaticUpdatesNever,

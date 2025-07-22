@@ -99,7 +99,8 @@ func Entitlements(
 		ReplicaCount:      replicaCount,
 		ExternalAuthCount: externalAuthCount,
 		ManagedAgentCountFn: func(ctx context.Context, startTime time.Time, endTime time.Time) (int64, error) {
-			return db.GetManagedAgentCount(ctx, database.GetManagedAgentCountParams{
+			// nolint:gocritic // Requires permission to read all workspaces to read managed agent count.
+			return db.GetManagedAgentCount(dbauthz.AsSystemRestricted(ctx), database.GetManagedAgentCountParams{
 				StartTime: startTime,
 				EndTime:   endTime,
 			})
