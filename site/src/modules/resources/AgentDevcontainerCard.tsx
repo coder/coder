@@ -254,7 +254,8 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						disabled={devcontainer.status === "starting"}
 					>
 						<Spinner loading={devcontainer.status === "starting"} />
-						{devcontainer.container === undefined ? <>Start</> : <>Rebuild</>}
+
+						{devcontainer.container === undefined ? "Start" : "Rebuild"}
 					</Button>
 
 					{showDevcontainerControls && displayApps.includes("ssh_helper") && (
