@@ -102,6 +102,18 @@ export const NoContainerOrSubAgent: Story = {
 	},
 };
 
+export const NoContainerOrAgentOrName: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			container: undefined,
+			agent: undefined,
+			name: "",
+		},
+		subAgents: [],
+	},
+};
+
 export const NoSubAgent: Story = {
 	args: {
 		devcontainer: {
