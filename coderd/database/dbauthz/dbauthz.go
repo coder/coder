@@ -2662,14 +2662,6 @@ func (q *querier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]database.
 	return q.db.GetRunningPrebuiltWorkspaces(ctx)
 }
 
-func (q *querier) GetRunningPrebuiltWorkspacesOptimized(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesOptimizedRow, error) {
-	// This query returns only prebuilt workspaces, but we decided to require permissions for all workspaces.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
-		return nil, err
-	}
-	return q.db.GetRunningPrebuiltWorkspacesOptimized(ctx)
-}
-
 func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return "", err

@@ -710,8 +710,8 @@
 							"path": "./admin/integrations/platformx.md"
 						},
 						{
-							"title": "DX Data Cloud",
-							"description": "Tag Coder Users with DX Data Cloud",
+							"title": "DX",
+							"description": "Tag Coder Users with DX",
 							"path": "./admin/integrations/dx-data-cloud.md"
 						},
 						{
