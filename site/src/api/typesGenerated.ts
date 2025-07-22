@@ -2701,9 +2701,6 @@ export interface SessionLifetime {
 }
 
 // From codersdk/client.go
-export const SessionTokenCookie = "coder_session_token";
-
-// From codersdk/client.go
 export const SessionTokenHeader = "Coder-Session-Token";
 
 // From codersdk/client.go
