@@ -147,7 +147,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		DisplayName:                  takeFirst(seed.DisplayName, testutil.GetRandomName(t)),
 		AllowUserCancelWorkspaceJobs: seed.AllowUserCancelWorkspaceJobs,
 		MaxPortSharingLevel:          takeFirst(seed.MaxPortSharingLevel, database.AppSharingLevelOwner),
-		UseClassicParameterFlow:      takeFirst(seed.UseClassicParameterFlow, true),
+		UseClassicParameterFlow:      takeFirst(seed.UseClassicParameterFlow, false),
 	})
 	require.NoError(t, err, "insert template")
 

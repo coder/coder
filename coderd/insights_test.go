@@ -665,10 +665,11 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			// where we can control the template ID.
 			// 	createdTemplate := coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
 			createdTemplate := dbgen.Template(t, db, database.Template{
-				ID:              template.id,
-				ActiveVersionID: version.ID,
-				OrganizationID:  firstUser.OrganizationID,
-				CreatedBy:       firstUser.UserID,
+				ID:                      template.id,
+				ActiveVersionID:         version.ID,
+				OrganizationID:          firstUser.OrganizationID,
+				CreatedBy:               firstUser.UserID,
+				UseClassicParameterFlow: true,
 				GroupACL: database.TemplateACL{
 					firstUser.OrganizationID.String(): db2sdk.TemplateRoleActions(codersdk.TemplateRoleUse),
 				},
@@ -1556,10 +1557,11 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			// where we can control the template ID.
 			// 	createdTemplate := coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
 			createdTemplate := dbgen.Template(t, db, database.Template{
-				ID:              template.id,
-				ActiveVersionID: version.ID,
-				OrganizationID:  firstUser.OrganizationID,
-				CreatedBy:       firstUser.UserID,
+				ID:                      template.id,
+				ActiveVersionID:         version.ID,
+				OrganizationID:          firstUser.OrganizationID,
+				CreatedBy:               firstUser.UserID,
+				UseClassicParameterFlow: true, // Required for parameter usage tracking in this test
 				GroupACL: database.TemplateACL{
 					firstUser.OrganizationID.String(): db2sdk.TemplateRoleActions(codersdk.TemplateRoleUse),
 				},
