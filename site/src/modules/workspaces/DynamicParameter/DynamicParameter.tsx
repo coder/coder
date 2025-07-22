@@ -85,7 +85,6 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 						value={value}
 						onChange={onChange}
 						disabled={disabled}
-						isPreset={isPreset}
 					/>
 				) : (
 					<ParameterField
@@ -251,7 +250,6 @@ interface DebouncedParameterFieldProps {
 	onChange: (value: string) => void;
 	disabled?: boolean;
 	id: string;
-	isPreset?: boolean;
 }
 
 const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
@@ -260,7 +258,6 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 	onChange,
 	disabled,
 	id,
-	isPreset,
 }) => {
 	const [localValue, setLocalValue] = useState(
 		value !== undefined ? value : validValue(parameter.value),
@@ -272,13 +269,13 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 	const prevDebouncedValueRef = useRef<string | undefined>();
 	const prevValueRef = useRef(value);
 
-	// This is necessary in the case of fields being set by preset parameters
+	// Necessary for dynamic defaults or fields being set by preset parameters
 	useEffect(() => {
-		if (isPreset && value !== undefined && value !== prevValueRef.current) {
+		if (value !== undefined && value !== prevValueRef.current) {
 			setLocalValue(value);
 			prevValueRef.current = value;
 		}
-	}, [value, isPreset]);
+	}, [value]);
 
 	useEffect(() => {
 		// Only call onChangeEvent if debouncedLocalValue is different from the previously committed value
