@@ -66,7 +66,9 @@ const WorkspaceParametersPage: FC = () => {
 		enabled: workspace !== undefined,
 	});
 
-	const templatePermissions = templatePermissionsQuery.data as { canUpdateTemplate: boolean } | undefined;
+	const templatePermissions = templatePermissionsQuery.data as
+		| { canUpdateTemplate: boolean }
+		| undefined;
 
 	return (
 		<>

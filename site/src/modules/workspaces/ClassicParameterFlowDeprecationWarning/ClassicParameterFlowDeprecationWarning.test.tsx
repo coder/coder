@@ -15,7 +15,12 @@ describe("ClassicParameterFlowDeprecationWarning", () => {
 	};
 
 	it("renders warning when enabled and user has template update permissions", () => {
-		render(<ClassicParameterFlowDeprecationWarning {...defaultProps} isEnabled={true} />);
+		render(
+			<ClassicParameterFlowDeprecationWarning
+				{...defaultProps}
+				isEnabled={true}
+			/>,
+		);
 
 		expect(screen.getByText("deprecated")).toBeInTheDocument();
 		expect(screen.getByText("Go to Template Settings")).toBeInTheDocument();
@@ -26,7 +31,7 @@ describe("ClassicParameterFlowDeprecationWarning", () => {
 			<ClassicParameterFlowDeprecationWarning
 				{...defaultProps}
 				isEnabled={false}
-			/>
+			/>,
 		);
 
 		expect(container.firstChild).toBeNull();
