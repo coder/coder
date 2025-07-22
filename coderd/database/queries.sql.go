@@ -4286,6 +4286,44 @@ func (q *sqlQuerier) GetLicenses(ctx context.Context) ([]License, error) {
 	return items, nil
 }
 
+const getManagedAgentCount = `-- name: GetManagedAgentCount :one
+SELECT
+	COUNT(DISTINCT wb.id) AS count
+FROM
+	workspace_builds AS wb
+JOIN
+	provisioner_jobs AS pj
+ON
+	wb.job_id = pj.id
+WHERE
+	wb.transition = 'start'::workspace_transition
+	AND wb.has_ai_task = true
+	-- Only count jobs that are pending, running or succeeded. Other statuses
+	-- like cancel(ed|ing), failed or unknown are not considered as managed
+	-- agent usage. These workspace builds are typically unusable anyway.
+	AND pj.job_status IN (
+		'pending'::provisioner_job_status,
+		'running'::provisioner_job_status,
+		'succeeded'::provisioner_job_status
+	)
+	-- Jobs are counted at the time they are created, not when they are
+	-- completed, as pending jobs haven't completed yet.
+	AND wb.created_at BETWEEN $1::timestamptz AND $2::timestamptz
+`
+
+type GetManagedAgentCountParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+// This isn't strictly a license query, but it's related to license enforcement.
+func (q *sqlQuerier) GetManagedAgentCount(ctx context.Context, arg GetManagedAgentCountParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getManagedAgentCount, arg.StartTime, arg.EndTime)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getUnexpiredLicenses = `-- name: GetUnexpiredLicenses :many
 SELECT id, uploaded_at, jwt, exp, uuid
 FROM licenses
@@ -18451,35 +18489,6 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context,
 		return nil, err
 	}
 	return items, nil
-}
-
-const getManagedAgentCount = `-- name: GetManagedAgentCount :one
-SELECT
-	COUNT(DISTINCT wb.id) AS count
-FROM
-	workspace_builds AS wb
-JOIN
-	provisioner_jobs AS pj
-ON
-	wb.job_id = pj.id
-WHERE
-	wb.transition = 'start'::workspace_transition
-	AND wb.has_ai_task = true
-	-- Exclude failed builds since they can't use AI managed agents anyway.
-	AND pj.job_status NOT IN ('canceled'::provisioner_job_status, 'failed'::provisioner_job_status)
-	AND wb.created_at BETWEEN $1::timestamptz AND $2::timestamptz
-`
-
-type GetManagedAgentCountParams struct {
-	StartTime time.Time `db:"start_time" json:"start_time"`
-	EndTime   time.Time `db:"end_time" json:"end_time"`
-}
-
-func (q *sqlQuerier) GetManagedAgentCount(ctx context.Context, arg GetManagedAgentCountParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getManagedAgentCount, arg.StartTime, arg.EndTime)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
 }
 
 const getWorkspaceBuildByID = `-- name: GetWorkspaceBuildByID :one

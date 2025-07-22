@@ -1272,12 +1272,12 @@ func (b *Builder) checkTemplateJobStatus() error {
 func (b *Builder) checkUsage() error {
 	templateVersion, err := b.getTemplateVersion()
 	if err != nil {
-		return BuildError{http.StatusInternalServerError, "failed to fetch template version", err}
+		return BuildError{http.StatusInternalServerError, "Failed to fetch template version", err}
 	}
 
 	resp, err := b.usageChecker.CheckBuildUsage(b.ctx, b.store, templateVersion)
 	if err != nil {
-		return BuildError{http.StatusInternalServerError, "failed to check build usage", err}
+		return BuildError{http.StatusInternalServerError, "Failed to check build usage", err}
 	}
 	if !resp.Permitted {
 		return BuildError{http.StatusForbidden, "Build is not permitted: " + resp.Message, nil}

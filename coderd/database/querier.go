@@ -216,6 +216,7 @@ type sqlcQuerier interface {
 	GetLicenseByID(ctx context.Context, id int32) (License, error)
 	GetLicenses(ctx context.Context) ([]License, error)
 	GetLogoURL(ctx context.Context) (string, error)
+	// This isn't strictly a license query, but it's related to license enforcement.
 	GetManagedAgentCount(ctx context.Context, arg GetManagedAgentCountParams) (int64, error)
 	GetNotificationMessagesByStatus(ctx context.Context, arg GetNotificationMessagesByStatusParams) ([]NotificationMessage, error)
 	// Fetch the notification report generator log indicating recent activity.

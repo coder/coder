@@ -2196,7 +2196,7 @@ func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 func (q *querier) GetManagedAgentCount(ctx context.Context, arg database.GetManagedAgentCountParams) (int64, error) {
 	// Must be able to read all workspaces to check usage.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace); err != nil {
-		return 0, err
+		return 0, xerrors.Errorf("authorize read all workspaces: %w", err)
 	}
 	return q.db.GetManagedAgentCount(ctx, arg)
 }
