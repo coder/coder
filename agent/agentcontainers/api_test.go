@@ -3425,4 +3425,29 @@ func TestDevcontainerDiscovery(t *testing.T) {
 			require.Equal(t, tt.expected, got.Devcontainers)
 		})
 	}
+
+	t.Run("NoErrorWhenAgentDirAbsent", func(t *testing.T) {
+		t.Parallel()
+
+		logger := testutil.Logger(t)
+
+		// Given: We have an empty agent directory
+		agentDir := ""
+
+		api := agentcontainers.NewAPI(logger,
+			agentcontainers.WithWatcher(watcher.NewNoop()),
+			agentcontainers.WithManifestInfo("owner", "workspace", "parent-agent", agentDir),
+			agentcontainers.WithContainerCLI(&fakeContainerCLI{}),
+			agentcontainers.WithDevcontainerCLI(&fakeDevcontainerCLI{}),
+			agentcontainers.WithProjectDiscovery(true),
+		)
+
+		// When: We start and close the API
+		api.Start()
+		api.Close()
+
+		// Then: We expect there to have been no errors.
+		// This is implicitly handled by `testutil.Logger` failing when it
+		// detects an error has been logged.
+	})
 }

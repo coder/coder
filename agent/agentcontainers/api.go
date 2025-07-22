@@ -398,7 +398,7 @@ func (api *API) Start() {
 		return
 	}
 
-	if api.projectDiscovery {
+	if api.projectDiscovery && api.agentDirectory != "" {
 		api.discoverDone = make(chan struct{})
 
 		go api.discover()
