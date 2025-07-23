@@ -2686,7 +2686,8 @@ const docTemplate = `{
                         "enum": [
                             "authorization_code",
                             "refresh_token",
-                            "urn:ietf:params:oauth:grant-type:device_code"
+                            "urn:ietf:params:oauth:grant-type:device_code",
+                            "client_credentials"
                         ],
                         "type": "string",
                         "description": "Grant type",
@@ -13998,7 +13999,7 @@ const docTemplate = `{
                 "grant_types_supported": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.OAuth2ProviderGrantType"
                     }
                 },
                 "issuer": {
@@ -14010,7 +14011,7 @@ const docTemplate = `{
                 "response_types_supported": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.OAuth2ProviderResponseType"
                     }
                 },
                 "scopes_supported": {
@@ -14420,6 +14421,30 @@ const docTemplate = `{
                     "format": "uuid"
                 }
             }
+        },
+        "codersdk.OAuth2ProviderGrantType": {
+            "type": "string",
+            "enum": [
+                "authorization_code",
+                "refresh_token",
+                "urn:ietf:params:oauth:grant-type:device_code",
+                "client_credentials"
+            ],
+            "x-enum-varnames": [
+                "OAuth2ProviderGrantTypeAuthorizationCode",
+                "OAuth2ProviderGrantTypeRefreshToken",
+                "OAuth2ProviderGrantTypeDeviceCode",
+                "OAuth2ProviderGrantTypeClientCredentials"
+            ]
+        },
+        "codersdk.OAuth2ProviderResponseType": {
+            "type": "string",
+            "enum": [
+                "code"
+            ],
+            "x-enum-varnames": [
+                "OAuth2ProviderResponseTypeCode"
+            ]
         },
         "codersdk.OAuthConversionResponse": {
             "type": "object",
@@ -14988,6 +15013,12 @@ const docTemplate = `{
                 "redirect_uris"
             ],
             "properties": {
+                "grant_types": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.OAuth2ProviderGrantType"
+                    }
+                },
                 "icon": {
                     "type": "string"
                 },
@@ -15720,6 +15751,12 @@ const docTemplate = `{
                 "redirect_uris"
             ],
             "properties": {
+                "grant_types": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.OAuth2ProviderGrantType"
+                    }
+                },
                 "icon": {
                     "type": "string"
                 },
