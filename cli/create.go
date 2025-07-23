@@ -297,10 +297,7 @@ func (r *RootCmd) create() *serpent.Command {
 				}
 
 				// Convert preset parameters into workspace build parameters.
-				presetBuildParameters, err := presetParameterAsWorkspaceBuildParameters(preset.Parameters)
-				if err != nil {
-					return xerrors.Errorf("failed to parse preset parameters: %w", err)
-				}
+				presetBuildParameters := presetParameterAsWorkspaceBuildParameters(preset.Parameters)
 				presetParameters = append(presetParameters, presetBuildParameters...)
 
 				// Inform the user which preset was applied and its parameters.
