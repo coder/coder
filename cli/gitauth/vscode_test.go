@@ -42,9 +42,9 @@ func TestOverrideVSCodeConfigs(t *testing.T) {
 		// Create existing settings with user preferences
 		existingSettings := map[string]interface{}{
 			"workbench.colorTheme": "Dracula",
-			"editor.fontSize": 14,
-			"editor.tabSize": 2,
-			"files.autoSave": "onWindowChange",
+			"editor.fontSize":      14,
+			"editor.tabSize":       2,
+			"files.autoSave":       "onWindowChange",
 		}
 		data, err := json.MarshalIndent(existingSettings, "", "\t")
 		require.NoError(t, err)
@@ -78,10 +78,10 @@ func TestOverrideVSCodeConfigs(t *testing.T) {
 		fs := afero.NewMemMapFs()
 		// Create existing settings that include Coder-specific settings with different values
 		existingSettings := map[string]interface{}{
-			"workbench.colorTheme": "Dark+",
-			"git.useIntegratedAskPass": true, // This should be overridden to false
-			"github.gitAuthentication": true, // This should be overridden to false
-			"editor.wordWrap": "on",
+			"workbench.colorTheme":            "Dark+",
+			"git.useIntegratedAskPass":        true, // This should be overridden to false
+			"github.gitAuthentication":        true, // This should be overridden to false
+			"editor.wordWrap":                 "on",
 			"terminal.integrated.shell.linux": "/bin/bash",
 		}
 		data, err := json.MarshalIndent(existingSettings, "", "\t")
@@ -116,12 +116,12 @@ func TestOverrideVSCodeConfigs(t *testing.T) {
 		// Test with complex existing settings to ensure valid JSON output
 		existingSettings := map[string]interface{}{
 			"workbench.colorCustomizations": map[string]interface{}{
-				"editor.background": "#1e1e1e",
+				"editor.background":  "#1e1e1e",
 				"sideBar.background": "#252526",
 			},
 			"extensions.recommendations": []string{"ms-python.python", "golang.go"},
-			"git.useIntegratedAskPass": true,
-			"editor.rulers": []int{80, 120},
+			"git.useIntegratedAskPass":   true,
+			"editor.rulers":              []int{80, 120},
 		}
 		data, err := json.MarshalIndent(existingSettings, "", "\t")
 		require.NoError(t, err)
