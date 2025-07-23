@@ -1694,6 +1694,8 @@ This is required on creation to enable a user-flow of validating a template work
 ```json
 {
   "description": "string",
+  "env_name": "string",
+  "file_path": "string",
   "name": "string",
   "value": "string"
 }
@@ -1704,6 +1706,8 @@ This is required on creation to enable a user-flow of validating a template work
 | Name          | Type   | Required | Restrictions | Description |
 |---------------|--------|----------|--------------|-------------|
 | `description` | string | false    |              |             |
+| `env_name`    | string | false    |              |             |
+| `file_path`   | string | false    |              |             |
 | `name`        | string | true     |              |             |
 | `value`       | string | true     |              |             |
 
@@ -4008,6 +4012,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     {
       "created_at": "2019-08-24T14:15:22Z",
       "description": "string",
+      "env_name": "string",
+      "file_path": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "name": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -8570,6 +8576,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
+  "env_name": "string",
+  "file_path": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -8583,6 +8591,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |---------------|--------|----------|--------------|-------------|
 | `created_at`  | string | false    |              |             |
 | `description` | string | false    |              |             |
+| `env_name`    | string | false    |              |             |
+| `file_path`   | string | false    |              |             |
 | `id`          | string | false    |              |             |
 | `name`        | string | false    |              |             |
 | `updated_at`  | string | false    |              |             |

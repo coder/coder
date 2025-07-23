@@ -26,3 +26,19 @@ Value of the secret (required).
 | Type | <code>string</code> |
 
 Description of the secret.
+
+### --env_name
+
+|      |                     |
+|------|---------------------|
+| Type | <code>string</code> |
+
+Environment variable name of the secret.
+
+### --file_path
+
+|      |                     |
+|------|---------------------|
+| Type | <code>string</code> |
+
+File path of the secret.

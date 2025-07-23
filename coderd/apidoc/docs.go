@@ -12212,6 +12212,12 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "env_name": {
+                    "type": "string"
+                },
+                "file_path": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -17676,6 +17682,12 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "description": {
+                    "type": "string"
+                },
+                "env_name": {
+                    "type": "string"
+                },
+                "file_path": {
                     "type": "string"
                 },
                 "id": {

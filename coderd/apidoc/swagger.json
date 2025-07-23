@@ -10879,6 +10879,12 @@
 				"description": {
 					"type": "string"
 				},
+				"env_name": {
+					"type": "string"
+				},
+				"file_path": {
+					"type": "string"
+				},
 				"name": {
 					"type": "string"
 				},
@@ -16133,6 +16139,12 @@
 					"format": "date-time"
 				},
 				"description": {
+					"type": "string"
+				},
+				"env_name": {
+					"type": "string"
+				},
+				"file_path": {
 					"type": "string"
 				},
 				"id": {
