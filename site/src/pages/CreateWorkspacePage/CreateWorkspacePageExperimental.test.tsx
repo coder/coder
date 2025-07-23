@@ -79,14 +79,13 @@ function createMockWebSocket(
 
 		addEventListener: <E extends keyof WebSocketEventMap>(
 			eventType: E,
-			callback: WebSocketEventMap[E],
+			cb: (event: WebSocketEventMap[E]) => void,
 		) => {
 			if (closed) {
 				return;
 			}
 
 			const subscribers = store[eventType];
-			const cb = callback as unknown as CallbackStore[E][0];
 			if (!subscribers.includes(cb)) {
 				subscribers.push(cb);
 			}
@@ -94,18 +93,14 @@ function createMockWebSocket(
 
 		removeEventListener: <E extends keyof WebSocketEventMap>(
 			eventType: E,
-			callback: WebSocketEventMap[E],
+			cb: (event: WebSocketEventMap[E]) => void,
 		) => {
 			if (closed) {
 				return;
 			}
 
-			const subscribers = store[eventType];
-			const cb = callback as unknown as CallbackStore[E][0];
-			if (subscribers.includes(cb)) {
-				const updated = store[eventType].filter((c) => c !== cb);
-				store[eventType] = updated as unknown as CallbackStore[E];
-			}
+			const updated = store[eventType].filter((c) => c !== cb);
+			store[eventType] = updated as unknown as CallbackStore[E];
 		},
 
 		close: () => {
@@ -189,24 +184,24 @@ const mockDynamicParametersResponseWithError: DynamicParametersResponse = {
 	],
 };
 
-const renderCreateWorkspacePageExperimental = (
-	route = `/templates/${MockTemplate.name}/workspace`,
-) => {
-	return renderWithAuth(<CreateWorkspacePageExperimental />, {
-		route,
-		path: "/templates/:template/workspace",
-		extraRoutes: [
-			{
-				path: "/:username/:workspace",
-				element: <div>Workspace Page</div>,
-			},
-		],
-	});
-};
-
 describe("CreateWorkspacePageExperimental", () => {
 	let mockWebSocket: WebSocket;
 	let publisher: MockPublisher;
+
+	const renderCreateWorkspacePageExperimental = (
+		route = `/templates/${MockTemplate.name}/workspace`,
+	) => {
+		return renderWithAuth(<CreateWorkspacePageExperimental />, {
+			route,
+			path: "/templates/:template/workspace",
+			extraRoutes: [
+				{
+					path: "/:username/:workspace",
+					element: <div>Workspace Page</div>,
+				},
+			],
+		});
+	};
 
 	beforeEach(() => {
 		jest.clearAllMocks();
@@ -234,14 +229,12 @@ describe("CreateWorkspacePageExperimental", () => {
 					callbacks.onClose();
 				});
 
-				setTimeout(() => {
-					publisher.publishOpen(new Event("open"));
-					publisher.publishMessage(
-						new MessageEvent("message", {
-							data: JSON.stringify(mockDynamicParametersResponse),
-						}),
-					);
-				}, 10);
+				publisher.publishOpen(new Event("open"));
+				publisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify(mockDynamicParametersResponse),
+					}),
+				);
 
 				return mockWebSocket;
 			});
@@ -269,7 +262,7 @@ describe("CreateWorkspacePageExperimental", () => {
 			);
 
 			await waitFor(() => {
-				expect(screen.getByText("Instance Type")).toBeInTheDocument();
+				expect(screen.getByText(/instance type/i)).toBeInTheDocument();
 				expect(screen.getByText("CPU Count")).toBeInTheDocument();
 				expect(screen.getByText("Enable Monitoring")).toBeInTheDocument();
 				expect(screen.getByText("Tags")).toBeInTheDocument();
@@ -280,9 +273,7 @@ describe("CreateWorkspacePageExperimental", () => {
 			renderCreateWorkspacePageExperimental();
 			await waitForLoaderToBeRemoved();
 
-			await waitFor(() => {
-				expect(screen.getByText("Instance Type")).toBeInTheDocument();
-			});
+			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
 
 			expect(mockWebSocket.send).toBeDefined();
 
@@ -381,18 +372,16 @@ describe("CreateWorkspacePageExperimental", () => {
 						callbacks.onMessage(JSON.parse(event.data));
 					});
 
-					setTimeout(() => {
-						publisher.publishOpen(new Event("open"));
-						publisher.publishMessage(
-							new MessageEvent("message", {
-								data: JSON.stringify({
-									id: 0,
-									parameters: [mockDropdownParameter],
-									diagnostics: [],
-								}),
+					publisher.publishOpen(new Event("open"));
+					publisher.publishMessage(
+						new MessageEvent("message", {
+							data: JSON.stringify({
+								id: 0,
+								parameters: [mockDropdownParameter],
+								diagnostics: [],
 							}),
-						);
-					}, 0);
+						}),
+					);
 
 					return mockWebSocket;
 				});
@@ -411,7 +400,7 @@ describe("CreateWorkspacePageExperimental", () => {
 				diagnostics: [],
 			};
 
-			setTimeout(() => {
+			await waitFor(() => {
 				publisher.publishMessage(
 					new MessageEvent("message", { data: JSON.stringify(response1) }),
 				);
@@ -419,12 +408,10 @@ describe("CreateWorkspacePageExperimental", () => {
 				publisher.publishMessage(
 					new MessageEvent("message", { data: JSON.stringify(response2) }),
 				);
-			}, 0);
-
-			await waitFor(() => {
-				expect(screen.queryByText("CPU Count")).toBeInTheDocument();
-				expect(screen.queryByText("Instance Type")).not.toBeInTheDocument();
 			});
+
+			expect(screen.queryByText("CPU Count")).toBeInTheDocument();
+			expect(screen.queryByText("Instance Type")).not.toBeInTheDocument();
 		});
 	});
 
@@ -433,12 +420,7 @@ describe("CreateWorkspacePageExperimental", () => {
 			renderCreateWorkspacePageExperimental();
 			await waitForLoaderToBeRemoved();
 
-			await waitFor(() => {
-				expect(screen.getByText("Instance Type")).toBeInTheDocument();
-				expect(
-					screen.getByRole("combobox", { name: /instance type/i }),
-				).toBeInTheDocument();
-			});
+			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
 
 			const select = screen.getByRole("combobox", { name: /instance type/i });
 
@@ -446,15 +428,10 @@ describe("CreateWorkspacePageExperimental", () => {
 				await userEvent.click(select);
 			});
 
-			expect(
-				screen.getByRole("option", { name: /t3\.micro/i }),
-			).toBeInTheDocument();
-			expect(
-				screen.getByRole("option", { name: /t3\.small/i }),
-			).toBeInTheDocument();
-			expect(
-				screen.getByRole("option", { name: /t3\.medium/i }),
-			).toBeInTheDocument();
+			// Each option appears in both the trigger and the dropdown
+			expect(screen.getAllByText(/t3\.micro/i)).toHaveLength(2);
+			expect(screen.getAllByText(/t3\.small/i)).toHaveLength(2);
+			expect(screen.getAllByText(/t3\.medium/i)).toHaveLength(2);
 		});
 
 		it("renders number parameter with slider", async () => {
@@ -539,13 +516,11 @@ describe("CreateWorkspacePageExperimental", () => {
 						callbacks.onMessage(JSON.parse(event.data));
 					});
 
-					setTimeout(() => {
-						publisher.publishMessage(
-							new MessageEvent("message", {
-								data: JSON.stringify(mockDynamicParametersResponseWithError),
-							}),
-						);
-					}, 10);
+					publisher.publishMessage(
+						new MessageEvent("message", {
+							data: JSON.stringify(mockDynamicParametersResponseWithError),
+						}),
+					);
 
 					return mockWebSocket;
 				});
@@ -603,28 +578,24 @@ describe("CreateWorkspacePageExperimental", () => {
 						callbacks.onMessage(JSON.parse(event.data));
 					});
 
-					setTimeout(() => {
-						publisher.publishOpen(new Event("open"));
+					publisher.publishOpen(new Event("open"));
 
-						publisher.publishMessage(
-							new MessageEvent("message", {
-								data: JSON.stringify(mockResponseInitial),
-							}),
-						);
-					}, 10);
+					publisher.publishMessage(
+						new MessageEvent("message", {
+							data: JSON.stringify(mockResponseInitial),
+						}),
+					);
 
 					const originalSend = socket.send;
 					socket.send = jest.fn((data) => {
 						originalSend.call(socket, data);
 
 						if (typeof data === "string" && data.includes('"200"')) {
-							setTimeout(() => {
-								publisher.publishMessage(
-									new MessageEvent("message", {
-										data: JSON.stringify(mockResponseWithError),
-									}),
-								);
-							}, 10);
+							publisher.publishMessage(
+								new MessageEvent("message", {
+									data: JSON.stringify(mockResponseWithError),
+								}),
+							);
 						}
 					});
 
@@ -746,9 +717,7 @@ describe("CreateWorkspacePageExperimental", () => {
 
 			await waitForLoaderToBeRemoved();
 
-			await waitFor(() => {
-				expect(screen.getByText("Instance Type")).toBeInTheDocument();
-			});
+			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
 
 			await waitFor(() => {
 				expect(screen.getByText("Create workspace")).toBeInTheDocument();
@@ -764,9 +733,7 @@ describe("CreateWorkspacePageExperimental", () => {
 			renderCreateWorkspacePageExperimental();
 			await waitForLoaderToBeRemoved();
 
-			await waitFor(() => {
-				expect(screen.getByText("Instance Type")).toBeInTheDocument();
-			});
+			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
 
 			const nameInput = screen.getByRole("textbox", {
 				name: /workspace name/i,
@@ -813,10 +780,8 @@ describe("CreateWorkspacePageExperimental", () => {
 			);
 			await waitForLoaderToBeRemoved();
 
-			await waitFor(() => {
-				expect(screen.getByText("Instance Type")).toBeInTheDocument();
-				expect(screen.getByText("CPU Count")).toBeInTheDocument();
-			});
+			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
+			expect(screen.getByText("CPU Count")).toBeInTheDocument();
 		});
 
 		it("uses custom template version when specified", async () => {
