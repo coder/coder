@@ -3383,6 +3383,19 @@ export interface UserSecretValue {
 	readonly value: string;
 }
 
+// From codersdk/user_secrets.go
+export interface UserSecretWithValue {
+	readonly id: string;
+	readonly user_id: string;
+	readonly name: string;
+	readonly description?: string;
+	readonly env_name?: string;
+	readonly file_path?: string;
+	readonly value: string;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
 // From codersdk/users.go
 export type UserStatus = "active" | "dormant" | "suspended";
 

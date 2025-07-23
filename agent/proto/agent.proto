@@ -99,13 +99,14 @@ message Manifest {
 	repeated WorkspaceAgentMetadata.Description metadata = 12;
 	repeated WorkspaceAgentDevcontainer devcontainers = 17;
 
-  map<string,Secret> user_secrets = 19;
+  repeated Secret user_secrets = 19;
 }
 
 message Secret {
   string name = 1;
   string env_name = 2;
   string file_path = 3;
+  string value = 4;
 }
 
 message WorkspaceAgentDevcontainer {

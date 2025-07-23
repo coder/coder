@@ -97,6 +97,8 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil, xerrors.Errorf("fetching workspace agent data: %w", err)
 	}
 
+	_ = userSecrets
+
 	appSlug := appurl.ApplicationURL{
 		AppSlugOrPort: "{{port}}",
 		AgentName:     workspaceAgent.Name,
@@ -153,13 +155,14 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 	}, nil
 }
 
-func dbUserSecretsToProto(userSecrets []database.UserSecret) map[string]*agentproto.Secret {
-	userSecretsProto := make(map[string]*agentproto.Secret)
-	for _, userSecret := range userSecrets {
-		userSecretsProto[userSecret.Name] = &agentproto.Secret{
+func dbUserSecretsToProto(userSecrets []database.UserSecret) []*agentproto.Secret {
+	userSecretsProto := make([]*agentproto.Secret, 0)
+	for i, userSecret := range userSecrets {
+		userSecretsProto[i] = &agentproto.Secret{
 			Name:     userSecret.Name,
 			EnvName:  userSecret.EnvName,
 			FilePath: userSecret.FilePath,
+			Value:    userSecret.Value,
 		}
 	}
 

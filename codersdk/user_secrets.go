@@ -41,6 +41,18 @@ type UserSecret struct {
 	UpdatedAt   time.Time `json:"updated_at" format:"date-time"`
 }
 
+type UserSecretWithValue struct {
+	ID          uuid.UUID `json:"id" format:"uuid"`
+	UserID      uuid.UUID `json:"user_id" format:"uuid"`
+	Name        string    `json:"name"`
+	Description string    `json:"description,omitempty"`
+	EnvName     string    `json:"env_name,omitempty"`
+	FilePath    string    `json:"file_path,omitempty"`
+	Value       string    `json:"value"`
+	CreatedAt   time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt   time.Time `json:"updated_at" format:"date-time"`
+}
+
 type UserSecretValue struct {
 	Value string `json:"value"`
 }
