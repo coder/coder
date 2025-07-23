@@ -123,14 +123,6 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 		ctx := r.Context()
 		app := httpmw.OAuth2ProviderApp(r)
 
-		// Validate that app has registered redirect URIs
-		if len(app.RedirectUris) == 0 {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "OAuth2 app has no registered redirect URIs.",
-			})
-			return
-		}
-
 		params, validationErrs, err := extractTokenParams(r, app.RedirectUris)
 		if err != nil {
 			// Check for specific validation errors in priority order
@@ -153,6 +145,14 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 			}
 			// Generic invalid request for other validation errors
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_request", "The request is missing required parameters or is otherwise malformed")
+			return
+		}
+
+		// Validate redirect URIs only for grant types that require them
+		if params.grantType == codersdk.OAuth2ProviderGrantTypeAuthorizationCode && len(app.RedirectUris) == 0 {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "OAuth2 app has no registered redirect URIs.",
+			})
 			return
 		}
 

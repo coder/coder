@@ -16,12 +16,13 @@ import (
 )
 
 // GetAppSecrets returns an http.HandlerFunc that handles GET /oauth2-provider/apps/{app}/secrets
-func GetAppSecrets(db database.Store) http.HandlerFunc {
+func GetAppSecrets(db database.Store, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		app := httpmw.OAuth2ProviderApp(r)
 		dbSecrets, err := db.GetOAuth2ProviderAppSecretsByAppID(ctx, app.ID)
 		if err != nil {
+			logger.Error(ctx, "failed to get OAuth2 client secrets", slog.Error(err), slog.F("app_id", app.ID))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error getting OAuth2 client secrets.",
 				Detail:  err.Error(),
@@ -56,6 +57,7 @@ func CreateAppSecret(db database.Store, auditor *audit.Auditor, logger slog.Logg
 		defer commitAudit()
 		secret, err := GenerateSecret()
 		if err != nil {
+			logger.Error(ctx, "failed to generate OAuth2 client secret", slog.Error(err), slog.F("app_id", app.ID))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to generate OAuth2 client secret.",
 				Detail:  err.Error(),
@@ -70,10 +72,12 @@ func CreateAppSecret(db database.Store, auditor *audit.Auditor, logger slog.Logg
 			// DisplaySecret is the last six characters of the original unhashed secret.
 			// This is done so they can be differentiated and it matches how GitHub
 			// displays their client secrets.
-			DisplaySecret: secret.Formatted[len(secret.Formatted)-6:],
-			AppID:         app.ID,
+			DisplaySecret:  secret.Formatted[len(secret.Formatted)-6:],
+			AppID:          app.ID,
+			AppOwnerUserID: app.UserID,
 		})
 		if err != nil {
+			logger.Error(ctx, "failed to create OAuth2 client secret", slog.Error(err), slog.F("app_id", app.ID))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error creating OAuth2 client secret.",
 				Detail:  err.Error(),
@@ -105,6 +109,7 @@ func DeleteAppSecret(db database.Store, auditor *audit.Auditor, logger slog.Logg
 		defer commitAudit()
 		err := db.DeleteOAuth2ProviderAppSecretByID(ctx, secret.ID)
 		if err != nil {
+			logger.Error(ctx, "failed to delete OAuth2 client secret", slog.Error(err), slog.F("secret_id", secret.ID), slog.F("app_id", secret.AppID))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error deleting OAuth2 client secret.",
 				Detail:  err.Error(),

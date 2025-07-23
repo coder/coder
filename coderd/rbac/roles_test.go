@@ -628,8 +628,20 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceOauth2App,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, setOrgNotMe, setOtherOrg, memberMe, orgMemberMe, templateAdmin, userAdmin},
-				false: {},
+				// Only owners can read system-scoped OAuth2 apps
+				// User-level permissions only apply to user-owned resources
+				true:  {owner},
+				false: {memberMe, orgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin, otherOrgAdmin, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin, templateAdmin, userAdmin, orgMemberMe, otherOrgMember},
+			},
+		},
+		{
+			Name:     "Oauth2AppReadOwned",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceOauth2App.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				// Users can read their own OAuth2 apps through ownership
+				true:  {owner, memberMe, orgMemberMe},
+				false: {orgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin, otherOrgAdmin, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin, templateAdmin, userAdmin, otherOrgMember},
 			},
 		},
 		{
