@@ -65,7 +65,10 @@ const CreateWorkspacePage: FC = () => {
 	});
 	const permissionsQuery = useQuery({
 		...checkAuthorization({
-			checks: createWorkspaceChecks(templateQuery.data?.organization_id ?? ""),
+			checks: createWorkspaceChecks(
+				templateQuery.data?.organization_id ?? "",
+				templateQuery.data?.id,
+			),
 		}),
 		enabled: !!templateQuery.data,
 	});
@@ -208,6 +211,7 @@ const CreateWorkspacePage: FC = () => {
 					startPollingExternalAuth={startPollingExternalAuth}
 					hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
 					permissions={permissionsQuery.data as CreateWorkspacePermissions}
+					canUpdateTemplate={permissionsQuery.data?.canUpdateTemplate}
 					parameters={realizedParameters as TemplateVersionParameter[]}
 					presets={templateVersionPresetsQuery.data ?? []}
 					creatingWorkspace={createWorkspaceMutation.isPending}
