@@ -65,16 +65,10 @@ const CreateWorkspacePage: FC = () => {
 	});
 	const permissionsQuery = useQuery({
 		...checkAuthorization({
-			checks: {
-				...createWorkspaceChecks(templateQuery.data?.organization_id ?? ""),
-				canUpdateTemplate: {
-					object: {
-						resource_type: "template",
-						resource_id: templateQuery.data?.id ?? "",
-					},
-					action: "update",
-				},
-			},
+			checks: createWorkspaceChecks(
+				templateQuery.data?.organization_id ?? "",
+				templateQuery.data?.id,
+			),
 		}),
 		enabled: !!templateQuery.data,
 	});

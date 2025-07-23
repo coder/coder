@@ -28,6 +28,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 		mode: "form",
 		permissions: {
 			createWorkspaceForAny: true,
+			canUpdateTemplate: false,
 		},
 		onCancel: action("onCancel"),
 	},
@@ -398,26 +399,6 @@ export const WithViewSourceButton: Story = {
 			description: {
 				story:
 					"This story shows the View Source button that appears for template administrators. The button allows quick navigation to the template editor from the workspace creation page.",
-			},
-		},
-	},
-};
-
-export const WithoutViewSourceButton: Story = {
-	args: {
-		canUpdateTemplate: false,
-		versionId: "template-version-123",
-		template: {
-			...MockTemplate,
-			organization_name: "default",
-			name: "docker-template",
-		},
-	},
-	parameters: {
-		docs: {
-			description: {
-				story:
-					"This story shows the workspace creation page for users without template update permissions. The View Source button is hidden for these users.",
 			},
 		},
 	},
