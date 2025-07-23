@@ -5,8 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -351,6 +354,12 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 
 		// Setup Prebuild reconciler
 		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+		newNoopUsageCheckerPtr := func() *atomic.Pointer[wsbuilder.UsageChecker] {
+			var noopUsageChecker wsbuilder.UsageChecker = wsbuilder.NoopUsageChecker{}
+			buildUsageChecker := atomic.Pointer[wsbuilder.UsageChecker]{}
+			buildUsageChecker.Store(&noopUsageChecker)
+			return &buildUsageChecker
+		}
 		reconciler := prebuilds.NewStoreReconciler(
 			db, pb, cache,
 			codersdk.PrebuildsConfig{},
@@ -358,6 +367,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 			quartz.NewMock(t),
 			prometheus.NewRegistry(),
 			notifications.NewNoopEnqueuer(),
+			newNoopUsageCheckerPtr(),
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -454,6 +464,12 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 
 		// Setup Prebuild reconciler
 		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+		newNoopUsageCheckerPtr := func() *atomic.Pointer[wsbuilder.UsageChecker] {
+			var noopUsageChecker wsbuilder.UsageChecker = wsbuilder.NoopUsageChecker{}
+			buildUsageChecker := atomic.Pointer[wsbuilder.UsageChecker]{}
+			buildUsageChecker.Store(&noopUsageChecker)
+			return &buildUsageChecker
+		}
 		reconciler := prebuilds.NewStoreReconciler(
 			db, pb, cache,
 			codersdk.PrebuildsConfig{},
@@ -461,6 +477,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 			quartz.NewMock(t),
 			prometheus.NewRegistry(),
 			notifications.NewNoopEnqueuer(),
+			newNoopUsageCheckerPtr(),
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
