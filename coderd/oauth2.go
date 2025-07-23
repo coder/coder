@@ -234,7 +234,7 @@ func (api *API) deleteOAuth2ClientConfiguration() http.HandlerFunc {
 
 // @Summary OAuth2 device authorization request (RFC 8628).
 // @ID oauth2-device-authorization-request
-// @Accept json
+// @Accept application/x-www-form-urlencoded
 // @Produce json
 // @Tags Enterprise
 // @Param request body codersdk.OAuth2DeviceAuthorizationRequest true "Device authorization request"

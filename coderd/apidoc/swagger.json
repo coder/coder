@@ -2159,7 +2159,7 @@
 		},
 		"/oauth2/device": {
 			"post": {
-				"consumes": ["application/json"],
+				"consumes": ["application/x-www-form-urlencoded"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "OAuth2 device authorization request (RFC 8628).",
@@ -12970,9 +12970,6 @@
 		"codersdk.OAuth2ProviderApp": {
 			"type": "object",
 			"properties": {
-				"callback_url": {
-					"type": "string"
-				},
 				"endpoints": {
 					"description": "Endpoints are included in the app response for easier discovery. The OAuth2\nspec does not have a defined place to find these (for comparison, OIDC has\na '/.well-known/openid-configuration' endpoint).",
 					"allOf": [
@@ -12990,6 +12987,12 @@
 				},
 				"name": {
 					"type": "string"
+				},
+				"redirect_uris": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
 				}
 			}
 		},
@@ -13567,16 +13570,20 @@
 		},
 		"codersdk.PostOAuth2ProviderAppRequest": {
 			"type": "object",
-			"required": ["callback_url", "name"],
+			"required": ["name", "redirect_uris"],
 			"properties": {
-				"callback_url": {
-					"type": "string"
-				},
 				"icon": {
 					"type": "string"
 				},
 				"name": {
 					"type": "string"
+				},
+				"redirect_uris": {
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"type": "string"
+					}
 				}
 			}
 		},
@@ -14261,16 +14268,20 @@
 		},
 		"codersdk.PutOAuth2ProviderAppRequest": {
 			"type": "object",
-			"required": ["callback_url", "name"],
+			"required": ["name", "redirect_uris"],
 			"properties": {
-				"callback_url": {
-					"type": "string"
-				},
 				"icon": {
 					"type": "string"
 				},
 				"name": {
 					"type": "string"
+				},
+				"redirect_uris": {
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"type": "string"
+					}
 				}
 			}
 		},

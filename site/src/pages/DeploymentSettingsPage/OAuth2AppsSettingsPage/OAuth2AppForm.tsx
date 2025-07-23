@@ -1,3 +1,6 @@
+import AddIcon from "@mui/icons-material/Add";
+import DeleteIcon from "@mui/icons-material/Delete";
+import IconButton from "@mui/material/IconButton";
 import TextField from "@mui/material/TextField";
 import { isApiValidationError, mapApiErrorToFieldErrors } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
@@ -5,12 +8,13 @@ import { Button } from "components/Button/Button";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import type { FC, ReactNode } from "react";
+import { useState } from "react";
 
 type OAuth2AppFormProps = {
 	app?: TypesGen.OAuth2ProviderApp;
 	onSubmit: (data: {
 		name: string;
-		callback_url: string;
+		redirect_uris: string[];
 		icon: string;
 	}) => void;
 	error?: unknown;
@@ -25,9 +29,33 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	isUpdating,
 	actions,
 }) => {
+	// Initialize redirect URIs state with existing app data or a single empty field
+	const [redirectUris, setRedirectUris] = useState<string[]>(() => {
+		if (app?.redirect_uris && app.redirect_uris.length > 0) {
+			return [...app.redirect_uris];
+		}
+		return [""];
+	});
+
 	const apiValidationErrors = isApiValidationError(error)
 		? mapApiErrorToFieldErrors(error.response.data)
 		: undefined;
+
+	const addRedirectUri = () => {
+		setRedirectUris([...redirectUris, ""]);
+	};
+
+	const removeRedirectUri = (index: number) => {
+		if (redirectUris.length > 1) {
+			setRedirectUris(redirectUris.filter((_, i) => i !== index));
+		}
+	};
+
+	const updateRedirectUri = (index: number, value: string) => {
+		const updated = [...redirectUris];
+		updated[index] = value;
+		setRedirectUris(updated);
+	};
 
 	return (
 		<form
@@ -35,9 +63,15 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 			onSubmit={(event) => {
 				event.preventDefault();
 				const formData = new FormData(event.target as HTMLFormElement);
+
+				// Filter out empty redirect URIs and validate we have at least one
+				const filteredRedirectUris = redirectUris.filter(
+					(uri) => uri.trim() !== "",
+				);
+
 				onSubmit({
 					name: formData.get("name") as string,
-					callback_url: formData.get("callback_url") as string,
+					redirect_uris: filteredRedirectUris,
 					icon: formData.get("icon") as string,
 				});
 			}}
@@ -54,17 +88,58 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 					autoFocus
 					fullWidth
 				/>
-				<TextField
-					name="callback_url"
-					label="Callback URL"
-					defaultValue={app?.callback_url}
-					error={Boolean(apiValidationErrors?.callback_url)}
-					helperText={
-						apiValidationErrors?.callback_url ||
-						"The full URL to redirect to after a user authorizes an installation."
-					}
-					fullWidth
-				/>
+
+				{/* Redirect URIs Section */}
+				<Stack spacing={1}>
+					<div css={{ display: "flex", alignItems: "center", gap: 8 }}>
+						<span css={{ fontWeight: 500, fontSize: 14 }}>Redirect URIs</span>
+						<IconButton
+							size="small"
+							onClick={addRedirectUri}
+							css={{ padding: 4 }}
+							title="Add redirect URI"
+						>
+							<AddIcon fontSize="small" />
+						</IconButton>
+					</div>
+
+					{redirectUris.map((uri, index) => (
+						<Stack
+							key={index}
+							direction="row"
+							spacing={1}
+							sx={{ alignItems: "flex-start" }}
+						>
+							<TextField
+								value={uri}
+								onChange={(event) =>
+									updateRedirectUri(index, event.target.value)
+								}
+								placeholder="https://example.com/callback"
+								error={Boolean(apiValidationErrors?.redirect_uris)}
+								helperText={
+									index === 0 &&
+									(apiValidationErrors?.redirect_uris ||
+										"Full URLs where users will be redirected after authorization. At least one is required.")
+								}
+								fullWidth
+							/>
+							{redirectUris.length > 1 && (
+								<Stack sx={{ paddingTop: 1 }}>
+									<IconButton
+										size="small"
+										onClick={() => removeRedirectUri(index)}
+										css={{ padding: 4 }}
+										title="Remove redirect URI"
+									>
+										<DeleteIcon fontSize="small" />
+									</IconButton>
+								</Stack>
+							)}
+						</Stack>
+					))}
+				</Stack>
+
 				<TextField
 					name="icon"
 					label="Application icon"
