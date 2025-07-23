@@ -45,7 +45,7 @@ func readIgnoreFile(fileSystem afero.Fs, path string) ([]gitignore.Pattern, erro
 }
 
 func ReadPatterns(fileSystem afero.Fs, path string) ([]gitignore.Pattern, error) {
-	ps, _ := readIgnoreFile(fileSystem, path)
+	var ps []gitignore.Pattern
 
 	if err := afero.Walk(fileSystem, path, func(path string, info fs.FileInfo, _ error) error {
 		if !info.IsDir() {
