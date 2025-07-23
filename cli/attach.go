@@ -1,9 +1,7 @@
 package cli
 
 import (
-	"context"
 	"fmt"
-	"io"
 	"slices"
 	"strings"
 	"time"
@@ -11,27 +9,21 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/pretty"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) create() *serpent.Command {
+func (r *RootCmd) attach() *serpent.Command {
 	var (
 		templateName    string
 		templateVersion string
-		startAt         string
-		stopAfter       time.Duration
 		workspaceName   string
 
-		parameterFlags     workspaceParameterFlags
-		autoUpdates        string
-		copyParametersFrom string
+		parameterFlags workspaceParameterFlags
 		// Organization context is only required if more than 1 template
 		// shares the same name across multiple organizations.
 		orgContext = NewOrganizationContext()
@@ -39,12 +31,12 @@ func (r *RootCmd) create() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
-		Use:         "create [workspace]",
-		Short:       "Create a workspace",
+		Use:         "attach [workspace]",
+		Short:       "Create a workspace and attach an external agent to it",
 		Long: FormatExamples(
 			Example{
-				Description: "Create a workspace for another user (if you have permission)",
-				Command:     "coder create <username>/<workspace_name>",
+				Description: "Attach an external agent to a workspace",
+				Command:     "coder attach my-workspace --template externally-managed-workspace --output text",
 			},
 		),
 		Middleware: serpent.Chain(r.InitClient(client)),
@@ -81,27 +73,12 @@ func (r *RootCmd) create() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("workspace name %q is invalid: %w", workspaceName, err)
 			}
-			_, err = client.WorkspaceByOwnerAndName(inv.Context(), workspaceOwner, workspaceName, codersdk.WorkspaceOptions{})
-			if err == nil {
-				return xerrors.Errorf("a workspace already exists named %q", workspaceName)
+
+			if workspace, err := client.WorkspaceByOwnerAndName(inv.Context(), workspaceOwner, workspaceName, codersdk.WorkspaceOptions{}); err == nil {
+				return externalAgentDetails(inv, client, workspace, workspace.LatestBuild.Resources)
 			}
 
-			var sourceWorkspace codersdk.Workspace
-			if copyParametersFrom != "" {
-				sourceWorkspaceOwner, sourceWorkspaceName, err := splitNamedWorkspace(copyParametersFrom)
-				if err != nil {
-					return err
-				}
-
-				sourceWorkspace, err = client.WorkspaceByOwnerAndName(inv.Context(), sourceWorkspaceOwner, sourceWorkspaceName, codersdk.WorkspaceOptions{})
-				if err != nil {
-					return xerrors.Errorf("get source workspace: %w", err)
-				}
-
-				_, _ = fmt.Fprintf(inv.Stdout, "Coder will use the same template %q as the source workspace.\n", sourceWorkspace.TemplateName)
-				templateName = sourceWorkspace.TemplateName
-			}
-
+			// If workspace doesn't exist, create it
 			var template codersdk.Template
 			var templateVersionID uuid.UUID
 			switch {
@@ -162,12 +139,6 @@ func (r *RootCmd) create() *serpent.Command {
 
 				template = templateByName[option]
 				templateVersionID = template.ActiveVersionID
-			case sourceWorkspace.LatestBuild.TemplateVersionID != uuid.Nil:
-				template, err = client.Template(inv.Context(), sourceWorkspace.TemplateID)
-				if err != nil {
-					return xerrors.Errorf("get template by name: %w", err)
-				}
-				templateVersionID = sourceWorkspace.LatestBuild.TemplateVersionID
 			default:
 				templates, err := client.Templates(inv.Context(), codersdk.TemplateFilter{
 					ExactName: templateName,
@@ -236,15 +207,6 @@ func (r *RootCmd) create() *serpent.Command {
 				}
 			}
 
-			var schedSpec *string
-			if startAt != "" {
-				sched, err := parseCLISchedule(startAt)
-				if err != nil {
-					return err
-				}
-				schedSpec = ptr.Ref(sched.String())
-			}
-
 			cliBuildParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
 			if err != nil {
 				return xerrors.Errorf("can't parse given parameter values: %w", err)
@@ -255,15 +217,7 @@ func (r *RootCmd) create() *serpent.Command {
 				return xerrors.Errorf("can't parse given parameter defaults: %w", err)
 			}
 
-			var sourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
-			if copyParametersFrom != "" {
-				sourceWorkspaceParameters, err = client.WorkspaceBuildParameters(inv.Context(), sourceWorkspace.LatestBuild.ID)
-				if err != nil {
-					return xerrors.Errorf("get source workspace build parameters: %w", err)
-				}
-			}
-
-			richParameters, _, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
+			richParameters, resources, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
 				Action:            WorkspaceCreate,
 				TemplateVersionID: templateVersionID,
 				NewWorkspaceName:  workspaceName,
@@ -271,8 +225,6 @@ func (r *RootCmd) create() *serpent.Command {
 				RichParameterFile:     parameterFlags.richParameterFile,
 				RichParameters:        cliBuildParameters,
 				RichParameterDefaults: cliBuildParameterDefaults,
-
-				SourceWorkspaceParameters: sourceWorkspaceParameters,
 			})
 			if err != nil {
 				return xerrors.Errorf("prepare build: %w", err)
@@ -286,18 +238,10 @@ func (r *RootCmd) create() *serpent.Command {
 				return err
 			}
 
-			var ttlMillis *int64
-			if stopAfter > 0 {
-				ttlMillis = ptr.Ref(stopAfter.Milliseconds())
-			}
-
 			workspace, err := client.CreateUserWorkspace(inv.Context(), workspaceOwner, codersdk.CreateWorkspaceRequest{
 				TemplateVersionID:   templateVersionID,
 				Name:                workspaceName,
-				AutostartSchedule:   schedSpec,
-				TTLMillis:           ttlMillis,
 				RichParameterValues: richParameters,
-				AutomaticUpdates:    codersdk.AutomaticUpdates(autoUpdates),
 			})
 			if err != nil {
 				return xerrors.Errorf("create workspace: %w", err)
@@ -312,14 +256,16 @@ func (r *RootCmd) create() *serpent.Command {
 
 			_, _ = fmt.Fprintf(
 				inv.Stdout,
-				"\nThe %s workspace has been created at %s!\n",
+				"\nThe %s workspace has been created at %s!\n\n",
 				cliui.Keyword(workspace.Name),
 				cliui.Timestamp(time.Now()),
 			)
-			return nil
+
+			return externalAgentDetails(inv, client, workspace, resources)
 		},
 	}
-	cmd.Options = append(cmd.Options,
+
+	cmd.Options = serpent.OptionSet{
 		serpent.Option{
 			Flag:          "template",
 			FlagShorthand: "t",
@@ -333,150 +279,37 @@ func (r *RootCmd) create() *serpent.Command {
 			Description: "Specify a template version name.",
 			Value:       serpent.StringOf(&templateVersion),
 		},
-		serpent.Option{
-			Flag:        "start-at",
-			Env:         "CODER_WORKSPACE_START_AT",
-			Description: "Specify the workspace autostart schedule. Check coder schedule start --help for the syntax.",
-			Value:       serpent.StringOf(&startAt),
-		},
-		serpent.Option{
-			Flag:        "stop-after",
-			Env:         "CODER_WORKSPACE_STOP_AFTER",
-			Description: "Specify a duration after which the workspace should shut down (e.g. 8h).",
-			Value:       serpent.DurationOf(&stopAfter),
-		},
-		serpent.Option{
-			Flag:        "automatic-updates",
-			Env:         "CODER_WORKSPACE_AUTOMATIC_UPDATES",
-			Description: "Specify automatic updates setting for the workspace (accepts 'always' or 'never').",
-			Default:     string(codersdk.AutomaticUpdatesNever),
-			Value:       serpent.StringOf(&autoUpdates),
-		},
-		serpent.Option{
-			Flag:        "copy-parameters-from",
-			Env:         "CODER_WORKSPACE_COPY_PARAMETERS_FROM",
-			Description: "Specify the source workspace name to copy parameters from.",
-			Value:       serpent.StringOf(&copyParametersFrom),
-		},
 		cliui.SkipPromptOption(),
-	)
+	}
 	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
 	cmd.Options = append(cmd.Options, parameterFlags.cliParameterDefaults()...)
 	orgContext.AttachOptions(cmd)
 	return cmd
 }
 
-type prepWorkspaceBuildArgs struct {
-	Action            WorkspaceCLIAction
-	TemplateVersionID uuid.UUID
-	NewWorkspaceName  string
-
-	LastBuildParameters       []codersdk.WorkspaceBuildParameter
-	SourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
-
-	PromptEphemeralParameters bool
-	EphemeralParameters       []codersdk.WorkspaceBuildParameter
-
-	PromptRichParameters  bool
-	RichParameters        []codersdk.WorkspaceBuildParameter
-	RichParameterFile     string
-	RichParameterDefaults []codersdk.WorkspaceBuildParameter
-}
-
-// prepWorkspaceBuild will ensure a workspace build will succeed on the latest template version.
-// Any missing params will be prompted to the user. It supports rich parameters.
-func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args prepWorkspaceBuildArgs) ([]codersdk.WorkspaceBuildParameter, []codersdk.WorkspaceResource, error) {
-	ctx := inv.Context()
-
-	templateVersion, err := client.TemplateVersion(ctx, args.TemplateVersionID)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("get template version: %w", err)
+func externalAgentDetails(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, resources []codersdk.WorkspaceResource) error {
+	if len(resources) == 0 {
+		return xerrors.Errorf("no resources found for workspace")
 	}
 
-	templateVersionParameters, err := client.TemplateVersionRichParameters(inv.Context(), templateVersion.ID)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("get template version rich parameters: %w", err)
-	}
+	for _, resource := range resources {
+		if resource.Type == "coder_external_agent" {
+			agent := resource.Agents[0]
+			credential, err := client.WorkspaceExternalAgentCredential(inv.Context(), workspace.ID, agent.Name)
+			if err != nil {
+				return xerrors.Errorf("get external agent token: %w", err)
+			}
 
-	parameterFile := map[string]string{}
-	if args.RichParameterFile != "" {
-		parameterFile, err = parseParameterMapFile(args.RichParameterFile)
-		if err != nil {
-			return nil, nil, xerrors.Errorf("can't parse parameter map file: %w", err)
+			initScriptURL := fmt.Sprintf("%s/api/v2/init-script", client.URL)
+			if agent.OperatingSystem != "linux" || agent.Architecture != "amd64" {
+				initScriptURL = fmt.Sprintf("%s/api/v2/init-script?os=%s&arch=%s", client.URL, agent.OperatingSystem, agent.Architecture)
+			}
+
+			_, _ = fmt.Fprintf(inv.Stdout, "Please run the following commands to attach an agent to the workspace %s:\n", cliui.Keyword(workspace.Name))
+			_, _ = fmt.Fprintf(inv.Stdout, "%s\n", pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("export CODER_AGENT_TOKEN=%s", credential.AgentToken)))
+			_, _ = fmt.Fprintf(inv.Stdout, "%s\n", pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("curl -fsSL %s | sh", initScriptURL)))
 		}
 	}
 
-	resolver := new(ParameterResolver).
-		WithLastBuildParameters(args.LastBuildParameters).
-		WithSourceWorkspaceParameters(args.SourceWorkspaceParameters).
-		WithPromptEphemeralParameters(args.PromptEphemeralParameters).
-		WithEphemeralParameters(args.EphemeralParameters).
-		WithPromptRichParameters(args.PromptRichParameters).
-		WithRichParameters(args.RichParameters).
-		WithRichParametersFile(parameterFile).
-		WithRichParametersDefaults(args.RichParameterDefaults)
-	buildParameters, err := resolver.Resolve(inv, args.Action, templateVersionParameters)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	err = cliui.ExternalAuth(ctx, inv.Stdout, cliui.ExternalAuthOptions{
-		Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionExternalAuth, error) {
-			return client.TemplateVersionExternalAuth(ctx, templateVersion.ID)
-		},
-	})
-	if err != nil {
-		return nil, nil, xerrors.Errorf("template version git auth: %w", err)
-	}
-
-	// Run a dry-run with the given parameters to check correctness
-	dryRun, err := client.CreateTemplateVersionDryRun(inv.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
-		WorkspaceName:       args.NewWorkspaceName,
-		RichParameterValues: buildParameters,
-	})
-	if err != nil {
-		return nil, nil, xerrors.Errorf("begin workspace dry-run: %w", err)
-	}
-
-	matchedProvisioners, err := client.TemplateVersionDryRunMatchedProvisioners(inv.Context(), templateVersion.ID, dryRun.ID)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("get matched provisioners: %w", err)
-	}
-	cliutil.WarnMatchedProvisioners(inv.Stdout, &matchedProvisioners, dryRun)
-	_, _ = fmt.Fprintln(inv.Stdout, "Planning workspace...")
-	err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
-		Fetch: func() (codersdk.ProvisionerJob, error) {
-			return client.TemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
-		},
-		Cancel: func() error {
-			return client.CancelTemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
-		},
-		Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
-			return client.TemplateVersionDryRunLogsAfter(inv.Context(), templateVersion.ID, dryRun.ID, 0)
-		},
-		// Don't show log output for the dry-run unless there's an error.
-		Silent: true,
-	})
-	if err != nil {
-		// TODO (Dean): reprompt for parameter values if we deem it to
-		// be a validation error
-		return nil, nil, xerrors.Errorf("dry-run workspace: %w", err)
-	}
-
-	resources, err := client.TemplateVersionDryRunResources(inv.Context(), templateVersion.ID, dryRun.ID)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("get workspace dry-run resources: %w", err)
-	}
-
-	err = cliui.WorkspaceResources(inv.Stdout, resources, cliui.WorkspaceResourcesOptions{
-		WorkspaceName: args.NewWorkspaceName,
-		// Since agents haven't connected yet, hiding this makes more sense.
-		HideAgentState: true,
-		Title:          "Workspace Preview",
-	})
-	if err != nil {
-		return nil, nil, xerrors.Errorf("get resources: %w", err)
-	}
-
-	return buildParameters, resources, nil
+	return nil
 }

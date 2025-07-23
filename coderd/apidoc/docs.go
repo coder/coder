@@ -1280,6 +1280,37 @@ const docTemplate = `{
                 }
             }
         },
+        "/init-script": {
+            "get": {
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "InitScript"
+                ],
+                "summary": "Get agent init script",
+                "operationId": "get-agent-init-script",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Operating system",
+                        "name": "os",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Architecture",
+                        "name": "arch",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    }
+                }
+            }
+        },
         "/insights/daus": {
             "get": {
                 "security": [
@@ -10227,6 +10258,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaces/{workspace}/external-agent/{agent}/credential": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get external agent credentials",
+                "operationId": "get-workspace-external-agent-credentials",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Agent name",
+                        "name": "agent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ExternalAgentCredential"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaces/{workspace}/favorite": {
             "put": {
                 "security": [
@@ -12834,6 +12907,14 @@ const docTemplate = `{
                 "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP"
             ]
+        },
+        "codersdk.ExternalAgentCredential": {
+            "type": "object",
+            "properties": {
+                "agent_token": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.ExternalAuth": {
             "type": "object",

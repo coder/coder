@@ -2181,3 +2181,52 @@ func convertWorkspaceAgentLog(logEntry database.WorkspaceAgentLog) codersdk.Work
 		SourceID:  logEntry.LogSourceID,
 	}
 }
+
+// @Summary Get external agent credentials
+// @ID get-workspace-external-agent-credentials
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param agent path string true "Agent name"
+// @Success 200 {object} codersdk.ExternalAgentCredential
+// @Router /workspaces/{workspace}/external-agent/{agent}/credential [get]
+func (api *API) workspaceExternalAgentCredential(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspace := httpmw.WorkspaceParam(r)
+	agentName := chi.URLParam(r, "agent")
+
+	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get latest workspace build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	agents, err := api.Database.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx, database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
+		WorkspaceID: workspace.ID,
+		BuildNumber: build.BuildNumber,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get workspace agents.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	for _, agent := range agents {
+		if agent.Name == agentName {
+			httpapi.Write(ctx, rw, http.StatusOK, codersdk.ExternalAgentCredential{
+				AgentToken: agent.AuthToken.String(),
+			})
+			return
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+		Message: fmt.Sprintf("External agent '%s' not found in workspace.", agentName),
+	})
+}

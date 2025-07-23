@@ -48,18 +48,6 @@
 							"icon_path": "./images/icons/document.svg"
 						},
 						{
-							"title": "Modules",
-							"description": "Learn how to contribute modules to Coder",
-							"path": "./about/contributing/modules.md",
-							"icon_path": "./images/icons/gear.svg"
-						},
-						{
-							"title": "Templates",
-							"description": "Learn how to contribute templates to Coder",
-							"path": "./about/contributing/templates.md",
-							"icon_path": "./images/icons/picture.svg"
-						},
-						{
 							"title": "Backend",
 							"description": "Our guide for backend development",
 							"path": "./about/contributing/backend.md",
@@ -710,8 +698,8 @@
 							"path": "./admin/integrations/platformx.md"
 						},
 						{
-							"title": "DX",
-							"description": "Tag Coder Users with DX",
+							"title": "DX Data Cloud",
+							"description": "Tag Coder Users with DX Data Cloud",
 							"path": "./admin/integrations/dx-data-cloud.md"
 						},
 						{
@@ -1123,6 +1111,11 @@
 					"path": "./reference/cli/index.md",
 					"icon_path": "./images/icons/terminal.svg",
 					"children": [
+						{
+							"title": "attach",
+							"description": "Create a workspace and attach an external agent to it",
+							"path": "reference/cli/attach.md"
+						},
 						{
 							"title": "autoupdate",
 							"description": "Toggle auto-update policy for a workspace",

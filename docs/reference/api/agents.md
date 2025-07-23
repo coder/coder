@@ -1238,3 +1238,41 @@ Status Code **200**
 | `level`  | `error` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get external agent credentials
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/external-agent/{agent}/credential \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaces/{workspace}/external-agent/{agent}/credential`
+
+### Parameters
+
+| Name        | In   | Type         | Required | Description  |
+|-------------|------|--------------|----------|--------------|
+| `workspace` | path | string(uuid) | true     | Workspace ID |
+| `agent`     | path | string       | true     | Agent name   |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "agent_token": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                         |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ExternalAgentCredential](schemas.md#codersdkexternalagentcredential) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

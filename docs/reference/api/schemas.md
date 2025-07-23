@@ -3304,6 +3304,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `oauth2`               |
 | `mcp-server-http`      |
 
+## codersdk.ExternalAgentCredential
+
+```json
+{
+  "agent_token": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `agent_token` | string | false    |              |             |
+
 ## codersdk.ExternalAuth
 
 ```json

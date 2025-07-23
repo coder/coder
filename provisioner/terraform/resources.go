@@ -1250,7 +1250,8 @@ func findResourcesInGraph(graph *gographviz.Graph, tfResourcesByLabel map[string
 				continue
 			}
 			// Don't associate Coder resources with other Coder resources!
-			if strings.HasPrefix(resource.Type, "coder_") {
+			// Except for coder_external_agent, which is a special case.
+			if strings.HasPrefix(resource.Type, "coder_") && resource.Type != "coder_external_agent" {
 				continue
 			}
 			graphResources = append(graphResources, &graphResource{

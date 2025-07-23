@@ -144,7 +144,7 @@ func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client
 		return codersdk.CreateWorkspaceBuildRequest{}, xerrors.Errorf("unable to parse rich parameter defaults: %w", err)
 	}
 
-	buildParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
+	buildParameters, _, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
 		Action:              action,
 		TemplateVersionID:   version,
 		NewWorkspaceName:    workspace.Name,

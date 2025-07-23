@@ -923,6 +923,11 @@ export const Experiments: Experiment[] = [
 	"workspace-usage",
 ];
 
+// From codersdk/workspaces.go
+export interface ExternalAgentCredential {
+	readonly agent_token: string;
+}
+
 // From codersdk/externalauth.go
 export interface ExternalAuth {
 	readonly authenticated: boolean;

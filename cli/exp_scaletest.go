@@ -596,7 +596,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 				return xerrors.Errorf("can't parse given parameter values: %w", err)
 			}
 
-			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
+			richParameters, _, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
 				Action:            WorkspaceCreate,
 				TemplateVersionID: tpl.ActiveVersionID,
 				NewWorkspaceName:  "scaletest-N", // TODO: the scaletest runner will pass in a different name here. Does this matter?

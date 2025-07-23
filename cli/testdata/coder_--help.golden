@@ -14,6 +14,7 @@ USAGE:
        $ coder templates init
 
 SUBCOMMANDS:
+    attach            Create a workspace and attach an external agent to it
     autoupdate        Toggle auto-update policy for a workspace
     completion        Install or update shell completion scripts for the
                       detected or chosen shell.
