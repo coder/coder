@@ -228,7 +228,6 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 	in.Messages = append([]openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage("You are a helpful assistant that explicitly mentions when tool calls are about to be made."),
 	}, in.Messages...)
-	in.StreamOptions.IncludeUsage = openai.Bool(true)
 
 	for _, proxy := range b.mcpBridges {
 		for _, tool := range proxy.ListTools() {
@@ -257,9 +256,11 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 
 	// client := openai.NewClient(oai_option.WithMiddleware(LoggingMiddleware))
 	client := openai.NewClient()
-	messages := in.ChatCompletionNewParams
+	req := in.ChatCompletionNewParams
 
 	if in.Stream {
+		in.StreamOptions.IncludeUsage = openai.Bool(true)
+
 		streamCtx, streamCancel := context.WithCancelCause(ctx)
 		defer streamCancel(xerrors.New("deferred"))
 
@@ -281,7 +282,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 
 		// TODO: implement parallel tool calls.
 		// TODO: don't send if not supported by model (i.e. o4-mini).
-		messages.ParallelToolCalls = openai.Bool(false)
+		req.ParallelToolCalls = openai.Bool(false)
 
 		var (
 			stream          *ssestream.Stream[openai.ChatCompletionChunk]
@@ -290,7 +291,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 		for {
 			var pendingToolCalls []openai.FinishedChatCompletionToolCall
 
-			stream = client.Chat.Completions.NewStreaming(ctx, messages)
+			stream = client.Chat.Completions.NewStreaming(ctx, req)
 			var acc openai.ChatCompletionAccumulator
 			for stream.Next() {
 				chunk := stream.Current()
@@ -347,7 +348,11 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if err := stream.Err(); err != nil {
-				if isConnectionError(err) {
+				var apierr *openai.Error
+				if errors.As(err, &apierr) {
+					http.Error(w, apierr.Message, apierr.StatusCode)
+					return
+				} else if isConnectionError(err) {
 					b.logger.Debug(ctx, "upstream connection closed", slog.Error(err))
 				} else {
 					b.logger.Error(ctx, "server stream error", slog.Error(err))
@@ -372,7 +377,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 				// Only do this once.
 				if !appendedPrevMsg {
 					// Append the whole message from this stream as context since we'll be sending a new request with the tool results.
-					messages.Messages = append(messages.Messages, acc.Choices[len(acc.Choices)-1].Message.ToParam())
+					req.Messages = append(req.Messages, acc.Choices[len(acc.Choices)-1].Message.ToParam())
 					appendedPrevMsg = true
 				}
 
@@ -391,7 +396,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 						"message": err.Error(),
 					}
 					errorJSON, _ := json.Marshal(errorResponse)
-					messages.Messages = append(messages.Messages, openai.ToolMessage(string(errorJSON), tc.ID))
+					req.Messages = append(req.Messages, openai.ToolMessage(string(errorJSON), tc.ID))
 					continue
 				}
 
@@ -405,11 +410,11 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 						"message": err.Error(),
 					}
 					errorJSON, _ := json.Marshal(errorResponse)
-					messages.Messages = append(messages.Messages, openai.ToolMessage(string(errorJSON), tc.ID))
+					req.Messages = append(req.Messages, openai.ToolMessage(string(errorJSON), tc.ID))
 					continue
 				}
 
-				messages.Messages = append(messages.Messages, openai.ToolMessage(out.String(), tc.ID))
+				req.Messages = append(req.Messages, openai.ToolMessage(out.String(), tc.ID))
 			}
 		}
 
@@ -431,16 +436,122 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 
 		<-streamCtx.Done()
 	} else {
-		completion, err := client.Chat.Completions.New(ctx, messages)
-		if err != nil {
-			b.logger.Error(ctx, "chat completion failed", slog.Error(err))
-			b.setError(err)
-			http.Error(w, "chat completion failed", http.StatusInternalServerError)
-			return
-		}
+		// Non-streaming case with tool calling support
+		var cumulativeUsage openai.CompletionUsage
 
-		w.WriteHeader(http.StatusOK) // TODO: always?
-		_, _ = w.Write([]byte(completion.RawJSON()))
+		for {
+			completion, err := client.Chat.Completions.New(ctx, req)
+			if err != nil {
+				if isConnectionError(err) {
+					b.logger.Debug(ctx, "upstream connection closed", slog.Error(err))
+					return // Don't send error response if client already disconnected
+				}
+				var apierr *openai.Error
+				if errors.As(err, &apierr) {
+					http.Error(w, apierr.Message, apierr.StatusCode)
+					return
+				}
+
+				b.logger.Error(ctx, "chat completion failed", slog.Error(err))
+				b.setError(err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			// Track cumulative usage
+			cumulativeUsage = sumUsage(cumulativeUsage, completion.Usage)
+
+			// Track token usage
+			if _, err = coderdClient.TrackTokenUsage(ctx, &proto.TrackTokenUsageRequest{
+				MsgId:        completion.ID,
+				Model:        string(completion.Model),
+				InputTokens:  cumulativeUsage.PromptTokens,
+				OutputTokens: cumulativeUsage.CompletionTokens,
+				Other: map[string]int64{
+					"prompt_audio":                   cumulativeUsage.PromptTokensDetails.AudioTokens,
+					"prompt_cached":                  cumulativeUsage.PromptTokensDetails.CachedTokens,
+					"completion_accepted_prediction": cumulativeUsage.CompletionTokensDetails.AcceptedPredictionTokens,
+					"completion_rejected_prediction": cumulativeUsage.CompletionTokensDetails.RejectedPredictionTokens,
+					"completion_audio":               cumulativeUsage.CompletionTokensDetails.AudioTokens,
+					"completion_reasoning":           cumulativeUsage.CompletionTokensDetails.ReasoningTokens,
+				},
+			}); err != nil {
+				b.logger.Error(ctx, "failed to track token usage", slog.Error(err))
+			}
+
+			// Check if we have tool calls to process
+			var pendingToolCalls []openai.ChatCompletionMessageToolCall
+			if len(completion.Choices) > 0 && completion.Choices[0].Message.ToolCalls != nil {
+				for _, toolCall := range completion.Choices[0].Message.ToolCalls {
+					if b.isInjectedTool(toolCall.Function.Name) {
+						pendingToolCalls = append(pendingToolCalls, toolCall)
+					}
+				}
+			}
+
+			// If no injected tool calls, we're done
+			if len(pendingToolCalls) == 0 {
+				// Update the cumulative usage in the final response
+				if completion.Usage.CompletionTokens > 0 {
+					completion.Usage = cumulativeUsage
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(completion.RawJSON()))
+				break
+			}
+
+			appendedPrevMsg := false
+			// Process each pending tool call
+			for _, tc := range pendingToolCalls {
+				serverName, toolName, found := parseToolName(tc.Function.Name)
+				if !found {
+					// Not an MCP proxy call, don't do anything.
+					continue
+				}
+				// Only do this once.
+				if !appendedPrevMsg {
+					// Append the whole message from this stream as context since we'll be sending a new request with the tool results.
+					req.Messages = append(req.Messages, completion.Choices[0].Message.ToParam())
+					appendedPrevMsg = true
+				}
+
+				var (
+					serialized map[string]string
+					buf        bytes.Buffer
+				)
+				_ = json.NewEncoder(&buf).Encode(tc.Function.Arguments)
+				_ = json.NewDecoder(&buf).Decode(&serialized)
+
+				res, err := b.mcpBridges[serverName].CallTool(ctx, toolName, serialized)
+				if err != nil {
+					// Always provide a tool result even if the tool call failed
+					errorResponse := map[string]interface{}{
+						"error":   true,
+						"message": err.Error(),
+					}
+					errorJSON, _ := json.Marshal(errorResponse)
+					req.Messages = append(req.Messages, openai.ToolMessage(string(errorJSON), tc.ID))
+					continue
+				}
+
+				var out strings.Builder
+				if err := json.NewEncoder(&out).Encode(res); err != nil {
+					b.logger.Error(ctx, "failed to encode tool response", slog.Error(err))
+					// Always provide a tool result even if encoding failed
+					errorResponse := map[string]interface{}{
+						"error":   true,
+						"message": err.Error(),
+					}
+					errorJSON, _ := json.Marshal(errorResponse)
+					req.Messages = append(req.Messages, openai.ToolMessage(string(errorJSON), tc.ID))
+					continue
+				}
+
+				req.Messages = append(req.Messages, openai.ToolMessage(out.String(), tc.ID))
+			}
+		}
 	}
 }
 
@@ -468,6 +579,7 @@ func LoggingMiddleware(req *http.Request, next option.MiddlewareNext) (res *http
 	return res, err
 }
 
+// TODO: track cumulative usage when tool invocations are executed; see OpenAI implementation.
 func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	sessionID := uuid.New()
 	b.logger.Info(r.Context(), "anthropic request started", slog.F("session_id", sessionID), slog.F("method", r.Method), slog.F("path", r.URL.Path))
