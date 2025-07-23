@@ -28,6 +28,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 		mode: "form",
 		permissions: {
 			createWorkspaceForAny: true,
+			canUpdateTemplate: false,
 		},
 		onCancel: action("onCancel"),
 	},
@@ -384,5 +385,25 @@ export const ExternalAuthAllConnected: Story = {
 				optional: true,
 			},
 		],
+	},
+};
+
+export const WithViewSourceButton: Story = {
+	args: {
+		canUpdateTemplate: true,
+		versionId: "template-version-123",
+		template: {
+			...MockTemplate,
+			organization_name: "default",
+			name: "docker-template",
+		},
+	},
+	parameters: {
+		docs: {
+			description: {
+				story:
+					"This story shows the View Source button that appears for template administrators. The button allows quick navigation to the template editor from the workspace creation page.",
+			},
+		},
 	},
 };
