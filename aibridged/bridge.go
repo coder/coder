@@ -22,6 +22,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/packages/ssestream"
 	"github.com/openai/openai-go/shared/constant"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -172,14 +173,14 @@ func (b *Bridge) openAITarget() *url.URL {
 //   - https://platform.openai.com/docs/api-reference/chat-streaming
 func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 	sessionID := uuid.New()
-	b.logger.Info(r.Context(), "OpenAI request started", slog.F("sessionID", sessionID), slog.F("method", r.Method), slog.F("path", r.URL.Path))
+	b.logger.Info(r.Context(), "openai request started", slog.F("session_id", sessionID), slog.F("method", r.Method), slog.F("path", r.URL.Path))
 	_, _ = fmt.Fprintf(os.Stderr, "[%s] new chat session started\n\n", sessionID)
 
 	// Clear any previous error state
 	b.clearError()
 
 	defer func() {
-		b.logger.Info(r.Context(), "OpenAI request ended", slog.F("sessionID", sessionID))
+		b.logger.Info(r.Context(), "openai request ended", slog.F("session_id", sessionID))
 		_, _ = fmt.Fprintf(os.Stderr, "[%s] chat session ended\n\n", sessionID)
 	}()
 
@@ -227,6 +228,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 	in.Messages = append([]openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage("You are a helpful assistant that explicitly mentions when tool calls are about to be made."),
 	}, in.Messages...)
+	in.StreamOptions.IncludeUsage = openai.Bool(true)
 
 	for _, proxy := range b.mcpBridges {
 		for _, tool := range proxy.ListTools() {
@@ -253,7 +255,9 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// client := openai.NewClient(oai_option.WithMiddleware(LoggingMiddleware))
 	client := openai.NewClient()
+	messages := in.ChatCompletionNewParams
 
 	if in.Stream {
 		streamCtx, streamCancel := context.WithCancelCause(ctx)
@@ -268,35 +272,150 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 			defer wg.Done()
 			defer func() {
 				if err := events.Close(streamCtx); err != nil {
-					b.logger.Error(ctx, "error closing stream", slog.Error(err), slog.F("sessionID", sessionID))
+					b.logger.Error(ctx, "error closing stream", slog.Error(err), slog.F("session_id", sessionID))
 				}
 			}()
 
 			BasicSSESender(streamCtx, sessionID, "", events, b.logger.Named("sse-sender")).ServeHTTP(w, r)
 		}()
 
-		stream := client.Chat.Completions.NewStreaming(ctx, in.ChatCompletionNewParams)
+		// TODO: implement parallel tool calls.
+		// TODO: don't send if not supported by model (i.e. o4-mini).
+		messages.ParallelToolCalls = openai.Bool(false)
 
-		var acc openai.ChatCompletionAccumulator
-		for stream.Next() {
-			chunk := stream.Current()
-			acc.AddChunk(chunk)
-			events.TrySend(ctx, chunk)
-		}
+		var (
+			stream          *ssestream.Stream[openai.ChatCompletionChunk]
+			cumulativeUsage openai.CompletionUsage
+		)
+		for {
+			var pendingToolCalls []openai.FinishedChatCompletionToolCall
 
-		if err := events.Close(streamCtx); err != nil {
-			b.logger.Error(ctx, "failed to close event stream", slog.Error(err))
-		}
+			stream = client.Chat.Completions.NewStreaming(ctx, messages)
+			var acc openai.ChatCompletionAccumulator
+			for stream.Next() {
+				chunk := stream.Current()
+				acc.AddChunk(chunk)
 
-		if err := stream.Err(); err != nil {
-			if isConnectionError(err) {
-				b.logger.Debug(ctx, "upstream connection closed", slog.Error(err))
-			} else {
-				b.logger.Error(ctx, "server stream error", slog.Error(err))
-				b.setError(err)
+				fmt.Printf("[in]: %s\n", chunk.RawJSON())
+
+				shouldRelayChunk := true
+				if toolCall, ok := acc.JustFinishedToolCall(); ok {
+					// Don't intercept and handle builtin tools.
+					if b.isInjectedTool(toolCall.Name) {
+						pendingToolCalls = append(pendingToolCalls, toolCall)
+						// Don't relay this chunk back; we'll handle it transparently.
+						shouldRelayChunk = false
+					}
+				}
+
+				if len(pendingToolCalls) > 0 {
+					// Any chunks following a tool call invocation should not be relayed.
+					shouldRelayChunk = false
+				}
+
+				cumulativeUsage = sumUsage(cumulativeUsage, chunk.Usage)
+
+				if shouldRelayChunk {
+					// If usage information is available, relay the cumulative usage once all tool invocations have completed.
+					if chunk.Usage.CompletionTokens > 0 {
+						chunk.Usage = cumulativeUsage
+					}
+
+					events.TrySend(ctx, chunk)
+
+					fmt.Printf("\t[out]: %s\n", chunk.RawJSON())
+				}
 			}
 
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			// If the usage information is set, track it.
+			// The API will send usage information when the response terminates, which will happen if a tool call is invoked.
+			if _, err = coderdClient.TrackTokenUsage(ctx, &proto.TrackTokenUsageRequest{
+				MsgId:        acc.ID,
+				Model:        string(acc.Model),
+				InputTokens:  cumulativeUsage.PromptTokens,
+				OutputTokens: cumulativeUsage.CompletionTokens,
+				Other: map[string]int64{
+					"prompt_audio":                   cumulativeUsage.PromptTokensDetails.AudioTokens,
+					"prompt_cached":                  cumulativeUsage.PromptTokensDetails.CachedTokens,
+					"completion_accepted_prediction": cumulativeUsage.CompletionTokensDetails.AcceptedPredictionTokens,
+					"completion_rejected_prediction": cumulativeUsage.CompletionTokensDetails.RejectedPredictionTokens,
+					"completion_audio":               cumulativeUsage.CompletionTokensDetails.AudioTokens,
+					"completion_reasoning":           cumulativeUsage.CompletionTokensDetails.ReasoningTokens,
+				},
+			}); err != nil {
+				b.logger.Error(ctx, "failed to track token usage", slog.Error(err))
+			}
+
+			if err := stream.Err(); err != nil {
+				if isConnectionError(err) {
+					b.logger.Debug(ctx, "upstream connection closed", slog.Error(err))
+				} else {
+					b.logger.Error(ctx, "server stream error", slog.Error(err))
+					b.setError(err)
+				}
+
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+
+			if len(pendingToolCalls) == 0 {
+				break
+			}
+
+			appendedPrevMsg := false
+			for _, tc := range pendingToolCalls {
+				serverName, toolName, found := parseToolName(tc.Name)
+				if !found {
+					// Not an MCP proxy call, don't do anything.
+					continue
+				}
+
+				// Only do this once.
+				if !appendedPrevMsg {
+					// Append the whole message from this stream as context since we'll be sending a new request with the tool results.
+					messages.Messages = append(messages.Messages, acc.Choices[len(acc.Choices)-1].Message.ToParam())
+					appendedPrevMsg = true
+				}
+
+				var (
+					serialized map[string]string
+					buf        bytes.Buffer
+				)
+				_ = json.NewEncoder(&buf).Encode(tc.Arguments)
+				_ = json.NewDecoder(&buf).Decode(&serialized)
+
+				res, err := b.mcpBridges[serverName].CallTool(streamCtx, toolName, serialized)
+				if err != nil {
+					// Always provide a tool_result even if the tool call failed
+					errorResponse := map[string]interface{}{
+						"error":   true,
+						"message": err.Error(),
+					}
+					errorJSON, _ := json.Marshal(errorResponse)
+					messages.Messages = append(messages.Messages, openai.ToolMessage(string(errorJSON), tc.ID))
+					continue
+				}
+
+				var out strings.Builder
+				if err := json.NewEncoder(&out).Encode(res); err != nil {
+					b.logger.Error(ctx, "failed to encode tool response", slog.Error(err))
+					// Always provide a tool_result even if encoding failed
+					// TODO: abstract.
+					errorResponse := map[string]interface{}{
+						"error":   true,
+						"message": err.Error(),
+					}
+					errorJSON, _ := json.Marshal(errorResponse)
+					messages.Messages = append(messages.Messages, openai.ToolMessage(string(errorJSON), tc.ID))
+					continue
+				}
+
+				messages.Messages = append(messages.Messages, openai.ToolMessage(out.String(), tc.ID))
+			}
+		}
+
+		err = events.Close(streamCtx)
+		if err != nil {
+			b.logger.Error(ctx, "failed to close event stream", slog.Error(err))
 		}
 
 		wg.Wait()
@@ -304,11 +423,15 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 		// Ensure we flush all the remaining data before ending.
 		flush(w)
 
-		streamCancel(xerrors.New("gracefully done"))
+		if err != nil {
+			streamCancel(xerrors.Errorf("stream err: %w", err))
+		} else {
+			streamCancel(xerrors.New("gracefully done"))
+		}
 
 		<-streamCtx.Done()
 	} else {
-		completion, err := client.Chat.Completions.New(ctx, in.ChatCompletionNewParams)
+		completion, err := client.Chat.Completions.New(ctx, messages)
 		if err != nil {
 			b.logger.Error(ctx, "chat completion failed", slog.Error(err))
 			b.setError(err)
@@ -347,14 +470,14 @@ func LoggingMiddleware(req *http.Request, next option.MiddlewareNext) (res *http
 
 func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	sessionID := uuid.New()
-	b.logger.Info(r.Context(), "Anthropic request started", slog.F("sessionID", sessionID), slog.F("method", r.Method), slog.F("path", r.URL.Path))
+	b.logger.Info(r.Context(), "anthropic request started", slog.F("session_id", sessionID), slog.F("method", r.Method), slog.F("path", r.URL.Path))
 	_, _ = fmt.Fprintf(os.Stderr, "[%s] new chat session started\n\n", sessionID)
 
 	// Clear any previous error state
 	b.clearError()
 
 	defer func() {
-		b.logger.Info(r.Context(), "Anthropic request ended", slog.F("sessionID", sessionID))
+		b.logger.Info(r.Context(), "anthropic request ended", slog.F("session_id", sessionID))
 		_, _ = fmt.Fprintf(os.Stderr, "[%s] chat session ended\n\n", sessionID)
 	}()
 
@@ -595,7 +718,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 		defer wg.Done()
 		defer func() {
 			if err := es.Close(streamCtx); err != nil {
-				b.logger.Error(ctx, "error closing stream", slog.Error(err), slog.F("sessionID", sessionID))
+				b.logger.Error(ctx, "error closing stream", slog.Error(err), slog.F("session_id", sessionID))
 			}
 		}()
 
@@ -624,9 +747,6 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Tool-related handling.
-
-			// TODO: this should *ignore* built-in tools; so ONLY do this for injected tooling.
-
 			switch event.Type {
 			case string(constant.ValueOf[ant_constant.ContentBlockStart]()): // Have to do this because otherwise content_block_delta and content_block_start both match the type anthropic.BetaRawContentBlockStartEvent
 				switch block := event.AsContentBlockStart().ContentBlock.AsAny().(type) {

@@ -41,3 +41,21 @@ func (c *ChatCompletionNewParamsWrapper) UnmarshalJSON(raw []byte) error {
 
 	return nil
 }
+
+func sumUsage(ref, in openai.CompletionUsage) openai.CompletionUsage {
+	return openai.CompletionUsage{
+		CompletionTokens: ref.CompletionTokens + in.CompletionTokens,
+		PromptTokens:     ref.PromptTokens + in.PromptTokens,
+		TotalTokens:      ref.TotalTokens + in.TotalTokens,
+		CompletionTokensDetails: openai.CompletionUsageCompletionTokensDetails{
+			AcceptedPredictionTokens: ref.CompletionTokensDetails.AcceptedPredictionTokens + in.CompletionTokensDetails.AcceptedPredictionTokens,
+			AudioTokens:              ref.CompletionTokensDetails.AudioTokens + in.CompletionTokensDetails.AudioTokens,
+			ReasoningTokens:          ref.CompletionTokensDetails.ReasoningTokens + in.CompletionTokensDetails.ReasoningTokens,
+			RejectedPredictionTokens: ref.CompletionTokensDetails.RejectedPredictionTokens + in.CompletionTokensDetails.RejectedPredictionTokens,
+		},
+		PromptTokensDetails: openai.CompletionUsagePromptTokensDetails{
+			AudioTokens:  ref.PromptTokensDetails.AudioTokens + in.PromptTokensDetails.AudioTokens,
+			CachedTokens: ref.PromptTokensDetails.CachedTokens + in.PromptTokensDetails.CachedTokens,
+		},
+	}
+}
