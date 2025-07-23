@@ -48,6 +48,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		metadata      []database.WorkspaceAgentMetadatum
 		workspace     database.Workspace
 		devcontainers []database.WorkspaceAgentDevcontainer
+		userSecrets   []database.UserSecret
 	)
 
 	var eg errgroup.Group
@@ -80,6 +81,13 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 	eg.Go(func() (err error) {
 		devcontainers, err = a.Database.GetWorkspaceAgentDevcontainersByAgentID(ctx, workspaceAgent.ID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		return nil
+	})
+	eg.Go(func() (err error) {
+		userSecrets, err = a.Database.ListUserSecrets(ctx, workspace.OwnerID)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			return err
 		}
 		return nil
@@ -140,7 +148,22 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		Apps:          apps,
 		Metadata:      dbAgentMetadataToProtoDescription(metadata),
 		Devcontainers: dbAgentDevcontainersToProto(devcontainers),
+
+		UserSecrets: dbUserSecretsToProto(userSecrets),
 	}, nil
+}
+
+func dbUserSecretsToProto(userSecrets []database.UserSecret) map[string]*agentproto.Secret {
+	userSecretsProto := make(map[string]*agentproto.Secret)
+	for _, userSecret := range userSecrets {
+		userSecretsProto[userSecret.Name] = &agentproto.Secret{
+			Name:     userSecret.Name,
+			EnvName:  userSecret.EnvName,
+			FilePath: userSecret.FilePath,
+		}
+	}
+
+	return userSecretsProto
 }
 
 func vscodeProxyURI(app appurl.ApplicationURL, accessURL *url.URL, appHost string) string {
