@@ -223,11 +223,12 @@ export const MultiSelectCombobox = forwardRef<
 		const [inputValue, setInputValue] = useState("");
 		const debouncedSearchTerm = useDebouncedValue(inputValue, delay || 500);
 
-		const [previousValue, setPreviousValue] = useState<Option[]>(value || []);
-		if (value && value !== previousValue) {
-			setPreviousValue(value);
-			setSelected(value);
-		}
+		// Handle controlled value prop
+		useEffect(() => {
+			if (value) {
+				setSelected(value);
+			}
+		}, [value]);
 
 		useImperativeHandle(
 			ref,
