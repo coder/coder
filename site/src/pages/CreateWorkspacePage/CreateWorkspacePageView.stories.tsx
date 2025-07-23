@@ -30,6 +30,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 			createWorkspaceForAny: true,
 		},
 		onCancel: action("onCancel"),
+		templatePermissions: { canUpdateTemplate: true },
 	},
 };
 

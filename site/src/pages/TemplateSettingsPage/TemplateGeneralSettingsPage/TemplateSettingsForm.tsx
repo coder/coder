@@ -245,19 +245,20 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						label={
 							<StackLabel>
 								<span className="flex flex-row gap-2">
-									Enable dynamic parameters for workspace creation
+									Enable dynamic parameters for workspace creation (recommended)
 								</span>
 								<StackLabelHelperText>
 									<div>
-										The new workspace form allows you to design your template
-										with new form types and identity-aware conditional
-										parameters. The form will only present options that are
-										compatible and available.
+										The dynamic workspace form allows you to design your
+										template with additional form types and identity-aware
+										conditional parameters. This is the default option for new
+										templates. The classic workspace creation flow will be
+										deprecated in a future release.
 									</div>
 									<Link
 										className="text-xs"
 										href={docs(
-											"/admin/templates/extending-templates/parameters#dynamic-parameters-beta",
+											"/admin/templates/extending-templates/dynamic-parameters",
 										)}
 									>
 										Learn more
