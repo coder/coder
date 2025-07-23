@@ -249,6 +249,16 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		return oauth2.Token{}, errBadSecret
 	}
 
+	// Update the client secret's last used timestamp
+	//nolint:gocritic // Users cannot read secrets so we must use the system.
+	_, err = db.UpdateOAuth2ProviderAppSecretByID(dbauthz.AsSystemRestricted(ctx), database.UpdateOAuth2ProviderAppSecretByIDParams{
+		ID:         dbSecret.ID,
+		LastUsedAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+	})
+	if err != nil {
+		return oauth2.Token{}, xerrors.Errorf("unable to update secret usage: %w", err)
+	}
+
 	// Atomically consume the authorization code (handles expiry check).
 	code, err := parseFormattedSecret(params.code)
 	if err != nil {
@@ -535,6 +545,16 @@ func clientCredentialsGrant(ctx context.Context, db database.Store, app database
 		return oauth2.Token{}, errBadSecret
 	}
 
+	// Update the client secret's last used timestamp
+	//nolint:gocritic // Users cannot read secrets so we must use the system.
+	_, err = db.UpdateOAuth2ProviderAppSecretByID(dbauthz.AsSystemRestricted(ctx), database.UpdateOAuth2ProviderAppSecretByIDParams{
+		ID:         dbSecret.ID,
+		LastUsedAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+	})
+	if err != nil {
+		return oauth2.Token{}, xerrors.Errorf("unable to update secret usage: %w", err)
+	}
+
 	if !app.UserID.Valid {
 		return oauth2.Token{}, xerrors.New("client credentials grant not supported for apps without a user")
 	}
@@ -785,6 +805,16 @@ func deviceCodeGrant(ctx context.Context, db database.Store, app database.OAuth2
 
 		// Use the first (most recent) app secret
 		appSecret := appSecrets[0]
+
+		// Update the app secret's last used timestamp
+		//nolint:gocritic // System access needed for secret usage tracking
+		_, err = tx.UpdateOAuth2ProviderAppSecretByID(dbauthz.AsSystemRestricted(ctx), database.UpdateOAuth2ProviderAppSecretByIDParams{
+			ID:         appSecret.ID,
+			LastUsedAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+		})
+		if err != nil {
+			return xerrors.Errorf("unable to update secret usage: %w", err)
+		}
 
 		// Insert the OAuth2 token record
 		_, err = tx.InsertOAuth2ProviderAppToken(ctx, database.InsertOAuth2ProviderAppTokenParams{
