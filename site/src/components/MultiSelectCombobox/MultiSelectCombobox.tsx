@@ -215,7 +215,7 @@ export const MultiSelectCombobox = forwardRef<
 		const dropdownRef = useRef<HTMLDivElement>(null);
 
 		const [selected, setSelected] = useState<Option[]>(
-			arrayDefaultOptions ?? [],
+			value ?? arrayDefaultOptions ?? [],
 		);
 		const [options, setOptions] = useState<GroupOption>(
 			transitionToGroupOption(arrayDefaultOptions, groupBy),
@@ -223,12 +223,11 @@ export const MultiSelectCombobox = forwardRef<
 		const [inputValue, setInputValue] = useState("");
 		const debouncedSearchTerm = useDebouncedValue(inputValue, delay || 500);
 
-		// Handle controlled value prop
-		useEffect(() => {
-			if (value) {
-				setSelected(value);
-			}
-		}, [value]);
+		const [previousValue, setPreviousValue] = useState<Option[]>(value || []);
+		if (value && value !== previousValue) {
+			setPreviousValue(value);
+			setSelected(value);
+		}
 
 		useImperativeHandle(
 			ref,
