@@ -3345,6 +3345,46 @@ func TestDevcontainerDiscovery(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "RespectGitIgnore",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":              "",
+				"/home/coder/coder/.gitignore":             "y/",
+				"/home/coder/coder/.devcontainer.json":     "",
+				"/home/coder/coder/x/y/.devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "RespectNestedGitIgnore",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":              "",
+				"/home/coder/coder/.devcontainer.json":     "",
+				"/home/coder/coder/y/.devcontainer.json":   "",
+				"/home/coder/coder/x/.gitignore":           "y/",
+				"/home/coder/coder/x/y/.devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+				{
+					WorkspaceFolder: "/home/coder/coder/y",
+					ConfigPath:      "/home/coder/coder/y/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
 	}
 
 	initFS := func(t *testing.T, files map[string]string) afero.Fs {
