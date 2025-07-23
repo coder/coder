@@ -377,7 +377,7 @@ func (r *RootCmd) create() *serpent.Command {
 		serpent.Option{
 			Flag:        "preset",
 			Env:         "CODER_PRESET_NAME",
-			Description: "Specify a template version preset name. Use 'default' to apply the default preset defined in the template version, if available.",
+			Description: "Specify the name of a template version preset. Use 'none' to explicitly indicate that no preset should be used.",
 			Value:       serpent.StringOf(&presetName),
 		},
 		serpent.Option{
