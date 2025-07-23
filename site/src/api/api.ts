@@ -107,6 +107,9 @@ const getMissingParameters = (
 	return missingParameters;
 };
 
+// From codersdk/client.go
+export const SessionTokenCookie = "coder_session_token";
+
 /**
  * @param agentId
  * @returns {OneWayWebSocket} A OneWayWebSocket that emits Server-Sent Events.
