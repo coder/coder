@@ -746,7 +746,7 @@ func testDBAuthzRole(ctx context.Context) context.Context {
 				User: []rbac.Permission{},
 			},
 		}),
-		Scope: rbac.ScopeAll,
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	})
 }
 

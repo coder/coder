@@ -214,7 +214,7 @@ func OAuth2ProviderApp(r *http.Request) database.OAuth2ProviderApp {
 		GrantTypes:              appRow.GrantTypes,
 		ResponseTypes:           appRow.ResponseTypes,
 		TokenEndpointAuthMethod: appRow.TokenEndpointAuthMethod,
-		Scope:                   appRow.Scope,
+		Scopes:                  appRow.Scopes,
 		Contacts:                appRow.Contacts,
 		ClientUri:               appRow.ClientUri,
 		LogoUri:                 appRow.LogoUri,

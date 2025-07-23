@@ -11060,7 +11060,7 @@ const docTemplate = `{
                 "last_used",
                 "lifetime_seconds",
                 "login_type",
-                "scope",
+                "scopes",
                 "token_name",
                 "updated_at",
                 "user_id"
@@ -11097,16 +11097,12 @@ const docTemplate = `{
                         }
                     ]
                 },
-                "scope": {
-                    "enum": [
-                        "all",
-                        "application_connect"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.APIKeyScope"
-                        }
-                    ]
+                "scopes": {
+                    "description": "New array field",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.APIKeyScope"
+                    }
                 },
                 "token_name": {
                     "type": "string"
@@ -11125,11 +11121,37 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "all",
-                "application_connect"
+                "application_connect",
+                "user:read",
+                "user:write",
+                "workspace:read",
+                "workspace:write",
+                "workspace:ssh",
+                "workspace:apps",
+                "template:read",
+                "template:write",
+                "organization:read",
+                "organization:write",
+                "audit:read",
+                "system:read",
+                "system:write"
             ],
             "x-enum-varnames": [
                 "APIKeyScopeAll",
-                "APIKeyScopeApplicationConnect"
+                "APIKeyScopeApplicationConnect",
+                "APIKeyScopeUserRead",
+                "APIKeyScopeUserWrite",
+                "APIKeyScopeWorkspaceRead",
+                "APIKeyScopeWorkspaceWrite",
+                "APIKeyScopeWorkspaceSSH",
+                "APIKeyScopeWorkspaceApps",
+                "APIKeyScopeTemplateRead",
+                "APIKeyScopeTemplateWrite",
+                "APIKeyScopeOrganizationRead",
+                "APIKeyScopeOrganizationWrite",
+                "APIKeyScopeAuditRead",
+                "APIKeyScopeSystemRead",
+                "APIKeyScopeSystemWrite"
             ]
         },
         "codersdk.AddLicenseRequest": {
@@ -12179,16 +12201,12 @@ const docTemplate = `{
                 "lifetime": {
                     "type": "integer"
                 },
-                "scope": {
-                    "enum": [
-                        "all",
-                        "application_connect"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.APIKeyScope"
-                        }
-                    ]
+                "scopes": {
+                    "description": "New array field",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.APIKeyScope"
+                    }
                 },
                 "token_name": {
                     "type": "string"

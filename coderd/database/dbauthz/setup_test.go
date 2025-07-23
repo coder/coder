@@ -127,7 +127,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 			ID:     testActorID.String(),
 			Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
 			Groups: []string{},
-			Scope:  rbac.ScopeAll,
+			Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 		}
 		ctx := dbauthz.As(context.Background(), actor)
 

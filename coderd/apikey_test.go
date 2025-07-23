@@ -47,7 +47,7 @@ func TestTokenCRUD(t *testing.T) {
 	// expires_at should default to 30 days
 	require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*24*6))
 	require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*24*8))
-	require.Equal(t, codersdk.APIKeyScopeAll, keys[0].Scope)
+	require.Equal(t, []codersdk.APIKeyScope{codersdk.APIKeyScopeAll}, keys[0].Scopes)
 
 	// no update
 
@@ -73,7 +73,7 @@ func TestTokenScoped(t *testing.T) {
 	_ = coderdtest.CreateFirstUser(t, client)
 
 	res, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
-		Scope: codersdk.APIKeyScopeApplicationConnect,
+		Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeApplicationConnect},
 	})
 	require.NoError(t, err)
 	require.Greater(t, len(res.Key), 2)
@@ -82,7 +82,7 @@ func TestTokenScoped(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, len(keys), 1)
 	require.Contains(t, res.Key, keys[0].ID)
-	require.Equal(t, keys[0].Scope, codersdk.APIKeyScopeApplicationConnect)
+	require.Equal(t, []codersdk.APIKeyScope{codersdk.APIKeyScopeApplicationConnect}, keys[0].Scopes)
 }
 
 func TestUserSetTokenDuration(t *testing.T) {

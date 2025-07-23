@@ -1232,7 +1232,7 @@ func (r *RootCmd) scaletestDashboard() *serpent.Command {
 				name := fmt.Sprintf("dashboard-%s", usr.Username)
 				userTokResp, err := client.CreateToken(ctx, usr.ID.String(), codersdk.CreateTokenRequest{
 					Lifetime:  30 * 24 * time.Hour,
-					Scope:     "",
+					Scopes:    []codersdk.APIKeyScope{codersdk.APIKeyScopeAll},
 					TokenName: fmt.Sprintf("scaletest-%d", time.Now().Unix()),
 				})
 				if err != nil {

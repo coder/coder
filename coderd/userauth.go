@@ -620,7 +620,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		return user, rbac.Subject{}, false
 	}
 
-	subject, userStatus, err := httpmw.UserRBACSubject(ctx, api.Database, user.ID, rbac.ScopeAll)
+	subject, userStatus, err := httpmw.UserRBACSubject(ctx, api.Database, user.ID, []rbac.ExpandableScope{rbac.ScopeAll})
 	if err != nil {
 		logger.Error(ctx, "unable to fetch authorization user roles", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

@@ -3,6 +3,7 @@ package coderd
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -28,7 +29,7 @@ func AuthorizeFilter[O rbac.Objecter](h *HTTPAuthorizer, r *http.Request, action
 			slog.F("user_id", roles.ID),
 			slog.F("username", roles),
 			slog.F("roles", roles.SafeRoleNames()),
-			slog.F("scope", roles.SafeScopeName()),
+			slog.F("scope", strings.Join(roles.SafeScopeNames(), ",")),
 			slog.F("route", r.URL.Path),
 			slog.F("action", action),
 		)
@@ -80,7 +81,7 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action policy.Action, object
 			slog.F("roles", roles.SafeRoleNames()),
 			slog.F("actor_id", roles.ID),
 			slog.F("actor_name", roles),
-			slog.F("scope", roles.SafeScopeName()),
+			slog.F("scope", strings.Join(roles.SafeScopeNames(), ",")),
 			slog.F("route", r.URL.Path),
 			slog.F("action", action),
 			slog.F("object", object),
@@ -132,7 +133,7 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 		slog.F("got_id", auth.ID),
 		slog.F("name", auth),
 		slog.F("roles", auth.SafeRoleNames()),
-		slog.F("scope", auth.SafeScopeName()),
+		slog.F("scope", strings.Join(auth.SafeScopeNames(), ",")),
 	)
 
 	response := make(codersdk.AuthorizationResponse)

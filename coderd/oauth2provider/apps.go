@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -21,6 +22,29 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+// parseScopeString parses a space-delimited OAuth2 scope string into APIKeyScope array
+func parseScopeString(scope string) []database.APIKeyScope {
+	if scope == "" {
+		return []database.APIKeyScope{}
+	}
+
+	scopeTokens := strings.Split(strings.TrimSpace(scope), " ")
+	scopes := make([]database.APIKeyScope, 0, len(scopeTokens))
+
+	for _, token := range scopeTokens {
+		token = strings.TrimSpace(token)
+		if token != "" {
+			// Convert to database APIKeyScope, only include valid scopes
+			dbScope := database.APIKeyScope(token)
+			if dbScope.Valid() {
+				scopes = append(scopes, dbScope)
+			}
+		}
+	}
+
+	return scopes
+}
 
 // ListApps returns an http.HandlerFunc that handles GET /oauth2-provider/apps
 func ListApps(db database.Store, accessURL *url.URL, logger slog.Logger) http.HandlerFunc {
@@ -170,7 +194,7 @@ func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			GrantTypes:              codersdk.OAuth2ProviderGrantTypesToStrings(grantTypes),
 			ResponseTypes:           []string{string(codersdk.OAuth2ProviderResponseTypeCode)},
 			TokenEndpointAuthMethod: sql.NullString{String: "client_secret_post", Valid: true},
-			Scope:                   sql.NullString{},
+			Scopes:                  []database.APIKeyScope{}, // New scopes array (empty for now, OAuth2 apps don't specify scopes at creation)
 			Contacts:                []string{},
 			ClientUri:               sql.NullString{},
 			LogoUri:                 sql.NullString{},
@@ -250,7 +274,7 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			GrantTypes:              grantTypes,                  // Allow updates
 			ResponseTypes:           app.ResponseTypes,           // Keep existing value
 			TokenEndpointAuthMethod: app.TokenEndpointAuthMethod, // Keep existing value
-			Scope:                   app.Scope,                   // Keep existing value
+			Scopes:                  app.Scopes,                  // Keep existing value
 			Contacts:                app.Contacts,                // Keep existing value
 			ClientUri:               app.ClientUri,               // Keep existing value
 			LogoUri:                 app.LogoUri,                 // Keep existing value

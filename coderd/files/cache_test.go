@@ -137,9 +137,9 @@ func TestCacheRBAC(t *testing.T) {
 
 	nobodyID := uuid.New()
 	nobody := dbauthz.As(ctx, rbac.Subject{
-		ID:    nobodyID.String(),
-		Roles: rbac.Roles{},
-		Scope: rbac.ScopeAll,
+		ID:     nobodyID.String(),
+		Roles:  rbac.Roles{},
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	})
 
 	userID := uuid.New()
@@ -148,7 +148,7 @@ func TestCacheRBAC(t *testing.T) {
 		Roles: rbac.Roles{
 			must(rbac.RoleByName(rbac.RoleTemplateAdmin())),
 		},
-		Scope: rbac.ScopeAll,
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	})
 
 	//nolint:gocritic // Unit testing

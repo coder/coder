@@ -218,7 +218,7 @@ var (
 				User: []rbac.Permission{},
 			},
 		}),
-		Scope: rbac.ScopeAll,
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	}.WithCachedASTValue()
 
 	subjectAutostart = rbac.Subject{
@@ -243,7 +243,7 @@ var (
 				User: []rbac.Permission{},
 			},
 		}),
-		Scope: rbac.ScopeAll,
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	}.WithCachedASTValue()
 
 	// See reaper package.
@@ -265,7 +265,7 @@ var (
 				User: []rbac.Permission{},
 			},
 		}),
-		Scope: rbac.ScopeAll,
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	}.WithCachedASTValue()
 
 	// See cryptokeys package.
@@ -284,7 +284,7 @@ var (
 				User: []rbac.Permission{},
 			},
 		}),
-		Scope: rbac.ScopeAll,
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	}.WithCachedASTValue()
 
 	// See cryptokeys package.
@@ -303,7 +303,7 @@ var (
 				User: []rbac.Permission{},
 			},
 		}),
-		Scope: rbac.ScopeAll,
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	}.WithCachedASTValue()
 
 	subjectConnectionLogger = rbac.Subject{
@@ -321,7 +321,7 @@ var (
 				User: []rbac.Permission{},
 			},
 		}),
-		Scope: rbac.ScopeAll,
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	}.WithCachedASTValue()
 
 	subjectNotifier = rbac.Subject{
@@ -342,7 +342,7 @@ var (
 				User: []rbac.Permission{},
 			},
 		}),
-		Scope: rbac.ScopeAll,
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	}.WithCachedASTValue()
 
 	subjectResourceMonitor = rbac.Subject{
@@ -361,7 +361,7 @@ var (
 				User: []rbac.Permission{},
 			},
 		}),
-		Scope: rbac.ScopeAll,
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	}.WithCachedASTValue()
 
 	subjectSubAgentAPI = func(userID uuid.UUID, orgID uuid.UUID) rbac.Subject {
@@ -382,7 +382,7 @@ var (
 					}),
 				},
 			}),
-			Scope: rbac.ScopeAll,
+			Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 		}.WithCachedASTValue()
 	}
 
@@ -423,7 +423,7 @@ var (
 				User: []rbac.Permission{},
 			},
 		}),
-		Scope: rbac.ScopeAll,
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	}.WithCachedASTValue()
 
 	subjectSystemReadProvisionerDaemons = rbac.Subject{
@@ -441,7 +441,7 @@ var (
 				User: []rbac.Permission{},
 			},
 		}),
-		Scope: rbac.ScopeAll,
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	}.WithCachedASTValue()
 
 	subjectPrebuildsOrchestrator = rbac.Subject{
@@ -489,7 +489,7 @@ var (
 				}),
 			},
 		}),
-		Scope: rbac.ScopeAll,
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	}.WithCachedASTValue()
 
 	subjectFileReader = rbac.Subject{
@@ -508,7 +508,7 @@ var (
 				User: []rbac.Permission{},
 			},
 		}),
-		Scope: rbac.ScopeAll,
+		Scopes: []rbac.ExpandableScope{rbac.ScopeAll},
 	}.WithCachedASTValue()
 )
 

@@ -3321,7 +3321,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 				},
 			},
 		})
-		userSubject, _, err := httpmw.UserRBACSubject(ctx, db, userResponse.UserID, rbac.ExpandableScope(rbac.ScopeAll))
+		userSubject, _, err := httpmw.UserRBACSubject(ctx, db, userResponse.UserID, []rbac.ExpandableScope{rbac.ScopeAll})
 		require.NoError(t, err)
 		user, err := client.User(ctx, userSubject.ID)
 		require.NoError(t, err)
@@ -3380,7 +3380,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		userSubject, _, err := httpmw.UserRBACSubject(ctx, db, userResponse.UserID, rbac.ExpandableScope(rbac.ScopeAll))
+		userSubject, _, err := httpmw.UserRBACSubject(ctx, db, userResponse.UserID, []rbac.ExpandableScope{rbac.ScopeAll})
 		require.NoError(t, err)
 		user, err := client.User(ctx, userSubject.ID)
 		require.NoError(t, err)
@@ -3457,7 +3457,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		userSubject, _, err := httpmw.UserRBACSubject(ctx, db, userResponse.UserID, rbac.ExpandableScope(rbac.ScopeAll))
+		userSubject, _, err := httpmw.UserRBACSubject(ctx, db, userResponse.UserID, []rbac.ExpandableScope{rbac.ScopeAll})
 		require.NoError(t, err)
 		user, err := client.User(ctx, userSubject.ID)
 		require.NoError(t, err)

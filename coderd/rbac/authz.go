@@ -102,7 +102,7 @@ type Subject struct {
 	ID     string
 	Roles  ExpandableRoles
 	Groups []string
-	Scope  ExpandableScope
+	Scopes []ExpandableScope
 
 	// cachedASTValue is the cached ast value for this subject.
 	cachedASTValue ast.Value
@@ -143,18 +143,22 @@ func (s Subject) Equal(b Subject) bool {
 		return false
 	}
 
-	if s.SafeScopeName() != b.SafeScopeName() {
+	if !slice.SameElements(s.SafeScopeNames(), b.SafeScopeNames()) {
 		return false
 	}
 	return true
 }
 
-// SafeScopeName prevent nil pointer dereference.
-func (s Subject) SafeScopeName() string {
-	if s.Scope == nil {
-		return "no-scope"
+// SafeScopeNames prevent nil pointer dereference.
+func (s Subject) SafeScopeNames() []string {
+	if len(s.Scopes) == 0 {
+		return []string{"no-scope"}
 	}
-	return s.Scope.Name().String()
+	names := make([]string, len(s.Scopes))
+	for i, scope := range s.Scopes {
+		names[i] = scope.Name().String()
+	}
+	return names
 }
 
 // SafeRoleNames prevent nil pointer dereference.
@@ -368,7 +372,7 @@ type authSubject struct {
 	ID     string   `json:"id"`
 	Roles  []Role   `json:"roles"`
 	Groups []string `json:"groups"`
-	Scope  Scope    `json:"scope"`
+	Scopes []Scope  `json:"scopes"`
 }
 
 // Authorize is the intended function to be used outside this package.
@@ -416,8 +420,8 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action p
 	if subject.Roles == nil {
 		return xerrors.Errorf("subject must have roles")
 	}
-	if subject.Scope == nil {
-		return xerrors.Errorf("subject must have a scope")
+	if len(subject.Scopes) == 0 {
+		return xerrors.Errorf("subject must have scopes")
 	}
 
 	// The caller should use either 1 or the other (or none).
@@ -595,8 +599,8 @@ func (a RegoAuthorizer) newPartialAuthorizer(ctx context.Context, subject Subjec
 	if subject.Roles == nil {
 		return nil, xerrors.Errorf("subject must have roles")
 	}
-	if subject.Scope == nil {
-		return nil, xerrors.Errorf("subject must have a scope")
+	if len(subject.Scopes) == 0 {
+		return nil, xerrors.Errorf("subject must have scopes")
 	}
 
 	input, err := regoPartialInputValue(subject, action, objectType)
@@ -768,7 +772,7 @@ func rbacTraceAttributes(actor Subject, action policy.Action, objectType string,
 			attribute.StringSlice("subject_roles", roleStrings),
 			attribute.Int("num_subject_roles", len(actor.SafeRoleNames())),
 			attribute.Int("num_groups", len(actor.Groups)),
-			attribute.String("scope", actor.SafeScopeName()),
+			attribute.StringSlice("scopes", actor.SafeScopeNames()),
 			attribute.String("action", string(action)),
 			attribute.String("object_type", objectType),
 		)...)

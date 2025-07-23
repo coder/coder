@@ -24,6 +24,15 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// convertAPIKeyScopesToDatabase converts SDK API key scopes to database API key scopes
+func convertAPIKeyScopesToDatabase(scopes []codersdk.APIKeyScope) []database.APIKeyScope {
+	dbScopes := make([]database.APIKeyScope, 0, len(scopes))
+	for _, scope := range scopes {
+		dbScopes = append(dbScopes, database.APIKeyScope(scope))
+	}
+	return dbScopes
+}
+
 // Creates a new token API key with the given scope and lifetime.
 //
 // @Summary Create token API key
@@ -56,9 +65,10 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	scope := database.APIKeyScopeAll
-	if scope != "" {
-		scope = database.APIKeyScope(createToken.Scope)
+	// Use the scopes from the request, or default to 'all' if empty
+	scopes := createToken.Scopes
+	if len(scopes) == 0 {
+		scopes = []codersdk.APIKeyScope{codersdk.APIKeyScopeAll}
 	}
 
 	tokenName := namesgenerator.GetRandomName(1)
@@ -71,7 +81,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		UserID:          user.ID,
 		LoginType:       database.LoginTypeToken,
 		DefaultLifetime: api.DeploymentValues.Sessions.DefaultTokenDuration.Value(),
-		Scope:           scope,
+		Scopes:          convertAPIKeyScopesToDatabase(scopes), // New scopes array
 		TokenName:       tokenName,
 	}
 
@@ -380,7 +390,7 @@ func (api *API) validateAPIKeyLifetime(ctx context.Context, userID uuid.UUID, li
 // getMaxTokenLifetime returns the maximum allowed token lifetime for a user.
 // It distinguishes between regular users and owners.
 func (api *API) getMaxTokenLifetime(ctx context.Context, userID uuid.UUID) (time.Duration, error) {
-	subject, _, err := httpmw.UserRBACSubject(ctx, api.Database, userID, rbac.ScopeAll)
+	subject, _, err := httpmw.UserRBACSubject(ctx, api.Database, userID, []rbac.ExpandableScope{rbac.ScopeAll})
 	if err != nil {
 		return 0, xerrors.Errorf("failed to get user rbac subject: %w", err)
 	}

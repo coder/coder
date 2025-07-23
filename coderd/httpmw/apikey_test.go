@@ -51,8 +51,10 @@ func TestAPIKey(t *testing.T) {
 			_, err := actor.Roles.Expand()
 			assert.NoError(t, err, "actor roles ok")
 
-			_, err = actor.Scope.Expand()
-			assert.NoError(t, err, "actor scope ok")
+			for _, scope := range actor.Scopes {
+				_, err := scope.Expand()
+				assert.NoError(t, err, "actor scope ok")
+			}
 
 			err = actor.RegoValueOk()
 			assert.NoError(t, err, "actor rego ok")
@@ -64,8 +66,10 @@ func TestAPIKey(t *testing.T) {
 			_, err := auth.Roles.Expand()
 			assert.NoError(t, err, "auth roles ok")
 
-			_, err = auth.Scope.Expand()
-			assert.NoError(t, err, "auth scope ok")
+			for _, scope := range auth.Scopes {
+				_, err = scope.Expand()
+				assert.NoError(t, err, "auth scope ok")
+			}
 
 			err = auth.RegoValueOk()
 			assert.NoError(t, err, "auth rego ok")
@@ -313,7 +317,7 @@ func TestAPIKey(t *testing.T) {
 			_, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
 				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
-				Scope:     database.APIKeyScopeApplicationConnect,
+				Scopes:    []database.APIKeyScope{database.APIKeyScopeApplicationConnect},
 			})
 
 			r  = httptest.NewRequest("GET", "/", nil)
@@ -330,7 +334,7 @@ func TestAPIKey(t *testing.T) {
 		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Checks that it exists on the context!
 			apiKey := httpmw.APIKey(r)
-			assert.Equal(t, database.APIKeyScopeApplicationConnect, apiKey.Scope)
+			assert.Equal(t, []database.APIKeyScope{database.APIKeyScopeApplicationConnect}, apiKey.Scopes)
 			assertActorOk(t, r)
 
 			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
