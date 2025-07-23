@@ -279,6 +279,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 
 		state, err := reconciler.SnapshotState(ctx, db)
 		require.NoError(t, err)
+		require.Len(t, presets, 1)
 		ps, err := state.FilterByPreset(presets[0].ID)
 		require.NoError(t, err)
 		require.NotNil(t, ps)
@@ -298,6 +299,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 
 		var runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow
 		testutil.Eventually(ctx, t, func(context.Context) bool {
+			runningPrebuilds = nil
 			rows, err := db.GetRunningPrebuiltWorkspaces(ctx)
 			if err != nil {
 				return false

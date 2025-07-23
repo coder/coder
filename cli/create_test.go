@@ -676,7 +676,7 @@ func TestCreateWithPreset(t *testing.T) {
 		firstParameterValue       = "1"
 
 		firstOptionalParameterName         = "first_optional_parameter"
-		firstOptionParameterDescription    = "This is the first optional parameter"
+		firstOptionalParameterDescription  = "This is the first optional parameter"
 		firstOptionalParameterValue        = "1"
 		secondOptionalParameterName        = "second_optional_parameter"
 		secondOptionalParameterDescription = "This is the second optional parameter"
@@ -698,7 +698,7 @@ func TestCreateWithPreset(t *testing.T) {
 				Options: []*proto.RichParameterOption{
 					{
 						Name:        firstOptionalParameterName,
-						Description: firstOptionParameterDescription,
+						Description: firstOptionalParameterDescription,
 						Value:       firstOptionalParameterValue,
 					},
 					{
