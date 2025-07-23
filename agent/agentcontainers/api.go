@@ -473,7 +473,7 @@ func (api *API) discoverDevcontainerProjects() error {
 func (api *API) discoverDevcontainersInProject(projectPath string) error {
 	patterns, err := ignore.ReadPatterns(api.fs, projectPath)
 	if err != nil {
-		return fmt.Errorf("read git ignore patterns: %w", err)
+		return xerrors.Errorf("read git ignore patterns: %w", err)
 	}
 
 	matcher := gitignore.NewMatcher(patterns)

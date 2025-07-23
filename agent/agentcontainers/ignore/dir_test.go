@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/coder/coder/v2/agent/agentcontainers/ignore"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/agent/agentcontainers/ignore"
 )
 
 func TestFilePathToParts(t *testing.T) {

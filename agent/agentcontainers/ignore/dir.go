@@ -27,10 +27,10 @@ func FilePathToParts(path string) []string {
 	return components
 }
 
-func readIgnoreFile(fs afero.Fs, path string) ([]gitignore.Pattern, error) {
+func readIgnoreFile(fileSystem afero.Fs, path string) ([]gitignore.Pattern, error) {
 	var ps []gitignore.Pattern
 
-	data, err := afero.ReadFile(fs, filepath.Join(path, ".gitignore"))
+	data, err := afero.ReadFile(fileSystem, filepath.Join(path, ".gitignore"))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func readIgnoreFile(fs afero.Fs, path string) ([]gitignore.Pattern, error) {
 func ReadPatterns(fileSystem afero.Fs, path string) ([]gitignore.Pattern, error) {
 	ps, _ := readIgnoreFile(fileSystem, path)
 
-	if err := afero.Walk(fileSystem, path, func(path string, info fs.FileInfo, err error) error {
+	if err := afero.Walk(fileSystem, path, func(path string, info fs.FileInfo, _ error) error {
 		if !info.IsDir() {
 			return nil
 		}
