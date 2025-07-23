@@ -10,7 +10,6 @@ import {
 } from "api/typesGenerated";
 import { PremiumBadge } from "components/Badges/Badges";
 import { Button } from "components/Button/Button";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	FormFields,
 	FormFooter,
@@ -247,7 +246,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 							<StackLabel>
 								<span className="flex flex-row gap-2">
 									Enable dynamic parameters for workspace creation
-									<FeatureStageBadge contentType={"beta"} size="sm" />
 								</span>
 								<StackLabelHelperText>
 									<div>

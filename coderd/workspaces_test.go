@@ -2875,12 +2875,17 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 				defer cancel()
 
-				err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
-					TTLMillis: testCase.toTTL,
-				})
+				// Re-fetch the workspace build. This is required because
+				// `AwaitWorkspaceBuildJobCompleted` can return stale data.
+				build, err := client.WorkspaceBuild(ctx, build.ID)
 				require.NoError(t, err)
 
 				deadlineBefore := build.Deadline
+
+				err = client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
+					TTLMillis: testCase.toTTL,
+				})
+				require.NoError(t, err)
 
 				build, err = client.WorkspaceBuild(ctx, build.ID)
 				require.NoError(t, err)

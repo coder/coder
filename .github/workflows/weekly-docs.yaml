@@ -21,7 +21,7 @@ jobs:
       pull-requests: write # required to post PR review comments by the action
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Check Markdown links
-        uses: umbrelladocs/action-linkspector@3a951c1f0dca72300c2320d0eb39c2bafe429ab1 # v1.3.6
+        uses: umbrelladocs/action-linkspector@874d01cae9fd488e3077b08952093235bd626977 # v1.3.7
         id: markdown-link-check
         # checks all markdown files from /docs including all subfolders
         with:

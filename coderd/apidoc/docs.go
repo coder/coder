@@ -11448,13 +11448,23 @@ const docTemplate = `{
                 "initiator",
                 "autostart",
                 "autostop",
-                "dormancy"
+                "dormancy",
+                "dashboard",
+                "cli",
+                "ssh_connection",
+                "vscode_connection",
+                "jetbrains_connection"
             ],
             "x-enum-varnames": [
                 "BuildReasonInitiator",
                 "BuildReasonAutostart",
                 "BuildReasonAutostop",
-                "BuildReasonDormancy"
+                "BuildReasonDormancy",
+                "BuildReasonDashboard",
+                "BuildReasonCLI",
+                "BuildReasonSSHConnection",
+                "BuildReasonVSCodeConnection",
+                "BuildReasonJetbrainsConnection"
             ]
         },
         "codersdk.ChangePasswordWithOneTimePasscodeRequest": {
@@ -12070,6 +12080,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateWorkspaceBuildReason": {
+            "type": "string",
+            "enum": [
+                "dashboard",
+                "cli",
+                "ssh_connection",
+                "vscode_connection",
+                "jetbrains_connection"
+            ],
+            "x-enum-varnames": [
+                "CreateWorkspaceBuildReasonDashboard",
+                "CreateWorkspaceBuildReasonCLI",
+                "CreateWorkspaceBuildReasonSSHConnection",
+                "CreateWorkspaceBuildReasonVSCodeConnection",
+                "CreateWorkspaceBuildReasonJetbrainsConnection"
+            ]
+        },
         "codersdk.CreateWorkspaceBuildRequest": {
             "type": "object",
             "required": [
@@ -12093,6 +12120,21 @@ const docTemplate = `{
                 "orphan": {
                     "description": "Orphan may be set for the Destroy transition.",
                     "type": "boolean"
+                },
+                "reason": {
+                    "description": "Reason sets the reason for the workspace build.",
+                    "enum": [
+                        "dashboard",
+                        "cli",
+                        "ssh_connection",
+                        "vscode_connection",
+                        "jetbrains_connection"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.CreateWorkspaceBuildReason"
+                        }
+                    ]
                 },
                 "rich_parameter_values": {
                     "description": "ParameterValues are optional. It will write params to the 'workspace' scope.\nThis will overwrite any existing parameters with the same name.\nThis will not delete old params not included in this list.",
@@ -12985,6 +13027,18 @@ const docTemplate = `{
                 },
                 "limit": {
                     "type": "integer"
+                },
+                "soft_limit": {
+                    "description": "SoftLimit is the soft limit of the feature, and is only used for showing\nincluded limits in the dashboard. No license validation or warnings are\ngenerated from this value.",
+                    "type": "integer"
+                },
+                "usage_period": {
+                    "description": "UsagePeriod denotes that the usage is a counter that accumulates over\nthis period (and most likely resets with the issuance of the next\nlicense).\n\nThese dates are determined from the license that this entitlement comes\nfrom, see enterprise/coderd/license/license.go.\n\nOnly certain features set these fields:\n- FeatureManagedAgentLimit",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.UsagePeriod"
+                        }
+                    ]
                 }
             }
         },
@@ -17241,6 +17295,23 @@ const docTemplate = `{
                 "UsageAppNameReconnectingPty",
                 "UsageAppNameSSH"
             ]
+        },
+        "codersdk.UsagePeriod": {
+            "type": "object",
+            "properties": {
+                "end": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "issued_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "start": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
         },
         "codersdk.User": {
             "type": "object",

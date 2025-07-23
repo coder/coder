@@ -21,6 +21,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
@@ -559,6 +560,13 @@ func New(options *Options) *API {
 	// bugs that may only occur when a key isn't precached in tests and the latency cost is minimal.
 	cryptokeys.StartRotator(ctx, options.Logger, options.Database)
 
+	// AGPL uses a no-op build usage checker as there are no license
+	// entitlements to enforce. This is swapped out in
+	// enterprise/coderd/coderd.go.
+	var buildUsageChecker atomic.Pointer[wsbuilder.UsageChecker]
+	var noopUsageChecker wsbuilder.UsageChecker = wsbuilder.NoopUsageChecker{}
+	buildUsageChecker.Store(&noopUsageChecker)
+
 	api := &API{
 		ctx:          ctx,
 		cancel:       cancel,
@@ -579,6 +587,7 @@ func New(options *Options) *API {
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
+		BuildUsageChecker:           &buildUsageChecker,
 		FileCache:                   files.New(options.PrometheusRegistry, options.Authorizer),
 		Experiments:                 experiments,
 		WebpushDispatcher:           options.WebPushDispatcher,
@@ -790,6 +799,7 @@ func New(options *Options) *API {
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 		Logger:                        options.Logger,
+		AccessURL:                     options.AccessURL,
 	})
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -801,6 +811,7 @@ func New(options *Options) *API {
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 		Logger:                        options.Logger,
+		AccessURL:                     options.AccessURL,
 	})
 	// Same as the first but it's optional.
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -812,6 +823,7 @@ func New(options *Options) *API {
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 		Logger:                        options.Logger,
+		AccessURL:                     options.AccessURL,
 	})
 
 	workspaceAgentInfo := httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
@@ -1647,6 +1659,9 @@ type API struct {
 	FileCache           *files.Cache
 	PrebuildsClaimer    atomic.Pointer[prebuilds.Claimer]
 	PrebuildsReconciler atomic.Pointer[prebuilds.ReconciliationOrchestrator]
+	// BuildUsageChecker is a pointer as it's passed around to multiple
+	// components.
+	BuildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker]
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 

@@ -254,7 +254,7 @@ data "coder_workspace_tags" "tags" {
 module "slackme" {
   count            = data.coder_workspace.me.start_count
   source           = "dev.registry.coder.com/coder/slackme/coder"
-  version          = "1.0.2"
+  version          = "1.0.30"
   agent_id         = coder_agent.dev.id
   auth_provider_id = "slack"
 }
@@ -262,14 +262,14 @@ module "slackme" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.0.29"
+  version  = "1.2.0"
   agent_id = coder_agent.dev.id
 }
 
 module "git-clone" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/git-clone/coder"
-  version  = "1.0.18"
+  version  = "1.1.0"
   agent_id = coder_agent.dev.id
   url      = "https://github.com/coder/coder"
   base_dir = local.repo_base_dir
@@ -278,7 +278,7 @@ module "git-clone" {
 module "personalize" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/personalize/coder"
-  version  = "1.0.2"
+  version  = "1.0.30"
   agent_id = coder_agent.dev.id
 }
 
@@ -295,7 +295,7 @@ module "code-server" {
 module "vscode-web" {
   count                   = data.coder_workspace.me.start_count
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
-  version                 = "1.2.0"
+  version                 = "1.3.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   extensions              = ["github.copilot"]
@@ -325,14 +325,14 @@ module "filebrowser" {
 module "coder-login" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/coder-login/coder"
-  version  = "1.0.15"
+  version  = "1.0.30"
   agent_id = coder_agent.dev.id
 }
 
 module "cursor" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/cursor/coder"
-  version  = "1.1.0"
+  version  = "1.2.0"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
@@ -340,7 +340,7 @@ module "cursor" {
 module "windsurf" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/windsurf/coder"
-  version  = "1.0.0"
+  version  = "1.1.0"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
