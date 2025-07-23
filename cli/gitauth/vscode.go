@@ -11,20 +11,27 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// OverrideVSCodeConfigs overwrites a few properties to consume
-// GIT_ASKPASS from the host instead of VS Code-specific authentication.
+// OverrideVSCodeConfigs merges essential Coder settings with existing VS Code settings
+// to ensure GIT_ASKPASS and Git authentication work properly with Coder.
 func OverrideVSCodeConfigs(fs afero.Fs) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
 	}
-	mutate := func(m map[string]interface{}) {
+	// Define the essential settings that Coder needs to override
+	coderSettings := map[string]interface{}{
 		// This prevents VS Code from overriding GIT_ASKPASS, which
 		// we use to automatically authenticate Git providers.
-		m["git.useIntegratedAskPass"] = false
+		"git.useIntegratedAskPass": false,
 		// This prevents VS Code from using it's own GitHub authentication
 		// which would circumvent cloning with Coder-configured providers.
-		m["github.gitAuthentication"] = false
+		"github.gitAuthentication": false,
+	}
+	mutate := func(m map[string]interface{}) {
+		// Merge Coder's essential settings with existing settings
+		for key, value := range coderSettings {
+			m[key] = value
+		}
 	}
 
 	for _, configPath := range []string{
@@ -47,7 +54,8 @@ func OverrideVSCodeConfigs(fs afero.Fs) error {
 				return xerrors.Errorf("stat %q: %w", configPath, err)
 			}
 
-			m := map[string]interface{}{}
+			// Create new settings file with only Coder's essential settings
+			m := make(map[string]interface{})
 			mutate(m)
 			data, err := json.MarshalIndent(m, "", "\t")
 			if err != nil {
