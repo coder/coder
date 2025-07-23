@@ -83,6 +83,7 @@ resources:
 lifecycle:
   {{- toYaml .Values.coder.lifecycle | nindent 2 }}
 securityContext: {{ toYaml .Values.coder.securityContext | nindent 2 }}
+{{- if .Values.coder.readinessProbe }}
 readinessProbe:
   httpGet:
     path: /healthz
@@ -101,6 +102,8 @@ readinessProbe:
   {{- if hasKey .Values.coder.readinessProbe "failureThreshold" }}
   failureThreshold: {{ .Values.coder.readinessProbe.failureThreshold }}
   {{- end }}
+{{- end }}
+{{- if .Values.coder.livenessProbe }}
 livenessProbe:
   httpGet:
     path: /healthz
@@ -119,6 +122,7 @@ livenessProbe:
   {{- if hasKey .Values.coder.livenessProbe "failureThreshold" }}
   failureThreshold: {{ .Values.coder.livenessProbe.failureThreshold }}
   {{- end }}
+{{- end }}
 {{ include "coder.volumeMounts" . }}
 {{- end -}}
 {{- define "libcoder.containerspec" -}}
