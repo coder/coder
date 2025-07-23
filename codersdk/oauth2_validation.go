@@ -257,12 +257,6 @@ func isLoopbackAddress(hostname string) bool {
 
 // isValidCustomScheme validates custom schemes for public clients (RFC 8252)
 func isValidCustomScheme(scheme string) bool {
-	// For security and RFC compliance, require reverse domain notation
-	// Should contain at least one period and not be a well-known scheme
-	if !strings.Contains(scheme, ".") {
-		return false
-	}
-
 	// Block schemes that look like well-known protocols
 	wellKnownSchemes := []string{"http", "https", "ftp", "mailto", "tel", "sms"}
 	for _, wellKnown := range wellKnownSchemes {
