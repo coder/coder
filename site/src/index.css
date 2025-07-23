@@ -9,16 +9,16 @@
 
 @layer base {
 	:root {
-		--content-primary: 240 10% 4%;
-		--content-secondary: 240 5% 34%;
-		--content-link: 221 83% 53%;
+		--content-primary: 120 100% 50%; /* Bright Green in HSL */
+		--content-secondary: 120 61% 50%; /* Lime Green in HSL */
+		--content-link: 120 100% 40%; /* Slightly darker green for links */
 		--content-invert: 0 0% 98%;
 		--content-disabled: 240 5% 65%;
 		--content-success: 142 72% 29%;
 		--content-warning: 27 96% 61%;
 		--content-destructive: 0 84% 60%;
-		--surface-primary: 0 0% 98%;
-		--surface-secondary: 240 5% 96%;
+		--surface-primary: 330 100% 71%; /* Hot Pink in HSL */
+		--surface-secondary: 351 100% 86%; /* Light Pink in HSL */
 		--surface-tertiary: 240 6% 90%;
 		--surface-quaternary: 240 5% 84%;
 		--surface-invert-primary: 240 4% 16%;
@@ -51,16 +51,16 @@
 		--avatar-sm: 1.125rem;
 	}
 	.dark {
-		--content-primary: 0 0% 98%;
-		--content-secondary: 240 5% 65%;
-		--content-link: 213 94% 68%;
+		--content-primary: 120 100% 50%; /* Bright Green in HSL */
+		--content-secondary: 90 100% 45%; /* Lawn Green in HSL */
+		--content-link: 120 73% 75%; /* Light Green in HSL */
 		--content-invert: 240 10% 4%;
 		--content-disabled: 240 5% 26%;
 		--content-success: 142 76% 36%;
 		--content-warning: 31 97% 72%;
 		--content-destructive: 0 91% 71%;
-		--surface-primary: 240 10% 4%;
-		--surface-secondary: 240 6% 10%;
+		--surface-primary: 328 100% 54%; /* Deep Pink in HSL */
+		--surface-secondary: 322 61% 45%; /* Medium Violet Red in HSL */
 		--surface-tertiary: 240 4% 16%;
 		--surface-quaternary: 240 5% 26%;
 		--surface-invert-primary: 240 6% 90%;
@@ -111,6 +111,36 @@
 	/* Prevent layout shift when modals open by maintaining scrollbar width */
 	html {
 		scrollbar-gutter: stable;
+	}
+	
+	/* Sparkle cursor effect */
+	* {
+		cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><filter id='filter' x='-50%' y='-50%' width='200%' height='200%'><feGaussianBlur stdDeviation='1.5' result='blur'/></filter><g filter='url(%23filter)'><path d='M16,0 L20,12 L32,16 L20,20 L16,32 L12,20 L0,16 L12,12 z' fill='yellow'/></g><path d='M16,0 L20,12 L32,16 L20,20 L16,32 L12,20 L0,16 L12,12 z' fill='white'/><circle cx='16' cy='16' r='2' fill='yellow'><animate attributeName='opacity' values='1;0;1' dur='1s' repeatCount='indefinite'/></circle></svg>") 16 16, auto !important;
+	}
+	
+	/* Additional sparkle trail animation */
+	@keyframes sparkle {
+		0% { opacity: 1; transform: scale(0); }
+		50% { opacity: 0.8; transform: scale(0.5); }
+		100% { opacity: 0; transform: scale(1); }
+	}
+	
+	/* Sparkling cursor trail elements */
+	.cursor-sparkle {
+		position: fixed;
+		width: 8px;
+		height: 8px;
+		background: white;
+		border-radius: 50%;
+		pointer-events: none;
+		z-index: 9999;
+		box-shadow: 
+			0 0 5px #fff,
+			0 0 10px #fff,
+			0 0 15px #ff0,
+			0 0 20px #ff0,
+			0 0 25px #ff0,
+			0 0 30px #ff0;
 	}
 
 	/*

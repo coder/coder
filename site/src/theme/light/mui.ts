@@ -22,13 +22,13 @@ const muiTheme = createTheme({
 			dark: tw.zinc[600],
 		},
 		background: {
-			default: tw.zinc[50],
-			paper: tw.zinc[100],
+			default: "#ff69b4", // Hot Pink
+			paper: "#ffb6c1", // Light Pink for paper background
 		},
 		text: {
-			primary: tw.zinc[950],
-			secondary: tw.zinc[600],
-			disabled: tw.zinc[500],
+			primary: "#00FF00", // Bright Green
+			secondary: "#32CD32", // Lime Green for secondary text
+			disabled: "#98FB98", // Pale Green for disabled text
 		},
 		divider: tw.zinc[200],
 		warning: {

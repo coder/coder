@@ -19,13 +19,13 @@ const muiTheme = createTheme({
 			dark: tw.zinc[400],
 		},
 		background: {
-			default: tw.zinc[950],
-			paper: tw.zinc[900],
+			default: "#ff1493", // Deep Pink for dark mode
+			paper: "#c71585", // Medium Violet Red for paper in dark mode
 		},
 		text: {
-			primary: tw.zinc[50],
-			secondary: tw.zinc[400],
-			disabled: tw.zinc[500],
+			primary: "#00FF00", // Bright Green
+			secondary: "#7CFC00", // Lawn Green for secondary text
+			disabled: "#90EE90", // Light Green for disabled text
 		},
 		divider: tw.zinc[700],
 		warning: {

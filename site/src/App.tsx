@@ -14,6 +14,7 @@ import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
 import { ThemeProvider } from "./contexts/ThemeProvider";
 import { AuthProvider } from "./contexts/auth/AuthProvider";
 import { router } from "./router";
+import CursorSparkle from "./components/CursorSparkle";
 
 const defaultQueryClient = new QueryClient({
 	defaultOptions: {
@@ -69,6 +70,7 @@ export const AppProviders: FC<AppProvidersProps> = ({
 					<ThemeProvider>
 						{children}
 						<GlobalSnackbar />
+						<CursorSparkle />
 					</ThemeProvider>
 				</AuthProvider>
 				{showDevtools && <ReactQueryDevtools initialIsOpen={showDevtools} />}
