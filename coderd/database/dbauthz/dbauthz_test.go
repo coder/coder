@@ -5559,6 +5559,9 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppCodes() {
 		})
 		check.Args(code.SecretPrefix).Asserts(code, policy.ActionUpdate).Returns(code)
 	}))
+	s.Run("DeleteExpiredOAuth2ProviderAppCodes", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
 }
 
 func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
@@ -5631,6 +5634,9 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 			AppID:  app.ID,
 			UserID: user.ID,
 		}).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionDelete)
+	}))
+	s.Run("DeleteExpiredOAuth2ProviderAppTokens", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 }
 
