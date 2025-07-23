@@ -275,13 +275,27 @@ export interface BuildInfoResponse {
 }
 
 // From codersdk/workspacebuilds.go
-export type BuildReason = "autostart" | "autostop" | "dormancy" | "initiator";
+export type BuildReason =
+	| "autostart"
+	| "autostop"
+	| "cli"
+	| "dashboard"
+	| "dormancy"
+	| "initiator"
+	| "jetbrains_connection"
+	| "ssh_connection"
+	| "vscode_connection";
 
 export const BuildReasons: BuildReason[] = [
 	"autostart",
 	"autostop",
+	"cli",
+	"dashboard",
 	"dormancy",
 	"initiator",
+	"jetbrains_connection",
+	"ssh_connection",
+	"vscode_connection",
 ];
 
 // From codersdk/client.go
@@ -540,6 +554,22 @@ export interface CreateUserSecretRequest {
 }
 
 // From codersdk/workspaces.go
+export type CreateWorkspaceBuildReason =
+	| "cli"
+	| "dashboard"
+	| "jetbrains_connection"
+	| "ssh_connection"
+	| "vscode_connection";
+
+export const CreateWorkspaceBuildReasons: CreateWorkspaceBuildReason[] = [
+	"cli",
+	"dashboard",
+	"jetbrains_connection",
+	"ssh_connection",
+	"vscode_connection",
+];
+
+// From codersdk/workspaces.go
 export interface CreateWorkspaceBuildRequest {
 	readonly template_version_id?: string;
 	readonly transition: WorkspaceTransition;
@@ -549,6 +579,7 @@ export interface CreateWorkspaceBuildRequest {
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly log_level?: ProvisionerLogLevel;
 	readonly template_version_preset_id?: string;
+	readonly reason?: CreateWorkspaceBuildReason;
 }
 
 // From codersdk/workspaceproxy.go
@@ -989,6 +1020,8 @@ export interface Feature {
 	readonly enabled: boolean;
 	readonly limit?: number;
 	readonly actual?: number;
+	readonly soft_limit?: number;
+	readonly usage_period?: UsagePeriod;
 }
 
 // From codersdk/deployment.go
@@ -1004,6 +1037,7 @@ export type FeatureName =
 	| "external_provisioner_daemons"
 	| "external_token_encryption"
 	| "high_availability"
+	| "managed_agent_limit"
 	| "multiple_external_auth"
 	| "multiple_organizations"
 	| "scim"
@@ -1026,6 +1060,7 @@ export const FeatureNames: FeatureName[] = [
 	"external_provisioner_daemons",
 	"external_token_encryption",
 	"high_availability",
+	"managed_agent_limit",
 	"multiple_external_auth",
 	"multiple_organizations",
 	"scim",
@@ -2682,9 +2717,6 @@ export interface SessionLifetime {
 }
 
 // From codersdk/client.go
-export const SessionTokenCookie = "coder_session_token";
-
-// From codersdk/client.go
 export const SessionTokenHeader = "Coder-Session-Token";
 
 // From codersdk/client.go
@@ -3262,6 +3294,13 @@ export const UsageAppNames: UsageAppName[] = [
 	"ssh",
 	"vscode",
 ];
+
+// From codersdk/deployment.go
+export interface UsagePeriod {
+	readonly issued_at: string;
+	readonly start: string;
+	readonly end: string;
+}
 
 // From codersdk/users.go
 export interface User extends ReducedUser {

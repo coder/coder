@@ -27,8 +27,10 @@ import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
+import { ExternalLinkIcon } from "lucide-react";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { type FC, useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
 	getFormHelpers,
 	nameValidator,
@@ -67,6 +69,7 @@ interface CreateWorkspacePageViewProps {
 	presets: TypesGen.Preset[];
 	permissions: CreateWorkspacePermissions;
 	creatingWorkspace: boolean;
+	canUpdateTemplate?: boolean;
 	onCancel: () => void;
 	onSubmit: (
 		req: TypesGen.CreateWorkspaceRequest,
@@ -92,6 +95,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	presets = [],
 	permissions,
 	creatingWorkspace,
+	canUpdateTemplate,
 	onSubmit,
 	onCancel,
 }) => {
@@ -218,9 +222,21 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		<Margins size="medium">
 			<PageHeader
 				actions={
-					<Button size="sm" variant="outline" onClick={onCancel}>
-						Cancel
-					</Button>
+					<Stack direction="row" spacing={2}>
+						{canUpdateTemplate && (
+							<Button asChild size="sm" variant="outline">
+								<Link
+									to={`/templates/${template.organization_name}/${template.name}/versions/${versionId}/edit`}
+								>
+									<ExternalLinkIcon />
+									View source
+								</Link>
+							</Button>
+						)}
+						<Button size="sm" variant="outline" onClick={onCancel}>
+							Cancel
+						</Button>
+					</Stack>
 				}
 			>
 				<Stack direction="row">

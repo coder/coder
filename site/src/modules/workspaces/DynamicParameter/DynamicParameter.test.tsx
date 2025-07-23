@@ -191,7 +191,7 @@ describe("DynamicParameter", () => {
 		});
 	});
 
-	describe("Select Parameter", () => {
+	describe("dropdown parameter", () => {
 		const mockSelectParameter = createMockParameter({
 			name: "select_param",
 			display_name: "Select Parameter",
@@ -221,19 +221,6 @@ describe("DynamicParameter", () => {
 			],
 		});
 
-		it("renders select parameter with options", () => {
-			render(
-				<DynamicParameter
-					parameter={mockSelectParameter}
-					value="option1"
-					onChange={mockOnChange}
-				/>,
-			);
-
-			expect(screen.getByText("Select Parameter")).toBeInTheDocument();
-			expect(screen.getByRole("combobox")).toBeInTheDocument();
-		});
-
 		it("displays all options when opened", async () => {
 			render(
 				<DynamicParameter
@@ -243,7 +230,7 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			const select = screen.getByRole("combobox");
+			const select = screen.getByRole("button");
 			await waitFor(async () => {
 				await userEvent.click(select);
 			});
@@ -263,7 +250,7 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			const select = screen.getByRole("combobox");
+			const select = screen.getByRole("button");
 			await waitFor(async () => {
 				await userEvent.click(select);
 			});
@@ -274,26 +261,6 @@ describe("DynamicParameter", () => {
 			});
 
 			expect(mockOnChange).toHaveBeenCalledWith("option2");
-		});
-
-		it("displays option icons when provided", async () => {
-			render(
-				<DynamicParameter
-					parameter={mockSelectParameter}
-					value="option1"
-					onChange={mockOnChange}
-				/>,
-			);
-
-			const select = screen.getByRole("combobox");
-			await waitFor(async () => {
-				await userEvent.click(select);
-			});
-
-			const icons = screen.getAllByRole("img");
-			expect(
-				icons.some((icon) => icon.getAttribute("src") === "/icon2.png"),
-			).toBe(true);
 		});
 	});
 
@@ -829,7 +796,7 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			expect(screen.getByRole("combobox")).toBeInTheDocument();
+			expect(screen.getByRole("button")).toBeInTheDocument();
 		});
 
 		it("handles null/undefined values", () => {

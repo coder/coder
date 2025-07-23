@@ -964,6 +964,13 @@ func (m queryMetricsStore) GetLogoURL(ctx context.Context) (string, error) {
 	return url, err
 }
 
+func (m queryMetricsStore) GetManagedAgentCount(ctx context.Context, arg database.GetManagedAgentCountParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetManagedAgentCount(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetManagedAgentCount").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetNotificationMessagesByStatus(ctx, arg)
@@ -1353,13 +1360,6 @@ func (m queryMetricsStore) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]
 	start := time.Now()
 	r0, r1 := m.s.GetRunningPrebuiltWorkspaces(ctx)
 	m.queryLatencies.WithLabelValues("GetRunningPrebuiltWorkspaces").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetRunningPrebuiltWorkspacesOptimized(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesOptimizedRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetRunningPrebuiltWorkspacesOptimized(ctx)
-	m.queryLatencies.WithLabelValues("GetRunningPrebuiltWorkspacesOptimized").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
