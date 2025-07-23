@@ -484,6 +484,7 @@ require (
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/preview v1.0.3-0.20250714153828-a737d4750448
 	github.com/fsnotify/fsnotify v1.9.0
+	github.com/go-git/go-git/v5 v5.16.2
 	github.com/mark3labs/mcp-go v0.34.0
 )
 
@@ -514,7 +515,6 @@ require (
 	github.com/esiqveland/notify v0.13.3 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.6.2 // indirect
-	github.com/go-git/go-git/v5 v5.16.2 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/hashicorp/go-getter v1.7.8 // indirect
 	github.com/hashicorp/go-safetemp v1.0.0 // indirect
