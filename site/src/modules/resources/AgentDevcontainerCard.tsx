@@ -218,7 +218,8 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							text-sm font-semibold text-content-primary
 							md:overflow-visible"
 						>
-							{subAgent?.name ?? devcontainer.name}
+							{subAgent?.name ??
+								(devcontainer.name || devcontainer.config_path)}
 							{devcontainer.container && (
 								<span className="text-content-tertiary">
 									{" "}
@@ -253,7 +254,8 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						disabled={devcontainer.status === "starting"}
 					>
 						<Spinner loading={devcontainer.status === "starting"} />
-						Rebuild
+
+						{devcontainer.container === undefined ? "Start" : "Rebuild"}
 					</Button>
 
 					{showDevcontainerControls && displayApps.includes("ssh_helper") && (

@@ -15,14 +15,14 @@ reviews:
   # Other review settings (only apply if manually requested)
   profile: "chill"
   request_changes_workflow: false
-  high_level_summary: true
+  high_level_summary: false
   poem: false
-  review_status: true
+  review_status: false
   collapse_walkthrough: true
+  high_level_summary_in_walkthrough: true
 
 chat:
   auto_reply: true # Allow automatic chat replies
 
 # Note: With auto_review.enabled: false, CodeRabbit will only perform initial
 # reviews when manually requested, but incremental reviews and chat replies remain enabled
-

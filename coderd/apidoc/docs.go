@@ -11470,13 +11470,23 @@ const docTemplate = `{
                 "initiator",
                 "autostart",
                 "autostop",
-                "dormancy"
+                "dormancy",
+                "dashboard",
+                "cli",
+                "ssh_connection",
+                "vscode_connection",
+                "jetbrains_connection"
             ],
             "x-enum-varnames": [
                 "BuildReasonInitiator",
                 "BuildReasonAutostart",
                 "BuildReasonAutostop",
-                "BuildReasonDormancy"
+                "BuildReasonDormancy",
+                "BuildReasonDashboard",
+                "BuildReasonCLI",
+                "BuildReasonSSHConnection",
+                "BuildReasonVSCodeConnection",
+                "BuildReasonJetbrainsConnection"
             ]
         },
         "codersdk.ChangePasswordWithOneTimePasscodeRequest": {
@@ -12092,6 +12102,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateWorkspaceBuildReason": {
+            "type": "string",
+            "enum": [
+                "dashboard",
+                "cli",
+                "ssh_connection",
+                "vscode_connection",
+                "jetbrains_connection"
+            ],
+            "x-enum-varnames": [
+                "CreateWorkspaceBuildReasonDashboard",
+                "CreateWorkspaceBuildReasonCLI",
+                "CreateWorkspaceBuildReasonSSHConnection",
+                "CreateWorkspaceBuildReasonVSCodeConnection",
+                "CreateWorkspaceBuildReasonJetbrainsConnection"
+            ]
+        },
         "codersdk.CreateWorkspaceBuildRequest": {
             "type": "object",
             "required": [
@@ -12115,6 +12142,21 @@ const docTemplate = `{
                 "orphan": {
                     "description": "Orphan may be set for the Destroy transition.",
                     "type": "boolean"
+                },
+                "reason": {
+                    "description": "Reason sets the reason for the workspace build.",
+                    "enum": [
+                        "dashboard",
+                        "cli",
+                        "ssh_connection",
+                        "vscode_connection",
+                        "jetbrains_connection"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.CreateWorkspaceBuildReason"
+                        }
+                    ]
                 },
                 "rich_parameter_values": {
                     "description": "ParameterValues are optional. It will write params to the 'workspace' scope.\nThis will overwrite any existing parameters with the same name.\nThis will not delete old params not included in this list.",

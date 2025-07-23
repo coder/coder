@@ -14,6 +14,7 @@ source "${SCRIPT_DIR}/lib.sh"
 set -euo pipefail
 
 CODER_DEV_ACCESS_URL="${CODER_DEV_ACCESS_URL:-http://127.0.0.1:3000}"
+DEVELOP_IN_CODER="${DEVELOP_IN_CODER:-0}"
 debug=0
 DEFAULT_PASSWORD="SomeSecurePassword!"
 password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
@@ -66,6 +67,10 @@ if [ "${CODER_BUILD_AGPL:-0}" -gt "0" ] && [ "${multi_org}" -gt "0" ]; then
 	echo '== ERROR: cannot use both multi-organizations and APGL build.' && exit 1
 fi
 
+if [ -n "${CODER_AGENT_URL}" ]; then
+	DEVELOP_IN_CODER=1
+fi
+
 # Preflight checks: ensure we have our required dependencies, and make sure nothing is listening on port 3000 or 8080
 dependencies curl git go make pnpm
 curl --fail http://127.0.0.1:3000 >/dev/null 2>&1 && echo '== ERROR: something is listening on port 3000. Kill it and re-run this script.' && exit 1
@@ -75,7 +80,7 @@ curl --fail http://127.0.0.1:8080 >/dev/null 2>&1 && echo '== ERROR: something i
 # node_modules if necessary.
 GOOS="$(go env GOOS)"
 GOARCH="$(go env GOARCH)"
-make -j "build/coder_${GOOS}_${GOARCH}"
+DEVELOP_IN_CODER="${DEVELOP_IN_CODER}" make -j "build/coder_${GOOS}_${GOARCH}"
 
 # Use the coder dev shim so we don't overwrite the user's existing Coder config.
 CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
@@ -150,7 +155,7 @@ fatal() {
 	trap 'fatal "Script encountered an error"' ERR
 
 	cdroot
-	DEBUG_DELVE="${debug}" start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "${CODER_DEV_ACCESS_URL}" --dangerous-allow-cors-requests=true --enable-terraform-debug-mode "$@"
+	DEBUG_DELVE="${debug}" DEVELOP_IN_CODER="${DEVELOP_IN_CODER}" start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "${CODER_DEV_ACCESS_URL}" --dangerous-allow-cors-requests=true --enable-terraform-debug-mode "$@"
 
 	echo '== Waiting for Coder to become ready'
 	# Start the timeout in the background so interrupting this script

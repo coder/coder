@@ -4286,6 +4286,44 @@ func (q *sqlQuerier) GetLicenses(ctx context.Context) ([]License, error) {
 	return items, nil
 }
 
+const getManagedAgentCount = `-- name: GetManagedAgentCount :one
+SELECT
+	COUNT(DISTINCT wb.id) AS count
+FROM
+	workspace_builds AS wb
+JOIN
+	provisioner_jobs AS pj
+ON
+	wb.job_id = pj.id
+WHERE
+	wb.transition = 'start'::workspace_transition
+	AND wb.has_ai_task = true
+	-- Only count jobs that are pending, running or succeeded. Other statuses
+	-- like cancel(ed|ing), failed or unknown are not considered as managed
+	-- agent usage. These workspace builds are typically unusable anyway.
+	AND pj.job_status IN (
+		'pending'::provisioner_job_status,
+		'running'::provisioner_job_status,
+		'succeeded'::provisioner_job_status
+	)
+	-- Jobs are counted at the time they are created, not when they are
+	-- completed, as pending jobs haven't completed yet.
+	AND wb.created_at BETWEEN $1::timestamptz AND $2::timestamptz
+`
+
+type GetManagedAgentCountParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+// This isn't strictly a license query, but it's related to license enforcement.
+func (q *sqlQuerier) GetManagedAgentCount(ctx context.Context, arg GetManagedAgentCountParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getManagedAgentCount, arg.StartTime, arg.EndTime)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getUnexpiredLicenses = `-- name: GetUnexpiredLicenses :many
 SELECT id, uploaded_at, jwt, exp, uuid
 FROM licenses
@@ -8480,7 +8518,9 @@ WHERE
 			-- they are aliases and the code that calls this query already relies on a different type
 			AND provisioner_tagset_contains($5 :: jsonb, potential_job.tags :: jsonb)
 		ORDER BY
-			potential_job.created_at
+			-- Ensure that human-initiated jobs are prioritized over prebuilds.
+			potential_job.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid ASC,
+			potential_job.created_at ASC
 		FOR UPDATE
 		SKIP LOCKED
 		LIMIT
@@ -8713,7 +8753,7 @@ WITH filtered_provisioner_jobs AS (
 pending_jobs AS (
 	-- Step 2: Extract only pending jobs
 	SELECT
-		id, created_at, tags
+		id, initiator_id, created_at, tags
 	FROM
 		provisioner_jobs
 	WHERE
@@ -8728,7 +8768,7 @@ ranked_jobs AS (
 	SELECT
 		pj.id,
 		pj.created_at,
-		ROW_NUMBER() OVER (PARTITION BY opd.id ORDER BY pj.created_at ASC) AS queue_position,
+		ROW_NUMBER() OVER (PARTITION BY opd.id ORDER BY pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid ASC, pj.created_at ASC) AS queue_position,
 		COUNT(*) OVER (PARTITION BY opd.id) AS queue_size
 	FROM
 		pending_jobs pj
@@ -8828,7 +8868,7 @@ func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Contex
 const getProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner = `-- name: GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner :many
 WITH pending_jobs AS (
     SELECT
-        id, created_at
+        id, initiator_id, created_at
     FROM
         provisioner_jobs
     WHERE
@@ -8843,7 +8883,7 @@ WITH pending_jobs AS (
 queue_position AS (
     SELECT
         id,
-        ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
+        ROW_NUMBER() OVER (ORDER BY initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid ASC, created_at ASC) AS queue_position
     FROM
         pending_jobs
 ),
