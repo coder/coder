@@ -10,11 +10,11 @@ import {
 import { HelmetProvider } from "react-helmet-async";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { RouterProvider } from "react-router-dom";
+import CursorSparkle from "./components/CursorSparkle";
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
 import { ThemeProvider } from "./contexts/ThemeProvider";
 import { AuthProvider } from "./contexts/auth/AuthProvider";
 import { router } from "./router";
-import CursorSparkle from "./components/CursorSparkle";
 
 const defaultQueryClient = new QueryClient({
 	defaultOptions: {

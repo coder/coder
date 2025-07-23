@@ -112,19 +112,29 @@
 	html {
 		scrollbar-gutter: stable;
 	}
-	
+
 	/* Sparkle cursor effect */
 	* {
-		cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><filter id='filter' x='-50%' y='-50%' width='200%' height='200%'><feGaussianBlur stdDeviation='1.5' result='blur'/></filter><g filter='url(%23filter)'><path d='M16,0 L20,12 L32,16 L20,20 L16,32 L12,20 L0,16 L12,12 z' fill='yellow'/></g><path d='M16,0 L20,12 L32,16 L20,20 L16,32 L12,20 L0,16 L12,12 z' fill='white'/><circle cx='16' cy='16' r='2' fill='yellow'><animate attributeName='opacity' values='1;0;1' dur='1s' repeatCount='indefinite'/></circle></svg>") 16 16, auto !important;
+		cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><filter id='filter' x='-50%' y='-50%' width='200%' height='200%'><feGaussianBlur stdDeviation='1.5' result='blur'/></filter><g filter='url(%23filter)'><path d='M16,0 L20,12 L32,16 L20,20 L16,32 L12,20 L0,16 L12,12 z' fill='yellow'/></g><path d='M16,0 L20,12 L32,16 L20,20 L16,32 L12,20 L0,16 L12,12 z' fill='white'/><circle cx='16' cy='16' r='2' fill='yellow'><animate attributeName='opacity' values='1;0;1' dur='1s' repeatCount='indefinite'/></circle></svg>")
+			16 16, auto !important;
 	}
-	
+
 	/* Additional sparkle trail animation */
 	@keyframes sparkle {
-		0% { opacity: 1; transform: scale(0); }
-		50% { opacity: 0.8; transform: scale(0.5); }
-		100% { opacity: 0; transform: scale(1); }
+		0% {
+			opacity: 1;
+			transform: scale(0);
+		}
+		50% {
+			opacity: 0.8;
+			transform: scale(0.5);
+		}
+		100% {
+			opacity: 0;
+			transform: scale(1);
+		}
 	}
-	
+
 	/* Sparkling cursor trail elements */
 	.cursor-sparkle {
 		position: fixed;
@@ -134,13 +144,8 @@
 		border-radius: 50%;
 		pointer-events: none;
 		z-index: 9999;
-		box-shadow: 
-			0 0 5px #fff,
-			0 0 10px #fff,
-			0 0 15px #ff0,
-			0 0 20px #ff0,
-			0 0 25px #ff0,
-			0 0 30px #ff0;
+		box-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 15px #ff0, 0 0 20px #ff0, 0 0
+			25px #ff0, 0 0 30px #ff0;
 	}
 
 	/*
