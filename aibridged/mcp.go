@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -18,7 +17,14 @@ type MCPToolBridge struct {
 	name       string
 	client     *client.Client
 	logger     slog.Logger
-	foundTools map[string]anthropic.BetaToolUnionParam
+	foundTools map[string]*MCPTool
+}
+
+type MCPTool struct {
+	Name        string
+	Description string
+	Params      map[string]any
+	Required    []string
 }
 
 const MCPProxyDelimiter = "_"
@@ -61,7 +67,7 @@ func (b *MCPToolBridge) Init(ctx context.Context) error {
 	return nil
 }
 
-func (b *MCPToolBridge) ListTools() []anthropic.BetaToolUnionParam {
+func (b *MCPToolBridge) ListTools() []*MCPTool {
 	return maps.Values(b.foundTools)
 }
 
@@ -83,7 +89,7 @@ func (b *MCPToolBridge) CallTool(ctx context.Context, name string, input any) (*
 	})
 }
 
-func (b *MCPToolBridge) fetchMCPTools(ctx context.Context) (map[string]anthropic.BetaToolUnionParam, error) {
+func (b *MCPToolBridge) fetchMCPTools(ctx context.Context) (map[string]*MCPTool, error) {
 	initReq := mcp.InitializeRequest{
 		Params: mcp.InitializeParams{
 			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
@@ -106,21 +112,15 @@ func (b *MCPToolBridge) fetchMCPTools(ctx context.Context) (map[string]anthropic
 		return nil, xerrors.Errorf("list MCP tools: %w", err)
 	}
 
-	out := make(map[string]anthropic.BetaToolUnionParam, len(tools.Tools))
+	out := make(map[string]*MCPTool, len(tools.Tools))
 	for _, tool := range tools.Tools {
-		out[tool.Name] = anthropic.BetaToolUnionParam{
-			OfTool: &anthropic.BetaToolParam{
-				InputSchema: anthropic.BetaToolInputSchemaParam{
-					Properties: tool.InputSchema.Properties,
-					Required:   tool.InputSchema.Required,
-				},
-				Name:        fmt.Sprintf("%s%s%s", b.name, MCPProxyDelimiter, tool.Name),
-				Description: anthropic.String(tool.Description),
-				Type:        anthropic.BetaToolTypeCustom,
-			},
+		out[tool.Name] = &MCPTool{
+			Name:        fmt.Sprintf("%s%s%s", b.name, MCPProxyDelimiter, tool.Name),
+			Description: tool.Description,
+			Params:      tool.InputSchema.Properties,
+			Required:    tool.InputSchema.Required,
 		}
 	}
-
 	return out, nil
 }
 

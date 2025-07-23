@@ -23,6 +23,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/shared/constant"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -105,53 +106,53 @@ func NewBridge(cfg codersdk.AIBridgeConfig, addr string, logger slog.Logger, cli
 	bridge.clientFn = clientFn
 	bridge.logger = logger
 
-	// const (
-	// 	githubMCPName = "github"
-	// 	coderMCPName  = "coder"
-	// )
-	// githubMCP, err := NewMCPToolBridge(githubMCPName, "https://api.githubcopilot.com/mcp/", map[string]string{
-	// 	"Authorization": "Bearer " + os.Getenv("GITHUB_MCP_TOKEN"),
-	// }, logger.Named("mcp-bridge-github"))
-	// if err != nil {
-	// 	return nil, xerrors.Errorf("github MCP bridge setup: %w", err)
-	// }
-	// coderMCP, err := NewMCPToolBridge(coderMCPName, "https://dev.coder.com/api/experimental/mcp/http", map[string]string{
-	// 	"Authorization": "Bearer " + os.Getenv("CODER_MCP_TOKEN"),
-	// 	// This is necessary to even access the MCP endpoint.
-	// 	"Coder-Session-Token": os.Getenv("CODER_MCP_SESSION_TOKEN"),
-	// }, logger.Named("mcp-bridge-coder"))
-	// if err != nil {
-	// 	return nil, xerrors.Errorf("coder MCP bridge setup: %w", err)
-	// }
+	const (
+		githubMCPName = "github"
+		coderMCPName  = "coder"
+	)
+	githubMCP, err := NewMCPToolBridge(githubMCPName, "https://api.githubcopilot.com/mcp/", map[string]string{
+		"Authorization": "Bearer " + os.Getenv("GITHUB_MCP_TOKEN"),
+	}, logger.Named("mcp-bridge-github"))
+	if err != nil {
+		return nil, xerrors.Errorf("github MCP bridge setup: %w", err)
+	}
+	coderMCP, err := NewMCPToolBridge(coderMCPName, "https://dev.coder.com/api/experimental/mcp/http", map[string]string{
+		"Authorization": "Bearer " + os.Getenv("CODER_MCP_TOKEN"),
+		// This is necessary to even access the MCP endpoint.
+		"Coder-Session-Token": os.Getenv("CODER_MCP_SESSION_TOKEN"),
+	}, logger.Named("mcp-bridge-coder"))
+	if err != nil {
+		return nil, xerrors.Errorf("coder MCP bridge setup: %w", err)
+	}
 
-	// bridge.mcpBridges = map[string]*MCPToolBridge{
-	// 	githubMCPName: githubMCP,
-	// 	coderMCPName:  coderMCP,
-	// }
+	bridge.mcpBridges = map[string]*MCPToolBridge{
+		githubMCPName: githubMCP,
+		coderMCPName:  coderMCP,
+	}
 
-	// ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	// defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
 
-	// var eg errgroup.Group
-	// eg.Go(func() error {
-	// 	err := githubMCP.Init(ctx)
-	// 	if err == nil {
-	// 		return nil
-	// 	}
-	// 	return xerrors.Errorf("github: %w", err)
-	// })
-	// eg.Go(func() error {
-	// 	err := coderMCP.Init(ctx)
-	// 	if err == nil {
-	// 		return nil
-	// 	}
-	// 	return xerrors.Errorf("coder: %w", err)
-	// })
+	var eg errgroup.Group
+	eg.Go(func() error {
+		err := githubMCP.Init(ctx)
+		if err == nil {
+			return nil
+		}
+		return xerrors.Errorf("github: %w", err)
+	})
+	eg.Go(func() error {
+		err := coderMCP.Init(ctx)
+		if err == nil {
+			return nil
+		}
+		return xerrors.Errorf("coder: %w", err)
+	})
 
-	// // This must block requests until MCP proxies are setup.
-	// if err := eg.Wait(); err != nil {
-	// 	return nil, xerrors.Errorf("MCP proxy init: %w", err)
-	// }
+	// This must block requests until MCP proxies are setup.
+	if err := eg.Wait(); err != nil {
+		return nil, xerrors.Errorf("MCP proxy init: %w", err)
+	}
 
 	return &bridge, nil
 }
@@ -227,7 +228,30 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 		openai.SystemMessage("You are a helpful assistant that explicitly mentions when tool calls are about to be made."),
 	}, in.Messages...)
 
-	// TODO: implement MCP tool injection.
+	for _, proxy := range b.mcpBridges {
+		for _, tool := range proxy.ListTools() {
+			fn := openai.ChatCompletionToolParam{
+				Function: openai.FunctionDefinitionParam{
+					Name:        tool.Name,
+					Strict:      openai.Bool(false), // TODO: configurable.
+					Description: openai.String(tool.Description),
+					Parameters: openai.FunctionParameters{
+						"type":       "object",
+						"properties": tool.Params,
+						// "additionalProperties": false, // Only relevant when strict=true.
+					},
+				},
+			}
+
+			// Otherwise the request fails with "None is not of type 'array'" if a nil slice is given.
+			if len(tool.Required) > 0 {
+				// Must list ALL properties when strict=true.
+				fn.Function.Parameters["required"] = tool.Required
+			}
+
+			in.Tools = append(in.Tools, fn)
+		}
+	}
 
 	client := openai.NewClient()
 
@@ -413,7 +437,19 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, proxy := range b.mcpBridges {
-		in.Tools = append(in.Tools, proxy.ListTools()...)
+		for _, tool := range proxy.ListTools() {
+			in.Tools = append(in.Tools, anthropic.BetaToolUnionParam{
+				OfTool: &anthropic.BetaToolParam{
+					InputSchema: anthropic.BetaToolInputSchemaParam{
+						Properties: tool.Params,
+						Required:   tool.Required,
+					},
+					Name:        tool.Name,
+					Description: anthropic.String(tool.Description),
+					Type:        anthropic.BetaToolTypeCustom,
+				},
+			})
+		}
 	}
 
 	// Claude Code uses the 3.5 Haiku model to do autocomplete and other small tasks. (see ANTHROPIC_SMALL_FAST_MODEL).
