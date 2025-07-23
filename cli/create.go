@@ -21,9 +21,10 @@ import (
 	"github.com/coder/serpent"
 )
 
-// DefaultPresetName is used when a user runs `create --preset default`.
-// It instructs the CLI to use the default preset defined for the template version, if one exists.
-const DefaultPresetName = "default"
+// PresetNone represents the special preset value "none".
+// It is used when a user runs `create --preset none`,
+// indicating that the CLI should not apply any preset.
+const PresetNone = "none"
 
 func (r *RootCmd) create() *serpent.Command {
 	var (
@@ -268,47 +269,31 @@ func (r *RootCmd) create() *serpent.Command {
 				}
 			}
 
-			// If a preset name is provided, resolve the preset to use.
+			// Get presets for the template version
+			tvPresets, err := client.TemplateVersionPresets(inv.Context(), templateVersionID)
+			if err != nil {
+				return xerrors.Errorf("failed to get presets: %w", err)
+			}
+
 			var preset *codersdk.Preset
 			var presetParameters []codersdk.WorkspaceBuildParameter
-			isDefaultPreset := false
-			if len(presetName) > 0 {
-				tvPresets, err := client.TemplateVersionPresets(inv.Context(), templateVersionID)
+
+			// If the template has no presets, or the user explicitly used --preset none,
+			// skip applying a preset.
+			if len(tvPresets) > 0 && presetName != PresetNone {
+				// Resolve which preset to use
+				preset, err = resolvePreset(inv, tvPresets, presetName)
 				if err != nil {
-					return xerrors.Errorf("failed to get presets: %w", err)
-				}
-
-				for _, tvPreset := range tvPresets {
-					// If the preset name is the special "default" keyword,
-					// fetch the template version's default preset (if any).
-					if presetName == DefaultPresetName && tvPreset.Default {
-						preset = &tvPreset
-						isDefaultPreset = true
-						break
-					}
-					if tvPreset.Name == presetName {
-						preset = &tvPreset
-						break
-					}
-				}
-
-				if preset == nil {
-					return xerrors.Errorf("preset %q not found", presetName)
+					return xerrors.Errorf("unable to resolve preset: %w", err)
 				}
 
 				// Convert preset parameters into workspace build parameters.
-				presetBuildParameters := presetParameterAsWorkspaceBuildParameters(preset.Parameters)
-				presetParameters = append(presetParameters, presetBuildParameters...)
-
+				presetParameters = presetParameterAsWorkspaceBuildParameters(preset.Parameters)
 				// Inform the user which preset was applied and its parameters.
-				presetLabel := fmt.Sprintf("Preset '%s'", preset.Name)
-				if isDefaultPreset {
-					presetLabel += " (default)"
-				}
-				_, _ = fmt.Fprintf(inv.Stdout, "%s applied:", cliui.Bold(presetLabel))
-				for _, p := range presetParameters {
-					_, _ = fmt.Fprintf(inv.Stdout, "  %s: '%s'\n", cliui.Bold(p.Name), p.Value)
-				}
+				displayAppliedPreset(inv, preset, presetParameters)
+			} else {
+				// Inform the user that no preset was applied
+				_, _ = fmt.Fprintf(inv.Stdout, "%s", cliui.Bold("No preset applied."))
 			}
 
 			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
@@ -444,6 +429,74 @@ type prepWorkspaceBuildArgs struct {
 	RichParameters        []codersdk.WorkspaceBuildParameter
 	RichParameterFile     string
 	RichParameterDefaults []codersdk.WorkspaceBuildParameter
+}
+
+// resolvePreset determines which preset to use based on the --preset flag,
+// or prompts the user to select one if the flag is not provided.
+func resolvePreset(inv *serpent.Invocation, presets []codersdk.Preset, presetName string) (*codersdk.Preset, error) {
+	// If preset name is specified, find it
+	if presetName != "" {
+		for _, preset := range presets {
+			if preset.Name == presetName {
+				return &preset, nil
+			}
+		}
+		return nil, xerrors.Errorf("preset %q not found", presetName)
+	}
+
+	// No preset specified, prompt user to select one
+	return promptPresetSelection(inv, presets)
+}
+
+// promptPresetSelection shows a CLI selection menu of the presets defined in the template version.
+func promptPresetSelection(inv *serpent.Invocation, presets []codersdk.Preset) (*codersdk.Preset, error) {
+	presetMap := make(map[string]*codersdk.Preset)
+	var defaultOption string
+	var options []string
+
+	// Process presets, with the default option (if any) listed first.
+	for _, preset := range presets {
+		option := preset.Name
+		if preset.Default {
+			option = "(default) " + preset.Name
+			defaultOption = option
+		}
+		presetMap[option] = &preset
+	}
+
+	if defaultOption != "" {
+		options = append(options, defaultOption)
+	}
+	for option := range presetMap {
+		if option != defaultOption {
+			options = append(options, option)
+		}
+	}
+
+	// Show selection UI
+	_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "Select a preset below:"))
+	selected, err := cliui.Select(inv, cliui.SelectOptions{
+		Options:    options,
+		HideSearch: true,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("failed to select preset: %w", err)
+	}
+
+	return presetMap[selected], nil
+}
+
+// displayAppliedPreset shows the user which preset was applied and its parameters
+func displayAppliedPreset(inv *serpent.Invocation, preset *codersdk.Preset, parameters []codersdk.WorkspaceBuildParameter) {
+	label := fmt.Sprintf("Preset '%s'", preset.Name)
+	if preset.Default {
+		label += " (default)"
+	}
+
+	_, _ = fmt.Fprintf(inv.Stdout, "%s applied:\n", cliui.Bold(label))
+	for _, param := range parameters {
+		_, _ = fmt.Fprintf(inv.Stdout, "  %s: '%s'\n", cliui.Bold(param.Name), param.Value)
+	}
 }
 
 // prepWorkspaceBuild will ensure a workspace build will succeed on the latest template version.

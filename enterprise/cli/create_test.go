@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/cli"
+
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 
 	"github.com/google/uuid"
@@ -446,9 +448,10 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: thirdParameterName, Value: thirdParameterValue})
 	})
 
-	// This test verifies that when no preset is selected, no prebuilt workspace
-	// is claimed, and instead a new regular workspace is created.
-	t.Run("NoPresetFlagDoesNotClaimPrebuiltWorkspace", func(t *testing.T) {
+	// This test verifies that when the user provides `--preset none`,
+	// no preset is applied, no prebuilt workspace is claimed, and
+	// a new regular workspace is created instead.
+	t.Run("PresetNoneDoesNotClaimPrebuiltWorkspace", func(t *testing.T) {
 		t.Parallel()
 
 		// Setup
@@ -488,7 +491,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 		presetWithPrebuild := proto.Preset{
 			Name: "preset-test",
 			Parameters: []*proto.PresetParameter{
-				{Name: firstParameterName, Value: firstOptionalParameterValue},
+				{Name: firstParameterName, Value: secondOptionalParameterValue},
 				{Name: thirdParameterName, Value: thirdParameterValue},
 			},
 			Prebuild: &proto.Prebuild{
@@ -519,6 +522,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 		// When: running the create command without a preset flag
 		workspaceName := "my-workspace"
 		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name, "-y",
+			"--preset", cli.PresetNone,
 			"--parameter", fmt.Sprintf("%s=%s", firstParameterName, firstParameterValue),
 			"--parameter", fmt.Sprintf("%s=%s", thirdParameterName, thirdParameterValue))
 		clitest.SetupConfig(t, member, root)
@@ -527,6 +531,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 		inv.Stderr = pty.Output()
 		err = inv.Run()
 		require.NoError(t, err)
+		pty.ExpectMatch("No preset applied.")
 
 		// Verify if the new workspace uses expected parameters.
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
