@@ -236,6 +236,13 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 	const selectedTemplate = templates.find(
 		(t) => t.id === selectedTemplateId,
 	) as Template;
+
+	// Extract AI prompt from selected preset
+	const selectedPreset = presets?.find((p) => p.ID === selectedPresetId);
+	const presetAIPrompt = selectedPreset?.Parameters.find(
+		(param) => param.Name === "ai_prompt",
+	)?.Value;
+	const isPromptReadOnly = !!presetAIPrompt;
 	const {
 		externalAuth,
 		externalAuthError,
@@ -291,8 +298,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 
 		const form = e.currentTarget;
 		const formData = new FormData(form);
-		const prompt = formData.get("prompt") as string;
-		const templateID = formData.get("templateID") as string;
+		const prompt = presetAIPrompt || (formData.get("prompt") as string);
 
 		try {
 			await createTaskMutation.mutateAsync({
@@ -326,9 +332,13 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 					required
 					id="prompt"
 					name="prompt"
+					value={presetAIPrompt || undefined}
+					readOnly={isPromptReadOnly}
 					placeholder={textareaPlaceholder}
 					className={`border-0 resize-none w-full h-full bg-transparent rounded-lg outline-none flex min-h-[60px]
-						text-sm shadow-sm text-content-primary placeholder:text-content-secondary md:text-sm`}
+						text-sm shadow-sm text-content-primary placeholder:text-content-secondary md:text-sm ${
+							isPromptReadOnly ? "opacity-60 cursor-not-allowed" : ""
+						}`}
 				/>
 				<div className="flex items-center justify-between pt-2">
 					<div className="flex items-center gap-4">
