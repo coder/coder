@@ -3428,6 +3428,34 @@ func TestDevcontainerDiscovery(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "IgnoreNonsenseDevcontainerNames",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/.git/HEAD": "",
+
+				"/home/coder/.devcontainer/devcontainer.json.bak": "",
+				"/home/coder/.devcontainer/devcontainer.json.old": "",
+				"/home/coder/.devcontainer/devcontainer.json~":    "",
+				"/home/coder/.devcontainer/notdevcontainer.json":  "",
+				"/home/coder/.devcontainer/devcontainer.json.swp": "",
+
+				"/home/coder/foo/.devcontainer.json.bak": "",
+				"/home/coder/foo/.devcontainer.json.old": "",
+				"/home/coder/foo/.devcontainer.json~":    "",
+				"/home/coder/foo/.notdevcontainer.json":  "",
+				"/home/coder/foo/.devcontainer.json.swp": "",
+
+				"/home/coder/bar/.devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/bar",
+					ConfigPath:      "/home/coder/bar/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
 	}
 
 	initFS := func(t *testing.T, files map[string]string) afero.Fs {
