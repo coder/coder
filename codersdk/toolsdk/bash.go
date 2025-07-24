@@ -3,6 +3,8 @@ package toolsdk
 import (
 	"bytes"
 	"context"
+	_ "embed"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -18,18 +20,23 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/cryptorand"
 )
 
 type WorkspaceBashArgs struct {
-	Workspace string `json:"workspace"`
-	Command   string `json:"command"`
-	TimeoutMs int    `json:"timeout_ms,omitempty"`
+	Workspace  string `json:"workspace"`
+	Command    string `json:"command"`
+	TimeoutMs  int    `json:"timeout_ms,omitempty"`
+	Background bool   `json:"background,omitempty"`
 }
 
 type WorkspaceBashResult struct {
 	Output   string `json:"output"`
 	ExitCode int    `json:"exit_code"`
 }
+
+//go:embed resources/background.sh
+var backgroundScript string
 
 var WorkspaceBash = Tool[WorkspaceBashArgs, WorkspaceBashResult]{
 	Tool: aisdk.Tool{
@@ -53,6 +60,7 @@ If the command times out, all output captured up to that point is returned with 
 Examples:
 - workspace: "my-workspace", command: "ls -la"
 - workspace: "john/dev-env", command: "git status", timeout_ms: 30000
+- workspace: "my-workspace", command: "npm run dev", background: true
 - workspace: "my-workspace.main", command: "docker ps"`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -69,6 +77,10 @@ Examples:
 					"description": "Command timeout in milliseconds. Defaults to 60000ms (60 seconds) if not specified.",
 					"default":     60000,
 					"minimum":     1,
+				},
+				"background": map[string]any{
+					"type":        "boolean",
+					"description": "Whether to run the command in the background. The command will not be affected by the timeout.",
 				},
 			},
 			Required: []string{"workspace", "command"},
@@ -137,8 +149,26 @@ Examples:
 
 		// Set default timeout if not specified (60 seconds)
 		timeoutMs := args.TimeoutMs
+		defaultTimeoutMs := 60000
 		if timeoutMs <= 0 {
-			timeoutMs = 60000
+			timeoutMs = defaultTimeoutMs
+		}
+		command := args.Command
+		if args.Background {
+			// Background commands are not affected by the timeout
+			timeoutMs = defaultTimeoutMs
+			encodedCommand := base64.StdEncoding.EncodeToString([]byte(args.Command))
+			encodedScript := base64.StdEncoding.EncodeToString([]byte(backgroundScript))
+			commandID, err := cryptorand.StringCharset(cryptorand.Human, 8)
+			if err != nil {
+				return WorkspaceBashResult{}, xerrors.Errorf("failed to generate command ID: %w", err)
+			}
+			command = fmt.Sprintf(
+				"ARG_COMMAND=\"$(echo -n %s | base64 -d)\" ARG_COMMAND_ID=%s bash -c \"$(echo -n %s | base64 -d)\"",
+				encodedCommand,
+				commandID,
+				encodedScript,
+			)
 		}
 
 		// Create context with timeout
@@ -146,7 +176,7 @@ Examples:
 		defer cancel()
 
 		// Execute command with timeout handling
-		output, err := executeCommandWithTimeout(ctx, session, args.Command)
+		output, err := executeCommandWithTimeout(ctx, session, command)
 		outputStr := strings.TrimSpace(string(output))
 
 		// Handle command execution results
