@@ -80,11 +80,10 @@ type Bridge struct {
 	clientFn func() (proto.DRPCAIBridgeDaemonClient, bool)
 	logger   slog.Logger
 
-	lastErr    error
-	mcpBridges map[string]*MCPToolBridge
+	tools map[string]*MCPTool
 }
 
-func NewBridge(cfg codersdk.AIBridgeConfig, addr string, logger slog.Logger, clientFn func() (proto.DRPCAIBridgeDaemonClient, bool)) (*Bridge, error) {
+func NewBridge(cfg codersdk.AIBridgeConfig, addr string, logger slog.Logger, clientFn func() (proto.DRPCAIBridgeDaemonClient, bool), tools []*MCPTool) (*Bridge, error) {
 	var bridge Bridge
 
 	mux := &http.ServeMux{}
@@ -107,53 +106,10 @@ func NewBridge(cfg codersdk.AIBridgeConfig, addr string, logger slog.Logger, cli
 	bridge.clientFn = clientFn
 	bridge.logger = logger
 
-	// const (
-	// 	githubMCPName = "github"
-	// 	coderMCPName  = "coder"
-	// )
-	// githubMCP, err := NewMCPToolBridge(githubMCPName, "https://api.githubcopilot.com/mcp/", map[string]string{
-	// 	"Authorization": "Bearer " + os.Getenv("GITHUB_MCP_TOKEN"),
-	// }, logger.Named("mcp-bridge-github"))
-	// if err != nil {
-	// 	return nil, xerrors.Errorf("github MCP bridge setup: %w", err)
-	// }
-	// coderMCP, err := NewMCPToolBridge(coderMCPName, "https://dev.coder.com/api/experimental/mcp/http", map[string]string{
-	// 	"Authorization": "Bearer " + os.Getenv("CODER_MCP_TOKEN"),
-	// 	// This is necessary to even access the MCP endpoint.
-	// 	"Coder-Session-Token": os.Getenv("CODER_MCP_SESSION_TOKEN"),
-	// }, logger.Named("mcp-bridge-coder"))
-	// if err != nil {
-	// 	return nil, xerrors.Errorf("coder MCP bridge setup: %w", err)
-	// }
-
-	// bridge.mcpBridges = map[string]*MCPToolBridge{
-	// 	githubMCPName: githubMCP,
-	// 	coderMCPName:  coderMCP,
-	// }
-
-	// ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	// defer cancel()
-
-	// var eg errgroup.Group
-	// eg.Go(func() error {
-	// 	err := githubMCP.Init(ctx)
-	// 	if err == nil {
-	// 		return nil
-	// 	}
-	// 	return xerrors.Errorf("github: %w", err)
-	// })
-	// eg.Go(func() error {
-	// 	err := coderMCP.Init(ctx)
-	// 	if err == nil {
-	// 		return nil
-	// 	}
-	// 	return xerrors.Errorf("coder: %w", err)
-	// })
-
-	// // This must block requests until MCP proxies are setup.
-	// if err := eg.Wait(); err != nil {
-	// 	return nil, xerrors.Errorf("MCP proxy init: %w", err)
-	// }
+	bridge.tools = make(map[string]*MCPTool, len(tools))
+	for _, tool := range tools {
+		bridge.tools[tool.ID] = tool
+	}
 
 	return &bridge, nil
 }
@@ -229,36 +185,36 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 		openai.SystemMessage("You are a helpful assistant that explicitly mentions when tool calls are about to be made."),
 	}, in.Messages...)
 
-	for _, proxy := range b.mcpBridges {
-		for _, tool := range proxy.ListTools() {
-			fn := openai.ChatCompletionToolParam{
-				Function: openai.FunctionDefinitionParam{
-					Name:        tool.Name,
-					Strict:      openai.Bool(false), // TODO: configurable.
-					Description: openai.String(tool.Description),
-					Parameters: openai.FunctionParameters{
-						"type":       "object",
-						"properties": tool.Params,
-						// "additionalProperties": false, // Only relevant when strict=true.
-					},
+	for _, tool := range b.tools {
+		fn := openai.ChatCompletionToolParam{
+			Function: openai.FunctionDefinitionParam{
+				Name:        tool.ID,
+				Strict:      openai.Bool(false), // TODO: configurable.
+				Description: openai.String(tool.Description),
+				Parameters: openai.FunctionParameters{
+					"type":       "object",
+					"properties": tool.Params,
+					// "additionalProperties": false, // Only relevant when strict=true.
 				},
-			}
-
-			// Otherwise the request fails with "None is not of type 'array'" if a nil slice is given.
-			if len(tool.Required) > 0 {
-				// Must list ALL properties when strict=true.
-				fn.Function.Parameters["required"] = tool.Required
-			}
-
-			in.Tools = append(in.Tools, fn)
+			},
 		}
+
+		// Otherwise the request fails with "None is not of type 'array'" if a nil slice is given.
+		if len(tool.Required) > 0 {
+			// Must list ALL properties when strict=true.
+			fn.Function.Parameters["required"] = tool.Required
+		}
+
+		in.Tools = append(in.Tools, fn)
 	}
 
 	// Configure OpenAI client with authentication
 	var opts []oai_option.RequestOption
-	if apiKey := b.cfg.OpenAI.Key.String(); apiKey != "" {
-		opts = append(opts, oai_option.WithAPIKey(apiKey))
+	apiKey := b.cfg.OpenAI.Key.String()
+	if apiKey == "" {
+		apiKey = os.Getenv("OPENAI_API_KEY")
 	}
+	opts = append(opts, oai_option.WithAPIKey(apiKey))
 	if baseURL := b.cfg.OpenAI.BaseURL.String(); baseURL != "" {
 		opts = append(opts, oai_option.WithBaseURL(baseURL))
 	}
@@ -385,8 +341,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 
 			appendedPrevMsg := false
 			for _, tc := range pendingToolCalls {
-				serverName, toolName, found := parseToolName(tc.Name)
-				if !found {
+				if !b.isInjectedTool(tc.Name) {
 					// Not an MCP proxy call, don't do anything.
 					continue
 				}
@@ -408,14 +363,12 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 					b.logger.Error(ctx, "failed to track injected tool usage", slog.Error(err))
 				}
 
-				var (
-					args map[string]any
-					buf  bytes.Buffer
-				)
-				_ = json.NewEncoder(&buf).Encode(tc.Arguments)
-				_ = json.NewDecoder(&buf).Decode(&args)
+				var args map[string]any
+				if err := json.Unmarshal([]byte(tc.Arguments), &args); err != nil {
+					b.logger.Warn(ctx, "failed to unmarshal tool args", slog.Error(err), slog.F("tool", tc.Name))
+				}
 
-				res, err := b.mcpBridges[serverName].CallTool(streamCtx, toolName, args)
+				res, err := b.tools[tc.Name].Call(streamCtx, args)
 				if err != nil {
 					// Always provide a tool_result even if the tool call failed
 					errorResponse := map[string]interface{}{
@@ -541,8 +494,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 			appendedPrevMsg := false
 			// Process each pending tool call
 			for _, tc := range pendingToolCalls {
-				serverName, toolName, found := parseToolName(tc.Function.Name)
-				if !found {
+				if !b.isInjectedTool(tc.ID) {
 					// Not an MCP proxy call, don't do anything.
 					continue
 				}
@@ -569,7 +521,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 				)
 				_ = json.NewEncoder(&buf).Encode(tc.Function.Arguments)
 				_ = json.NewDecoder(&buf).Decode(&args)
-				res, err := b.mcpBridges[serverName].CallTool(ctx, toolName, args)
+				res, err := b.tools[tc.ID].Call(ctx, args)
 				if err != nil {
 					// Always provide a tool result even if the tool call failed
 					errorResponse := map[string]interface{}{
@@ -716,20 +668,18 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	for _, proxy := range b.mcpBridges {
-		for _, tool := range proxy.ListTools() {
-			in.Tools = append(in.Tools, anthropic.BetaToolUnionParam{
-				OfTool: &anthropic.BetaToolParam{
-					InputSchema: anthropic.BetaToolInputSchemaParam{
-						Properties: tool.Params,
-						Required:   tool.Required,
-					},
-					Name:        tool.Name,
-					Description: anthropic.String(tool.Description),
-					Type:        anthropic.BetaToolTypeCustom,
+	for _, tool := range b.tools {
+		in.Tools = append(in.Tools, anthropic.BetaToolUnionParam{
+			OfTool: &anthropic.BetaToolParam{
+				InputSchema: anthropic.BetaToolInputSchemaParam{
+					Properties: tool.Params,
+					Required:   tool.Required,
 				},
-			})
-		}
+				Name:        tool.ID,
+				Description: anthropic.String(tool.Description),
+				Type:        anthropic.BetaToolTypeCustom,
+			},
+		})
 	}
 
 	// Claude Code uses the 3.5 Haiku model to do autocomplete and other small tasks. (see ANTHROPIC_SMALL_FAST_MODEL).
@@ -764,10 +714,12 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	opts = append(opts, option.WithMiddleware(LoggingMiddleware))
 
-	// Lib will automatically look for ANTHROPIC_API_KEY env.
-	if _, ok := os.LookupEnv("ANTHROPIC_API_KEY"); !ok {
-		opts = append(opts, option.WithAPIKey(b.cfg.Anthropic.Key.String()))
+	apiKey := b.cfg.Anthropic.Key.String()
+	if apiKey == "" {
+		apiKey = os.Getenv("ANTHROPIC_API_KEY")
 	}
+
+	opts = append(opts, option.WithAPIKey(apiKey))
 	opts = append(opts, option.WithBaseURL(b.cfg.Anthropic.BaseURL.String()))
 
 	// looks up API key with os.LookupEnv("ANTHROPIC_API_KEY")
@@ -784,7 +736,8 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 
 				b.logger.Error(ctx, "anthropic stream error", slog.Error(err))
 				if antErr := getAnthropicErrorResponse(err); antErr != nil {
-					fmt.Println("oops")
+					http.Error(w, antErr.Error.Message, antErr.StatusCode)
+					return
 				}
 			}
 
@@ -995,11 +948,12 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 					messages.Messages = append(messages.Messages, message.ToParam())
 
 					for name, id := range pendingToolCalls {
-						serverName, toolName, found := parseToolName(name)
-						if !found {
+						if !b.isInjectedTool(name) {
 							// Not an MCP proxy call, don't do anything.
 							continue
 						}
+
+						tool := b.tools[name]
 
 						var (
 							input      any
@@ -1028,7 +982,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 							_, err = coderdClient.TrackToolUsage(streamCtx, &proto.TrackToolUsageRequest{
 								Model:    string(message.Model),
 								Input:    string(serialized),
-								Tool:     toolName,
+								Tool:     tool.Name,
 								Injected: true,
 							})
 							if err != nil {
@@ -1038,7 +992,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 							b.logger.Warn(ctx, "failed to marshal args for tool usage", slog.Error(err))
 						}
 
-						res, err := b.mcpBridges[serverName].CallTool(streamCtx, toolName, input)
+						res, err := b.tools[tool.ID].Call(streamCtx, input)
 						if err != nil {
 							// Always provide a tool_result even if the tool call failed
 							messages.Messages = append(messages.Messages,
@@ -1250,23 +1204,9 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func parseToolName(name string) (string, string, bool) {
-	serverName, toolName, found := strings.Cut(name, MCPProxyDelimiter)
-	return serverName, toolName, found
-}
-
-func (b *Bridge) isInjectedTool(name string) bool {
-	serverName, toolName, found := parseToolName(name)
-	if !found {
-		return false
-	}
-
-	mcp, ok := b.mcpBridges[serverName]
-	if !ok {
-		return false
-	}
-
-	return mcp.HasTool(toolName)
+func (b *Bridge) isInjectedTool(id string) bool {
+	_, ok := b.tools[id]
+	return ok
 }
 
 func getAnthropicErrorResponse(err error) *AnthropicErrorResponse {

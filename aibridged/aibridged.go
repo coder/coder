@@ -54,7 +54,7 @@ type Server struct {
 
 var _ proto.DRPCAIBridgeDaemonServer = &Server{}
 
-func New(rpcDialer Dialer, httpAddr string, logger slog.Logger, bridgeCfg codersdk.AIBridgeConfig) (*Server, error) {
+func New(rpcDialer Dialer, httpAddr string, logger slog.Logger, bridgeCfg codersdk.AIBridgeConfig, tools []*MCPTool) (*Server, error) {
 	if rpcDialer == nil {
 		return nil, xerrors.Errorf("nil rpcDialer given")
 	}
@@ -73,7 +73,7 @@ func New(rpcDialer Dialer, httpAddr string, logger slog.Logger, bridgeCfg coders
 
 	// TODO: improve error handling here; if this fails it prevents the whole server from starting up!
 
-	bridge, err := NewBridge(bridgeCfg, httpAddr, logger.Named("ai_bridge"), daemon.client)
+	bridge, err := NewBridge(bridgeCfg, httpAddr, logger.Named("ai_bridge"), daemon.client, tools)
 	if err != nil {
 		return nil, xerrors.Errorf("create new bridge server: %w", err)
 	}

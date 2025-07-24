@@ -2011,60 +2011,6 @@ func (api *API) CreateInMemoryAIBridgeDaemon(dialCtx context.Context, name strin
 	return aibridgedproto.NewDRPCAIBridgeDaemonClient(clientSession), nil
 }
 
-//// TODO: naming...
-// func (api *API) CreateInMemoryOpenAIBridgeClient(dialCtx context.Context, srv *aibridged.Server) (client aibridgedproto.DRPCOpenAIServiceClient, err error) {
-//	// TODO(dannyk): implement options.
-//	// TODO(dannyk): implement tracing.
-//
-//	clientSession, serverSession := drpcsdk.MemTransportPipe()
-//	defer func() {
-//		if err != nil {
-//			_ = clientSession.Close()
-//			_ = serverSession.Close()
-//		}
-//	}()
-//
-//	// TODO(dannyk): implement API versioning.
-//
-//	mux := drpcmux.New()
-//	api.Logger.Debug(dialCtx, "starting in-memory OpenAI bridge")
-//	logger := api.Logger.Named("inmem-openai-bridge")
-//	err = aibridgedproto.DRPCRegisterOpenAIService(mux, srv)
-//	if err != nil {
-//		return nil, err
-//	}
-//	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
-//		drpcserver.Options{
-//			Manager: drpcsdk.DefaultDRPCOptions(nil),
-//			Log: func(err error) {
-//				if xerrors.Is(err, io.EOF) {
-//					return
-//				}
-//				logger.Debug(dialCtx, "drpc server error", slog.Error(err))
-//			},
-//		},
-//	)
-//	// in-mem pipes aren't technically "websockets" but they have the same properties as far as the
-//	// API is concerned: they are long-lived connections that we need to close before completing
-//	// shutdown of the API.
-//	api.WebsocketWaitMutex.Lock()
-//	api.WebsocketWaitGroup.Add(1)
-//	api.WebsocketWaitMutex.Unlock()
-//	go func() {
-//		defer api.WebsocketWaitGroup.Done()
-//		// Here we pass the background context, since we want the server to keep serving until the
-//		// client hangs up. The aibridged is local, in-mem, so there isn't a danger of losing contact with it and
-//		// having a dead connection we don't know the status of.
-//		err := server.Serve(context.Background(), serverSession)
-//		logger.Info(dialCtx, "OpenAI bridge disconnected", slog.Error(err))
-//		// close the sessions, so we don't leak goroutines serving them.
-//		_ = clientSession.Close()
-//		_ = serverSession.Close()
-//	}()
-//
-//	return aibridgedproto.NewDRPCOpenAIServiceClient(clientSession), nil
-//}
-
 func (api *API) DERPMap() *tailcfg.DERPMap {
 	fn := api.DERPMapper.Load()
 	if fn != nil {

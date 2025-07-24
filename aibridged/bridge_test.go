@@ -109,7 +109,7 @@ func TestAnthropicMessages(t *testing.T) {
 					},
 				}, "127.0.0.1:0", logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
 					return coderdClient, true
-				})
+				}, nil)
 				require.NoError(t, err)
 
 				go func() {
@@ -216,7 +216,7 @@ func TestOpenAIChatCompletions(t *testing.T) {
 					},
 				}, "127.0.0.1:0", logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
 					return coderdClient, true
-				})
+				}, nil)
 				require.NoError(t, err)
 
 				go func() {
@@ -291,7 +291,7 @@ func TestSimple(t *testing.T) {
 					},
 				}, "127.0.0.1:0", logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
 					return client, true
-				})
+				}, nil)
 			},
 			createRequest: createAnthropicMessagesReq,
 		},
@@ -308,7 +308,7 @@ func TestSimple(t *testing.T) {
 					},
 				}, "127.0.0.1:0", logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
 					return client, true
-				})
+				}, nil)
 			},
 			createRequest: createOpenAIChatCompletionsReq,
 		},

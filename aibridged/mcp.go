@@ -3,6 +3,7 @@ package aibridged
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
@@ -21,13 +22,18 @@ type MCPToolBridge struct {
 }
 
 type MCPTool struct {
+	client      *client.Client
+	ID          string
 	Name        string
 	Description string
 	Params      map[string]any
 	Required    []string
 }
 
-const MCPProxyDelimiter = "_"
+const (
+	MCPPrefix    = "__mcp__"
+	MCPDelimiter = "_" // TODO: ensure server names CANNOT contain this char.
+)
 
 func NewMCPToolBridge(name, serverURL string, headers map[string]string, logger slog.Logger) (*MCPToolBridge, error) {
 	// ts := transport.NewMemoryTokenStore()
@@ -89,6 +95,15 @@ func (b *MCPToolBridge) CallTool(ctx context.Context, name string, input any) (*
 	})
 }
 
+func (t *MCPTool) Call(ctx context.Context, input any) (*mcp.CallToolResult, error) {
+	return t.client.CallTool(ctx, mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name:      t.Name,
+			Arguments: input,
+		},
+	})
+}
+
 func (b *MCPToolBridge) fetchMCPTools(ctx context.Context) (map[string]*MCPTool, error) {
 	initReq := mcp.InitializeRequest{
 		Params: mcp.InitializeParams{
@@ -115,13 +130,33 @@ func (b *MCPToolBridge) fetchMCPTools(ctx context.Context) (map[string]*MCPTool,
 	out := make(map[string]*MCPTool, len(tools.Tools))
 	for _, tool := range tools.Tools {
 		out[tool.Name] = &MCPTool{
-			Name:        fmt.Sprintf("%s%s%s", b.name, MCPProxyDelimiter, tool.Name),
+			client:      b.client,
+			ID:          EncodeToolID(b.name, tool.Name),
+			Name:        tool.Name,
 			Description: tool.Description,
 			Params:      tool.InputSchema.Properties,
 			Required:    tool.InputSchema.Required,
 		}
 	}
 	return out, nil
+}
+
+func EncodeToolID(server, tool string) string {
+	return fmt.Sprintf("%s%s%s%s", MCPPrefix, server, MCPDelimiter, tool)
+}
+
+func DecodeToolID(id string) (string, string, error) {
+	_, name, ok := strings.Cut(id, MCPPrefix)
+	if !ok {
+		return "", "", xerrors.Errorf("unable to decode %q, prefix %q not found", id, MCPPrefix)
+	}
+
+	server, tool, ok := strings.Cut(name, MCPDelimiter)
+	if !ok {
+		return "", "", xerrors.Errorf("unable to decode %q, delimiter %q not found", id, MCPDelimiter)
+	}
+
+	return server, tool, nil
 }
 
 func (b *MCPToolBridge) Close() {

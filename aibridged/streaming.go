@@ -92,6 +92,12 @@ func flush(w http.ResponseWriter) {
 		return
 	}
 
+	defer func() {
+		if r := recover(); r != nil {
+			// Silently handle panic from flush, likely due to broken connection
+		}
+	}()
+
 	flusher.Flush()
 }
 
