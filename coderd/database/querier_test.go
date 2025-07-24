@@ -2037,7 +2037,6 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 	}
 
 	// Now fetch all the logs
-	ctx := testutil.Context(t, testutil.WaitLong)
 	auditorRole, err := rbac.RoleByName(rbac.RoleAuditor())
 	require.NoError(t, err)
 
@@ -2054,6 +2053,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 
 	t.Run("NoAccess", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A user who is a member of 0 organizations
 		memberCtx := dbauthz.As(ctx, rbac.Subject{
@@ -2076,6 +2076,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 
 	t.Run("SiteWideAuditor", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A site wide auditor
 		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
@@ -2098,6 +2099,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 
 	t.Run("SingleOrgAuditor", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := orgIDs[0]
 		// Given: An organization scoped auditor
@@ -2121,6 +2123,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 
 	t.Run("TwoOrgAuditors", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		first := orgIDs[0]
 		second := orgIDs[1]
@@ -2147,6 +2150,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 
 	t.Run("ErroneousOrg", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A user who is an auditor for an organization that has 0 logs
 		userCtx := dbauthz.As(ctx, rbac.Subject{
@@ -2232,7 +2236,6 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 	}
 
 	// Now fetch all the logs
-	ctx := testutil.Context(t, testutil.WaitLong)
 	auditorRole, err := rbac.RoleByName(rbac.RoleAuditor())
 	require.NoError(t, err)
 
@@ -2249,6 +2252,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 
 	t.Run("NoAccess", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A user who is a member of 0 organizations
 		memberCtx := dbauthz.As(ctx, rbac.Subject{
@@ -2271,6 +2275,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 
 	t.Run("SiteWideAuditor", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A site wide auditor
 		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
@@ -2293,6 +2298,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 
 	t.Run("SingleOrgAuditor", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		orgID := orgIDs[0]
 		// Given: An organization scoped auditor
@@ -2316,6 +2322,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 
 	t.Run("TwoOrgAuditors", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		first := orgIDs[0]
 		second := orgIDs[1]
@@ -2340,6 +2347,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 
 	t.Run("ErroneousOrg", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: A user who is an auditor for an organization that has 0 logs
 		userCtx := dbauthz.As(ctx, rbac.Subject{
@@ -2421,7 +2429,6 @@ func TestCountConnectionLogs(t *testing.T) {
 
 func TestConnectionLogsOffsetFilters(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
 
 	db, _ := dbtestutil.NewDB(t)
 
@@ -2652,9 +2659,9 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
 			logs, err := db.GetConnectionLogsOffset(ctx, tc.params)
 			require.NoError(t, err)
 			count, err := db.CountConnectionLogs(ctx, database.CountConnectionLogsParams{
