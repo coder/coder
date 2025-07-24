@@ -471,12 +471,16 @@ func (api *API) discoverDevcontainerProjects() error {
 }
 
 func (api *API) discoverDevcontainersInProject(projectPath string) error {
+	logger := api.logger.
+		Named("project-discovery").
+		With(slog.F("project_path", projectPath))
+
 	globalPatterns, err := ignore.LoadGlobalPatterns(api.fs)
 	if err != nil {
 		return xerrors.Errorf("read global git ignore patterns: %w", err)
 	}
 
-	patterns, err := ignore.ReadPatterns(api.fs, projectPath)
+	patterns, err := ignore.ReadPatterns(api.ctx, logger, api.fs, projectPath)
 	if err != nil {
 		return xerrors.Errorf("read git ignore patterns: %w", err)
 	}
@@ -488,7 +492,14 @@ func (api *API) discoverDevcontainersInProject(projectPath string) error {
 		"/.devcontainer.json",
 	}
 
-	return afero.Walk(api.fs, projectPath, func(path string, info fs.FileInfo, _ error) error {
+	return afero.Walk(api.fs, projectPath, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			logger.Error(api.ctx, "encountered error while walking for dev container projects",
+				slog.F("path", path),
+				slog.Error(err))
+			return nil
+		}
+
 		pathParts := ignore.FilePathToParts(path)
 
 		// We know that a directory entry cannot be a `devcontainer.json` file, so we
@@ -513,11 +524,11 @@ func (api *API) discoverDevcontainersInProject(projectPath string) error {
 
 			workspaceFolder := strings.TrimSuffix(path, relativeConfigPath)
 
-			api.logger.Debug(api.ctx, "discovered dev container project", slog.F("workspace_folder", workspaceFolder))
+			logger.Debug(api.ctx, "discovered dev container project", slog.F("workspace_folder", workspaceFolder))
 
 			api.mu.Lock()
 			if _, found := api.knownDevcontainers[workspaceFolder]; !found {
-				api.logger.Debug(api.ctx, "adding dev container project", slog.F("workspace_folder", workspaceFolder))
+				logger.Debug(api.ctx, "adding dev container project", slog.F("workspace_folder", workspaceFolder))
 
 				dc := codersdk.WorkspaceAgentDevcontainer{
 					ID:              uuid.New(),

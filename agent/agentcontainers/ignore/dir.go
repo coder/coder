@@ -2,12 +2,14 @@ package ignore
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"cdr.dev/slog"
 	"github.com/go-git/go-git/v5/plumbing/format/config"
 	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/spf13/afero"
@@ -53,7 +55,7 @@ func readIgnoreFile(fileSystem afero.Fs, path, ignore string) ([]gitignore.Patte
 	return ps, nil
 }
 
-func ReadPatterns(fileSystem afero.Fs, path string) ([]gitignore.Pattern, error) {
+func ReadPatterns(ctx context.Context, logger slog.Logger, fileSystem afero.Fs, path string) ([]gitignore.Pattern, error) {
 	var ps []gitignore.Pattern
 
 	subPs, err := readIgnoreFile(fileSystem, path, gitInfoExcludeFile)
@@ -63,7 +65,14 @@ func ReadPatterns(fileSystem afero.Fs, path string) ([]gitignore.Pattern, error)
 
 	ps = append(ps, subPs...)
 
-	if err := afero.Walk(fileSystem, path, func(path string, info fs.FileInfo, _ error) error {
+	if err := afero.Walk(fileSystem, path, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			logger.Error(ctx, "encountered error while walking for git ignore files",
+				slog.F("path", path),
+				slog.Error(err))
+			return nil
+		}
+
 		if !info.IsDir() {
 			return nil
 		}
