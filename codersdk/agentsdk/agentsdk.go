@@ -114,6 +114,7 @@ type Manifest struct {
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
 	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
+	UserSecrets              []codersdk.UserSecretWithValue               `json:"user_secrets"`
 }
 
 type LogSource struct {

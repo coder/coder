@@ -1410,6 +1410,10 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 	}
 	envs["PATH"] = fmt.Sprintf("%s%c%s", a.scriptRunner.ScriptBinDir(), filepath.ListSeparator, envs["PATH"])
 
+	for _, secret := range manifest.UserSecrets {
+		envs[secret.EnvName] = secret.Value
+	}
+
 	for k, v := range envs {
 		updated = append(updated, fmt.Sprintf("%s=%s", k, v))
 	}

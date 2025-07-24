@@ -3,7 +3,9 @@ package agentapi
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 	"time"
@@ -48,7 +50,24 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		metadata      []database.WorkspaceAgentMetadatum
 		workspace     database.Workspace
 		devcontainers []database.WorkspaceAgentDevcontainer
+		userSecrets   []database.UserSecret
 	)
+
+	//workspaceAgent.ID
+
+	act, ok := dbauthz.ActorFromContext(ctx)
+	if !ok {
+		return nil, dbauthz.ErrNoActor
+	}
+	fmt.Printf("act: %v\n", act)
+
+	actInJSON, err := json.Marshal(act)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("actInJSON: %s\n", actInJSON)
+
+	userID := uuid.MustParse(act.ID)
 
 	var eg errgroup.Group
 	eg.Go(func() (err error) {
@@ -84,10 +103,23 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		}
 		return nil
 	})
+	eg.Go(func() (err error) {
+		userSecrets, err = a.Database.ListUserSecrets(ctx, userID)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			fmt.Printf("\n\n\nfailed to execute listUserSecrets: %v\n\n\n", err)
+			return err
+		}
+		return nil
+	})
 	err = eg.Wait()
 	if err != nil {
 		return nil, xerrors.Errorf("fetching workspace agent data: %w", err)
 	}
+
+	_ = userSecrets
+
+	fmt.Printf("workspace.OwnerID: %v\n", workspace.OwnerID)
+	fmt.Printf("workspace.OwnerID == act.ID %v\n", workspace.OwnerID.String() == act.ID)
 
 	appSlug := appurl.ApplicationURL{
 		AppSlugOrPort: "{{port}}",
@@ -140,7 +172,23 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		Apps:          apps,
 		Metadata:      dbAgentMetadataToProtoDescription(metadata),
 		Devcontainers: dbAgentDevcontainersToProto(devcontainers),
+
+		UserSecrets: dbUserSecretsToProto(userSecrets),
 	}, nil
+}
+
+func dbUserSecretsToProto(userSecrets []database.UserSecret) []*agentproto.Secret {
+	userSecretsProto := make([]*agentproto.Secret, 0)
+	for i, userSecret := range userSecrets {
+		userSecretsProto[i] = &agentproto.Secret{
+			Name:     userSecret.Name,
+			EnvName:  userSecret.EnvName,
+			FilePath: userSecret.FilePath,
+			Value:    userSecret.Value,
+		}
+	}
+
+	return userSecretsProto
 }
 
 func vscodeProxyURI(app appurl.ApplicationURL, accessURL *url.URL, appHost string) string {

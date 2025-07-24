@@ -1694,6 +1694,28 @@ This is required on creation to enable a user-flow of validating a template work
 | `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant.                                          |
 | `username`         | string                                     | true     |              |                                                                                     |
 
+## codersdk.CreateUserSecretRequest
+
+```json
+{
+  "description": "string",
+  "env_name": "string",
+  "file_path": "string",
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `description` | string | false    |              |             |
+| `env_name`    | string | false    |              |             |
+| `file_path`   | string | false    |              |             |
+| `name`        | string | true     |              |             |
+| `value`       | string | true     |              |             |
+
 ## codersdk.CreateWorkspaceBuildReason
 
 ```json
@@ -4034,6 +4056,31 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `notifications` | array of [codersdk.InboxNotification](#codersdkinboxnotification) | false    |              |             |
 | `unread_count`  | integer                                                           | false    |              |             |
 
+## codersdk.ListUserSecretsResponse
+
+```json
+{
+  "secrets": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "description": "string",
+      "env_name": "string",
+      "file_path": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                | Required | Restrictions | Description |
+|-----------|-----------------------------------------------------|----------|--------------|-------------|
+| `secrets` | array of [codersdk.UserSecret](#codersdkusersecret) | false    |              |             |
+
 ## codersdk.LogLevel
 
 ```json
@@ -6355,6 +6402,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `tailnet_coordinator`              |
 | `template`                         |
 | `user`                             |
+| `user_secret`                      |
 | `webpush_subscription`             |
 | `workspace`                        |
 | `workspace_agent_devcontainers`    |
@@ -8593,6 +8641,48 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `timezone`     | string  | false    |              | raw format from the cron expression, UTC if unspecified                                                                                                                          |
 | `user_can_set` | boolean | false    |              | User can set is true if the user is allowed to set their own quiet hours schedule. If false, the user cannot set a custom schedule and the default schedule will always be used. |
 | `user_set`     | boolean | false    |              | User set is true if the user has set their own quiet hours schedule. If false, the user is using the default schedule.                                                           |
+
+## codersdk.UserSecret
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "env_name": "string",
+  "file_path": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `created_at`  | string | false    |              |             |
+| `description` | string | false    |              |             |
+| `env_name`    | string | false    |              |             |
+| `file_path`   | string | false    |              |             |
+| `id`          | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `updated_at`  | string | false    |              |             |
+| `user_id`     | string | false    |              |             |
+
+## codersdk.UserSecretValue
+
+```json
+{
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `value` | string | false    |              |             |
 
 ## codersdk.UserStatus
 

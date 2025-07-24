@@ -43,6 +43,11 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, xerrors.Errorf("error converting workspace agent devcontainers: %w", err)
 	}
+	userSecrets, err := SecretsFromProto(manifest.UserSecrets)
+	if err != nil {
+		return Manifest{}, xerrors.Errorf("error converting workspace agent devcontainers: %w", err)
+	}
+
 	return Manifest{
 		ParentID:                 parentID,
 		AgentID:                  agentID,
@@ -62,6 +67,7 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 		DisableDirectConnections: manifest.DisableDirectConnections,
 		Metadata:                 MetadataDescriptionsFromProto(manifest.Metadata),
 		Devcontainers:            devcontainers,
+		UserSecrets:              userSecrets,
 	}, nil
 }
 
@@ -448,4 +454,25 @@ func ProtoFromDevcontainer(dc codersdk.WorkspaceAgentDevcontainer) *proto.Worksp
 		WorkspaceFolder: dc.WorkspaceFolder,
 		ConfigPath:      dc.ConfigPath,
 	}
+}
+
+func SecretsFromProto(pss []*proto.Secret) ([]codersdk.UserSecretWithValue, error) {
+	ret := make([]codersdk.UserSecretWithValue, len(pss))
+	for i, ps := range pss {
+		secret, err := SecretFromProto(ps)
+		if err != nil {
+			return nil, xerrors.Errorf("parse secret %v: %w", i, err)
+		}
+		ret[i] = secret
+	}
+	return ret, nil
+}
+
+func SecretFromProto(ps *proto.Secret) (codersdk.UserSecretWithValue, error) {
+	return codersdk.UserSecretWithValue{
+		Name:     ps.Name,
+		EnvName:  ps.EnvName,
+		FilePath: ps.FilePath,
+		Value:    ps.Value,
+	}, nil
 }

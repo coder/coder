@@ -280,8 +280,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
 				ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
 			})...),
-		Org:  map[string][]Permission{},
-		User: []Permission{},
+		Org: map[string][]Permission{},
+		User: Permissions(map[string][]policy.Action{
+			ResourceUserSecret.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+		}),
 	}.withCachedRegoValue()
 
 	memberRole := Role{
@@ -305,6 +307,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				ResourceOrganizationMember.Type: {policy.ActionRead},
 				// Users can create provisioner daemons scoped to themselves.
 				ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+				ResourceUserSecret.Type:        {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 			})...,
 		),
 	}.withCachedRegoValue()
