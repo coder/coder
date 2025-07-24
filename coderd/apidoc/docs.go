@@ -14880,6 +14880,9 @@ const docTemplate = `{
                 "default": {
                     "type": "boolean"
                 },
+                "desiredPrebuildInstances": {
+                    "type": "integer"
+                },
                 "id": {
                     "type": "string"
                 },
