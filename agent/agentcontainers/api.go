@@ -472,6 +472,9 @@ func (api *API) discoverDevcontainerProjects() error {
 
 func (api *API) discoverDevcontainersInProject(projectPath string) error {
 	globalPatterns, err := ignore.LoadGlobalPatterns(api.fs)
+	if err != nil {
+		return xerrors.Errorf("read global git ignore patterns: %w", err)
+	}
 
 	patterns, err := ignore.ReadPatterns(api.fs, projectPath)
 	if err != nil {
