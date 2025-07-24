@@ -347,7 +347,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 							>
 								<SelectTrigger
 									id="templateID"
-									className="w-40 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3"
+									className="w-80 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3"
 								>
 									<SelectValue placeholder="Select a template" />
 								</SelectTrigger>
@@ -382,7 +382,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 								>
 									<SelectTrigger
 										id="presetID"
-										className="w-40 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3"
+										className="w-80 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3"
 									>
 										<SelectValue placeholder="Select a preset" />
 									</SelectTrigger>
