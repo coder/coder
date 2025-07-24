@@ -4571,3 +4571,101 @@ export function createTimestamp(minuteOffset: number, secondOffset: number) {
 	baseDate.setSeconds(baseDate.getSeconds() + secondOffset);
 	return baseDate.toISOString();
 }
+
+// Mock Presets for AI Tasks
+export const MockPresets: TypesGen.Preset[] = [
+	{
+		ID: "preset-1",
+		Name: "Development",
+		Parameters: [
+			{ Name: "cpu", Value: "4" },
+			{ Name: "memory", Value: "8GB" },
+		],
+		Default: true,
+	},
+	{
+		ID: "preset-2",
+		Name: "Testing",
+		Parameters: [
+			{ Name: "cpu", Value: "2" },
+			{ Name: "memory", Value: "4GB" },
+		],
+		Default: false,
+	},
+	{
+		ID: "preset-3",
+		Name: "Production",
+		Parameters: [
+			{ Name: "cpu", Value: "8" },
+			{ Name: "memory", Value: "16GB" },
+		],
+		Default: false,
+	},
+];
+
+export const MockAIPromptPresets: TypesGen.Preset[] = [
+	{
+		ID: "ai-preset-1",
+		Name: "Code Review",
+		Parameters: [
+			{ Name: "AI Prompt", Value: "Review the code for best practices" },
+			{ Name: "cpu", Value: "4" },
+			{ Name: "memory", Value: "8GB" },
+		],
+		Default: true,
+	},
+	{
+		ID: "ai-preset-2",
+		Name: "Custom Prompt",
+		Parameters: [
+			{ Name: "cpu", Value: "4" },
+			{ Name: "memory", Value: "8GB" },
+		],
+		Default: false,
+	},
+];
+
+// Mock Tasks for AI Tasks page
+export const MockTasks = [
+	{
+		workspace: {
+			...MockWorkspace,
+			latest_app_status: MockWorkspaceAppStatus,
+		},
+		prompt: "Create competitors page",
+	},
+	{
+		workspace: {
+			...MockWorkspace,
+			id: "workspace-2",
+			latest_app_status: {
+				...MockWorkspaceAppStatus,
+				message: "Avatar size fixed!",
+			},
+		},
+		prompt: "Fix user avatar size",
+	},
+	{
+		workspace: {
+			...MockWorkspace,
+			id: "workspace-3",
+			latest_app_status: {
+				...MockWorkspaceAppStatus,
+				message: "Accessibility issues fixed!",
+			},
+		},
+		prompt: "Fix accessibility issues",
+	},
+];
+
+export const MockNewTaskData = {
+	prompt: "Create a new task",
+	workspace: {
+		...MockWorkspace,
+		id: "workspace-4",
+		latest_app_status: {
+			...MockWorkspaceAppStatus,
+			message: "Task created successfully!",
+		},
+	},
+};
