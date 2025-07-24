@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -4178,6 +4179,22 @@ func (q *querier) ListProvisionerKeysByOrganizationExcludeReserved(ctx context.C
 
 func (q *querier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]database.UserSecret, error) {
 	obj := rbac.ResourceUserSecret.WithOwner(userID.String())
+
+	act, ok := ActorFromContext(ctx)
+	if !ok {
+		return nil, ErrNoActor
+	}
+	actInJSON, err := json.Marshal(act)
+	if err != nil {
+		return nil, err
+	}
+	objInJSON, err := json.Marshal(obj)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("DEBUG actInJSON: %s\n", actInJSON)
+	fmt.Printf("DEBUG objInJSON: %s\n", objInJSON)
+
 	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
 		return nil, err
 	}
