@@ -343,7 +343,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 						<div className="flex flex-col gap-1">
 							<label
 								htmlFor="templateID"
-								className="text-xs text-content-secondary"
+								className="text-xs font-medium text-content-primary"
 							>
 								Template
 							</label>
@@ -377,7 +377,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 							<div className="flex flex-col gap-1">
 								<label
 									htmlFor="presetID"
-									className="text-xs text-content-secondary"
+									className="text-xs font-medium text-content-primary"
 								>
 									Preset
 								</label>
