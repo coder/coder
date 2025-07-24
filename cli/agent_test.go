@@ -159,6 +159,18 @@ func TestWorkspaceAgent(t *testing.T) {
 			return agents
 		}).Do()
 
+		// Wait for the server to be ready to handle requests.
+		// This prevents a race condition where the agent tries to authenticate
+		// before the server's HTTP handler is fully set up.
+		require.Eventually(t, func() bool {
+			resp, err := client.Request(context.Background(), "GET", "/api/v2/buildinfo", nil)
+			if err != nil {
+				return false
+			}
+			defer resp.Body.Close()
+			return resp.StatusCode == http.StatusOK
+		}, testutil.WaitMedium, testutil.IntervalFast)
+
 		inv, cfg := clitest.New(t, "agent", "--auth", "google-instance-identity", "--agent-url", client.URL.String())
 		clitest.SetupConfig(t, member, cfg)
 
