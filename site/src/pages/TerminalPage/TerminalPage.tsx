@@ -152,11 +152,12 @@ const TerminalPage: FC = () => {
 		// typically take this to mean to insert a literal newline.  There is no way
 		// to remove this handler, so we must attach it once and rely on a ref to
 		// send it to the current socket.
+		const escapedCarriageReturn = "\x1b\r";
 		terminal.attachCustomKeyEventHandler((ev) => {
 			if (ev.shiftKey && ev.key === "Enter") {
 				if (ev.type === "keydown") {
 					websocketRef.current?.send(
-						new TextEncoder().encode(JSON.stringify({ data: "\x1b\r" })),
+						new TextEncoder().encode(JSON.stringify({ data: escapedCarriageReturn })),
 					);
 				}
 				return false;
