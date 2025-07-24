@@ -41,11 +41,23 @@ export const WorkspaceStatusIndicator: FC<WorkspaceStatusIndicatorProps> = ({
 	let { text, type } = getDisplayWorkspaceStatus(
 		workspace.latest_build.status,
 		workspace.latest_build.job,
+		workspace,
 	);
 
 	if (!workspace.health.healthy) {
 		type = "warning";
 	}
+
+	// Check if workspace is running but agents are still starting
+	const isStarting =
+		workspace.latest_build.status === "running" &&
+		workspace.latest_build.resources.some((resource) =>
+			resource.agents?.some(
+				(agent) =>
+					agent.lifecycle_state === "starting" ||
+					agent.lifecycle_state === "created",
+			),
+		);
 
 	const statusIndicator = (
 		<StatusIndicator variant={variantByStatusType[type]}>
@@ -55,24 +67,27 @@ export const WorkspaceStatusIndicator: FC<WorkspaceStatusIndicatorProps> = ({
 		</StatusIndicator>
 	);
 
-	if (workspace.health.healthy) {
-		return statusIndicator;
+	// Show tooltip for unhealthy or starting workspaces
+	if (!workspace.health.healthy || isStarting) {
+		const tooltipMessage = !workspace.health.healthy
+			? "Your workspace is running but some agents are unhealthy."
+			: "Your workspace is running but startup scripts are still executing.";
+
+		return (
+			<TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<StatusIndicator variant={variantByStatusType[type]}>
+							<StatusIndicatorDot />
+							<span className="sr-only">Workspace status:</span> {text}
+							{children}
+						</StatusIndicator>
+					</TooltipTrigger>
+					<TooltipContent>{tooltipMessage}</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
+		);
 	}
 
-	return (
-		<TooltipProvider>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<StatusIndicator variant={variantByStatusType[type]}>
-						<StatusIndicatorDot />
-						<span className="sr-only">Workspace status:</span> {text}
-						{children}
-					</StatusIndicator>
-				</TooltipTrigger>
-				<TooltipContent>
-					Your workspace is running but some agents are unhealthy.
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
-	);
+	return statusIndicator;
 };
