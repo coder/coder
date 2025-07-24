@@ -260,14 +260,19 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 
 	// Handle preset data changes
 	useEffect(() => {
-		if (presetsData) {
+		if (presetsData !== undefined) {
 			setPresets(presetsData);
-			// Set default preset if available
-			const defaultPreset = presetsData.find((p: Preset) => p.Default);
-			if (defaultPreset) {
-				setSelectedPresetId(defaultPreset.ID);
-			} else {
+			// Reset selected preset when changing templates or when no presets available
+			if (presetsData === null || presetsData.length === 0) {
 				setSelectedPresetId(null);
+			} else {
+				// Set default preset if available
+				const defaultPreset = presetsData.find((p: Preset) => p.Default);
+				if (defaultPreset) {
+					setSelectedPresetId(defaultPreset.ID);
+				} else {
+					setSelectedPresetId(null);
+				}
 			}
 		}
 	}, [presetsData]);
