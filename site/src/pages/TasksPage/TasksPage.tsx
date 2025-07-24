@@ -331,56 +331,80 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 						text-sm shadow-sm text-content-primary placeholder:text-content-secondary md:text-sm`}
 				/>
 				<div className="flex items-center justify-between pt-2">
-					<div className="flex items-center gap-2">
-						<Select
-							name="templateID"
-							onValueChange={(value) => setSelectedTemplateId(value)}
-							defaultValue={templates[0].id}
-							required
-						>
-							<SelectTrigger className="w-40 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3">
-								<SelectValue placeholder="Select a template" />
-							</SelectTrigger>
-							<SelectContent>
-								{templates.map((template) => {
-									return (
-										<SelectItem value={template.id} key={template.id}>
-											<span className="overflow-hidden text-ellipsis block">
-												{template.display_name || template.name}
-											</span>
-										</SelectItem>
-									);
-								})}
-							</SelectContent>
-						</Select>
-
-						{presets && presets.length > 0 && (
-							<Select
-								name="presetID"
-								value={selectedPresetId === null ? undefined : selectedPresetId}
-								onValueChange={(value) => setSelectedPresetId(value)}
+					<div className="flex items-center gap-4">
+						<div className="flex flex-col gap-1">
+							<label
+								htmlFor="templateID"
+								className="text-xs text-content-secondary"
 							>
-								<SelectTrigger className="w-40 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3">
-									<SelectValue placeholder="Select a preset" />
+								Template
+							</label>
+							<Select
+								name="templateID"
+								onValueChange={(value) => setSelectedTemplateId(value)}
+								defaultValue={templates[0].id}
+								required
+							>
+								<SelectTrigger
+									id="templateID"
+									className="w-40 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3"
+								>
+									<SelectValue placeholder="Select a template" />
 								</SelectTrigger>
 								<SelectContent>
-									{presets
-										.sort((a, b) => {
-											// Default preset should come first
-											if (a.Default && !b.Default) return -1;
-											if (!a.Default && b.Default) return 1;
-											// Otherwise, sort alphabetically by name
-											return a.Name.localeCompare(b.Name);
-										})
-										.map((preset) => (
-											<SelectItem value={preset.ID} key={preset.ID}>
+									{templates.map((template) => {
+										return (
+											<SelectItem value={template.id} key={template.id}>
 												<span className="overflow-hidden text-ellipsis block">
-													{preset.Name} {preset.Default && "(Default)"}
+													{template.display_name || template.name}
 												</span>
 											</SelectItem>
-										))}
+										);
+									})}
 								</SelectContent>
 							</Select>
+						</div>
+
+						{presets && presets.length > 0 && (
+							<div className="flex flex-col gap-1">
+								<label
+									htmlFor="presetID"
+									className="text-xs text-content-secondary"
+								>
+									Preset
+								</label>
+								<Select
+									name="presetID"
+									value={
+										selectedPresetId === null ? undefined : selectedPresetId
+									}
+									onValueChange={(value) => setSelectedPresetId(value)}
+								>
+									<SelectTrigger
+										id="presetID"
+										className="w-40 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3"
+									>
+										<SelectValue placeholder="Select a preset" />
+									</SelectTrigger>
+									<SelectContent>
+										{presets
+											.sort((a, b) => {
+												// Default preset should come first
+												if (a.Default && !b.Default) return -1;
+												if (!a.Default && b.Default) return 1;
+												// Otherwise, sort alphabetically by name
+												return a.Name.localeCompare(b.Name);
+											})
+											.map((preset) => (
+												<SelectItem value={preset.ID} key={preset.ID}>
+													<span className="overflow-hidden text-ellipsis block">
+														{preset.Name} {preset.Default && "(Default)"}
+													</span>
+												</SelectItem>
+											))}
+									</SelectContent>
+								</Select>
+							</div>
 						)}
 					</div>
 
