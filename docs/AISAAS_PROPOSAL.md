@@ -6,7 +6,7 @@ Building on the success of our Blink merchandise initiative, we propose the worl
 
 ## 🎯 Vision Statement
 
-*"Your feet deserve better infrastructure."*
+"Your feet deserve better infrastructure."
 
 AISaaS represents the natural evolution of developer tooling, extending our AI-powered development environment to the physical realm through intelligent, responsive footwear.
 
