@@ -168,6 +168,7 @@ type Options struct {
 	PrometheusRegistry             *prometheus.Registry
 	StrictTransportSecurityCfg     httpmw.HSTSConfig
 	SSHKeygenAlgorithm             gitsshkey.Algorithm
+	SignupsDisabledText            string
 	Telemetry                      telemetry.Reporter
 	TracerProvider                 trace.TracerProvider
 	ExternalAuthConfigs            []*externalauth.Config
