@@ -5,6 +5,8 @@ visual representation of the running environment:
 
 ![Dev container integration in Coder dashboard](../../images/user-guides/devcontainers/devcontainer-agent-ports.png)
 
+This page assumes you have a template with the [dev containers integration](./index.md) ready.
+
 ## SSH Access
 
 You can SSH into your dev container directly using the Coder CLI:
