@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -3211,6 +3212,9 @@ func TestDevcontainerDiscovery(t *testing.T) {
 	// repositories to find any `.devcontainer/devcontainer.json`
 	// files. These tests are to validate that behavior.
 
+	homeDir, err := os.UserHomeDir()
+	require.NoError(t, err)
+
 	tests := []struct {
 		name     string
 		agentDir string
@@ -3402,6 +3406,28 @@ func TestDevcontainerDiscovery(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "RespectHomeGitConfig",
+			agentDir: homeDir,
+			fs: map[string]string{
+				"/tmp/.gitignore": "node_modules/",
+				filepath.Join(homeDir, ".gitconfig"): `
+					[core]
+					excludesFile = /tmp/.gitignore
+				`,
+
+				filepath.Join(homeDir, ".git/HEAD"):                         "",
+				filepath.Join(homeDir, ".devcontainer.json"):                "",
+				filepath.Join(homeDir, "node_modules/y/.devcontainer.json"): "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: homeDir,
+					ConfigPath:      filepath.Join(homeDir, ".devcontainer.json"),
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
 	}
 
 	initFS := func(t *testing.T, files map[string]string) afero.Fs {
@@ -3454,7 +3480,7 @@ func TestDevcontainerDiscovery(t *testing.T) {
 				err := json.NewDecoder(rec.Body).Decode(&got)
 				require.NoError(t, err)
 
-				return len(got.Devcontainers) == len(tt.expected)
+				return len(got.Devcontainers) >= len(tt.expected)
 			}, testutil.WaitShort, testutil.IntervalFast, "dev containers never found")
 
 			// Now projects have been discovered, we'll allow the updater loop

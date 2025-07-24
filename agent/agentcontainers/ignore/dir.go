@@ -1,17 +1,21 @@
 package ignore
 
 import (
+	"bytes"
 	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/go-git/go-git/v5/plumbing/format/config"
 	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/spf13/afero"
+	"golang.org/x/xerrors"
 )
 
 const (
+	gitconfigFile      = ".gitconfig"
 	gitignoreFile      = ".gitignore"
 	gitInfoExcludeFile = ".git/info/exclude"
 )
@@ -77,4 +81,34 @@ func ReadPatterns(fileSystem afero.Fs, path string) ([]gitignore.Pattern, error)
 	}
 
 	return ps, nil
+}
+
+func loadPatterns(fileSystem afero.Fs, path string) ([]gitignore.Pattern, error) {
+	data, err := afero.ReadFile(fileSystem, path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+
+	decoder := config.NewDecoder(bytes.NewBuffer(data))
+
+	conf := config.New()
+	if err := decoder.Decode(conf); err != nil {
+		return nil, xerrors.Errorf("decode config: %w", err)
+	}
+
+	excludes := conf.Section("core").Options.Get("excludesfile")
+	if excludes == "" {
+		return nil, nil
+	}
+
+	return readIgnoreFile(fileSystem, "", excludes)
+}
+
+func LoadGlobalPatterns(fileSystem afero.Fs) ([]gitignore.Pattern, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+
+	return loadPatterns(fileSystem, filepath.Join(home, gitconfigFile))
 }

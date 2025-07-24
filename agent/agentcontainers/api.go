@@ -471,12 +471,14 @@ func (api *API) discoverDevcontainerProjects() error {
 }
 
 func (api *API) discoverDevcontainersInProject(projectPath string) error {
+	globalPatterns, err := ignore.LoadGlobalPatterns(api.fs)
+
 	patterns, err := ignore.ReadPatterns(api.fs, projectPath)
 	if err != nil {
 		return xerrors.Errorf("read git ignore patterns: %w", err)
 	}
 
-	matcher := gitignore.NewMatcher(patterns)
+	matcher := gitignore.NewMatcher(append(globalPatterns, patterns...))
 
 	devcontainerConfigPaths := []string{
 		"/.devcontainer/devcontainer.json",
