@@ -107,11 +107,13 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 
 		// Workspace Commands
 		r.autoupdate(),
+		r.builds(),
 		r.configSSH(),
 		r.create(),
 		r.deleteWorkspace(),
 		r.favorite(),
 		r.list(),
+		r.logs(),
 		r.open(),
 		r.ping(),
 		r.rename(),
