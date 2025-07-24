@@ -116,6 +116,18 @@ coder:
     # coder.serviceAccount.disableCreate -- Whether to create the service account or use existing service account.
     disableCreate: false
 
+  # coder.podSecurityContext -- Fields related to the pod's security context.
+  # This allows setting pod-level security context such as fsGroup for proper
+  # file permissions when mounting volumes with certificates or other sensitive data.
+  # Example:
+  # podSecurityContext:
+  #   fsGroup: 1000
+  #   runAsNonRoot: true
+  #   runAsUser: 1000
+  #   runAsGroup: 1000
+  podSecurityContext: {}
+
+
   # coder.securityContext -- Fields related to the container's security
   # context (as opposed to the pod). Some fields are also present in the pod
   # security context, in which case these values will take precedence.
@@ -211,12 +223,38 @@ coder:
     # coder.readinessProbe.initialDelaySeconds -- Number of seconds after the container
     # has started before readiness probes are initiated.
     initialDelaySeconds: 0
+    # coder.readinessProbe.periodSeconds -- How often (in seconds) to perform the probe.
+    # Default to 10 seconds. Minimum value is 1.
+    # periodSeconds: 10
+    # coder.readinessProbe.timeoutSeconds -- Number of seconds after which the probe times out.
+    # Defaults to 1 second. Minimum value is 1.
+    # timeoutSeconds: 1
+    # coder.readinessProbe.successThreshold -- Minimum consecutive successes for the probe
+    # to be considered successful after having failed. Defaults to 1.
+    # Must be 1 for liveness and startup. Minimum value is 1.
+    # successThreshold: 1
+    # coder.readinessProbe.failureThreshold -- Minimum consecutive failures for the probe
+    # to be considered failed after having succeeded. Defaults to 3. Minimum value is 1.
+    # failureThreshold: 3
 
   # coder.livenessProbe -- Liveness probe configuration for the Coder container.
   livenessProbe:
     # coder.livenessProbe.initialDelaySeconds -- Number of seconds after the container
     # has started before liveness probes are initiated.
     initialDelaySeconds: 0
+    # coder.livenessProbe.periodSeconds -- How often (in seconds) to perform the probe.
+    # Default to 10 seconds. Minimum value is 1.
+    # periodSeconds: 10
+    # coder.livenessProbe.timeoutSeconds -- Number of seconds after which the probe times out.
+    # Defaults to 1 second. Minimum value is 1.
+    # timeoutSeconds: 1
+    # coder.livenessProbe.successThreshold -- Minimum consecutive successes for the probe
+    # to be considered successful after having failed. Defaults to 1.
+    # Must be 1 for liveness and startup. Minimum value is 1.
+    # successThreshold: 1
+    # coder.livenessProbe.failureThreshold -- Minimum consecutive failures for the probe
+    # to be considered failed after having succeeded. Defaults to 3. Minimum value is 1.
+    # failureThreshold: 3
 
   # coder.certs -- CA bundles to mount inside the Coder pod.
   certs:
