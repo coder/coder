@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
-const expectedHandshake = "codervpn tunnel 1.2\n"
+const expectedHandshake = "codervpn tunnel 1.3\n"
 
 // TestSpeaker_RawPeer tests the speaker with a peer that we simulate by directly making reads and
 // writes to the other end of the pipe. There should be at least one test that does this, rather

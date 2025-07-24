@@ -65,7 +65,9 @@ const EnvMagicsockDebugLogging = "CODER_MAGICSOCK_DEBUG_LOGGING"
 
 func init() {
 	// Globally disable network namespacing. All networking happens in
-	// userspace.
+	// userspace unless the connection is configured to use a TUN.
+	// NOTE: this exists in init() so it affects all connections (incl. DERP)
+	//       made by tailscale packages by default.
 	netns.SetEnabled(false)
 	// Tailscale, by default, "trims" the set of peers down to ones that we are
 	// "actively" communicating with in an effort to save memory. Since
@@ -100,6 +102,18 @@ type Options struct {
 	BlockEndpoints bool
 	Logger         slog.Logger
 	ListenPort     uint16
+	// UseSoftNetIsolation enables our homemade soft isolation feature in the
+	// netns package. This option will only be considered if TUNDev is set.
+	//
+	// The Coder soft isolation mode is a workaround to allow Coder Connect to
+	// connect to Coder servers behind corporate VPNs, and relaxes some of the
+	// loop protections that come with Tailscale.
+	//
+	// When soft isolation is disabled, the netns package will function as
+	// normal and route all traffic through the default interface (and block all
+	// traffic to other VPN interfaces) on macOS and Windows.
+	UseSoftNetIsolation bool
+
 	// CaptureHook is a callback that captures Disco packets and packets sent
 	// into the tailnet tunnel.
 	CaptureHook capture.Callback
@@ -154,7 +168,11 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		return nil, xerrors.New("At least one IP range must be provided")
 	}
 
-	netns.SetEnabled(options.TUNDev != nil)
+	useNetNS := options.TUNDev != nil
+	useSoftIsolation := useNetNS && options.UseSoftNetIsolation
+	options.Logger.Debug(context.Background(), "network isolation configuration", slog.F("use_netns", useNetNS), slog.F("use_soft_isolation", useSoftIsolation))
+	netns.SetEnabled(useNetNS)
+	netns.SetCoderSoftIsolation(useSoftIsolation)
 
 	var telemetryStore *TelemetryStore
 	if options.TelemetrySink != nil {

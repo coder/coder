@@ -2,8 +2,10 @@ package vpn
 
 import (
 	"context"
+	"encoding/json"
 	"maps"
 	"net"
+	"net/http"
 	"net/netip"
 	"net/url"
 	"slices"
@@ -22,6 +24,7 @@ import (
 	"github.com/coder/quartz"
 
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -29,25 +32,43 @@ import (
 
 func newFakeClient(ctx context.Context, t *testing.T) *fakeClient {
 	return &fakeClient{
-		t:   t,
-		ctx: ctx,
-		ch:  make(chan *fakeConn, 1),
+		t:      t,
+		ctx:    ctx,
+		connCh: make(chan *fakeConn, 1),
+	}
+}
+
+func newFakeClientWithOptsCh(ctx context.Context, t *testing.T) *fakeClient {
+	return &fakeClient{
+		t:      t,
+		ctx:    ctx,
+		connCh: make(chan *fakeConn, 1),
+		optsCh: make(chan *Options, 1),
 	}
 }
 
 type fakeClient struct {
-	t   *testing.T
-	ctx context.Context
-	ch  chan *fakeConn
+	t      *testing.T
+	ctx    context.Context
+	connCh chan *fakeConn
+	optsCh chan *Options // options will be written to this channel if it's not nil
 }
 
 var _ Client = (*fakeClient)(nil)
 
-func (f *fakeClient) NewConn(context.Context, *url.URL, string, *Options) (Conn, error) {
+func (f *fakeClient) NewConn(_ context.Context, _ *url.URL, _ string, opts *Options) (Conn, error) {
+	if f.optsCh != nil {
+		select {
+		case <-f.ctx.Done():
+			return nil, f.ctx.Err()
+		case f.optsCh <- opts:
+		}
+	}
+
 	select {
 	case <-f.ctx.Done():
 		return nil, f.ctx.Err()
-	case conn := <-f.ch:
+	case conn := <-f.connCh:
 		return conn, nil
 	}
 }
@@ -134,7 +155,7 @@ func TestTunnel_StartStop(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	client := newFakeClient(ctx, t)
+	client := newFakeClientWithOptsCh(ctx, t)
 	conn := newFakeConn(tailnet.WorkspaceUpdate{}, time.Time{})
 
 	_, mgr := setupTunnel(t, ctx, client, quartz.NewMock(t))
@@ -142,29 +163,45 @@ func TestTunnel_StartStop(t *testing.T) {
 	errCh := make(chan error, 1)
 	var resp *TunnelMessage
 	// When: we start the tunnel
+	telemetry := codersdk.CoderDesktopTelemetry{
+		DeviceID:            "device001",
+		DeviceOS:            "macOS",
+		CoderDesktopVersion: "0.24.8",
+	}
+	telemetryJSON, err := json.Marshal(telemetry)
+	require.NoError(t, err)
 	go func() {
 		r, err := mgr.unaryRPC(ctx, &ManagerMessage{
 			Msg: &ManagerMessage_Start{
 				Start: &StartRequest{
 					TunnelFileDescriptor: 2,
-					CoderUrl:             "https://coder.example.com",
-					ApiToken:             "fakeToken",
+					// Use default value for TunnelUseSoftNetIsolation
+					CoderUrl: "https://coder.example.com",
+					ApiToken: "fakeToken",
 					Headers: []*StartRequest_Header{
 						{Name: "X-Test-Header", Value: "test"},
 					},
-					DeviceOs:            "macOS",
-					DeviceId:            "device001",
-					CoderDesktopVersion: "0.24.8",
+					DeviceOs:            telemetry.DeviceOS,
+					DeviceId:            telemetry.DeviceID,
+					CoderDesktopVersion: telemetry.CoderDesktopVersion,
 				},
 			},
 		})
 		resp = r
 		errCh <- err
 	}()
-	// Then: `NewConn` is called,
-	testutil.RequireSend(ctx, t, client.ch, conn)
+
+	// Then: `NewConn` is called
+	opts := testutil.RequireReceive(ctx, t, client.optsCh)
+	require.Equal(t, http.Header{
+		"X-Test-Header":                      {"test"},
+		codersdk.CoderDesktopTelemetryHeader: {string(telemetryJSON)},
+	}, opts.Headers)
+	require.False(t, opts.UseSoftNetIsolation) // the default is false
+	testutil.RequireSend(ctx, t, client.connCh, conn)
+
 	// And: a response is received
-	err := testutil.TryReceive(ctx, t, errCh)
+	err = testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	_, ok := resp.Msg.(*TunnelMessage_Start)
 	require.True(t, ok)
@@ -197,7 +234,7 @@ func TestTunnel_PeerUpdate(t *testing.T) {
 	wsID1 := uuid.UUID{1}
 	wsID2 := uuid.UUID{2}
 
-	client := newFakeClient(ctx, t)
+	client := newFakeClientWithOptsCh(ctx, t)
 	conn := newFakeConn(tailnet.WorkspaceUpdate{
 		UpsertedWorkspaces: []*tailnet.Workspace{
 			{
@@ -211,22 +248,28 @@ func TestTunnel_PeerUpdate(t *testing.T) {
 
 	tun, mgr := setupTunnel(t, ctx, client, quartz.NewMock(t))
 
+	// When: we start the tunnel
 	errCh := make(chan error, 1)
 	var resp *TunnelMessage
 	go func() {
 		r, err := mgr.unaryRPC(ctx, &ManagerMessage{
 			Msg: &ManagerMessage_Start{
 				Start: &StartRequest{
-					TunnelFileDescriptor: 2,
-					CoderUrl:             "https://coder.example.com",
-					ApiToken:             "fakeToken",
+					TunnelFileDescriptor:      2,
+					TunnelUseSoftNetIsolation: true,
+					CoderUrl:                  "https://coder.example.com",
+					ApiToken:                  "fakeToken",
 				},
 			},
 		})
 		resp = r
 		errCh <- err
 	}()
-	testutil.RequireSend(ctx, t, client.ch, conn)
+
+	// Then: `NewConn` is called
+	opts := testutil.RequireReceive(ctx, t, client.optsCh)
+	require.True(t, opts.UseSoftNetIsolation)
+	testutil.RequireSend(ctx, t, client.connCh, conn)
 	err := testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	_, ok := resp.Msg.(*TunnelMessage_Start)
@@ -291,7 +334,7 @@ func TestTunnel_NetworkSettings(t *testing.T) {
 		resp = r
 		errCh <- err
 	}()
-	testutil.RequireSend(ctx, t, client.ch, conn)
+	testutil.RequireSend(ctx, t, client.connCh, conn)
 	err := testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	_, ok := resp.Msg.(*TunnelMessage_Start)
@@ -432,7 +475,7 @@ func TestTunnel_sendAgentUpdate(t *testing.T) {
 		resp = r
 		errCh <- err
 	}()
-	testutil.RequireSend(ctx, t, client.ch, conn)
+	testutil.RequireSend(ctx, t, client.connCh, conn)
 	err := testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	_, ok := resp.Msg.(*TunnelMessage_Start)
@@ -603,7 +646,7 @@ func TestTunnel_sendAgentUpdateReconnect(t *testing.T) {
 		resp = r
 		errCh <- err
 	}()
-	testutil.RequireSend(ctx, t, client.ch, conn)
+	testutil.RequireSend(ctx, t, client.connCh, conn)
 	err := testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	_, ok := resp.Msg.(*TunnelMessage_Start)
@@ -703,7 +746,7 @@ func TestTunnel_sendAgentUpdateWorkspaceReconnect(t *testing.T) {
 		resp = r
 		errCh <- err
 	}()
-	testutil.RequireSend(ctx, t, client.ch, conn)
+	testutil.RequireSend(ctx, t, client.connCh, conn)
 	err := testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	_, ok := resp.Msg.(*TunnelMessage_Start)
@@ -806,7 +849,7 @@ func TestTunnel_slowPing(t *testing.T) {
 		resp = r
 		errCh <- err
 	}()
-	testutil.RequireSend(ctx, t, client.ch, conn)
+	testutil.RequireSend(ctx, t, client.connCh, conn)
 	err := testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	_, ok := resp.Msg.(*TunnelMessage_Start)
@@ -895,7 +938,7 @@ func TestTunnel_stopMidPing(t *testing.T) {
 		resp = r
 		errCh <- err
 	}()
-	testutil.RequireSend(ctx, t, client.ch, conn)
+	testutil.RequireSend(ctx, t, client.connCh, conn)
 	err := testutil.TryReceive(ctx, t, errCh)
 	require.NoError(t, err)
 	_, ok := resp.Msg.(*TunnelMessage_Start)

@@ -271,13 +271,14 @@ func (t *Tunnel) start(req *StartRequest) error {
 		svrURL,
 		apiToken,
 		&Options{
-			Headers:          header,
-			Logger:           t.clientLogger,
-			DNSConfigurator:  networkingStack.DNSConfigurator,
-			Router:           networkingStack.Router,
-			TUNDevice:        networkingStack.TUNDevice,
-			WireguardMonitor: networkingStack.WireguardMonitor,
-			UpdateHandler:    t,
+			Headers:             header,
+			Logger:              t.clientLogger,
+			UseSoftNetIsolation: req.GetTunnelUseSoftNetIsolation(),
+			DNSConfigurator:     networkingStack.DNSConfigurator,
+			Router:              networkingStack.Router,
+			TUNDevice:           networkingStack.TUNDevice,
+			WireguardMonitor:    networkingStack.WireguardMonitor,
+			UpdateHandler:       t,
 		},
 	)
 	if err != nil {
