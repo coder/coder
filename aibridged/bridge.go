@@ -132,9 +132,6 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 	b.logger.Info(r.Context(), "openai request started", slog.F("session_id", sessionID), slog.F("method", r.Method), slog.F("path", r.URL.Path))
 	_, _ = fmt.Fprintf(os.Stderr, "[%s] new chat session started\n\n", sessionID)
 
-	// Clear any previous error state
-	b.clearError()
-
 	defer func() {
 		b.logger.Info(r.Context(), "openai request ended", slog.F("session_id", sessionID))
 		_, _ = fmt.Fprintf(os.Stderr, "[%s] chat session ended\n\n", sessionID)
@@ -321,15 +318,17 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if err := stream.Err(); err != nil {
+				b.logger.Error(ctx, "server stream error", slog.Error(err))
 				var apierr *openai.Error
 				if errors.As(err, &apierr) {
-					http.Error(w, apierr.Message, apierr.StatusCode)
-					return
+					events.TrySend(ctx, map[string]interface{}{
+						"error":   true,
+						"message": err.Error(),
+					})
+					// http.Error(w, apierr.Message, apierr.StatusCode)
+					break
 				} else if isConnectionError(err) {
-					b.logger.Debug(ctx, "upstream connection closed", slog.Error(err))
-				} else {
-					b.logger.Error(ctx, "server stream error", slog.Error(err))
-					b.setError(err)
+					b.logger.Warn(ctx, "upstream connection error", slog.Error(err))
 				}
 
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -433,7 +432,6 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 				}
 
 				b.logger.Error(ctx, "chat completion failed", slog.Error(err))
-				b.setError(err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -582,9 +580,6 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	b.logger.Info(r.Context(), "anthropic request started", slog.F("session_id", sessionID), slog.F("method", r.Method), slog.F("path", r.URL.Path))
 	_, _ = fmt.Fprintf(os.Stderr, "[%s] new chat session started\n\n", sessionID)
 
-	// Clear any previous error state
-	b.clearError()
-
 	defer func() {
 		b.logger.Info(r.Context(), "anthropic request ended", slog.F("session_id", sessionID))
 		_, _ = fmt.Fprintf(os.Stderr, "[%s] chat session ended\n\n", sessionID)
@@ -633,7 +628,6 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	// Policy examples.
 	if strings.Contains(string(in.Model), "opus") {
 		err := xerrors.Errorf("%q model is not allowed", in.Model)
-		b.setError(err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -1163,10 +1157,6 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					b.logger.Error(ctx, "failed to send error", slog.Error(err))
 				}
-
-				b.setError(antErr)
-			} else {
-				b.setError(streamErr)
 			}
 		}
 
@@ -1256,45 +1246,6 @@ func (b *Bridge) Serve() error {
 
 func (b *Bridge) Addr() string {
 	return b.addr
-}
-
-// setError sets a structured error with appropriate context
-func (b *Bridge) setError(val any) {
-	switch err := val.(type) {
-	case error:
-		switch {
-		case errors.Is(err, context.Canceled):
-			b.lastErr = &BridgeError{
-				Code:       ErrorTypeRequestCanceled,
-				Message:    "Request was canceled",
-				StatusCode: http.StatusRequestTimeout,
-			}
-		case isConnectionError(err):
-			b.lastErr = &BridgeError{
-				Code:       ErrorTypeConnectionError,
-				Message:    "Connection to upstream service failed",
-				StatusCode: http.StatusBadGateway,
-			}
-		default:
-			b.lastErr = &BridgeError{
-				Code:       ErrorTypeUnexpectedError,
-				Message:    err.Error(),
-				StatusCode: http.StatusInternalServerError,
-			}
-		}
-	case AnthropicErrorResponse:
-		b.lastErr = &BridgeError{
-			Code:       ErrorTypeAnthropicAPIError,
-			Message:    err.Error.Message,
-			Details:    map[string]string{"type": err.Error.Type},
-			StatusCode: err.StatusCode,
-		}
-	}
-}
-
-// clearError clears the error state when a new request starts
-func (b *Bridge) clearError() {
-	b.lastErr = nil
 }
 
 // logConnectionError logs connection errors with appropriate severity

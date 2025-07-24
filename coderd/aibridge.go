@@ -27,13 +27,6 @@ func (r *rt) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	resp, err := r.RoundTripper.RoundTrip(req)
 
-	if err != nil || resp.StatusCode == aibridged.ProxyErrCode {
-		lastErr := r.server.BridgeErr()
-		if lastErr != nil {
-			return resp, lastErr
-		}
-	}
-
 	return resp, err
 }
 
