@@ -21,7 +21,7 @@ message TrackUserPromptResponse {}
 message TrackToolUsageRequest {
 	string tool = 1;
   string model = 2;
-  map<string, string> input = 3;
+  string input = 3;
   bool injected = 4;
 }
 message TrackToolUsageResponse {}

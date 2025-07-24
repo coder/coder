@@ -3228,10 +3228,21 @@ Write out the current server config as YAML to stdout.`,
 			Description: "TODO.",
 			Flag:        "ai-bridge-openai-base-url",
 			Env:         "CODER_AI_BRIDGE_OPENAI_BASE_URL",
-			Value:       &c.AI.BridgeConfig.OpenAIBaseURL,
+			Value:       &c.AI.BridgeConfig.OpenAI.BaseURL,
 			Default:     "https://api.openai.com",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "openai_base_url",
+			Hidden:      true,
+		},
+		{
+			Name:        "AI Bridge OpenAI Key",
+			Description: "TODO.",
+			Flag:        "ai-bridge-openai-key",
+			Env:         "CODER_AI_BRIDGE_OPENAI_KEY",
+			Value:       &c.AI.BridgeConfig.OpenAI.Key,
+			Default:     "",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "openai_key",
 			Hidden:      true,
 		},
 		{
@@ -3262,9 +3273,14 @@ Write out the current server config as YAML to stdout.`,
 }
 
 type AIBridgeConfig struct {
-	Daemons       serpent.Int64           `json:"daemons" typescript:",notnull"`
-	OpenAIBaseURL serpent.String          `json:"openai_base_url" typescript:",notnull"`
-	Anthropic     AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
+	Daemons   serpent.Int64           `json:"daemons" typescript:",notnull"`
+	OpenAI    AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
+	Anthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
+}
+
+type AIBridgeOpenAIConfig struct {
+	BaseURL serpent.String `json:"base_url" typescript:",notnull"`
+	Key     serpent.String `json:"key" typescript:",notnull"`
 }
 
 type AIBridgeAnthropicConfig struct {

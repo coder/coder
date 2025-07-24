@@ -22,9 +22,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/openai/openai-go"
+	oai_option "github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/packages/ssestream"
 	"github.com/openai/openai-go/shared/constant"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -107,59 +107,59 @@ func NewBridge(cfg codersdk.AIBridgeConfig, addr string, logger slog.Logger, cli
 	bridge.clientFn = clientFn
 	bridge.logger = logger
 
-	const (
-		githubMCPName = "github"
-		coderMCPName  = "coder"
-	)
-	githubMCP, err := NewMCPToolBridge(githubMCPName, "https://api.githubcopilot.com/mcp/", map[string]string{
-		"Authorization": "Bearer " + os.Getenv("GITHUB_MCP_TOKEN"),
-	}, logger.Named("mcp-bridge-github"))
-	if err != nil {
-		return nil, xerrors.Errorf("github MCP bridge setup: %w", err)
-	}
-	coderMCP, err := NewMCPToolBridge(coderMCPName, "https://dev.coder.com/api/experimental/mcp/http", map[string]string{
-		"Authorization": "Bearer " + os.Getenv("CODER_MCP_TOKEN"),
-		// This is necessary to even access the MCP endpoint.
-		"Coder-Session-Token": os.Getenv("CODER_MCP_SESSION_TOKEN"),
-	}, logger.Named("mcp-bridge-coder"))
-	if err != nil {
-		return nil, xerrors.Errorf("coder MCP bridge setup: %w", err)
-	}
+	// const (
+	// 	githubMCPName = "github"
+	// 	coderMCPName  = "coder"
+	// )
+	// githubMCP, err := NewMCPToolBridge(githubMCPName, "https://api.githubcopilot.com/mcp/", map[string]string{
+	// 	"Authorization": "Bearer " + os.Getenv("GITHUB_MCP_TOKEN"),
+	// }, logger.Named("mcp-bridge-github"))
+	// if err != nil {
+	// 	return nil, xerrors.Errorf("github MCP bridge setup: %w", err)
+	// }
+	// coderMCP, err := NewMCPToolBridge(coderMCPName, "https://dev.coder.com/api/experimental/mcp/http", map[string]string{
+	// 	"Authorization": "Bearer " + os.Getenv("CODER_MCP_TOKEN"),
+	// 	// This is necessary to even access the MCP endpoint.
+	// 	"Coder-Session-Token": os.Getenv("CODER_MCP_SESSION_TOKEN"),
+	// }, logger.Named("mcp-bridge-coder"))
+	// if err != nil {
+	// 	return nil, xerrors.Errorf("coder MCP bridge setup: %w", err)
+	// }
 
-	bridge.mcpBridges = map[string]*MCPToolBridge{
-		githubMCPName: githubMCP,
-		coderMCPName:  coderMCP,
-	}
+	// bridge.mcpBridges = map[string]*MCPToolBridge{
+	// 	githubMCPName: githubMCP,
+	// 	coderMCPName:  coderMCP,
+	// }
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
+	// ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	// defer cancel()
 
-	var eg errgroup.Group
-	eg.Go(func() error {
-		err := githubMCP.Init(ctx)
-		if err == nil {
-			return nil
-		}
-		return xerrors.Errorf("github: %w", err)
-	})
-	eg.Go(func() error {
-		err := coderMCP.Init(ctx)
-		if err == nil {
-			return nil
-		}
-		return xerrors.Errorf("coder: %w", err)
-	})
+	// var eg errgroup.Group
+	// eg.Go(func() error {
+	// 	err := githubMCP.Init(ctx)
+	// 	if err == nil {
+	// 		return nil
+	// 	}
+	// 	return xerrors.Errorf("github: %w", err)
+	// })
+	// eg.Go(func() error {
+	// 	err := coderMCP.Init(ctx)
+	// 	if err == nil {
+	// 		return nil
+	// 	}
+	// 	return xerrors.Errorf("coder: %w", err)
+	// })
 
-	// This must block requests until MCP proxies are setup.
-	if err := eg.Wait(); err != nil {
-		return nil, xerrors.Errorf("MCP proxy init: %w", err)
-	}
+	// // This must block requests until MCP proxies are setup.
+	// if err := eg.Wait(); err != nil {
+	// 	return nil, xerrors.Errorf("MCP proxy init: %w", err)
+	// }
 
 	return &bridge, nil
 }
 
 func (b *Bridge) openAITarget() *url.URL {
-	u := b.cfg.OpenAIBaseURL.String()
+	u := b.cfg.OpenAI.BaseURL.String()
 	target, err := url.Parse(u)
 	if err != nil {
 		panic(fmt.Sprintf("failed to parse %q", u))
@@ -254,8 +254,16 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// client := openai.NewClient(oai_option.WithMiddleware(LoggingMiddleware))
-	client := openai.NewClient()
+	// Configure OpenAI client with authentication
+	var opts []oai_option.RequestOption
+	if apiKey := b.cfg.OpenAI.Key.String(); apiKey != "" {
+		opts = append(opts, oai_option.WithAPIKey(apiKey))
+	}
+	if baseURL := b.cfg.OpenAI.BaseURL.String(); baseURL != "" {
+		opts = append(opts, oai_option.WithBaseURL(baseURL))
+	}
+
+	client := openai.NewClient(opts...)
 	req := in.ChatCompletionNewParams
 
 	if in.Stream {
@@ -306,6 +314,15 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 						pendingToolCalls = append(pendingToolCalls, toolCall)
 						// Don't relay this chunk back; we'll handle it transparently.
 						shouldRelayChunk = false
+					} else {
+						_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
+							Model: string(in.Model),
+							Input: toolCall.Arguments,
+							Tool:  toolCall.Name,
+						})
+						if err != nil {
+							b.logger.Error(ctx, "failed to track tool usage", slog.Error(err))
+						}
 					}
 				}
 
@@ -381,14 +398,24 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 					appendedPrevMsg = true
 				}
 
+				_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
+					Model:    string(in.Model),
+					Input:    tc.Arguments,
+					Tool:     tc.Name,
+					Injected: true,
+				})
+				if err != nil {
+					b.logger.Error(ctx, "failed to track injected tool usage", slog.Error(err))
+				}
+
 				var (
-					serialized map[string]string
-					buf        bytes.Buffer
+					args map[string]any
+					buf  bytes.Buffer
 				)
 				_ = json.NewEncoder(&buf).Encode(tc.Arguments)
-				_ = json.NewDecoder(&buf).Decode(&serialized)
+				_ = json.NewDecoder(&buf).Decode(&args)
 
-				res, err := b.mcpBridges[serverName].CallTool(streamCtx, toolName, serialized)
+				res, err := b.mcpBridges[serverName].CallTool(streamCtx, toolName, args)
 				if err != nil {
 					// Always provide a tool_result even if the tool call failed
 					errorResponse := map[string]interface{}{
@@ -485,6 +512,15 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 				for _, toolCall := range completion.Choices[0].Message.ToolCalls {
 					if b.isInjectedTool(toolCall.Function.Name) {
 						pendingToolCalls = append(pendingToolCalls, toolCall)
+					} else {
+						_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
+							Model: string(in.Model),
+							Input: toolCall.Function.Arguments,
+							Tool:  toolCall.Function.Name,
+						})
+						if err != nil {
+							b.logger.Error(ctx, "failed to track tool usage", slog.Error(err))
+						}
 					}
 				}
 			}
@@ -517,14 +553,23 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 					appendedPrevMsg = true
 				}
 
+				_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
+					Model:    string(in.Model),
+					Input:    tc.Function.Arguments,
+					Tool:     tc.Function.Name,
+					Injected: true,
+				})
+				if err != nil {
+					b.logger.Error(ctx, "failed to track injected tool usage", slog.Error(err))
+				}
+
 				var (
-					serialized map[string]string
-					buf        bytes.Buffer
+					args map[string]string
+					buf  bytes.Buffer
 				)
 				_ = json.NewEncoder(&buf).Encode(tc.Function.Arguments)
-				_ = json.NewDecoder(&buf).Decode(&serialized)
-
-				res, err := b.mcpBridges[serverName].CallTool(ctx, toolName, serialized)
+				_ = json.NewDecoder(&buf).Decode(&args)
+				res, err := b.mcpBridges[serverName].CallTool(ctx, toolName, args)
 				if err != nil {
 					// Always provide a tool result even if the tool call failed
 					errorResponse := map[string]interface{}{
@@ -780,20 +825,18 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 				}
 
 				if input != nil {
-					var (
-						serialized map[string]string
-						buf        bytes.Buffer
-					)
-					_ = json.NewEncoder(&buf).Encode(input)
-					_ = json.NewDecoder(&buf).Decode(&serialized)
-
-					_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
-						Model: string(resp.Model),
-						Input: serialized,
-						Tool:  toolUse.Name,
-					})
-					if err != nil {
-						b.logger.Error(ctx, "failed to track injected tool usage", slog.Error(err))
+					if serialized, err := json.Marshal(input); err == nil {
+						_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
+							Model:    string(resp.Model),
+							Input:    string(serialized),
+							Tool:     toolUse.Name,
+							Injected: b.isInjectedTool(toolUse.Name),
+						})
+						if err != nil {
+							b.logger.Error(ctx, "failed to track injected tool usage", slog.Error(err))
+						}
+					} else {
+						b.logger.Warn(ctx, "failed to marshal args for tool usage", slog.Error(err))
 					}
 				}
 
@@ -979,23 +1022,20 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 							continue
 						}
 
-						var (
-							serialized map[string]string
-							buf        bytes.Buffer
-						)
-						_ = json.NewEncoder(&buf).Encode(input)
-						_ = json.NewDecoder(&buf).Decode(&serialized)
-
 						fmt.Printf("[event] %s\n[tool(%q)] %s %+v\n\n", event.RawJSON(), id, name, input)
 
-						_, err = coderdClient.TrackToolUsage(streamCtx, &proto.TrackToolUsageRequest{
-							Model:    string(message.Model),
-							Input:    serialized,
-							Tool:     toolName,
-							Injected: true,
-						})
-						if err != nil {
-							b.logger.Error(ctx, "failed to track injected tool usage", slog.Error(err))
+						if serialized, err := json.Marshal(input); err == nil {
+							_, err = coderdClient.TrackToolUsage(streamCtx, &proto.TrackToolUsageRequest{
+								Model:    string(message.Model),
+								Input:    string(serialized),
+								Tool:     toolName,
+								Injected: true,
+							})
+							if err != nil {
+								b.logger.Error(ctx, "failed to track injected tool usage", slog.Error(err))
+							}
+						} else {
+							b.logger.Warn(ctx, "failed to marshal args for tool usage", slog.Error(err))
 						}
 
 						res, err := b.mcpBridges[serverName].CallTool(streamCtx, toolName, input)
@@ -1132,19 +1172,17 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 								continue
 							}
 
-							var (
-								serialized map[string]string
-								buf        bytes.Buffer
-							)
-							_ = json.NewEncoder(&buf).Encode(variant.Input)
-							_ = json.NewDecoder(&buf).Decode(&serialized)
-							_, err = coderdClient.TrackToolUsage(streamCtx, &proto.TrackToolUsageRequest{
-								Model: string(message.Model),
-								Input: serialized,
-								Tool:  variant.Name,
-							})
-							if err != nil {
-								b.logger.Error(ctx, "failed to track non-injected tool usage", slog.Error(err))
+							if serialized, err := json.Marshal(variant.Input); err == nil {
+								_, err = coderdClient.TrackToolUsage(streamCtx, &proto.TrackToolUsageRequest{
+									Model: string(message.Model),
+									Input: string(serialized),
+									Tool:  variant.Name,
+								})
+								if err != nil {
+									b.logger.Error(ctx, "failed to track non-injected tool usage", slog.Error(err))
+								}
+							} else {
+								b.logger.Warn(ctx, "failed to marshal args for tool usage", slog.Error(err))
 							}
 						}
 					}

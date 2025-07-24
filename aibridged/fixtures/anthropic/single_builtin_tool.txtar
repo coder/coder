@@ -9,8 +9,7 @@ Claude Code has builtin tools to (e.g.) explore the filesystem.
 			"role": "user",
 			"content": "read the foo file"
 		}
-	],
-	"stream": %STREAMING%
+	]
 }
 
 -- streaming --
@@ -126,4 +125,3 @@ data: {"type":"message_stop"              }
   }
 }
 
----
