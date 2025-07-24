@@ -9,6 +9,7 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestWorkspaceBash(t *testing.T) {
@@ -336,5 +337,147 @@ func TestWorkspaceBashTimeoutIntegration(t *testing.T) {
 
 		// Should NOT contain timeout message
 		require.NotContains(t, result.Output, "Command canceled due to timeout")
+	})
+}
+
+func TestWorkspaceBashBackgroundIntegration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("BackgroundCommandReturnsImmediately", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+
+		// Start the agent and wait for it to be fully ready
+		_ = agenttest.New(t, client.URL, agentToken)
+
+		// Wait for workspace agents to be ready
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+		deps, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		args := toolsdk.WorkspaceBashArgs{
+			Workspace:  workspace.Name,
+			Command:    `echo "started" && sleep 5 && echo "completed"`, // Command that would take 5+ seconds
+			Background: true,                                            // Run in background
+		}
+
+		result, err := toolsdk.WorkspaceBash.Handler(t.Context(), deps, args)
+
+		// Should not error
+		require.NoError(t, err)
+
+		t.Logf("Background result: exitCode=%d, output=%q", result.ExitCode, result.Output)
+
+		// Should have exit code 0 (background start successful)
+		require.Equal(t, 0, result.ExitCode)
+
+		// Should contain PID and log path info, not the actual command output
+		require.Contains(t, result.Output, "Command started with PID:")
+		require.Contains(t, result.Output, "Log path: /tmp/mcp-bg/")
+
+		// Should NOT contain the actual command output since it runs in background
+		// The command was `echo "started" && sleep 5 && echo "completed"`
+		// So we check that the quoted strings don't appear in the output
+		require.NotContains(t, result.Output, `"started"`, "Should not contain command output in background mode")
+		require.NotContains(t, result.Output, `"completed"`, "Should not contain command output in background mode")
+	})
+
+	t.Run("BackgroundVsNormalExecution", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+
+		// Start the agent and wait for it to be fully ready
+		_ = agenttest.New(t, client.URL, agentToken)
+
+		// Wait for workspace agents to be ready
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+		deps, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		// First run the same command in normal mode
+		normalArgs := toolsdk.WorkspaceBashArgs{
+			Workspace:  workspace.Name,
+			Command:    `echo "hello world"`,
+			Background: false,
+		}
+
+		normalResult, err := toolsdk.WorkspaceBash.Handler(t.Context(), deps, normalArgs)
+		require.NoError(t, err)
+
+		// Normal mode should return the actual output
+		require.Equal(t, 0, normalResult.ExitCode)
+		require.Equal(t, "hello world", normalResult.Output)
+
+		// Now run the same command in background mode
+		backgroundArgs := toolsdk.WorkspaceBashArgs{
+			Workspace:  workspace.Name,
+			Command:    `echo "hello world"`,
+			Background: true,
+		}
+
+		backgroundResult, err := toolsdk.WorkspaceBash.Handler(t.Context(), deps, backgroundArgs)
+		require.NoError(t, err)
+
+		t.Logf("Normal result: %q", normalResult.Output)
+		t.Logf("Background result: %q", backgroundResult.Output)
+
+		// Background mode should return PID/log info, not the actual output
+		require.Equal(t, 0, backgroundResult.ExitCode)
+		require.Contains(t, backgroundResult.Output, "Command started with PID:")
+		require.Contains(t, backgroundResult.Output, "Log path: /tmp/mcp-bg/")
+		require.NotContains(t, backgroundResult.Output, "hello world")
+	})
+
+	t.Run("BackgroundIgnoresTimeout", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+
+		// Start the agent and wait for it to be fully ready
+		_ = agenttest.New(t, client.URL, agentToken)
+
+		// Wait for workspace agents to be ready
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+		deps, err := toolsdk.NewDeps(client)
+		require.NoError(t, err)
+
+		args := toolsdk.WorkspaceBashArgs{
+			Workspace:  workspace.Name,
+			Command:    `sleep 1 && echo "done" > /tmp/done`, // Command that would normally timeout
+			TimeoutMs:  1,                                    // 1 ms timeout (shorter than command duration)
+			Background: true,                                 // But running in background should ignore timeout
+		}
+
+		result, err := toolsdk.WorkspaceBash.Handler(t.Context(), deps, args)
+
+		// Should not error and should not timeout
+		require.NoError(t, err)
+
+		t.Logf("Background with timeout result: exitCode=%d, output=%q", result.ExitCode, result.Output)
+
+		// Should have exit code 0 (background start successful)
+		require.Equal(t, 0, result.ExitCode)
+
+		// Should return PID/log info, indicating the background command started successfully
+		require.Contains(t, result.Output, "Command started with PID:")
+		require.Contains(t, result.Output, "Log path: /tmp/mcp-bg/")
+
+		// Should NOT contain timeout message since background mode ignores timeout
+		require.NotContains(t, result.Output, "Command canceled due to timeout")
+
+		// Wait for the background command to complete
+		require.Eventually(t, func() bool {
+			args := toolsdk.WorkspaceBashArgs{
+				Workspace: workspace.Name,
+				Command:   `cat /tmp/done`,
+			}
+			result, err := toolsdk.WorkspaceBash.Handler(t.Context(), deps, args)
+			return err == nil && result.Output == "done"
+		}, testutil.WaitMedium, testutil.IntervalMedium)
 	})
 }
