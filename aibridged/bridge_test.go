@@ -36,6 +36,12 @@ var (
 
 	//go:embed fixtures/openai/single_builtin_tool.txtar
 	oaiSingleBuiltinTool []byte
+
+	//go:embed fixtures/anthropic/simple.txtar
+	antSimple []byte
+
+	//go:embed fixtures/openai/simple.txtar
+	oaiSimple []byte
 )
 
 const (
@@ -259,6 +265,122 @@ func TestOpenAIChatCompletions(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestSimple(t *testing.T) {
+	t.Parallel()
+
+	sessionToken := getSessionToken(t)
+
+	testCases := []struct {
+		name          string
+		fixture       []byte
+		configureFunc func(string, proto.DRPCAIBridgeDaemonClient) (*aibridged.Bridge, error)
+		createRequest func(*testing.T, string, []byte) *http.Request
+	}{
+		{
+			name:    "anthropic",
+			fixture: antSimple,
+			configureFunc: func(addr string, client proto.DRPCAIBridgeDaemonClient) (*aibridged.Bridge, error) {
+				logger := testutil.Logger(t)
+				return aibridged.NewBridge(codersdk.AIBridgeConfig{
+					Daemons: 1,
+					Anthropic: codersdk.AIBridgeAnthropicConfig{
+						BaseURL: serpent.String(addr),
+						Key:     serpent.String(sessionToken),
+					},
+				}, "127.0.0.1:0", logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
+					return client, true
+				})
+			},
+			createRequest: createAnthropicMessagesReq,
+		},
+		{
+			name:    "openai",
+			fixture: oaiSimple,
+			configureFunc: func(addr string, client proto.DRPCAIBridgeDaemonClient) (*aibridged.Bridge, error) {
+				logger := testutil.Logger(t)
+				return aibridged.NewBridge(codersdk.AIBridgeConfig{
+					Daemons: 1,
+					OpenAI: codersdk.AIBridgeOpenAIConfig{
+						BaseURL: serpent.String(addr),
+						Key:     serpent.String(sessionToken),
+					},
+				}, "127.0.0.1:0", logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
+					return client, true
+				})
+			},
+			createRequest: createOpenAIChatCompletionsReq,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			streamingCases := []struct {
+				streaming bool
+			}{
+				{streaming: true},
+				{streaming: false},
+			}
+
+			for _, sc := range streamingCases {
+				t.Run(fmt.Sprintf("streaming=%v", sc.streaming), func(t *testing.T) {
+					t.Parallel()
+
+					arc := txtar.Parse(tc.fixture)
+					t.Logf("%s: %s", t.Name(), arc.Comment)
+
+					files := filesMap(arc)
+					require.Len(t, files, 3)
+					require.Contains(t, files, fixtureRequest)
+					require.Contains(t, files, fixtureStreamingResponse)
+					require.Contains(t, files, fixtureNonStreamingResponse)
+
+					reqBody := files[fixtureRequest]
+
+					// Add the stream param to the request.
+					newBody, err := sjson.SetBytes(reqBody, "stream", sc.streaming)
+					require.NoError(t, err)
+					reqBody = newBody
+
+					// Given: a mock API server and a Bridge through which the requests will flow.
+					ctx := testutil.Context(t, testutil.WaitLong)
+					srv := newMockServer(ctx, t, files)
+					t.Cleanup(srv.Close)
+
+					coderdClient := &fakeBridgeDaemonClient{}
+
+					b, err := tc.configureFunc(srv.URL, coderdClient)
+					require.NoError(t, err)
+
+					go func() {
+						assert.NoError(t, b.Serve())
+					}()
+					// Wait for bridge to come up.
+					require.Eventually(t, func() bool { return len(b.Addr()) > 0 }, testutil.WaitLong, testutil.IntervalFast)
+
+					// When: calling the "API server" with the fixture's request body.
+					req := tc.createRequest(t, "http://"+b.Addr(), reqBody)
+					client := &http.Client{}
+					resp, err := client.Do(req)
+					require.NoError(t, err)
+					require.Equal(t, http.StatusOK, resp.StatusCode)
+					defer resp.Body.Close()
+
+					// Then: I expect a non-empty response.
+					bodyBytes, err := io.ReadAll(resp.Body)
+					require.NoError(t, err)
+					assert.NotEmpty(t, bodyBytes, "should have received response body")
+
+					// Then: I expect the prompt to have been tracked.
+					require.NotEmpty(t, coderdClient.userPrompts, "no prompts tracked")
+					assert.Equal(t, "how many angels can dance on the head of a pin", coderdClient.userPrompts[0].Prompt)
+				})
+			}
+		})
+	}
 }
 
 func calculateTotalOutputTokens(in []*proto.TrackTokenUsageRequest) int64 {

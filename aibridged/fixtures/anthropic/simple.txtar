@@ -1,0 +1,139 @@
+Simple request.
+
+-- request --
+{
+  "max_tokens": 8192,
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "how many angels can dance on the head of a pin\n"
+        }
+      ]
+    }
+  ],
+  "model": "claude-sonnet-4-0",
+  "temperature": 1
+}
+
+-- streaming --
+event: message_start
+data: {"type":"message_start","message":{"id":"msg_01FeMXMphebFfFsTWMNHex7P","type":"message","role":"assistant","model":"claude-sonnet-4-20250514","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":18,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":1,"service_tier":"standard"}}       }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}  }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"This"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" is a famous philosophical question often used to illustrate medieval"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" scholastic debates that seem pointless or ov"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"erly abstract. The question \"How many angels can dance on the head of"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" a pin?\" is typically cited as an example of us"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"eless speculation.\n\nHistorically, medieval theolog"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ians did debate the nature of angels -"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" whether they were incorporeal beings, how"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" they occupied space, and whether multiple angels could exist"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" in the same location. However, there"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"'s little evidence they literally"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" debated dancing angels on pinheads.\n\nThe question has"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" no factual answer since it depends on assumptions about:"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n- The existence and nature of angels\n- Whether"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" incorporeal beings occupy physical space\n- What"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" constitutes \"dancing\" for a spiritual"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" entity\n- The size of both the"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" pin and the angels\n\nIt's become a metaph"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"or for overthinking trivial matters"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" or getting lost in theoretical discussions disconnected from practical reality."}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" Some use it to critique certain types of academic"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" or theological debate, while others defen"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"d the value of exploring fundamental questions about existence an"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"d metaphysics.\n\nSo while u"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"nanswerable literally, it serves as an interesting lens"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" for discussing the nature of philosophical inquiry itself."}       }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0  }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":240}     }
+
+event: message_stop
+data: {"type":"message_stop"            }
+
+-- non-streaming --
+{
+  "id": "msg_01Pvyf26bY17RcjmWfJsXGBn",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-4-20250514",
+  "content": [
+    {
+      "type": "text",
+      "text": "This is a famous philosophical question, often called \"How many angels can dance on the head of a pin?\" It's typically used to represent pointless or overly abstract theological debates.\n\nThe question doesn't have a literal answer because:\n\n1. **Historical context**: It's often attributed to medieval scholastic philosophers, though there's little evidence they actually debated this exact question. It became a popular way to mock what some saw as useless academic arguments.\n\n2. **Philosophical purpose**: The question highlights the difficulty of discussing non-physical beings (angels) in physical terms (space on a pinhead).\n\n3. **Different interpretations**: \n   - If angels are purely spiritual, they might not take up physical space at all\n   - If they do occupy space, we'd need to know their \"size\"\n   - The question might be asking about the nature of space, matter, and spirit\n\nSo the real answer is that it's not meant to be answered literally - it's a thought experiment about the limits of rational inquiry and the sometimes absurd directions theological speculation can take.\n\nWould you like to explore the philosophical implications behind this question, or were you thinking about it in a different context?"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 18,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 254,
+    "service_tier": "standard"
+  }
+}
