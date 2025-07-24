@@ -274,16 +274,19 @@ const CreateWorkspacePageExperimental: FC = () => {
 		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
 	}, [latestResponse?.parameters]);
 
+	const shouldShowLoader =
+		!templateQuery.data ||
+		isLoadingFormData ||
+		isLoadingExternalAuth ||
+		autoCreateReady ||
+		(!latestResponse && !wsError);
+
 	return (
 		<>
 			<Helmet>
 				<title>{pageTitle(title)}</title>
 			</Helmet>
-			{!latestResponse ||
-			!templateQuery.data ||
-			isLoadingFormData ||
-			isLoadingExternalAuth ||
-			autoCreateReady ? (
+			{shouldShowLoader ? (
 				<Loader />
 			) : (
 				<CreateWorkspacePageViewExperimental
