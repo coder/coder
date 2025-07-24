@@ -9,11 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"cdr.dev/slog"
 	"github.com/go-git/go-git/v5/plumbing/format/config"
 	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 )
 
 const (
