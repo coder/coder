@@ -333,9 +333,14 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 				className="border border-border border-solid rounded-lg p-4"
 				disabled={createTaskMutation.isPending}
 			>
-				<label htmlFor="prompt" className="sr-only">
-					Prompt
-				</label>
+				{isPromptReadOnly && (
+					<label
+						htmlFor="prompt"
+						className={"text-xs font-medium text-content-primary mb-2 block"}
+					>
+						Prompt defined by preset
+					</label>
+				)}
 				<TextareaAutosize
 					required
 					id="prompt"
