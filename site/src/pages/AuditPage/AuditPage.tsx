@@ -33,7 +33,8 @@ const AuditPage: FC = () => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const auditsQuery = usePaginatedQuery(paginatedAudits(searchParams));
 	const filter = useFilter({
-		searchParamsResult: [searchParams, setSearchParams],
+		searchParams,
+		onSearchParamsChange: setSearchParams,
 		onUpdate: auditsQuery.goToFirstPage,
 	});
 
