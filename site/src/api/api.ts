@@ -2628,6 +2628,13 @@ class ApiMethods {
 	markAllInboxNotificationsAsRead = async () => {
 		await this.axios.put<void>("/api/v2/notifications/inbox/mark-all-as-read");
 	};
+
+	getAITasksStats = async (): Promise<TypesGen.AITasksStatsResponse> => {
+		const response = await this.axios.get<TypesGen.AITasksStatsResponse>(
+			"/api/experimental/aitasks/stats",
+		);
+		return response.data;
+	};
 }
 
 // Experimental API methods call endpoints under the /api/experimental/ prefix.
@@ -2733,9 +2740,12 @@ interface ClientApi extends ApiMethods {
 }
 
 class Api extends ApiMethods implements ClientApi {
+	experimental: ExperimentalApiMethods;
+
 	constructor() {
 		const scopedAxiosInstance = getConfiguredAxiosInstance();
 		super(scopedAxiosInstance);
+		this.experimental = new ExperimentalApiMethods(scopedAxiosInstance);
 	}
 
 	// As with ApiMethods, all public methods should be defined with arrow

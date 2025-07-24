@@ -4,6 +4,7 @@ import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import type {
+	AITasksStatsResponse,
 	DeploymentStats,
 	HealthcheckReport,
 	WorkspaceStatus,
@@ -41,12 +42,14 @@ const bannerHeight = 36;
 interface DeploymentBannerViewProps {
 	health?: HealthcheckReport;
 	stats?: DeploymentStats;
+	aiTasksStats?: AITasksStatsResponse;
 	fetchStats?: () => void;
 }
 
 export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 	health,
 	stats,
+	aiTasksStats,
 	fetchStats,
 }) => {
 	const theme = useTheme();
@@ -277,6 +280,34 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 					</Tooltip>
 				</div>
 			</div>
+
+			{aiTasksStats && (
+				<div css={styles.group}>
+					<div css={styles.category}>AI Tasks</div>
+					<div css={styles.values}>
+						<Tooltip title="Active AI Tasks">
+							<div css={styles.value}>
+								<WrenchIcon className="size-icon-xs" />
+								{aiTasksStats.active_tasks}
+							</div>
+						</Tooltip>
+						<ValueSeparator />
+						<Tooltip title="Completed AI Tasks">
+							<div css={styles.value}>
+								<CircleAlertIcon className="size-icon-xs" />
+								{aiTasksStats.completed_tasks}
+							</div>
+						</Tooltip>
+						<ValueSeparator />
+						<Tooltip title="Failed AI Tasks">
+							<div css={styles.value}>
+								<CircleAlertIcon className="size-icon-xs" />
+								{aiTasksStats.failed_tasks}
+							</div>
+						</Tooltip>
+					</div>
+				</div>
+			)}
 
 			<div
 				css={{
