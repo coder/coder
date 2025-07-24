@@ -101,10 +101,34 @@ readinessProbe:
     port: "http"
     scheme: "HTTP"
   initialDelaySeconds: {{ .Values.coder.readinessProbe.initialDelaySeconds }}
+  {{- with .Values.coder.readinessProbe.periodSeconds }}
+  periodSeconds: {{ . }}
+  {{- end }}
+  {{- with .Values.coder.readinessProbe.timeoutSeconds }}
+  timeoutSeconds: {{ . }}
+  {{- end }}
+  {{- with .Values.coder.readinessProbe.successThreshold }}
+  successThreshold: {{ . }}
+  {{- end }}
+  {{- with .Values.coder.readinessProbe.failureThreshold }}
+  failureThreshold: {{ . }}
+  {{- end }}
 livenessProbe:
   httpGet:
     path: /healthz
     port: "http"
     scheme: "HTTP"
   initialDelaySeconds: {{ .Values.coder.livenessProbe.initialDelaySeconds }}
+  {{- with .Values.coder.livenessProbe.periodSeconds }}
+  periodSeconds: {{ . }}
+  {{- end }}
+  {{- with .Values.coder.livenessProbe.timeoutSeconds }}
+  timeoutSeconds: {{ . }}
+  {{- end }}
+  {{- with .Values.coder.livenessProbe.successThreshold }}
+  successThreshold: {{ . }}
+  {{- end }}
+  {{- with .Values.coder.livenessProbe.failureThreshold }}
+  failureThreshold: {{ . }}
+  {{- end }}
 {{- end }}

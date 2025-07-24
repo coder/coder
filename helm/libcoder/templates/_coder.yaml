@@ -48,6 +48,10 @@ spec:
       topologySpreadConstraints:
       {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.coder.podSecurityContext }}
+      securityContext:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.coder.initContainers }}
       initContainers:
       {{ toYaml . | nindent 8 }}
