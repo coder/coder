@@ -53,6 +53,7 @@ func WorkspaceAgentScope(params WorkspaceAgentScopeParams) Scope {
 			params.TemplateID.String(),
 			params.VersionID.String(),
 			params.OwnerID.String(),
+			"*",
 		},
 	}
 }

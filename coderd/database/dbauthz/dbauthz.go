@@ -4178,6 +4178,7 @@ func (q *querier) ListProvisionerKeysByOrganizationExcludeReserved(ctx context.C
 
 func (q *querier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]database.UserSecret, error) {
 	obj := rbac.ResourceUserSecret.WithOwner(userID.String())
+
 	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
 		return nil, err
 	}

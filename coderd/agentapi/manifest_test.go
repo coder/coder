@@ -303,6 +303,28 @@ func TestGetManifest(t *testing.T) {
 				ConfigPath:      devcontainers[1].ConfigPath,
 			},
 		}
+		userSecrets = []database.UserSecret{
+			{
+				ID:          uuid.New(),
+				UserID:      owner.ID,
+				Name:        "secret-1",
+				Description: "secret-1",
+				Value:       "secret-1",
+				ValueKeyID:  sql.NullString{},
+				EnvName:     "",
+				FilePath:    "",
+				CreatedAt:   time.Now(),
+				UpdatedAt:   time.Now(),
+			},
+		}
+		userSecretsProto = []*agentproto.Secret{
+			{
+				Name:     userSecrets[0].Name,
+				EnvName:  userSecrets[0].EnvName,
+				FilePath: userSecrets[0].FilePath,
+				Value:    userSecrets[0].Value,
+			},
+		}
 	)
 
 	t.Run("OK", func(t *testing.T) {
@@ -337,6 +359,7 @@ func TestGetManifest(t *testing.T) {
 		}).Return(metadata, nil)
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
+		mDB.EXPECT().ListUserSecrets(gomock.Any(), workspace.OwnerID).Return(userSecrets, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
 		require.NoError(t, err)
@@ -363,6 +386,7 @@ func TestGetManifest(t *testing.T) {
 			Apps:          protoApps,
 			Metadata:      protoMetadata,
 			Devcontainers: protoDevcontainers,
+			UserSecrets:   userSecretsProto,
 		}
 
 		// Log got and expected with spew.
@@ -404,6 +428,7 @@ func TestGetManifest(t *testing.T) {
 		}).Return([]database.WorkspaceAgentMetadatum{}, nil)
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
+		mDB.EXPECT().ListUserSecrets(gomock.Any(), workspace.OwnerID).Return(userSecrets, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
 		require.NoError(t, err)
@@ -430,6 +455,7 @@ func TestGetManifest(t *testing.T) {
 			Apps:          []*agentproto.WorkspaceApp{},
 			Metadata:      []*agentproto.WorkspaceAgentMetadata_Description{},
 			Devcontainers: []*agentproto.WorkspaceAgentDevcontainer{},
+			UserSecrets:   userSecretsProto,
 		}
 
 		require.Equal(t, expected, got)
@@ -467,6 +493,7 @@ func TestGetManifest(t *testing.T) {
 		}).Return(metadata, nil)
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
+		mDB.EXPECT().ListUserSecrets(gomock.Any(), workspace.OwnerID).Return(userSecrets, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
 		require.NoError(t, err)
@@ -492,6 +519,7 @@ func TestGetManifest(t *testing.T) {
 			Apps:          protoApps,
 			Metadata:      protoMetadata,
 			Devcontainers: protoDevcontainers,
+			UserSecrets:   userSecretsProto,
 		}
 
 		// Log got and expected with spew.
