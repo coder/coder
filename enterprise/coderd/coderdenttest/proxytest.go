@@ -68,7 +68,6 @@ func NewWorkspaceProxyReplica(t *testing.T, coderdAPI *coderd.API, owner *coders
 	t.Helper()
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	t.Cleanup(cancelFunc)
 
 	if options == nil {
 		options = &ProxyOptions{}
@@ -178,6 +177,23 @@ func NewWorkspaceProxyReplica(t *testing.T, coderdAPI *coderd.API, owner *coders
 	mutex.Lock()
 	handler = wssrv.Handler
 	mutex.Unlock()
+
+	// Wait for the tailnet connection to be established before returning.
+	// Returning the proxy before it's connected may lead to test ending
+	// before the proxy is fully connected, which will result in an error log
+	// that may fail the test.
+	waitCtx, waitCancel := context.WithTimeout(ctx, testutil.WaitShort)
+	defer waitCancel()
+	dialer, err := wssrv.SDKClient.TailnetDialer()
+	require.NoError(t, err, "create test tailnet dialer")
+
+	select {
+	case <-dialer.Connected():
+		t.Logf("Test dialer connected")
+	case <-waitCtx.Done():
+		t.Logf("Waiting for tailnet connection timed out or was canceled: %v", waitCtx.Err())
+	}
+	t.Cleanup(cancelFunc)
 
 	return WorkspaceProxy{
 		Server:    wssrv,
