@@ -15,7 +15,7 @@ func FilePathToParts(path string) []string {
 	components := []string{}
 
 	if path == "" {
-		return []string{}
+		return components
 	}
 
 	for segment := range strings.SplitSeq(filepath.Clean(path), string(filepath.Separator)) {
