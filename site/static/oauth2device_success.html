@@ -1,0 +1,35 @@
+{{/* This template is used for OAuth2 device authorization success */}}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Authorization Successful</title>
+    <link rel="stylesheet" href="/oauth2.css" />
+  </head>
+  <body>
+    <div class="container device-page">
+      <div class="icons-container">
+        <img class="coder-svg" src="/logo.svg" alt="Coder" />
+      </div>
+      <div class="success-icon">✓</div>
+      <h1 class="success-title">Authorization Successful</h1>
+      <div class="success-message">
+        {{if .AppName}}
+        <p>
+          You have successfully authorized <span class="app-name">{{ .AppName }}</span> to access your account.
+        </p>
+        {{else}}
+        <p>
+          You have successfully authorized the device to access your account.
+        </p>
+        {{end}}
+        <p class="instruction">
+          You can now close this window and return to your device.
+        </p>
+      </div>
+    </div>
+  </body>
+</html>
+

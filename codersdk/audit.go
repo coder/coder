@@ -32,6 +32,7 @@ const (
 	ResourceTypeOAuth2ProviderApp     ResourceType = "oauth2_provider_app"
 	// nolint:gosec // This is not a secret.
 	ResourceTypeOAuth2ProviderAppSecret     ResourceType = "oauth2_provider_app_secret"
+	ResourceTypeOAuth2ProviderDeviceCode    ResourceType = "oauth2_provider_device_code"
 	ResourceTypeCustomRole                  ResourceType = "custom_role"
 	ResourceTypeOrganizationMember          ResourceType = "organization_member"
 	ResourceTypeNotificationTemplate        ResourceType = "notification_template"
@@ -84,6 +85,8 @@ func (r ResourceType) FriendlyString() string {
 		return "oauth2 app"
 	case ResourceTypeOAuth2ProviderAppSecret:
 		return "oauth2 app secret"
+	case ResourceTypeOAuth2ProviderDeviceCode:
+		return "oauth2 device code"
 	case ResourceTypeCustomRole:
 		return "custom role"
 	case ResourceTypeOrganizationMember:

@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -1246,7 +1247,7 @@ func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2
 	code, err := db.InsertOAuth2ProviderAppCode(genCtx, database.InsertOAuth2ProviderAppCodeParams{
 		ID:                  takeFirst(seed.ID, uuid.New()),
 		CreatedAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
-		ExpiresAt:           takeFirst(seed.CreatedAt, dbtime.Now()),
+		ExpiresAt:           takeFirst(seed.ExpiresAt, dbtime.Now().Add(24*time.Hour)),
 		SecretPrefix:        takeFirstSlice(seed.SecretPrefix, []byte("prefix")),
 		HashedSecret:        takeFirstSlice(seed.HashedSecret, []byte("hashed-secret")),
 		AppID:               takeFirst(seed.AppID, uuid.New()),
@@ -1263,7 +1264,7 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 	token, err := db.InsertOAuth2ProviderAppToken(genCtx, database.InsertOAuth2ProviderAppTokenParams{
 		ID:          takeFirst(seed.ID, uuid.New()),
 		CreatedAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
-		ExpiresAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
+		ExpiresAt:   takeFirst(seed.ExpiresAt, dbtime.Now().Add(24*time.Hour)),
 		HashPrefix:  takeFirstSlice(seed.HashPrefix, []byte("prefix")),
 		RefreshHash: takeFirstSlice(seed.RefreshHash, []byte("hashed-secret")),
 		AppSecretID: takeFirst(seed.AppSecretID, uuid.New()),
@@ -1273,6 +1274,26 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 	})
 	require.NoError(t, err, "insert oauth2 app token")
 	return token
+}
+
+func OAuth2ProviderDeviceCode(t testing.TB, db database.Store, seed database.OAuth2ProviderDeviceCode) database.OAuth2ProviderDeviceCode {
+	t.Helper()
+	deviceCode, err := db.InsertOAuth2ProviderDeviceCode(genCtx, database.InsertOAuth2ProviderDeviceCodeParams{
+		ID:                      takeFirst(seed.ID, uuid.New()),
+		CreatedAt:               takeFirst(seed.CreatedAt, dbtime.Now()),
+		ExpiresAt:               takeFirst(seed.ExpiresAt, dbtime.Now().Add(24*time.Hour)),
+		DeviceCodeHash:          takeFirstSlice(seed.DeviceCodeHash, []byte("device-hash")),
+		DeviceCodePrefix:        takeFirst(seed.DeviceCodePrefix, testutil.GetRandomName(t)[:8]),
+		UserCode:                takeFirst(seed.UserCode, generateValidUserCode()),
+		ClientID:                takeFirst(seed.ClientID, uuid.New()),
+		VerificationUri:         takeFirst(seed.VerificationUri, "https://example.com/device"),
+		VerificationUriComplete: seed.VerificationUriComplete,
+		Scope:                   seed.Scope,
+		ResourceUri:             seed.ResourceUri,
+		PollingInterval:         takeFirst(seed.PollingInterval, 5),
+	})
+	assert.NoError(t, err, "insert oauth2 device code")
+	return deviceCode
 }
 
 func WorkspaceAgentMemoryResourceMonitor(t testing.TB, db database.Store, seed database.WorkspaceAgentMemoryResourceMonitor) database.WorkspaceAgentMemoryResourceMonitor {
@@ -1514,4 +1535,24 @@ func generateCryptoKey(length int) (string, error) {
 		return "", xerrors.Errorf("rand read: %w", err)
 	}
 	return hex.EncodeToString(b), nil
+}
+
+// generateValidUserCode creates RFC 8628 compliant user codes for OAuth2 device authorization.
+// Returns an 8-character alphanumeric code (6-8 chars as per RFC) using user-friendly characters
+// that exclude confusing characters like 0/O and 1/I for better user experience.
+func generateValidUserCode() string {
+	// Character set excluding confusing chars: 0/O, 1/I/L
+	chars := "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
+	code := make([]byte, 8)
+	for i := range code {
+		randomIndex := make([]byte, 1)
+		_, err := rand.Read(randomIndex)
+		if err != nil {
+			// Fallback to a predictable pattern if random generation fails
+			code[i] = chars[i%len(chars)]
+		} else {
+			code[i] = chars[int(randomIndex[0])%len(chars)]
+		}
+	}
+	return string(code)
 }

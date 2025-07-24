@@ -1,0 +1,54 @@
+{{/* This template is used for OAuth2 device authorization verification */}}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Device Authorization</title>
+    <link rel="stylesheet" href="/oauth2.css" />
+  </head>
+  <body>
+    <div class="container device-page">
+      <div class="icons-container">
+        {{- if .AppIcon }}
+        <img class="app-icon" src="{{ .AppIcon }}" alt="App Icon" />
+        <div class="connect-symbol">+</div>
+        {{end}}
+        <img class="coder-svg" src="/logo.svg" alt="Coder" />
+      </div>
+      <h1>Device Authorization</h1>
+      {{if .AppName}}
+      <p>
+        <span class="app-name">{{ .AppName }}</span> is requesting access to your account.
+      </p>
+      {{end}}
+      <div class="alert alert-info">
+        Please enter the code displayed on your device to authorize access.
+      </div>
+      <form method="post">
+        <div class="form-group">
+          <label for="user_code">Device Code:</label>
+          <input
+            type="text"
+            id="user_code"
+            name="user_code"
+            value="{{ .UserCode }}"
+            placeholder="Enter the code from your device"
+            required
+            autocomplete="off"
+          />
+        </div>
+        <div class="button-group">
+          <button type="submit" name="action" value="authorize" class="btn-primary">
+            Authorize
+          </button>
+          <button type="submit" name="action" value="deny" class="btn-secondary">
+            Deny
+          </button>
+        </div>
+      </form>
+    </div>
+  </body>
+</html>
+
