@@ -4582,6 +4582,7 @@ export const MockPresets: TypesGen.Preset[] = [
 			{ Name: "memory", Value: "8GB" },
 		],
 		Default: true,
+		DesiredPrebuildInstances: 0,
 	},
 	{
 		ID: "preset-2",
@@ -4591,6 +4592,7 @@ export const MockPresets: TypesGen.Preset[] = [
 			{ Name: "memory", Value: "4GB" },
 		],
 		Default: false,
+		DesiredPrebuildInstances: 0,
 	},
 	{
 		ID: "preset-3",
@@ -4600,6 +4602,7 @@ export const MockPresets: TypesGen.Preset[] = [
 			{ Name: "memory", Value: "16GB" },
 		],
 		Default: false,
+		DesiredPrebuildInstances: 0,
 	},
 ];
 
@@ -4613,6 +4616,7 @@ export const MockAIPromptPresets: TypesGen.Preset[] = [
 			{ Name: "memory", Value: "8GB" },
 		],
 		Default: true,
+		DesiredPrebuildInstances: 0,
 	},
 	{
 		ID: "ai-preset-2",
@@ -4622,6 +4626,7 @@ export const MockAIPromptPresets: TypesGen.Preset[] = [
 			{ Name: "memory", Value: "8GB" },
 		],
 		Default: false,
+		DesiredPrebuildInstances: 0,
 	},
 ];
 
