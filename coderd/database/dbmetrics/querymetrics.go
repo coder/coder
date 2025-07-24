@@ -2882,6 +2882,13 @@ func (m queryMetricsStore) UpdateTemplateVersionDescriptionByJobID(ctx context.C
 	return err
 }
 
+func (m queryMetricsStore) UpdateTemplateVersionExternalAgentsByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAgentsByJobIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateTemplateVersionExternalAgentsByJobID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateVersionExternalAgentsByJobID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, arg)

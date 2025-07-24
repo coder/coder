@@ -3568,6 +3568,7 @@ type TemplateVersion struct {
 	Archived              bool            `db:"archived" json:"archived"`
 	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
 	HasAITask             sql.NullBool    `db:"has_ai_task" json:"has_ai_task"`
+	HasExternalAgents     sql.NullBool    `db:"has_external_agents" json:"has_external_agents"`
 	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName         string          `db:"created_by_name" json:"created_by_name"`
@@ -3650,10 +3651,11 @@ type TemplateVersionTable struct {
 	// IDs of External auth providers for a specific template version
 	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
 	// Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.
-	Message         string         `db:"message" json:"message"`
-	Archived        bool           `db:"archived" json:"archived"`
-	SourceExampleID sql.NullString `db:"source_example_id" json:"source_example_id"`
-	HasAITask       sql.NullBool   `db:"has_ai_task" json:"has_ai_task"`
+	Message           string         `db:"message" json:"message"`
+	Archived          bool           `db:"archived" json:"archived"`
+	SourceExampleID   sql.NullString `db:"source_example_id" json:"source_example_id"`
+	HasAITask         sql.NullBool   `db:"has_ai_task" json:"has_ai_task"`
+	HasExternalAgents sql.NullBool   `db:"has_external_agents" json:"has_external_agents"`
 }
 
 type TemplateVersionTerraformValue struct {

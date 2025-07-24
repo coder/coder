@@ -460,6 +460,7 @@ export interface PlanComplete {
    */
   hasAiTasks: boolean;
   aiTasks: AITask[];
+  hasExternalAgents: boolean;
 }
 
 /**
@@ -1386,6 +1387,9 @@ export const PlanComplete = {
     }
     for (const v of message.aiTasks) {
       AITask.encode(v!, writer.uint32(114).fork()).ldelim();
+    }
+    if (message.hasExternalAgents === true) {
+      writer.uint32(120).bool(message.hasExternalAgents);
     }
     return writer;
   },

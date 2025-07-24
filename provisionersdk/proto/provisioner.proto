@@ -417,6 +417,7 @@ message PlanComplete {
   // See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
   bool has_ai_tasks = 13;
   repeated provisioner.AITask ai_tasks = 14;
+  bool has_external_agents = 15;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response

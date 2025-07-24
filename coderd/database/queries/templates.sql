@@ -59,6 +59,12 @@ WHERE
 			tv.has_ai_task = sqlc.narg('has_ai_task') :: boolean
 		ELSE true
 	END
+	-- Filter by has_external_agents in latest version
+	AND CASE
+		WHEN sqlc.narg('has_external_agents') :: boolean IS NOT NULL THEN
+			tv.has_external_agents = sqlc.narg('has_external_agents') :: boolean
+		ELSE true
+	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
   -- @authorize_filter
 ORDER BY (t.name, t.id) ASC

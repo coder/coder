@@ -95,6 +95,7 @@ message CompletedJob {
     bytes module_files = 10;
     bytes module_files_hash = 11;
     bool has_ai_tasks = 12;
+    bool has_external_agents = 13;
   }
   message TemplateDryRun {
     repeated provisioner.Resource resources = 1;

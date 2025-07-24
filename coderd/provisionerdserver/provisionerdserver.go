@@ -1666,7 +1666,17 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		if err != nil {
 			return xerrors.Errorf("update template version external auth providers: %w", err)
 		}
-
+		err = db.UpdateTemplateVersionExternalAgentsByJobID(ctx, database.UpdateTemplateVersionExternalAgentsByJobIDParams{
+			JobID: jobID,
+			HasExternalAgents: sql.NullBool{
+				Bool:  jobType.TemplateImport.HasExternalAgents,
+				Valid: true,
+			},
+			UpdatedAt: now,
+		})
+		if err != nil {
+			return xerrors.Errorf("update template version external agents: %w", err)
+		}
 		// Process terraform values
 		plan := jobType.TemplateImport.Plan
 		moduleFiles := jobType.TemplateImport.ModuleFiles
