@@ -176,6 +176,26 @@ export const LoadedTasksWithAIPromptPresets: Story = {
 	},
 };
 
+export const LoadedTasksEdgeCases: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
+		spyOn(data, "fetchTasks").mockResolvedValue(MockTasks);
+
+		// Test various edge cases for presets
+		spyOn(API, "getTemplateVersionPresets").mockImplementation(async () => {
+			return [
+				{
+					ID: "malformed",
+					Name: "Malformed Preset",
+					Default: true,
+				},
+				// biome-ignore lint/suspicious/noExplicitAny: Testing malformed data edge cases
+			] as any;
+		});
+	},
+};
+
 export const CreateTaskSuccessfully: Story = {
 	decorators: [withProxyProvider()],
 	parameters: {
