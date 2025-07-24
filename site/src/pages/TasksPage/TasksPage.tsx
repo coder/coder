@@ -240,7 +240,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 	// Extract AI prompt from selected preset
 	const selectedPreset = presets?.find((p) => p.ID === selectedPresetId);
 	const presetAIPrompt = selectedPreset?.Parameters.find(
-		(param) => param.Name === "ai_prompt",
+		(param) => param.Name === AI_PROMPT_PARAMETER_NAME,
 	)?.Value;
 	const isPromptReadOnly = !!presetAIPrompt;
 	const {
