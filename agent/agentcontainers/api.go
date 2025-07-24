@@ -2,8 +2,11 @@ package agentcontainers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
+	"maps"
 	"net/http"
 	"os"
 	"path"
@@ -19,6 +22,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -30,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/quartz"
+	"github.com/coder/websocket"
 )
 
 const (
@@ -53,10 +58,12 @@ type API struct {
 	cancel                      context.CancelFunc
 	watcherDone                 chan struct{}
 	updaterDone                 chan struct{}
+	discoverDone                chan struct{}
 	updateTrigger               chan chan error // Channel to trigger manual refresh.
 	updateInterval              time.Duration   // Interval for periodic container updates.
 	logger                      slog.Logger
 	watcher                     watcher.Watcher
+	fs                          afero.Fs
 	execer                      agentexec.Execer
 	commandEnv                  CommandEnv
 	ccli                        ContainerCLI
@@ -68,12 +75,16 @@ type API struct {
 	subAgentURL                 string
 	subAgentEnv                 []string
 
-	ownerName     string
-	workspaceName string
-	parentAgent   string
+	projectDiscovery bool // If we should perform project discovery or not.
+
+	ownerName      string
+	workspaceName  string
+	parentAgent    string
+	agentDirectory string
 
 	mu                       sync.RWMutex  // Protects the following fields.
 	initDone                 chan struct{} // Closed by Init.
+	updateChans              []chan struct{}
 	closed                   bool
 	containers               codersdk.WorkspaceAgentListContainersResponse  // Output from the last list operation.
 	containersErr            error                                          // Error from the last list operation.
@@ -188,11 +199,12 @@ func WithSubAgentEnv(env ...string) Option {
 
 // WithManifestInfo sets the owner name, and workspace name
 // for the sub-agent.
-func WithManifestInfo(owner, workspace, parentAgent string) Option {
+func WithManifestInfo(owner, workspace, parentAgent, agentDirectory string) Option {
 	return func(api *API) {
 		api.ownerName = owner
 		api.workspaceName = workspace
 		api.parentAgent = parentAgent
+		api.agentDirectory = agentDirectory
 	}
 }
 
@@ -254,6 +266,21 @@ func WithDevcontainers(devcontainers []codersdk.WorkspaceAgentDevcontainer, scri
 func WithWatcher(w watcher.Watcher) Option {
 	return func(api *API) {
 		api.watcher = w
+	}
+}
+
+// WithFileSystem sets the file system used for discovering projects.
+func WithFileSystem(fileSystem afero.Fs) Option {
+	return func(api *API) {
+		api.fs = fileSystem
+	}
+}
+
+// WithProjectDiscovery sets if the API should attempt to discover
+// projects on the filesystem.
+func WithProjectDiscovery(projectDiscovery bool) Option {
+	return func(api *API) {
+		api.projectDiscovery = projectDiscovery
 	}
 }
 
@@ -327,6 +354,9 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 			api.watcher = watcher.NewNoop()
 		}
 	}
+	if api.fs == nil {
+		api.fs = afero.NewOsFs()
+	}
 	if api.subAgentClient.Load() == nil {
 		var c SubAgentClient = noopSubAgentClient{}
 		api.subAgentClient.Store(&c)
@@ -368,11 +398,117 @@ func (api *API) Start() {
 		return
 	}
 
+	if api.projectDiscovery && api.agentDirectory != "" {
+		api.discoverDone = make(chan struct{})
+
+		go api.discover()
+	}
+
 	api.watcherDone = make(chan struct{})
 	api.updaterDone = make(chan struct{})
 
 	go api.watcherLoop()
 	go api.updaterLoop()
+}
+
+func (api *API) discover() {
+	defer close(api.discoverDone)
+	defer api.logger.Debug(api.ctx, "project discovery finished")
+	api.logger.Debug(api.ctx, "project discovery started")
+
+	if err := api.discoverDevcontainerProjects(); err != nil {
+		api.logger.Error(api.ctx, "discovering dev container projects", slog.Error(err))
+	}
+
+	if err := api.RefreshContainers(api.ctx); err != nil {
+		api.logger.Error(api.ctx, "refreshing containers after discovery", slog.Error(err))
+	}
+}
+
+func (api *API) discoverDevcontainerProjects() error {
+	isGitProject, err := afero.DirExists(api.fs, filepath.Join(api.agentDirectory, ".git"))
+	if err != nil {
+		return xerrors.Errorf(".git dir exists: %w", err)
+	}
+
+	// If the agent directory is a git project, we'll search
+	// the project for any `.devcontainer/devcontainer.json`
+	// files.
+	if isGitProject {
+		return api.discoverDevcontainersInProject(api.agentDirectory)
+	}
+
+	// The agent directory is _not_ a git project, so we'll
+	// search the top level of the agent directory for any
+	// git projects, and search those.
+	entries, err := afero.ReadDir(api.fs, api.agentDirectory)
+	if err != nil {
+		return xerrors.Errorf("read agent directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		isGitProject, err = afero.DirExists(api.fs, filepath.Join(api.agentDirectory, entry.Name(), ".git"))
+		if err != nil {
+			return xerrors.Errorf(".git dir exists: %w", err)
+		}
+
+		// If this directory is a git project, we'll search
+		// it for any `.devcontainer/devcontainer.json` files.
+		if isGitProject {
+			if err := api.discoverDevcontainersInProject(filepath.Join(api.agentDirectory, entry.Name())); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (api *API) discoverDevcontainersInProject(projectPath string) error {
+	devcontainerConfigPaths := []string{
+		"/.devcontainer/devcontainer.json",
+		"/.devcontainer.json",
+	}
+
+	return afero.Walk(api.fs, projectPath, func(path string, info fs.FileInfo, _ error) error {
+		if info.IsDir() {
+			return nil
+		}
+
+		for _, relativeConfigPath := range devcontainerConfigPaths {
+			if !strings.HasSuffix(path, relativeConfigPath) {
+				continue
+			}
+
+			workspaceFolder := strings.TrimSuffix(path, relativeConfigPath)
+
+			api.logger.Debug(api.ctx, "discovered dev container project", slog.F("workspace_folder", workspaceFolder))
+
+			api.mu.Lock()
+			if _, found := api.knownDevcontainers[workspaceFolder]; !found {
+				api.logger.Debug(api.ctx, "adding dev container project", slog.F("workspace_folder", workspaceFolder))
+
+				dc := codersdk.WorkspaceAgentDevcontainer{
+					ID:              uuid.New(),
+					Name:            "", // Updated later based on container state.
+					WorkspaceFolder: workspaceFolder,
+					ConfigPath:      path,
+					Status:          "",    // Updated later based on container state.
+					Dirty:           false, // Updated later based on config file changes.
+					Container:       nil,
+				}
+
+				api.knownDevcontainers[workspaceFolder] = dc
+			}
+			api.mu.Unlock()
+		}
+
+		return nil
+	})
 }
 
 func (api *API) watcherLoop() {
@@ -535,6 +671,7 @@ func (api *API) Routes() http.Handler {
 	r.Use(ensureInitDoneMW)
 
 	r.Get("/", api.handleList)
+	r.Get("/watch", api.watchContainers)
 	// TODO(mafredri): Simplify this route as the previous /devcontainers
 	// /-route was dropped. We can drop the /devcontainers prefix here too.
 	r.Route("/devcontainers/{devcontainer}", func(r chi.Router) {
@@ -542,6 +679,88 @@ func (api *API) Routes() http.Handler {
 	})
 
 	return r
+}
+
+func (api *API) broadcastUpdatesLocked() {
+	// Broadcast state changes to WebSocket listeners.
+	for _, ch := range api.updateChans {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to upgrade connection to websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Here we close the websocket for reading, so that the websocket library will handle pings and
+	// close frames.
+	_ = conn.CloseRead(context.Background())
+
+	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
+	defer wsNetConn.Close()
+
+	go httpapi.Heartbeat(ctx, conn)
+
+	updateCh := make(chan struct{}, 1)
+
+	api.mu.Lock()
+	api.updateChans = append(api.updateChans, updateCh)
+	api.mu.Unlock()
+
+	defer func() {
+		api.mu.Lock()
+		api.updateChans = slices.DeleteFunc(api.updateChans, func(ch chan struct{}) bool {
+			return ch == updateCh
+		})
+		close(updateCh)
+		api.mu.Unlock()
+	}()
+
+	encoder := json.NewEncoder(wsNetConn)
+
+	ct, err := api.getContainers()
+	if err != nil {
+		api.logger.Error(ctx, "unable to get containers", slog.Error(err))
+		return
+	}
+
+	if err := encoder.Encode(ct); err != nil {
+		api.logger.Error(ctx, "encode container list", slog.Error(err))
+		return
+	}
+
+	for {
+		select {
+		case <-api.ctx.Done():
+			return
+
+		case <-ctx.Done():
+			return
+
+		case <-updateCh:
+			ct, err := api.getContainers()
+			if err != nil {
+				api.logger.Error(ctx, "unable to get containers", slog.Error(err))
+				continue
+			}
+
+			if err := encoder.Encode(ct); err != nil {
+				api.logger.Error(ctx, "encode container list", slog.Error(err))
+				return
+			}
+		}
+	}
 }
 
 // handleList handles the HTTP request to list containers.
@@ -583,7 +802,25 @@ func (api *API) updateContainers(ctx context.Context) error {
 	api.mu.Lock()
 	defer api.mu.Unlock()
 
+	var previouslyKnownDevcontainers map[string]codersdk.WorkspaceAgentDevcontainer
+	if len(api.updateChans) > 0 {
+		previouslyKnownDevcontainers = maps.Clone(api.knownDevcontainers)
+	}
+
 	api.processUpdatedContainersLocked(ctx, updated)
+
+	if len(api.updateChans) > 0 {
+		statesAreEqual := maps.EqualFunc(
+			previouslyKnownDevcontainers,
+			api.knownDevcontainers,
+			func(dc1, dc2 codersdk.WorkspaceAgentDevcontainer) bool {
+				return dc1.Equals(dc2)
+			})
+
+		if !statesAreEqual {
+			api.broadcastUpdatesLocked()
+		}
+	}
 
 	api.logger.Debug(ctx, "containers updated successfully", slog.F("container_count", len(api.containers.Containers)), slog.F("warning_count", len(api.containers.Warnings)), slog.F("devcontainer_count", len(api.knownDevcontainers)))
 
@@ -955,6 +1192,8 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	dc.Container = nil
 	dc.Error = ""
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
+	api.broadcastUpdatesLocked()
+
 	go func() {
 		_ = api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath, WithRemoveExistingContainer())
 	}()
@@ -1070,6 +1309,7 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 	dc.Error = ""
 	api.recreateSuccessTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "successTimes")
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
+	api.broadcastUpdatesLocked()
 	api.mu.Unlock()
 
 	// Ensure an immediate refresh to accurately reflect the
@@ -1699,6 +1939,9 @@ func (api *API) Close() error {
 	}
 	if api.updaterDone != nil {
 		<-api.updaterDone
+	}
+	if api.discoverDone != nil {
+		<-api.discoverDone
 	}
 
 	// Wait for all async tasks to complete.

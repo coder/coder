@@ -76,6 +76,19 @@ func TestAuditLogsQueryConsistency(t *testing.T) {
 	}
 }
 
+// Same as TestAuditLogsQueryConsistency, but for connection logs.
+func TestConnectionLogsQueryConsistency(t *testing.T) {
+	t.Parallel()
+
+	getWhereClause := extractWhereClause(getConnectionLogsOffset)
+	require.NotEmpty(t, getWhereClause, "getConnectionLogsOffset query should have a WHERE clause")
+
+	countWhereClause := extractWhereClause(countConnectionLogs)
+	require.NotEmpty(t, countWhereClause, "countConnectionLogs query should have a WHERE clause")
+
+	require.Equal(t, getWhereClause, countWhereClause, "getConnectionLogsOffset and countConnectionLogs queries should have the same WHERE clause")
+}
+
 // extractWhereClause extracts the WHERE clause from a SQL query string
 func extractWhereClause(query string) string {
 	// Find WHERE and get everything after it
