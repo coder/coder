@@ -126,6 +126,8 @@ export const PresetsButNoneSelected: Story = {
 			{
 				ID: "preset-1",
 				Name: "Preset 1",
+				Description: "",
+				Icon: "",
 				Default: false,
 				Parameters: [
 					{
@@ -138,6 +140,9 @@ export const PresetsButNoneSelected: Story = {
 			{
 				ID: "preset-2",
 				Name: "Preset 2",
+				Description:
+					"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse imperdiet ultricies massa, eu dapibus ex fermentum ac.",
+				Icon: "/emojis/1f60e.png",
 				Default: false,
 				Parameters: [
 					{
@@ -252,6 +257,8 @@ export const PresetsWithDefault: Story = {
 			{
 				ID: "preset-1",
 				Name: "Preset 1",
+				Icon: "",
+				Description: "",
 				Default: false,
 				Parameters: [
 					{
@@ -264,6 +271,9 @@ export const PresetsWithDefault: Story = {
 			{
 				ID: "preset-2",
 				Name: "Preset 2",
+				Icon: "/emojis/1f60e.png",
+				Description:
+					"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse imperdiet ultricies massa, eu dapibus ex fermentum ac.",
 				Default: true,
 				Parameters: [
 					{

@@ -3621,6 +3621,8 @@ type TemplateVersionPreset struct {
 	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
 	SchedulingTimezone  string         `db:"scheduling_timezone" json:"scheduling_timezone"`
 	IsDefault           bool           `db:"is_default" json:"is_default"`
+	Description         string         `db:"description" json:"description"`
+	Icon                string         `db:"icon" json:"icon"`
 }
 
 type TemplateVersionPresetParameter struct {

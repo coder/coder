@@ -5513,7 +5513,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 ```json
 {
   "default": true,
+  "description": "string",
   "desiredPrebuildInstances": 0,
+  "icon": "string",
   "id": "string",
   "name": "string",
   "parameters": [
@@ -5530,7 +5532,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | Name                       | Type                                                          | Required | Restrictions | Description |
 |----------------------------|---------------------------------------------------------------|----------|--------------|-------------|
 | `default`                  | boolean                                                       | false    |              |             |
+| `description`              | string                                                        | false    |              |             |
 | `desiredPrebuildInstances` | integer                                                       | false    |              |             |
+| `icon`                     | string                                                        | false    |              |             |
 | `id`                       | string                                                        | false    |              |             |
 | `name`                     | string                                                        | false    |              |             |
 | `parameters`               | array of [codersdk.PresetParameter](#codersdkpresetparameter) | false    |              |             |
