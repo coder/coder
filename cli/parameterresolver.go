@@ -26,6 +26,7 @@ type ParameterResolver struct {
 	lastBuildParameters       []codersdk.WorkspaceBuildParameter
 	sourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
 
+	presetParameters       []codersdk.WorkspaceBuildParameter
 	richParameters         []codersdk.WorkspaceBuildParameter
 	richParametersDefaults map[string]string
 	richParametersFile     map[string]string
@@ -42,6 +43,11 @@ func (pr *ParameterResolver) WithLastBuildParameters(params []codersdk.Workspace
 
 func (pr *ParameterResolver) WithSourceWorkspaceParameters(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
 	pr.sourceWorkspaceParameters = params
+	return pr
+}
+
+func (pr *ParameterResolver) WithPresetParameters(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
+	pr.presetParameters = params
 	return pr
 }
 
@@ -80,6 +86,8 @@ func (pr *ParameterResolver) WithPromptEphemeralParameters(promptEphemeralParame
 	return pr
 }
 
+// Resolve gathers workspace build parameters in a layered fashion, applying values from various sources
+// in order of precedence: parameter file < CLI/ENV < source build < last build < preset < user input.
 func (pr *ParameterResolver) Resolve(inv *serpent.Invocation, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) ([]codersdk.WorkspaceBuildParameter, error) {
 	var staged []codersdk.WorkspaceBuildParameter
 	var err error
@@ -88,6 +96,7 @@ func (pr *ParameterResolver) Resolve(inv *serpent.Invocation, action WorkspaceCL
 	staged = pr.resolveWithCommandLineOrEnv(staged)
 	staged = pr.resolveWithSourceBuildParameters(staged, templateVersionParameters)
 	staged = pr.resolveWithLastBuildParameters(staged, templateVersionParameters)
+	staged = pr.resolveWithPreset(staged) // Preset parameters take precedence from all other parameters
 	if err = pr.verifyConstraints(staged, action, templateVersionParameters); err != nil {
 		return nil, err
 	}
@@ -95,6 +104,21 @@ func (pr *ParameterResolver) Resolve(inv *serpent.Invocation, action WorkspaceCL
 		return nil, err
 	}
 	return staged, nil
+}
+
+func (pr *ParameterResolver) resolveWithPreset(resolved []codersdk.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
+next:
+	for _, presetParameter := range pr.presetParameters {
+		for i, r := range resolved {
+			if r.Name == presetParameter.Name {
+				resolved[i].Value = presetParameter.Value
+				continue next
+			}
+		}
+		resolved = append(resolved, presetParameter)
+	}
+
+	return resolved
 }
 
 func (pr *ParameterResolver) resolveWithParametersMapFile(resolved []codersdk.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
