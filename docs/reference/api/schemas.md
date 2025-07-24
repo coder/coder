@@ -5885,6 +5885,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
   },
+  "logs_overflowed": true,
   "metadata": {
     "template_display_name": "string",
     "template_icon": "string",
@@ -5922,6 +5923,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `file_id`           | string                                                             | false    |              |             |
 | `id`                | string                                                             | false    |              |             |
 | `input`             | [codersdk.ProvisionerJobInput](#codersdkprovisionerjobinput)       | false    |              |             |
+| `logs_overflowed`   | boolean                                                            | false    |              |             |
 | `metadata`          | [codersdk.ProvisionerJobMetadata](#codersdkprovisionerjobmetadata) | false    |              |             |
 | `organization_id`   | string                                                             | false    |              |             |
 | `queue_position`    | integer                                                            | false    |              |             |
@@ -7603,6 +7605,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
+    "logs_overflowed": true,
     "metadata": {
       "template_display_name": "string",
       "template_icon": "string",
@@ -8779,6 +8782,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
       },
+      "logs_overflowed": true,
       "metadata": {
         "template_display_name": "string",
         "template_icon": "string",
@@ -9888,6 +9892,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
+    "logs_overflowed": true,
     "metadata": {
       "template_display_name": "string",
       "template_icon": "string",
@@ -10619,6 +10624,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
             "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
           },
+          "logs_overflowed": true,
           "metadata": {
             "template_display_name": "string",
             "template_icon": "string",

@@ -2642,6 +2642,21 @@ func (mr *MockStoreMockRecorder) GetProvisionerJobByIDForUpdate(ctx, id any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobByIDForUpdate), ctx, id)
 }
 
+// GetProvisionerJobLogSize mocks base method.
+func (m *MockStore) GetProvisionerJobLogSize(ctx context.Context, jobID uuid.UUID) (any, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProvisionerJobLogSize", ctx, jobID)
+	ret0, _ := ret[0].(any)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProvisionerJobLogSize indicates an expected call of GetProvisionerJobLogSize.
+func (mr *MockStoreMockRecorder) GetProvisionerJobLogSize(ctx, jobID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobLogSize", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobLogSize), ctx, jobID)
+}
+
 // GetProvisionerJobTimingsByJobID mocks base method.
 func (m *MockStore) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
 	m.ctrl.T.Helper()
@@ -5956,6 +5971,34 @@ func (m *MockStore) UpdateProvisionerJobByID(ctx context.Context, arg database.U
 func (mr *MockStoreMockRecorder) UpdateProvisionerJobByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProvisionerJobByID", reflect.TypeOf((*MockStore)(nil).UpdateProvisionerJobByID), ctx, arg)
+}
+
+// UpdateProvisionerJobLogsLength mocks base method.
+func (m *MockStore) UpdateProvisionerJobLogsLength(ctx context.Context, arg database.UpdateProvisionerJobLogsLengthParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateProvisionerJobLogsLength", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateProvisionerJobLogsLength indicates an expected call of UpdateProvisionerJobLogsLength.
+func (mr *MockStoreMockRecorder) UpdateProvisionerJobLogsLength(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProvisionerJobLogsLength", reflect.TypeOf((*MockStore)(nil).UpdateProvisionerJobLogsLength), ctx, arg)
+}
+
+// UpdateProvisionerJobLogsOverflowed mocks base method.
+func (m *MockStore) UpdateProvisionerJobLogsOverflowed(ctx context.Context, arg database.UpdateProvisionerJobLogsOverflowedParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateProvisionerJobLogsOverflowed", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateProvisionerJobLogsOverflowed indicates an expected call of UpdateProvisionerJobLogsOverflowed.
+func (mr *MockStoreMockRecorder) UpdateProvisionerJobLogsOverflowed(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProvisionerJobLogsOverflowed", reflect.TypeOf((*MockStore)(nil).UpdateProvisionerJobLogsOverflowed), ctx, arg)
 }
 
 // UpdateProvisionerJobWithCancelByID mocks base method.

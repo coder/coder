@@ -902,7 +902,7 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 		return nil, xerrors.Errorf("update job: %w", err)
 	}
 
-	if len(request.Logs) > 0 {
+	if len(request.Logs) > 0 && !job.LogsOverflowed {
 		//nolint:exhaustruct // We append to the additional fields below.
 		insertParams := database.InsertProvisionerJobLogsParams{
 			JobID: parsedID,
@@ -927,11 +927,54 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 				slog.F("output", log.Output))
 		}
 
+		newLogSize := 0
+		for _, log := range request.Logs {
+			newLogSize += len(log.Output)
+		}
+
+		willOverflow := int64(job.LogsLength)+int64(newLogSize) > 1048576
+		if willOverflow {
+			err = s.Database.UpdateProvisionerJobLogsOverflowed(ctx, database.UpdateProvisionerJobLogsOverflowedParams{
+				ID:             parsedID,
+				LogsOverflowed: true,
+			})
+			if err != nil {
+				s.Logger.Error(ctx, "failed to set logs overflowed flag", slog.F("job_id", parsedID), slog.Error(err))
+			}
+			return &proto.UpdateJobResponse{
+				Canceled: job.CanceledAt.Valid,
+			}, nil
+		}
+
+		err = s.Database.UpdateProvisionerJobLogsLength(ctx, database.UpdateProvisionerJobLogsLengthParams{
+			ID:         parsedID,
+			LogsLength: int32(newLogSize), // #nosec G115 - Log output length is limited to 1MB (2^20) which fits in an int32.
+		})
+		if err != nil {
+			// Even though we do the runtime check for the overflow, we still check for the database error
+			// as well.
+			if database.IsProvisionerJobLogsLimitError(err) {
+				err = s.Database.UpdateProvisionerJobLogsOverflowed(ctx, database.UpdateProvisionerJobLogsOverflowedParams{
+					ID:             parsedID,
+					LogsOverflowed: true,
+				})
+				if err != nil {
+					s.Logger.Error(ctx, "failed to set logs overflowed flag", slog.F("job_id", parsedID), slog.Error(err))
+				}
+				return &proto.UpdateJobResponse{
+					Canceled: job.CanceledAt.Valid,
+				}, nil
+			}
+			s.Logger.Error(ctx, "failed to update logs length", slog.F("job_id", parsedID), slog.Error(err))
+			return nil, xerrors.Errorf("update logs length: %w", err)
+		}
+
 		logs, err := s.Database.InsertProvisionerJobLogs(ctx, insertParams)
 		if err != nil {
 			s.Logger.Error(ctx, "failed to insert job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("insert job logs: %w", err)
 		}
+
 		// Publish by the lowest log ID inserted so the log stream will fetch
 		// everything from that point.
 		lowestID := logs[0].ID

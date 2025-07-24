@@ -363,6 +363,7 @@ func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionR
 		Tags:           provisionerJob.Tags,
 		QueuePosition:  int(pj.QueuePosition),
 		QueueSize:      int(pj.QueueSize),
+		LogsOverflowed: provisionerJob.LogsOverflowed,
 	}
 	// Applying values optional to the struct.
 	if provisionerJob.StartedAt.Valid {
