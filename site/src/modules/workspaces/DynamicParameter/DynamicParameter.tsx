@@ -499,7 +499,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 				<MultiSelectCombobox
 					inputProps={{ id }}
 					options={options}
-					defaultOptions={selectedOptions}
+					value={selectedOptions}
 					onChange={(newValues) => {
 						const values = newValues.map((option) => option.value);
 						onChange(JSON.stringify(values));
