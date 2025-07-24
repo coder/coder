@@ -148,6 +148,34 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'terminal_font'
 RETURNING *;
 
+-- name: GetUserPreferredProxy :one
+SELECT
+	value as preferred_proxy
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preferred_proxy';
+
+-- name: UpdateUserPreferredProxy :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preferred_proxy', @preferred_proxy)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @preferred_proxy
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preferred_proxy'
+RETURNING *;
+
+-- name: DeleteUserPreferredProxy :exec
+DELETE FROM user_configs
+WHERE user_id = @user_id
+	AND key = 'preferred_proxy';
+
 -- name: UpdateUserRoles :one
 UPDATE
 	users

@@ -1279,6 +1279,9 @@ func New(options *Options) *API {
 						})
 						r.Get("/appearance", api.userAppearanceSettings)
 						r.Put("/appearance", api.putUserAppearanceSettings)
+						r.Get("/proxy", api.userProxySettings)
+						r.Put("/proxy", api.putUserProxySettings)
+						r.Delete("/proxy", api.deleteUserProxySettings)
 						r.Route("/password", func(r chi.Router) {
 							r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
 							r.Put("/", api.putUserPassword)

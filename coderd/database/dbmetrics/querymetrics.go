@@ -3001,6 +3001,27 @@ func (m queryMetricsStore) UpdateUserThemePreference(ctx context.Context, arg da
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserPreferredProxy(ctx context.Context, userID uuid.UUID) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserPreferredProxy(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserPreferredProxy").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateUserPreferredProxy(ctx context.Context, arg database.UpdateUserPreferredProxyParams) (database.UserConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserPreferredProxy(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserPreferredProxy").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) DeleteUserPreferredProxy(ctx context.Context, userID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteUserPreferredProxy(ctx, userID)
+	m.queryLatencies.WithLabelValues("DeleteUserPreferredProxy").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) UpdateVolumeResourceMonitor(ctx context.Context, arg database.UpdateVolumeResourceMonitorParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateVolumeResourceMonitor(ctx, arg)
