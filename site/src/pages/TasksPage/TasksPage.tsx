@@ -364,13 +364,21 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 									<SelectValue placeholder="Select a preset" />
 								</SelectTrigger>
 								<SelectContent>
-									{presets.map((preset) => (
-										<SelectItem value={preset.ID} key={preset.ID}>
-											<span className="overflow-hidden text-ellipsis block">
-												{preset.Name} {preset.Default && "(Default)"}
-											</span>
-										</SelectItem>
-									))}
+									{presets
+										.sort((a, b) => {
+											// Default preset should come first
+											if (a.Default && !b.Default) return -1;
+											if (!a.Default && b.Default) return 1;
+											// Otherwise, sort alphabetically by name
+											return a.Name.localeCompare(b.Name);
+										})
+										.map((preset) => (
+											<SelectItem value={preset.ID} key={preset.ID}>
+												<span className="overflow-hidden text-ellipsis block">
+													{preset.Name} {preset.Default && "(Default)"}
+												</span>
+											</SelectItem>
+										))}
 								</SelectContent>
 							</Select>
 						)}
