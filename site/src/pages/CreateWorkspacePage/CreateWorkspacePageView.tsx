@@ -45,6 +45,7 @@ import * as Yup from "yup";
 import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
+import { Combobox } from "components/Combobox/Combobox";
 
 export const Language = {
 	duplicationWarning:
@@ -153,20 +154,21 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	);
 
 	const [presetOptions, setPresetOptions] = useState([
-		{ label: "None", value: "" },
+		{ displayName: "None", value: "", icon: "", description: "" },
 	]);
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
 	// Build options and keep default label/value in sync
 	useEffect(() => {
 		const options = [
-			{ label: "None", value: "", icon: undefined, description: undefined },
+			{ displayName: "None", value: "", icon: "", description: "" },
 			...presets.map((preset) => ({
-				label: preset.Default ? `${preset.Name} (Default)` : preset.Name,
+				displayName: preset.Default ? `${preset.Name} (Default)` : preset.Name,
 				value: preset.ID,
 				icon: preset.Icon,
 				description: preset.Description,
 			})),
 		];
+		console.log(options)
 		setPresetOptions(options);
 		const defaultPreset = presets.find((p) => p.Default);
 		if (defaultPreset) {
@@ -382,49 +384,24 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 									</Stack>
 									<Stack direction="column" spacing={2}>
 										<Stack direction="row" spacing={2}>
-											<MultiSelectCombobox
-												inputProps={{ id: "preset-select" }}
+											<Combobox
+												value={presetOptions[selectedPresetIndex]?.displayName || ""} // Single selected value
 												options={presetOptions}
-												defaultOptions={presetOptions}
-												value={
-													presetOptions[selectedPresetIndex]
-														? [presetOptions[selectedPresetIndex]]
-														: []
-												}
-												onChange={(option) => {
-													// Handle single selection replacement
-													if (option.length > 0) {
-														// Take the most recently selected option
-														const selectedOption = option[option.length - 1];
-														const index = presetOptions.findIndex(
-															(preset) => preset.value === selectedOption.value,
-														);
-														if (index !== -1) {
-															setSelectedPresetIndex(index);
-															form.setFieldValue(
-																"template_version_preset_id",
-																selectedOption.value === ""
-																	? undefined
-																	: selectedOption.value,
-															);
-														}
-													} else {
-														// None preset selected
-														setSelectedPresetIndex(0);
-														form.setFieldValue(
-															"template_version_preset_id",
-															undefined,
-														);
-													}
-												}}
-												hidePlaceholderWhenSelected
 												placeholder="Select a preset"
-												emptyIndicator={
-													<p className="text-center text-md text-content-primary">
-														No presets found
-													</p>
-												}
-												disabled={false}
+												onSelect={(value) => {
+													// value is a single string, not an array
+													const index = presetOptions.findIndex(
+														(preset) => preset.value === value,
+													);
+													if (index === -1) {
+														return;
+													}
+													setSelectedPresetIndex(index);
+													form.setFieldValue(
+														"template_version_preset_id",
+														presetOptions[index].value === "" ? undefined : presetOptions[index].value,
+													);
+												}}
 											/>
 										</Stack>
 										{/* Only show the preset parameter visibility toggle if preset parameters are actually being modified, otherwise it has no effect. */}
