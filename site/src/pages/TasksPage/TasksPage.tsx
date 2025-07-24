@@ -231,18 +231,11 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 	const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
 		templates[0].id,
 	);
-	const [presets, setPresets] = useState<Preset[] | null>(null);
 	const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
 	const selectedTemplate = templates.find(
 		(t) => t.id === selectedTemplateId,
 	) as Template;
 
-	// Extract AI prompt from selected preset
-	const selectedPreset = presets?.find((p) => p.ID === selectedPresetId);
-	const presetAIPrompt = selectedPreset?.Parameters?.find(
-		(param) => param.Name === AI_PROMPT_PARAMETER_NAME,
-	)?.Value;
-	const isPromptReadOnly = !!presetAIPrompt;
 	const {
 		externalAuth,
 		externalAuthError,
@@ -251,24 +244,41 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 	} = useExternalAuth(selectedTemplate.active_version_id);
 
 	// Fetch presets when template changes
-	const { data: presetsData } = useQuery<Preset[] | null, Error>({
+	const { data: presetsData, isLoading: isLoadingPresets } = useQuery<
+		Preset[] | null,
+		Error
+	>({
 		queryKey: ["template-version-presets", selectedTemplate.active_version_id],
 		queryFn: () =>
 			API.getTemplateVersionPresets(selectedTemplate.active_version_id),
 		...disabledRefetchOptions,
 	});
 
-	// Handle preset data changes
+	// Handle preset selection when data changes
 	useEffect(() => {
-		if (!presetsData) {
-			setPresets(null);
+		if (presetsData === undefined) {
+			// Still loading
 			return;
 		}
-		setPresets(presetsData);
+
+		if (!presetsData || presetsData.length === 0) {
+			setSelectedPresetId(null);
+			return;
+		}
+
+		// Always select the default preset when new data arrives
 		const defaultPreset = presetsData.find((p: Preset) => p.Default);
 		const defaultPresetID = defaultPreset?.ID || null;
 		setSelectedPresetId(defaultPresetID);
 	}, [presetsData]);
+
+	// Extract AI prompt from selected preset
+	const selectedPreset = presetsData?.find((p) => p.ID === selectedPresetId);
+	const presetAIPrompt = selectedPreset?.Parameters?.find(
+		(param) => param.Name === AI_PROMPT_PARAMETER_NAME,
+	)?.Value;
+	const isPromptReadOnly = !!presetAIPrompt;
+
 	const missedExternalAuth = externalAuth?.filter(
 		(auth) => !auth.optional && !auth.authenticated,
 	);
@@ -373,39 +383,55 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 							</Select>
 						</div>
 
-						{presets && presets.length > 0 && (
-							<div className="flex flex-col gap-1">
-								<label
-									htmlFor="presetID"
-									className="text-xs font-medium text-content-primary"
-								>
-									Preset
-								</label>
+						<div className="flex flex-col gap-1">
+							<label
+								htmlFor="presetID"
+								className="text-xs font-medium text-content-primary"
+							>
+								Preset
+							</label>
+							{isLoadingPresets ? (
+								<Skeleton variant="rounded" width={320} height={32} />
+							) : (
 								<Select
+									key={`preset-select-${selectedTemplate.active_version_id}`}
 									name="presetID"
-									value={
-										selectedPresetId === null ? undefined : selectedPresetId
-									}
-									onValueChange={(value) => setSelectedPresetId(value)}
+									value={selectedPresetId || undefined}
+									onValueChange={(value) => setSelectedPresetId(value || null)}
+									disabled={!presetsData || presetsData.length === 0}
 								>
 									<SelectTrigger
 										id="presetID"
 										className="w-80 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3"
 									>
-										<SelectValue placeholder="Select a preset" />
+										<SelectValue
+											placeholder={
+												!presetsData || presetsData.length === 0
+													? "None"
+													: "Select a preset"
+											}
+										/>
 									</SelectTrigger>
 									<SelectContent>
-										{sortedPresets(presets).map((preset) => (
-											<SelectItem value={preset.ID} key={preset.ID}>
+										{presetsData && presetsData.length > 0 ? (
+											sortedPresets(presetsData).map((preset) => (
+												<SelectItem value={preset.ID} key={preset.ID}>
+													<span className="overflow-hidden text-ellipsis block">
+														{preset.Name} {preset.Default && "(Default)"}
+													</span>
+												</SelectItem>
+											))
+										) : (
+											<SelectItem value="none" disabled>
 												<span className="overflow-hidden text-ellipsis block">
-													{preset.Name} {preset.Default && "(Default)"}
+													No presets available
 												</span>
 											</SelectItem>
-										))}
+										)}
 									</SelectContent>
 								</Select>
-							</div>
-						)}
+							)}
+						</div>
 					</div>
 
 					<div className="flex items-center gap-2">
