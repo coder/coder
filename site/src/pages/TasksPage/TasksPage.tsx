@@ -715,11 +715,13 @@ export const data = {
 		presetId: string | null = null,
 	): Promise<Task> {
 		// If no preset is selected, get the default preset
-		let preset_id: string | undefined = presetId || undefined;
+		let preset_id = presetId;
 		if (!preset_id) {
 			const presets = await API.getTemplateVersionPresets(templateVersionId);
 			const defaultPreset = presets?.find((p) => p.Default);
-			preset_id = defaultPreset?.ID;
+			if (defaultPreset) {
+				preset_id = defaultPreset.ID;
+			}
 		}
 
 		const workspace = await API.createWorkspace(userId, {
