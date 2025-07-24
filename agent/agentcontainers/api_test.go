@@ -3385,6 +3385,23 @@ func TestDevcontainerDiscovery(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "RespectGitInfoExclude",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":              "",
+				"/home/coder/coder/.git/info/exclude":      "y/",
+				"/home/coder/coder/.devcontainer.json":     "",
+				"/home/coder/coder/x/y/.devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
 	}
 
 	initFS := func(t *testing.T, files map[string]string) afero.Fs {

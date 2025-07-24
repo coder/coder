@@ -11,6 +11,11 @@ import (
 	"github.com/spf13/afero"
 )
 
+const (
+	gitignoreFile      = ".gitignore"
+	gitInfoExcludeFile = ".git/info/exclude"
+)
+
 func FilePathToParts(path string) []string {
 	components := []string{}
 
@@ -27,10 +32,10 @@ func FilePathToParts(path string) []string {
 	return components
 }
 
-func readIgnoreFile(fileSystem afero.Fs, path string) ([]gitignore.Pattern, error) {
+func readIgnoreFile(fileSystem afero.Fs, path, ignore string) ([]gitignore.Pattern, error) {
 	var ps []gitignore.Pattern
 
-	data, err := afero.ReadFile(fileSystem, filepath.Join(path, ".gitignore"))
+	data, err := afero.ReadFile(fileSystem, filepath.Join(path, ignore))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
@@ -47,12 +52,19 @@ func readIgnoreFile(fileSystem afero.Fs, path string) ([]gitignore.Pattern, erro
 func ReadPatterns(fileSystem afero.Fs, path string) ([]gitignore.Pattern, error) {
 	var ps []gitignore.Pattern
 
+	subPs, err := readIgnoreFile(fileSystem, path, gitInfoExcludeFile)
+	if err != nil {
+		return nil, err
+	}
+
+	ps = append(ps, subPs...)
+
 	if err := afero.Walk(fileSystem, path, func(path string, info fs.FileInfo, _ error) error {
 		if !info.IsDir() {
 			return nil
 		}
 
-		subPs, err := readIgnoreFile(fileSystem, path)
+		subPs, err := readIgnoreFile(fileSystem, path, gitignoreFile)
 		if err != nil {
 			return err
 		}
