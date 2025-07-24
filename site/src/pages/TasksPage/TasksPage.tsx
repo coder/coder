@@ -40,6 +40,7 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 
+import { templateVersionPresets } from "api/queries/templates";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
@@ -247,12 +248,7 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 	const { data: presetsData, isLoading: isLoadingPresets } = useQuery<
 		Preset[] | null,
 		Error
-	>({
-		queryKey: ["template-version-presets", selectedTemplate.active_version_id],
-		queryFn: () =>
-			API.getTemplateVersionPresets(selectedTemplate.active_version_id),
-		...disabledRefetchOptions,
-	});
+	>(templateVersionPresets(selectedTemplate.active_version_id));
 
 	// Handle preset selection when data changes
 	useEffect(() => {
