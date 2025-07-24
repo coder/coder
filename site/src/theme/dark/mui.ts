@@ -8,10 +8,10 @@ const muiTheme = createTheme({
 	palette: {
 		mode: "dark",
 		primary: {
-			main: tw.sky[500],
+			main: tw.purple[500],
 			contrastText: tw.white,
-			light: tw.sky[400],
-			dark: tw.sky[600],
+			light: tw.purple[400],
+			dark: tw.purple[600],
 		},
 		secondary: {
 			main: tw.zinc[500],
@@ -19,15 +19,15 @@ const muiTheme = createTheme({
 			dark: tw.zinc[400],
 		},
 		background: {
-			default: tw.zinc[950],
-			paper: tw.zinc[900],
+			default: tw.purple[950],
+			paper: tw.purple[900],
 		},
 		text: {
 			primary: tw.zinc[50],
 			secondary: tw.zinc[400],
 			disabled: tw.zinc[500],
 		},
-		divider: tw.zinc[700],
+		divider: tw.purple[700],
 		warning: {
 			light: tw.amber[500],
 			main: tw.amber[800],
