@@ -53,13 +53,18 @@ func TestAnthropicMessages(t *testing.T) {
 		t.Parallel()
 
 		cases := []struct {
-			streaming bool
+			streaming                                 bool
+			expectedInputTokens, expectedOutputTokens int
 		}{
 			{
-				streaming: true,
+				streaming:            true,
+				expectedInputTokens:  2,
+				expectedOutputTokens: 66,
 			},
 			{
-				streaming: false,
+				streaming:            false,
+				expectedInputTokens:  5,
+				expectedOutputTokens: 84,
 			},
 		}
 
@@ -128,8 +133,8 @@ func TestAnthropicMessages(t *testing.T) {
 					require.Len(t, coderdClient.tokenUsages, 1)
 				}
 
-				assert.NotZero(t, calculateTotalInputTokens(coderdClient.tokenUsages))
-				assert.NotZero(t, calculateTotalOutputTokens(coderdClient.tokenUsages))
+				assert.EqualValues(t, tc.expectedInputTokens, calculateTotalInputTokens(coderdClient.tokenUsages), "input tokens miscalculated")
+				assert.EqualValues(t, tc.expectedOutputTokens, calculateTotalOutputTokens(coderdClient.tokenUsages), "output tokens miscalculated")
 
 				var args map[string]any
 				require.NoError(t, json.Unmarshal([]byte(coderdClient.toolUsages[0].Input), &args))
@@ -155,13 +160,18 @@ func TestOpenAIChatCompletions(t *testing.T) {
 		t.Parallel()
 
 		cases := []struct {
-			streaming bool
+			streaming                                 bool
+			expectedInputTokens, expectedOutputTokens int
 		}{
 			{
-				streaming: true,
+				streaming:            true,
+				expectedInputTokens:  60,
+				expectedOutputTokens: 15,
 			},
 			{
-				streaming: false,
+				streaming:            false,
+				expectedInputTokens:  60,
+				expectedOutputTokens: 15,
 			},
 		}
 
@@ -233,8 +243,8 @@ func TestOpenAIChatCompletions(t *testing.T) {
 				}
 
 				require.Len(t, coderdClient.tokenUsages, 1)
-				assert.NotZero(t, calculateTotalInputTokens(coderdClient.tokenUsages))
-				assert.NotZero(t, calculateTotalOutputTokens(coderdClient.tokenUsages))
+				assert.EqualValues(t, tc.expectedInputTokens, calculateTotalInputTokens(coderdClient.tokenUsages), "input tokens miscalculated")
+				assert.EqualValues(t, tc.expectedOutputTokens, calculateTotalOutputTokens(coderdClient.tokenUsages), "output tokens miscalculated")
 
 				var args map[string]any
 				require.NoError(t, json.Unmarshal([]byte(coderdClient.toolUsages[0].Input), &args))
@@ -254,7 +264,7 @@ func TestOpenAIChatCompletions(t *testing.T) {
 func calculateTotalOutputTokens(in []*proto.TrackTokenUsageRequest) int64 {
 	var total int64
 	for _, el := range in {
-		total += el.InputTokens
+		total += el.OutputTokens
 	}
 	return total
 }
@@ -262,7 +272,7 @@ func calculateTotalOutputTokens(in []*proto.TrackTokenUsageRequest) int64 {
 func calculateTotalInputTokens(in []*proto.TrackTokenUsageRequest) int64 {
 	var total int64
 	for _, el := range in {
-		total += el.OutputTokens
+		total += el.InputTokens
 	}
 	return total
 }
