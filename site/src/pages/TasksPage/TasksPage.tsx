@@ -260,21 +260,14 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 
 	// Handle preset data changes
 	useEffect(() => {
-		if (presetsData !== undefined) {
-			setPresets(presetsData);
-			// Reset selected preset when changing templates or when no presets available
-			if (presetsData === null || presetsData.length === 0) {
-				setSelectedPresetId(null);
-			} else {
-				// Set default preset if available
-				const defaultPreset = presetsData.find((p: Preset) => p.Default);
-				if (defaultPreset) {
-					setSelectedPresetId(defaultPreset.ID);
-				} else {
-					setSelectedPresetId(null);
-				}
-			}
+		if (!presetsData) {
+			setPresets(null);
+			return;
 		}
+		setPresets(presetsData);
+		const defaultPreset = presetsData.find((p: Preset) => p.Default);
+		const defaultPresetID = defaultPreset?.ID || null;
+		setSelectedPresetId(defaultPresetID);
 	}, [presetsData]);
 	const missedExternalAuth = externalAuth?.filter(
 		(auth) => !auth.optional && !auth.authenticated,
@@ -402,21 +395,13 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 										<SelectValue placeholder="Select a preset" />
 									</SelectTrigger>
 									<SelectContent>
-										{presets
-											.sort((a, b) => {
-												// Default preset should come first
-												if (a.Default && !b.Default) return -1;
-												if (!a.Default && b.Default) return 1;
-												// Otherwise, sort alphabetically by name
-												return a.Name.localeCompare(b.Name);
-											})
-											.map((preset) => (
-												<SelectItem value={preset.ID} key={preset.ID}>
-													<span className="overflow-hidden text-ellipsis block">
-														{preset.Name} {preset.Default && "(Default)"}
-													</span>
-												</SelectItem>
-											))}
+										{sortedPresets(presets).map((preset) => (
+											<SelectItem value={preset.ID} key={preset.ID}>
+												<span className="overflow-hidden text-ellipsis block">
+													{preset.Name} {preset.Default && "(Default)"}
+												</span>
+											</SelectItem>
+										))}
 									</SelectContent>
 								</Select>
 							</div>
@@ -738,6 +723,18 @@ export const data = {
 			prompt,
 		};
 	},
+};
+
+// sortedPresets sorts presets with the default preset first,
+// followed by the rest sorted alphabetically by name ascending.
+const sortedPresets = (presets: Preset[]): Preset[] => {
+	return presets.sort((a, b) => {
+		// Default preset should come first
+		if (a.Default && !b.Default) return -1;
+		if (!a.Default && b.Default) return 1;
+		// Otherwise, sort alphabetically by name
+		return a.Name.localeCompare(b.Name);
+	});
 };
 
 export default TasksPage;
