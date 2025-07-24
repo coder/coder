@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -3211,6 +3212,9 @@ func TestDevcontainerDiscovery(t *testing.T) {
 	// repositories to find any `.devcontainer/devcontainer.json`
 	// files. These tests are to validate that behavior.
 
+	homeDir, err := os.UserHomeDir()
+	require.NoError(t, err)
+
 	tests := []struct {
 		name     string
 		agentDir string
@@ -3345,6 +3349,113 @@ func TestDevcontainerDiscovery(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "RespectGitIgnore",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":              "",
+				"/home/coder/coder/.gitignore":             "y/",
+				"/home/coder/coder/.devcontainer.json":     "",
+				"/home/coder/coder/x/y/.devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "RespectNestedGitIgnore",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":              "",
+				"/home/coder/coder/.devcontainer.json":     "",
+				"/home/coder/coder/y/.devcontainer.json":   "",
+				"/home/coder/coder/x/.gitignore":           "y/",
+				"/home/coder/coder/x/y/.devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+				{
+					WorkspaceFolder: "/home/coder/coder/y",
+					ConfigPath:      "/home/coder/coder/y/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "RespectGitInfoExclude",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":              "",
+				"/home/coder/coder/.git/info/exclude":      "y/",
+				"/home/coder/coder/.devcontainer.json":     "",
+				"/home/coder/coder/x/y/.devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "RespectHomeGitConfig",
+			agentDir: homeDir,
+			fs: map[string]string{
+				"/tmp/.gitignore": "node_modules/",
+				filepath.Join(homeDir, ".gitconfig"): `
+					[core]
+					excludesFile = /tmp/.gitignore
+				`,
+
+				filepath.Join(homeDir, ".git/HEAD"):                         "",
+				filepath.Join(homeDir, ".devcontainer.json"):                "",
+				filepath.Join(homeDir, "node_modules/y/.devcontainer.json"): "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: homeDir,
+					ConfigPath:      filepath.Join(homeDir, ".devcontainer.json"),
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "IgnoreNonsenseDevcontainerNames",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/.git/HEAD": "",
+
+				"/home/coder/.devcontainer/devcontainer.json.bak": "",
+				"/home/coder/.devcontainer/devcontainer.json.old": "",
+				"/home/coder/.devcontainer/devcontainer.json~":    "",
+				"/home/coder/.devcontainer/notdevcontainer.json":  "",
+				"/home/coder/.devcontainer/devcontainer.json.swp": "",
+
+				"/home/coder/foo/.devcontainer.json.bak": "",
+				"/home/coder/foo/.devcontainer.json.old": "",
+				"/home/coder/foo/.devcontainer.json~":    "",
+				"/home/coder/foo/.notdevcontainer.json":  "",
+				"/home/coder/foo/.devcontainer.json.swp": "",
+
+				"/home/coder/bar/.devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/bar",
+					ConfigPath:      "/home/coder/bar/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
 	}
 
 	initFS := func(t *testing.T, files map[string]string) afero.Fs {
@@ -3397,7 +3508,7 @@ func TestDevcontainerDiscovery(t *testing.T) {
 				err := json.NewDecoder(rec.Body).Decode(&got)
 				require.NoError(t, err)
 
-				return len(got.Devcontainers) == len(tt.expected)
+				return len(got.Devcontainers) >= len(tt.expected)
 			}, testutil.WaitShort, testutil.IntervalFast, "dev containers never found")
 
 			// Now projects have been discovered, we'll allow the updater loop
