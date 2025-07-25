@@ -5564,6 +5564,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 ```json
 {
   "default": true,
+  "desiredPrebuildInstances": 0,
   "id": "string",
   "name": "string",
   "parameters": [
@@ -5577,12 +5578,13 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name         | Type                                                          | Required | Restrictions | Description |
-|--------------|---------------------------------------------------------------|----------|--------------|-------------|
-| `default`    | boolean                                                       | false    |              |             |
-| `id`         | string                                                        | false    |              |             |
-| `name`       | string                                                        | false    |              |             |
-| `parameters` | array of [codersdk.PresetParameter](#codersdkpresetparameter) | false    |              |             |
+| Name                       | Type                                                          | Required | Restrictions | Description |
+|----------------------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `default`                  | boolean                                                       | false    |              |             |
+| `desiredPrebuildInstances` | integer                                                       | false    |              |             |
+| `id`                       | string                                                        | false    |              |             |
+| `name`                     | string                                                        | false    |              |             |
+| `parameters`               | array of [codersdk.PresetParameter](#codersdkpresetparameter) | false    |              |             |
 
 ## codersdk.PresetParameter
 

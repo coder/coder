@@ -2022,6 +2022,7 @@ export interface Preset {
 	readonly Name: string;
 	readonly Parameters: readonly PresetParameter[];
 	readonly Default: boolean;
+	readonly DesiredPrebuildInstances: number | null;
 }
 
 // From codersdk/presets.go
