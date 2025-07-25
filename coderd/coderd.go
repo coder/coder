@@ -19,6 +19,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ammario/tlru"
+
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
@@ -1551,6 +1553,7 @@ func New(options *Options) *API {
 			r.Use(aibridged.AuthMiddleware(api.Database))
 			r.Post("/v1/chat/completions", api.bridgeAIRequest)
 			r.Get("/v1/models", func(rw http.ResponseWriter, r *http.Request) {
+				// TODO: reverse-proxy blindly to upstream, or implement using policies to control available models.
 				httpapi.Write(context.Background(), rw, http.StatusOK, map[string]any{
 					"object": "list",
 					"data": []map[string]any{
@@ -1724,6 +1727,8 @@ type API struct {
 	dbRolluper *dbrollup.Rolluper
 
 	AIBridgeDaemons []*aibridged.Server
+	AIBridges       *tlru.Cache[string, *aibridged.Bridge]
+	AIBridgesMu     sync.RWMutex
 }
 
 // Close waits for all WebSocket connections to drain before returning.

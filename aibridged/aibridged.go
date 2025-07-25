@@ -48,13 +48,11 @@ type Server struct {
 	shuttingDownB bool
 	// shuttingDownCh will receive when we start graceful shutdown
 	shuttingDownCh chan struct{}
-
-	bridge *Bridge
 }
 
 var _ proto.DRPCAIBridgeDaemonServer = &Server{}
 
-func New(rpcDialer Dialer, httpAddr string, logger slog.Logger, bridgeCfg codersdk.AIBridgeConfig, tools []*MCPTool) (*Server, error) {
+func New(rpcDialer Dialer, httpAddr string, logger slog.Logger) (*Server, error) {
 	if rpcDialer == nil {
 		return nil, xerrors.Errorf("nil rpcDialer given")
 	}
@@ -71,29 +69,13 @@ func New(rpcDialer Dialer, httpAddr string, logger slog.Logger, bridgeCfg coders
 		initConnectionCh: make(chan struct{}),
 	}
 
-	// TODO: improve error handling here; if this fails it prevents the whole server from starting up!
-
-	bridge, err := NewBridge(bridgeCfg, httpAddr, logger.Named("ai_bridge"), daemon.client, tools)
-	if err != nil {
-		return nil, xerrors.Errorf("create new bridge server: %w", err)
-	}
-
-	daemon.bridge = bridge
-
 	daemon.wg.Add(1)
 	go daemon.connect()
 
-	daemon.wg.Add(1)
-	go func() {
-		defer daemon.wg.Done()
-		err := bridge.Serve()
-		// TODO: better error handling.
-		// TODO: close on shutdown.
-		logger.Error(ctx, "bridge server stopped", slog.Error(err))
-	}()
-
 	return daemon, nil
-} // Connect establishes a connection to coderd.
+}
+
+// Connect establishes a connection to coderd.
 func (s *Server) connect() {
 	defer s.logger.Debug(s.closeContext, "connect loop exited")
 	defer s.wg.Done()
@@ -155,7 +137,7 @@ connectLoop:
 	}
 }
 
-func (s *Server) client() (proto.DRPCAIBridgeDaemonClient, bool) {
+func (s *Server) Client() (proto.DRPCAIBridgeDaemonClient, bool) {
 	select {
 	case <-s.closeContext.Done():
 		return nil, false
@@ -168,7 +150,7 @@ func (s *Server) client() (proto.DRPCAIBridgeDaemonClient, bool) {
 }
 
 func (s *Server) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageRequest) (*proto.TrackTokenUsageResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.TrackTokenUsageResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.TrackTokenUsageResponse, error) {
 		return client.TrackTokenUsage(ctx, in)
 	})
 	if err != nil {
@@ -178,7 +160,7 @@ func (s *Server) TrackTokenUsage(ctx context.Context, in *proto.TrackTokenUsageR
 }
 
 func (s *Server) TrackUserPrompt(ctx context.Context, in *proto.TrackUserPromptRequest) (*proto.TrackUserPromptResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.TrackUserPromptResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.TrackUserPromptResponse, error) {
 		return client.TrackUserPrompt(ctx, in)
 	})
 	if err != nil {
@@ -188,70 +170,13 @@ func (s *Server) TrackUserPrompt(ctx context.Context, in *proto.TrackUserPromptR
 }
 
 func (s *Server) TrackToolUsage(ctx context.Context, in *proto.TrackToolUsageRequest) (*proto.TrackToolUsageResponse, error) {
-	out, err := clientDoWithRetries(ctx, s.client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.TrackToolUsageResponse, error) {
+	out, err := clientDoWithRetries(ctx, s.Client, func(ctx context.Context, client proto.DRPCAIBridgeDaemonClient) (*proto.TrackToolUsageResponse, error) {
 		return client.TrackToolUsage(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
-}
-
-// func (s *Server) ChatCompletions(payload *proto.JSONPayload, stream proto.DRPCOpenAIService_ChatCompletionsStream) error {
-//	// TODO: call OpenAI API.
-//
-//	select {
-//	case <-stream.Context().Done():
-//		return nil
-//	default:
-//	}
-//
-//	err := stream.Send(&proto.JSONPayload{
-//		Content: `
-//{
-//  "id": "chatcmpl-B9MBs8CjcvOU2jLn4n570S5qMJKcT",
-//  "object": "chat.completion",
-//  "created": 1741569952,
-//  "model": "gpt-4.1-2025-04-14",
-//  "choices": [
-//    {
-//      "index": 0,
-//      "message": {
-//        "role": "assistant",
-//        "content": "Hello! How can I assist you today?",
-//        "refusal": null,
-//        "annotations": []
-//      },
-//      "logprobs": null,
-//      "finish_reason": "stop"
-//    }
-//  ],
-//  "usage": {
-//    "prompt_tokens": 19,
-//    "completion_tokens": 10,
-//    "total_tokens": 29,
-//    "prompt_tokens_details": {
-//      "cached_tokens": 0,
-//      "audio_tokens": 0
-//    },
-//    "completion_tokens_details": {
-//      "reasoning_tokens": 0,
-//      "audio_tokens": 0,
-//      "accepted_prediction_tokens": 0,
-//      "rejected_prediction_tokens": 0
-//    }
-//  },
-//  "service_tier": "default"
-//}
-// `})
-//	if err != nil {
-//		return xerrors.Errorf("stream chat completion response: %w", err)
-//	}
-//	return nil
-//}
-
-func (s *Server) BridgeAddr() string {
-	return s.bridge.Addr()
 }
 
 // TODO: direct copy/paste from provisionerd, abstract into common util.

@@ -76,14 +76,13 @@ type Bridge struct {
 	cfg codersdk.AIBridgeConfig
 
 	httpSrv  *http.Server
-	addr     string
 	clientFn func() (proto.DRPCAIBridgeDaemonClient, bool)
 	logger   slog.Logger
 
 	tools map[string]*MCPTool
 }
 
-func NewBridge(cfg codersdk.AIBridgeConfig, addr string, logger slog.Logger, clientFn func() (proto.DRPCAIBridgeDaemonClient, bool), tools []*MCPTool) (*Bridge, error) {
+func NewBridge(cfg codersdk.AIBridgeConfig, logger slog.Logger, clientFn func() (proto.DRPCAIBridgeDaemonClient, bool), tools []*MCPTool) (*Bridge, error) {
 	var bridge Bridge
 
 	mux := &http.ServeMux{}
@@ -91,7 +90,6 @@ func NewBridge(cfg codersdk.AIBridgeConfig, addr string, logger slog.Logger, cli
 	mux.HandleFunc("/v1/messages", bridge.proxyAnthropicRequest)
 
 	srv := &http.Server{
-		Addr:    addr,
 		Handler: mux,
 
 		// TODO: configurable.
@@ -121,6 +119,10 @@ func (b *Bridge) openAITarget() *url.URL {
 		panic(fmt.Sprintf("failed to parse %q", u))
 	}
 	return target
+}
+
+func (b *Bridge) Handler() http.Handler {
+	return b.httpSrv.Handler
 }
 
 // proxyOpenAIRequest intercepts, filters, augments, and delivers requests & responses from client to upstream and back.
@@ -1239,13 +1241,7 @@ func (b *Bridge) Serve() error {
 		return xerrors.Errorf("listen: %w", err)
 	}
 
-	b.addr = list.Addr().String()
-
 	return b.httpSrv.Serve(list) // TODO: TLS.
-}
-
-func (b *Bridge) Addr() string {
-	return b.addr
 }
 
 // logConnectionError logs connection errors with appropriate severity

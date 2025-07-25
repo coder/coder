@@ -1,15 +1,18 @@
 package coderd
 
 import (
+	"context"
 	"fmt"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"time"
+
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/aibridged"
+	aibridgedproto "github.com/coder/coder/v2/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
@@ -33,10 +36,6 @@ func (r *rt) RoundTrip(req *http.Request) (*http.Response, error) {
 func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Something, somewhere is adding a duplicate header.
-	// Haven't been able to track it down yet.
-	// rw.Header().Del("Access-Control-Allow-Origin")
-
 	if len(api.AIBridgeDaemons) == 0 {
 		http.Error(rw, "no AI bridge daemons running", http.StatusInternalServerError)
 		return
@@ -51,19 +50,92 @@ func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := url.Parse(fmt.Sprintf("http://%s", server.BridgeAddr())) // TODO: TLS.
-	if err != nil {
-		api.Logger.Error(ctx, "failed to parse bridge address", slog.Error(err))
-		http.Error(rw, "failed to parse bridge address", http.StatusInternalServerError)
+	key, ok := r.Context().Value(aibridged.ContextKeyBridgeAPIKey{}).(string)
+	if key == "" || !ok {
+		http.Error(rw, "unable to retrieve request session key", http.StatusBadRequest)
 		return
 	}
 
-	rp := httputil.NewSingleHostReverseProxy(u)
-	rp.Transport = &rt{RoundTripper: http.DefaultTransport, server: server}
-	rp.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		api.Logger.Error(ctx, "aibridge reverse proxy error", slog.Error(err))
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
+	bridge, err := api.createOrLoadBridgeForAPIKey(ctx, key, server.Client)
+	if err != nil {
+		api.Logger.Error(ctx, "failed to create ai bridge", slog.Error(err))
+		http.Error(rw, "failed to create ai bridge", http.StatusInternalServerError)
 		return
 	}
-	http.StripPrefix("/api/v2/aibridge", rp).ServeHTTP(rw, r)
+
+	// TODO: direct func calls instead of HTTP srv?
+	done := make(chan any, 1)
+	go func() {
+		defer close(done)
+		err := bridge.Serve()
+		// TODO: better error handling.
+		// TODO: close on shutdown.
+		api.Logger.Warn(ctx, "bridge server stopped", slog.Error(err))
+	}()
+
+	http.StripPrefix("/api/v2/aibridge", bridge.Handler()).ServeHTTP(rw, r)
+}
+
+func (api *API) createOrLoadBridgeForAPIKey(ctx context.Context, key string, clientFn func() (aibridgedproto.DRPCAIBridgeDaemonClient, bool)) (*aibridged.Bridge, error) {
+	if api.AIBridges == nil {
+		return nil, xerrors.New("bridge cache storage is not configured")
+	}
+
+	api.AIBridgesMu.RLock()
+	val, _, ok := api.AIBridges.Get(key)
+	api.AIBridgesMu.RUnlock()
+
+	// TODO: TOCTOU potential here
+	// TODO: track startup time since it adds latency to first request (histogram count will also help us see how often this occurs)
+	if !ok {
+		api.AIBridgesMu.Lock()
+		defer api.AIBridgesMu.Unlock()
+
+		tools, err := api.fetchTools(ctx, api.Logger, key)
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to load tools", slog.Error(err))
+		}
+
+		bridge, err := aibridged.NewBridge(api.DeploymentValues.AI.BridgeConfig, api.Logger.Named("ai_bridge"), clientFn, tools)
+		if err != nil {
+			return nil, xerrors.Errorf("create new bridge server: %w", err)
+		}
+
+		api.Logger.Info(ctx, "created bridge") // TODO: improve usefulness; log user ID?
+
+		api.AIBridges.Set(key, bridge, time.Minute) // TODO: configurable.
+		val = bridge
+	}
+
+	return val, nil
+}
+
+func (api *API) fetchTools(ctx context.Context, logger slog.Logger, key string) ([]*aibridged.MCPTool, error) {
+	url := api.DeploymentValues.AccessURL.String() + "/api/experimental/mcp/http"
+	coderMCP, err := aibridged.NewMCPToolBridge("coder", url, map[string]string{
+		"Coder-Session-Token": key,
+	}, logger.Named("mcp-bridge-coder"))
+	if err != nil {
+		return nil, xerrors.Errorf("coder MCP bridge setup: %w", err)
+	}
+
+	// TODO: add github mcp if external auth is configured.
+	var eg errgroup.Group
+	eg.Go(func() error {
+		ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+		defer cancel()
+
+		err := coderMCP.Init(ctx)
+		if err == nil {
+			return nil
+		}
+		return xerrors.Errorf("coder: %w", err)
+	})
+
+	// This must block requests until MCP proxies are setup.
+	if err := eg.Wait(); err != nil {
+		return nil, xerrors.Errorf("MCP proxy init: %w", err)
+	}
+
+	return coderMCP.ListTools(), nil
 }

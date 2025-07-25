@@ -349,7 +349,7 @@ require (
 	github.com/hdevalence/ed25519consensus v0.1.0 // indirect
 	github.com/illarion/gonotify v1.0.1 // indirect
 	github.com/insomniacslk/dhcp v0.0.0-20231206064809-8c70d406f6d2 // indirect
-	github.com/jmespath/go-jmespath v0.4.1-0.20220621161143-b0104c826a24
+	github.com/jmespath/go-jmespath v0.4.1-0.20220621161143-b0104c826a24 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/josharian/native v1.1.1-0.20230202152459-5c7d0dd6ab86 // indirect
 	github.com/jsimonetti/rtnetlink v1.3.5 // indirect
@@ -487,6 +487,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/mark3labs/mcp-go v0.34.0
 	github.com/openai/openai-go v1.8.1
+	github.com/tidwall/sjson v1.2.5
 )
 
 require (
@@ -526,7 +527,6 @@ require (
 	github.com/sergeymakinen/go-bmp v1.0.0 // indirect
 	github.com/sergeymakinen/go-ico v1.0.0-beta.0 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
-	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/tmaxmax/go-sse v0.11.0 // indirect
 	github.com/ulikunitz/xz v0.5.12 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect

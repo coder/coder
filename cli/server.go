@@ -31,6 +31,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ammario/tlru"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-systemd/daemon"
@@ -1125,6 +1126,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				aiBridgeDaemons = append(aiBridgeDaemons, daemon)
 			}
 			coderAPI.AIBridgeDaemons = aiBridgeDaemons
+			coderAPI.AIBridges = tlru.New[string](tlru.ConstantCost[*aibridged.Bridge], 100) // TODO: configurable.
 
 			// Updates the systemd status from activating to activated.
 			_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
@@ -1571,68 +1573,11 @@ func newProvisionerDaemon(
 
 func newAIBridgeDaemon(ctx context.Context, coderAPI *coderd.API, name string, bridgeCfg codersdk.AIBridgeConfig) (*aibridged.Server, error) {
 	httpAddr := "0.0.0.0:0" // TODO: configurable.
-
-	// TODO: in reality, it won't work this way. We'll have to load the tools dynamically
-	tools, err := loadMCP(coderAPI.Logger.Named("mcp-tools"))
-	if err != nil {
-		coderAPI.Logger.Error(ctx, "failed to load MCP tools", slog.Error(err))
-	}
-
 	return aibridged.New(func(dialCtx context.Context) (aibridgedproto.DRPCAIBridgeDaemonClient, error) {
 		// This debounces calls to listen every second.
 		// TODO: is this true / necessary?
 		return coderAPI.CreateInMemoryAIBridgeDaemon(dialCtx, name)
-	}, httpAddr, coderAPI.Logger.Named("aibridged").With(slog.F("name", name)), bridgeCfg, tools)
-}
-
-func loadMCP(logger slog.Logger) ([]*aibridged.MCPTool, error) {
-	const (
-		githubMCPName = "github"
-		coderMCPName  = "coder"
-	)
-	githubMCP, err := aibridged.NewMCPToolBridge(githubMCPName, "https://api.githubcopilot.com/mcp/", map[string]string{
-		"Authorization": "Bearer " + os.Getenv("GITHUB_MCP_TOKEN"),
-	}, logger.Named("mcp-bridge-github"))
-	if err != nil {
-		return nil, xerrors.Errorf("github MCP bridge setup: %w", err)
-	}
-	coderMCP, err := aibridged.NewMCPToolBridge(coderMCPName, "https://dev.coder.com/api/experimental/mcp/http", map[string]string{
-		// "Authorization": "Bearer " + os.Getenv("CODER_MCP_TOKEN"),
-		// This is necessary to even access the MCP endpoint.
-		"Coder-Session-Token": os.Getenv("CODER_MCP_SESSION_TOKEN"),
-	}, logger.Named("mcp-bridge-coder"))
-	if err != nil {
-		return nil, xerrors.Errorf("coder MCP bridge setup: %w", err)
-	}
-
-	var eg errgroup.Group
-	eg.Go(func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-		defer cancel()
-
-		err := githubMCP.Init(ctx)
-		if err == nil {
-			return nil
-		}
-		return xerrors.Errorf("github: %w", err)
-	})
-	eg.Go(func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-		defer cancel()
-
-		err := coderMCP.Init(ctx)
-		if err == nil {
-			return nil
-		}
-		return xerrors.Errorf("coder: %w", err)
-	})
-
-	// This must block requests until MCP proxies are setup.
-	if err := eg.Wait(); err != nil {
-		return nil, xerrors.Errorf("MCP proxy init: %w", err)
-	}
-
-	return append(githubMCP.ListTools(), coderMCP.ListTools()...), nil
+	}, httpAddr, coderAPI.Logger.Named("aibridged").With(slog.F("name", name)))
 }
 
 // nolint: revive

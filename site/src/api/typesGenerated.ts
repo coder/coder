@@ -15,8 +15,14 @@ export interface AIBridgeAnthropicConfig {
 // From codersdk/deployment.go
 export interface AIBridgeConfig {
 	readonly daemons: number;
-	readonly openai_base_url: string;
+	readonly openai: AIBridgeOpenAIConfig;
 	readonly anthropic: AIBridgeAnthropicConfig;
+}
+
+// From codersdk/deployment.go
+export interface AIBridgeOpenAIConfig {
+	readonly base_url: string;
+	readonly key: string;
 }
 
 // From codersdk/deployment.go

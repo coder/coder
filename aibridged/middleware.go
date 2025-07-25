@@ -2,12 +2,15 @@ package aibridged
 
 import (
 	"bytes"
+	"context"
 	"crypto/subtle"
 	"net/http"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpmw"
 )
+
+type ContextKeyBridgeAPIKey struct{}
 
 // AuthMiddleware extracts and validates authorization tokens for AI bridge endpoints.
 // It supports both Bearer tokens in Authorization headers and Coder session tokens
@@ -34,7 +37,8 @@ func AuthMiddleware(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 
-			next.ServeHTTP(rw, r)
+			// Pass request with modify context including the request token.
+			next.ServeHTTP(rw, r.WithContext(context.WithValue(ctx, ContextKeyBridgeAPIKey{}, token)))
 		})
 	}
 }
