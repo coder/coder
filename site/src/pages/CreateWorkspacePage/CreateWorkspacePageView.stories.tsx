@@ -3,7 +3,6 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { chromatic } from "testHelpers/chromatic";
-import { withDashboardProvider } from "testHelpers/storybook";
 import {
 	MockTemplate,
 	MockTemplateVersionParameter1,
@@ -12,6 +11,7 @@ import {
 	MockUserOwner,
 	mockApiError,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
 const meta: Meta<typeof CreateWorkspacePageView> = {
