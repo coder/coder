@@ -1623,6 +1623,10 @@ CREATE TABLE template_version_presets (
     icon character varying(256) DEFAULT ''::character varying NOT NULL
 );
 
+COMMENT ON COLUMN template_version_presets.description IS 'Short text describing the preset (max 128 characters).';
+
+COMMENT ON COLUMN template_version_presets.icon IS 'URL or path to an icon representing the preset (max 256 characters).';
+
 CREATE TABLE template_version_terraform_values (
     template_version_id uuid NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
