@@ -45,6 +45,7 @@ import * as Yup from "yup";
 import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
+import {Combobox} from "../../components/Combobox/Combobox";
 
 export const Language = {
 	duplicationWarning:
@@ -153,16 +154,18 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	);
 
 	const [presetOptions, setPresetOptions] = useState([
-		{ label: "None", value: "" },
+		{ displayName: "None", value: "", icon: "", description: "" },
 	]);
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
 	// Build options and keep default label/value in sync
 	useEffect(() => {
 		const options = [
-			{ label: "None", value: "" },
-			...presets.map((p) => ({
-				label: p.Default ? `${p.Name} (Default)` : p.Name,
-				value: p.ID,
+			{ displayName: "None", value: "", icon: "", description: "" },
+			...presets.map((preset) => ({
+				displayName: preset.Default ? `${preset.Name} (Default)` : preset.Name,
+				value: preset.ID,
+				icon: preset.Icon,
+				description: preset.Description,
 			})),
 		];
 		setPresetOptions(options);
@@ -380,12 +383,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 									</Stack>
 									<Stack direction="column" spacing={2}>
 										<Stack direction="row" spacing={2}>
-											<SelectFilter
-												label="Preset"
+											<Combobox
+												value={presetOptions[selectedPresetIndex]?.displayName || ""}
 												options={presetOptions}
-												onSelect={(option) => {
+												placeholder="Select a preset"
+												onSelect={(value) => {
 													const index = presetOptions.findIndex(
-														(preset) => preset.value === option?.value,
+														(preset) => preset.value === value,
 													);
 													if (index === -1) {
 														return;
@@ -393,12 +397,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 													setSelectedPresetIndex(index);
 													form.setFieldValue(
 														"template_version_preset_id",
-														// Empty string is equivalent to using None
-														option?.value === "" ? undefined : option?.value,
+														presetOptions[index].value === "" ? undefined : presetOptions[index].value,
 													);
 												}}
-												placeholder="Select a preset"
-												selectedOption={presetOptions[selectedPresetIndex]}
 											/>
 										</Stack>
 										{/* Only show the preset parameter visibility toggle if preset parameters are actually being modified, otherwise it has no effect. */}
