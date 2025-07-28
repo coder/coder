@@ -701,7 +701,7 @@ func createWorkspace(
 			return xerrors.Errorf("get workspace by ID: %w", err)
 		}
 
-		builder := wsbuilder.New(workspace, database.WorkspaceTransitionStart).
+		builder := wsbuilder.New(workspace, database.WorkspaceTransitionStart, *api.BuildUsageChecker.Load()).
 			Reason(database.BuildReasonInitiator).
 			Initiator(initiatorID).
 			ActiveVersion().

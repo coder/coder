@@ -1864,6 +1864,7 @@ func TestExecutorPrebuilds(t *testing.T) {
 			clock,
 			prometheus.NewRegistry(),
 			notificationsNoop,
+			api.AGPL.BuildUsageChecker,
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2004,6 +2005,7 @@ func TestExecutorPrebuilds(t *testing.T) {
 					clock,
 					prometheus.NewRegistry(),
 					notificationsNoop,
+					api.AGPL.BuildUsageChecker,
 				)
 				var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 				api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2134,6 +2136,7 @@ func TestExecutorPrebuilds(t *testing.T) {
 			clock,
 			prometheus.NewRegistry(),
 			notificationsNoop,
+			api.AGPL.BuildUsageChecker,
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2266,6 +2269,7 @@ func TestExecutorPrebuilds(t *testing.T) {
 			clock,
 			prometheus.NewRegistry(),
 			notificationsNoop,
+			api.AGPL.BuildUsageChecker,
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
@@ -2376,6 +2380,7 @@ func TestExecutorPrebuilds(t *testing.T) {
 			clock,
 			prometheus.NewRegistry(),
 			notificationsNoop,
+			api.AGPL.BuildUsageChecker,
 		)
 		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
 		api.AGPL.PrebuildsClaimer.Store(&claimer)

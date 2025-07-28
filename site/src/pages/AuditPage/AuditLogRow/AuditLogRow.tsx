@@ -3,7 +3,7 @@ import Collapse from "@mui/material/Collapse";
 import Link from "@mui/material/Link";
 import TableCell from "@mui/material/TableCell";
 import Tooltip from "@mui/material/Tooltip";
-import type { AuditLog } from "api/typesGenerated";
+import type { AuditLog, BuildReason } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
@@ -14,6 +14,7 @@ import { NetworkIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import userAgentParser from "ua-parser-js";
+import { buildReasonLabels } from "utils/workspace";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
 import {
@@ -166,12 +167,20 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 															</Link>
 														</div>
 													)}
-													{auditLog.additional_fields?.reason && (
-														<div>
-															<h4 css={styles.auditLogInfoHeader}>Reason:</h4>
-															<div>{auditLog.additional_fields?.reason}</div>
-														</div>
-													)}
+													{auditLog.additional_fields?.build_reason &&
+														auditLog.action === "start" && (
+															<div>
+																<h4 css={styles.auditLogInfoHeader}>Reason:</h4>
+																<div>
+																	{
+																		buildReasonLabels[
+																			auditLog.additional_fields
+																				.build_reason as BuildReason
+																		]
+																	}
+																</div>
+															</div>
+														)}
 												</div>
 											}
 										>
@@ -203,6 +212,20 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 													</strong>
 												</span>
 											)}
+											{auditLog.additional_fields?.build_reason &&
+												auditLog.action === "start" && (
+													<span css={styles.auditLogInfo}>
+														<span>Reason: </span>
+														<strong>
+															{
+																buildReasonLabels[
+																	auditLog.additional_fields
+																		.build_reason as BuildReason
+																]
+															}
+														</strong>
+													</span>
+												)}
 										</Stack>
 									)}
 								</Stack>

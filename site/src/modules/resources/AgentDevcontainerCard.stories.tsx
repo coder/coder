@@ -91,6 +91,29 @@ export const Recreating: Story = {
 	},
 };
 
+export const NoContainerOrSubAgent: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			container: undefined,
+			agent: undefined,
+		},
+		subAgents: [],
+	},
+};
+
+export const NoContainerOrAgentOrName: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			container: undefined,
+			agent: undefined,
+			name: "",
+		},
+		subAgents: [],
+	},
+};
+
 export const NoSubAgent: Story = {
 	args: {
 		devcontainer: {

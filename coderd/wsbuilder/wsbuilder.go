@@ -56,6 +56,7 @@ type Builder struct {
 	logLevel         string
 	deploymentValues *codersdk.DeploymentValues
 	experiments      codersdk.Experiments
+	usageChecker     UsageChecker
 
 	richParameterValues     []codersdk.WorkspaceBuildParameter
 	initiator               uuid.UUID
@@ -89,7 +90,24 @@ type Builder struct {
 	verifyNoLegacyParametersOnce bool
 }
 
-type Option func(Builder) Builder
+type UsageChecker interface {
+	CheckBuildUsage(ctx context.Context, store database.Store, templateVersion *database.TemplateVersion) (UsageCheckResponse, error)
+}
+
+type UsageCheckResponse struct {
+	Permitted bool
+	Message   string
+}
+
+type NoopUsageChecker struct{}
+
+var _ UsageChecker = NoopUsageChecker{}
+
+func (NoopUsageChecker) CheckBuildUsage(_ context.Context, _ database.Store, _ *database.TemplateVersion) (UsageCheckResponse, error) {
+	return UsageCheckResponse{
+		Permitted: true,
+	}, nil
+}
 
 // versionTarget expresses how to determine the template version for the build.
 //
@@ -121,8 +139,8 @@ type stateTarget struct {
 	explicit *[]byte
 }
 
-func New(w database.Workspace, t database.WorkspaceTransition) Builder {
-	return Builder{workspace: w, trans: t}
+func New(w database.Workspace, t database.WorkspaceTransition, uc UsageChecker) Builder {
+	return Builder{workspace: w, trans: t, usageChecker: uc}
 }
 
 // Methods that customize the build are public, have a struct receiver and return a new Builder.
@@ -318,6 +336,10 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		return nil, nil, nil, err
 	}
 	err = b.checkTemplateJobStatus()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	err = b.checkUsage()
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -1250,6 +1272,23 @@ func (b *Builder) checkTemplateJobStatus() error {
 			xerrors.New(msg),
 		}
 	}
+	return nil
+}
+
+func (b *Builder) checkUsage() error {
+	templateVersion, err := b.getTemplateVersion()
+	if err != nil {
+		return BuildError{http.StatusInternalServerError, "Failed to fetch template version", err}
+	}
+
+	resp, err := b.usageChecker.CheckBuildUsage(b.ctx, b.store, templateVersion)
+	if err != nil {
+		return BuildError{http.StatusInternalServerError, "Failed to check build usage", err}
+	}
+	if !resp.Permitted {
+		return BuildError{http.StatusForbidden, "Build is not permitted: " + resp.Message, nil}
+	}
+
 	return nil
 }
 

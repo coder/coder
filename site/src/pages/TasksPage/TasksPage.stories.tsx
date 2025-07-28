@@ -4,12 +4,14 @@ import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
+	MockAIPromptPresets,
+	MockNewTaskData,
+	MockPresets,
+	MockTasks,
 	MockTemplate,
 	MockTemplateVersionExternalAuthGithub,
 	MockTemplateVersionExternalAuthGithubAuthenticated,
 	MockUserOwner,
-	MockWorkspace,
-	MockWorkspaceAppStatus,
 	mockApiError,
 } from "testHelpers/entities";
 import {
@@ -31,6 +33,7 @@ const meta: Meta<typeof TasksPage> = {
 	},
 	beforeEach: () => {
 		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([]);
+		spyOn(API, "getTemplateVersionPresets").mockResolvedValue(null);
 		spyOn(API, "getUsers").mockResolvedValue({
 			users: MockUsers,
 			count: MockUsers.length,
@@ -53,7 +56,7 @@ type Story = StoryObj<typeof TasksPage>;
 export const LoadingAITemplates: Story = {
 	beforeEach: () => {
 		spyOn(data, "fetchAITemplates").mockImplementation(
-			() => new Promise((res) => 1000 * 60 * 60),
+			() => new Promise(() => 1000 * 60 * 60),
 		);
 	},
 };
@@ -79,7 +82,7 @@ export const LoadingTasks: Story = {
 	beforeEach: () => {
 		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
 		spyOn(data, "fetchTasks").mockImplementation(
-			() => new Promise((res) => 1000 * 60 * 60),
+			() => new Promise(() => 1000 * 60 * 60),
 		);
 	},
 	play: async ({ canvasElement, step }) => {
@@ -119,15 +122,77 @@ export const LoadedTasks: Story = {
 	},
 };
 
-const newTaskData = {
-	prompt: "Create a new task",
-	workspace: {
-		...MockWorkspace,
-		id: "workspace-4",
-		latest_app_status: {
-			...MockWorkspaceAppStatus,
-			message: "Task created successfully!",
-		},
+export const LoadedTasksWithPresets: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		const mockTemplateWithPresets = {
+			...MockTemplate,
+			id: "test-template-2",
+			name: "template-with-presets",
+			display_name: "Template with Presets",
+		};
+
+		spyOn(data, "fetchAITemplates").mockResolvedValue([
+			MockTemplate,
+			mockTemplateWithPresets,
+		]);
+		spyOn(data, "fetchTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTemplateVersionPresets").mockImplementation(
+			async (versionId) => {
+				// Return presets only for the second template
+				if (versionId === mockTemplateWithPresets.active_version_id) {
+					return MockPresets;
+				}
+				return null;
+			},
+		);
+	},
+};
+
+export const LoadedTasksWithAIPromptPresets: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		const mockTemplateWithPresets = {
+			...MockTemplate,
+			id: "test-template-2",
+			name: "template-with-presets",
+			display_name: "Template with AI Prompt Presets",
+		};
+
+		spyOn(data, "fetchAITemplates").mockResolvedValue([
+			MockTemplate,
+			mockTemplateWithPresets,
+		]);
+		spyOn(data, "fetchTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTemplateVersionPresets").mockImplementation(
+			async (versionId) => {
+				// Return presets only for the second template
+				if (versionId === mockTemplateWithPresets.active_version_id) {
+					return MockAIPromptPresets;
+				}
+				return null;
+			},
+		);
+	},
+};
+
+export const LoadedTasksEdgeCases: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
+		spyOn(data, "fetchTasks").mockResolvedValue(MockTasks);
+
+		// Test various edge cases for presets
+		spyOn(API, "getTemplateVersionPresets").mockImplementation(async () => {
+			return [
+				{
+					ID: "malformed",
+					Name: "Malformed Preset",
+					Default: true,
+				},
+				// biome-ignore lint/suspicious/noExplicitAny: Testing malformed data edge cases
+			] as any;
+		});
 	},
 };
 
@@ -154,15 +219,15 @@ export const CreateTaskSuccessfully: Story = {
 		spyOn(data, "fetchAITemplates").mockResolvedValue([MockTemplate]);
 		spyOn(data, "fetchTasks")
 			.mockResolvedValueOnce(MockTasks)
-			.mockResolvedValue([newTaskData, ...MockTasks]);
-		spyOn(data, "createTask").mockResolvedValue(newTaskData);
+			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
+		spyOn(data, "createTask").mockResolvedValue(MockNewTaskData);
 	},
 	play: async ({ canvasElement, step }) => {
 		const canvas = within(canvasElement);
 
 		await step("Run task", async () => {
 			const prompt = await canvas.findByLabelText(/prompt/i);
-			await userEvent.type(prompt, newTaskData.prompt);
+			await userEvent.type(prompt, MockNewTaskData.prompt);
 			const submitButton = canvas.getByRole("button", { name: /run task/i });
 			await waitFor(() => expect(submitButton).toBeEnabled());
 			await userEvent.click(submitButton);
@@ -208,8 +273,8 @@ export const WithAuthenticatedExternalAuth: Story = {
 	beforeEach: () => {
 		spyOn(data, "fetchTasks")
 			.mockResolvedValueOnce(MockTasks)
-			.mockResolvedValue([newTaskData, ...MockTasks]);
-		spyOn(data, "createTask").mockResolvedValue(newTaskData);
+			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
+		spyOn(data, "createTask").mockResolvedValue(MockNewTaskData);
 		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
 			MockTemplateVersionExternalAuthGithubAuthenticated,
 		]);
@@ -235,8 +300,8 @@ export const MissingExternalAuth: Story = {
 	beforeEach: () => {
 		spyOn(data, "fetchTasks")
 			.mockResolvedValueOnce(MockTasks)
-			.mockResolvedValue([newTaskData, ...MockTasks]);
-		spyOn(data, "createTask").mockResolvedValue(newTaskData);
+			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
+		spyOn(data, "createTask").mockResolvedValue(MockNewTaskData);
 		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
 			MockTemplateVersionExternalAuthGithub,
 		]);
@@ -246,7 +311,7 @@ export const MissingExternalAuth: Story = {
 
 		await step("Submit is disabled", async () => {
 			const prompt = await canvas.findByLabelText(/prompt/i);
-			await userEvent.type(prompt, newTaskData.prompt);
+			await userEvent.type(prompt, MockNewTaskData.prompt);
 			const submitButton = canvas.getByRole("button", { name: /run task/i });
 			expect(submitButton).toBeDisabled();
 		});
@@ -262,8 +327,8 @@ export const ExternalAuthError: Story = {
 	beforeEach: () => {
 		spyOn(data, "fetchTasks")
 			.mockResolvedValueOnce(MockTasks)
-			.mockResolvedValue([newTaskData, ...MockTasks]);
-		spyOn(data, "createTask").mockResolvedValue(newTaskData);
+			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
+		spyOn(data, "createTask").mockResolvedValue(MockNewTaskData);
 		spyOn(API, "getTemplateVersionExternalAuth").mockRejectedValue(
 			mockApiError({
 				message: "Failed to load external auth",
@@ -275,7 +340,7 @@ export const ExternalAuthError: Story = {
 
 		await step("Submit is disabled", async () => {
 			const prompt = await canvas.findByLabelText(/prompt/i);
-			await userEvent.type(prompt, newTaskData.prompt);
+			await userEvent.type(prompt, MockNewTaskData.prompt);
 			const submitButton = canvas.getByRole("button", { name: /run task/i });
 			expect(submitButton).toBeDisabled();
 		});
@@ -308,35 +373,3 @@ export const NonAdmin: Story = {
 		});
 	},
 };
-
-const MockTasks = [
-	{
-		workspace: {
-			...MockWorkspace,
-			latest_app_status: MockWorkspaceAppStatus,
-		},
-		prompt: "Create competitors page",
-	},
-	{
-		workspace: {
-			...MockWorkspace,
-			id: "workspace-2",
-			latest_app_status: {
-				...MockWorkspaceAppStatus,
-				message: "Avatar size fixed!",
-			},
-		},
-		prompt: "Fix user avatar size",
-	},
-	{
-		workspace: {
-			...MockWorkspace,
-			id: "workspace-3",
-			latest_app_status: {
-				...MockWorkspaceAppStatus,
-				message: "Accessibility issues fixed!",
-			},
-		},
-		prompt: "Fix accessibility issues",
-	},
-];

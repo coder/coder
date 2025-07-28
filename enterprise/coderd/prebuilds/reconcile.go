@@ -39,15 +39,16 @@ import (
 )
 
 type StoreReconciler struct {
-	store      database.Store
-	cfg        codersdk.PrebuildsConfig
-	pubsub     pubsub.Pubsub
-	fileCache  *files.Cache
-	logger     slog.Logger
-	clock      quartz.Clock
-	registerer prometheus.Registerer
-	metrics    *MetricsCollector
-	notifEnq   notifications.Enqueuer
+	store             database.Store
+	cfg               codersdk.PrebuildsConfig
+	pubsub            pubsub.Pubsub
+	fileCache         *files.Cache
+	logger            slog.Logger
+	clock             quartz.Clock
+	registerer        prometheus.Registerer
+	metrics           *MetricsCollector
+	notifEnq          notifications.Enqueuer
+	buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker]
 
 	cancelFn          context.CancelCauseFunc
 	running           atomic.Bool
@@ -66,6 +67,7 @@ func NewStoreReconciler(store database.Store,
 	clock quartz.Clock,
 	registerer prometheus.Registerer,
 	notifEnq notifications.Enqueuer,
+	buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker],
 ) *StoreReconciler {
 	reconciler := &StoreReconciler{
 		store:             store,
@@ -76,6 +78,7 @@ func NewStoreReconciler(store database.Store,
 		clock:             clock,
 		registerer:        registerer,
 		notifEnq:          notifEnq,
+		buildUsageChecker: buildUsageChecker,
 		done:              make(chan struct{}, 1),
 		provisionNotifyCh: make(chan database.ProvisionerJob, 10),
 	}
@@ -738,7 +741,7 @@ func (c *StoreReconciler) provision(
 		})
 	}
 
-	builder := wsbuilder.New(workspace, transition).
+	builder := wsbuilder.New(workspace, transition, *c.buildUsageChecker.Load()).
 		Reason(database.BuildReasonInitiator).
 		Initiator(database.PrebuildsSystemUserID).
 		MarkPrebuild()
