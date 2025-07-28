@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import MuiLink from "@mui/material/Link";
 import type { Feature } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -74,13 +73,13 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 	// If no feature is provided or it's disabled, show disabled state
 	if (!managedAgentFeature?.enabled) {
 		return (
-			<div css={styles.disabledRoot}>
+			<div className="min-h-60 flex items-center justify-center rounded-lg border border-solid p-12">
 				<Stack alignItems="center" spacing={1}>
 					<Stack alignItems="center" spacing={0.5}>
-						<span css={styles.disabledTitle}>
+						<span className="text-base">
 							Managed AI Agents Disabled
 						</span>
-						<span css={styles.disabledDescription}>
+						<span className="text-content-secondary text-center max-w-[464px] mt-2">
 							Managed AI agents are not included in your current license.
 							Contact{" "}
 							<MuiLink href="mailto:sales@coder.com">sales</MuiLink> to upgrade
@@ -101,6 +100,20 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 	const usagePercentage = Math.min((usage / limit) * 100, 100);
 	const includedPercentage = Math.min((included / limit) * 100, 100);
 	const remainingPercentage = Math.max(100 - includedPercentage, 0);
+
+	// Determine usage bar color based on percentage
+	const getUsageColor = () => {
+		const actualUsagePercent = (usage / limit) * 100;
+		if (actualUsagePercent >= 100) {
+			return "bg-highlight-red"; // Critical: at or over limit
+		}
+		if (actualUsagePercent >= 80) {
+			return "bg-surface-orange"; // Warning: approaching limit
+		}
+		return "bg-highlight-green"; // Normal: safe usage
+	};
+
+	const usageBarColor = getUsageColor();
 
 	return (
 		<section className="border border-solid rounded">
@@ -139,7 +152,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 						<ul>
 							<li className="flex items-center gap-2">
 								<div
-									className="rounded-[2px] bg-highlight-green size-3 inline-block"
+									className={`rounded-[2px] ${usageBarColor} size-3 inline-block`}
 									aria-label="Legend for current usage in the chart"
 								/>
 								Amount of started workspaces with an AI agent.
@@ -175,7 +188,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 
 				<div className="relative h-6 bg-surface-secondary rounded overflow-hidden">
 					<div
-						className="absolute top-0 left-0 h-full bg-highlight-green transition-all duration-300"
+						className={`absolute top-0 left-0 h-full ${usageBarColor} transition-all duration-300`}
 						style={{ width: `${usagePercentage}%` }}
 					/>
 
@@ -230,26 +243,3 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 		</section>
 	);
 };
-
-const styles = {
-	disabledTitle: {
-		fontSize: 16,
-	},
-
-	disabledRoot: (theme) => ({
-		minHeight: 240,
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		borderRadius: 8,
-		border: `1px solid ${theme.palette.divider}`,
-		padding: 48,
-	}),
-
-	disabledDescription: (theme) => ({
-		color: theme.palette.text.secondary,
-		textAlign: "center",
-		maxWidth: 464,
-		marginTop: 8,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
