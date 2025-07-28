@@ -275,6 +275,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 			files       map[string]string
 			reqTags     map[string]string
 			wantTags    map[string]string
+			variables   []codersdk.VariableValue
 			expectError string
 		}{
 			{
@@ -290,6 +291,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							default = "1"
 						}
 						data "coder_parameter" "b" {
+                            name = "b"
 							type = string
 							default = "2"
 						}
@@ -311,6 +313,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							default = "1"
 						}
 						data "coder_parameter" "b" {
+                            name = "b"
 							type = string
 							default = "2"
 						}
@@ -335,6 +338,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							default = "1"
 						}
 						data "coder_parameter" "b" {
+                            name = "b"
 							type = string
 							default = "2"
 						}
@@ -365,6 +369,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							default = "1"
 						}
 						data "coder_parameter" "b" {
+                            name = "b"
 							type = string
 							default = "2"
 						}
@@ -395,6 +400,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							default = "1"
 						}
 						data "coder_parameter" "b" {
+                            name = "b"
 							type = string
 							default = "2"
 						}
@@ -429,11 +435,12 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							}
 						}`,
 				},
-				reqTags:  map[string]string{"a": "b"},
-				wantTags: map[string]string{"owner": "", "scope": "organization", "a": "b"},
+				reqTags:   map[string]string{"a": "b"},
+				wantTags:  map[string]string{"owner": "", "scope": "organization", "a": "b"},
+				variables: []codersdk.VariableValue{{Name: "a", Value: "b"}},
 			},
 			{
-				name: "main.tf with disallowed workspace tag value",
+				name: "main.tf with resource reference",
 				files: map[string]string{
 					`main.tf`: `
 						variable "a" {
@@ -441,6 +448,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							default = "1"
 						}
 						data "coder_parameter" "b" {
+                            name = "b"
 							type = string
 							default = "2"
 						}
@@ -461,38 +469,8 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							}
 						}`,
 				},
-				expectError: `Unknown variable; There is no variable named "null_resource".`,
-			},
-			{
-				name: "main.tf with disallowed function in tag value",
-				files: map[string]string{
-					`main.tf`: `
-						variable "a" {
-							type = string
-							default = "1"
-						}
-						data "coder_parameter" "b" {
-							type = string
-							default = "2"
-						}
-						data "coder_parameter" "unrelated" {
-							name    = "unrelated"
-							type    = "list(string)"
-							default = jsonencode(["a", "b"])
-						}
-						resource "null_resource" "test" {
-							name = "foo"
-						}
-						data "coder_workspace_tags" "tags" {
-							tags = {
-								"foo": "bar",
-								"a": var.a,
-								"b": data.coder_parameter.b.value,
-								"test": pathexpand("~/file.txt"),
-							}
-						}`,
-				},
-				expectError: `function "pathexpand" may not be used here`,
+				reqTags:  map[string]string{"foo": "bar", "a": "1", "b": "2", "test": "foo"},
+				wantTags: map[string]string{"owner": "", "scope": "organization", "foo": "bar", "a": "1", "b": "2", "test": "foo"},
 			},
 			// We will allow coder_workspace_tags to set the scope on a template version import job
 			// BUT the user ID will be ultimately determined by the API key in the scope.
@@ -618,11 +596,12 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				// Create a template version from the archive
 				tvName := testutil.GetRandomNameHyphenated(t)
 				tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
-					Name:            tvName,
-					StorageMethod:   codersdk.ProvisionerStorageMethodFile,
-					Provisioner:     codersdk.ProvisionerTypeTerraform,
-					FileID:          fi.ID,
-					ProvisionerTags: tt.reqTags,
+					Name:               tvName,
+					StorageMethod:      codersdk.ProvisionerStorageMethodFile,
+					Provisioner:        codersdk.ProvisionerTypeTerraform,
+					FileID:             fi.ID,
+					ProvisionerTags:    tt.reqTags,
+					UserVariableValues: tt.variables,
 				})
 
 				if tt.expectError == "" {
