@@ -4577,6 +4577,8 @@ export const MockPresets: TypesGen.Preset[] = [
 	{
 		ID: "preset-1",
 		Name: "Development",
+		Description: "",
+		Icon: "",
 		Parameters: [
 			{ Name: "cpu", Value: "4" },
 			{ Name: "memory", Value: "8GB" },
@@ -4587,6 +4589,8 @@ export const MockPresets: TypesGen.Preset[] = [
 	{
 		ID: "preset-2",
 		Name: "Testing",
+		Description: "",
+		Icon: "",
 		Parameters: [
 			{ Name: "cpu", Value: "2" },
 			{ Name: "memory", Value: "4GB" },
@@ -4597,6 +4601,8 @@ export const MockPresets: TypesGen.Preset[] = [
 	{
 		ID: "preset-3",
 		Name: "Production",
+		Description: "",
+		Icon: "",
 		Parameters: [
 			{ Name: "cpu", Value: "8" },
 			{ Name: "memory", Value: "16GB" },
@@ -4610,6 +4616,8 @@ export const MockAIPromptPresets: TypesGen.Preset[] = [
 	{
 		ID: "ai-preset-1",
 		Name: "Code Review",
+		Description: "",
+		Icon: "",
 		Parameters: [
 			{ Name: "AI Prompt", Value: "Review the code for best practices" },
 			{ Name: "cpu", Value: "4" },
@@ -4621,6 +4629,8 @@ export const MockAIPromptPresets: TypesGen.Preset[] = [
 	{
 		ID: "ai-preset-2",
 		Name: "Custom Prompt",
+		Description: "",
+		Icon: "",
 		Parameters: [
 			{ Name: "cpu", Value: "4" },
 			{ Name: "memory", Value: "8GB" },
