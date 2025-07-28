@@ -67,8 +67,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.streamableServer.ServeHTTP(w, r)
 }
 
-// RegisterTools registers all available MCP tools with the server
-func (s *Server) RegisterTools(client *codersdk.Client) error {
+// RegisterTools registers MCP tools with the server
+func (s *Server) RegisterTools(client *codersdk.Client, tools []toolsdk.GenericTool) error {
 	if client == nil {
 		return xerrors.New("client cannot be nil: MCP HTTP server requires authenticated client")
 	}
@@ -79,13 +79,7 @@ func (s *Server) RegisterTools(client *codersdk.Client) error {
 		return xerrors.Errorf("failed to initialize tool dependencies: %w", err)
 	}
 
-	// Register all available tools, but exclude tools that require dependencies not available in the
-	// remote MCP context
-	for _, tool := range toolsdk.All {
-		if tool.Name == toolsdk.ToolNameReportTask {
-			continue
-		}
-
+	for _, tool := range tools {
 		s.mcpServer.AddTools(mcpFromSDK(tool, toolDeps))
 	}
 	return nil

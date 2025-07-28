@@ -36,6 +36,8 @@ const (
 	ToolNameCreateTemplate              = "coder_create_template"
 	ToolNameDeleteTemplate              = "coder_delete_template"
 	ToolNameWorkspaceBash               = "coder_workspace_bash"
+	ToolNameChatGPTSearch               = "search"
+	ToolNameChatGPTFetch                = "fetch"
 )
 
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
@@ -194,6 +196,8 @@ var All = []GenericTool{
 	UploadTarFile.Generic(),
 	UpdateTemplateActiveVersion.Generic(),
 	WorkspaceBash.Generic(),
+	ChatGPTSearch.Generic(),
+	ChatGPTFetch.Generic(),
 }
 
 type ReportTaskArgs struct {
