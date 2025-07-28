@@ -472,7 +472,7 @@ data "coder_parameter" "{{ .Name }}" {
 	max   = {{ .ValidationMax }}
 	{{- end }}
 	{{- if .ValidationMonotonic }}
-	monotonic = {{ .ValidationMonotonic }}
+	monotonic = "{{ .ValidationMonotonic }}"
 	{{- end }}
   }
 {{- end }}
