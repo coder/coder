@@ -553,7 +553,10 @@ func (api *API) discoverDevcontainersInProject(projectPath string) error {
 				api.broadcastUpdatesLocked()
 
 				if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting {
+					api.asyncWg.Add(1)
 					go func() {
+						defer api.asyncWg.Done()
+
 						_ = api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath)
 					}()
 				}
