@@ -128,6 +128,9 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.update(),
 		r.whoami(),
 
+		// External Workspace Commands
+		r.externalWorkspaces(),
+
 		// Hidden
 		r.connectCmd(),
 		r.expCmd(),

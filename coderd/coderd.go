@@ -1413,7 +1413,7 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteWorkspaceAgentPortShare)
 				})
 				r.Route("/external-agent", func(r chi.Router) {
-					r.Get("/{agent}/credential", api.workspaceExternalAgentCredential)
+					r.Get("/{agent}/credentials", api.workspaceExternalAgentCredentials)
 				})
 				r.Get("/timings", api.workspaceTimings)
 			})

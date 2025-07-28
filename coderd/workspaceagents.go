@@ -2189,9 +2189,9 @@ func convertWorkspaceAgentLog(logEntry database.WorkspaceAgentLog) codersdk.Work
 // @Tags Agents
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param agent path string true "Agent name"
-// @Success 200 {object} codersdk.ExternalAgentCredential
-// @Router /workspaces/{workspace}/external-agent/{agent}/credential [get]
-func (api *API) workspaceExternalAgentCredential(rw http.ResponseWriter, r *http.Request) {
+// @Success 200 {object} codersdk.ExternalAgentCredentials
+// @Router /workspaces/{workspace}/external-agent/{agent}/credentials [get]
+func (api *API) workspaceExternalAgentCredentials(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
 	agentName := chi.URLParam(r, "agent")
@@ -2219,7 +2219,7 @@ func (api *API) workspaceExternalAgentCredential(rw http.ResponseWriter, r *http
 
 	for _, agent := range agents {
 		if agent.Name == agentName {
-			httpapi.Write(ctx, rw, http.StatusOK, codersdk.ExternalAgentCredential{
+			httpapi.Write(ctx, rw, http.StatusOK, codersdk.ExternalAgentCredentials{
 				AgentToken: agent.AuthToken.String(),
 			})
 			return

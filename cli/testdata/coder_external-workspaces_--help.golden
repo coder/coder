@@ -1,0 +1,17 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder external-workspaces [flags] [subcommand]
+
+  External workspace related commands
+
+SUBCOMMANDS:
+    agent-instructions    Get the instructions for an external agent
+    create                Create a new external workspace
+
+OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
+———
+Run `coder --help` for a list of global options.

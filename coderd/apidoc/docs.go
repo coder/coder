@@ -10258,7 +10258,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaces/{workspace}/external-agent/{agent}/credential": {
+        "/workspaces/{workspace}/external-agent/{agent}/credentials": {
             "get": {
                 "security": [
                     {
@@ -10294,7 +10294,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.ExternalAgentCredential"
+                            "$ref": "#/definitions/codersdk.ExternalAgentCredentials"
                         }
                     }
                 }
@@ -12908,7 +12908,7 @@ const docTemplate = `{
                 "ExperimentMCPServerHTTP"
             ]
         },
-        "codersdk.ExternalAgentCredential": {
+        "codersdk.ExternalAgentCredentials": {
             "type": "object",
             "properties": {
                 "agent_token": {

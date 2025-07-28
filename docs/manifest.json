@@ -1161,6 +1161,21 @@
 							"path": "reference/cli/external-auth_access-token.md"
 						},
 						{
+							"title": "external-workspaces",
+							"description": "External workspace related commands",
+							"path": "reference/cli/external-workspaces.md"
+						},
+						{
+							"title": "external-workspaces agent-instructions",
+							"description": "Get the instructions for an external agent",
+							"path": "reference/cli/external-workspaces_agent-instructions.md"
+						},
+						{
+							"title": "external-workspaces create",
+							"description": "Create a new external workspace",
+							"path": "reference/cli/external-workspaces_create.md"
+						},
+						{
 							"title": "favorite",
 							"description": "Add a workspace to your favorites",
 							"path": "reference/cli/favorite.md"

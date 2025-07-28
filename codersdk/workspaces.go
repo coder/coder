@@ -663,21 +663,21 @@ func (c *Client) WorkspaceTimings(ctx context.Context, id uuid.UUID) (WorkspaceB
 	return timings, json.NewDecoder(res.Body).Decode(&timings)
 }
 
-// ExternalAgentCredential contains the credential needed for an external agent to connect to Coder.
-type ExternalAgentCredential struct {
+// ExternalAgentCredentials contains the credentials needed for an external agent to connect to Coder.
+type ExternalAgentCredentials struct {
 	AgentToken string `json:"agent_token"`
 }
 
-func (c *Client) WorkspaceExternalAgentCredential(ctx context.Context, workspaceID uuid.UUID, agentName string) (ExternalAgentCredential, error) {
-	path := fmt.Sprintf("/api/v2/workspaces/%s/external-agent/%s/credential", workspaceID.String(), agentName)
+func (c *Client) WorkspaceExternalAgentCredential(ctx context.Context, workspaceID uuid.UUID, agentName string) (ExternalAgentCredentials, error) {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/external-agent/%s/credentials", workspaceID.String(), agentName)
 	res, err := c.Request(ctx, http.MethodGet, path, nil)
 	if err != nil {
-		return ExternalAgentCredential{}, err
+		return ExternalAgentCredentials{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ExternalAgentCredential{}, ReadBodyAsError(res)
+		return ExternalAgentCredentials{}, ReadBodyAsError(res)
 	}
-	var credential ExternalAgentCredential
-	return credential, json.NewDecoder(res.Body).Decode(&credential)
+	var credentials ExternalAgentCredentials
+	return credentials, json.NewDecoder(res.Body).Decode(&credentials)
 }

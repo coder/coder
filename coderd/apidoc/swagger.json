@@ -9074,7 +9074,7 @@
 				}
 			}
 		},
-		"/workspaces/{workspace}/external-agent/{agent}/credential": {
+		"/workspaces/{workspace}/external-agent/{agent}/credentials": {
 			"get": {
 				"security": [
 					{
@@ -9106,7 +9106,7 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/codersdk.ExternalAgentCredential"
+							"$ref": "#/definitions/codersdk.ExternalAgentCredentials"
 						}
 					}
 				}
@@ -11574,7 +11574,7 @@
 				"ExperimentMCPServerHTTP"
 			]
 		},
-		"codersdk.ExternalAgentCredential": {
+		"codersdk.ExternalAgentCredentials": {
 			"type": "object",
 			"properties": {
 				"agent_token": {
