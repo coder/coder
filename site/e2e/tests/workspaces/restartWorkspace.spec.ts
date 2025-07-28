@@ -13,7 +13,6 @@ import { beforeCoderTest } from "../../hooks";
 import { firstBuildOption, secondBuildOption } from "../../parameters";
 import type { RichParameter } from "../../provisionerGenerated";
 
-
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
 });
