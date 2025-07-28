@@ -443,7 +443,7 @@ data "coder_parameter" "{{ .Name }}" {
   ephemeral    = {{ .Ephemeral }}
   order 	 = {{ .Order }}
 {{- if .DefaultValue }}
-  default      = "{{ .DefaultValue }}"
+  default      = {{ .DefaultValue }}
 {{- end }}
 {{- if .Type }}
   type      = "{{ .Type }}"
