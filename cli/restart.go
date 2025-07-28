@@ -59,7 +59,7 @@ func (r *RootCmd) restart() *serpent.Command {
 				Transition: codersdk.WorkspaceTransitionStop,
 				// Ephemeral parameters should be passed to both stop and start builds.
 				// TODO: maybe these values should be sourced from the previous build?
-				//  It has to be manually sourced, as ephermeral parameters do not carry across
+				//  It has to be manually sourced, as ephemeral parameters do not carry across
 				//  builds.
 				RichParameterValues: stopParamValues,
 			}
