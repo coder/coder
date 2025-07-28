@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -48,7 +48,7 @@ func TestPriorityQueue(t *testing.T) {
 		Input:          json.RawMessage(`{}`),
 		Tags:           database.StringMap{},
 		TraceMetadata:  pqtype.NullRawMessage{},
-		Priority:       1, // Human-initiated should have priority 1
+
 	})
 	require.NoError(t, err)
 
@@ -66,13 +66,13 @@ func TestPriorityQueue(t *testing.T) {
 		Input:          json.RawMessage(`{}`),
 		Tags:           database.StringMap{},
 		TraceMetadata:  pqtype.NullRawMessage{},
-		Priority:       0, // Prebuild should have priority 0
+
 	})
 	require.NoError(t, err)
 
-	// Verify that human job has higher priority than prebuild job
-	require.Equal(t, int32(1), humanJob.Priority, "Human-initiated job should have priority 1")
-	require.Equal(t, int32(0), prebuildJob.Priority, "Prebuild job should have priority 0")
+	// Verify that jobs have correct initiator IDs
+	require.Equal(t, owner.UserID, humanJob.InitiatorID, "Human-initiated job should have user as initiator")
+	require.Equal(t, database.PrebuildsSystemUserID, prebuildJob.InitiatorID, "Prebuild job should have system user as initiator")
 
 	// Test job acquisition order - human jobs should be acquired first
 	// Even though the prebuild job was created later, the human job should be acquired first due to higher priority
@@ -84,7 +84,7 @@ func TestPriorityQueue(t *testing.T) {
 		ProvisionerTags: json.RawMessage(`{}`),
 	})
 	require.NoError(t, err)
-	require.Equal(t, int32(1), acquiredJob1.Priority, "First acquired job should be human-initiated due to higher priority")
+	require.Equal(t, owner.UserID, acquiredJob1.InitiatorID, "First acquired job should be human-initiated due to higher priority")
 	require.Equal(t, humanJob.ID, acquiredJob1.ID, "First acquired job should be the human job")
 
 	acquiredJob2, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -95,6 +95,6 @@ func TestPriorityQueue(t *testing.T) {
 		ProvisionerTags: json.RawMessage(`{}`),
 	})
 	require.NoError(t, err)
-	require.Equal(t, int32(0), acquiredJob2.Priority, "Second acquired job should be prebuild")
+	require.Equal(t, database.PrebuildsSystemUserID, acquiredJob2.InitiatorID, "Second acquired job should be prebuild")
 	require.Equal(t, prebuildJob.ID, acquiredJob2.ID, "Second acquired job should be the prebuild job")
 }
