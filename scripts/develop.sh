@@ -67,7 +67,7 @@ if [ "${CODER_BUILD_AGPL:-0}" -gt "0" ] && [ "${multi_org}" -gt "0" ]; then
 	echo '== ERROR: cannot use both multi-organizations and APGL build.' && exit 1
 fi
 
-if [ -n "${CODER_AGENT_URL}" ]; then
+if [ -n "${CODER_AGENT_URL:-}" ]; then
 	DEVELOP_IN_CODER=1
 fi
 
