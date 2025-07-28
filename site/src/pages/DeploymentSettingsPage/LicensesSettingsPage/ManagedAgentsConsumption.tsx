@@ -94,20 +94,6 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 	const includedPercentage = Math.min((included / limit) * 100, 100);
 	const remainingPercentage = Math.max(100 - includedPercentage, 0);
 
-	// Determine usage bar color based on percentage
-	const getUsageColor = () => {
-		const actualUsagePercent = (usage / limit) * 100;
-		if (actualUsagePercent >= 100) {
-			return "bg-highlight-red"; // Critical: at or over limit
-		}
-		if (actualUsagePercent >= 80) {
-			return "bg-surface-orange"; // Warning: approaching limit
-		}
-		return "bg-highlight-green"; // Normal: safe usage
-	};
-
-	const usageBarColor = getUsageColor();
-
 	return (
 		<section className="border border-solid rounded">
 			<div className="p-4">
@@ -145,7 +131,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 						<ul>
 							<li className="flex items-center gap-2">
 								<div
-									className={`rounded-[2px] ${usageBarColor} size-3 inline-block`}
+									className="rounded-[2px] bg-highlight-green size-3 inline-block"
 									aria-label="Legend for current usage in the chart"
 								/>
 								Amount of started workspaces with an AI agent.
@@ -182,7 +168,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 
 				<div className="relative h-6 bg-surface-secondary rounded overflow-hidden">
 					<div
-						className={`absolute top-0 left-0 h-full ${usageBarColor} transition-all duration-300`}
+						className="absolute top-0 left-0 h-full bg-highlight-green transition-all duration-300"
 						style={{ width: `${usagePercentage}%` }}
 					/>
 
