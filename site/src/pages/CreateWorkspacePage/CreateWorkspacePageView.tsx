@@ -6,6 +6,7 @@ import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
+import { SelectFilter } from "components/Filter/SelectFilter";
 import {
 	FormFields,
 	FormFooter,
@@ -13,7 +14,6 @@ import {
 	HorizontalForm,
 } from "components/Form/Form";
 import { Margins } from "components/Margins/Margins";
-import { MultiSelectCombobox } from "components/MultiSelectCombobox/MultiSelectCombobox";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
@@ -159,12 +159,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	// Build options and keep default label/value in sync
 	useEffect(() => {
 		const options = [
-			{ label: "None", value: "", icon: undefined, description: undefined },
-			...presets.map((preset) => ({
-				label: preset.Default ? `${preset.Name} (Default)` : preset.Name,
-				value: preset.ID,
-				icon: preset.Icon,
-				description: preset.Description,
+			{ label: "None", value: "" },
+			...presets.map((p) => ({
+				label: p.Default ? `${p.Name} (Default)` : p.Name,
+				value: p.ID,
 			})),
 		];
 		setPresetOptions(options);
@@ -382,49 +380,25 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 									</Stack>
 									<Stack direction="column" spacing={2}>
 										<Stack direction="row" spacing={2}>
-											<MultiSelectCombobox
-												inputProps={{ id: "preset-select" }}
+											<SelectFilter
+												label="Preset"
 												options={presetOptions}
-												defaultOptions={presetOptions}
-												value={
-													presetOptions[selectedPresetIndex]
-														? [presetOptions[selectedPresetIndex]]
-														: []
-												}
-												onChange={(option) => {
-													// Handle single selection replacement
-													if (option.length > 0) {
-														// Take the most recently selected option
-														const selectedOption = option[option.length - 1];
-														const index = presetOptions.findIndex(
-															(preset) => preset.value === selectedOption.value,
-														);
-														if (index !== -1) {
-															setSelectedPresetIndex(index);
-															form.setFieldValue(
-																"template_version_preset_id",
-																selectedOption.value === ""
-																	? undefined
-																	: selectedOption.value,
-															);
-														}
-													} else {
-														// None preset selected
-														setSelectedPresetIndex(0);
-														form.setFieldValue(
-															"template_version_preset_id",
-															undefined,
-														);
+												onSelect={(option) => {
+													const index = presetOptions.findIndex(
+														(preset) => preset.value === option?.value,
+													);
+													if (index === -1) {
+														return;
 													}
+													setSelectedPresetIndex(index);
+													form.setFieldValue(
+														"template_version_preset_id",
+														// Empty string is equivalent to using None
+														option?.value === "" ? undefined : option?.value,
+													);
 												}}
-												hidePlaceholderWhenSelected
 												placeholder="Select a preset"
-												emptyIndicator={
-													<p className="text-center text-md text-content-primary">
-														No presets found
-													</p>
-												}
-												disabled={false}
+												selectedOption={presetOptions[selectedPresetIndex]}
 											/>
 										</Stack>
 										{/* Only show the preset parameter visibility toggle if preset parameters are actually being modified, otherwise it has no effect. */}
