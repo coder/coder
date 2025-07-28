@@ -23,7 +23,9 @@ var CurrentSupportedVersions = RPCVersionList{
 		//   - preferred_derp: The server that DERP relayed connections are
 		//                     using, if they're not using P2P.
 		//   - preferred_derp_latency: The latency to the preferred DERP
-		{Major: 1, Minor: 2},
+		// 1.3 adds:
+		// - tunnel_use_soft_net_isolation to the StartRequest
+		{Major: 1, Minor: 3},
 	},
 }
 

@@ -253,6 +253,10 @@ ONLY report an "idle" or "failure" state if you have FULLY completed the task.
 		if len(args.Summary) > 160 {
 			return codersdk.Response{}, xerrors.New("summary must be less than 160 characters")
 		}
+		// Check if task reporting is available to prevent nil pointer dereference
+		if deps.report == nil {
+			return codersdk.Response{}, xerrors.New("task reporting not available. Please ensure a task reporter is configured.")
+		}
 		err := deps.report(args)
 		if err != nil {
 			return codersdk.Response{}, err
