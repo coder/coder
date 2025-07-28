@@ -9,11 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/cli"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -891,11 +890,13 @@ func TestCreateWithPreset(t *testing.T) {
 		}
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses(&preset))
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		_ = coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 		// When: running the create command without specifying a preset
 		workspaceName := "my-workspace"
-		inv, root := clitest.New(t, "create", workspaceName)
+		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name,
+			"--parameter", fmt.Sprintf("%s=%s", firstParameterName, firstOptionalParameterValue),
+			"--parameter", fmt.Sprintf("%s=%s", thirdParameterName, thirdParameterValue))
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
@@ -949,7 +950,7 @@ func TestCreateWithPreset(t *testing.T) {
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-		// Given: a template and a template version
+		// Given: a template and a template version without presets
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
@@ -988,7 +989,7 @@ func TestCreateWithPreset(t *testing.T) {
 		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: thirdParameterName, Value: thirdParameterValue})
 	})
 
-	// This test verifies that when the user provides `--preset None`,
+	// This test verifies that when the user provides `--preset none`,
 	// the CLI skips applying any preset, even if the template version has a default preset.
 	// The workspace should be created without using any preset-defined parameters.
 	t.Run("PresetFlagNone", func(t *testing.T) {
@@ -1011,7 +1012,7 @@ func TestCreateWithPreset(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
-		// When: running the create command with flag '--preset None'
+		// When: running the create command with flag '--preset none'
 		workspaceName := "my-workspace"
 		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name, "-y", "--preset", cli.PresetNone,
 			"--parameter", fmt.Sprintf("%s=%s", firstParameterName, firstOptionalParameterValue),

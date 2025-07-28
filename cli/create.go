@@ -22,10 +22,10 @@ import (
 	"github.com/coder/serpent"
 )
 
-// PresetNone represents the special preset value "None".
-// It is used when a user runs `create --preset None`,
+// PresetNone represents the special preset value "none".
+// It is used when a user runs `create --preset none`,
 // indicating that the CLI should not apply any preset.
-const PresetNone = "None"
+const PresetNone = "none"
 
 var ErrNoPresetFound = xerrors.New("no preset found")
 
@@ -281,9 +281,9 @@ func (r *RootCmd) create() *serpent.Command {
 			var preset *codersdk.Preset
 			var presetParameters []codersdk.WorkspaceBuildParameter
 
-			// If the template has no presets, or the user explicitly used --preset None,
+			// If the template has no presets, or the user explicitly used --preset none,
 			// skip applying a preset
-			if len(tvPresets) > 0 && presetName != PresetNone {
+			if len(tvPresets) > 0 && strings.ToLower(presetName) != PresetNone {
 				// Attempt to resolve which preset to use
 				preset, err = resolvePreset(tvPresets, presetName)
 				if err != nil {
@@ -386,7 +386,7 @@ func (r *RootCmd) create() *serpent.Command {
 		serpent.Option{
 			Flag:        "preset",
 			Env:         "CODER_PRESET_NAME",
-			Description: "Specify the name of a template version preset. Use 'None' to explicitly indicate that no preset should be used.",
+			Description: "Specify the name of a template version preset. Use 'none' to explicitly indicate that no preset should be used.",
 			Value:       serpent.StringOf(&presetName),
 		},
 		serpent.Option{
