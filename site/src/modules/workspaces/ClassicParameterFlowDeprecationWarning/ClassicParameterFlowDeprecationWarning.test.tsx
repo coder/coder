@@ -8,10 +8,8 @@ jest.mock("modules/navigation", () => ({
 
 describe("ClassicParameterFlowDeprecationWarning", () => {
 	const defaultProps = {
-		enabled: true,
 		organizationName: "test-org",
 		templateName: "test-template",
-		canUpdateTemplate: true,
 	};
 
 	it("renders warning when enabled and user has template update permissions", () => {

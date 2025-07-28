@@ -669,7 +669,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 				ActiveVersionID:         version.ID,
 				OrganizationID:          firstUser.OrganizationID,
 				CreatedBy:               firstUser.UserID,
-				UseClassicParameterFlow: true,
+				UseClassicParameterFlow: true, // Required for testing classic parameter flow behavior
 				GroupACL: database.TemplateACL{
 					firstUser.OrganizationID.String(): db2sdk.TemplateRoleActions(codersdk.TemplateRoleUse),
 				},
