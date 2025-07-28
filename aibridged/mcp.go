@@ -96,6 +96,10 @@ func (b *MCPToolBridge) CallTool(ctx context.Context, name string, input any) (*
 }
 
 func (t *MCPTool) Call(ctx context.Context, input any) (*mcp.CallToolResult, error) {
+	if t == nil {
+		return nil, xerrors.Errorf("nil tool!")
+	}
+
 	return t.client.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Name:      t.Name,
@@ -119,7 +123,7 @@ func (b *MCPToolBridge) fetchMCPTools(ctx context.Context) (map[string]*MCPTool,
 	if err != nil {
 		return nil, xerrors.Errorf("init MCP client: %w", err)
 	}
-	fmt.Printf("mcp(%q)], %+v\n", result.ServerInfo.Name, result) // TODO: remove.
+	b.logger.Debug(ctx, "mcp client initialized", slog.F("name", result.ServerInfo.Name), slog.F("server_version", result.ServerInfo.Version))
 
 	// Test tool listing
 	tools, err := b.client.ListTools(ctx, mcp.ListToolsRequest{})

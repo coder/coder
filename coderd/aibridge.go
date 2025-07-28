@@ -62,17 +62,6 @@ func (api *API) bridgeAIRequest(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, "failed to create ai bridge", http.StatusInternalServerError)
 		return
 	}
-
-	// TODO: direct func calls instead of HTTP srv?
-	done := make(chan any, 1)
-	go func() {
-		defer close(done)
-		err := bridge.Serve()
-		// TODO: better error handling.
-		// TODO: close on shutdown.
-		api.Logger.Warn(ctx, "bridge server stopped", slog.Error(err))
-	}()
-
 	http.StripPrefix("/api/v2/aibridge", bridge.Handler()).ServeHTTP(rw, r)
 }
 

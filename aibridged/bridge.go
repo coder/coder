@@ -494,7 +494,8 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 			appendedPrevMsg := false
 			// Process each pending tool call
 			for _, tc := range pendingToolCalls {
-				if !b.isInjectedTool(tc.ID) {
+				fn := tc.Function.Name
+				if !b.isInjectedTool(fn) {
 					// Not an MCP proxy call, don't do anything.
 					continue
 				}
@@ -508,7 +509,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 				_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
 					Model:    string(in.Model),
 					Input:    tc.Function.Arguments,
-					Tool:     tc.Function.Name,
+					Tool:     fn,
 					Injected: true,
 				})
 				if err != nil {
@@ -521,7 +522,7 @@ func (b *Bridge) proxyOpenAIRequest(w http.ResponseWriter, r *http.Request) {
 				)
 				_ = json.NewEncoder(&buf).Encode(tc.Function.Arguments)
 				_ = json.NewDecoder(&buf).Decode(&args)
-				res, err := b.tools[tc.ID].Call(ctx, args)
+				res, err := b.tools[fn].Call(ctx, args)
 				if err != nil {
 					// Always provide a tool result even if the tool call failed
 					errorResponse := map[string]interface{}{
@@ -759,6 +760,7 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 
+			// TODO: implement injected tool calling.
 			if resp.StopReason == anthropic.BetaStopReasonToolUse {
 				var (
 					toolUse anthropic.BetaToolUseBlock
@@ -809,12 +811,6 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 
 	es := newEventStream(anthropicEventStream)
 
-	// var buf strings.Builder
-	// in.Messages[0].Content = []anthropic.BetaContentBlockParamUnion{in.Messages[0].Content[len(in.Messages[0].Content) - 1]}
-	//
-	// json.NewEncoder(&buf).Encode(in)
-	// fmt.Println(strings.Replace(buf.String(), "'", "\\'", -1))
-
 	var wg sync.WaitGroup
 	wg.Add(1)
 
@@ -862,8 +858,6 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 						// Don't relay this event back, otherwise the client will try invoke the tool as well.
 						continue
 					}
-				default:
-					fmt.Printf("[%s] %s\n", event.Type, event.RawJSON())
 				}
 			case string(constant.ValueOf[ant_constant.ContentBlockDelta]()):
 				if len(pendingToolCalls) > 0 && b.isInjectedTool(lastToolName) {
@@ -1179,19 +1173,6 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 		}
 
 		<-streamCtx.Done()
-
-		// TODO: do we need to do this?
-		// // Close the underlying connection by hijacking it
-		// if hijacker, ok := w.(http.Hijacker); ok {
-		// 	conn, _, err := hijacker.Hijack()
-		// 	if err != nil {
-		// 		b.logger.Error(ctx, "failed to hijack connection", slog.Error(err))
-		// 	} else {
-		// 		conn.Close() // This closes the TCP connection entirely
-		// 		b.logger.Debug(ctx, "connection closed, stream over")
-		// 	}
-		// }
-
 		break
 	}
 }
