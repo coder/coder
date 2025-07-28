@@ -448,7 +448,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: thirdParameterName, Value: thirdParameterValue})
 	})
 
-	// This test verifies that when the user provides `--preset none`,
+	// This test verifies that when the user provides `--preset None`,
 	// no preset is applied, no prebuilt workspace is claimed, and
 	// a new regular workspace is created instead.
 	t.Run("PresetNoneDoesNotClaimPrebuiltWorkspace", func(t *testing.T) {

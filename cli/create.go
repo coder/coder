@@ -21,10 +21,10 @@ import (
 	"github.com/coder/serpent"
 )
 
-// PresetNone represents the special preset value "none".
-// It is used when a user runs `create --preset none`,
+// PresetNone represents the special preset value "None".
+// It is used when a user runs `create --preset None`,
 // indicating that the CLI should not apply any preset.
-const PresetNone = "none"
+const PresetNone = "None"
 
 func (r *RootCmd) create() *serpent.Command {
 	var (
@@ -278,18 +278,25 @@ func (r *RootCmd) create() *serpent.Command {
 			var preset *codersdk.Preset
 			var presetParameters []codersdk.WorkspaceBuildParameter
 
-			// If the template has no presets, or the user explicitly used --preset none,
-			// skip applying a preset.
+			// If the template has no presets, or the user explicitly used --preset None,
+			// skip applying a preset
 			if len(tvPresets) > 0 && presetName != PresetNone {
-				// Resolve which preset to use
-				preset, err = resolvePreset(inv, tvPresets, presetName)
+				// Attempt to resolve which preset to use
+				preset, err = resolvePreset(tvPresets, presetName)
 				if err != nil {
 					return xerrors.Errorf("unable to resolve preset: %w", err)
 				}
 
-				// Convert preset parameters into workspace build parameters.
+				// If no preset found, prompt the user to choose a preset
+				if preset == nil {
+					if preset, err = promptPresetSelection(inv, tvPresets); err != nil {
+						return xerrors.Errorf("unable to prompt user for preset: %w", err)
+					}
+				}
+
+				// Convert preset parameters into workspace build parameters
 				presetParameters = presetParameterAsWorkspaceBuildParameters(preset.Parameters)
-				// Inform the user which preset was applied and its parameters.
+				// Inform the user which preset was applied and its parameters
 				displayAppliedPreset(inv, preset, presetParameters)
 			} else {
 				// Inform the user that no preset was applied
@@ -377,7 +384,7 @@ func (r *RootCmd) create() *serpent.Command {
 		serpent.Option{
 			Flag:        "preset",
 			Env:         "CODER_PRESET_NAME",
-			Description: "Specify the name of a template version preset. Use 'none' to explicitly indicate that no preset should be used.",
+			Description: "Specify the name of a template version preset. Use 'None' to explicitly indicate that no preset should be used.",
 			Value:       serpent.StringOf(&presetName),
 		},
 		serpent.Option{
@@ -431,52 +438,47 @@ type prepWorkspaceBuildArgs struct {
 	RichParameterDefaults []codersdk.WorkspaceBuildParameter
 }
 
-// resolvePreset determines which preset to use based on the --preset flag,
-// or prompts the user to select one if the flag is not provided.
-func resolvePreset(inv *serpent.Invocation, presets []codersdk.Preset, presetName string) (*codersdk.Preset, error) {
+// resolvePreset returns the preset matching the given presetName (if specified),
+// or the default preset (if any).
+// Returns nil if no matching or default preset is found.
+func resolvePreset(presets []codersdk.Preset, presetName string) (*codersdk.Preset, error) {
 	// If preset name is specified, find it
 	if presetName != "" {
-		for _, preset := range presets {
-			if preset.Name == presetName {
-				return &preset, nil
+		for _, p := range presets {
+			if p.Name == presetName {
+				return &p, nil
 			}
 		}
 		return nil, xerrors.Errorf("preset %q not found", presetName)
 	}
 
-	// No preset specified, prompt user to select one
-	return promptPresetSelection(inv, presets)
+	// No preset name specified, search for the default preset
+	for _, p := range presets {
+		if p.Default {
+			return &p, nil
+		}
+	}
+
+	// No preset found, return nil to indicate no preset found
+	return nil, nil
 }
 
 // promptPresetSelection shows a CLI selection menu of the presets defined in the template version.
+// Returns the selected preset
 func promptPresetSelection(inv *serpent.Invocation, presets []codersdk.Preset) (*codersdk.Preset, error) {
 	presetMap := make(map[string]*codersdk.Preset)
-	var defaultOption string
-	var options []string
+	var presetOptions []string
 
-	// Process presets, with the default option (if any) listed first.
 	for _, preset := range presets {
 		option := preset.Name
-		if preset.Default {
-			option = "(default) " + preset.Name
-			defaultOption = option
-		}
+		presetOptions = append(presetOptions, option)
 		presetMap[option] = &preset
-	}
-
-	if defaultOption != "" {
-		options = append(options, defaultOption)
-	}
-	for option := range presetMap {
-		if option != defaultOption {
-			options = append(options, option)
-		}
 	}
 
 	// Show selection UI
 	_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "Select a preset below:"))
 	selected, err := cliui.Select(inv, cliui.SelectOptions{
-		Options:    options,
+		Options:    presetOptions,
 		HideSearch: true,
 	})
 	if err != nil {
