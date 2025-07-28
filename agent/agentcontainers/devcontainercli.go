@@ -91,6 +91,7 @@ type CoderCustomization struct {
 	Apps        []SubAgentApp                `json:"apps,omitempty"`
 	Name        string                       `json:"name,omitempty"`
 	Ignore      bool                         `json:"ignore,omitempty"`
+	AutoStart   bool                         `json:"autoStart,omitempty"`
 }
 
 type DevcontainerWorkspace struct {
