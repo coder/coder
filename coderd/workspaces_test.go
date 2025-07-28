@@ -431,9 +431,9 @@ func TestWorkspace(t *testing.T) {
 
 		// Test Utility variables
 		templateVersionParameters := []*proto.RichParameter{
-			{Name: "param1", Type: "string", Required: false},
-			{Name: "param2", Type: "string", Required: false},
-			{Name: "param3", Type: "string", Required: false},
+			{Name: "param1", Type: "string", Required: false, DefaultValue: "default1"},
+			{Name: "param2", Type: "string", Required: false, DefaultValue: "default2"},
+			{Name: "param3", Type: "string", Required: false, DefaultValue: "default3"},
 		}
 		presetParameters := []*proto.PresetParameter{
 			{Name: "param1", Value: "value1"},
