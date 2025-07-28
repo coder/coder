@@ -51,9 +51,6 @@ const LicensesSettingsPageView: FC<Props> = ({
 }) => {
 	const theme = useTheme();
 	const { width, height } = useWindowSize();
-	const managedAgentLimitStarts = managedAgentFeature?.usage_period?.start;
-	const managedAgentLimitExpires = managedAgentFeature?.usage_period?.end;
-	const managedAgentFeatureEnabled = managedAgentFeature?.enabled;
 
 	return (
 		<>
@@ -158,15 +155,8 @@ const LicensesSettingsPageView: FC<Props> = ({
 					/>
 				)}
 
-				{licenses && licenses.length > 0 && managedAgentFeature && (
-					<ManagedAgentsConsumption
-						usage={managedAgentFeature.actual || 0}
-						included={managedAgentFeature.soft_limit || 0}
-						limit={managedAgentFeature.limit || 0}
-						startDate={managedAgentLimitStarts || ""}
-						endDate={managedAgentLimitExpires || ""}
-						enabled={managedAgentFeatureEnabled}
-					/>
+				{licenses && licenses.length > 0 && (
+					<ManagedAgentsConsumption managedAgentFeature={managedAgentFeature} />
 				)}
 			</div>
 		</>

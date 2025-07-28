@@ -6,11 +6,18 @@ const meta: Meta<typeof ManagedAgentsConsumption> = {
 		"pages/DeploymentSettingsPage/LicensesSettingsPage/ManagedAgentsConsumption",
 	component: ManagedAgentsConsumption,
 	args: {
-		usage: 50000,
-		included: 60000,
-		limit: 120000,
-		startDate: "February 27, 2025",
-		endDate: "February 27, 2026",
+		managedAgentFeature: {
+			enabled: true,
+			actual: 50000,
+			soft_limit: 60000,
+			limit: 120000,
+			usage_period: {
+				start: "February 27, 2025",
+				end: "February 27, 2026",
+				issued_at: "February 27, 2025",
+			},
+			entitlement: "entitled",
+		},
 	},
 };
 
@@ -21,41 +28,169 @@ export const Default: Story = {};
 
 export const NearLimit: Story = {
 	args: {
-		usage: 115000,
-		included: 60000,
-		limit: 120000,
+		managedAgentFeature: {
+			enabled: true,
+			actual: 115000,
+			soft_limit: 60000,
+			limit: 120000,
+			usage_period: {
+				start: "February 27, 2025",
+				end: "February 27, 2026",
+				issued_at: "February 27, 2025",
+			},
+			entitlement: "entitled",
+		},
 	},
 };
 
 export const OverIncluded: Story = {
 	args: {
-		usage: 80000,
-		included: 60000,
-		limit: 120000,
+		managedAgentFeature: {
+			enabled: true,
+			actual: 80000,
+			soft_limit: 60000,
+			limit: 120000,
+			usage_period: {
+				start: "February 27, 2025",
+				end: "February 27, 2026",
+				issued_at: "February 27, 2025",
+			},
+			entitlement: "entitled",
+		},
 	},
 };
 
 export const LowUsage: Story = {
 	args: {
-		usage: 25000,
-		included: 60000,
-		limit: 120000,
+		managedAgentFeature: {
+			enabled: true,
+			actual: 25000,
+			soft_limit: 60000,
+			limit: 120000,
+			usage_period: {
+				start: "February 27, 2025",
+				end: "February 27, 2026",
+				issued_at: "February 27, 2025",
+			},
+			entitlement: "entitled",
+		},
 	},
 };
 
 export const IncludedAtLimit: Story = {
 	args: {
-		usage: 25000,
-		included: 30500,
-		limit: 30500,
+		managedAgentFeature: {
+			enabled: true,
+			actual: 25000,
+			soft_limit: 30500,
+			limit: 30500,
+			usage_period: {
+				start: "February 27, 2025",
+				end: "February 27, 2026",
+				issued_at: "February 27, 2025",
+			},
+			entitlement: "entitled",
+		},
 	},
 };
 
 export const Disabled: Story = {
 	args: {
-		enabled: false,
-		usage: Number.NaN,
-		included: Number.NaN,
-		limit: Number.NaN,
+		managedAgentFeature: {
+			enabled: false,
+			actual: undefined,
+			soft_limit: undefined,
+			limit: undefined,
+			usage_period: undefined,
+			entitlement: "not_entitled",
+		},
+	},
+};
+
+export const NoFeature: Story = {
+	args: {
+		managedAgentFeature: undefined,
+	},
+};
+
+// Error States for Validation
+export const ErrorMissingData: Story = {
+	args: {
+		managedAgentFeature: {
+			enabled: true,
+			actual: undefined,
+			soft_limit: undefined,
+			limit: undefined,
+			usage_period: undefined,
+			entitlement: "entitled",
+		},
+	},
+};
+
+export const ErrorNegativeValues: Story = {
+	args: {
+		managedAgentFeature: {
+			enabled: true,
+			actual: -100,
+			soft_limit: 60000,
+			limit: 120000,
+			usage_period: {
+				start: "February 27, 2025",
+				end: "February 27, 2026",
+				issued_at: "February 27, 2025",
+			},
+			entitlement: "entitled",
+		},
+	},
+};
+
+export const ErrorSoftLimitExceedsLimit: Story = {
+	args: {
+		managedAgentFeature: {
+			enabled: true,
+			actual: 50000,
+			soft_limit: 150000,
+			limit: 120000,
+			usage_period: {
+				start: "February 27, 2025",
+				end: "February 27, 2026",
+				issued_at: "February 27, 2025",
+			},
+			entitlement: "entitled",
+		},
+	},
+};
+
+export const ErrorInvalidDates: Story = {
+	args: {
+		managedAgentFeature: {
+			enabled: true,
+			actual: 50000,
+			soft_limit: 60000,
+			limit: 120000,
+			usage_period: {
+				start: "invalid-date",
+				end: "February 27, 2026",
+				issued_at: "February 27, 2025",
+			},
+			entitlement: "entitled",
+		},
+	},
+};
+
+export const ErrorEndBeforeStart: Story = {
+	args: {
+		managedAgentFeature: {
+			enabled: true,
+			actual: 50000,
+			soft_limit: 60000,
+			limit: 120000,
+			usage_period: {
+				start: "February 27, 2026",
+				end: "February 27, 2025",
+				issued_at: "February 27, 2025",
+			},
+			entitlement: "entitled",
+		},
 	},
 };

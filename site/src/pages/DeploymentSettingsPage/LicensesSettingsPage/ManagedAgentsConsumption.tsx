@@ -1,5 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import MuiLink from "@mui/material/Link";
+import type { Feature } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import {
 	Collapsible,
@@ -12,23 +14,65 @@ import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
 
 interface ManagedAgentsConsumptionProps {
-	usage: number;
-	included: number;
-	limit: number;
-	startDate: string;
-	endDate: string;
-	enabled?: boolean;
+	managedAgentFeature?: Feature;
 }
 
+const validateFeature = (feature?: Feature): string | null => {
+	if (!feature) {
+		return null; // No feature is valid (will show disabled state)
+	}
+
+	// If enabled, we need valid numeric data
+	if (feature.enabled) {
+		if (
+			feature.actual === undefined ||
+			feature.soft_limit === undefined ||
+			feature.limit === undefined
+		) {
+			return "Managed agent feature is enabled but missing required usage data (actual, soft_limit, or limit).";
+		}
+
+		if (
+			feature.actual < 0 ||
+			feature.soft_limit < 0 ||
+			feature.limit < 0
+		) {
+			return "Managed agent feature contains invalid negative values for usage metrics.";
+		}
+
+		if (feature.soft_limit > feature.limit) {
+			return "Managed agent feature has invalid configuration: soft limit exceeds total limit.";
+		}
+
+		// Validate usage period if present
+		if (feature.usage_period) {
+			const start = dayjs(feature.usage_period.start);
+			const end = dayjs(feature.usage_period.end);
+
+			if (!start.isValid() || !end.isValid()) {
+				return "Managed agent feature has invalid usage period dates.";
+			}
+
+			if (end.isBefore(start)) {
+				return "Managed agent feature has invalid usage period: end date is before start date.";
+			}
+		}
+	}
+
+	return null; // Valid
+};
+
 export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
-	usage,
-	included,
-	limit,
-	startDate,
-	endDate,
-	enabled = true,
+	managedAgentFeature,
 }) => {
-	if (!enabled) {
+	// Validate the feature data
+	const validationError = validateFeature(managedAgentFeature);
+	if (validationError) {
+		return <ErrorAlert error={new Error(validationError)} />;
+	}
+
+	// If no feature is provided or it's disabled, show disabled state
+	if (!managedAgentFeature?.enabled) {
 		return (
 			<div css={styles.disabledRoot}>
 				<Stack alignItems="center" spacing={1}>
@@ -47,6 +91,12 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 			</div>
 		);
 	}
+
+	const usage = managedAgentFeature.actual || 0;
+	const included = managedAgentFeature.soft_limit || 0;
+	const limit = managedAgentFeature.limit || 0;
+	const startDate = managedAgentFeature.usage_period?.start || "";
+	const endDate = managedAgentFeature.usage_period?.end || "";
 
 	const usagePercentage = Math.min((usage / limit) * 100, 100);
 	const includedPercentage = Math.min((included / limit) * 100, 100);
