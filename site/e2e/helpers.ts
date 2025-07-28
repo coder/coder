@@ -1221,7 +1221,7 @@ export const disableDynamicParameters = async (
 	const dynamicParamsCheckbox = page.getByRole("checkbox", {
 		name: /Enable dynamic parameters for workspace creation/,
 	});
-	
+
 	// If the checkbox is checked, uncheck it
 	if (await dynamicParamsCheckbox.isChecked()) {
 		await dynamicParamsCheckbox.click();
