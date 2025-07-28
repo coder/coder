@@ -17,56 +17,9 @@ interface ManagedAgentsConsumptionProps {
 	managedAgentFeature?: Feature;
 }
 
-const validateFeature = (feature?: Feature): string | null => {
-	if (!feature) {
-		return null; // No feature is valid (will show disabled state)
-	}
-
-	// If enabled, we need valid numeric data
-	if (feature.enabled) {
-		if (
-			feature.actual === undefined ||
-			feature.soft_limit === undefined ||
-			feature.limit === undefined
-		) {
-			return "Managed agent feature is enabled but missing required usage data (actual, soft_limit, or limit).";
-		}
-
-		if (feature.actual < 0 || feature.soft_limit < 0 || feature.limit < 0) {
-			return "Managed agent feature contains invalid negative values for usage metrics.";
-		}
-
-		if (feature.soft_limit > feature.limit) {
-			return "Managed agent feature has invalid configuration: soft limit exceeds total limit.";
-		}
-
-		// Validate usage period if present
-		if (feature.usage_period) {
-			const start = dayjs(feature.usage_period.start);
-			const end = dayjs(feature.usage_period.end);
-
-			if (!start.isValid() || !end.isValid()) {
-				return "Managed agent feature has invalid usage period dates.";
-			}
-
-			if (end.isBefore(start)) {
-				return "Managed agent feature has invalid usage period: end date is before start date.";
-			}
-		}
-	}
-
-	return null; // Valid
-};
-
 export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 	managedAgentFeature,
 }) => {
-	// Validate the feature data
-	const validationError = validateFeature(managedAgentFeature);
-	if (validationError) {
-		return <ErrorAlert error={new Error(validationError)} />;
-	}
-
 	// If no feature is provided or it's disabled, show disabled state
 	if (!managedAgentFeature?.enabled) {
 		return (
@@ -85,11 +38,29 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 		);
 	}
 
-	const usage = managedAgentFeature.actual || 0;
-	const included = managedAgentFeature.soft_limit || 0;
-	const limit = managedAgentFeature.limit || 0;
-	const startDate = managedAgentFeature.usage_period?.start || "";
-	const endDate = managedAgentFeature.usage_period?.end || "";
+	const usage = managedAgentFeature.actual;
+	const included = managedAgentFeature.soft_limit;
+	const limit = managedAgentFeature.limit;
+	const startDate = managedAgentFeature.usage_period?.start;
+	const endDate = managedAgentFeature.usage_period?.end;
+
+	if (!usage || usage < 0) {
+		return <ErrorAlert error="Invalid usage data" />;
+	}
+
+	if (!included || included < 0 || !limit || limit < 0) {
+		return <ErrorAlert error="Invalid license usage limits" />;
+	}
+
+	if (!startDate || !endDate) {
+		return <ErrorAlert error="Missing license usage period" />;
+	}
+
+	const start = dayjs(startDate);
+	const end = dayjs(endDate);
+	if (!start.isValid() || !end.isValid() || !start.isBefore(end)) {
+		return <ErrorAlert error="Invalid license usage period" />;
+	}
 
 	const usagePercentage = Math.min((usage / limit) * 100, 100);
 	const includedPercentage = Math.min((included / limit) * 100, 100);
