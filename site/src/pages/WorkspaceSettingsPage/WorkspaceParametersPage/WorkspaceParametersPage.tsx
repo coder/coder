@@ -35,6 +35,7 @@ const WorkspaceParametersPage: FC = () => {
 			API.postWorkspaceBuild(workspace.id, {
 				transition: "start",
 				rich_parameter_values: buildParameters,
+				reason: "dashboard",
 			}),
 		onSuccess: () => {
 			navigate(`/${workspace.owner_name}/${workspace.name}`);

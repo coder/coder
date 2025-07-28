@@ -710,8 +710,8 @@
 							"path": "./admin/integrations/platformx.md"
 						},
 						{
-							"title": "DX Data Cloud",
-							"description": "Tag Coder Users with DX Data Cloud",
+							"title": "DX",
+							"description": "Tag Coder Users with DX",
 							"path": "./admin/integrations/dx-data-cloud.md"
 						},
 						{
@@ -1650,6 +1650,16 @@
 							"title": "templates list",
 							"description": "List all the templates available for the organization",
 							"path": "reference/cli/templates_list.md"
+						},
+						{
+							"title": "templates presets",
+							"description": "Manage presets of the specified template",
+							"path": "reference/cli/templates_presets.md"
+						},
+						{
+							"title": "templates presets list",
+							"description": "List all presets of the specified template. Defaults to the active template version.",
+							"path": "reference/cli/templates_presets_list.md"
 						},
 						{
 							"title": "templates pull",

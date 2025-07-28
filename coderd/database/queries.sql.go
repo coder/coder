@@ -4286,6 +4286,44 @@ func (q *sqlQuerier) GetLicenses(ctx context.Context) ([]License, error) {
 	return items, nil
 }
 
+const getManagedAgentCount = `-- name: GetManagedAgentCount :one
+SELECT
+	COUNT(DISTINCT wb.id) AS count
+FROM
+	workspace_builds AS wb
+JOIN
+	provisioner_jobs AS pj
+ON
+	wb.job_id = pj.id
+WHERE
+	wb.transition = 'start'::workspace_transition
+	AND wb.has_ai_task = true
+	-- Only count jobs that are pending, running or succeeded. Other statuses
+	-- like cancel(ed|ing), failed or unknown are not considered as managed
+	-- agent usage. These workspace builds are typically unusable anyway.
+	AND pj.job_status IN (
+		'pending'::provisioner_job_status,
+		'running'::provisioner_job_status,
+		'succeeded'::provisioner_job_status
+	)
+	-- Jobs are counted at the time they are created, not when they are
+	-- completed, as pending jobs haven't completed yet.
+	AND wb.created_at BETWEEN $1::timestamptz AND $2::timestamptz
+`
+
+type GetManagedAgentCountParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+// This isn't strictly a license query, but it's related to license enforcement.
+func (q *sqlQuerier) GetManagedAgentCount(ctx context.Context, arg GetManagedAgentCountParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getManagedAgentCount, arg.StartTime, arg.EndTime)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getUnexpiredLicenses = `-- name: GetUnexpiredLicenses :many
 SELECT id, uploaded_at, jwt, exp, uuid
 FROM licenses
@@ -7361,63 +7399,6 @@ func (q *sqlQuerier) GetPresetsBackoff(ctx context.Context, lookback time.Time) 
 }
 
 const getRunningPrebuiltWorkspaces = `-- name: GetRunningPrebuiltWorkspaces :many
-SELECT
-		p.id,
-		p.name,
-		p.template_id,
-		b.template_version_id,
-		p.current_preset_id AS current_preset_id,
-		p.ready,
-		p.created_at
-FROM workspace_prebuilds p
-		INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
-WHERE (b.transition = 'start'::workspace_transition
-	AND b.job_status = 'succeeded'::provisioner_job_status)
-ORDER BY p.id
-`
-
-type GetRunningPrebuiltWorkspacesRow struct {
-	ID                uuid.UUID     `db:"id" json:"id"`
-	Name              string        `db:"name" json:"name"`
-	TemplateID        uuid.UUID     `db:"template_id" json:"template_id"`
-	TemplateVersionID uuid.UUID     `db:"template_version_id" json:"template_version_id"`
-	CurrentPresetID   uuid.NullUUID `db:"current_preset_id" json:"current_preset_id"`
-	Ready             bool          `db:"ready" json:"ready"`
-	CreatedAt         time.Time     `db:"created_at" json:"created_at"`
-}
-
-func (q *sqlQuerier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRunningPrebuiltWorkspacesRow, error) {
-	rows, err := q.db.QueryContext(ctx, getRunningPrebuiltWorkspaces)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetRunningPrebuiltWorkspacesRow
-	for rows.Next() {
-		var i GetRunningPrebuiltWorkspacesRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.TemplateID,
-			&i.TemplateVersionID,
-			&i.CurrentPresetID,
-			&i.Ready,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getRunningPrebuiltWorkspacesOptimized = `-- name: GetRunningPrebuiltWorkspacesOptimized :many
 WITH latest_prebuilds AS (
 	-- All workspaces that match the following criteria:
 	-- 1. Owned by prebuilds user
@@ -7476,7 +7457,7 @@ LEFT JOIN workspace_latest_presets ON workspace_latest_presets.workspace_id = la
 ORDER BY latest_prebuilds.id
 `
 
-type GetRunningPrebuiltWorkspacesOptimizedRow struct {
+type GetRunningPrebuiltWorkspacesRow struct {
 	ID                uuid.UUID     `db:"id" json:"id"`
 	Name              string        `db:"name" json:"name"`
 	TemplateID        uuid.UUID     `db:"template_id" json:"template_id"`
@@ -7486,15 +7467,15 @@ type GetRunningPrebuiltWorkspacesOptimizedRow struct {
 	CreatedAt         time.Time     `db:"created_at" json:"created_at"`
 }
 
-func (q *sqlQuerier) GetRunningPrebuiltWorkspacesOptimized(ctx context.Context) ([]GetRunningPrebuiltWorkspacesOptimizedRow, error) {
-	rows, err := q.db.QueryContext(ctx, getRunningPrebuiltWorkspacesOptimized)
+func (q *sqlQuerier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRunningPrebuiltWorkspacesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getRunningPrebuiltWorkspaces)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetRunningPrebuiltWorkspacesOptimizedRow
+	var items []GetRunningPrebuiltWorkspacesRow
 	for rows.Next() {
-		var i GetRunningPrebuiltWorkspacesOptimizedRow
+		var i GetRunningPrebuiltWorkspacesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -7647,7 +7628,7 @@ func (q *sqlQuerier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]Te
 }
 
 const getPresetByID = `-- name: GetPresetByID :one
-SELECT tvp.id, tvp.template_version_id, tvp.name, tvp.created_at, tvp.desired_instances, tvp.invalidate_after_secs, tvp.prebuild_status, tvp.scheduling_timezone, tvp.is_default, tv.template_id, tv.organization_id FROM
+SELECT tvp.id, tvp.template_version_id, tvp.name, tvp.created_at, tvp.desired_instances, tvp.invalidate_after_secs, tvp.prebuild_status, tvp.scheduling_timezone, tvp.is_default, tvp.description, tvp.icon, tv.template_id, tv.organization_id FROM
 	template_version_presets tvp
 	INNER JOIN template_versions tv ON tvp.template_version_id = tv.id
 WHERE tvp.id = $1
@@ -7663,6 +7644,8 @@ type GetPresetByIDRow struct {
 	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
 	SchedulingTimezone  string         `db:"scheduling_timezone" json:"scheduling_timezone"`
 	IsDefault           bool           `db:"is_default" json:"is_default"`
+	Description         string         `db:"description" json:"description"`
+	Icon                string         `db:"icon" json:"icon"`
 	TemplateID          uuid.NullUUID  `db:"template_id" json:"template_id"`
 	OrganizationID      uuid.UUID      `db:"organization_id" json:"organization_id"`
 }
@@ -7680,6 +7663,8 @@ func (q *sqlQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (Get
 		&i.PrebuildStatus,
 		&i.SchedulingTimezone,
 		&i.IsDefault,
+		&i.Description,
+		&i.Icon,
 		&i.TemplateID,
 		&i.OrganizationID,
 	)
@@ -7688,7 +7673,7 @@ func (q *sqlQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (Get
 
 const getPresetByWorkspaceBuildID = `-- name: GetPresetByWorkspaceBuildID :one
 SELECT
-	template_version_presets.id, template_version_presets.template_version_id, template_version_presets.name, template_version_presets.created_at, template_version_presets.desired_instances, template_version_presets.invalidate_after_secs, template_version_presets.prebuild_status, template_version_presets.scheduling_timezone, template_version_presets.is_default
+	template_version_presets.id, template_version_presets.template_version_id, template_version_presets.name, template_version_presets.created_at, template_version_presets.desired_instances, template_version_presets.invalidate_after_secs, template_version_presets.prebuild_status, template_version_presets.scheduling_timezone, template_version_presets.is_default, template_version_presets.description, template_version_presets.icon
 FROM
 	template_version_presets
 	INNER JOIN workspace_builds ON workspace_builds.template_version_preset_id = template_version_presets.id
@@ -7709,6 +7694,8 @@ func (q *sqlQuerier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceB
 		&i.PrebuildStatus,
 		&i.SchedulingTimezone,
 		&i.IsDefault,
+		&i.Description,
+		&i.Icon,
 	)
 	return i, err
 }
@@ -7790,7 +7777,7 @@ func (q *sqlQuerier) GetPresetParametersByTemplateVersionID(ctx context.Context,
 
 const getPresetsByTemplateVersionID = `-- name: GetPresetsByTemplateVersionID :many
 SELECT
-	id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status, scheduling_timezone, is_default
+	id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status, scheduling_timezone, is_default, description, icon
 FROM
 	template_version_presets
 WHERE
@@ -7816,6 +7803,8 @@ func (q *sqlQuerier) GetPresetsByTemplateVersionID(ctx context.Context, template
 			&i.PrebuildStatus,
 			&i.SchedulingTimezone,
 			&i.IsDefault,
+			&i.Description,
+			&i.Icon,
 		); err != nil {
 			return nil, err
 		}
@@ -7839,7 +7828,9 @@ INSERT INTO template_version_presets (
 	desired_instances,
 	invalidate_after_secs,
 	scheduling_timezone,
-	is_default
+	is_default,
+	description,
+	icon
 )
 VALUES (
 	$1,
@@ -7849,8 +7840,10 @@ VALUES (
 	$5,
 	$6,
 	$7,
-	$8
-) RETURNING id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status, scheduling_timezone, is_default
+	$8,
+	$9,
+	$10
+) RETURNING id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status, scheduling_timezone, is_default, description, icon
 `
 
 type InsertPresetParams struct {
@@ -7862,6 +7855,8 @@ type InsertPresetParams struct {
 	InvalidateAfterSecs sql.NullInt32 `db:"invalidate_after_secs" json:"invalidate_after_secs"`
 	SchedulingTimezone  string        `db:"scheduling_timezone" json:"scheduling_timezone"`
 	IsDefault           bool          `db:"is_default" json:"is_default"`
+	Description         string        `db:"description" json:"description"`
+	Icon                string        `db:"icon" json:"icon"`
 }
 
 func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error) {
@@ -7874,6 +7869,8 @@ func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (
 		arg.InvalidateAfterSecs,
 		arg.SchedulingTimezone,
 		arg.IsDefault,
+		arg.Description,
+		arg.Icon,
 	)
 	var i TemplateVersionPreset
 	err := row.Scan(
@@ -7886,6 +7883,8 @@ func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (
 		&i.PrebuildStatus,
 		&i.SchedulingTimezone,
 		&i.IsDefault,
+		&i.Description,
+		&i.Icon,
 	)
 	return i, err
 }
@@ -8537,7 +8536,9 @@ WHERE
 			-- they are aliases and the code that calls this query already relies on a different type
 			AND provisioner_tagset_contains($5 :: jsonb, potential_job.tags :: jsonb)
 		ORDER BY
-			potential_job.created_at
+			-- Ensure that human-initiated jobs are prioritized over prebuilds.
+			potential_job.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid ASC,
+			potential_job.created_at ASC
 		FOR UPDATE
 		SKIP LOCKED
 		LIMIT
@@ -8770,7 +8771,7 @@ WITH filtered_provisioner_jobs AS (
 pending_jobs AS (
 	-- Step 2: Extract only pending jobs
 	SELECT
-		id, created_at, tags
+		id, initiator_id, created_at, tags
 	FROM
 		provisioner_jobs
 	WHERE
@@ -8785,7 +8786,7 @@ ranked_jobs AS (
 	SELECT
 		pj.id,
 		pj.created_at,
-		ROW_NUMBER() OVER (PARTITION BY opd.id ORDER BY pj.created_at ASC) AS queue_position,
+		ROW_NUMBER() OVER (PARTITION BY opd.id ORDER BY pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid ASC, pj.created_at ASC) AS queue_position,
 		COUNT(*) OVER (PARTITION BY opd.id) AS queue_size
 	FROM
 		pending_jobs pj
@@ -8885,7 +8886,7 @@ func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Contex
 const getProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner = `-- name: GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner :many
 WITH pending_jobs AS (
     SELECT
-        id, created_at
+        id, initiator_id, created_at
     FROM
         provisioner_jobs
     WHERE
@@ -8900,7 +8901,7 @@ WITH pending_jobs AS (
 queue_position AS (
     SELECT
         id,
-        ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
+        ROW_NUMBER() OVER (ORDER BY initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid ASC, created_at ASC) AS queue_position
     FROM
         pending_jobs
 ),

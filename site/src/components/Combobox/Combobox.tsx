@@ -134,7 +134,12 @@ export const Combobox: FC<ComboboxProps> = ({
 											<TooltipProvider delayDuration={100}>
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<Info className="w-3.5 h-3.5 text-content-secondary" />
+														<span
+															className="flex"
+															onMouseEnter={(e) => e.stopPropagation()}
+														>
+															<Info className="w-3.5 h-3.5 text-content-secondary" />
+														</span>
 													</TooltipTrigger>
 													<TooltipContent side="right" sideOffset={10}>
 														{option.description}

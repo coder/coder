@@ -349,12 +349,17 @@ func AllAutomaticUpdatesValues() []AutomaticUpdates {
 type BuildReason string
 
 const (
-	BuildReasonInitiator  BuildReason = "initiator"
-	BuildReasonAutostart  BuildReason = "autostart"
-	BuildReasonAutostop   BuildReason = "autostop"
-	BuildReasonDormancy   BuildReason = "dormancy"
-	BuildReasonFailedstop BuildReason = "failedstop"
-	BuildReasonAutodelete BuildReason = "autodelete"
+	BuildReasonInitiator           BuildReason = "initiator"
+	BuildReasonAutostart           BuildReason = "autostart"
+	BuildReasonAutostop            BuildReason = "autostop"
+	BuildReasonDormancy            BuildReason = "dormancy"
+	BuildReasonFailedstop          BuildReason = "failedstop"
+	BuildReasonAutodelete          BuildReason = "autodelete"
+	BuildReasonDashboard           BuildReason = "dashboard"
+	BuildReasonCli                 BuildReason = "cli"
+	BuildReasonSshConnection       BuildReason = "ssh_connection"
+	BuildReasonVscodeConnection    BuildReason = "vscode_connection"
+	BuildReasonJetbrainsConnection BuildReason = "jetbrains_connection"
 )
 
 func (e *BuildReason) Scan(src interface{}) error {
@@ -399,7 +404,12 @@ func (e BuildReason) Valid() bool {
 		BuildReasonAutostop,
 		BuildReasonDormancy,
 		BuildReasonFailedstop,
-		BuildReasonAutodelete:
+		BuildReasonAutodelete,
+		BuildReasonDashboard,
+		BuildReasonCli,
+		BuildReasonSshConnection,
+		BuildReasonVscodeConnection,
+		BuildReasonJetbrainsConnection:
 		return true
 	}
 	return false
@@ -413,6 +423,11 @@ func AllBuildReasonValues() []BuildReason {
 		BuildReasonDormancy,
 		BuildReasonFailedstop,
 		BuildReasonAutodelete,
+		BuildReasonDashboard,
+		BuildReasonCli,
+		BuildReasonSshConnection,
+		BuildReasonVscodeConnection,
+		BuildReasonJetbrainsConnection,
 	}
 }
 
@@ -3606,6 +3621,10 @@ type TemplateVersionPreset struct {
 	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
 	SchedulingTimezone  string         `db:"scheduling_timezone" json:"scheduling_timezone"`
 	IsDefault           bool           `db:"is_default" json:"is_default"`
+	// Short text describing the preset (max 128 characters).
+	Description string `db:"description" json:"description"`
+	// URL or path to an icon representing the preset (max 256 characters).
+	Icon string `db:"icon" json:"icon"`
 }
 
 type TemplateVersionPresetParameter struct {

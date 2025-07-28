@@ -2193,6 +2193,14 @@ func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	return q.db.GetLogoURL(ctx)
 }
 
+func (q *querier) GetManagedAgentCount(ctx context.Context, arg database.GetManagedAgentCountParams) (int64, error) {
+	// Must be able to read all workspaces to check usage.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace); err != nil {
+		return 0, xerrors.Errorf("authorize read all workspaces: %w", err)
+	}
+	return q.db.GetManagedAgentCount(ctx, arg)
+}
+
 func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationMessage); err != nil {
 		return nil, err
@@ -2652,14 +2660,6 @@ func (q *querier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]database.
 		return nil, err
 	}
 	return q.db.GetRunningPrebuiltWorkspaces(ctx)
-}
-
-func (q *querier) GetRunningPrebuiltWorkspacesOptimized(ctx context.Context) ([]database.GetRunningPrebuiltWorkspacesOptimizedRow, error) {
-	// This query returns only prebuilt workspaces, but we decided to require permissions for all workspaces.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
-		return nil, err
-	}
-	return q.db.GetRunningPrebuiltWorkspacesOptimized(ctx)
 }
 
 func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
