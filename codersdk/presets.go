@@ -16,6 +16,8 @@ type Preset struct {
 	Parameters               []PresetParameter
 	Default                  bool
 	DesiredPrebuildInstances *int
+	Description              string
+	Icon                     string
 }
 
 type PresetParameter struct {

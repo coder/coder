@@ -1392,6 +1392,8 @@ func Preset(t testing.TB, db database.Store, seed database.InsertPresetParams) d
 		InvalidateAfterSecs: seed.InvalidateAfterSecs,
 		SchedulingTimezone:  seed.SchedulingTimezone,
 		IsDefault:           seed.IsDefault,
+		Description:         seed.Description,
+		Icon:                seed.Icon,
 	})
 	require.NoError(t, err, "insert preset")
 	return preset
