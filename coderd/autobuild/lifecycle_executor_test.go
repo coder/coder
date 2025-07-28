@@ -1583,3 +1583,47 @@ func mustWorkspaceParameters(t *testing.T, client *codersdk.Client, workspaceID 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
+
+func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
+    t.Parallel()
+
+    var (
+        sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
+        tickCh  = make(chan time.Time)
+        statsCh = make(chan autobuild.Stats)
+    )
+
+    // Create client with provisioner daemon
+    client, provisionerCloser := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+        AutobuildTicker:          tickCh,
+        IncludeProvisionerDaemon: true,
+        AutobuildStats:           statsCh,
+    })
+
+    // Create workspace with autostart enabled
+    workspace := mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
+        cwr.AutostartSchedule = ptr.Ref(sched.String())
+    })
+
+    // Stop the workspace while provisioner is available
+    workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, 
+        codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+
+    // Now shut down the provisioner daemon
+    err := provisionerCloser.Close()
+    require.NoError(t, err)
+
+    // Trigger autobuild after scheduled time
+    go func() {
+        tickCh <- sched.Next(workspace.LatestBuild.CreatedAt)
+        close(tickCh)
+    }()
+
+    // Wait for executor to run
+    stats := <-statsCh
+    require.Len(t, stats.Errors, 0, "should not have errors")
+
+    // Verify workspace is still stopped
+    workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+    require.Equal(t, codersdk.WorkspaceTransitionStop, workspace.LatestBuild.Transition)
+}
