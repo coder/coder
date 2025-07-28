@@ -51,8 +51,17 @@ func (r *RootCmd) restart() *serpent.Command {
 				return err
 			}
 
+			stopParamValues, err := asWorkspaceBuildParameters(parameterFlags.ephemeralParameters)
+			if err != nil {
+				return xerrors.Errorf("parse ephemeral parameters: %w", err)
+			}
 			wbr := codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStop,
+				// Ephemeral parameters should be passed to both stop and start builds.
+				// TODO: maybe these values should be sourced from the previous build?
+				//  It has to be manually sourced, as ephermeral parameters do not carry across
+				//  builds.
+				RichParameterValues: stopParamValues,
 			}
 			if bflags.provisionerLogDebug {
 				wbr.LogLevel = codersdk.ProvisionerLogLevelDebug

@@ -71,7 +71,11 @@ func TestRestart(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, member, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, member, template.ID, func(request *codersdk.CreateWorkspaceRequest) {
+			request.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{Name: ephemeralParameterName, Value: "placeholder"},
+			}
+		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		inv, root := clitest.New(t, "restart", workspace.Name, "--prompt-ephemeral-parameters")
@@ -125,7 +129,11 @@ func TestRestart(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, member, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, member, template.ID, func(request *codersdk.CreateWorkspaceRequest) {
+			request.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{Name: ephemeralParameterName, Value: "placeholder"},
+			}
+		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		inv, root := clitest.New(t, "restart", workspace.Name,
