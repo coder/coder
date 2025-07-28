@@ -9,8 +9,9 @@ import {
 } from "components/Collapsible/Collapsible";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon, Link } from "lucide-react";
 import type { FC } from "react";
+import { docs } from "utils/docs";
 
 interface ManagedAgentsConsumptionProps {
 	managedAgentFeature?: Feature;
@@ -100,7 +101,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 				<Collapsible>
 					<header className="flex flex-col gap-2 items-start">
 						<h3 className="text-md m-0 font-medium">
-							Managed agents consumption
+							Managed AI Agents Usage
 						</h3>
 
 						<CollapsibleTrigger asChild>
@@ -112,7 +113,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
                 `}
 							>
 								<ChevronRightIcon />
-								How we calculate managed agents consumption
+								Learn more
 							</Button>
 						</CollapsibleTrigger>
 					</header>
@@ -125,8 +126,13 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
             `}
 					>
 						<p>
-							Managed agents are counted based on the amount of successfully
-							started workspaces with an AI agent.
+							<MuiLink
+								href={docs("/ai-coder/tasks")}
+								target="_blank"
+								rel="noreferrer">
+								Coder Tasks
+							</MuiLink>{" "} and upcoming managed AI features are included in Coder Premium
+							licenses during beta. Usage limits and pricing subject to change.
 						</p>
 						<ul>
 							<li className="flex items-center gap-2">
