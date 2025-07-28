@@ -90,10 +90,11 @@ func TestStart(t *testing.T) {
 						Plan: &proto.PlanComplete{
 							Parameters: []*proto.RichParameter{
 								{
-									Name:        ephemeralParameterName,
-									Description: ephemeralParameterDescription,
-									Mutable:     true,
-									Ephemeral:   true,
+									Name:         ephemeralParameterName,
+									Description:  ephemeralParameterDescription,
+									Mutable:      true,
+									Ephemeral:    true,
+									DefaultValue: "foo",
 								},
 							},
 						},
