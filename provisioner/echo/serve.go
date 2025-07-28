@@ -433,6 +433,10 @@ func ParameterTerraform(param *proto.RichParameter) (string, error) {
 				v.ValidationError != "" || v.ValidationRegex != "" ||
 				v.ValidationMonotonic != "")
 		},
+		"formType": func(v *proto.RichParameter) string {
+			s, _ := proto.ProviderFormType(v.FormType)
+			return string(s)
+		},
 	}).Parse(`
 data "coder_parameter" "{{ .Name }}" {
   name         = "{{ .Name }}"
@@ -449,7 +453,7 @@ data "coder_parameter" "{{ .Name }}" {
   type      = "{{ .Type }}"
 {{- end }}
 {{- if .FormType }}
-  form_type      = "{{ .FormType }}"
+  form_type      = "{{ formType . }}"
 {{- end }}
 {{- range .Options }}
   option {
