@@ -143,7 +143,8 @@ func WithCommandEnv(ce CommandEnv) Option {
 					strings.HasPrefix(s, "CODER_WORKSPACE_AGENT_URL=") ||
 					strings.HasPrefix(s, "CODER_AGENT_TOKEN=") ||
 					strings.HasPrefix(s, "CODER_AGENT_AUTH=") ||
-					strings.HasPrefix(s, "CODER_AGENT_DEVCONTAINERS_ENABLE=")
+					strings.HasPrefix(s, "CODER_AGENT_DEVCONTAINERS_ENABLE=") ||
+					strings.HasPrefix(s, "CODER_AGENT_DEVCONTAINERS_PROJECT_DISCOVERY_ENABLE=")
 			})
 			return shell, dir, env, nil
 		}
@@ -524,23 +525,41 @@ func (api *API) discoverDevcontainersInProject(projectPath string) error {
 
 			workspaceFolder := strings.TrimSuffix(path, relativeConfigPath)
 
-			logger.Debug(api.ctx, "discovered dev container project", slog.F("workspace_folder", workspaceFolder))
+			logger := logger.With(slog.F("workspace_folder", workspaceFolder))
+			logger.Debug(api.ctx, "discovered dev container project")
 
 			api.mu.Lock()
 			if _, found := api.knownDevcontainers[workspaceFolder]; !found {
-				logger.Debug(api.ctx, "adding dev container project", slog.F("workspace_folder", workspaceFolder))
+				logger.Debug(api.ctx, "adding dev container project")
 
 				dc := codersdk.WorkspaceAgentDevcontainer{
 					ID:              uuid.New(),
 					Name:            "", // Updated later based on container state.
 					WorkspaceFolder: workspaceFolder,
 					ConfigPath:      path,
-					Status:          "",    // Updated later based on container state.
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
 					Dirty:           false, // Updated later based on config file changes.
 					Container:       nil,
 				}
 
+				config, err := api.dccli.ReadConfig(api.ctx, workspaceFolder, path, []string{})
+				if err != nil {
+					logger.Error(api.ctx, "read project configuration", slog.Error(err))
+				} else if config.Configuration.Customizations.Coder.AutoStart {
+					dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
+				}
+
 				api.knownDevcontainers[workspaceFolder] = dc
+				api.broadcastUpdatesLocked()
+
+				if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting {
+					api.asyncWg.Add(1)
+					go func() {
+						defer api.asyncWg.Done()
+
+						_ = api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath)
+					}()
+				}
 			}
 			api.mu.Unlock()
 		}
