@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"slices"
@@ -25,6 +26,8 @@ import (
 // It is used when a user runs `create --preset None`,
 // indicating that the CLI should not apply any preset.
 const PresetNone = "None"
+
+var ErrNoPresetFound = xerrors.New("no preset found")
 
 func (r *RootCmd) create() *serpent.Command {
 	var (
@@ -284,11 +287,10 @@ func (r *RootCmd) create() *serpent.Command {
 				// Attempt to resolve which preset to use
 				preset, err = resolvePreset(tvPresets, presetName)
 				if err != nil {
-					return xerrors.Errorf("unable to resolve preset: %w", err)
-				}
-
-				// If no preset found, prompt the user to choose a preset
-				if preset == nil {
+					if !errors.Is(err, ErrNoPresetFound) {
+						return xerrors.Errorf("unable to resolve preset: %w", err)
+					}
+					// If no preset found, prompt the user to choose a preset
 					if preset, err = promptPresetSelection(inv, tvPresets); err != nil {
 						return xerrors.Errorf("unable to prompt user for preset: %w", err)
 					}
@@ -440,7 +442,7 @@ type prepWorkspaceBuildArgs struct {
 
 // resolvePreset returns the preset matching the given presetName (if specified),
 // or the default preset (if any).
-// Returns nil if no matching or default preset is found.
+// Returns ErrNoPresetFound if no matching or default preset is found.
 func resolvePreset(presets []codersdk.Preset, presetName string) (*codersdk.Preset, error) {
 	// If preset name is specified, find it
 	if presetName != "" {
@@ -459,8 +461,8 @@ func resolvePreset(presets []codersdk.Preset, presetName string) (*codersdk.Pres
 		}
 	}
 
-	// No preset found, return nil to indicate no preset found
-	return nil, nil
+	// No preset found
+	return nil, ErrNoPresetFound
 }
 
 // promptPresetSelection shows a CLI selection menu of the presets defined in the template version.

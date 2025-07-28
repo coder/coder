@@ -44,7 +44,7 @@ Specify a template version name.
 | Type        | <code>string</code>             |
 | Environment | <code>$CODER_PRESET_NAME</code> |
 
-Specify the name of a template version preset. Use 'none' to explicitly indicate that no preset should be used.
+Specify the name of a template version preset. Use 'None' to explicitly indicate that no preset should be used.
 
 ### --start-at
 
