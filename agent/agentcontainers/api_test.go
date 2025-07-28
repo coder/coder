@@ -3682,7 +3682,7 @@ func TestDevcontainerDiscovery(t *testing.T) {
 					)
 
 					gomock.InOrder(
-						// Given: This dev container has auto start disbaled.
+						// Given: This dev container has auto start disabled.
 						mDCCLI.EXPECT().ReadConfig(gomock.Any(),
 							"/home/coder/project",
 							"/home/coder/project/.devcontainer.json",

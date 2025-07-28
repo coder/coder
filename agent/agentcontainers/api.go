@@ -557,7 +557,6 @@ func (api *API) discoverDevcontainersInProject(projectPath string) error {
 						_ = api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath)
 					}()
 				}
-
 			}
 			api.mu.Unlock()
 		}
