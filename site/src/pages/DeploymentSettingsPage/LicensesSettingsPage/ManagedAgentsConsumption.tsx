@@ -31,11 +31,7 @@ const validateFeature = (feature?: Feature): string | null => {
 			return "Managed agent feature is enabled but missing required usage data (actual, soft_limit, or limit).";
 		}
 
-		if (
-			feature.actual < 0 ||
-			feature.soft_limit < 0 ||
-			feature.limit < 0
-		) {
+		if (feature.actual < 0 || feature.soft_limit < 0 || feature.limit < 0) {
 			return "Managed agent feature contains invalid negative values for usage metrics.";
 		}
 
@@ -76,14 +72,11 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 			<div className="min-h-60 flex items-center justify-center rounded-lg border border-solid p-12">
 				<Stack alignItems="center" spacing={1}>
 					<Stack alignItems="center" spacing={0.5}>
-						<span className="text-base">
-							Managed AI Agents Disabled
-						</span>
+						<span className="text-base">Managed AI Agents Disabled</span>
 						<span className="text-content-secondary text-center max-w-[464px] mt-2">
 							Managed AI agents are not included in your current license.
-							Contact{" "}
-							<MuiLink href="mailto:sales@coder.com">sales</MuiLink> to upgrade
-							your license and unlock this feature.
+							Contact <MuiLink href="mailto:sales@coder.com">sales</MuiLink> to
+							upgrade your license and unlock this feature.
 						</span>
 					</Stack>
 				</Stack>
@@ -171,7 +164,8 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 								>
 									<div className="w-full border-b-1 border-t-1 border-dashed border-content-disabled" />
 								</div>
-								Total limit after which further AI workspace builds will be blocked.
+								Total limit after which further AI workspace builds will be
+								blocked.
 							</li>
 						</ul>
 					</CollapsibleContent>
