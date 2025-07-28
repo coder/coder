@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/schedule"
@@ -129,6 +130,30 @@ func (e *Executor) Run() {
 			}
 		}
 	}()
+}
+
+// Add this function to check for available provisioners
+func (e *Executor) hasAvailableProvisioners(ctx context.Context, tx database.Store, ws database.Workspace, templateVersionJob database.ProvisionerJob) (bool, error) {
+    // Get eligible provisioner daemons for this workspace's template
+    provisionerDaemons, err := tx.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
+        OrganizationID: ws.OrganizationID,
+        WantTags:       templateVersionJob.Tags,
+    })
+    if err != nil {
+        return false, xerrors.Errorf("get provisioner daemons: %w", err)
+    }
+
+    // Check if any provisioners are active (not stale)
+    now := dbtime.Now()
+    for _, pd := range provisionerDaemons {
+        if pd.LastSeenAt.Valid {
+            age := now.Sub(pd.LastSeenAt.Time)
+            if age <= provisionerdserver.StaleInterval {
+                return true, nil
+            }
+        }
+    }
+    return false, nil
 }
 
 func (e *Executor) runOnce(t time.Time) Stats {
@@ -278,6 +303,22 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						// doesn't matter since the transaction is  read-only up to
 						// this point.
 						return nil
+					}
+
+					// Get the template version job to access tags
+					templateVersionJob, err := tx.GetProvisionerJobByID(e.ctx, activeTemplateVersion.JobID)
+					if err != nil {
+						return xerrors.Errorf("get template version job: %w", err)
+					}
+
+					// Before creating the workspace build, check for available provisioners
+					hasProvisioners, err := e.hasAvailableProvisioners(e.ctx, tx, ws, templateVersionJob)
+					if err != nil {
+						return xerrors.Errorf("check provisioner availability: %w", err)
+					}
+					if !hasProvisioners {
+						log.Warn(e.ctx, "skipping autostart - no available provisioners")
+						return nil // Skip this workspace
 					}
 
 					if nextTransition != "" {
