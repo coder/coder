@@ -182,7 +182,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 			{Name: firstParameterName, Description: firstParameterDescription, Mutable: true},
 			{Name: immutableParameterName, Description: immutableParameterDescription, Mutable: false},
 			{Name: secondParameterName, Description: secondParameterDescription, Mutable: true},
-			{Name: ephemeralParameterName, Description: ephemeralParameterDescription, Mutable: true, Ephemeral: true},
+			{Name: ephemeralParameterName, Description: ephemeralParameterDescription, Mutable: true, Ephemeral: true, DefaultValue: "unset"},
 		})
 	}
 
