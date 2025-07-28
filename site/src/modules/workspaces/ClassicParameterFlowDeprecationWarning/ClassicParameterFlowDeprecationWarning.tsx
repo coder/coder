@@ -1,27 +1,19 @@
 import { Alert } from "components/Alert/Alert";
 import { Link } from "components/Link/Link";
-import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
 interface ClassicParameterFlowDeprecationWarningProps {
-	organizationName: string;
-	templateName: string;
+	templateSettingsLink: string;
 	isEnabled: boolean;
 }
 
 export const ClassicParameterFlowDeprecationWarning: FC<
 	ClassicParameterFlowDeprecationWarningProps
-> = ({ organizationName, templateName, isEnabled }) => {
-	const getLink = useLinks();
-
+> = ({ templateSettingsLink, isEnabled }) => {
 	if (!isEnabled) {
 		return null;
 	}
-
-	const templateSettingsLink = `${getLink(
-		linkToTemplate(organizationName, templateName),
-	)}/settings`;
 
 	return (
 		<Alert severity="warning" className="mb-2">

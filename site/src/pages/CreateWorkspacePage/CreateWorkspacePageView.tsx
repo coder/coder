@@ -28,6 +28,7 @@ import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
 import { ExternalLinkIcon } from "lucide-react";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import { ClassicParameterFlowDeprecationWarning } from "modules/workspaces/ClassicParameterFlowDeprecationWarning/ClassicParameterFlowDeprecationWarning";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { type FC, useCallback, useEffect, useMemo, useState } from "react";
@@ -102,6 +103,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	onSubmit,
 	onCancel,
 }) => {
+	const getLink = useLinks();
 	const [owner, setOwner] = useState(defaultOwner);
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
@@ -265,8 +267,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 			</PageHeader>
 
 			<ClassicParameterFlowDeprecationWarning
-				organizationName={template.organization_name}
-				templateName={template.name}
+				templateSettingsLink={`${getLink(
+					linkToTemplate(template.organization_name, template.name),
+				)}/settings`}
 				isEnabled={templatePermissions.canUpdateTemplate}
 			/>
 

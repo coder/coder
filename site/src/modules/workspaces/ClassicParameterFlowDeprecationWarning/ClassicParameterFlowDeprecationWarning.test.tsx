@@ -15,6 +15,7 @@ describe("ClassicParameterFlowDeprecationWarning", () => {
 	it("renders warning when enabled and user has template update permissions", () => {
 		render(
 			<ClassicParameterFlowDeprecationWarning
+				templateSettingsLink={`/templates/${defaultProps.organizationName}/${defaultProps.templateName}/settings`}
 				{...defaultProps}
 				isEnabled={true}
 			/>,
@@ -27,6 +28,7 @@ describe("ClassicParameterFlowDeprecationWarning", () => {
 	it("does not render when enabled is false", () => {
 		const { container } = render(
 			<ClassicParameterFlowDeprecationWarning
+				templateSettingsLink={`/templates/${defaultProps.organizationName}/${defaultProps.templateName}/settings`}
 				{...defaultProps}
 				isEnabled={false}
 			/>,

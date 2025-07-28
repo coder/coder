@@ -90,8 +90,7 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
 				</Alert>
 			)}
 			<ClassicParameterFlowDeprecationWarning
-				organizationName={workspace.organization_name}
-				templateName={workspace.template_name}
+				templateSettingsLink={`/templates/${workspace.organization_name}/${workspace.template_name}/settings`}
 				isEnabled={templatePermissions?.canUpdateTemplate ?? false}
 			/>
 			<HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
