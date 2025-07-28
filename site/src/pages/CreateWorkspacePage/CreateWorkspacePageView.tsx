@@ -6,7 +6,6 @@ import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
-import { SelectFilter } from "components/Filter/SelectFilter";
 import {
 	FormFields,
 	FormFooter,
@@ -42,10 +41,10 @@ import {
 	useValidationSchemaForRichParameters,
 } from "utils/richParameters";
 import * as Yup from "yup";
+import { Combobox } from "../../components/Combobox/Combobox";
 import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
-import {Combobox} from "../../components/Combobox/Combobox";
 
 export const Language = {
 	duplicationWarning:
@@ -384,7 +383,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 									<Stack direction="column" spacing={2}>
 										<Stack direction="row" spacing={2}>
 											<Combobox
-												value={presetOptions[selectedPresetIndex]?.displayName || ""}
+												value={
+													presetOptions[selectedPresetIndex]?.displayName || ""
+												}
 												options={presetOptions}
 												placeholder="Select a preset"
 												onSelect={(value) => {
@@ -397,7 +398,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 													setSelectedPresetIndex(index);
 													form.setFieldValue(
 														"template_version_preset_id",
-														presetOptions[index].value === "" ? undefined : presetOptions[index].value,
+														// Empty string is equivalent to using None
+														presetOptions[index].value === ""
+															? undefined
+															: presetOptions[index].value,
 													);
 												}}
 											/>

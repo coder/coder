@@ -1,4 +1,3 @@
-import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import {
 	Command,
@@ -23,6 +22,7 @@ import { Check, ChevronDown, CornerDownLeft } from "lucide-react";
 import { Info } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useState } from "react";
 import { cn } from "utils/cn";
+import { ExternalImage } from "../ExternalImage/ExternalImage";
 
 interface ComboboxProps {
 	value: string;
@@ -118,13 +118,16 @@ export const Combobox: FC<ComboboxProps> = ({
 										onSelect(currentValue === value ? "" : currentValue);
 									}}
 								>
-									{showIcons && (
-										<Avatar
-											size="sm"
-											src={option.icon}
-											fallback={option.value}
-										/>
-									)}
+									{showIcons &&
+										(option.icon ? (
+											<ExternalImage
+												className="w-4 h-4 object-contain"
+												src={option.icon}
+												alt={option.displayName}
+											/>
+										) : (
+											<span className="w-4 h-4"> </span>
+										))}
 									{option.displayName}
 									<div className="flex flex-row items-center ml-auto gap-1">
 										{value === option.value && (
