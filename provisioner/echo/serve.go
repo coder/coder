@@ -394,7 +394,7 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 			if err != nil {
 				return nil, xerrors.Errorf("parameter terraform: %w", err)
 			}
-			mainTF.WriteString(paramTF)
+			_, _ = mainTF.WriteString(paramTF)
 		}
 	}
 
