@@ -1,4 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import Link from "@mui/material/Link";
 import MuiLink from "@mui/material/Link";
 import { Button } from "components/Button/Button";
 import {
@@ -10,6 +11,7 @@ import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
+import { docs } from "utils/docs";
 
 interface ManagedAgentsConsumptionProps {
 	usage: number;
@@ -33,14 +35,11 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 			<div css={styles.disabledRoot}>
 				<Stack alignItems="center" spacing={1}>
 					<Stack alignItems="center" spacing={0.5}>
-						<span css={styles.disabledTitle}>
-							Managed AI Agents Disabled
-						</span>
+						<span css={styles.disabledTitle}>Managed AI Agents Disabled</span>
 						<span css={styles.disabledDescription}>
 							Managed AI agents are not included in your current license.
-							Contact{" "}
-							<MuiLink href="mailto:sales@coder.com">sales</MuiLink> to upgrade
-							your license and unlock this feature.
+							Contact <MuiLink href="mailto:sales@coder.com">sales</MuiLink> to
+							upgrade your license and unlock this feature.
 						</span>
 					</Stack>
 				</Stack>
@@ -57,9 +56,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 			<div className="p-4">
 				<Collapsible>
 					<header className="flex flex-col gap-2 items-start">
-						<h3 className="text-md m-0 font-medium">
-							Managed agents consumption
-						</h3>
+						<h3 className="text-md m-0 font-medium">Managed AI Agents Usage</h3>
 
 						<CollapsibleTrigger asChild>
 							<Button
@@ -70,7 +67,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
                 `}
 							>
 								<ChevronRightIcon />
-								How we calculate managed agents consumption
+								Learn more
 							</Button>
 						</CollapsibleTrigger>
 					</header>
@@ -83,8 +80,15 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
             `}
 					>
 						<p>
-							Managed agents are counted based on the amount of successfully
-							started workspaces with an AI agent.
+							<Link
+								href={docs("/ai-coder/tasks")}
+								target="_blank"
+								rel="noreferrer"
+							>
+								Coder Tasks
+							</Link>{" "}
+							and upcoming managed AI features are included in Coder Premium
+							licenses during beta. Usage limits and pricing subject to change.
 						</p>
 						<ul>
 							<li className="flex items-center gap-2">
@@ -108,7 +112,8 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 								>
 									<div className="w-full border-b-1 border-t-1 border-dashed border-content-disabled" />
 								</div>
-								Total limit after which further AI workspace builds will be blocked.
+								Total limit after which further AI workspace builds will be
+								blocked.
 							</li>
 						</ul>
 					</CollapsibleContent>
