@@ -9,7 +9,7 @@ import {
 } from "components/Collapsible/Collapsible";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
-import { ChevronRightIcon, Link } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
@@ -100,9 +100,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 			<div className="p-4">
 				<Collapsible>
 					<header className="flex flex-col gap-2 items-start">
-						<h3 className="text-md m-0 font-medium">
-							Managed AI Agents Usage
-						</h3>
+						<h3 className="text-md m-0 font-medium">Managed AI Agents Usage</h3>
 
 						<CollapsibleTrigger asChild>
 							<Button
@@ -129,9 +127,11 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 							<MuiLink
 								href={docs("/ai-coder/tasks")}
 								target="_blank"
-								rel="noreferrer">
+								rel="noreferrer"
+							>
 								Coder Tasks
-							</MuiLink>{" "} and upcoming managed AI features are included in Coder Premium
+							</MuiLink>{" "}
+							and upcoming managed AI features are included in Coder Premium
 							licenses during beta. Usage limits and pricing subject to change.
 						</p>
 						<ul>
