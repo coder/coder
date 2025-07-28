@@ -3,8 +3,6 @@ package toolsdk
 import (
 	"bytes"
 	"context"
-	_ "embed"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -20,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
-	"github.com/coder/coder/v2/cryptorand"
 )
 
 type WorkspaceBashArgs struct {
@@ -34,9 +31,6 @@ type WorkspaceBashResult struct {
 	Output   string `json:"output"`
 	ExitCode int    `json:"exit_code"`
 }
-
-//go:embed resources/background.sh
-var backgroundScript string
 
 var WorkspaceBash = Tool[WorkspaceBashArgs, WorkspaceBashResult]{
 	Tool: aisdk.Tool{
@@ -57,10 +51,13 @@ The workspace parameter supports various formats:
 The timeout_ms parameter specifies the command timeout in milliseconds (defaults to 60000ms, maximum of 300000ms).
 If the command times out, all output captured up to that point is returned with a cancellation message.
 
+For background commands (background: true), output is captured until the timeout is reached, then the command
+continues running in the background. The captured output is returned as the result.
+
 Examples:
 - workspace: "my-workspace", command: "ls -la"
 - workspace: "john/dev-env", command: "git status", timeout_ms: 30000
-- workspace: "my-workspace", command: "npm run dev", background: true
+- workspace: "my-workspace", command: "npm run dev", background: true, timeout_ms: 10000
 - workspace: "my-workspace.main", command: "docker ps"`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -80,7 +77,7 @@ Examples:
 				},
 				"background": map[string]any{
 					"type":        "boolean",
-					"description": "Whether to run the command in the background. The command will not be affected by the timeout.",
+					"description": "Whether to run the command in the background. Output is captured until timeout, then the command continues running in the background.",
 				},
 			},
 			Required: []string{"workspace", "command"},
@@ -155,35 +152,29 @@ Examples:
 		}
 		command := args.Command
 		if args.Background {
-			// Background commands are not affected by the timeout
-			timeoutMs = defaultTimeoutMs
-			encodedCommand := base64.StdEncoding.EncodeToString([]byte(args.Command))
-			encodedScript := base64.StdEncoding.EncodeToString([]byte(backgroundScript))
-			commandID, err := cryptorand.StringCharset(cryptorand.Human, 8)
-			if err != nil {
-				return WorkspaceBashResult{}, xerrors.Errorf("failed to generate command ID: %w", err)
-			}
-			command = fmt.Sprintf(
-				"ARG_COMMAND=\"$(echo -n %s | base64 -d)\" ARG_COMMAND_ID=%s bash -c \"$(echo -n %s | base64 -d)\"",
-				encodedCommand,
-				commandID,
-				encodedScript,
-			)
+			// For background commands, use nohup directly to ensure they survive SSH session
+			// termination. This captures output normally but allows the process to continue
+			// running even after the SSH connection closes.
+			command = fmt.Sprintf("nohup %s </dev/null 2>&1", args.Command)
 		}
 
-		// Create context with timeout
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(timeoutMs)*time.Millisecond)
-		defer cancel()
+		// Create context with command timeout (replace the broader MCP timeout)
+		commandCtx, commandCancel := context.WithTimeout(ctx, time.Duration(timeoutMs)*time.Millisecond)
+		defer commandCancel()
 
 		// Execute command with timeout handling
-		output, err := executeCommandWithTimeout(ctx, session, command)
+		output, err := executeCommandWithTimeout(commandCtx, session, command)
 		outputStr := strings.TrimSpace(string(output))
 
 		// Handle command execution results
 		if err != nil {
 			// Check if the command timed out
-			if errors.Is(context.Cause(ctx), context.DeadlineExceeded) {
-				outputStr += "\nCommand canceled due to timeout"
+			if errors.Is(context.Cause(commandCtx), context.DeadlineExceeded) {
+				if args.Background {
+					outputStr += "\nCommand continues running in background"
+				} else {
+					outputStr += "\nCommand canceled due to timeout"
+				}
 				return WorkspaceBashResult{
 					Output:   outputStr,
 					ExitCode: 124,
@@ -417,21 +408,27 @@ func executeCommandWithTimeout(ctx context.Context, session *gossh.Session, comm
 		return safeWriter.Bytes(), err
 	case <-ctx.Done():
 		// Context was canceled (timeout or other cancellation)
-		// Close the session to stop the command
-		_ = session.Close()
+		// Close the session to stop the command, but handle errors gracefully
+		closeErr := session.Close()
 
-		// Give a brief moment to collect any remaining output
-		timer := time.NewTimer(50 * time.Millisecond)
+		// Give a brief moment to collect any remaining output and for goroutines to finish
+		timer := time.NewTimer(100 * time.Millisecond)
 		defer timer.Stop()
 
 		select {
 		case <-timer.C:
 			// Timer expired, return what we have
+			break
 		case err := <-done:
 			// Command finished during grace period
-			return safeWriter.Bytes(), err
+			if closeErr == nil {
+				return safeWriter.Bytes(), err
+			}
+			// If session close failed, prioritize the context error
+			break
 		}
 
+		// Return the collected output with the context error
 		return safeWriter.Bytes(), context.Cause(ctx)
 	}
 }
@@ -451,5 +448,9 @@ func (sw *syncWriter) Write(p []byte) (n int, err error) {
 func (sw *syncWriter) Bytes() []byte {
 	sw.mu.Lock()
 	defer sw.mu.Unlock()
-	return sw.w.Bytes()
+	// Return a copy to prevent race conditions with the underlying buffer
+	b := sw.w.Bytes()
+	result := make([]byte, len(b))
+	copy(result, b)
+	return result
 }

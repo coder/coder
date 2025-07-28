@@ -175,8 +175,6 @@ func TestWorkspaceBashTimeout(t *testing.T) {
 
 		// Test that the TimeoutMs field can be set and read correctly
 		args := toolsdk.WorkspaceBashArgs{
-			Workspace: "test-workspace",
-			Command:   "echo test",
 			TimeoutMs: 0, // Should default to 60000 in handler
 		}
 
@@ -193,8 +191,6 @@ func TestWorkspaceBashTimeout(t *testing.T) {
 
 		// Test that negative values can be set and will be handled by the default logic
 		args := toolsdk.WorkspaceBashArgs{
-			Workspace: "test-workspace",
-			Command:   "echo test",
 			TimeoutMs: -100,
 		}
 
@@ -280,7 +276,7 @@ func TestWorkspaceBashTimeoutIntegration(t *testing.T) {
 			TimeoutMs: 2000,                                   // 2 seconds timeout - should timeout after first echo
 		}
 
-		result, err := toolsdk.WorkspaceBash.Handler(t.Context(), deps, args)
+		result, err := testTool(t, toolsdk.WorkspaceBash, deps, args)
 
 		// Should not error (timeout is handled gracefully)
 		require.NoError(t, err)
@@ -314,7 +310,6 @@ func TestWorkspaceBashTimeoutIntegration(t *testing.T) {
 
 		deps, err := toolsdk.NewDeps(client)
 		require.NoError(t, err)
-		ctx := context.Background()
 
 		args := toolsdk.WorkspaceBashArgs{
 			Workspace: workspace.Name,
@@ -322,7 +317,8 @@ func TestWorkspaceBashTimeoutIntegration(t *testing.T) {
 			TimeoutMs: 5000,                    // 5 second timeout - plenty of time
 		}
 
-		result, err := toolsdk.WorkspaceBash.Handler(ctx, deps, args)
+		// Use testTool to register the tool as tested and satisfy coverage validation
+		result, err := testTool(t, toolsdk.WorkspaceBash, deps, args)
 
 		// Should not error
 		require.NoError(t, err)
@@ -343,7 +339,7 @@ func TestWorkspaceBashTimeoutIntegration(t *testing.T) {
 func TestWorkspaceBashBackgroundIntegration(t *testing.T) {
 	t.Parallel()
 
-	t.Run("BackgroundCommandReturnsImmediately", func(t *testing.T) {
+	t.Run("BackgroundCommandCapturesOutput", func(t *testing.T) {
 		t.Parallel()
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
@@ -359,29 +355,29 @@ func TestWorkspaceBashBackgroundIntegration(t *testing.T) {
 
 		args := toolsdk.WorkspaceBashArgs{
 			Workspace:  workspace.Name,
-			Command:    `echo "started" && sleep 5 && echo "completed"`, // Command that would take 5+ seconds
-			Background: true,                                            // Run in background
+			Command:    `echo "started" && sleep 60 && echo "completed"`, // Command that would take 60+ seconds
+			Background: true,                                             // Run in background
+			TimeoutMs:  2000,                                             // 2 second timeout
 		}
 
-		result, err := toolsdk.WorkspaceBash.Handler(t.Context(), deps, args)
+		result, err := testTool(t, toolsdk.WorkspaceBash, deps, args)
 
 		// Should not error
 		require.NoError(t, err)
 
 		t.Logf("Background result: exitCode=%d, output=%q", result.ExitCode, result.Output)
 
-		// Should have exit code 0 (background start successful)
-		require.Equal(t, 0, result.ExitCode)
+		// Should have exit code 124 (timeout) since command times out
+		require.Equal(t, 124, result.ExitCode)
 
-		// Should contain PID and log path info, not the actual command output
-		require.Contains(t, result.Output, "Command started with PID:")
-		require.Contains(t, result.Output, "Log path: /tmp/mcp-bg/")
+		// Should capture output up to timeout point
+		require.Contains(t, result.Output, "started", "Should contain output captured before timeout")
 
-		// Should NOT contain the actual command output since it runs in background
-		// The command was `echo "started" && sleep 5 && echo "completed"`
-		// So we check that the quoted strings don't appear in the output
-		require.NotContains(t, result.Output, `"started"`, "Should not contain command output in background mode")
-		require.NotContains(t, result.Output, `"completed"`, "Should not contain command output in background mode")
+		// Should NOT contain the second echo (it never executed due to timeout)
+		require.NotContains(t, result.Output, "completed", "Should not contain output after timeout")
+
+		// Should contain background continuation message
+		require.Contains(t, result.Output, "Command continues running in background")
 	})
 
 	t.Run("BackgroundVsNormalExecution", func(t *testing.T) {
@@ -419,20 +415,18 @@ func TestWorkspaceBashBackgroundIntegration(t *testing.T) {
 			Background: true,
 		}
 
-		backgroundResult, err := toolsdk.WorkspaceBash.Handler(t.Context(), deps, backgroundArgs)
+		backgroundResult, err := testTool(t, toolsdk.WorkspaceBash, deps, backgroundArgs)
 		require.NoError(t, err)
 
 		t.Logf("Normal result: %q", normalResult.Output)
 		t.Logf("Background result: %q", backgroundResult.Output)
 
-		// Background mode should return PID/log info, not the actual output
+		// Background mode should also return the actual output since command completes quickly
 		require.Equal(t, 0, backgroundResult.ExitCode)
-		require.Contains(t, backgroundResult.Output, "Command started with PID:")
-		require.Contains(t, backgroundResult.Output, "Log path: /tmp/mcp-bg/")
-		require.NotContains(t, backgroundResult.Output, "hello world")
+		require.Equal(t, "hello world", backgroundResult.Output)
 	})
 
-	t.Run("BackgroundIgnoresTimeout", func(t *testing.T) {
+	t.Run("BackgroundCommandContinuesAfterTimeout", func(t *testing.T) {
 		t.Parallel()
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
@@ -448,36 +442,35 @@ func TestWorkspaceBashBackgroundIntegration(t *testing.T) {
 
 		args := toolsdk.WorkspaceBashArgs{
 			Workspace:  workspace.Name,
-			Command:    `sleep 1 && echo "done" > /tmp/done`, // Command that would normally timeout
-			TimeoutMs:  1,                                    // 1 ms timeout (shorter than command duration)
-			Background: true,                                 // But running in background should ignore timeout
+			Command:    `echo "started" && sleep 4 && echo "done" > /tmp/bg-test-done`, // Command that will timeout but continue
+			TimeoutMs:  2000,                                                           // 2000ms timeout (shorter than command duration)
+			Background: true,                                                           // Run in background
 		}
 
-		result, err := toolsdk.WorkspaceBash.Handler(t.Context(), deps, args)
+		result, err := testTool(t, toolsdk.WorkspaceBash, deps, args)
 
-		// Should not error and should not timeout
+		// Should not error but should timeout
 		require.NoError(t, err)
 
 		t.Logf("Background with timeout result: exitCode=%d, output=%q", result.ExitCode, result.Output)
 
-		// Should have exit code 0 (background start successful)
-		require.Equal(t, 0, result.ExitCode)
+		// Should have timeout exit code
+		require.Equal(t, 124, result.ExitCode)
 
-		// Should return PID/log info, indicating the background command started successfully
-		require.Contains(t, result.Output, "Command started with PID:")
-		require.Contains(t, result.Output, "Log path: /tmp/mcp-bg/")
+		// Should capture output before timeout
+		require.Contains(t, result.Output, "started", "Should contain output captured before timeout")
 
-		// Should NOT contain timeout message since background mode ignores timeout
-		require.NotContains(t, result.Output, "Command canceled due to timeout")
+		// Should contain background continuation message
+		require.Contains(t, result.Output, "Command continues running in background")
 
-		// Wait for the background command to complete
+		// Wait for the background command to complete (even though SSH session timed out)
 		require.Eventually(t, func() bool {
-			args := toolsdk.WorkspaceBashArgs{
+			checkArgs := toolsdk.WorkspaceBashArgs{
 				Workspace: workspace.Name,
-				Command:   `cat /tmp/done`,
+				Command:   `cat /tmp/bg-test-done 2>/dev/null || echo "not found"`,
 			}
-			result, err := toolsdk.WorkspaceBash.Handler(t.Context(), deps, args)
-			return err == nil && result.Output == "done"
-		}, testutil.WaitMedium, testutil.IntervalMedium)
+			checkResult, err := toolsdk.WorkspaceBash.Handler(t.Context(), deps, checkArgs)
+			return err == nil && checkResult.Output == "done"
+		}, testutil.WaitMedium, testutil.IntervalMedium, "Background command should continue running and complete after timeout")
 	})
 }
