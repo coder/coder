@@ -996,8 +996,12 @@ func New(options *Options) *API {
 			r.Use(
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP),
 			)
+
 			// MCP HTTP transport endpoint with mandatory authentication
-			r.Mount("/http", api.mcpHTTPHandler())
+			r.Mount("/http", api.standardMCPHTTPHandler())
+			// ChatGPT gets a dedicated endpoint with a limited set of tools.
+			// See the docstring of the chatgptMCPHTTPHandler for more details.
+			r.Mount("/chatgpt", api.chatgptMCPHTTPHandler())
 		})
 	})
 
