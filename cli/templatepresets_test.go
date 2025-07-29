@@ -226,7 +226,7 @@ func TestTemplatePresets(t *testing.T) {
 		// Given: an active template version that includes presets
 		preset := proto.Preset{
 			Name:        "preset-default",
-			Description: "Preset wit parameters and 2 prebuild instances.",
+			Description: "Preset with parameters and 2 prebuild instances.",
 			Icon:        "/emojis/1f60e.png",
 			Default:     true,
 			Parameters: []*proto.PresetParameter{
