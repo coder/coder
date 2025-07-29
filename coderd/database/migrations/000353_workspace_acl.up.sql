@@ -39,3 +39,5 @@ CREATE VIEW workspaces_expanded AS
 		JOIN visible_users ON ((workspaces.owner_id = visible_users.id)))
 		JOIN organizations ON ((workspaces.organization_id = organizations.id)))
 		JOIN templates ON ((workspaces.template_id = templates.id)));
+
+COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name.';
