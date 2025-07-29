@@ -1,11 +1,14 @@
 package cli_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
@@ -84,8 +87,9 @@ func TestTemplatePresets(t *testing.T) {
 				},
 			},
 			{
-				Name:       "preset-prebuilds",
-				Parameters: []*proto.PresetParameter{},
+				Name:        "preset-prebuilds",
+				Description: "Preset without parameters and 2 prebuild instances.",
+				Parameters:  []*proto.PresetParameter{},
 				Prebuild: &proto.Prebuild{
 					Instances: 2,
 				},
@@ -117,7 +121,7 @@ func TestTemplatePresets(t *testing.T) {
 		pty.ExpectRegexMatch(`preset-default\s+k1=v2\s+true\s+0`)
 		// The parameter order is not guaranteed in the output, so we match both possible orders
 		pty.ExpectRegexMatch(`preset-multiple-params\s+(k1=v1,k2=v2)|(k2=v2,k1=v1)\s+false\s+-`)
-		pty.ExpectRegexMatch(`preset-prebuilds\s+\s+false\s+2`)
+		pty.ExpectRegexMatch(`preset-prebuilds\s+Preset without parameters and 2 prebuild instances.\s+\s+false\s+2`)
 	})
 
 	t.Run("ListsPresetsForSpecifiedTemplateVersion", func(t *testing.T) {
@@ -158,8 +162,9 @@ func TestTemplatePresets(t *testing.T) {
 				},
 			},
 			{
-				Name:       "preset-prebuilds",
-				Parameters: []*proto.PresetParameter{},
+				Name:        "preset-prebuilds",
+				Description: "Preset without parameters and 2 prebuild instances.",
+				Parameters:  []*proto.PresetParameter{},
 				Prebuild: &proto.Prebuild{
 					Instances: 2,
 				},
@@ -208,7 +213,69 @@ func TestTemplatePresets(t *testing.T) {
 		pty.ExpectRegexMatch(`preset-default\s+k1=v2\s+true\s+0`)
 		// The parameter order is not guaranteed in the output, so we match both possible orders
 		pty.ExpectRegexMatch(`preset-multiple-params\s+(k1=v1,k2=v2)|(k2=v2,k1=v1)\s+false\s+-`)
-		pty.ExpectRegexMatch(`preset-prebuilds\s+\s+false\s+2`)
+		pty.ExpectRegexMatch(`preset-prebuilds\s+Preset without parameters and 2 prebuild instances.\s+\s+false\s+2`)
+	})
+
+	t.Run("ListsPresetsJSON", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// Given: an active template version that includes presets
+		preset := proto.Preset{
+			Name:        "preset-default",
+			Description: "Preset wit parameters and 2 prebuild instances.",
+			Icon:        "/emojis/1f60e.png",
+			Default:     true,
+			Parameters: []*proto.PresetParameter{
+				{
+					Name:  "k1",
+					Value: "v2",
+				},
+			},
+			Prebuild: &proto.Prebuild{
+				Instances: 2,
+			},
+		}
+
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, templateWithPresets([]*proto.Preset{&preset}))
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		require.Equal(t, version.ID, template.ActiveVersionID)
+
+		// When: listing presets for that template
+		inv, root := clitest.New(t, "templates", "presets", "list", template.Name, "-o", "json")
+		clitest.SetupConfig(t, member, root)
+
+		buf := bytes.NewBuffer(nil)
+		inv.Stdout = buf
+		doneChan := make(chan struct{})
+		var runErr error
+		go func() {
+			defer close(doneChan)
+			runErr = inv.Run()
+		}()
+
+		<-doneChan
+		require.NoError(t, runErr)
+
+		// Should: return the active version's preset
+		var jsonPresets []cli.TemplatePresetRow
+		err := json.Unmarshal(buf.Bytes(), &jsonPresets)
+		require.NoError(t, err, "unmarshal JSON output")
+		require.Len(t, jsonPresets, 1)
+
+		jsonPreset := jsonPresets[0].TemplatePreset
+		require.Equal(t, preset.Name, jsonPreset.Name)
+		require.Equal(t, preset.Description, jsonPreset.Description)
+		require.Equal(t, preset.Icon, jsonPreset.Icon)
+		require.Equal(t, preset.Default, jsonPreset.Default)
+		require.Equal(t, len(preset.Parameters), len(jsonPreset.Parameters))
+		require.Equal(t, preset.Parameters[0].Name, jsonPreset.Parameters[0].Name)
+		require.Equal(t, preset.Parameters[0].Value, jsonPreset.Parameters[0].Value)
+		require.Equal(t, int(preset.Prebuild.Instances), *jsonPreset.DesiredPrebuildInstances)
 	})
 }
 

@@ -472,7 +472,12 @@ func promptPresetSelection(inv *serpent.Invocation, presets []codersdk.Preset) (
 	var presetOptions []string
 
 	for _, preset := range presets {
-		option := preset.Name
+		var option string
+		if preset.Description == "" {
+			option = preset.Name
+		} else {
+			option = fmt.Sprintf("%s: %s", preset.Name, preset.Description)
+		}
 		presetOptions = append(presetOptions, option)
 		presetMap[option] = &preset
 	}
