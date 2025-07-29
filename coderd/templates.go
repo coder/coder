@@ -360,7 +360,8 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		val = database.CorsBehavior(*createTemplate.CORSBehavior)
 	}
 	if !val.Valid() {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "cors_behavior",
+		validErrs = append(validErrs, codersdk.ValidationError{
+			Field:  "cors_behavior",
 			Detail: fmt.Sprintf("Invalid CORS behavior %q. Must be one of [%s]", *createTemplate.CORSBehavior, strings.Join(slice.ToStrings(database.AllCorsBehaviorValues()), ", ")),
 		})
 	} else {
@@ -746,7 +747,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.CORSBehavior != nil && *req.CORSBehavior != "" {
 		val := database.CorsBehavior(*req.CORSBehavior)
 		if !val.Valid() {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: "cors_behavior",
+			validErrs = append(validErrs, codersdk.ValidationError{
+				Field:  "cors_behavior",
 				Detail: fmt.Sprintf("Invalid CORS behavior %q. Must be one of [%s]", *req.CORSBehavior, strings.Join(slice.ToStrings(database.AllCorsBehaviorValues()), ", ")),
 			})
 		} else {
