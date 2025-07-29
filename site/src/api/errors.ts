@@ -127,7 +127,7 @@ export const getErrorDetail = (error: unknown): string | undefined => {
 	}
 
 	if (error instanceof Error) {
-		return "Please check the developer console for more details.";
+		return "Please check the developer console for more details. " + error;
 	}
 
 	return undefined;
