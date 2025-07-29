@@ -25,6 +25,7 @@ import (
 func TestReconcileAll(t *testing.T) {
 	t.Parallel()
 
+	// nolint:gocritic // Reconciliation happens as prebuilds system user, not a human user.
 	ctx := dbauthz.AsPrebuildsOrchestrator(testutil.Context(t, testutil.WaitLong))
 	clock := quartz.NewMock(t)
 
