@@ -105,7 +105,8 @@ export const SearchAndFilter: Story = {
 				screen.queryByRole("option", { name: "Kotlin" }),
 			).not.toBeInTheDocument();
 		});
-		await userEvent.click(screen.getByRole("option", { name: "Rust" }));
+		// Accessible name includes both image alt text and text content: "Rust Rust"
+		await userEvent.click(screen.getByRole("option", { name: "Rust Rust" }));
 	},
 };
 
@@ -139,9 +140,11 @@ export const ClearSelectedOption: Story = {
 		await userEvent.click(canvas.getByRole("button"));
 		// const goOption = screen.getByText("Go");
 		// First select an option
-		await userEvent.click(await screen.findByRole("option", { name: "Go" }));
+		// Accessible name includes both image alt text and text content: "Go Go"
+		await userEvent.click(await screen.findByRole("option", { name: "Go Go" }));
 		// Then clear it by selecting it again
-		await userEvent.click(await screen.findByRole("option", { name: "Go" }));
+		// Accessible name includes both image alt text and text content: "Go Go"
+		await userEvent.click(await screen.findByRole("option", { name: "Go Go" }));
 
 		await waitFor(() =>
 			expect(canvas.getByRole("button")).toHaveTextContent("Select option"),

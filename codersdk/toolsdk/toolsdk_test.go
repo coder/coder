@@ -456,7 +456,7 @@ var testedTools sync.Map
 // This is to mimic how we expect external callers to use the tool.
 func testTool[Arg, Ret any](t *testing.T, tool toolsdk.Tool[Arg, Ret], tb toolsdk.Deps, args Arg) (Ret, error) {
 	t.Helper()
-	defer func() { testedTools.Store(tool.Tool.Name, true) }()
+	defer func() { testedTools.Store(tool.Name, true) }()
 	toolArgs, err := json.Marshal(args)
 	require.NoError(t, err, "failed to marshal args")
 	result, err := tool.Generic().Handler(t.Context(), tb, toolArgs)
@@ -625,23 +625,23 @@ func TestToolSchemaFields(t *testing.T) {
 
 	// Test that all tools have the required Schema fields (Properties and Required)
 	for _, tool := range toolsdk.All {
-		t.Run(tool.Tool.Name, func(t *testing.T) {
+		t.Run(tool.Name, func(t *testing.T) {
 			t.Parallel()
 
 			// Check that Properties is not nil
-			require.NotNil(t, tool.Tool.Schema.Properties,
-				"Tool %q missing Schema.Properties", tool.Tool.Name)
+			require.NotNil(t, tool.Schema.Properties,
+				"Tool %q missing Schema.Properties", tool.Name)
 
 			// Check that Required is not nil
-			require.NotNil(t, tool.Tool.Schema.Required,
-				"Tool %q missing Schema.Required", tool.Tool.Name)
+			require.NotNil(t, tool.Schema.Required,
+				"Tool %q missing Schema.Required", tool.Name)
 
 			// Ensure Properties has entries for all required fields
-			for _, requiredField := range tool.Tool.Schema.Required {
-				_, exists := tool.Tool.Schema.Properties[requiredField]
+			for _, requiredField := range tool.Schema.Required {
+				_, exists := tool.Schema.Properties[requiredField]
 				require.True(t, exists,
 					"Tool %q requires field %q but it is not defined in Properties",
-					tool.Tool.Name, requiredField)
+					tool.Name, requiredField)
 			}
 		})
 	}
@@ -652,7 +652,7 @@ func TestToolSchemaFields(t *testing.T) {
 func TestMain(m *testing.M) {
 	// Initialize testedTools
 	for _, tool := range toolsdk.All {
-		testedTools.Store(tool.Tool.Name, false)
+		testedTools.Store(tool.Name, false)
 	}
 
 	code := m.Run()
@@ -660,8 +660,8 @@ func TestMain(m *testing.M) {
 	// Ensure all tools have been tested
 	var untested []string
 	for _, tool := range toolsdk.All {
-		if tested, ok := testedTools.Load(tool.Tool.Name); !ok || !tested.(bool) {
-			untested = append(untested, tool.Tool.Name)
+		if tested, ok := testedTools.Load(tool.Name); !ok || !tested.(bool) {
+			untested = append(untested, tool.Name)
 		}
 	}
 

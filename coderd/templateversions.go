@@ -1471,7 +1471,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	var dynamicTemplate bool
+	dynamicTemplate := true // Default to using dynamic templates
 	if req.TemplateID != uuid.Nil {
 		tpl, err := api.Database.GetTemplateByID(ctx, req.TemplateID)
 		if httpapi.Is404Error(err) {

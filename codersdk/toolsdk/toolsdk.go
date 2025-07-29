@@ -229,7 +229,7 @@ ONLY report an "idle" or "failure" state if you have FULLY completed the task.
 			Properties: map[string]any{
 				"summary": map[string]any{
 					"type":        "string",
-					"description": "A concise summary of your current progress on the task. This must be less than 160 characters in length.",
+					"description": "A concise summary of your current progress on the task. This must be less than 160 characters in length and must not include newlines or other control characters.",
 				},
 				"link": map[string]any{
 					"type":        "string",
