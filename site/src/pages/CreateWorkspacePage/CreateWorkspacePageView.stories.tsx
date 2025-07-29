@@ -11,6 +11,7 @@ import {
 	MockUserOwner,
 	mockApiError,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
 const meta: Meta<typeof CreateWorkspacePageView> = {
@@ -31,7 +32,9 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 			canUpdateTemplate: false,
 		},
 		onCancel: action("onCancel"),
+		templatePermissions: { canUpdateTemplate: true },
 	},
+	decorators: [withDashboardProvider],
 };
 
 export default meta;

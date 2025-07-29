@@ -1203,3 +1203,36 @@ export async function addUserToOrganization(
 	}
 	await page.mouse.click(10, 10); // close the popover by clicking outside of it
 }
+
+/**
+ * disableDynamicParameters navigates to the template settings page and disables
+ * dynamic parameters by unchecking the "Enable dynamic parameters" checkbox.
+ */
+export const disableDynamicParameters = async (
+	page: Page,
+	templateName: string,
+	orgName = defaultOrganizationName,
+) => {
+	await page.goto(`/templates/${orgName}/${templateName}/settings`, {
+		waitUntil: "domcontentloaded",
+	});
+
+	// Find and uncheck the "Enable dynamic parameters" checkbox
+	const dynamicParamsCheckbox = page.getByRole("checkbox", {
+		name: /Enable dynamic parameters for workspace creation/,
+	});
+
+	// If the checkbox is checked, uncheck it
+	if (await dynamicParamsCheckbox.isChecked()) {
+		await dynamicParamsCheckbox.click();
+	}
+
+	// Save the changes
+	await page.getByRole("button", { name: /save/i }).click();
+
+	// Wait for the success message or page to update
+	await page.waitForSelector("text=Template updated successfully", {
+		state: "visible",
+		timeout: 10000,
+	});
+};
