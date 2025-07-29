@@ -36,6 +36,20 @@ func TemplateConverter() *sqltypes.VariableConverter {
 	return matcher
 }
 
+func WorkspaceConverter() *sqltypes.VariableConverter {
+	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
+		resourceIDMatcher(),
+		sqltypes.StringVarMatcher("workspaces.organization_id :: text", []string{"input", "object", "org_owner"}),
+		userOwnerMatcher(),
+	)
+	matcher.RegisterMatcher(
+		groupACLMatcher(matcher).UsingSubfield("permissions"),
+		userACLMatcher(matcher).UsingSubfield("permissions"),
+	)
+
+	return matcher
+}
+
 func AuditLogConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),
@@ -78,20 +92,6 @@ func UserConverter() *sqltypes.VariableConverter {
 		sqltypes.AlwaysFalse(groupACLMatcher(matcher)),
 		sqltypes.AlwaysFalse(userACLMatcher(matcher)),
 	)
-	return matcher
-}
-
-func WorkspaceConverter() *sqltypes.VariableConverter {
-	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
-		resourceIDMatcher(),
-		sqltypes.StringVarMatcher("workspaces.organization_id :: text", []string{"input", "object", "org_owner"}),
-		userOwnerMatcher(),
-	)
-	matcher.RegisterMatcher(
-		groupACLMatcher(matcher).UsingSubfield("roles"),
-		userACLMatcher(matcher).UsingSubfield("roles"),
-	)
-
 	return matcher
 }
 

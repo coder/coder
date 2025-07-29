@@ -24,17 +24,18 @@ var (
 //
 // This is a custom variable matcher as json objects have arbitrary complexity.
 type ACLMappingVar struct {
-	// SelectSQL is used to select the ACL mapping from the table for the
+	// SelectSQL is used to `SELECT` the ACL mapping from the table for the
 	// given resource. ie. if the full query might look like `SELECT group_acl
 	// FROM things;` then you would want this to be `"group_acl"`.
 	SelectSQL string
-	// FieldReference handles variable references when indexing into the mapping.
-	// (like `input.object.acl_group_list[input.object.group_id]`). We pass one in
-	// as the global one might not be correctly scoped.
-	FieldReference sqltypes.VariableMatcher
+	// IndexMatcher handles variable references when indexing into the mapping.
+	// (ie. `input.object.acl_group_list[input.object.org_owner]`). We need one
+	// from the local context because the global one might not be correctly
+	// scoped.
+	IndexMatcher sqltypes.VariableMatcher
 	// Used if the action list isn't directly in the ACL entry. For example, in
 	// the `workspaces.group_acl` and `workspaces.user_acl` columns they're stored
-	// under a `"roles"` key.
+	// under a `"permissions"` key.
 	Subfield string
 
 	// StructPath represents the path of the value in rego
@@ -46,8 +47,8 @@ type ACLMappingVar struct {
 	GroupNode sqltypes.Node
 }
 
-func ACLMappingMatcher(fieldReference sqltypes.VariableMatcher, structSQL string, structPath []string) ACLMappingVar {
-	return ACLMappingVar{SelectSQL: structSQL, StructPath: structPath, FieldReference: fieldReference}
+func ACLMappingMatcher(indexMatcher sqltypes.VariableMatcher, selectSQL string, structPath []string) ACLMappingVar {
+	return ACLMappingVar{IndexMatcher: indexMatcher, SelectSQL: selectSQL, StructPath: structPath}
 }
 
 func (g ACLMappingVar) UsingSubfield(subfield string) ACLMappingVar {
@@ -68,9 +69,9 @@ func (g ACLMappingVar) ConvertVariable(rego ast.Ref) (sqltypes.Node, bool) {
 	}
 
 	aclGrp := ACLMappingVar{
-		SelectSQL:      g.SelectSQL,
-		FieldReference: g.FieldReference,
-		Subfield:       g.Subfield,
+		SelectSQL:    g.SelectSQL,
+		IndexMatcher: g.IndexMatcher,
+		Subfield:     g.Subfield,
 
 		StructPath: g.StructPath,
 
@@ -85,8 +86,8 @@ func (g ACLMappingVar) ConvertVariable(rego ast.Ref) (sqltypes.Node, bool) {
 	// If the remaining is a variable, then we need to convert it.
 	// Assuming we support variable fields.
 	ref, ok := left[0].Value.(ast.Ref)
-	if ok && g.FieldReference != nil {
-		groupNode, ok := g.FieldReference.ConvertVariable(ref)
+	if ok && g.IndexMatcher != nil {
+		groupNode, ok := g.IndexMatcher.ConvertVariable(ref)
 		if ok {
 			aclGrp.GroupNode = groupNode
 			return aclGrp, true
