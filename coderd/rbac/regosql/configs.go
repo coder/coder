@@ -15,11 +15,11 @@ func userOwnerMatcher() sqltypes.VariableMatcher {
 }
 
 func groupACLMatcher(m sqltypes.VariableMatcher) ACLMappingVar {
-	return ACLGroupMatcher(m, "group_acl", []string{"input", "object", "acl_group_list"})
+	return ACLMappingMatcher(m, "group_acl", []string{"input", "object", "acl_group_list"})
 }
 
 func userACLMatcher(m sqltypes.VariableMatcher) ACLMappingVar {
-	return ACLGroupMatcher(m, "user_acl", []string{"input", "object", "acl_user_list"})
+	return ACLMappingMatcher(m, "user_acl", []string{"input", "object", "acl_user_list"})
 }
 
 func TemplateConverter() *sqltypes.VariableConverter {

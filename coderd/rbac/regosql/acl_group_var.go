@@ -46,7 +46,7 @@ type ACLMappingVar struct {
 	GroupNode sqltypes.Node
 }
 
-func ACLGroupMatcher(fieldReference sqltypes.VariableMatcher, structSQL string, structPath []string) ACLMappingVar {
+func ACLMappingMatcher(fieldReference sqltypes.VariableMatcher, structSQL string, structPath []string) ACLMappingVar {
 	return ACLMappingVar{SelectSQL: structSQL, StructPath: structPath, FieldReference: fieldReference}
 }
 
