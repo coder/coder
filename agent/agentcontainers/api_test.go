@@ -3905,9 +3905,9 @@ func TestDevcontainerPrebuildSupport(t *testing.T) {
 			MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
 				Customizations: agentcontainers.DevcontainerMergedCustomizations{
 					Coder: []agentcontainers.CoderCustomization{
-						agentcontainers.CoderCustomization{
+						{
 							Apps: []agentcontainers.SubAgentApp{
-								agentcontainers.SubAgentApp{
+								{
 									Slug: "zed",
 									URL:  prebuildAppURL,
 								},
@@ -3929,10 +3929,8 @@ func TestDevcontainerPrebuildSupport(t *testing.T) {
 			testDC.WorkspaceFolder, testDC.ConfigPath,
 			"/.coder-agent/coder", []string{"agent"}, gomock.Any(), gomock.Any(),
 		).Do(func(ctx context.Context, _, _, _ string, _ []string, _ ...agentcontainers.DevcontainerCLIExecOptions) error {
-			select {
-			case <-ctx.Done():
-				return nil
-			}
+			<-ctx.Done()
+			return nil
 		}),
 	)
 
@@ -4018,9 +4016,9 @@ func TestDevcontainerPrebuildSupport(t *testing.T) {
 			MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
 				Customizations: agentcontainers.DevcontainerMergedCustomizations{
 					Coder: []agentcontainers.CoderCustomization{
-						agentcontainers.CoderCustomization{
+						{
 							Apps: []agentcontainers.SubAgentApp{
-								agentcontainers.SubAgentApp{
+								{
 									Slug: "zed",
 									URL:  userAppURL,
 								},
@@ -4042,10 +4040,8 @@ func TestDevcontainerPrebuildSupport(t *testing.T) {
 			testDC.WorkspaceFolder, testDC.ConfigPath,
 			"/.coder-agent/coder", []string{"agent"}, gomock.Any(), gomock.Any(),
 		).Do(func(ctx context.Context, _, _, _ string, _ []string, _ ...agentcontainers.DevcontainerCLIExecOptions) error {
-			select {
-			case <-ctx.Done():
-				return nil
-			}
+			<-ctx.Done()
+			return nil
 		}),
 	)
 
