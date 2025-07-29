@@ -42,6 +42,7 @@ type Executor struct {
 	templateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 	accessControlStore    *atomic.Pointer[dbauthz.AccessControlStore]
 	auditor               *atomic.Pointer[audit.Auditor]
+	buildUsageChecker     *atomic.Pointer[wsbuilder.UsageChecker]
 	log                   slog.Logger
 	tick                  <-chan time.Time
 	statsCh               chan<- Stats
@@ -65,7 +66,7 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments) *Executor {
 	factory := promauto.With(reg)
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
@@ -78,6 +79,7 @@ func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *f
 		log:                   log.Named("autobuild"),
 		auditor:               auditor,
 		accessControlStore:    acs,
+		buildUsageChecker:     buildUsageChecker,
 		notificationsEnqueuer: enqueuer,
 		reg:                   reg,
 		experiments:           exp,
@@ -279,7 +281,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 
 					if nextTransition != "" {
-						builder := wsbuilder.New(ws, nextTransition).
+						builder := wsbuilder.New(ws, nextTransition, *e.buildUsageChecker.Load()).
 							SetLastWorkspaceBuildInTx(&latestBuild).
 							SetLastWorkspaceBuildJobInTx(&latestJob).
 							Experiments(e.experiments).

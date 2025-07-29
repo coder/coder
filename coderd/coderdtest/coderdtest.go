@@ -55,12 +55,14 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/archive"
 	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -125,6 +127,7 @@ type Options struct {
 	TemplateScheduleStore          schedule.TemplateScheduleStore
 	Coordinator                    tailnet.Coordinator
 	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
+	ConnectionLogger               connectionlog.ConnectionLogger
 
 	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport
 	HealthcheckTimeout time.Duration
@@ -356,6 +359,16 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 	auditor.Store(&options.Auditor)
 
+	var connectionLogger atomic.Pointer[connectionlog.ConnectionLogger]
+	if options.ConnectionLogger == nil {
+		options.ConnectionLogger = connectionlog.NewNop()
+	}
+	connectionLogger.Store(&options.ConnectionLogger)
+
+	var buildUsageChecker atomic.Pointer[wsbuilder.UsageChecker]
+	var noopUsageChecker wsbuilder.UsageChecker = wsbuilder.NoopUsageChecker{}
+	buildUsageChecker.Store(&noopUsageChecker)
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	experiments := coderd.ReadExperiments(*options.Logger, options.DeploymentValues.Experiments)
 	lifecycleExecutor := autobuild.NewExecutor(
@@ -367,6 +380,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		&templateScheduleStore,
 		&auditor,
 		accessControlStore,
+		&buildUsageChecker,
 		*options.Logger,
 		options.AutobuildTicker,
 		options.NotificationsEnqueuer,
@@ -543,6 +557,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			ExternalAuthConfigs:            options.ExternalAuthConfigs,
 
 			Auditor:                            options.Auditor,
+			ConnectionLogger:                   options.ConnectionLogger,
 			AWSCertificates:                    options.AWSCertificates,
 			AzureCertificates:                  options.AzureCertificates,
 			GithubOAuth2Config:                 options.GithubOAuth2Config,

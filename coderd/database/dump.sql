@@ -38,6 +38,8 @@ CREATE TYPE audit_action AS ENUM (
     'close'
 );
 
+COMMENT ON TYPE audit_action IS 'NOTE: `connect`, `disconnect`, `open`, and `close` are deprecated and no longer used - these events are now tracked in the connection_logs table.';
+
 CREATE TYPE automatic_updates AS ENUM (
     'always',
     'never'
@@ -49,7 +51,26 @@ CREATE TYPE build_reason AS ENUM (
     'autostop',
     'dormancy',
     'failedstop',
-    'autodelete'
+    'autodelete',
+    'dashboard',
+    'cli',
+    'ssh_connection',
+    'vscode_connection',
+    'jetbrains_connection'
+);
+
+CREATE TYPE connection_status AS ENUM (
+    'connected',
+    'disconnected'
+);
+
+CREATE TYPE connection_type AS ENUM (
+    'ssh',
+    'vscode',
+    'jetbrains',
+    'reconnecting_pty',
+    'workspace_app',
+    'port_forwarding'
 );
 
 CREATE TYPE cors_behavior AS ENUM (
@@ -587,15 +608,15 @@ BEGIN
             IF workspace_count > 0 THEN
                 error_parts := array_append(error_parts, workspace_count || ' workspaces');
             END IF;
-            
+
             IF template_count > 0 THEN
                 error_parts := array_append(error_parts, template_count || ' templates');
             END IF;
-            
+
             IF provisioner_keys_count > 0 THEN
                 error_parts := array_append(error_parts, provisioner_keys_count || ' provisioner keys');
             END IF;
-            
+
             error_message := error_message || array_to_string(error_parts, ', ') || ' that must be deleted first';
             RAISE EXCEPTION '%', error_message;
         END;
@@ -827,6 +848,39 @@ CREATE TABLE audit_logs (
     request_id uuid NOT NULL,
     resource_icon text NOT NULL
 );
+
+CREATE TABLE connection_logs (
+    id uuid NOT NULL,
+    connect_time timestamp with time zone NOT NULL,
+    organization_id uuid NOT NULL,
+    workspace_owner_id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    workspace_name text NOT NULL,
+    agent_name text NOT NULL,
+    type connection_type NOT NULL,
+    ip inet NOT NULL,
+    code integer,
+    user_agent text,
+    user_id uuid,
+    slug_or_port text,
+    connection_id uuid,
+    disconnect_time timestamp with time zone,
+    disconnect_reason text
+);
+
+COMMENT ON COLUMN connection_logs.code IS 'Either the HTTP status code of the web request, or the exit code of an SSH connection. For non-web connections, this is Null until we receive a disconnect event for the same connection_id.';
+
+COMMENT ON COLUMN connection_logs.user_agent IS 'Null for SSH events. For web connections, this is the User-Agent header from the request.';
+
+COMMENT ON COLUMN connection_logs.user_id IS 'Null for SSH events. For web connections, this is the ID of the user that made the request.';
+
+COMMENT ON COLUMN connection_logs.slug_or_port IS 'Null for SSH events. For web connections, this is the slug of the app or the port number being forwarded.';
+
+COMMENT ON COLUMN connection_logs.connection_id IS 'The SSH connection ID. Used to correlate connections and disconnections. As it originates from the agent, it is not guaranteed to be unique.';
+
+COMMENT ON COLUMN connection_logs.disconnect_time IS 'The time the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
+
+COMMENT ON COLUMN connection_logs.disconnect_reason IS 'The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
 
 CREATE TABLE crypto_keys (
     feature crypto_key_feature NOT NULL,
@@ -1569,8 +1623,14 @@ CREATE TABLE template_version_presets (
     invalidate_after_secs integer DEFAULT 0,
     prebuild_status prebuild_status DEFAULT 'healthy'::prebuild_status NOT NULL,
     scheduling_timezone text DEFAULT ''::text NOT NULL,
-    is_default boolean DEFAULT false NOT NULL
+    is_default boolean DEFAULT false NOT NULL,
+    description character varying(128) DEFAULT ''::character varying NOT NULL,
+    icon character varying(256) DEFAULT ''::character varying NOT NULL
 );
+
+COMMENT ON COLUMN template_version_presets.description IS 'Short text describing the preset (max 128 characters).';
+
+COMMENT ON COLUMN template_version_presets.icon IS 'URL or path to an icon representing the preset (max 256 characters).';
 
 CREATE TABLE template_version_terraform_values (
     template_version_id uuid NOT NULL,
@@ -2420,6 +2480,9 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY connection_logs
+    ADD CONSTRAINT connection_logs_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_pkey PRIMARY KEY (feature, sequence);
 
@@ -2706,6 +2769,18 @@ CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
+CREATE INDEX idx_connection_logs_connect_time_desc ON connection_logs USING btree (connect_time DESC);
+
+CREATE UNIQUE INDEX idx_connection_logs_connection_id_workspace_id_agent_name ON connection_logs USING btree (connection_id, workspace_id, agent_name);
+
+COMMENT ON INDEX idx_connection_logs_connection_id_workspace_id_agent_name IS 'Connection ID is NULL for web events, but present for SSH events. Therefore, this index allows multiple web events for the same workspace & agent. For SSH events, the upsertion query handles duplicates on this index by upserting the disconnect_time and disconnect_reason for the same connection_id when the connection is closed.';
+
+CREATE INDEX idx_connection_logs_organization_id ON connection_logs USING btree (organization_id);
+
+CREATE INDEX idx_connection_logs_workspace_id ON connection_logs USING btree (workspace_id);
+
+CREATE INDEX idx_connection_logs_workspace_owner_id ON connection_logs USING btree (workspace_owner_id);
+
 CREATE INDEX idx_custom_roles_id ON custom_roles USING btree (id);
 
 CREATE UNIQUE INDEX idx_custom_roles_name_lower ON custom_roles USING btree (lower(name));
@@ -2912,6 +2987,15 @@ forward without requiring a migration to clean up historical data.';
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY connection_logs
+    ADD CONSTRAINT connection_logs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY connection_logs
+    ADD CONSTRAINT connection_logs_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY connection_logs
+    ADD CONSTRAINT connection_logs_workspace_owner_id_fkey FOREIGN KEY (workspace_owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
