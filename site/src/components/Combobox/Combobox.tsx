@@ -126,7 +126,8 @@ export const Combobox: FC<ComboboxProps> = ({
 												alt={option.displayName}
 											/>
 										) : (
-											<span className="w-4 h-4"> </span>
+											/* Placeholder for missing icon to maintain layout consistency */
+											<div className="w-4 h-4"></div>
 										))}
 									{option.displayName}
 									<div className="flex flex-row items-center ml-auto gap-1">
