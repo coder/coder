@@ -107,19 +107,14 @@ func TestAnthropicMessages(t *testing.T) {
 						BaseURL: serpent.String(srv.URL),
 						Key:     serpent.String(sessionToken),
 					},
-				}, "127.0.0.1:0", logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
+				}, logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
 					return coderdClient, true
 				}, nil)
 				require.NoError(t, err)
 
-				go func() {
-					assert.NoError(t, b.Serve())
-				}()
-				// Wait for bridge to come up.
-				require.Eventually(t, func() bool { return len(b.Addr()) > 0 }, testutil.WaitLong, testutil.IntervalFast)
-
+				mockSrv := httptest.NewServer(b.Handler())
 				// Make API call to aibridge for Anthropic /v1/messages
-				req := createAnthropicMessagesReq(t, "http://"+b.Addr(), reqBody)
+				req := createAnthropicMessagesReq(t, mockSrv.URL, reqBody)
 				client := &http.Client{}
 				resp, err := client.Do(req)
 				require.NoError(t, err)
@@ -214,19 +209,14 @@ func TestOpenAIChatCompletions(t *testing.T) {
 						BaseURL: serpent.String(srv.URL),
 						Key:     serpent.String(sessionToken),
 					},
-				}, "127.0.0.1:0", logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
+				}, logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
 					return coderdClient, true
 				}, nil)
 				require.NoError(t, err)
 
-				go func() {
-					assert.NoError(t, b.Serve())
-				}()
-				// Wait for bridge to come up.
-				require.Eventually(t, func() bool { return len(b.Addr()) > 0 }, testutil.WaitLong, testutil.IntervalFast)
-
+				mockSrv := httptest.NewServer(b.Handler())
 				// Make API call to aibridge for OpenAI /v1/chat/completions
-				req := createOpenAIChatCompletionsReq(t, "http://"+b.Addr(), reqBody)
+				req := createOpenAIChatCompletionsReq(t, mockSrv.URL, reqBody)
 
 				client := &http.Client{}
 				resp, err := client.Do(req)
@@ -289,7 +279,7 @@ func TestSimple(t *testing.T) {
 						BaseURL: serpent.String(addr),
 						Key:     serpent.String(sessionToken),
 					},
-				}, "127.0.0.1:0", logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
+				}, logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
 					return client, true
 				}, nil)
 			},
@@ -306,7 +296,7 @@ func TestSimple(t *testing.T) {
 						BaseURL: serpent.String(addr),
 						Key:     serpent.String(sessionToken),
 					},
-				}, "127.0.0.1:0", logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
+				}, logger, func() (proto.DRPCAIBridgeDaemonClient, bool) {
 					return client, true
 				}, nil)
 			},
@@ -355,14 +345,9 @@ func TestSimple(t *testing.T) {
 					b, err := tc.configureFunc(srv.URL, coderdClient)
 					require.NoError(t, err)
 
-					go func() {
-						assert.NoError(t, b.Serve())
-					}()
-					// Wait for bridge to come up.
-					require.Eventually(t, func() bool { return len(b.Addr()) > 0 }, testutil.WaitLong, testutil.IntervalFast)
-
+					mockSrv := httptest.NewServer(b.Handler())
 					// When: calling the "API server" with the fixture's request body.
-					req := tc.createRequest(t, "http://"+b.Addr(), reqBody)
+					req := tc.createRequest(t, mockSrv.URL, reqBody)
 					client := &http.Client{}
 					resp, err := client.Do(req)
 					require.NoError(t, err)

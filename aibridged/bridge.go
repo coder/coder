@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -1326,15 +1325,6 @@ type AnthropicErrorResponse struct {
 	*anthropic.BetaErrorResponse
 
 	StatusCode int `json:"-"`
-}
-
-func (b *Bridge) Serve() error {
-	list, err := net.Listen("tcp", b.httpSrv.Addr)
-	if err != nil {
-		return xerrors.Errorf("listen: %w", err)
-	}
-
-	return b.httpSrv.Serve(list) // TODO: TLS.
 }
 
 // logConnectionError logs connection errors with appropriate severity
