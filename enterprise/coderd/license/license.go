@@ -94,15 +94,16 @@ func Entitlements(
 		return codersdk.Entitlements{}, xerrors.Errorf("query active user count: %w", err)
 	}
 
-	// always shows active user count regardless of license
 	entitlements, err := LicensesEntitlements(ctx, now, licenses, enablements, keys, FeatureArguments{
 		ActiveUserCount:   activeUserCount,
 		ReplicaCount:      replicaCount,
 		ExternalAuthCount: externalAuthCount,
-		ManagedAgentCountFn: func(_ context.Context, _ time.Time, _ time.Time) (int64, error) {
-			// TODO(@deansheather): replace this with a real implementation in a
-			//                      follow up PR.
-			return 0, nil
+		ManagedAgentCountFn: func(ctx context.Context, startTime time.Time, endTime time.Time) (int64, error) {
+			// nolint:gocritic // Requires permission to read all workspaces to read managed agent count.
+			return db.GetManagedAgentCount(dbauthz.AsSystemRestricted(ctx), database.GetManagedAgentCountParams{
+				StartTime: startTime,
+				EndTime:   endTime,
+			})
 		},
 	})
 	if err != nil {
@@ -431,10 +432,15 @@ func LicensesEntitlements(
 		if featureArguments.ManagedAgentCountFn != nil {
 			managedAgentCount, err = featureArguments.ManagedAgentCountFn(ctx, agentLimit.UsagePeriod.Start, agentLimit.UsagePeriod.End)
 		}
-		if err != nil {
+		switch {
+		case xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded):
+			// If the context is canceled, we want to bail the entire
+			// LicensesEntitlements call.
+			return entitlements, xerrors.Errorf("get managed agent count: %w", err)
+		case err != nil:
 			entitlements.Errors = append(entitlements.Errors,
 				fmt.Sprintf("Error getting managed agent count: %s", err.Error()))
-		} else {
+		default:
 			agentLimit.Actual = &managedAgentCount
 			entitlements.AddFeature(codersdk.FeatureManagedAgentLimit, agentLimit)
 

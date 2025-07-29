@@ -262,14 +262,14 @@ module "slackme" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "v1.2.0"
+  version  = "1.2.0"
   agent_id = coder_agent.dev.id
 }
 
 module "git-clone" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/git-clone/coder"
-  version  = "v1.1.0"
+  version  = "1.1.0"
   agent_id = coder_agent.dev.id
   url      = "https://github.com/coder/coder"
   base_dir = local.repo_base_dir
@@ -285,7 +285,7 @@ module "personalize" {
 module "code-server" {
   count                   = data.coder_workspace.me.start_count
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.3.0"
+  version                 = "1.3.1"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -295,7 +295,7 @@ module "code-server" {
 module "vscode-web" {
   count                   = data.coder_workspace.me.start_count
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
-  version                 = "v1.3.0"
+  version                 = "1.3.1"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   extensions              = ["github.copilot"]
@@ -325,14 +325,14 @@ module "filebrowser" {
 module "coder-login" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/coder-login/coder"
-  version  = "v1.0.30"
+  version  = "1.0.30"
   agent_id = coder_agent.dev.id
 }
 
 module "cursor" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/cursor/coder"
-  version  = "v1.2.0"
+  version  = "1.2.1"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
@@ -340,7 +340,7 @@ module "cursor" {
 module "windsurf" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/windsurf/coder"
-  version  = "1.1.0"
+  version  = "1.1.1"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }

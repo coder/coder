@@ -2307,6 +2307,7 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 				prebuildSchedules = protoPreset.Prebuild.Scheduling.Schedule
 			}
 		}
+
 		dbPreset, err := tx.InsertPreset(ctx, database.InsertPresetParams{
 			ID:                  uuid.New(),
 			TemplateVersionID:   templateVersionID,
@@ -2316,6 +2317,8 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 			InvalidateAfterSecs: ttl,
 			SchedulingTimezone:  schedulingTimezone,
 			IsDefault:           protoPreset.GetDefault(),
+			Description:         protoPreset.Description,
+			Icon:                protoPreset.Icon,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert preset: %w", err)

@@ -1,0 +1,24 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder templates presets
+
+  Manage presets of the specified template
+
+  Aliases: preset
+
+    - List presets for the active version of a template:
+  
+       $ coder templates presets list my-template
+  
+    - List presets for a specific version of a template:
+  
+       $ coder templates presets list my-template --template-version
+  my-template-version
+
+SUBCOMMANDS:
+    list    List all presets of the specified template. Defaults to the active
+            template version.
+
+———
+Run `coder --help` for a list of global options.

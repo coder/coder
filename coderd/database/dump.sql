@@ -51,7 +51,12 @@ CREATE TYPE build_reason AS ENUM (
     'autostop',
     'dormancy',
     'failedstop',
-    'autodelete'
+    'autodelete',
+    'dashboard',
+    'cli',
+    'ssh_connection',
+    'vscode_connection',
+    'jetbrains_connection'
 );
 
 CREATE TYPE connection_status AS ENUM (
@@ -1620,8 +1625,14 @@ CREATE TABLE template_version_presets (
     invalidate_after_secs integer DEFAULT 0,
     prebuild_status prebuild_status DEFAULT 'healthy'::prebuild_status NOT NULL,
     scheduling_timezone text DEFAULT ''::text NOT NULL,
-    is_default boolean DEFAULT false NOT NULL
+    is_default boolean DEFAULT false NOT NULL,
+    description character varying(128) DEFAULT ''::character varying NOT NULL,
+    icon character varying(256) DEFAULT ''::character varying NOT NULL
 );
+
+COMMENT ON COLUMN template_version_presets.description IS 'Short text describing the preset (max 128 characters).';
+
+COMMENT ON COLUMN template_version_presets.icon IS 'URL or path to an icon representing the preset (max 256 characters).';
 
 CREATE TABLE template_version_terraform_values (
     template_version_id uuid NOT NULL,
@@ -1746,7 +1757,7 @@ CREATE TABLE templates (
     deprecated text DEFAULT ''::text NOT NULL,
     activity_bump bigint DEFAULT '3600000000000'::bigint NOT NULL,
     max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
-    use_classic_parameter_flow boolean DEFAULT true NOT NULL
+    use_classic_parameter_flow boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
