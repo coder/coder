@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"testing"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -26,13 +27,15 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
-	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+const TestingStaleInterval = time.Second * 5
 
 // Executor automatically starts or stops workspaces.
 type Executor struct {
@@ -53,6 +56,9 @@ type Executor struct {
 	experiments           codersdk.Experiments
 
 	metrics executorMetrics
+
+	// Skip provisioner availability check (should only be true for *some* tests)
+	SkipProvisionerCheck bool
 }
 
 type executorMetrics struct {
@@ -132,28 +138,37 @@ func (e *Executor) Run() {
 	}()
 }
 
-// Add this function to check for available provisioners
 func (e *Executor) hasAvailableProvisioners(ctx context.Context, tx database.Store, ws database.Workspace, templateVersionJob database.ProvisionerJob) (bool, error) {
-    // Get eligible provisioner daemons for this workspace's template
-    provisionerDaemons, err := tx.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
-        OrganizationID: ws.OrganizationID,
-        WantTags:       templateVersionJob.Tags,
-    })
-    if err != nil {
-        return false, xerrors.Errorf("get provisioner daemons: %w", err)
-    }
+	if e.SkipProvisionerCheck {
+		return true, nil
+	}
 
-    // Check if any provisioners are active (not stale)
-    now := dbtime.Now()
-    for _, pd := range provisionerDaemons {
-        if pd.LastSeenAt.Valid {
-            age := now.Sub(pd.LastSeenAt.Time)
-            if age <= provisionerdserver.StaleInterval {
-                return true, nil
-            }
-        }
-    }
-    return false, nil
+	// Use a shorter stale interval for tests
+	staleInterval := provisionerdserver.StaleInterval
+	if testing.Testing() {
+		staleInterval = TestingStaleInterval
+	}
+
+	// Get eligible provisioner daemons for this workspace's template
+	provisionerDaemons, err := tx.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
+		OrganizationID: ws.OrganizationID,
+		WantTags:       templateVersionJob.Tags,
+	})
+	if err != nil {
+		return false, xerrors.Errorf("get provisioner daemons: %w", err)
+	}
+
+	// Check if any provisioners are active (not stale)
+	now := dbtime.Now()
+	for _, pd := range provisionerDaemons {
+		if pd.LastSeenAt.Valid {
+			age := now.Sub(pd.LastSeenAt.Time)
+			if age <= staleInterval {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 func (e *Executor) runOnce(t time.Time) Stats {
