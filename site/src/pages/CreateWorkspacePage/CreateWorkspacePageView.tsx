@@ -158,13 +158,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	);
 
 	const [presetOptions, setPresetOptions] = useState([
-		{ displayName: "None", value: "", icon: "", description: "" },
+		{ displayName: "None", value: "undefined", icon: "", description: "" },
 	]);
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
 	// Build options and keep default label/value in sync
 	useEffect(() => {
 		const options = [
-			{ displayName: "None", value: "", icon: "", description: "" },
+			{ displayName: "None", value: "undefined", icon: "", description: "" },
 			...presets.map((preset) => ({
 				displayName: preset.Default ? `${preset.Name} (Default)` : preset.Name,
 				value: preset.ID,
@@ -410,8 +410,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 													setSelectedPresetIndex(index);
 													form.setFieldValue(
 														"template_version_preset_id",
-														// Empty string is equivalent to using None
-														presetOptions[index].value === ""
+														// "undefined" string is equivalent to using None option
+														// Combobox requires a value in order to correctly highlight the None option
+														presetOptions[index].value === "undefined"
 															? undefined
 															: presetOptions[index].value,
 													);
