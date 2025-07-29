@@ -95,7 +95,7 @@ func TestFSNotifyWatcher(t *testing.T) {
 	// This test flake could be indicative of an issue that may present itself
 	// in a running environment. Fortunately, we only use this (as of 2025-07-29)
 	// for our dev container integration. We do not expect the host workspace
-	// (where this is used), to ever be ran on macOS, as containers are a linux
+	// (where this is used), to ever be run on macOS, as containers are a linux
 	// paradigm.
 	if runtime.GOOS != "darwin" {
 		err = os.WriteFile(testFile+".atomic", []byte(`{"test": "atomic"}`), 0o600)
