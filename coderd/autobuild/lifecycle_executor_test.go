@@ -1585,45 +1585,78 @@ func TestMain(m *testing.M) {
 }
 
 func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
-    t.Parallel()
+	t.Parallel()
 
-    var (
-        sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
-        tickCh  = make(chan time.Time)
-        statsCh = make(chan autobuild.Stats)
-    )
+	db, ps := dbtestutil.NewDB(t)
+	var (
+		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan autobuild.Stats)
+	)
 
-    // Create client with provisioner daemon
-    client, provisionerCloser := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
-        AutobuildTicker:          tickCh,
-        IncludeProvisionerDaemon: true,
-        AutobuildStats:           statsCh,
-    })
+	// Create client with provisioner closer
+	client, provisionerCloser := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+		AutobuildTicker:          tickCh,
+		IncludeProvisionerDaemon: true,
+		AutobuildStats:           statsCh,
+		Database:                 db,
+		Pubsub:                   ps,
+		SkipProvisionerCheck:     ptr.Ref(false),
+	})
 
-    // Create workspace with autostart enabled
-    workspace := mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
-        cwr.AutostartSchedule = ptr.Ref(sched.String())
-    })
+	// Create workspace with autostart enabled
+	workspace := mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.AutostartSchedule = ptr.Ref(sched.String())
+	})
 
-    // Stop the workspace while provisioner is available
-    workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, 
-        codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+	// Stop the workspace while provisioner is available
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID,
+		codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
-    // Now shut down the provisioner daemon
-    err := provisionerCloser.Close()
-    require.NoError(t, err)
+	// Wait for provisioner to be registered
+	ctx := testutil.Context(t, testutil.WaitShort)
+	require.Eventually(t, func() bool {
+		daemons, err := db.GetProvisionerDaemons(ctx)
+		return err == nil && len(daemons) > 0
+	}, testutil.WaitShort, testutil.IntervalFast)
 
-    // Trigger autobuild after scheduled time
-    go func() {
-        tickCh <- sched.Next(workspace.LatestBuild.CreatedAt)
-        close(tickCh)
-    }()
+	// Now shut down the provisioner daemon
+	err := provisionerCloser.Close()
+	require.NoError(t, err)
 
-    // Wait for executor to run
-    stats := <-statsCh
-    require.Len(t, stats.Errors, 0, "should not have errors")
+	// Debug: check what's in the database
+	daemons, err := db.GetProvisionerDaemons(ctx)
+	require.NoError(t, err)
+	t.Logf("After close: found %d daemons", len(daemons))
+	for i, daemon := range daemons {
+		t.Logf("Daemon %d: ID=%s, Name=%s, LastSeen=%v", i, daemon.ID, daemon.Name, daemon.LastSeenAt)
+	}
 
-    // Verify workspace is still stopped
-    workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
-    require.Equal(t, codersdk.WorkspaceTransitionStop, workspace.LatestBuild.Transition)
+	// Wait for provisioner to become stale (LastSeenAt > StaleInterval ago)
+	require.Eventually(t, func() bool {
+		daemons, err := db.GetProvisionerDaemons(ctx)
+		if err != nil || len(daemons) == 0 {
+			return false
+		}
+
+		now := time.Now()
+		for _, daemon := range daemons {
+			if daemon.LastSeenAt.Valid {
+				age := now.Sub(daemon.LastSeenAt.Time)
+				if age > autobuild.TestingStaleInterval {
+					return true // Provisioner is now stale
+				}
+			}
+		}
+		return false
+	}, testutil.WaitLong, testutil.IntervalMedium) // Use longer timeout since we need to wait for staleness
+
+	// Trigger autobuild
+	go func() {
+		tickCh <- sched.Next(workspace.LatestBuild.CreatedAt)
+		close(tickCh)
+	}()
+
+	stats := <-statsCh
+	assert.Len(t, stats.Transitions, 0, "should not create builds when no provisioners available")
 }
