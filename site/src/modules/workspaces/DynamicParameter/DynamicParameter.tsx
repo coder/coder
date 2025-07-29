@@ -453,6 +453,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 		case "dropdown": {
 			return (
 				<Combobox
+					id={id}
 					value={value ?? ""}
 					onSelect={(value) => onChange(value)}
 					options={parameter.options.map((option) => ({
