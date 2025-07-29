@@ -467,6 +467,14 @@ var (
 					rbac.ResourceFile.Type: {
 						policy.ActionRead,
 					},
+					rbac.ResourceGroup.Type: {
+						policy.ActionRead,
+						policy.ActionCreate,
+						policy.ActionUpdate,
+					},
+					rbac.ResourceGroupMember.Type: {
+						policy.ActionRead,
+					},
 				}),
 			},
 		}),
