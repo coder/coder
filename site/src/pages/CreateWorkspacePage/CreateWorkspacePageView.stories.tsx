@@ -11,6 +11,7 @@ import {
 	MockUserOwner,
 	mockApiError,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
 const meta: Meta<typeof CreateWorkspacePageView> = {
@@ -31,7 +32,9 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 			canUpdateTemplate: false,
 		},
 		onCancel: action("onCancel"),
+		templatePermissions: { canUpdateTemplate: true },
 	},
+	decorators: [withDashboardProvider],
 };
 
 export default meta;
@@ -126,6 +129,8 @@ export const PresetsButNoneSelected: Story = {
 			{
 				ID: "preset-1",
 				Name: "Preset 1",
+				Description: "",
+				Icon: "",
 				Default: false,
 				Parameters: [
 					{
@@ -133,10 +138,14 @@ export const PresetsButNoneSelected: Story = {
 						Value: "preset 1 override",
 					},
 				],
+				DesiredPrebuildInstances: null,
 			},
 			{
 				ID: "preset-2",
 				Name: "Preset 2",
+				Description:
+					"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse imperdiet ultricies massa, eu dapibus ex fermentum ac.",
+				Icon: "/emojis/1f60e.png",
 				Default: false,
 				Parameters: [
 					{
@@ -144,6 +153,7 @@ export const PresetsButNoneSelected: Story = {
 						Value: "42",
 					},
 				],
+				DesiredPrebuildInstances: null,
 			},
 		],
 		parameters: [
@@ -250,6 +260,8 @@ export const PresetsWithDefault: Story = {
 			{
 				ID: "preset-1",
 				Name: "Preset 1",
+				Icon: "",
+				Description: "",
 				Default: false,
 				Parameters: [
 					{
@@ -257,10 +269,14 @@ export const PresetsWithDefault: Story = {
 						Value: "preset 1 override",
 					},
 				],
+				DesiredPrebuildInstances: null,
 			},
 			{
 				ID: "preset-2",
 				Name: "Preset 2",
+				Icon: "/emojis/1f60e.png",
+				Description:
+					"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse imperdiet ultricies massa, eu dapibus ex fermentum ac.",
 				Default: true,
 				Parameters: [
 					{
@@ -268,6 +284,7 @@ export const PresetsWithDefault: Story = {
 						Value: "150189",
 					},
 				],
+				DesiredPrebuildInstances: null,
 			},
 		],
 		parameters: [
