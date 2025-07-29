@@ -13,7 +13,7 @@ In this example, there are two: repositories called `frontend` and `backend`:
 # Clone each repo
 module "git-clone-frontend" {
   count  = data.coder_workspace.me.start_count
-  source  = "dev.registry.coder.com/modules/git-clone/coder"
+  source  = "registry.coder.com/modules/git-clone/coder"
 
   agent_id  = coder_agent.main.id
   url  = "https://github.com/your-org/frontend.git"
@@ -21,7 +21,7 @@ module "git-clone-frontend" {
 
 module "git-clone-backend" {
   count  = data.coder_workspace.me.start_count
-  source  = "dev.registry.coder.com/modules/git-clone/coder"
+  source  = "registry.coder.com/modules/git-clone/coder"
 
   agent_id  = coder_agent.main.id
   url  = "https://github.com/your-org/backend.git"
@@ -93,7 +93,7 @@ Prompt users to pick a repository or team at workspace creation time and clone t
     ```terraform
     module "git-clone" {
      count  = data.coder_workspace.me.start_count
-     source  = "dev.registry.coder.com/modules/git-clone/coder"
+     source  = "registry.coder.com/modules/git-clone/coder"
      agent_id  = coder_agent.main.id
      url  = data.coder_parameter.project.value
     }
