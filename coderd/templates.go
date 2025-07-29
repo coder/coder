@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -29,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
@@ -352,13 +354,17 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	if createTemplate.CORSBehavior != nil && *createTemplate.CORSBehavior != "" {
-		val := createTemplate.CORSBehavior
-		if err := val.Validate(); err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: "cors_behavior", Detail: err.Error()})
-		} else {
-			corsBehavior = database.CorsBehavior(*val)
-		}
+	// Default the CORS behavior here to Simple so we don't break all existing templates.
+	val := database.CorsBehaviorSimple
+	if createTemplate.CORSBehavior != nil {
+		val = database.CorsBehavior(*createTemplate.CORSBehavior)
+	}
+	if !val.Valid() {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "cors_behavior",
+			Detail: fmt.Sprintf("Invalid CORS behavior %q. Must be one of [%s]", *createTemplate.CORSBehavior, strings.Join(slice.ToStrings(database.AllCorsBehaviorValues()), ", ")),
+		})
+	} else {
+		corsBehavior = val
 	}
 
 	if autostopRequirementWeeks < 0 {
@@ -738,11 +744,13 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 	corsBehavior := template.CorsBehavior
 	if req.CORSBehavior != nil && *req.CORSBehavior != "" {
-		val := req.CORSBehavior
-		if err := val.Validate(); err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: "cors_behavior", Detail: err.Error()})
+		val := database.CorsBehavior(*req.CORSBehavior)
+		if !val.Valid() {
+			validErrs = append(validErrs, codersdk.ValidationError{Field: "cors_behavior",
+				Detail: fmt.Sprintf("Invalid CORS behavior %q. Must be one of [%s]", *req.CORSBehavior, strings.Join(slice.ToStrings(database.AllCorsBehaviorValues()), ", ")),
+			})
 		} else {
-			corsBehavior = database.CorsBehavior(*val)
+			corsBehavior = val
 		}
 	}
 
