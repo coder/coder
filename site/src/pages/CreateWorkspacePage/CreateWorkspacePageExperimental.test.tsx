@@ -277,7 +277,7 @@ describe("CreateWorkspacePageExperimental", () => {
 
 			expect(mockWebSocket.send).toBeDefined();
 
-			const instanceTypeSelect = screen.getByRole("combobox", {
+			const instanceTypeSelect = screen.getByRole("button", {
 				name: /instance type/i,
 			});
 			expect(instanceTypeSelect).toBeInTheDocument();
@@ -422,16 +422,16 @@ describe("CreateWorkspacePageExperimental", () => {
 
 			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
 
-			const select = screen.getByRole("combobox", { name: /instance type/i });
+			const select = screen.getByRole("button", { name: /instance type/i });
 
 			await waitFor(async () => {
 				await userEvent.click(select);
 			});
 
-			// Each option appears in both the trigger and the dropdown
-			expect(screen.getAllByText(/t3\.micro/i)).toHaveLength(2);
-			expect(screen.getAllByText(/t3\.small/i)).toHaveLength(2);
-			expect(screen.getAllByText(/t3\.medium/i)).toHaveLength(2);
+			// Options appear only in the dropdown when no value is selected
+			expect(screen.getByText(/t3\.micro/i)).toBeInTheDocument();
+			expect(screen.getByText(/t3\.small/i)).toBeInTheDocument();
+			expect(screen.getByText(/t3\.medium/i)).toBeInTheDocument();
 		});
 
 		it("renders number parameter with slider", async () => {
