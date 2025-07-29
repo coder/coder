@@ -113,10 +113,18 @@ func TestStart(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, member, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, member, template.ID, func(request *codersdk.CreateWorkspaceRequest) {
+			request.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{Name: ephemeralParameterName, Value: "foo"}, // Value is required, set it to something
+			}
+		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		// Stop the workspace
-		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop, func(request *codersdk.CreateWorkspaceBuildRequest) {
+			request.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{Name: ephemeralParameterName, Value: "foo"}, // Value is required, set it to something
+			}
+		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceBuild.ID)
 
 		inv, root := clitest.New(t, "start", workspace.Name, "--prompt-ephemeral-parameters")
@@ -167,10 +175,18 @@ func TestStart(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses())
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, member, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, member, template.ID, func(request *codersdk.CreateWorkspaceRequest) {
+			request.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{Name: ephemeralParameterName, Value: "foo"}, // Value is required, set it to something
+			}
+		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		// Stop the workspace
-		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop, func(request *codersdk.CreateWorkspaceBuildRequest) {
+			request.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{Name: ephemeralParameterName, Value: "foo"}, // Value is required, set it to something
+			}
+		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceBuild.ID)
 
 		inv, root := clitest.New(t, "start", workspace.Name,

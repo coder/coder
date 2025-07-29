@@ -27,6 +27,8 @@ import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
 import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
 import { ExternalLinkIcon } from "lucide-react";
+import { linkToTemplate, useLinks } from "modules/navigation";
+import { ClassicParameterFlowDeprecationWarning } from "modules/workspaces/ClassicParameterFlowDeprecationWarning/ClassicParameterFlowDeprecationWarning";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { type FC, useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -68,6 +70,7 @@ interface CreateWorkspacePageViewProps {
 	autofillParameters: AutofillBuildParameter[];
 	presets: TypesGen.Preset[];
 	permissions: CreateWorkspacePermissions;
+	templatePermissions: { canUpdateTemplate: boolean };
 	creatingWorkspace: boolean;
 	canUpdateTemplate?: boolean;
 	onCancel: () => void;
@@ -94,11 +97,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	autofillParameters,
 	presets = [],
 	permissions,
+	templatePermissions,
 	creatingWorkspace,
 	canUpdateTemplate,
 	onSubmit,
 	onCancel,
 }) => {
+	const getLink = useLinks();
 	const [owner, setOwner] = useState(defaultOwner);
 	const [suggestedName, setSuggestedName] = useState(() =>
 		generateWorkspaceName(),
@@ -262,6 +267,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					{template.deprecated && <Pill type="warning">Deprecated</Pill>}
 				</Stack>
 			</PageHeader>
+
+			<ClassicParameterFlowDeprecationWarning
+				templateSettingsLink={`${getLink(
+					linkToTemplate(template.organization_name, template.name),
+				)}/settings`}
+				isEnabled={templatePermissions.canUpdateTemplate}
+			/>
 
 			<HorizontalForm
 				name="create-workspace-form"
