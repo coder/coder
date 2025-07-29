@@ -69,14 +69,13 @@ func NewClient() Client {
 }
 
 type Options struct {
-	Headers             http.Header
-	Logger              slog.Logger
-	UseSoftNetIsolation bool
-	DNSConfigurator     dns.OSConfigurator
-	Router              router.Router
-	TUNDevice           tun.Device
-	WireguardMonitor    *netmon.Monitor
-	UpdateHandler       tailnet.UpdatesHandler
+	Headers          http.Header
+	Logger           slog.Logger
+	DNSConfigurator  dns.OSConfigurator
+	Router           router.Router
+	TUNDevice        tun.Device
+	WireguardMonitor *netmon.Monitor
+	UpdateHandler    tailnet.UpdatesHandler
 }
 
 func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string, options *Options) (vpnC Conn, err error) {
@@ -145,7 +144,6 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 		DERPForceWebSockets: connInfo.DERPForceWebSockets,
 		Logger:              options.Logger,
 		BlockEndpoints:      connInfo.DisableDirectConnections,
-		UseSoftNetIsolation: options.UseSoftNetIsolation,
 		DNSConfigurator:     options.DNSConfigurator,
 		Router:              options.Router,
 		TUNDev:              options.TUNDevice,
