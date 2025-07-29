@@ -102,17 +102,6 @@ type Options struct {
 	BlockEndpoints bool
 	Logger         slog.Logger
 	ListenPort     uint16
-	// UseSoftNetIsolation enables our homemade soft isolation feature in the
-	// netns package. This option will only be considered if TUNDev is set.
-	//
-	// The Coder soft isolation mode is a workaround to allow Coder Connect to
-	// connect to Coder servers behind corporate VPNs, and relaxes some of the
-	// loop protections that come with Tailscale.
-	//
-	// When soft isolation is disabled, the netns package will function as
-	// normal and route all traffic through the default interface (and block all
-	// traffic to other VPN interfaces) on macOS and Windows.
-	UseSoftNetIsolation bool
 
 	// CaptureHook is a callback that captures Disco packets and packets sent
 	// into the tailnet tunnel.
@@ -169,10 +158,13 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	}
 
 	useNetNS := options.TUNDev != nil
-	useSoftIsolation := useNetNS && options.UseSoftNetIsolation
-	options.Logger.Debug(context.Background(), "network isolation configuration", slog.F("use_netns", useNetNS), slog.F("use_soft_isolation", useSoftIsolation))
+	options.Logger.Debug(context.Background(), "network isolation configuration", slog.F("use_netns", useNetNS))
 	netns.SetEnabled(useNetNS)
-	netns.SetCoderSoftIsolation(useSoftIsolation)
+	// The Coder soft isolation mode is a workaround to allow Coder Connect to
+	// connect to Coder servers behind corporate VPNs, and relaxes some of the
+	// loop protections that come with Tailscale.
+	// See the comment above the netns function for more details.
+	netns.SetCoderSoftIsolation(useNetNS)
 
 	var telemetryStore *TelemetryStore
 	if options.TelemetrySink != nil {
