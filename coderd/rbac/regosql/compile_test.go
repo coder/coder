@@ -198,6 +198,26 @@ func TestRegoQueries(t *testing.T) {
 			VariableConverter: regosql.DefaultVariableConverter(),
 		},
 		{
+			Name: "UserWorkspaceACLAllow",
+			Queries: []string{
+				`"read" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
+				`"*" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
+			},
+			ExpectedSQL: "((user_acl->'d5389ccc-57a4-4b13-8c3f-31747bcdc9f1'->roles ? 'read') OR " +
+				"(user_acl->'d5389ccc-57a4-4b13-8c3f-31747bcdc9f1'->roles ? '*'))",
+			VariableConverter: regosql.WorkspaceConverter(),
+		},
+		{
+			Name: "GroupWorkspaceACLAllow",
+			Queries: []string{
+				`"read" in input.object.acl_group_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
+				`"*" in input.object.acl_group_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
+			},
+			ExpectedSQL: "((group_acl->'d5389ccc-57a4-4b13-8c3f-31747bcdc9f1'->roles ? 'read') OR " +
+				"(group_acl->'d5389ccc-57a4-4b13-8c3f-31747bcdc9f1'->roles ? '*'))",
+			VariableConverter: regosql.WorkspaceConverter(),
+		},
+		{
 			Name: "NoACLConfig",
 			Queries: []string{
 				`input.object.org_owner != "";

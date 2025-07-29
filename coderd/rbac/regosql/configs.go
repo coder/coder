@@ -14,11 +14,11 @@ func userOwnerMatcher() sqltypes.VariableMatcher {
 	return sqltypes.StringVarMatcher("owner_id :: text", []string{"input", "object", "owner"})
 }
 
-func groupACLMatcher(m sqltypes.VariableMatcher) sqltypes.VariableMatcher {
+func groupACLMatcher(m sqltypes.VariableMatcher) ACLMappingVar {
 	return ACLGroupMatcher(m, "group_acl", []string{"input", "object", "acl_group_list"})
 }
 
-func userACLMatcher(m sqltypes.VariableMatcher) sqltypes.VariableMatcher {
+func userACLMatcher(m sqltypes.VariableMatcher) ACLMappingVar {
 	return ACLGroupMatcher(m, "user_acl", []string{"input", "object", "acl_user_list"})
 }
 
@@ -88,8 +88,8 @@ func WorkspaceConverter() *sqltypes.VariableConverter {
 		userOwnerMatcher(),
 	)
 	matcher.RegisterMatcher(
-		sqltypes.AlwaysFalse(groupACLMatcher(matcher)),
-		sqltypes.AlwaysFalse(userACLMatcher(matcher)),
+		groupACLMatcher(matcher).UsingSubfield("roles"),
+		userACLMatcher(matcher).UsingSubfield("roles"),
 	)
 
 	return matcher

@@ -11,11 +11,11 @@ import (
 )
 
 var (
-	_ sqltypes.VariableMatcher = ACLGroupVar{}
-	_ sqltypes.Node            = ACLGroupVar{}
+	_ sqltypes.VariableMatcher = ACLMappingVar{}
+	_ sqltypes.Node            = ACLMappingVar{}
 )
 
-// ACLGroupVar is a variable matcher that handles group_acl and user_acl.
+// ACLMappingVar is a variable matcher that handles group_acl and user_acl.
 // The sql type is a jsonb object with the following structure:
 //
 //	"group_acl": {
@@ -23,28 +23,41 @@ var (
 //	}
 //
 // This is a custom variable matcher as json objects have arbitrary complexity.
-type ACLGroupVar struct {
-	StructSQL string
-	// input.object.group_acl -> ["input", "object", "group_acl"]
-	StructPath []string
-
-	// FieldReference handles referencing the subfields, which could be
-	// more variables. We pass one in as the global one might not be correctly
-	// scoped.
+type ACLMappingVar struct {
+	// SelectSQL is used to select the ACL mapping from the table for the
+	// given resource. ie. if the full query might look like `SELECT group_acl
+	// FROM things;` then you would want this to be `"group_acl"`.
+	SelectSQL string
+	// FieldReference handles variable references when indexing into the mapping.
+	// (like `input.object.acl_group_list[input.object.group_id]`). We pass one in
+	// as the global one might not be correctly scoped.
 	FieldReference sqltypes.VariableMatcher
+	// Used if the action list isn't directly in the ACL entry. For example, in
+	// the `workspaces.group_acl` and `workspaces.user_acl` columns they're stored
+	// under a `"roles"` key.
+	Subfield string
+
+	// StructPath represents the path of the value in rego
+	// ie. input.object.group_acl -> ["input", "object", "group_acl"]
+	StructPath []string
 
 	// Instance fields
 	Source    sqltypes.RegoSource
 	GroupNode sqltypes.Node
 }
 
-func ACLGroupMatcher(fieldReference sqltypes.VariableMatcher, structSQL string, structPath []string) ACLGroupVar {
-	return ACLGroupVar{StructSQL: structSQL, StructPath: structPath, FieldReference: fieldReference}
+func ACLGroupMatcher(fieldReference sqltypes.VariableMatcher, structSQL string, structPath []string) ACLMappingVar {
+	return ACLMappingVar{SelectSQL: structSQL, StructPath: structPath, FieldReference: fieldReference}
 }
 
-func (ACLGroupVar) UseAs() sqltypes.Node { return ACLGroupVar{} }
+func (g ACLMappingVar) UsingSubfield(subfield string) ACLMappingVar {
+	g.Subfield = subfield
+	return g
+}
 
-func (g ACLGroupVar) ConvertVariable(rego ast.Ref) (sqltypes.Node, bool) {
+func (ACLMappingVar) UseAs() sqltypes.Node { return ACLMappingVar{} }
+
+func (g ACLMappingVar) ConvertVariable(rego ast.Ref) (sqltypes.Node, bool) {
 	// "left" will be a map of group names to actions in rego.
 	//	{
 	//	 "all_users": ["read"]
@@ -54,10 +67,12 @@ func (g ACLGroupVar) ConvertVariable(rego ast.Ref) (sqltypes.Node, bool) {
 		return nil, false
 	}
 
-	aclGrp := ACLGroupVar{
-		StructSQL:      g.StructSQL,
-		StructPath:     g.StructPath,
+	aclGrp := ACLMappingVar{
+		SelectSQL:      g.SelectSQL,
 		FieldReference: g.FieldReference,
+		Subfield:       g.Subfield,
+
+		StructPath: g.StructPath,
 
 		Source: sqltypes.RegoSource(rego.String()),
 	}
@@ -89,11 +104,14 @@ func (g ACLGroupVar) ConvertVariable(rego ast.Ref) (sqltypes.Node, bool) {
 	return nil, false
 }
 
-func (g ACLGroupVar) SQLString(cfg *sqltypes.SQLGenerator) string {
-	return fmt.Sprintf("%s->%s", g.StructSQL, g.GroupNode.SQLString(cfg))
+func (g ACLMappingVar) SQLString(cfg *sqltypes.SQLGenerator) string {
+	if g.Subfield != "" {
+		return fmt.Sprintf("%s->%s->%s", g.SelectSQL, g.GroupNode.SQLString(cfg), g.Subfield)
+	}
+	return fmt.Sprintf("%s->%s", g.SelectSQL, g.GroupNode.SQLString(cfg))
 }
 
-func (g ACLGroupVar) ContainsSQL(cfg *sqltypes.SQLGenerator, other sqltypes.Node) (string, error) {
+func (g ACLMappingVar) ContainsSQL(cfg *sqltypes.SQLGenerator, other sqltypes.Node) (string, error) {
 	switch other.UseAs().(type) {
 	// Only supports containing other strings.
 	case sqltypes.AstString:
