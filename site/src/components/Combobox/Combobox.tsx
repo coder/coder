@@ -81,7 +81,7 @@ export const Combobox: FC<ComboboxProps> = ({
 				<Button
 					variant="outline"
 					aria-expanded={isOpen}
-					className="w-72 justify-between group"
+					className="w-full justify-between group"
 				>
 					<span className={cn(!value && "text-content-secondary")}>
 						{optionsMap.get(value)?.displayName || value || placeholder}
@@ -89,7 +89,7 @@ export const Combobox: FC<ComboboxProps> = ({
 					<ChevronDown className="size-icon-sm text-content-secondary group-hover:text-content-primary" />
 				</Button>
 			</PopoverTrigger>
-			<PopoverContent className="w-72">
+			<PopoverContent className="w-[var(--radix-popover-trigger-width)]">
 				<Command>
 					<CommandInput
 						placeholder="Search or enter custom value"
