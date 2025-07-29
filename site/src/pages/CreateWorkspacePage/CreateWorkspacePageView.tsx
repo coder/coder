@@ -32,7 +32,7 @@ import { linkToTemplate, useLinks } from "modules/navigation";
 import { ClassicParameterFlowDeprecationWarning } from "modules/workspaces/ClassicParameterFlowDeprecationWarning/ClassicParameterFlowDeprecationWarning";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { type FC, useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import {
 	getFormHelpers,
 	nameValidator,

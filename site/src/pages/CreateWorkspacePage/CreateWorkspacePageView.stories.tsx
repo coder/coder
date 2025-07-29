@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, waitFor } from "storybook/test";
 import { within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { action } from "storybook/actions";
+import { expect, screen, waitFor } from "storybook/test";
 import { chromatic } from "testHelpers/chromatic";
 import {
 	MockTemplate,
