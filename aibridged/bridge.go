@@ -722,9 +722,8 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 	// looks up API key with os.LookupEnv("ANTHROPIC_API_KEY")
 	client := anthropic.NewClient(opts...)
 	if !in.UseStreaming() {
-		var resp *anthropic.BetaMessage
 		for {
-			resp, err = client.Beta.Messages.New(ctx, messages, opts...)
+			resp, err := client.Beta.Messages.New(ctx, messages, opts...)
 			if err != nil {
 				if isConnectionError(err) {
 					b.logger.Warn(ctx, "upstream connection closed", slog.Error(err))
@@ -754,56 +753,169 @@ func (b *Bridge) proxyAnthropicRequest(w http.ResponseWriter, r *http.Request) {
 				b.logger.Error(ctx, "failed to track token usage", slog.Error(err))
 			}
 
+			// Handle tool calls for non-streaming.
+			var pendingToolCalls []anthropic.BetaToolUseBlock
+			for _, c := range resp.Content {
+				toolUse := c.AsToolUse()
+				if toolUse.ID == "" {
+					continue
+				}
+
+				if b.isInjectedTool(toolUse.Name) {
+					pendingToolCalls = append(pendingToolCalls, toolUse)
+					continue
+				}
+
+				// If tool is not injected, track it since the client will be handling it.
+				if serialized, err := json.Marshal(toolUse.Input); err == nil {
+					_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
+						Model: string(resp.Model),
+						Input: string(serialized),
+						Tool:  toolUse.Name,
+					})
+					if err != nil {
+						b.logger.Error(ctx, "failed to track tool usage", slog.Error(err))
+					}
+				} else {
+					b.logger.Warn(ctx, "failed to marshal args for tool usage", slog.Error(err))
+				}
+			}
+
+			// If no injected tool calls, we're done.
+			if len(pendingToolCalls) == 0 {
+				out, err := json.Marshal(resp)
+				if err != nil {
+					http.Error(w, "error marshaling response", http.StatusInternalServerError)
+					return
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(out)
+				break
+			}
+
+			// Append the assistant's message (which contains the tool_use block)
+			// to the messages for the next API call.
 			messages.Messages = append(messages.Messages, resp.ToParam())
 
-			if resp.StopReason == anthropic.BetaStopReasonEndTurn {
-				break
-			}
+			// Process each pending tool call.
+			for _, tc := range pendingToolCalls {
+				tool := b.tools[tc.Name]
 
-			// TODO: implement injected tool calling.
-			if resp.StopReason == anthropic.BetaStopReasonToolUse {
-				var (
-					toolUse anthropic.BetaToolUseBlock
-					input   any
-				)
-				for _, c := range resp.Content {
-					toolUse = c.AsToolUse()
-					if toolUse.ID == "" {
-						continue
-					}
-
-					input = toolUse.Input
+				var args map[string]any
+				serialized, err := json.Marshal(tc.Input)
+				if err != nil {
+					b.logger.Warn(ctx, "failed to marshal tool args for unmarshal", slog.Error(err), slog.F("tool", tc.Name))
+					// Continue to next tool call, but still append an error tool_result
+					messages.Messages = append(messages.Messages,
+						anthropic.NewBetaUserMessage(anthropic.NewBetaToolResultBlock(tc.ID, fmt.Sprintf("Error unmarshaling tool arguments: %v", err), true)),
+					)
+					continue
+				} else if err := json.Unmarshal(serialized, &args); err != nil {
+					b.logger.Warn(ctx, "failed to unmarshal tool args", slog.Error(err), slog.F("tool", tc.Name))
+					// Continue to next tool call, but still append an error tool_result
+					messages.Messages = append(messages.Messages,
+						anthropic.NewBetaUserMessage(anthropic.NewBetaToolResultBlock(tc.ID, fmt.Sprintf("Error unmarshaling tool arguments: %v", err), true)),
+					)
+					continue
 				}
 
-				if input != nil {
-					if serialized, err := json.Marshal(input); err == nil {
-						_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
-							Model:    string(resp.Model),
-							Input:    string(serialized),
-							Tool:     toolUse.Name,
-							Injected: b.isInjectedTool(toolUse.Name),
+				_, err = coderdClient.TrackToolUsage(ctx, &proto.TrackToolUsageRequest{
+					Model:    string(resp.Model),
+					Input:    string(serialized),
+					Tool:     tc.Name,
+					Injected: true,
+				})
+				if err != nil {
+					b.logger.Error(ctx, "failed to track injected tool usage", slog.Error(err))
+				}
+
+				res, err := tool.Call(ctx, args)
+				if err != nil {
+					// Always provide a tool_result even if the tool call failed
+					messages.Messages = append(messages.Messages,
+						anthropic.NewBetaUserMessage(anthropic.NewBetaToolResultBlock(tc.ID, fmt.Sprintf("Error calling tool: %v", err), true)),
+					)
+					continue
+				}
+
+				// Ensure at least one tool_result is always added for each tool_use.
+				toolResult := anthropic.BetaContentBlockParamUnion{
+					OfToolResult: &anthropic.BetaToolResultBlockParam{
+						ToolUseID: tc.ID,
+						IsError:   anthropic.Bool(false),
+					},
+				}
+
+				var hasValidResult bool
+				for _, content := range res.Content {
+					switch cb := content.(type) {
+					case mcp.TextContent:
+						toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.BetaToolResultBlockParamContentUnion{
+							OfText: &anthropic.BetaTextBlockParam{
+								Text: cb.Text,
+							},
 						})
-						if err != nil {
-							b.logger.Error(ctx, "failed to track injected tool usage", slog.Error(err))
+						hasValidResult = true
+					case mcp.EmbeddedResource:
+						switch resource := cb.Resource.(type) {
+						case mcp.TextResourceContents:
+							val := fmt.Sprintf("Binary resource (MIME: %s, URI: %s): %s",
+								resource.MIMEType, resource.URI, resource.Text)
+							toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.BetaToolResultBlockParamContentUnion{
+								OfText: &anthropic.BetaTextBlockParam{
+									Text: val,
+								},
+							})
+							hasValidResult = true
+						case mcp.BlobResourceContents:
+							val := fmt.Sprintf("Binary resource (MIME: %s, URI: %s): %s",
+								resource.MIMEType, resource.URI, resource.Blob)
+							toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.BetaToolResultBlockParamContentUnion{
+								OfText: &anthropic.BetaTextBlockParam{
+									Text: val,
+								},
+							})
+							hasValidResult = true
+						default:
+							b.logger.Error(ctx, "unknown embedded resource type", slog.F("type", fmt.Sprintf("%T", resource)))
+							toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.BetaToolResultBlockParamContentUnion{
+								OfText: &anthropic.BetaTextBlockParam{
+									Text: "Error: unknown embedded resource type",
+								},
+							})
+							toolResult.OfToolResult.IsError = anthropic.Bool(true)
+							hasValidResult = true
 						}
-					} else {
-						b.logger.Warn(ctx, "failed to marshal args for tool usage", slog.Error(err))
+					default:
+						b.logger.Error(ctx, "not handling non-text tool result", slog.F("type", fmt.Sprintf("%T", cb)))
+						toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.BetaToolResultBlockParamContentUnion{
+							OfText: &anthropic.BetaTextBlockParam{
+								Text: "Error: unsupported tool result type",
+							},
+						})
+						toolResult.OfToolResult.IsError = anthropic.Bool(true)
+						hasValidResult = true
 					}
 				}
 
-				break
+				// If no content was processed, still add a tool_result
+				if !hasValidResult {
+					b.logger.Error(ctx, "no tool result added", slog.F("content_len", len(res.Content)), slog.F("is_error", res.IsError)) // This can only happen if there's somehow no content.
+					toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.BetaToolResultBlockParamContentUnion{
+						OfText: &anthropic.BetaTextBlockParam{
+							Text: "Error: no valid tool result content",
+						},
+					})
+					toolResult.OfToolResult.IsError = anthropic.Bool(true)
+				}
+
+				if len(toolResult.OfToolResult.Content) > 0 {
+					messages.Messages = append(messages.Messages, anthropic.NewBetaUserMessage(toolResult))
+				}
 			}
 		}
-
-		out, err := json.Marshal(resp)
-		if err != nil {
-			http.Error(w, "error marshaling response", http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(out)
 		return
 	}
 
