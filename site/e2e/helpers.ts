@@ -1216,44 +1216,49 @@ export async function addUserToOrganization(
  * dynamic parameters by unchecking the "Enable dynamic parameters" checkbox.
  */
 export const disableDynamicParameters = async (
-        page: Page,
-        templateName: string,
-        orgName = defaultOrganizationName,
+	page: Page,
+	templateName: string,
+	orgName = defaultOrganizationName,
 ) => {
-        await page.goto(`/templates/${orgName}/${templateName}/settings`, {
-                waitUntil: "networkidle",
-        });
+	await page.goto(`/templates/${orgName}/${templateName}/settings`, {
+		waitUntil: "networkidle",
+	});
 
-        // Wait for the page to be fully loaded and the form to be visible
-        await page.waitForSelector("form", { state: "visible" });
+	// Wait for the page to be fully loaded and the form to be visible
+	await page.waitForSelector("form", { state: "visible" });
 
-        // Find the "Enable dynamic parameters" checkbox and wait for it to be visible
-        const dynamicParamsCheckbox = page.getByRole("checkbox", {
-                name: /Enable dynamic parameters for workspace creation/,
-        });
-        
-        // Wait for the checkbox to be visible and stable
-        await dynamicParamsCheckbox.waitFor({ state: "visible" });
-        
-        // If the checkbox is checked, uncheck it
-        if (await dynamicParamsCheckbox.isChecked()) {
-                await dynamicParamsCheckbox.click();
-                
-                // Wait a bit for the UI to update after the click
-                await page.waitForTimeout(100);
-        }
+	// Find the "Enable dynamic parameters" checkbox and wait for it to be visible
+	const dynamicParamsCheckbox = page.getByRole("checkbox", {
+		name: /Enable dynamic parameters for workspace creation/,
+	});
 
-        // Find and click the save button
-        const saveButton = page.getByRole("button", { name: /save/i });
-        await saveButton.waitFor({ state: "visible" });
-        await saveButton.click();
+	// Wait for the checkbox to be visible and stable
+	await dynamicParamsCheckbox.waitFor({ state: "visible" });
 
-        // Wait for the success message with a more robust selector
-        await page.locator("[role='alert']:has-text('Template updated successfully'), .MuiAlert-root:has-text('Template updated successfully')").first().waitFor({
-                state: "visible",
-                timeout: 15000,
-        });
-        
-        // Additional wait to ensure the changes are persisted
-        await page.waitForTimeout(500);
+	// If the checkbox is checked, uncheck it
+	if (await dynamicParamsCheckbox.isChecked()) {
+		await dynamicParamsCheckbox.click();
+
+		// Wait a bit for the UI to update after the click
+		await page.waitForTimeout(100);
+	}
+
+	// Find and click the save button
+	const saveButton = page.getByRole("button", { name: /save/i });
+	await saveButton.waitFor({ state: "visible" });
+	await saveButton.click();
+
+	// Wait for the success message with a more robust selector
+	await page
+		.locator(
+			"[role='alert']:has-text('Template updated successfully'), .MuiAlert-root:has-text('Template updated successfully')",
+		)
+		.first()
+		.waitFor({
+			state: "visible",
+			timeout: 15000,
+		});
+
+	// Additional wait to ensure the changes are persisted
+	await page.waitForTimeout(500);
 };
