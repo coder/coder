@@ -1249,7 +1249,7 @@ export const disableDynamicParameters = async (
         await saveButton.click();
 
         // Wait for the success message with a more robust selector
-        await page.waitForSelector("[role='alert'], .MuiAlert-root, text=Template updated successfully", {
+        await page.locator("[role='alert']:has-text('Template updated successfully'), .MuiAlert-root:has-text('Template updated successfully')").first().waitFor({
                 state: "visible",
                 timeout: 15000,
         });
