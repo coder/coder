@@ -903,23 +903,28 @@ const fillParameters = async (
 		}
 
 		// Use modern locator approach instead of waitForSelector
-		const parameterLabel = page.getByTestId(`parameter-field-${richParameter.name}`);
+		const parameterLabel = page.getByTestId(
+			`parameter-field-${richParameter.name}`,
+		);
 		await expect(parameterLabel).toBeVisible();
 
 		if (richParameter.type === "bool") {
-			const parameterField = parameterLabel.getByTestId('parameter-field-bool')
+			const parameterField = parameterLabel
+				.getByTestId("parameter-field-bool")
 				.locator(`.MuiRadio-root input[value='${buildParameter.value}']`);
 			await parameterField.click();
 		} else if (richParameter.options.length > 0) {
-			const parameterField = parameterLabel.getByTestId('parameter-field-options')
+			const parameterField = parameterLabel
+				.getByTestId("parameter-field-options")
 				.locator(`.MuiRadio-root input[value='${buildParameter.value}']`);
 			await parameterField.click();
 		} else if (richParameter.type === "list(string)") {
 			throw new Error("not implemented yet"); // FIXME
 		} else {
 			// text or number
-			const parameterField = parameterLabel.getByTestId('parameter-field-text')
-				.locator('input');
+			const parameterField = parameterLabel
+				.getByTestId("parameter-field-text")
+				.locator("input");
 			await parameterField.fill(buildParameter.value);
 		}
 	}
@@ -1238,14 +1243,12 @@ export const disableDynamicParameters = async (
 
 	// Wait for the success message or page to update
 	await page
-	.locator(
-		"[role='alert']:has-text('Template updated successfully')",
-	)
-	.first()
-	.waitFor({
-		state: "visible",
-		timeout: 15000,
-	});
+		.locator("[role='alert']:has-text('Template updated successfully')")
+		.first()
+		.waitFor({
+			state: "visible",
+			timeout: 15000,
+		});
 
 	// Additional wait to ensure the changes are persisted
 	await page.waitForTimeout(500);
