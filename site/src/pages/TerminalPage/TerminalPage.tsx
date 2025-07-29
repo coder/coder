@@ -157,7 +157,9 @@ const TerminalPage: FC = () => {
 			if (ev.shiftKey && ev.key === "Enter") {
 				if (ev.type === "keydown") {
 					websocketRef.current?.send(
-						new TextEncoder().encode(JSON.stringify({ data: escapedCarriageReturn })),
+						new TextEncoder().encode(
+							JSON.stringify({ data: escapedCarriageReturn }),
+						),
 					);
 				}
 				return false;
