@@ -69,14 +69,13 @@ export const Combobox: FC<ComboboxProps> = ({
 
 	const isOpen = open ?? managedOpen;
 
+	const handleOpenChange = (newOpen: boolean) => {
+		setManagedOpen(newOpen);
+		onOpenChange?.(newOpen);
+	};
+
 	return (
-		<Popover
-			open={isOpen}
-			onOpenChange={(newOpen) => {
-				setManagedOpen(newOpen);
-				onOpenChange?.(newOpen);
-			}}
-		>
+		<Popover open={isOpen} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
 				<Button
 					variant="outline"
@@ -116,6 +115,8 @@ export const Combobox: FC<ComboboxProps> = ({
 									keywords={[option.displayName]}
 									onSelect={(currentValue) => {
 										onSelect(currentValue === value ? "" : currentValue);
+										// Close the popover after selection
+										handleOpenChange(false);
 									}}
 								>
 									{showIcons &&
