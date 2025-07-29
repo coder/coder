@@ -253,3 +253,11 @@ WHERE
 	AND pj.job_status = 'failed'
 ORDER BY
 	tv.name ASC, wb.build_number DESC;
+
+-- name: UpdateWorkspaceBuildExternalAgentByID :exec
+UPDATE
+	workspace_builds
+SET
+	has_external_agent = @has_external_agent,
+	updated_at = @updated_at::timestamptz
+WHERE id = @id::uuid;

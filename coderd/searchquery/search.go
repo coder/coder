@@ -223,6 +223,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 		Valid: values.Has("outdated"),
 	}
 	filter.HasAITask = parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task")
+	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has-external-agent")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 
 	type paramMatch struct {
@@ -277,14 +278,14 @@ func Templates(ctx context.Context, db database.Store, query string) (database.G
 
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetTemplatesWithFilterParams{
-		Deleted:           parser.Boolean(values, false, "deleted"),
-		ExactName:         parser.String(values, "", "exact_name"),
-		FuzzyName:         parser.String(values, "", "name"),
-		IDs:               parser.UUIDs(values, []uuid.UUID{}, "ids"),
-		Deprecated:        parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
-		OrganizationID:    parseOrganization(ctx, db, parser, values, "organization"),
-		HasAITask:         parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
-		HasExternalAgents: parser.NullableBoolean(values, sql.NullBool{}, "has-external-agents"),
+		Deleted:          parser.Boolean(values, false, "deleted"),
+		ExactName:        parser.String(values, "", "exact_name"),
+		FuzzyName:        parser.String(values, "", "name"),
+		IDs:              parser.UUIDs(values, []uuid.UUID{}, "ids"),
+		Deprecated:       parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
+		OrganizationID:   parseOrganization(ctx, db, parser, values, "organization"),
+		HasAITask:        parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
+		HasExternalAgent: parser.NullableBoolean(values, sql.NullBool{}, "has-external-agent"),
 	}
 
 	parser.ErrorExcessParams(values)

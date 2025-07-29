@@ -1112,11 +1112,6 @@
 					"icon_path": "./images/icons/terminal.svg",
 					"children": [
 						{
-							"title": "attach",
-							"description": "Create a workspace and attach an external agent to it",
-							"path": "reference/cli/attach.md"
-						},
-						{
 							"title": "autoupdate",
 							"description": "Toggle auto-update policy for a workspace",
 							"path": "reference/cli/autoupdate.md"

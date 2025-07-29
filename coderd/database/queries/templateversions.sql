@@ -239,11 +239,11 @@ RETURNING template_versions.id;
 -- Determines if the template versions table has any rows with has_ai_task = TRUE.
 SELECT EXISTS (SELECT 1 FROM template_versions WHERE has_ai_task = TRUE);
 
--- name: UpdateTemplateVersionExternalAgentsByJobID :exec
+-- name: UpdateTemplateVersionExternalAgentByJobID :exec
 UPDATE
 	template_versions
 SET
-	has_external_agents = $2,
+	has_external_agent = $2,
 	updated_at = $3
 WHERE
 	job_id = $1;

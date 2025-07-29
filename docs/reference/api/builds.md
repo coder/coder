@@ -33,6 +33,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
   "has_ai_task": true,
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",
@@ -270,6 +271,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
   "has_ai_task": true,
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",
@@ -996,6 +998,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
   "has_ai_task": true,
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",
@@ -1306,6 +1309,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
     "has_ai_task": true,
+    "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -1524,6 +1528,7 @@ Status Code **200**
 | `» daily_cost`                   | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `» deadline`                     | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `» has_ai_task`                  | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `» has_external_agent`           | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `» id`                           | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `» initiator_id`                 | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `» initiator_name`               | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1797,6 +1802,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
   "daily_cost": 0,
   "deadline": "2019-08-24T14:15:22Z",
   "has_ai_task": true,
+  "has_external_agent": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",

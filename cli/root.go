@@ -106,7 +106,6 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.version(defaultVersionInfo),
 
 		// Workspace Commands
-		r.attach(),
 		r.autoupdate(),
 		r.configSSH(),
 		r.create(),

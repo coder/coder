@@ -89,6 +89,13 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	return r0
 }
 
+func (m queryMetricsStore) UpdateTemplateVersionExternalAgentsByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAgentByJobIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateTemplateVersionExternalAgentByJobID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateVersionExternalAgentsByJobID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	err := m.s.AcquireLock(ctx, pgAdvisoryXactLock)
@@ -2882,10 +2889,10 @@ func (m queryMetricsStore) UpdateTemplateVersionDescriptionByJobID(ctx context.C
 	return err
 }
 
-func (m queryMetricsStore) UpdateTemplateVersionExternalAgentsByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAgentsByJobIDParams) error {
+func (m queryMetricsStore) UpdateTemplateVersionExternalAgentByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAgentByJobIDParams) error {
 	start := time.Now()
-	r0 := m.s.UpdateTemplateVersionExternalAgentsByJobID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateTemplateVersionExternalAgentsByJobID").Observe(time.Since(start).Seconds())
+	r0 := m.s.UpdateTemplateVersionExternalAgentByJobID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateVersionExternalAgentByJobID").Observe(time.Since(start).Seconds())
 	return r0
 }
 
@@ -3096,6 +3103,13 @@ func (m queryMetricsStore) UpdateWorkspaceBuildDeadlineByID(ctx context.Context,
 	start := time.Now()
 	r0 := m.s.UpdateWorkspaceBuildDeadlineByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildDeadlineByID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) UpdateWorkspaceBuildExternalAgentByID(ctx context.Context, arg database.UpdateWorkspaceBuildExternalAgentByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceBuildExternalAgentByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildExternalAgentByID").Observe(time.Since(start).Seconds())
 	return r0
 }
 

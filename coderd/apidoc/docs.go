@@ -9866,7 +9866,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has-external-agent.",
                         "name": "q",
                         "in": "query"
                     },
@@ -18651,6 +18651,9 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "has_ai_task": {
+                    "type": "boolean"
+                },
+                "has_external_agent": {
                     "type": "boolean"
                 },
                 "id": {

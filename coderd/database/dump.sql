@@ -1671,7 +1671,7 @@ CREATE TABLE template_versions (
     archived boolean DEFAULT false NOT NULL,
     source_example_id text,
     has_ai_task boolean,
-    has_external_agents boolean
+    has_external_agent boolean
 );
 
 COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';
@@ -1702,7 +1702,7 @@ CREATE VIEW template_version_with_user AS
     template_versions.archived,
     template_versions.source_example_id,
     template_versions.has_ai_task,
-    template_versions.has_external_agents,
+    template_versions.has_external_agent,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name
@@ -2206,6 +2206,7 @@ CREATE TABLE workspace_builds (
     template_version_preset_id uuid,
     has_ai_task boolean,
     ai_task_sidebar_app_id uuid,
+    has_external_agent boolean,
     CONSTRAINT workspace_builds_ai_task_sidebar_app_id_required CHECK (((((has_ai_task IS NULL) OR (has_ai_task = false)) AND (ai_task_sidebar_app_id IS NULL)) OR ((has_ai_task = true) AND (ai_task_sidebar_app_id IS NOT NULL))))
 );
 
@@ -2227,6 +2228,7 @@ CREATE VIEW workspace_build_with_user AS
     workspace_builds.template_version_preset_id,
     workspace_builds.has_ai_task,
     workspace_builds.ai_task_sidebar_app_id,
+    workspace_builds.has_external_agent,
     COALESCE(visible_users.avatar_url, ''::text) AS initiator_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS initiator_by_username,
     COALESCE(visible_users.name, ''::text) AS initiator_by_name

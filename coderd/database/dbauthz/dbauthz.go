@@ -4695,7 +4695,7 @@ func (q *querier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context, a
 	return q.db.UpdateTemplateVersionDescriptionByJobID(ctx, arg)
 }
 
-func (q *querier) UpdateTemplateVersionExternalAgentsByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAgentsByJobIDParams) error {
+func (q *querier) UpdateTemplateVersionExternalAgentByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAgentByJobIDParams) error {
 	// An actor is allowed to update the template version AI task flag if they are authorized to update the template.
 	tv, err := q.db.GetTemplateVersionByJobID(ctx, arg.JobID)
 	if err != nil {
@@ -4714,7 +4714,7 @@ func (q *querier) UpdateTemplateVersionExternalAgentsByJobID(ctx context.Context
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
 		return err
 	}
-	return q.db.UpdateTemplateVersionExternalAgentsByJobID(ctx, arg)
+	return q.db.UpdateTemplateVersionExternalAgentByJobID(ctx, arg)
 }
 
 func (q *querier) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {
@@ -5071,6 +5071,24 @@ func (q *querier) UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg data
 		return err
 	}
 	return q.db.UpdateWorkspaceBuildDeadlineByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceBuildExternalAgentByID(ctx context.Context, arg database.UpdateWorkspaceBuildExternalAgentByIDParams) error {
+	build, err := q.db.GetWorkspaceBuildByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	workspace, err := q.db.GetWorkspaceByID(ctx, build.WorkspaceID)
+	if err != nil {
+		return err
+	}
+
+	err = q.authorizeContext(ctx, policy.ActionUpdate, workspace.RBACObject())
+	if err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceBuildExternalAgentByID(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {

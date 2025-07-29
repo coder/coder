@@ -6155,18 +6155,18 @@ func (mr *MockStoreMockRecorder) UpdateTemplateVersionDescriptionByJobID(ctx, ar
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionDescriptionByJobID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionDescriptionByJobID), ctx, arg)
 }
 
-// UpdateTemplateVersionExternalAgentsByJobID mocks base method.
-func (m *MockStore) UpdateTemplateVersionExternalAgentsByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAgentsByJobIDParams) error {
+// UpdateTemplateVersionExternalAgentByJobID mocks base method.
+func (m *MockStore) UpdateTemplateVersionExternalAgentByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAgentByJobIDParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateTemplateVersionExternalAgentsByJobID", ctx, arg)
+	ret := m.ctrl.Call(m, "UpdateTemplateVersionExternalAgentByJobID", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpdateTemplateVersionExternalAgentsByJobID indicates an expected call of UpdateTemplateVersionExternalAgentsByJobID.
-func (mr *MockStoreMockRecorder) UpdateTemplateVersionExternalAgentsByJobID(ctx, arg any) *gomock.Call {
+// UpdateTemplateVersionExternalAgentByJobID indicates an expected call of UpdateTemplateVersionExternalAgentByJobID.
+func (mr *MockStoreMockRecorder) UpdateTemplateVersionExternalAgentByJobID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionExternalAgentsByJobID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionExternalAgentsByJobID), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionExternalAgentByJobID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionExternalAgentByJobID), ctx, arg)
 }
 
 // UpdateTemplateVersionExternalAuthProvidersByJobID mocks base method.
@@ -6599,6 +6599,20 @@ func (m *MockStore) UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg da
 func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildDeadlineByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildDeadlineByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildDeadlineByID), ctx, arg)
+}
+
+// UpdateWorkspaceBuildExternalAgentByID mocks base method.
+func (m *MockStore) UpdateWorkspaceBuildExternalAgentByID(ctx context.Context, arg database.UpdateWorkspaceBuildExternalAgentByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceBuildExternalAgentByID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspaceBuildExternalAgentByID indicates an expected call of UpdateWorkspaceBuildExternalAgentByID.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildExternalAgentByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildExternalAgentByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildExternalAgentByID), ctx, arg)
 }
 
 // UpdateWorkspaceBuildProvisionerStateByID mocks base method.

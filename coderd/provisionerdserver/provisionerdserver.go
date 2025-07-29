@@ -1666,9 +1666,9 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		if err != nil {
 			return xerrors.Errorf("update template version external auth providers: %w", err)
 		}
-		err = db.UpdateTemplateVersionExternalAgentsByJobID(ctx, database.UpdateTemplateVersionExternalAgentsByJobIDParams{
+		err = db.UpdateTemplateVersionExternalAgentByJobID(ctx, database.UpdateTemplateVersionExternalAgentByJobIDParams{
 			JobID: jobID,
-			HasExternalAgents: sql.NullBool{
+			HasExternalAgent: sql.NullBool{
 				Bool:  jobType.TemplateImport.HasExternalAgents,
 				Valid: true,
 			},
@@ -1917,6 +1917,26 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		})
 		if err != nil {
 			return xerrors.Errorf("update workspace build ai tasks flag: %w", err)
+		}
+
+		// Check if there is a coder_external_agent resource in the workspace build
+		hasExternalAgent := false
+		for _, resource := range jobType.WorkspaceBuild.Resources {
+			if resource.Type == "coder_external_agent" {
+				hasExternalAgent = true
+				break
+			}
+		}
+		err = db.UpdateWorkspaceBuildExternalAgentByID(ctx, database.UpdateWorkspaceBuildExternalAgentByIDParams{
+			ID: workspaceBuild.ID,
+			HasExternalAgent: sql.NullBool{
+				Bool:  hasExternalAgent,
+				Valid: true,
+			},
+			UpdatedAt: now,
+		})
+		if err != nil {
+			return xerrors.Errorf("update workspace build external agent flag: %w", err)
 		}
 
 		// Insert timings inside the transaction now

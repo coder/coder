@@ -88,6 +88,7 @@ of the template will be used.
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
     "has_ai_task": true,
+    "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -375,6 +376,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
     "has_ai_task": true,
+    "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -687,6 +689,7 @@ of the template will be used.
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
     "has_ai_task": true,
+    "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -927,11 +930,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 
 ### Parameters
 
-| Name     | In    | Type    | Required | Description                                                                                                                                                    |
-|----------|-------|---------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task. |
-| `limit`  | query | integer | false    | Page limit                                                                                                                                                     |
-| `offset` | query | integer | false    | Page offset                                                                                                                                                    |
+| Name     | In    | Type    | Required | Description                                                                                                                                                                        |
+|----------|-------|---------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has-external-agent. |
+| `limit`  | query | integer | false    | Page limit                                                                                                                                                                         |
+| `offset` | query | integer | false    | Page offset                                                                                                                                                                        |
 
 ### Example responses
 
@@ -977,6 +980,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
         "daily_cost": 0,
         "deadline": "2019-08-24T14:15:22Z",
         "has_ai_task": true,
+        "has_external_agent": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
         "initiator_name": "string",
@@ -1248,6 +1252,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
     "has_ai_task": true,
+    "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -1651,6 +1656,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
     "has_ai_task": true,
+    "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
