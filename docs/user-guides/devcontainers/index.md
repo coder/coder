@@ -41,13 +41,19 @@ When a workspace with the dev containers integration starts:
 
 ### Connectivity
 
-- Full SSH access directly into dev containers
+- Full SSH access directly into dev containers (after running `coder config-ssh`):
 
    ```shell
-   ssh <agent>.<workspace>.me.coder
+   ssh <agent>.<workspace-name>.me.coder
    ```
 
-- Automatic port forwarding.
+   Example:
+
+   ```shell
+   ssh devcontainer.myworkspace.me.coder
+   ```
+
+- Support for ports defined in the `appPort` property of your `devcontainer.json` file.
 
 ## Known Limitations
 

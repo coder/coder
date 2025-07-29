@@ -13,25 +13,25 @@ You can connect directly to your dev container.
 
 1. Run `coder config-ssh` to configure your SSH local client:
 
-   ```bash
+   ```shell
     coder config-ssh
     ```
 
 1. SSH to your workspace:
 
-    ```bash
+    ```shell
     ssh <agent>.<workspace-name>.me.coder
     ```
 
    Example:
 
-    ```bash
+    ```shell
     ssh devcontainer.myworkspace.me.coder
     ```
 
 ### Coder CLI
 
-```bash
+```shell
 coder ssh <workspace-name>
 ```
 
@@ -50,7 +50,7 @@ To open your dev container directly in VS Code, select "Open in VS Code Desktop"
 
 Alternatively, you can use the CLI:
 
-```bash
+```shell
 coder open vscode <workspace-name>
 ```
 
@@ -64,7 +64,7 @@ Coder supports port forwarding for dev containers through the following mechanis
 
 1. **Dynamic Ports**: For ports not defined in your `devcontainer.json`, you can use the Coder CLI to forward them:
 
-   ```bash
+   ```shell
    coder port-forward <workspace-name> --tcp <local-port>:<container-port>
    ```
 
@@ -78,7 +78,7 @@ For example, with this `devcontainer.json` configuration:
 
 You can access these ports directly through your browser via the Coder dashboard, or forward them to your local machine:
 
-```bash
+```shell
 coder port-forward <workspace-name> --tcp 8080,4000
 ```
 
