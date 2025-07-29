@@ -214,7 +214,6 @@ message NetworkSettingsResponse {
 // StartResponse.
 message StartRequest {
 	int32 tunnel_file_descriptor = 1;
-	bool tunnel_use_soft_net_isolation = 8;
 	string coder_url = 2;
 	string api_token = 3;
 	// Additional HTTP headers added to all requests
