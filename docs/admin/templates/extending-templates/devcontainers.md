@@ -81,16 +81,16 @@ For more advanced use cases, consult the [advanced dev containers doc](./advance
 Add apps to the dev container workspace resource for one-click access.
 
 ```terraform
-		"coder": {
-			"apps": [
-				{
-					"slug": "cursor",
-					"displayName": "Cursor",
-					"url": "cursor://coder.coder-remote/openDevContainer?owner=${localEnv:CODER_WORKSPACE_OWNER_NAME}&workspace=${localEnv:CODER_WORKSPACE_NAME}&agent=${localEnv:CODER_WORKSPACE_PARENT_AGENT_NAME}&url=${localEnv:CODER_URL}&token=$SESSION_TOKEN&devContainerName=${localEnv:CONTAINER_ID}&devContainerFolder=${containerWorkspaceFolder}&localWorkspaceFolder=${localWorkspaceFolder}",
-					"external": true,
-					"icon": "/icon/cursor.svg",
-					"order": 1
-				},
+    "coder": {
+      "apps": [
+        {
+          "slug": "cursor",
+          "displayName": "Cursor",
+          "url": "cursor://coder.coder-remote/openDevContainer?owner=${localEnv:CODER_WORKSPACE_OWNER_NAME}&workspace=${localEnv:CODER_WORKSPACE_NAME}&agent=${localEnv:CODER_WORKSPACE_PARENT_AGENT_NAME}&url=${localEnv:CODER_URL}&token=$SESSION_TOKEN&devContainerName=${localEnv:CONTAINER_ID}&devContainerFolder=${containerWorkspaceFolder}&localWorkspaceFolder=${localWorkspaceFolder}",
+          "external": true,
+          "icon": "/icon/cursor.svg",
+          "order": 1
+        },
 ```
 
 <details><summary>Expand for a full example:</summary>
@@ -102,57 +102,57 @@ resource "coder_devcontainer" "my-repository" {
 ...
 {
   "customizations": {
-		...
-		"coder": {
-			"apps": [
-				{
-					"slug": "cursor",
-					"displayName": "Cursor",
-					"url": "cursor://coder.coder-remote/openDevContainer?owner=${localEnv:CODER_WORKSPACE_OWNER_NAME}&workspace=${localEnv:CODER_WORKSPACE_NAME}&agent=${localEnv:CODER_WORKSPACE_PARENT_AGENT_NAME}&url=${localEnv:CODER_URL}&token=$SESSION_TOKEN&devContainerName=${localEnv:CONTAINER_ID}&devContainerFolder=${containerWorkspaceFolder}&localWorkspaceFolder=${localWorkspaceFolder}",
-					"external": true,
-					"icon": "/icon/cursor.svg",
-					"order": 1
-				},
-				// Reproduce `code-server` app here from the code-server
-				// feature so that we can set the correct folder and order.
-				// Currently, the order cannot be specified via option because
-				// we parse it as a number whereas variable interpolation
-				// results in a string. Additionally we set health check which
-				// is not yet set in the feature.
-				{
-					"slug": "code-server",
-					"displayName": "code-server",
-					"url": "http://${localEnv:FEATURE_CODE_SERVER_OPTION_HOST:127.0.0.1}:${localEnv:FEATURE_CODE_SERVER_OPTION_PORT:8080}/?folder=${containerWorkspaceFolder}",
-					"openIn": "${localEnv:FEATURE_CODE_SERVER_OPTION_APPOPENIN:slim-window}",
-					"share": "${localEnv:FEATURE_CODE_SERVER_OPTION_APPSHARE:owner}",
-					"icon": "/icon/code.svg",
-					"group": "${localEnv:FEATURE_CODE_SERVER_OPTION_APPGROUP:Web Editors}",
-					"order": 3,
-					"healthCheck": {
-						"url": "http://${localEnv:FEATURE_CODE_SERVER_OPTION_HOST:127.0.0.1}:${localEnv:FEATURE_CODE_SERVER_OPTION_PORT:8080}/healthz",
-						"interval": 5,
-						"threshold": 2
-					},
-				{
-					"slug": "windsurf",
-					"displayName": "Windsurf Editor",
-					"url": "windsurf://coder.coder-remote/openDevContainer?owner=${localEnv:CODER_WORKSPACE_OWNER_NAME}&workspace=${localEnv:CODER_WORKSPACE_NAME}&agent=${localEnv:CODER_WORKSPACE_PARENT_AGENT_NAME}&url=${localEnv:CODER_URL}&token=$SESSION_TOKEN&devContainerName=${localEnv:CONTAINER_ID}&devContainerFolder=${containerWorkspaceFolder}&localWorkspaceFolder=${localWorkspaceFolder}",
-					"external": true,
-					"icon": "/icon/windsurf.svg",
-					"order": 3
-				},
-				{
-					"slug": "zed",
-					"displayName": "Zed Editor",
-					"url": "zed://ssh/${localEnv:CODER_WORKSPACE_AGENT_NAME}.${localEnv:CODER_WORKSPACE_NAME}.${localEnv:CODER_WORKSPACE_OWNER_NAME}.coder${containerWorkspaceFolder}",
-					"external": true,
-					"icon": "/icon/zed.svg",
-					"order": 4
-				},
-				}
-			]
-		}
-	},
+    ...
+    "coder": {
+      "apps": [
+        {
+          "slug": "cursor",
+          "displayName": "Cursor",
+          "url": "cursor://coder.coder-remote/openDevContainer?owner=${localEnv:CODER_WORKSPACE_OWNER_NAME}&workspace=${localEnv:CODER_WORKSPACE_NAME}&agent=${localEnv:CODER_WORKSPACE_PARENT_AGENT_NAME}&url=${localEnv:CODER_URL}&token=$SESSION_TOKEN&devContainerName=${localEnv:CONTAINER_ID}&devContainerFolder=${containerWorkspaceFolder}&localWorkspaceFolder=${localWorkspaceFolder}",
+          "external": true,
+          "icon": "/icon/cursor.svg",
+          "order": 1
+          },
+        // Reproduce `code-server` app here from the code-server
+        // feature so that we can set the correct folder and order.
+        // Currently, the order cannot be specified via option because
+        // we parse it as a number whereas variable interpolation
+        // results in a string. Additionally we set health check which
+        // is not yet set in the feature.
+        {
+          "slug": "code-server",
+          "displayName": "code-server",
+          "url": "http://${localEnv:FEATURE_CODE_SERVER_OPTION_HOST:127.0.0.1}:${localEnv:FEATURE_CODE_SERVER_OPTION_PORT:8080}/?folder=${containerWorkspaceFolder}",
+          "openIn": "${localEnv:FEATURE_CODE_SERVER_OPTION_APPOPENIN:slim-window}",
+          "share": "${localEnv:FEATURE_CODE_SERVER_OPTION_APPSHARE:owner}",
+          "icon": "/icon/code.svg",
+          "group": "${localEnv:FEATURE_CODE_SERVER_OPTION_APPGROUP:Web Editors}",
+          "order": 3,
+          "healthCheck": {
+            "url": "http://${localEnv:FEATURE_CODE_SERVER_OPTION_HOST:127.0.0.1}:${localEnv:FEATURE_CODE_SERVER_OPTION_PORT:8080}/healthz",
+            "interval": 5,
+            "threshold": 2
+          },
+        {
+          "slug": "windsurf",
+          "displayName": "Windsurf Editor",
+          "url": "windsurf://coder.coder-remote/openDevContainer?owner=${localEnv:CODER_WORKSPACE_OWNER_NAME}&workspace=${localEnv:CODER_WORKSPACE_NAME}&agent=${localEnv:CODER_WORKSPACE_PARENT_AGENT_NAME}&url=${localEnv:CODER_URL}&token=$SESSION_TOKEN&devContainerName=${localEnv:CONTAINER_ID}&devContainerFolder=${containerWorkspaceFolder}&localWorkspaceFolder=${localWorkspaceFolder}",
+          "external": true,
+          "icon": "/icon/windsurf.svg",
+          "order": 3
+        },
+        {
+          "slug": "zed",
+          "displayName": "Zed Editor",
+          "url": "zed://ssh/${localEnv:CODER_WORKSPACE_AGENT_NAME}.${localEnv:CODER_WORKSPACE_NAME}.${localEnv:CODER_WORKSPACE_OWNER_NAME}.coder${containerWorkspaceFolder}",
+          "external": true,
+          "icon": "/icon/zed.svg",
+          "order": 4
+        },
+        }
+      ]
+    }
+  },
 }
 ```
 
@@ -235,7 +235,7 @@ resource "docker_container" "workspace" {
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.main.token}",
     "CODER_AGENT_URL=${data.coder_workspace.me.access_url}"
-	]
+    ]
 }
 ```
 
@@ -251,9 +251,9 @@ environment variable before starting the agent.
 1. Confirm that the Docker daemon is running inside the workspace:
 
    ```shell
-	 sudo service docker start && \
-	 docker ps
-	 ```
+     sudo service docker start && \
+     docker ps
+     ```
 
 1. Confirm the location of `devcontainer.json`.
 
