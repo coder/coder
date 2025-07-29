@@ -568,13 +568,15 @@ type DERPMapSetter interface {
 }
 
 type basicDERPController struct {
-	logger slog.Logger
-	setter DERPMapSetter
+	logger   slog.Logger
+	rewriter DERPMapRewriter // optional
+	setter   DERPMapSetter
 }
 
 func (b *basicDERPController) New(client DERPClient) CloserWaiter {
 	l := &derpSetLoop{
 		logger:       b.logger,
+		rewriter:     b.rewriter,
 		setter:       b.setter,
 		client:       client,
 		errChan:      make(chan error, 1),
@@ -584,17 +586,23 @@ func (b *basicDERPController) New(client DERPClient) CloserWaiter {
 	return l
 }
 
-func NewBasicDERPController(logger slog.Logger, setter DERPMapSetter) DERPController {
+// NewBasicDERPController creates a DERP controller that rewrites the DERP map
+// with the provided rewriter before setting it on the provided setter.
+//
+// The rewriter is optional and can be nil.
+func NewBasicDERPController(logger slog.Logger, rewriter DERPMapRewriter, setter DERPMapSetter) DERPController {
 	return &basicDERPController{
-		logger: logger,
-		setter: setter,
+		logger:   logger,
+		rewriter: rewriter,
+		setter:   setter,
 	}
 }
 
 type derpSetLoop struct {
-	logger slog.Logger
-	setter DERPMapSetter
-	client DERPClient
+	logger   slog.Logger
+	rewriter DERPMapRewriter // optional
+	setter   DERPMapSetter
+	client   DERPClient
 
 	sync.Mutex
 	closed       bool
@@ -640,6 +648,9 @@ func (l *derpSetLoop) recvLoop() {
 			return
 		}
 		l.logger.Debug(context.Background(), "got new DERP Map", slog.F("derp_map", dm))
+		if l.rewriter != nil {
+			l.rewriter.RewriteDERPMap(dm)
+		}
 		l.setter.SetDERPMap(dm)
 	}
 }

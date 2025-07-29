@@ -4,7 +4,7 @@ import MuiLink from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import Tooltip from "@mui/material/Tooltip";
 import type { GetLicensesResponse } from "api/api";
-import type { UserStatusChangeCount } from "api/typesGenerated";
+import type { Feature, UserStatusChangeCount } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	SettingsHeader,
@@ -20,6 +20,7 @@ import Confetti from "react-confetti";
 import { Link } from "react-router-dom";
 import { LicenseCard } from "./LicenseCard";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
+import { ManagedAgentsConsumption } from "./ManagedAgentsConsumption";
 
 type Props = {
 	showConfetti: boolean;
@@ -32,6 +33,7 @@ type Props = {
 	removeLicense: (licenseId: number) => void;
 	refreshEntitlements: () => void;
 	activeUsers: UserStatusChangeCount[] | undefined;
+	managedAgentFeature?: Feature;
 };
 
 const LicensesSettingsPageView: FC<Props> = ({
@@ -45,6 +47,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 	removeLicense,
 	refreshEntitlements,
 	activeUsers,
+	managedAgentFeature,
 }) => {
 	const theme = useTheme();
 	const { width, height } = useWindowSize();
@@ -150,6 +153,10 @@ const LicensesSettingsPageView: FC<Props> = ({
 							limit: 80,
 						}))}
 					/>
+				)}
+
+				{licenses && licenses.length > 0 && (
+					<ManagedAgentsConsumption managedAgentFeature={managedAgentFeature} />
 				)}
 			</div>
 		</>

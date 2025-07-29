@@ -166,7 +166,7 @@ func (r *RootCmd) provisionerJobsCancel() *serpent.Command {
 				err = client.CancelTemplateVersion(ctx, ptr.NilToEmpty(job.Input.TemplateVersionID))
 			case codersdk.ProvisionerJobTypeWorkspaceBuild:
 				_, _ = fmt.Fprintf(inv.Stdout, "Canceling workspace build job %s...\n", job.ID)
-				err = client.CancelWorkspaceBuild(ctx, ptr.NilToEmpty(job.Input.WorkspaceBuildID))
+				err = client.CancelWorkspaceBuild(ctx, ptr.NilToEmpty(job.Input.WorkspaceBuildID), codersdk.CancelWorkspaceBuildParams{})
 			}
 			if err != nil {
 				return xerrors.Errorf("cancel provisioner job: %w", err)

@@ -1,8 +1,10 @@
 package cli_test
 
 import (
+	"context"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -11,11 +13,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
-	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
+	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -289,6 +291,60 @@ func TestOpenVSCode_NoAgentDirectory(t *testing.T) {
 	}
 }
 
+type fakeContainerCLI struct {
+	resp codersdk.WorkspaceAgentListContainersResponse
+}
+
+func (f *fakeContainerCLI) List(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
+	return f.resp, nil
+}
+
+func (*fakeContainerCLI) DetectArchitecture(ctx context.Context, containerID string) (string, error) {
+	return runtime.GOARCH, nil
+}
+
+func (*fakeContainerCLI) Copy(ctx context.Context, containerID, src, dst string) error {
+	return nil
+}
+
+func (*fakeContainerCLI) ExecAs(ctx context.Context, containerID, user string, args ...string) ([]byte, error) {
+	return nil, nil
+}
+
+type fakeDevcontainerCLI struct {
+	config    agentcontainers.DevcontainerConfig
+	execAgent func(ctx context.Context, token string) error
+}
+
+func (f *fakeDevcontainerCLI) ReadConfig(ctx context.Context, workspaceFolder, configFile string, env []string, opts ...agentcontainers.DevcontainerCLIReadConfigOptions) (agentcontainers.DevcontainerConfig, error) {
+	return f.config, nil
+}
+
+func (f *fakeDevcontainerCLI) Exec(ctx context.Context, workspaceFolder, configFile string, name string, args []string, opts ...agentcontainers.DevcontainerCLIExecOptions) error {
+	var opt agentcontainers.DevcontainerCLIExecConfig
+	for _, o := range opts {
+		o(&opt)
+	}
+	var token string
+	for _, arg := range opt.Args {
+		if strings.HasPrefix(arg, "CODER_AGENT_TOKEN=") {
+			token = strings.TrimPrefix(arg, "CODER_AGENT_TOKEN=")
+			break
+		}
+	}
+	if token == "" {
+		return xerrors.New("no agent token provided in args")
+	}
+	if f.execAgent == nil {
+		return nil
+	}
+	return f.execAgent(ctx, token)
+}
+
+func (*fakeDevcontainerCLI) Up(ctx context.Context, workspaceFolder, configFile string, opts ...agentcontainers.DevcontainerCLIUpOptions) (string, error) {
+	return "", nil
+}
+
 func TestOpenVSCodeDevContainer(t *testing.T) {
 	t.Parallel()
 
@@ -296,56 +352,85 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 		t.Skip("DevContainers are only supported for agents on Linux")
 	}
 
-	agentName := "agent1"
-	agentDir, err := filepath.Abs(filepath.FromSlash("/tmp"))
-	require.NoError(t, err)
+	parentAgentName := "agent1"
 
+	devcontainerID := uuid.New()
+	devcontainerName := "wilson"
+	workspaceFolder := "/home/coder/wilson"
+	configFile := path.Join(workspaceFolder, ".devcontainer", "devcontainer.json")
+
+	containerID := uuid.NewString()
 	containerName := testutil.GetRandomName(t)
-	containerFolder := "/workspace/coder"
-
-	ctrl := gomock.NewController(t)
-	mccli := acmock.NewMockContainerCLI(ctrl)
-	mccli.EXPECT().List(gomock.Any()).Return(
-		codersdk.WorkspaceAgentListContainersResponse{
-			Containers: []codersdk.WorkspaceAgentContainer{
-				{
-					ID:           uuid.NewString(),
-					CreatedAt:    dbtime.Now(),
-					FriendlyName: containerName,
-					Image:        "busybox:latest",
-					Labels: map[string]string{
-						"devcontainer.local_folder": "/home/coder/coder",
-					},
-					Running: true,
-					Status:  "running",
-					Volumes: map[string]string{
-						"/home/coder/coder": containerFolder,
-					},
-				},
-			},
-		}, nil,
-	).AnyTimes()
+	containerFolder := "/workspaces/wilson"
 
 	client, workspace, agentToken := setupWorkspaceForAgent(t, func(agents []*proto.Agent) []*proto.Agent {
-		agents[0].Directory = agentDir
-		agents[0].Name = agentName
+		agents[0].Name = parentAgentName
 		agents[0].OperatingSystem = runtime.GOOS
 		return agents
 	})
 
+	fCCLI := &fakeContainerCLI{
+		resp: codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentContainer{
+				{
+					ID:           containerID,
+					CreatedAt:    dbtime.Now(),
+					FriendlyName: containerName,
+					Image:        "busybox:latest",
+					Labels: map[string]string{
+						agentcontainers.DevcontainerLocalFolderLabel: workspaceFolder,
+						agentcontainers.DevcontainerConfigFileLabel:  configFile,
+						agentcontainers.DevcontainerIsTestRunLabel:   "true",
+						"coder.test": t.Name(),
+					},
+					Running: true,
+					Status:  "running",
+				},
+			},
+		},
+	}
+	fDCCLI := &fakeDevcontainerCLI{
+		config: agentcontainers.DevcontainerConfig{
+			Workspace: agentcontainers.DevcontainerWorkspace{
+				WorkspaceFolder: containerFolder,
+			},
+		},
+		execAgent: func(ctx context.Context, token string) error {
+			t.Logf("Starting devcontainer subagent with token: %s", token)
+			_ = agenttest.New(t, client.URL, token)
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	}
+
 	_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
 		o.Devcontainers = true
 		o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
-			agentcontainers.WithContainerCLI(mccli),
-			agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
+			agentcontainers.WithProjectDiscovery(false),
+			agentcontainers.WithContainerCLI(fCCLI),
+			agentcontainers.WithDevcontainerCLI(fDCCLI),
+			agentcontainers.WithWatcher(watcher.NewNoop()),
+			agentcontainers.WithDevcontainers(
+				[]codersdk.WorkspaceAgentDevcontainer{{
+					ID:              devcontainerID,
+					Name:            devcontainerName,
+					WorkspaceFolder: workspaceFolder,
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				}},
+				[]codersdk.WorkspaceAgentScript{{
+					ID:          devcontainerID,
+					LogSourceID: uuid.New(),
+				}},
+			),
+			agentcontainers.WithContainerLabelIncludeFilter("coder.test", t.Name()),
 		)
 	})
-	_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).AgentNames([]string{parentAgentName, devcontainerName}).Wait()
 
 	insideWorkspaceEnv := map[string]string{
 		"CODER":                      "true",
 		"CODER_WORKSPACE_NAME":       workspace.Name,
-		"CODER_WORKSPACE_AGENT_NAME": agentName,
+		"CODER_WORKSPACE_AGENT_NAME": devcontainerName,
 	}
 
 	wd, err := os.Getwd()
@@ -361,215 +446,47 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 	}{
 		{
 			name:      "nonexistent container",
-			args:      []string{"--test.open-error", workspace.Name, "--container", containerName + "bad"},
+			args:      []string{"--test.open-error", workspace.Name + "." + devcontainerName + "bad"},
 			wantError: true,
 		},
 		{
 			name:      "ok",
-			args:      []string{"--test.open-error", workspace.Name, "--container", containerName},
-			wantDir:   containerFolder,
+			args:      []string{"--test.open-error", workspace.Name + "." + devcontainerName},
 			wantError: false,
 		},
 		{
 			name:      "ok with absolute path",
-			args:      []string{"--test.open-error", workspace.Name, "--container", containerName, containerFolder},
-			wantDir:   containerFolder,
+			args:      []string{"--test.open-error", workspace.Name + "." + devcontainerName, containerFolder},
 			wantError: false,
 		},
 		{
 			name:      "ok with relative path",
-			args:      []string{"--test.open-error", workspace.Name, "--container", containerName, "my/relative/path"},
-			wantDir:   filepath.Join(agentDir, filepath.FromSlash("my/relative/path")),
+			args:      []string{"--test.open-error", workspace.Name + "." + devcontainerName, "my/relative/path"},
+			wantDir:   path.Join(containerFolder, "my/relative/path"),
 			wantError: false,
 		},
 		{
 			name:      "ok with token",
-			args:      []string{"--test.open-error", workspace.Name, "--container", containerName, "--generate-token"},
-			wantDir:   containerFolder,
+			args:      []string{"--test.open-error", workspace.Name + "." + devcontainerName, "--generate-token"},
 			wantError: false,
-			wantToken: true,
-		},
-		// Inside workspace, does not require --test.open-error
-		{
-			name:    "ok inside workspace",
-			env:     insideWorkspaceEnv,
-			args:    []string{workspace.Name, "--container", containerName},
-			wantDir: containerFolder,
-		},
-		{
-			name:    "ok inside workspace relative path",
-			env:     insideWorkspaceEnv,
-			args:    []string{workspace.Name, "--container", containerName, "foo"},
-			wantDir: filepath.Join(wd, "foo"),
-		},
-		{
-			name:      "ok inside workspace token",
-			env:       insideWorkspaceEnv,
-			args:      []string{workspace.Name, "--container", containerName, "--generate-token"},
-			wantDir:   containerFolder,
-			wantToken: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			inv, root := clitest.New(t, append([]string{"open", "vscode"}, tt.args...)...)
-			clitest.SetupConfig(t, client, root)
-
-			pty := ptytest.New(t)
-			inv.Stdin = pty.Input()
-			inv.Stdout = pty.Output()
-
-			ctx := testutil.Context(t, testutil.WaitLong)
-			inv = inv.WithContext(ctx)
-
-			for k, v := range tt.env {
-				inv.Environ.Set(k, v)
-			}
-
-			w := clitest.StartWithWaiter(t, inv)
-
-			if tt.wantError {
-				w.RequireError()
-				return
-			}
-
-			me, err := client.User(ctx, codersdk.Me)
-			require.NoError(t, err)
-
-			line := pty.ReadLine(ctx)
-			u, err := url.ParseRequestURI(line)
-			require.NoError(t, err, "line: %q", line)
-
-			qp := u.Query()
-			assert.Equal(t, client.URL.String(), qp.Get("url"))
-			assert.Equal(t, me.Username, qp.Get("owner"))
-			assert.Equal(t, workspace.Name, qp.Get("workspace"))
-			assert.Equal(t, agentName, qp.Get("agent"))
-			assert.Equal(t, containerName, qp.Get("devContainerName"))
-
-			if tt.wantDir != "" {
-				assert.Equal(t, tt.wantDir, qp.Get("devContainerFolder"))
-			} else {
-				assert.Equal(t, containerFolder, qp.Get("devContainerFolder"))
-			}
-
-			if tt.wantToken {
-				assert.NotEmpty(t, qp.Get("token"))
-			} else {
-				assert.Empty(t, qp.Get("token"))
-			}
-
-			w.RequireSuccess()
-		})
-	}
-}
-
-func TestOpenVSCodeDevContainer_NoAgentDirectory(t *testing.T) {
-	t.Parallel()
-
-	if runtime.GOOS != "linux" {
-		t.Skip("DevContainers are only supported for agents on Linux")
-	}
-
-	agentName := "agent1"
-
-	containerName := testutil.GetRandomName(t)
-	containerFolder := "/workspace/coder"
-
-	ctrl := gomock.NewController(t)
-	mccli := acmock.NewMockContainerCLI(ctrl)
-	mccli.EXPECT().List(gomock.Any()).Return(
-		codersdk.WorkspaceAgentListContainersResponse{
-			Containers: []codersdk.WorkspaceAgentContainer{
-				{
-					ID:           uuid.NewString(),
-					CreatedAt:    dbtime.Now(),
-					FriendlyName: containerName,
-					Image:        "busybox:latest",
-					Labels: map[string]string{
-						"devcontainer.local_folder": "/home/coder/coder",
-					},
-					Running: true,
-					Status:  "running",
-					Volumes: map[string]string{
-						"/home/coder/coder": containerFolder,
-					},
-				},
-			},
-		}, nil,
-	).AnyTimes()
-
-	client, workspace, agentToken := setupWorkspaceForAgent(t, func(agents []*proto.Agent) []*proto.Agent {
-		agents[0].Name = agentName
-		agents[0].OperatingSystem = runtime.GOOS
-		return agents
-	})
-
-	_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
-		o.Devcontainers = true
-		o.DevcontainerAPIOptions = append(o.DevcontainerAPIOptions,
-			agentcontainers.WithContainerCLI(mccli),
-			agentcontainers.WithContainerLabelIncludeFilter("this.label.does.not.exist.ignore.devcontainers", "true"),
-		)
-	})
-	_ = coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
-
-	insideWorkspaceEnv := map[string]string{
-		"CODER":                      "true",
-		"CODER_WORKSPACE_NAME":       workspace.Name,
-		"CODER_WORKSPACE_AGENT_NAME": agentName,
-	}
-
-	wd, err := os.Getwd()
-	require.NoError(t, err)
-
-	tests := []struct {
-		name      string
-		env       map[string]string
-		args      []string
-		wantDir   string
-		wantError bool
-		wantToken bool
-	}{
-		{
-			name: "ok",
-			args: []string{"--test.open-error", workspace.Name, "--container", containerName},
-		},
-		{
-			name:      "no agent dir error relative path",
-			args:      []string{"--test.open-error", workspace.Name, "--container", containerName, "my/relative/path"},
-			wantDir:   filepath.FromSlash("my/relative/path"),
-			wantError: true,
-		},
-		{
-			name:    "ok with absolute path",
-			args:    []string{"--test.open-error", workspace.Name, "--container", containerName, "/home/coder"},
-			wantDir: "/home/coder",
-		},
-		{
-			name:      "ok with token",
-			args:      []string{"--test.open-error", workspace.Name, "--container", containerName, "--generate-token"},
 			wantToken: true,
 		},
 		// Inside workspace, does not require --test.open-error
 		{
 			name: "ok inside workspace",
 			env:  insideWorkspaceEnv,
-			args: []string{workspace.Name, "--container", containerName},
+			args: []string{workspace.Name + "." + devcontainerName},
 		},
 		{
 			name:    "ok inside workspace relative path",
 			env:     insideWorkspaceEnv,
-			args:    []string{workspace.Name, "--container", containerName, "foo"},
+			args:    []string{workspace.Name + "." + devcontainerName, "foo"},
 			wantDir: filepath.Join(wd, "foo"),
 		},
 		{
 			name:      "ok inside workspace token",
 			env:       insideWorkspaceEnv,
-			args:      []string{workspace.Name, "--container", containerName, "--generate-token"},
+			args:      []string{workspace.Name + "." + devcontainerName, "--generate-token"},
 			wantToken: true,
 		},
 	}
@@ -610,8 +527,10 @@ func TestOpenVSCodeDevContainer_NoAgentDirectory(t *testing.T) {
 			assert.Equal(t, client.URL.String(), qp.Get("url"))
 			assert.Equal(t, me.Username, qp.Get("owner"))
 			assert.Equal(t, workspace.Name, qp.Get("workspace"))
-			assert.Equal(t, agentName, qp.Get("agent"))
+			assert.Equal(t, parentAgentName, qp.Get("agent"))
 			assert.Equal(t, containerName, qp.Get("devContainerName"))
+			assert.Equal(t, workspaceFolder, qp.Get("localWorkspaceFolder"))
+			assert.Equal(t, configFile, qp.Get("localConfigFile"))
 
 			if tt.wantDir != "" {
 				assert.Equal(t, tt.wantDir, qp.Get("devContainerFolder"))

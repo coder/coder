@@ -4,10 +4,12 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -236,4 +238,20 @@ func (a *UserLinkClaims) Scan(src interface{}) error {
 
 func (a UserLinkClaims) Value() (driver.Value, error) {
 	return json.Marshal(a)
+}
+
+func ParseIP(ipStr string) pqtype.Inet {
+	ip := net.ParseIP(ipStr)
+	ipNet := net.IPNet{}
+	if ip != nil {
+		ipNet = net.IPNet{
+			IP:   ip,
+			Mask: net.CIDRMask(len(ip)*8, len(ip)*8),
+		}
+	}
+
+	return pqtype.Inet{
+		IPNet: ipNet,
+		Valid: ip != nil,
+	}
 }

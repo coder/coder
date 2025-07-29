@@ -1,6 +1,11 @@
 # Audit Logs
 
-Audit Logs allows **Auditors** to monitor user operations in their deployment.
+**Audit Logs** allows Auditors to monitor user operations in their deployment.
+
+> [!NOTE]
+> Audit logs require a
+> [Premium license](https://coder.com/pricing#compare-plans).
+> For more details, [contact your account team](https://coder.com/contact).
 
 ## Tracked Events
 
@@ -30,55 +35,49 @@ We track the following resources:
 | Template<br><i>write, delete</i>                         | <table><thead><tr><th>Field</th><th>Tracked</th></tr></thead><tbody> | <tr><td>active_version_id</td><td>true</td></tr><tr><td>activity_bump</td><td>true</td></tr><tr><td>allow_user_autostart</td><td>true</td></tr><tr><td>allow_user_autostop</td><td>true</td></tr><tr><td>allow_user_cancel_workspace_jobs</td><td>true</td></tr><tr><td>autostart_block_days_of_week</td><td>true</td></tr><tr><td>autostop_requirement_days_of_week</td><td>true</td></tr><tr><td>autostop_requirement_weeks</td><td>true</td></tr><tr><td>created_at</td><td>false</td></tr><tr><td>created_by</td><td>true</td></tr><tr><td>created_by_avatar_url</td><td>false</td></tr><tr><td>created_by_name</td><td>false</td></tr><tr><td>created_by_username</td><td>false</td></tr><tr><td>default_ttl</td><td>true</td></tr><tr><td>deleted</td><td>false</td></tr><tr><td>deprecated</td><td>true</td></tr><tr><td>description</td><td>true</td></tr><tr><td>display_name</td><td>true</td></tr><tr><td>failure_ttl</td><td>true</td></tr><tr><td>group_acl</td><td>true</td></tr><tr><td>icon</td><td>true</td></tr><tr><td>id</td><td>true</td></tr><tr><td>max_port_sharing_level</td><td>true</td></tr><tr><td>name</td><td>true</td></tr><tr><td>organization_display_name</td><td>false</td></tr><tr><td>organization_icon</td><td>false</td></tr><tr><td>organization_id</td><td>false</td></tr><tr><td>organization_name</td><td>false</td></tr><tr><td>provisioner</td><td>true</td></tr><tr><td>require_active_version</td><td>true</td></tr><tr><td>time_til_dormant</td><td>true</td></tr><tr><td>time_til_dormant_autodelete</td><td>true</td></tr><tr><td>updated_at</td><td>false</td></tr><tr><td>use_classic_parameter_flow</td><td>true</td></tr><tr><td>user_acl</td><td>true</td></tr></tbody></table> |
 | TemplateVersion<br><i>create, write</i>                  | <table><thead><tr><th>Field</th><th>Tracked</th></tr></thead><tbody> | <tr><td>archived</td><td>true</td></tr><tr><td>created_at</td><td>false</td></tr><tr><td>created_by</td><td>true</td></tr><tr><td>created_by_avatar_url</td><td>false</td></tr><tr><td>created_by_name</td><td>false</td></tr><tr><td>created_by_username</td><td>false</td></tr><tr><td>external_auth_providers</td><td>false</td></tr><tr><td>has_ai_task</td><td>false</td></tr><tr><td>id</td><td>true</td></tr><tr><td>job_id</td><td>false</td></tr><tr><td>message</td><td>false</td></tr><tr><td>name</td><td>true</td></tr><tr><td>organization_id</td><td>false</td></tr><tr><td>readme</td><td>true</td></tr><tr><td>source_example_id</td><td>false</td></tr><tr><td>template_id</td><td>true</td></tr><tr><td>updated_at</td><td>false</td></tr></tbody></table>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | User<br><i>create, write, delete</i>                     | <table><thead><tr><th>Field</th><th>Tracked</th></tr></thead><tbody> | <tr><td>avatar_url</td><td>false</td></tr><tr><td>created_at</td><td>false</td></tr><tr><td>deleted</td><td>true</td></tr><tr><td>email</td><td>true</td></tr><tr><td>github_com_user_id</td><td>false</td></tr><tr><td>hashed_one_time_passcode</td><td>false</td></tr><tr><td>hashed_password</td><td>true</td></tr><tr><td>id</td><td>true</td></tr><tr><td>is_system</td><td>true</td></tr><tr><td>last_seen_at</td><td>false</td></tr><tr><td>login_type</td><td>true</td></tr><tr><td>name</td><td>true</td></tr><tr><td>one_time_passcode_expires_at</td><td>true</td></tr><tr><td>quiet_hours_schedule</td><td>true</td></tr><tr><td>rbac_roles</td><td>true</td></tr><tr><td>status</td><td>true</td></tr><tr><td>updated_at</td><td>false</td></tr><tr><td>username</td><td>true</td></tr></tbody></table>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| WorkspaceAgent<br><i>connect, disconnect</i>             | <table><thead><tr><th>Field</th><th>Tracked</th></tr></thead><tbody> | <tr><td>api_key_scope</td><td>false</td></tr><tr><td>api_version</td><td>false</td></tr><tr><td>architecture</td><td>false</td></tr><tr><td>auth_instance_id</td><td>false</td></tr><tr><td>auth_token</td><td>false</td></tr><tr><td>connection_timeout_seconds</td><td>false</td></tr><tr><td>created_at</td><td>false</td></tr><tr><td>deleted</td><td>false</td></tr><tr><td>directory</td><td>false</td></tr><tr><td>disconnected_at</td><td>false</td></tr><tr><td>display_apps</td><td>false</td></tr><tr><td>display_order</td><td>false</td></tr><tr><td>environment_variables</td><td>false</td></tr><tr><td>expanded_directory</td><td>false</td></tr><tr><td>first_connected_at</td><td>false</td></tr><tr><td>id</td><td>false</td></tr><tr><td>instance_metadata</td><td>false</td></tr><tr><td>last_connected_at</td><td>false</td></tr><tr><td>last_connected_replica_id</td><td>false</td></tr><tr><td>lifecycle_state</td><td>false</td></tr><tr><td>logs_length</td><td>false</td></tr><tr><td>logs_overflowed</td><td>false</td></tr><tr><td>motd_file</td><td>false</td></tr><tr><td>name</td><td>false</td></tr><tr><td>operating_system</td><td>false</td></tr><tr><td>parent_id</td><td>false</td></tr><tr><td>ready_at</td><td>false</td></tr><tr><td>resource_id</td><td>false</td></tr><tr><td>resource_metadata</td><td>false</td></tr><tr><td>started_at</td><td>false</td></tr><tr><td>subsystems</td><td>false</td></tr><tr><td>troubleshooting_url</td><td>false</td></tr><tr><td>updated_at</td><td>false</td></tr><tr><td>version</td><td>false</td></tr></tbody></table>                                                                                                                             |
-| WorkspaceApp<br><i>open, close</i>                       | <table><thead><tr><th>Field</th><th>Tracked</th></tr></thead><tbody> | <tr><td>agent_id</td><td>false</td></tr><tr><td>command</td><td>false</td></tr><tr><td>created_at</td><td>false</td></tr><tr><td>display_group</td><td>false</td></tr><tr><td>display_name</td><td>false</td></tr><tr><td>display_order</td><td>false</td></tr><tr><td>external</td><td>false</td></tr><tr><td>health</td><td>false</td></tr><tr><td>healthcheck_interval</td><td>false</td></tr><tr><td>healthcheck_threshold</td><td>false</td></tr><tr><td>healthcheck_url</td><td>false</td></tr><tr><td>hidden</td><td>false</td></tr><tr><td>icon</td><td>false</td></tr><tr><td>id</td><td>false</td></tr><tr><td>open_in</td><td>false</td></tr><tr><td>sharing_level</td><td>false</td></tr><tr><td>slug</td><td>false</td></tr><tr><td>subdomain</td><td>false</td></tr><tr><td>url</td><td>false</td></tr></tbody></table>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | WorkspaceBuild<br><i>start, stop</i>                     | <table><thead><tr><th>Field</th><th>Tracked</th></tr></thead><tbody> | <tr><td>ai_task_sidebar_app_id</td><td>false</td></tr><tr><td>build_number</td><td>false</td></tr><tr><td>created_at</td><td>false</td></tr><tr><td>daily_cost</td><td>false</td></tr><tr><td>deadline</td><td>false</td></tr><tr><td>has_ai_task</td><td>false</td></tr><tr><td>id</td><td>false</td></tr><tr><td>initiator_by_avatar_url</td><td>false</td></tr><tr><td>initiator_by_name</td><td>false</td></tr><tr><td>initiator_by_username</td><td>false</td></tr><tr><td>initiator_id</td><td>false</td></tr><tr><td>job_id</td><td>false</td></tr><tr><td>max_deadline</td><td>false</td></tr><tr><td>provisioner_state</td><td>false</td></tr><tr><td>reason</td><td>false</td></tr><tr><td>template_version_id</td><td>true</td></tr><tr><td>template_version_preset_id</td><td>false</td></tr><tr><td>transition</td><td>false</td></tr><tr><td>updated_at</td><td>false</td></tr><tr><td>workspace_id</td><td>false</td></tr></tbody></table>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | WorkspaceProxy<br><i></i>                                | <table><thead><tr><th>Field</th><th>Tracked</th></tr></thead><tbody> | <tr><td>created_at</td><td>true</td></tr><tr><td>deleted</td><td>false</td></tr><tr><td>derp_enabled</td><td>true</td></tr><tr><td>derp_only</td><td>true</td></tr><tr><td>display_name</td><td>true</td></tr><tr><td>icon</td><td>true</td></tr><tr><td>id</td><td>true</td></tr><tr><td>name</td><td>true</td></tr><tr><td>region_id</td><td>true</td></tr><tr><td>token_hashed_secret</td><td>true</td></tr><tr><td>updated_at</td><td>false</td></tr><tr><td>url</td><td>true</td></tr><tr><td>version</td><td>true</td></tr><tr><td>wildcard_hostname</td><td>true</td></tr></tbody></table>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | WorkspaceTable<br><i></i>                                | <table><thead><tr><th>Field</th><th>Tracked</th></tr></thead><tbody> | <tr><td>automatic_updates</td><td>true</td></tr><tr><td>autostart_schedule</td><td>true</td></tr><tr><td>created_at</td><td>false</td></tr><tr><td>deleted</td><td>false</td></tr><tr><td>deleting_at</td><td>true</td></tr><tr><td>dormant_at</td><td>true</td></tr><tr><td>favorite</td><td>true</td></tr><tr><td>id</td><td>true</td></tr><tr><td>last_used_at</td><td>false</td></tr><tr><td>name</td><td>true</td></tr><tr><td>next_start_at</td><td>true</td></tr><tr><td>organization_id</td><td>false</td></tr><tr><td>owner_id</td><td>true</td></tr><tr><td>template_id</td><td>true</td></tr><tr><td>ttl</td><td>true</td></tr><tr><td>updated_at</td><td>false</td></tr></tbody></table>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 <!-- End generated by 'make docs/admin/security/audit-logs.md'. -->
 
-## Filtering logs
+## How to Filter Audit Logs
 
-In the Coder UI you can filter your audit logs using the pre-defined filter or
-by using the Coder's filter query like the examples below:
+You can filter audit logs by the following parameters:
 
-- `resource_type:workspace action:delete` to find deleted workspaces
-- `resource_type:template action:create` to find created templates
-
-The supported filters are:
-
-- `resource_type` - The type of the resource. It can be a workspace, template,
-  user, etc. You can
-  [find here](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#ResourceType)
-  all the resource types that are supported.
+- `resource_type` - The type of the resource, such as a workspace, template,
+  or user. For more resource types, refer to the
+  [CoderSDK package documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#ResourceType).
 - `resource_id` - The ID of the resource.
 - `resource_target` - The name of the resource. Can be used instead of
   `resource_id`.
-- `action`- The action applied to a resource. You can
-  [find here](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#AuditAction)
-  all the actions that are supported.
+- `action`- The action applied to a resource, such as `create` or `delete`.
+  For more actions, refer to the
+  [CoderSDK package documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#AuditAction).
 - `username` - The username of the user who triggered the action. You can also
   use `me` as a convenient alias for the logged-in user.
 - `email` - The email of the user who triggered the action.
 - `date_from` - The inclusive start date with format `YYYY-MM-DD`.
 - `date_to` - The inclusive end date with format `YYYY-MM-DD`.
-- `build_reason` - To be used with `resource_type:workspace_build`, the
-  [initiator](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#BuildReason)
-  behind the build start or stop.
+- `build_reason` - The reason for the workspace build, if `resource_type` is
+  `workspace_build`. Refer to the
+  [CoderSDK package documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#BuildReason)
+  for a list of valid build reasons.
 
 ## Capturing/Exporting Audit Logs
 
-In addition to the user interface, there are multiple ways to consume or query
+In addition to the Coder dashboard, there are multiple ways to consume or query
 audit trails.
 
-## REST API
+### REST API
 
-Audit logs can be accessed through our REST API. You can find detailed
-information about this in our
-[endpoint documentation](../../reference/api/audit.md#get-audit-logs).
+You can retrieve audit logs via the Coder API.
 
-## Service Logs
+Visit the
+[`get-audit-logs` endpoint documentation](../../reference/api/audit.md#get-audit-logs)
+for details.
+
+### Service Logs
 
 Audit trails are also dispatched as service logs and can be captured and
 categorized using any log management tool such as [Splunk](https://splunk.com).
@@ -91,16 +90,16 @@ log entry:
     "ts": "2023-06-13T03:45:37.294730279Z",
     "level": "INFO",
     "msg": "audit_log",
-    "caller": "/home/runner/work/coder/coder/enterprise/audit/backends/slog.go:36",
-    "func": "github.com/coder/coder/enterprise/audit/backends.slogBackend.Export",
+    "caller": "/home/coder/coder/enterprise/audit/backends/slog.go:38",
+    "func": "github.com/coder/coder/v2/enterprise/audit/backends.(*SlogExporter).ExportStruct",
     "logger_names": ["coderd"],
     "fields": {
         "ID": "033a9ffa-b54d-4c10-8ec3-2aaf9e6d741a",
         "Time": "2023-06-13T03:45:37.288506Z",
         "UserID": "6c405053-27e3-484a-9ad7-bcb64e7bfde6",
         "OrganizationID": "00000000-0000-0000-0000-000000000000",
-        "Ip": "{IPNet:{IP:\u003cnil\u003e Mask:\u003cnil\u003e} Valid:false}",
-        "UserAgent": "{String: Valid:false}",
+        "Ip": null,
+        "UserAgent": null,
         "ResourceType": "workspace_build",
         "ResourceID": "ca5647e0-ef50-4202-a246-717e04447380",
         "ResourceTarget": "",
@@ -126,7 +125,6 @@ log entry:
 2023-06-13 03:43:29.233 [info]  coderd: audit_log  ID=95f7c392-da3e-480c-a579-8909f145fbe2  Time="2023-06-13T03:43:29.230422Z"  UserID=6c405053-27e3-484a-9ad7-bcb64e7bfde6  OrganizationID=00000000-0000-0000-0000-000000000000  Ip=<nil>  UserAgent=<nil>  ResourceType=workspace_build  ResourceID=988ae133-5b73-41e3-a55e-e1e9d3ef0b66  ResourceTarget=""  Action=start  Diff="{}"  StatusCode=200  AdditionalFields="{\"workspace_name\":\"linux-container\",\"build_number\":\"7\",\"build_reason\":\"initiator\",\"workspace_owner\":\"\"}"  RequestID=9682b1b5-7b9f-4bf2-9a39-9463f8e41cd6  ResourceIcon=""
 ```
 
-## Enabling this feature
+## How to Enable Audit Logs
 
-This feature is only available with a premium license.
-[Learn more](../licensing/index.md)
+This feature is only available with a [Premium license](../licensing/index.md).

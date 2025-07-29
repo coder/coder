@@ -193,6 +193,15 @@ type DialAgentOptions struct {
 	EnableTelemetry bool
 }
 
+// RewriteDERPMap rewrites the DERP map to use the configured access URL of the
+// client as the "embedded relay" access URL.
+//
+// See tailnet.RewriteDERPMapDefaultRelay for more details on why this is
+// necessary.
+func (c *Client) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
+	tailnet.RewriteDERPMapDefaultRelay(context.Background(), c.client.Logger(), derpMap, c.client.URL)
+}
+
 func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *DialAgentOptions) (agentConn *AgentConn, err error) {
 	if options == nil {
 		options = &DialAgentOptions{}
@@ -248,6 +257,8 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		telemetrySink = basicTel
 		controller.TelemetryCtrl = basicTel
 	}
+
+	c.RewriteDERPMap(connInfo.DERPMap)
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:             connInfo.DERPMap,
@@ -270,7 +281,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	coordCtrl := tailnet.NewTunnelSrcCoordController(options.Logger, conn)
 	coordCtrl.AddDestination(agentID)
 	controller.CoordCtrl = coordCtrl
-	controller.DERPCtrl = tailnet.NewBasicDERPController(options.Logger, conn)
+	controller.DERPCtrl = tailnet.NewBasicDERPController(options.Logger, c, conn)
 	controller.Run(ctx)
 
 	options.Logger.Debug(ctx, "running tailnet API v2+ connector")

@@ -233,9 +233,6 @@ func TestDelete(t *testing.T) {
 			t.Skip("this test requires postgres")
 		}
 
-		clock := quartz.NewMock(t)
-		ctx := testutil.Context(t, testutil.WaitSuperLong)
-
 		// Setup
 		db, pb := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 		client, _ := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
@@ -300,6 +297,9 @@ func TestDelete(t *testing.T) {
 			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
+
+				clock := quartz.NewMock(t)
+				ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 				// Create one prebuilt workspace (owned by system user) and one normal workspace (owned by a user)
 				// Each workspace is persisted in the DB along with associated workspace jobs and builds.

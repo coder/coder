@@ -12,6 +12,7 @@ import (
 	"golang.org/x/mod/semver"
 
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 )
@@ -29,6 +30,7 @@ type WorkspaceResourcesOptions struct {
 	ServerVersion  string
 	ListeningPorts map[uuid.UUID]codersdk.WorkspaceAgentListeningPortsResponse
 	Devcontainers  map[uuid.UUID]codersdk.WorkspaceAgentListContainersResponse
+	ShowDetails    bool
 }
 
 // WorkspaceResources displays the connection status and tree-view of provided resources.
@@ -69,7 +71,11 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 
 	totalAgents := 0
 	for _, resource := range resources {
-		totalAgents += len(resource.Agents)
+		for _, agent := range resource.Agents {
+			if !agent.ParentID.Valid {
+				totalAgents++
+			}
+		}
 	}
 
 	for _, resource := range resources {
@@ -94,12 +100,15 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 			"",
 		})
 		// Display all agents associated with the resource.
-		for index, agent := range resource.Agents {
+		agents := slice.Filter(resource.Agents, func(agent codersdk.WorkspaceAgent) bool {
+			return !agent.ParentID.Valid
+		})
+		for index, agent := range agents {
 			tableWriter.AppendRow(renderAgentRow(agent, index, totalAgents, options))
 			for _, row := range renderListeningPorts(options, agent.ID, index, totalAgents) {
 				tableWriter.AppendRow(row)
 			}
-			for _, row := range renderDevcontainers(options, agent.ID, index, totalAgents) {
+			for _, row := range renderDevcontainers(resources, options, agent.ID, index, totalAgents) {
 				tableWriter.AppendRow(row)
 			}
 		}
@@ -125,7 +134,7 @@ func renderAgentRow(agent codersdk.WorkspaceAgent, index, totalAgents int, optio
 	}
 	if !options.HideAccess {
 		sshCommand := "coder ssh " + options.WorkspaceName
-		if totalAgents > 1 {
+		if totalAgents > 1 || len(options.Devcontainers) > 0 {
 			sshCommand += "." + agent.Name
 		}
 		sshCommand = pretty.Sprint(DefaultStyles.Code, sshCommand)
@@ -164,45 +173,129 @@ func renderPortRow(port codersdk.WorkspaceAgentListeningPort, idx, total int) ta
 	return table.Row{sb.String()}
 }
 
-func renderDevcontainers(wro WorkspaceResourcesOptions, agentID uuid.UUID, index, totalAgents int) []table.Row {
+func renderDevcontainers(resources []codersdk.WorkspaceResource, wro WorkspaceResourcesOptions, agentID uuid.UUID, index, totalAgents int) []table.Row {
 	var rows []table.Row
 	if wro.Devcontainers == nil {
 		return []table.Row{}
 	}
 	dc, ok := wro.Devcontainers[agentID]
-	if !ok || len(dc.Containers) == 0 {
+	if !ok || len(dc.Devcontainers) == 0 {
 		return []table.Row{}
 	}
 	rows = append(rows, table.Row{
 		fmt.Sprintf("   %s─ %s", renderPipe(index, totalAgents), "Devcontainers"),
 	})
-	for idx, container := range dc.Containers {
-		rows = append(rows, renderDevcontainerRow(container, idx, len(dc.Containers)))
+	for idx, devcontainer := range dc.Devcontainers {
+		rows = append(rows, renderDevcontainerRow(resources, devcontainer, idx, len(dc.Devcontainers), wro)...)
 	}
 	return rows
 }
 
-func renderDevcontainerRow(container codersdk.WorkspaceAgentContainer, index, total int) table.Row {
-	var row table.Row
-	var sb strings.Builder
-	_, _ = sb.WriteString("      ")
-	_, _ = sb.WriteString(renderPipe(index, total))
-	_, _ = sb.WriteString("─ ")
-	_, _ = sb.WriteString(pretty.Sprintf(DefaultStyles.Code, "%s", container.FriendlyName))
-	row = append(row, sb.String())
-	sb.Reset()
-	if container.Running {
-		_, _ = sb.WriteString(pretty.Sprintf(DefaultStyles.Keyword, "(%s)", container.Status))
-	} else {
-		_, _ = sb.WriteString(pretty.Sprintf(DefaultStyles.Error, "(%s)", container.Status))
+func renderDevcontainerRow(resources []codersdk.WorkspaceResource, devcontainer codersdk.WorkspaceAgentDevcontainer, index, total int, wro WorkspaceResourcesOptions) []table.Row {
+	var rows []table.Row
+
+	// If the devcontainer is running and has an associated agent, we want to
+	// display the agent's details. Otherwise, we just display the devcontainer
+	// name and status.
+	var subAgent *codersdk.WorkspaceAgent
+	displayName := devcontainer.Name
+	if devcontainer.Agent != nil && devcontainer.Status == codersdk.WorkspaceAgentDevcontainerStatusRunning {
+		for _, resource := range resources {
+			if agent, found := slice.Find(resource.Agents, func(agent codersdk.WorkspaceAgent) bool {
+				return agent.ID == devcontainer.Agent.ID
+			}); found {
+				subAgent = &agent
+				break
+			}
+		}
+		if subAgent != nil {
+			displayName = subAgent.Name
+			displayName += fmt.Sprintf(" (%s, %s)", subAgent.OperatingSystem, subAgent.Architecture)
+		}
 	}
-	row = append(row, sb.String())
-	sb.Reset()
-	// "health" is not applicable here.
-	row = append(row, sb.String())
-	_, _ = sb.WriteString(container.Image)
-	row = append(row, sb.String())
-	return row
+
+	if devcontainer.Container != nil {
+		displayName += " " + pretty.Sprint(DefaultStyles.Keyword, "["+devcontainer.Container.FriendlyName+"]")
+	}
+
+	// Build the main row.
+	row := table.Row{
+		fmt.Sprintf("      %s─ %s", renderPipe(index, total), displayName),
+	}
+
+	// Add status, health, and version columns.
+	if !wro.HideAgentState {
+		if subAgent != nil {
+			row = append(row, renderAgentStatus(*subAgent))
+			row = append(row, renderAgentHealth(*subAgent))
+			row = append(row, renderAgentVersion(subAgent.Version, wro.ServerVersion))
+		} else {
+			row = append(row, renderDevcontainerStatus(devcontainer.Status))
+			row = append(row, "") // No health for devcontainer without agent.
+			row = append(row, "") // No version for devcontainer without agent.
+		}
+	}
+
+	// Add access column.
+	if !wro.HideAccess {
+		if subAgent != nil {
+			accessString := fmt.Sprintf("coder ssh %s.%s", wro.WorkspaceName, subAgent.Name)
+			row = append(row, pretty.Sprint(DefaultStyles.Code, accessString))
+		} else {
+			row = append(row, "") // No access for devcontainers without agent.
+		}
+	}
+
+	rows = append(rows, row)
+
+	// Add error message if present.
+	if errorMessage := devcontainer.Error; errorMessage != "" {
+		// Cap error message length for display.
+		if !wro.ShowDetails && len(errorMessage) > 80 {
+			errorMessage = errorMessage[:79] + "…"
+		}
+		errorRow := table.Row{
+			"         × " + pretty.Sprint(DefaultStyles.Error, errorMessage),
+			"",
+			"",
+			"",
+		}
+		if !wro.HideAccess {
+			errorRow = append(errorRow, "")
+		}
+		rows = append(rows, errorRow)
+	}
+
+	// Add listening ports for the devcontainer agent.
+	if subAgent != nil {
+		portRows := renderListeningPorts(wro, subAgent.ID, index, total)
+		for _, portRow := range portRows {
+			// Adjust indentation for ports under devcontainer agent.
+			if len(portRow) > 0 {
+				if str, ok := portRow[0].(string); ok {
+					portRow[0] = "      " + str // Add extra indentation.
+				}
+			}
+			rows = append(rows, portRow)
+		}
+	}
+
+	return rows
+}
+
+func renderDevcontainerStatus(status codersdk.WorkspaceAgentDevcontainerStatus) string {
+	switch status {
+	case codersdk.WorkspaceAgentDevcontainerStatusRunning:
+		return pretty.Sprint(DefaultStyles.Keyword, "▶ running")
+	case codersdk.WorkspaceAgentDevcontainerStatusStopped:
+		return pretty.Sprint(DefaultStyles.Placeholder, "⏹ stopped")
+	case codersdk.WorkspaceAgentDevcontainerStatusStarting:
+		return pretty.Sprint(DefaultStyles.Warn, "⧗ starting")
+	case codersdk.WorkspaceAgentDevcontainerStatusError:
+		return pretty.Sprint(DefaultStyles.Error, "✘ error")
+	default:
+		return pretty.Sprint(DefaultStyles.Placeholder, "○ "+string(status))
+	}
 }
 
 func renderAgentStatus(agent codersdk.WorkspaceAgent) string {

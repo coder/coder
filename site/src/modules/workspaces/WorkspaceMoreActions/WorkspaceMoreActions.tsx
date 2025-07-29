@@ -1,4 +1,4 @@
-import { MissingBuildParameters } from "api/api";
+import { MissingBuildParameters, ParameterValidationError } from "api/api";
 import { isApiError } from "api/errors";
 import { type ApiError, getErrorMessage } from "api/errors";
 import {
@@ -192,19 +192,19 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				/>
 			) : (
 				<UpdateBuildParametersDialogExperimental
-					missedParameters={
-						changeVersionMutation.error instanceof MissingBuildParameters
-							? changeVersionMutation.error.parameters
+					validations={
+						changeVersionMutation.error instanceof ParameterValidationError
+							? changeVersionMutation.error.validations
 							: []
 					}
-					open={changeVersionMutation.error instanceof MissingBuildParameters}
+					open={changeVersionMutation.error instanceof ParameterValidationError}
 					onClose={() => {
 						changeVersionMutation.reset();
 					}}
 					workspaceOwnerName={workspace.owner_name}
 					workspaceName={workspace.name}
 					templateVersionId={
-						changeVersionMutation.error instanceof MissingBuildParameters
+						changeVersionMutation.error instanceof ParameterValidationError
 							? changeVersionMutation.error?.versionId
 							: undefined
 					}

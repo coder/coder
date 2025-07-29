@@ -265,7 +265,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "same_site": "string",
       "secure_auth_cookie": true
     },
-    "in_memory_database": true,
     "job_hang_detector_interval": 0,
     "logging": {
       "human": "string",

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -36,6 +38,7 @@ import (
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
+	"github.com/coder/websocket"
 )
 
 // fakeContainerCLI implements the agentcontainers.ContainerCLI interface for
@@ -357,14 +360,21 @@ func TestAPI(t *testing.T) {
 			fakeCLI    = &fakeContainerCLI{
 				listErr: firstErr,
 			}
+			fWatcher = newFakeWatcher(t)
 		)
 
 		api := agentcontainers.NewAPI(logger,
+			agentcontainers.WithWatcher(fWatcher),
 			agentcontainers.WithClock(mClock),
 			agentcontainers.WithContainerCLI(fakeCLI),
 		)
 		api.Start()
 		defer api.Close()
+
+		// The watcherLoop writes a log when it is initialized.
+		// We want to ensure this has happened before we start
+		// the test so that it does not intefere.
+		fWatcher.waitNext(ctx)
 
 		// Make sure the ticker function has been registered
 		// before advancing the clock.
@@ -439,6 +449,178 @@ func TestAPI(t *testing.T) {
 		require.Contains(t, got, "updater loop ticker failed", "error after success should be logged")
 		require.Contains(t, got, "first error", "should contain first error message")
 		logbuf.Reset()
+	})
+
+	t.Run("Watch", func(t *testing.T) {
+		t.Parallel()
+
+		fakeContainer1 := fakeContainer(t, func(c *codersdk.WorkspaceAgentContainer) {
+			c.ID = "container1"
+			c.FriendlyName = "devcontainer1"
+			c.Image = "busybox:latest"
+			c.Labels = map[string]string{
+				agentcontainers.DevcontainerLocalFolderLabel: "/home/coder/project1",
+				agentcontainers.DevcontainerConfigFileLabel:  "/home/coder/project1/.devcontainer/devcontainer.json",
+			}
+		})
+
+		fakeContainer2 := fakeContainer(t, func(c *codersdk.WorkspaceAgentContainer) {
+			c.ID = "container2"
+			c.FriendlyName = "devcontainer2"
+			c.Image = "ubuntu:latest"
+			c.Labels = map[string]string{
+				agentcontainers.DevcontainerLocalFolderLabel: "/home/coder/project2",
+				agentcontainers.DevcontainerConfigFileLabel:  "/home/coder/project2/.devcontainer/devcontainer.json",
+			}
+		})
+
+		stages := []struct {
+			containers []codersdk.WorkspaceAgentContainer
+			expected   codersdk.WorkspaceAgentListContainersResponse
+		}{
+			{
+				containers: []codersdk.WorkspaceAgentContainer{fakeContainer1},
+				expected: codersdk.WorkspaceAgentListContainersResponse{
+					Containers: []codersdk.WorkspaceAgentContainer{fakeContainer1},
+					Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+						{
+							Name:            "project1",
+							WorkspaceFolder: fakeContainer1.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+							ConfigPath:      fakeContainer1.Labels[agentcontainers.DevcontainerConfigFileLabel],
+							Status:          "running",
+							Container:       &fakeContainer1,
+						},
+					},
+				},
+			},
+			{
+				containers: []codersdk.WorkspaceAgentContainer{fakeContainer1, fakeContainer2},
+				expected: codersdk.WorkspaceAgentListContainersResponse{
+					Containers: []codersdk.WorkspaceAgentContainer{fakeContainer1, fakeContainer2},
+					Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+						{
+							Name:            "project1",
+							WorkspaceFolder: fakeContainer1.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+							ConfigPath:      fakeContainer1.Labels[agentcontainers.DevcontainerConfigFileLabel],
+							Status:          "running",
+							Container:       &fakeContainer1,
+						},
+						{
+							Name:            "project2",
+							WorkspaceFolder: fakeContainer2.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+							ConfigPath:      fakeContainer2.Labels[agentcontainers.DevcontainerConfigFileLabel],
+							Status:          "running",
+							Container:       &fakeContainer2,
+						},
+					},
+				},
+			},
+			{
+				containers: []codersdk.WorkspaceAgentContainer{fakeContainer2},
+				expected: codersdk.WorkspaceAgentListContainersResponse{
+					Containers: []codersdk.WorkspaceAgentContainer{fakeContainer2},
+					Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
+						{
+							Name:            "",
+							WorkspaceFolder: fakeContainer1.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+							ConfigPath:      fakeContainer1.Labels[agentcontainers.DevcontainerConfigFileLabel],
+							Status:          "stopped",
+							Container:       nil,
+						},
+						{
+							Name:            "project2",
+							WorkspaceFolder: fakeContainer2.Labels[agentcontainers.DevcontainerLocalFolderLabel],
+							ConfigPath:      fakeContainer2.Labels[agentcontainers.DevcontainerConfigFileLabel],
+							Status:          "running",
+							Container:       &fakeContainer2,
+						},
+					},
+				},
+			},
+		}
+
+		var (
+			ctx               = testutil.Context(t, testutil.WaitShort)
+			mClock            = quartz.NewMock(t)
+			updaterTickerTrap = mClock.Trap().TickerFunc("updaterLoop")
+			mCtrl             = gomock.NewController(t)
+			mLister           = acmock.NewMockContainerCLI(mCtrl)
+			logger            = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		)
+
+		// Set up initial state for immediate send on connection
+		mLister.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{Containers: stages[0].containers}, nil)
+		mLister.EXPECT().DetectArchitecture(gomock.Any(), gomock.Any()).Return("<none>", nil).AnyTimes()
+
+		api := agentcontainers.NewAPI(logger,
+			agentcontainers.WithClock(mClock),
+			agentcontainers.WithContainerCLI(mLister),
+			agentcontainers.WithWatcher(watcher.NewNoop()),
+		)
+		api.Start()
+		defer api.Close()
+
+		srv := httptest.NewServer(api.Routes())
+		defer srv.Close()
+
+		updaterTickerTrap.MustWait(ctx).MustRelease(ctx)
+		defer updaterTickerTrap.Close()
+
+		client, res, err := websocket.Dial(ctx, srv.URL+"/watch", nil)
+		require.NoError(t, err)
+		if res != nil && res.Body != nil {
+			defer res.Body.Close()
+		}
+
+		// Read initial state sent immediately on connection
+		mt, msg, err := client.Read(ctx)
+		require.NoError(t, err)
+		require.Equal(t, websocket.MessageText, mt)
+
+		var got codersdk.WorkspaceAgentListContainersResponse
+		err = json.Unmarshal(msg, &got)
+		require.NoError(t, err)
+
+		require.Equal(t, stages[0].expected.Containers, got.Containers)
+		require.Len(t, got.Devcontainers, len(stages[0].expected.Devcontainers))
+		for j, expectedDev := range stages[0].expected.Devcontainers {
+			gotDev := got.Devcontainers[j]
+			require.Equal(t, expectedDev.Name, gotDev.Name)
+			require.Equal(t, expectedDev.WorkspaceFolder, gotDev.WorkspaceFolder)
+			require.Equal(t, expectedDev.ConfigPath, gotDev.ConfigPath)
+			require.Equal(t, expectedDev.Status, gotDev.Status)
+			require.Equal(t, expectedDev.Container, gotDev.Container)
+		}
+
+		// Process remaining stages through updater loop
+		for i, stage := range stages[1:] {
+			mLister.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{Containers: stage.containers}, nil)
+
+			// Given: We allow the update loop to progress
+			_, aw := mClock.AdvanceNext()
+			aw.MustWait(ctx)
+
+			// When: We attempt to read a message from the socket.
+			mt, msg, err := client.Read(ctx)
+			require.NoError(t, err)
+			require.Equal(t, websocket.MessageText, mt)
+
+			// Then: We expect the receieved message matches the expected response.
+			var got codersdk.WorkspaceAgentListContainersResponse
+			err = json.Unmarshal(msg, &got)
+			require.NoError(t, err)
+
+			require.Equal(t, stages[i+1].expected.Containers, got.Containers)
+			require.Len(t, got.Devcontainers, len(stages[i+1].expected.Devcontainers))
+			for j, expectedDev := range stages[i+1].expected.Devcontainers {
+				gotDev := got.Devcontainers[j]
+				require.Equal(t, expectedDev.Name, gotDev.Name)
+				require.Equal(t, expectedDev.WorkspaceFolder, gotDev.WorkspaceFolder)
+				require.Equal(t, expectedDev.ConfigPath, gotDev.ConfigPath)
+				require.Equal(t, expectedDev.Status, gotDev.Status)
+				require.Equal(t, expectedDev.Container, gotDev.Container)
+			}
+		}
 	})
 
 	// List tests the API.getContainers method using a mock
@@ -1505,7 +1687,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithSubAgentClient(fakeSAC),
 			agentcontainers.WithSubAgentURL("test-subagent-url"),
 			agentcontainers.WithDevcontainerCLI(fakeDCCLI),
-			agentcontainers.WithManifestInfo("test-user", "test-workspace", "test-parent-agent"),
+			agentcontainers.WithManifestInfo("test-user", "test-workspace", "test-parent-agent", "/parent-agent"),
 		)
 		api.Start()
 		apiClose := func() {
@@ -2489,7 +2671,7 @@ func TestAPI(t *testing.T) {
 			agentcontainers.WithSubAgentClient(fSAC),
 			agentcontainers.WithSubAgentURL("test-subagent-url"),
 			agentcontainers.WithWatcher(watcher.NewNoop()),
-			agentcontainers.WithManifestInfo("test-user", "test-workspace", "test-parent-agent"),
+			agentcontainers.WithManifestInfo("test-user", "test-workspace", "test-parent-agent", "/parent-agent"),
 		)
 		api.Start()
 		defer api.Close()
@@ -2710,8 +2892,12 @@ func TestAPI(t *testing.T) {
 			Op:   fsnotify.Write,
 		})
 
-		err = api.RefreshContainers(ctx)
-		require.NoError(t, err)
+		require.Eventuallyf(t, func() bool {
+			err = api.RefreshContainers(ctx)
+			require.NoError(t, err)
+
+			return len(fakeSAC.agents) == 1
+		}, testutil.WaitShort, testutil.IntervalFast, "subagent should be created after config change")
 
 		t.Log("Phase 2: Cont, waiting for sub agent to exit")
 		exitSubAgentOnce.Do(func() {
@@ -2746,8 +2932,12 @@ func TestAPI(t *testing.T) {
 			Op:   fsnotify.Write,
 		})
 
-		err = api.RefreshContainers(ctx)
-		require.NoError(t, err)
+		require.Eventuallyf(t, func() bool {
+			err = api.RefreshContainers(ctx)
+			require.NoError(t, err)
+
+			return len(fakeSAC.agents) == 0
+		}, testutil.WaitShort, testutil.IntervalFast, "subagent should be deleted after config change")
 
 		req = httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 		rec = httptest.NewRecorder()
@@ -3007,4 +3197,621 @@ func TestWithDevcontainersNameGeneration(t *testing.T) {
 	assert.NotEqual(t, "another-name", response.Devcontainers[0].Name, "second devcontainer should not keep original name")
 	assert.Equal(t, "bar-project", response.Devcontainers[0].Name, "second devcontainer should has a collision and uses the folder name with a prefix")
 	assert.Equal(t, "baz-project", response.Devcontainers[1].Name, "third devcontainer should use the folder name with a prefix since it collides with the first two")
+}
+
+func TestDevcontainerDiscovery(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("Dev Container tests are not supported on Windows")
+	}
+
+	// We discover dev container projects by searching
+	// for git repositories at the agent's directory,
+	// and then recursively walking through these git
+	// repositories to find any `.devcontainer/devcontainer.json`
+	// files. These tests are to validate that behavior.
+
+	homeDir, err := os.UserHomeDir()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		agentDir string
+		fs       map[string]string
+		expected []codersdk.WorkspaceAgentDevcontainer
+	}{
+		{
+			name:     "GitProjectInRootDir/SingleProject",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/.git/HEAD":                       "",
+				"/home/coder/.devcontainer/devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder",
+					ConfigPath:      "/home/coder/.devcontainer/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "GitProjectInRootDir/MultipleProjects",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/.git/HEAD":                            "",
+				"/home/coder/.devcontainer/devcontainer.json":      "",
+				"/home/coder/site/.devcontainer/devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder",
+					ConfigPath:      "/home/coder/.devcontainer/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+				{
+					WorkspaceFolder: "/home/coder/site",
+					ConfigPath:      "/home/coder/site/.devcontainer/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "GitProjectInChildDir/SingleProject",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":                       "",
+				"/home/coder/coder/.devcontainer/devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "GitProjectInChildDir/MultipleProjects",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":                            "",
+				"/home/coder/coder/.devcontainer/devcontainer.json":      "",
+				"/home/coder/coder/site/.devcontainer/devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+				{
+					WorkspaceFolder: "/home/coder/coder/site",
+					ConfigPath:      "/home/coder/coder/site/.devcontainer/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "GitProjectInMultipleChildDirs/SingleProjectEach",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":                            "",
+				"/home/coder/coder/.devcontainer/devcontainer.json":      "",
+				"/home/coder/envbuilder/.git/HEAD":                       "",
+				"/home/coder/envbuilder/.devcontainer/devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+				{
+					WorkspaceFolder: "/home/coder/envbuilder",
+					ConfigPath:      "/home/coder/envbuilder/.devcontainer/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "GitProjectInMultipleChildDirs/MultipleProjectEach",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":                              "",
+				"/home/coder/coder/.devcontainer/devcontainer.json":        "",
+				"/home/coder/coder/site/.devcontainer/devcontainer.json":   "",
+				"/home/coder/envbuilder/.git/HEAD":                         "",
+				"/home/coder/envbuilder/.devcontainer/devcontainer.json":   "",
+				"/home/coder/envbuilder/x/.devcontainer/devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+				{
+					WorkspaceFolder: "/home/coder/coder/site",
+					ConfigPath:      "/home/coder/coder/site/.devcontainer/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+				{
+					WorkspaceFolder: "/home/coder/envbuilder",
+					ConfigPath:      "/home/coder/envbuilder/.devcontainer/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+				{
+					WorkspaceFolder: "/home/coder/envbuilder/x",
+					ConfigPath:      "/home/coder/envbuilder/x/.devcontainer/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "RespectGitIgnore",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":              "",
+				"/home/coder/coder/.gitignore":             "y/",
+				"/home/coder/coder/.devcontainer.json":     "",
+				"/home/coder/coder/x/y/.devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "RespectNestedGitIgnore",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":              "",
+				"/home/coder/coder/.devcontainer.json":     "",
+				"/home/coder/coder/y/.devcontainer.json":   "",
+				"/home/coder/coder/x/.gitignore":           "y/",
+				"/home/coder/coder/x/y/.devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+				{
+					WorkspaceFolder: "/home/coder/coder/y",
+					ConfigPath:      "/home/coder/coder/y/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "RespectGitInfoExclude",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":              "",
+				"/home/coder/coder/.git/info/exclude":      "y/",
+				"/home/coder/coder/.devcontainer.json":     "",
+				"/home/coder/coder/x/y/.devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "RespectHomeGitConfig",
+			agentDir: homeDir,
+			fs: map[string]string{
+				"/tmp/.gitignore": "node_modules/",
+				filepath.Join(homeDir, ".gitconfig"): `
+					[core]
+					excludesFile = /tmp/.gitignore
+				`,
+
+				filepath.Join(homeDir, ".git/HEAD"):                         "",
+				filepath.Join(homeDir, ".devcontainer.json"):                "",
+				filepath.Join(homeDir, "node_modules/y/.devcontainer.json"): "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: homeDir,
+					ConfigPath:      filepath.Join(homeDir, ".devcontainer.json"),
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "IgnoreNonsenseDevcontainerNames",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/.git/HEAD": "",
+
+				"/home/coder/.devcontainer/devcontainer.json.bak": "",
+				"/home/coder/.devcontainer/devcontainer.json.old": "",
+				"/home/coder/.devcontainer/devcontainer.json~":    "",
+				"/home/coder/.devcontainer/notdevcontainer.json":  "",
+				"/home/coder/.devcontainer/devcontainer.json.swp": "",
+
+				"/home/coder/foo/.devcontainer.json.bak": "",
+				"/home/coder/foo/.devcontainer.json.old": "",
+				"/home/coder/foo/.devcontainer.json~":    "",
+				"/home/coder/foo/.notdevcontainer.json":  "",
+				"/home/coder/foo/.devcontainer.json.swp": "",
+
+				"/home/coder/bar/.devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/bar",
+					ConfigPath:      "/home/coder/bar/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+	}
+
+	initFS := func(t *testing.T, files map[string]string) afero.Fs {
+		t.Helper()
+
+		fs := afero.NewMemMapFs()
+		for name, content := range files {
+			err := afero.WriteFile(fs, name, []byte(content+"\n"), 0o600)
+			require.NoError(t, err)
+		}
+		return fs
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				ctx        = testutil.Context(t, testutil.WaitShort)
+				logger     = testutil.Logger(t)
+				mClock     = quartz.NewMock(t)
+				tickerTrap = mClock.Trap().TickerFunc("updaterLoop")
+
+				r = chi.NewRouter()
+			)
+
+			api := agentcontainers.NewAPI(logger,
+				agentcontainers.WithClock(mClock),
+				agentcontainers.WithWatcher(watcher.NewNoop()),
+				agentcontainers.WithFileSystem(initFS(t, tt.fs)),
+				agentcontainers.WithManifestInfo("owner", "workspace", "parent-agent", tt.agentDir),
+				agentcontainers.WithContainerCLI(&fakeContainerCLI{}),
+				agentcontainers.WithDevcontainerCLI(&fakeDevcontainerCLI{}),
+				agentcontainers.WithProjectDiscovery(true),
+			)
+			api.Start()
+			defer api.Close()
+			r.Mount("/", api.Routes())
+
+			tickerTrap.MustWait(ctx).MustRelease(ctx)
+			tickerTrap.Close()
+
+			// Wait until all projects have been discovered
+			require.Eventuallyf(t, func() bool {
+				req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+				rec := httptest.NewRecorder()
+				r.ServeHTTP(rec, req)
+
+				got := codersdk.WorkspaceAgentListContainersResponse{}
+				err := json.NewDecoder(rec.Body).Decode(&got)
+				require.NoError(t, err)
+
+				return len(got.Devcontainers) >= len(tt.expected)
+			}, testutil.WaitShort, testutil.IntervalFast, "dev containers never found")
+
+			// Now projects have been discovered, we'll allow the updater loop
+			// to set the appropriate status for these containers.
+			_, aw := mClock.AdvanceNext()
+			aw.MustWait(ctx)
+
+			// Now we'll fetch the list of dev containers
+			req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+
+			got := codersdk.WorkspaceAgentListContainersResponse{}
+			err := json.NewDecoder(rec.Body).Decode(&got)
+			require.NoError(t, err)
+
+			// We will set the IDs of each dev container to uuid.Nil to simplify
+			// this check.
+			for idx := range got.Devcontainers {
+				got.Devcontainers[idx].ID = uuid.Nil
+			}
+
+			// Sort the expected dev containers and got dev containers by their workspace folder.
+			// This helps ensure a deterministic test.
+			slices.SortFunc(tt.expected, func(a, b codersdk.WorkspaceAgentDevcontainer) int {
+				return strings.Compare(a.WorkspaceFolder, b.WorkspaceFolder)
+			})
+			slices.SortFunc(got.Devcontainers, func(a, b codersdk.WorkspaceAgentDevcontainer) int {
+				return strings.Compare(a.WorkspaceFolder, b.WorkspaceFolder)
+			})
+
+			require.Equal(t, tt.expected, got.Devcontainers)
+		})
+	}
+
+	t.Run("NoErrorWhenAgentDirAbsent", func(t *testing.T) {
+		t.Parallel()
+
+		logger := testutil.Logger(t)
+
+		// Given: We have an empty agent directory
+		agentDir := ""
+
+		api := agentcontainers.NewAPI(logger,
+			agentcontainers.WithWatcher(watcher.NewNoop()),
+			agentcontainers.WithManifestInfo("owner", "workspace", "parent-agent", agentDir),
+			agentcontainers.WithContainerCLI(&fakeContainerCLI{}),
+			agentcontainers.WithDevcontainerCLI(&fakeDevcontainerCLI{}),
+			agentcontainers.WithProjectDiscovery(true),
+		)
+
+		// When: We start and close the API
+		api.Start()
+		api.Close()
+
+		// Then: We expect there to have been no errors.
+		// This is implicitly handled by `testutil.Logger` failing when it
+		// detects an error has been logged.
+	})
+
+	t.Run("AutoStart", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name                    string
+			agentDir                string
+			fs                      map[string]string
+			expectDevcontainerCount int
+			setupMocks              func(mDCCLI *acmock.MockDevcontainerCLI)
+		}{
+			{
+				name:                    "SingleEnabled",
+				agentDir:                "/home/coder",
+				expectDevcontainerCount: 1,
+				fs: map[string]string{
+					"/home/coder/.git/HEAD":                       "",
+					"/home/coder/.devcontainer/devcontainer.json": "",
+				},
+				setupMocks: func(mDCCLI *acmock.MockDevcontainerCLI) {
+					gomock.InOrder(
+						// Given: This dev container has auto start enabled.
+						mDCCLI.EXPECT().ReadConfig(gomock.Any(),
+							"/home/coder",
+							"/home/coder/.devcontainer/devcontainer.json",
+							[]string{},
+						).Return(agentcontainers.DevcontainerConfig{
+							Configuration: agentcontainers.DevcontainerConfiguration{
+								Customizations: agentcontainers.DevcontainerCustomizations{
+									Coder: agentcontainers.CoderCustomization{
+										AutoStart: true,
+									},
+								},
+							},
+						}, nil),
+
+						// Then: We expect it to be started.
+						mDCCLI.EXPECT().Up(gomock.Any(),
+							"/home/coder",
+							"/home/coder/.devcontainer/devcontainer.json",
+							gomock.Any(),
+						).Return("", nil),
+					)
+				},
+			},
+			{
+				name:                    "SingleDisabled",
+				agentDir:                "/home/coder",
+				expectDevcontainerCount: 1,
+				fs: map[string]string{
+					"/home/coder/.git/HEAD":                       "",
+					"/home/coder/.devcontainer/devcontainer.json": "",
+				},
+				setupMocks: func(mDCCLI *acmock.MockDevcontainerCLI) {
+					gomock.InOrder(
+						// Given: This dev container has auto start disabled.
+						mDCCLI.EXPECT().ReadConfig(gomock.Any(),
+							"/home/coder",
+							"/home/coder/.devcontainer/devcontainer.json",
+							[]string{},
+						).Return(agentcontainers.DevcontainerConfig{
+							Configuration: agentcontainers.DevcontainerConfiguration{
+								Customizations: agentcontainers.DevcontainerCustomizations{
+									Coder: agentcontainers.CoderCustomization{
+										AutoStart: false,
+									},
+								},
+							},
+						}, nil),
+
+						// Then: We expect it to _not_ be started.
+						mDCCLI.EXPECT().Up(gomock.Any(),
+							"/home/coder",
+							"/home/coder/.devcontainer/devcontainer.json",
+							gomock.Any(),
+						).Return("", nil).Times(0),
+					)
+				},
+			},
+			{
+				name:                    "OneEnabledOneDisabled",
+				agentDir:                "/home/coder",
+				expectDevcontainerCount: 2,
+				fs: map[string]string{
+					"/home/coder/.git/HEAD":                       "",
+					"/home/coder/.devcontainer/devcontainer.json": "",
+					"/home/coder/project/.devcontainer.json":      "",
+				},
+				setupMocks: func(mDCCLI *acmock.MockDevcontainerCLI) {
+					gomock.InOrder(
+						// Given: This dev container has auto start enabled.
+						mDCCLI.EXPECT().ReadConfig(gomock.Any(),
+							"/home/coder",
+							"/home/coder/.devcontainer/devcontainer.json",
+							[]string{},
+						).Return(agentcontainers.DevcontainerConfig{
+							Configuration: agentcontainers.DevcontainerConfiguration{
+								Customizations: agentcontainers.DevcontainerCustomizations{
+									Coder: agentcontainers.CoderCustomization{
+										AutoStart: true,
+									},
+								},
+							},
+						}, nil),
+
+						// Then: We expect it to be started.
+						mDCCLI.EXPECT().Up(gomock.Any(),
+							"/home/coder",
+							"/home/coder/.devcontainer/devcontainer.json",
+							gomock.Any(),
+						).Return("", nil),
+					)
+
+					gomock.InOrder(
+						// Given: This dev container has auto start disabled.
+						mDCCLI.EXPECT().ReadConfig(gomock.Any(),
+							"/home/coder/project",
+							"/home/coder/project/.devcontainer.json",
+							[]string{},
+						).Return(agentcontainers.DevcontainerConfig{
+							Configuration: agentcontainers.DevcontainerConfiguration{
+								Customizations: agentcontainers.DevcontainerCustomizations{
+									Coder: agentcontainers.CoderCustomization{
+										AutoStart: false,
+									},
+								},
+							},
+						}, nil),
+
+						// Then: We expect it to _not_ be started.
+						mDCCLI.EXPECT().Up(gomock.Any(),
+							"/home/coder/project",
+							"/home/coder/project/.devcontainer.json",
+							gomock.Any(),
+						).Return("", nil).Times(0),
+					)
+				},
+			},
+			{
+				name:                    "MultipleEnabled",
+				agentDir:                "/home/coder",
+				expectDevcontainerCount: 2,
+				fs: map[string]string{
+					"/home/coder/.git/HEAD":                       "",
+					"/home/coder/.devcontainer/devcontainer.json": "",
+					"/home/coder/project/.devcontainer.json":      "",
+				},
+				setupMocks: func(mDCCLI *acmock.MockDevcontainerCLI) {
+					gomock.InOrder(
+						// Given: This dev container has auto start enabled.
+						mDCCLI.EXPECT().ReadConfig(gomock.Any(),
+							"/home/coder",
+							"/home/coder/.devcontainer/devcontainer.json",
+							[]string{},
+						).Return(agentcontainers.DevcontainerConfig{
+							Configuration: agentcontainers.DevcontainerConfiguration{
+								Customizations: agentcontainers.DevcontainerCustomizations{
+									Coder: agentcontainers.CoderCustomization{
+										AutoStart: true,
+									},
+								},
+							},
+						}, nil),
+
+						// Then: We expect it to be started.
+						mDCCLI.EXPECT().Up(gomock.Any(),
+							"/home/coder",
+							"/home/coder/.devcontainer/devcontainer.json",
+							gomock.Any(),
+						).Return("", nil),
+					)
+
+					gomock.InOrder(
+						// Given: This dev container has auto start enabled.
+						mDCCLI.EXPECT().ReadConfig(gomock.Any(),
+							"/home/coder/project",
+							"/home/coder/project/.devcontainer.json",
+							[]string{},
+						).Return(agentcontainers.DevcontainerConfig{
+							Configuration: agentcontainers.DevcontainerConfiguration{
+								Customizations: agentcontainers.DevcontainerCustomizations{
+									Coder: agentcontainers.CoderCustomization{
+										AutoStart: true,
+									},
+								},
+							},
+						}, nil),
+
+						// Then: We expect it to be started.
+						mDCCLI.EXPECT().Up(gomock.Any(),
+							"/home/coder/project",
+							"/home/coder/project/.devcontainer.json",
+							gomock.Any(),
+						).Return("", nil),
+					)
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				var (
+					ctx    = testutil.Context(t, testutil.WaitShort)
+					logger = testutil.Logger(t)
+					mClock = quartz.NewMock(t)
+					mDCCLI = acmock.NewMockDevcontainerCLI(gomock.NewController(t))
+
+					r = chi.NewRouter()
+				)
+
+				// Given: We setup our mocks. These mocks handle our expectations for these
+				// tests. If there are missing/unexpected mock calls, the test will fail.
+				tt.setupMocks(mDCCLI)
+
+				api := agentcontainers.NewAPI(logger,
+					agentcontainers.WithClock(mClock),
+					agentcontainers.WithWatcher(watcher.NewNoop()),
+					agentcontainers.WithFileSystem(initFS(t, tt.fs)),
+					agentcontainers.WithManifestInfo("owner", "workspace", "parent-agent", "/home/coder"),
+					agentcontainers.WithContainerCLI(&fakeContainerCLI{}),
+					agentcontainers.WithDevcontainerCLI(mDCCLI),
+					agentcontainers.WithProjectDiscovery(true),
+				)
+				api.Start()
+				defer api.Close()
+				r.Mount("/", api.Routes())
+
+				// When: All expected dev containers have been found.
+				require.Eventuallyf(t, func() bool {
+					req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+					rec := httptest.NewRecorder()
+					r.ServeHTTP(rec, req)
+
+					got := codersdk.WorkspaceAgentListContainersResponse{}
+					err := json.NewDecoder(rec.Body).Decode(&got)
+					require.NoError(t, err)
+
+					return len(got.Devcontainers) >= tt.expectDevcontainerCount
+				}, testutil.WaitShort, testutil.IntervalFast, "dev containers never found")
+
+				// Then: We expect the mock infra to not fail.
+			})
+		}
+	})
 }

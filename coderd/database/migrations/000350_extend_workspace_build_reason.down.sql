@@ -1,0 +1,1 @@
+-- It's not possible to delete enum values.

@@ -54,6 +54,14 @@ var (
 		Type: "audit_log",
 	}
 
+	// ResourceConnectionLog
+	// Valid Actions
+	//  - "ActionRead" :: read connection logs
+	//  - "ActionUpdate" :: upsert connection log entries
+	ResourceConnectionLog = Object{
+		Type: "connection_log",
+	}
+
 	// ResourceCryptoKey
 	// Valid Actions
 	//  - "ActionCreate" :: create crypto keys
@@ -368,6 +376,7 @@ func AllResources() []Objecter {
 		ResourceAssignOrgRole,
 		ResourceAssignRole,
 		ResourceAuditLog,
+		ResourceConnectionLog,
 		ResourceCryptoKey,
 		ResourceDebugInfo,
 		ResourceDeploymentConfig,

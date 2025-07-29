@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
@@ -36,12 +37,19 @@ func (a *agent) apiHandler() http.Handler {
 		cacheDuration: cacheDuration,
 	}
 
-	if a.containerAPI != nil {
+	if a.devcontainers {
 		r.Mount("/api/v0/containers", a.containerAPI.Routes())
+	} else if manifest := a.manifest.Load(); manifest != nil && manifest.ParentID != uuid.Nil {
+		r.HandleFunc("/api/v0/containers", func(w http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), w, http.StatusForbidden, codersdk.Response{
+				Message: "Dev Container feature not supported.",
+				Detail:  "Dev Container integration inside other Dev Containers is explicitly not supported.",
+			})
+		})
 	} else {
 		r.HandleFunc("/api/v0/containers", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(r.Context(), w, http.StatusForbidden, codersdk.Response{
-				Message: "The agent dev containers feature is experimental and not enabled by default.",
+				Message: "Dev Container feature not enabled.",
 				Detail:  "To enable this feature, set CODER_AGENT_DEVCONTAINERS_ENABLE=true in your template.",
 			})
 		})

@@ -1,4 +1,4 @@
-import { MissingBuildParameters } from "api/api";
+import { MissingBuildParameters, ParameterValidationError } from "api/api";
 import { updateWorkspace } from "api/queries/workspaces";
 import type {
 	TemplateVersion,
@@ -78,7 +78,10 @@ export const useWorkspaceUpdate = ({
 					updateWorkspaceMutation.reset();
 				},
 				onUpdate: (buildParameters: WorkspaceBuildParameter[]) => {
-					if (updateWorkspaceMutation.error instanceof MissingBuildParameters) {
+					if (
+						updateWorkspaceMutation.error instanceof MissingBuildParameters ||
+						updateWorkspaceMutation.error instanceof ParameterValidationError
+					) {
 						confirmUpdate(buildParameters);
 					}
 				},
@@ -154,8 +157,10 @@ const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
 	const missedParameters =
 		error instanceof MissingBuildParameters ? error.parameters : [];
 	const versionId =
-		error instanceof MissingBuildParameters ? error.versionId : undefined;
-	const isOpen = error instanceof MissingBuildParameters;
+		error instanceof ParameterValidationError ? error.versionId : undefined;
+	const isOpen =
+		error instanceof MissingBuildParameters ||
+		error instanceof ParameterValidationError;
 
 	return workspace.template_use_classic_parameter_flow ? (
 		<UpdateBuildParametersDialog
@@ -165,7 +170,9 @@ const MissingBuildParametersDialog: FC<MissingBuildParametersDialogProps> = ({
 		/>
 	) : (
 		<UpdateBuildParametersDialogExperimental
-			missedParameters={missedParameters}
+			validations={
+				error instanceof ParameterValidationError ? error.validations : []
+			}
 			open={isOpen}
 			onClose={dialogProps.onClose}
 			workspaceOwnerName={workspace.owner_name}

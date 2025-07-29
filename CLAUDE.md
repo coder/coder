@@ -44,13 +44,22 @@
 2. Run `make gen`
 3. If audit errors: update `enterprise/audit/table.go`
 4. Run `make gen` again
-5. Update `coderd/database/dbmem/dbmem.go` in-memory implementations
 
 ### LSP Navigation (USE FIRST)
+
+#### Go LSP (for backend code)
 
 - **Find definitions**: `mcp__go-language-server__definition symbolName`
 - **Find references**: `mcp__go-language-server__references symbolName`
 - **Get type info**: `mcp__go-language-server__hover filePath line column`
+- **Rename symbol**: `mcp__go-language-server__rename_symbol filePath line column newName`
+
+#### TypeScript LSP (for frontend code in site/)
+
+- **Find definitions**: `mcp__typescript-language-server__definition symbolName`
+- **Find references**: `mcp__typescript-language-server__references symbolName`
+- **Get type info**: `mcp__typescript-language-server__hover filePath line column`
+- **Rename symbol**: `mcp__typescript-language-server__rename_symbol filePath line column newName`
 
 ### OAuth2 Error Handling
 
@@ -98,6 +107,11 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 - Full suite: `./scripts/oauth2/test-mcp-oauth2.sh`
 - Manual testing: `./scripts/oauth2/test-manual-flow.sh`
 
+### Timing Issues
+
+NEVER use `time.Sleep` to mitigate timing issues. If an issue
+seems like it should use `time.Sleep`, read through https://github.com/coder/quartz and specifically the [README](https://github.com/coder/quartz/blob/main/README.md) to better understand how to handle timing issues.
+
 ## 🎯 Code Style
 
 ### Detailed guidelines in imported WORKFLOWS.md
@@ -116,9 +130,8 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 
 1. **Audit table errors** → Update `enterprise/audit/table.go`
 2. **OAuth2 errors** → Return RFC-compliant format
-3. **dbmem failures** → Update in-memory implementations
-4. **Race conditions** → Use unique test identifiers
-5. **Missing newlines** → Ensure files end with newline
+3. **Race conditions** → Use unique test identifiers
+4. **Missing newlines** → Ensure files end with newline
 
 ---
 

@@ -65,11 +65,58 @@ func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.
 		Action:           takeFirst(seed.Action, database.AuditActionCreate),
 		Diff:             takeFirstSlice(seed.Diff, []byte("{}")),
 		StatusCode:       takeFirst(seed.StatusCode, 200),
-		AdditionalFields: takeFirstSlice(seed.Diff, []byte("{}")),
+		AdditionalFields: takeFirstSlice(seed.AdditionalFields, []byte("{}")),
 		RequestID:        takeFirst(seed.RequestID, uuid.New()),
 		ResourceIcon:     takeFirst(seed.ResourceIcon, ""),
 	})
 	require.NoError(t, err, "insert audit log")
+	return log
+}
+
+func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnectionLogParams) database.ConnectionLog {
+	log, err := db.UpsertConnectionLog(genCtx, database.UpsertConnectionLogParams{
+		ID:               takeFirst(seed.ID, uuid.New()),
+		Time:             takeFirst(seed.Time, dbtime.Now()),
+		OrganizationID:   takeFirst(seed.OrganizationID, uuid.New()),
+		WorkspaceOwnerID: takeFirst(seed.WorkspaceOwnerID, uuid.New()),
+		WorkspaceID:      takeFirst(seed.WorkspaceID, uuid.New()),
+		WorkspaceName:    takeFirst(seed.WorkspaceName, testutil.GetRandomName(t)),
+		AgentName:        takeFirst(seed.AgentName, testutil.GetRandomName(t)),
+		Type:             takeFirst(seed.Type, database.ConnectionTypeSsh),
+		Code: sql.NullInt32{
+			Int32: takeFirst(seed.Code.Int32, 0),
+			Valid: takeFirst(seed.Code.Valid, false),
+		},
+		Ip: pqtype.Inet{
+			IPNet: net.IPNet{
+				IP:   net.IPv4(127, 0, 0, 1),
+				Mask: net.IPv4Mask(255, 255, 255, 255),
+			},
+			Valid: true,
+		},
+		UserAgent: sql.NullString{
+			String: takeFirst(seed.UserAgent.String, ""),
+			Valid:  takeFirst(seed.UserAgent.Valid, false),
+		},
+		UserID: uuid.NullUUID{
+			UUID:  takeFirst(seed.UserID.UUID, uuid.Nil),
+			Valid: takeFirst(seed.UserID.Valid, false),
+		},
+		SlugOrPort: sql.NullString{
+			String: takeFirst(seed.SlugOrPort.String, ""),
+			Valid:  takeFirst(seed.SlugOrPort.Valid, false),
+		},
+		ConnectionID: uuid.NullUUID{
+			UUID:  takeFirst(seed.ConnectionID.UUID, uuid.Nil),
+			Valid: takeFirst(seed.ConnectionID.Valid, false),
+		},
+		DisconnectReason: sql.NullString{
+			String: takeFirst(seed.DisconnectReason.String, ""),
+			Valid:  takeFirst(seed.DisconnectReason.Valid, false),
+		},
+		ConnectionStatus: takeFirst(seed.ConnectionStatus, database.ConnectionStatusConnected),
+	})
+	require.NoError(t, err, "insert connection log")
 	return log
 }
 
@@ -100,7 +147,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		DisplayName:                  takeFirst(seed.DisplayName, testutil.GetRandomName(t)),
 		AllowUserCancelWorkspaceJobs: seed.AllowUserCancelWorkspaceJobs,
 		MaxPortSharingLevel:          takeFirst(seed.MaxPortSharingLevel, database.AppSharingLevelOwner),
-		UseClassicParameterFlow:      takeFirst(seed.UseClassicParameterFlow, true),
+		UseClassicParameterFlow:      takeFirst(seed.UseClassicParameterFlow, false),
 	})
 	require.NoError(t, err, "insert template")
 
@@ -202,6 +249,17 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 			UpdatedAt:              takeFirst(orig.UpdatedAt, agt.UpdatedAt),
 		})
 		require.NoError(t, err, "update workspace agent first connected at")
+	}
+
+	// If the lifecycle state is "ready", update the agent with the corresponding timestamps
+	if orig.LifecycleState == database.WorkspaceAgentLifecycleStateReady && orig.StartedAt.Valid && orig.ReadyAt.Valid {
+		err := db.UpdateWorkspaceAgentLifecycleStateByID(genCtx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             agt.ID,
+			LifecycleState: orig.LifecycleState,
+			StartedAt:      orig.StartedAt,
+			ReadyAt:        orig.ReadyAt,
+		})
+		require.NoError(t, err, "update workspace agent lifecycle state")
 	}
 
 	if orig.ParentID.UUID == uuid.Nil {
@@ -348,6 +406,14 @@ func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) da
 		NextStartAt:       orig.NextStartAt,
 	})
 	require.NoError(t, err, "insert workspace")
+	if orig.Deleted {
+		err = db.UpdateWorkspaceDeletedByID(genCtx, database.UpdateWorkspaceDeletedByIDParams{
+			ID:      workspace.ID,
+			Deleted: true,
+		})
+		require.NoError(t, err, "set workspace as deleted")
+		workspace.Deleted = true
+	}
 	return workspace
 }
 
@@ -1326,6 +1392,8 @@ func Preset(t testing.TB, db database.Store, seed database.InsertPresetParams) d
 		InvalidateAfterSecs: seed.InvalidateAfterSecs,
 		SchedulingTimezone:  seed.SchedulingTimezone,
 		IsDefault:           seed.IsDefault,
+		Description:         seed.Description,
+		Icon:                seed.Icon,
 	})
 	require.NoError(t, err, "insert preset")
 	return preset
@@ -1350,6 +1418,17 @@ func PresetParameter(t testing.TB, db database.Store, seed database.InsertPreset
 
 	require.NoError(t, err, "insert preset parameters")
 	return parameters
+}
+
+func ClaimPrebuild(t testing.TB, db database.Store, newUserID uuid.UUID, newName string, presetID uuid.UUID) database.ClaimPrebuiltWorkspaceRow {
+	claimedWorkspace, err := db.ClaimPrebuiltWorkspace(genCtx, database.ClaimPrebuiltWorkspaceParams{
+		NewUserID: newUserID,
+		NewName:   newName,
+		PresetID:  presetID,
+	})
+	require.NoError(t, err, "claim prebuilt workspace")
+
+	return claimedWorkspace
 }
 
 func provisionerJobTiming(t testing.TB, db database.Store, seed database.ProvisionerJobTiming) database.ProvisionerJobTiming {

@@ -769,7 +769,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 		hello = "localhost"
 
 		from = "system@coder.com"
-		hint = "run \"DB=ci make gen/golden-files\" and commit the changes"
+		hint = "run \"make gen/golden-files\" and commit the changes"
 	)
 
 	tests := []struct {

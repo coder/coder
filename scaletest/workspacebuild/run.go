@@ -150,7 +150,7 @@ func (r *CleanupRunner) Run(ctx context.Context, _ string, logs io.Writer) error
 	if err == nil && build.Job.Status.Active() {
 		// mark the build as canceled
 		logger.Info(ctx, "canceling workspace build", slog.F("build_id", build.ID), slog.F("workspace_id", r.workspaceID))
-		if err = r.client.CancelWorkspaceBuild(ctx, build.ID); err == nil {
+		if err = r.client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{}); err == nil {
 			// Wait for the job to cancel before we delete it
 			_ = waitForBuild(ctx, logs, r.client, build.ID) // it will return a "build canceled" error
 		} else {

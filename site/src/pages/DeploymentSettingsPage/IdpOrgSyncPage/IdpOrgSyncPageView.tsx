@@ -215,7 +215,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 					)}
 					<div className="flex flex-col gap-7">
 						<div className="flex flex-row pt-8 gap-2 justify-between items-start">
-							<div className="grid items-center gap-1">
+							<div className="grid items-center gap-1 w-72">
 								<Label className="text-sm" htmlFor={`${id}-idp-org-name`}>
 									IdP organization name
 								</Label>

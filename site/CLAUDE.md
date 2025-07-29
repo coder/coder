@@ -1,5 +1,18 @@
 # Frontend Development Guidelines
 
+## TypeScript LSP Navigation (USE FIRST)
+
+When investigating or editing TypeScript/React code, always use the TypeScript language server tools for accurate navigation:
+
+- **Find component/function definitions**: `mcp__typescript-language-server__definition ComponentName`
+  - Example: `mcp__typescript-language-server__definition LoginPage`
+- **Find all usages**: `mcp__typescript-language-server__references ComponentName`
+  - Example: `mcp__typescript-language-server__references useAuthenticate`
+- **Get type information**: `mcp__typescript-language-server__hover site/src/pages/LoginPage.tsx 42 15`
+- **Check for errors**: `mcp__typescript-language-server__diagnostics site/src/pages/LoginPage.tsx`
+- **Rename symbols**: `mcp__typescript-language-server__rename_symbol site/src/components/Button.tsx 10 5 PrimaryButton`
+- **Edit files**: `mcp__typescript-language-server__edit_file` for multi-line edits
+
 ## Bash commands
 
 - `pnpm dev` - Start Vite development server
@@ -42,10 +55,11 @@
 
 ## Workflow
 
-- Be sure to typecheck when you’re done making a series of code changes
+- Be sure to typecheck when you're done making a series of code changes
 - Prefer running single tests, and not the whole test suite, for performance
 - Some e2e tests require a license from the user to execute
 - Use pnpm format before creating a PR
+- **ALWAYS use TypeScript LSP tools first** when investigating code - don't manually search files
 
 ## Pre-PR Checklist
 

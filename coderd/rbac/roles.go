@@ -315,6 +315,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Site: Permissions(map[string][]policy.Action{
 			ResourceAssignOrgRole.Type: {policy.ActionRead},
 			ResourceAuditLog.Type:      {policy.ActionRead},
+			ResourceConnectionLog.Type: {policy.ActionRead},
 			// Allow auditors to see the resources that audit logs reflect.
 			ResourceTemplate.Type:           {policy.ActionRead, policy.ActionViewInsights},
 			ResourceUser.Type:               {policy.ActionRead},
@@ -456,7 +457,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Site:        []Permission{},
 				Org: map[string][]Permission{
 					organizationID.String(): Permissions(map[string][]policy.Action{
-						ResourceAuditLog.Type: {policy.ActionRead},
+						ResourceAuditLog.Type:      {policy.ActionRead},
+						ResourceConnectionLog.Type: {policy.ActionRead},
 						// Allow auditors to see the resources that audit logs reflect.
 						ResourceTemplate.Type:           {policy.ActionRead, policy.ActionViewInsights},
 						ResourceGroup.Type:              {policy.ActionRead},

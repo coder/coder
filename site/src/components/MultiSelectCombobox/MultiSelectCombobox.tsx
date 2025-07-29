@@ -621,7 +621,7 @@ export const MultiSelectCombobox = forwardRef<
 							}}
 						>
 							{isLoading ? (
-								<>{loadingIndicator}</>
+								loadingIndicator
 							) : (
 								<>
 									{EmptyItem()}

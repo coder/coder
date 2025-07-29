@@ -26,6 +26,10 @@ OPTIONS:
       --parameter-default string-array, $CODER_RICH_PARAMETER_DEFAULT
           Rich parameter default values in the format "name=value".
 
+      --preset string, $CODER_PRESET_NAME
+          Specify the name of a template version preset. Use 'none' to
+          explicitly indicate that no preset should be used.
+
       --rich-parameter-file string, $CODER_RICH_PARAMETER_FILE
           Specify a file path with values for rich parameters defined in the
           template. The file should be in YAML format, containing key-value

@@ -219,7 +219,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 					</span>
 				</div>
 				<div className="flex flex-row gap-2 justify-between items-start">
-					<div className="grid items-center gap-1">
+					<div className="grid items-center gap-1 w-72">
 						<Label className="text-sm" htmlFor={`${id}-idp-group-name`}>
 							IdP group name
 						</Label>

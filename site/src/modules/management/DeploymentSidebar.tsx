@@ -8,7 +8,8 @@ import { DeploymentSidebarView } from "./DeploymentSidebarView";
  */
 export const DeploymentSidebar: FC = () => {
 	const { permissions } = useAuthenticated();
-	const { entitlements, showOrganizations } = useDashboard();
+	const { entitlements, showOrganizations, experiments, buildInfo } =
+		useDashboard();
 	const hasPremiumLicense =
 		entitlements.features.multiple_organizations.enabled;
 
@@ -17,6 +18,8 @@ export const DeploymentSidebar: FC = () => {
 			permissions={permissions}
 			showOrganizations={showOrganizations}
 			hasPremiumLicense={hasPremiumLicense}
+			experiments={experiments}
+			buildInfo={buildInfo}
 		/>
 	);
 };

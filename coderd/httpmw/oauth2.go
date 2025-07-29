@@ -225,7 +225,7 @@ func ExtractOAuth2ProviderAppWithOAuth2Errors(db database.Store) func(http.Handl
 type errorWriter interface {
 	writeMissingClientID(ctx context.Context, rw http.ResponseWriter)
 	writeInvalidClientID(ctx context.Context, rw http.ResponseWriter, err error)
-	writeInvalidClient(ctx context.Context, rw http.ResponseWriter)
+	writeClientNotFound(ctx context.Context, rw http.ResponseWriter)
 }
 
 // codersdkErrorWriter writes standard codersdk errors for general API endpoints
@@ -244,9 +244,13 @@ func (*codersdkErrorWriter) writeInvalidClientID(ctx context.Context, rw http.Re
 	})
 }
 
-func (*codersdkErrorWriter) writeInvalidClient(ctx context.Context, rw http.ResponseWriter) {
-	httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-		Message: "Invalid OAuth2 client.",
+func (*codersdkErrorWriter) writeClientNotFound(ctx context.Context, rw http.ResponseWriter) {
+	// Management API endpoints return 404 for missing OAuth2 apps (proper REST semantics).
+	// This differs from OAuth2 protocol endpoints which return 401 "invalid_client" per RFC 6749.
+	// Returning 401 here would trigger the frontend's automatic logout interceptor when React Query
+	// refetches a deleted app, incorrectly logging out users who just deleted their own OAuth2 apps.
+	httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+		Message: "OAuth2 application not found.",
 	})
 }
 
@@ -261,7 +265,7 @@ func (*oauth2ErrorWriter) writeInvalidClientID(ctx context.Context, rw http.Resp
 	httpapi.WriteOAuth2Error(ctx, rw, http.StatusUnauthorized, "invalid_client", "The client credentials are invalid")
 }
 
-func (*oauth2ErrorWriter) writeInvalidClient(ctx context.Context, rw http.ResponseWriter) {
+func (*oauth2ErrorWriter) writeClientNotFound(ctx context.Context, rw http.ResponseWriter) {
 	httpapi.WriteOAuth2Error(ctx, rw, http.StatusUnauthorized, "invalid_client", "The client credentials are invalid")
 }
 
@@ -308,7 +312,7 @@ func extractOAuth2ProviderAppBase(db database.Store, errWriter errorWriter) func
 
 			app, err := db.GetOAuth2ProviderAppByID(ctx, appID)
 			if httpapi.Is404Error(err) {
-				errWriter.writeInvalidClient(ctx, rw)
+				errWriter.writeClientNotFound(ctx, rw)
 				return
 			}
 			if err != nil {

@@ -117,6 +117,19 @@ func (w AuditLog) RBACObject() rbac.Object {
 	return obj
 }
 
+func (w GetConnectionLogsOffsetRow) RBACObject() rbac.Object {
+	return w.ConnectionLog.RBACObject()
+}
+
+func (w ConnectionLog) RBACObject() rbac.Object {
+	obj := rbac.ResourceConnectionLog.WithID(w.ID)
+	if w.OrganizationID != uuid.Nil {
+		obj = obj.InOrg(w.OrganizationID)
+	}
+
+	return obj
+}
+
 func (s APIKeyScope) ToRBAC() rbac.ScopeName {
 	switch s {
 	case APIKeyScopeAll:

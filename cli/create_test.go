@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -298,7 +299,7 @@ func TestCreate(t *testing.T) {
 	})
 }
 
-func prepareEchoResponses(parameters []*proto.RichParameter) *echo.Responses {
+func prepareEchoResponses(parameters []*proto.RichParameter, presets ...*proto.Preset) *echo.Responses {
 	return &echo.Responses{
 		Parse: echo.ParseComplete,
 		ProvisionPlan: []*proto.Response{
@@ -306,6 +307,7 @@ func prepareEchoResponses(parameters []*proto.RichParameter) *echo.Responses {
 				Type: &proto.Response_Plan{
 					Plan: &proto.PlanComplete{
 						Parameters: parameters,
+						Presets:    presets,
 					},
 				},
 			},
@@ -660,6 +662,642 @@ func TestCreateWithRichParameters(t *testing.T) {
 		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: firstParameterName, Value: firstParameterValue})
 		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: secondParameterName, Value: secondParameterValue})
 		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: immutableParameterName, Value: immutableParameterValue})
+	})
+}
+
+func TestCreateWithPreset(t *testing.T) {
+	t.Parallel()
+
+	const (
+		firstParameterName        = "first_parameter"
+		firstParameterDisplayName = "First Parameter"
+		firstParameterDescription = "This is the first parameter"
+		firstParameterValue       = "1"
+
+		firstOptionalParameterName         = "first_optional_parameter"
+		firstOptionalParameterDescription  = "This is the first optional parameter"
+		firstOptionalParameterValue        = "1"
+		secondOptionalParameterName        = "second_optional_parameter"
+		secondOptionalParameterDescription = "This is the second optional parameter"
+		secondOptionalParameterValue       = "2"
+
+		thirdParameterName        = "third_parameter"
+		thirdParameterDescription = "This is the third parameter"
+		thirdParameterValue       = "3"
+	)
+
+	echoResponses := func(presets ...*proto.Preset) *echo.Responses {
+		return prepareEchoResponses([]*proto.RichParameter{
+			{
+				Name:         firstParameterName,
+				DisplayName:  firstParameterDisplayName,
+				Description:  firstParameterDescription,
+				Mutable:      true,
+				DefaultValue: firstParameterValue,
+				Options: []*proto.RichParameterOption{
+					{
+						Name:        firstOptionalParameterName,
+						Description: firstOptionalParameterDescription,
+						Value:       firstOptionalParameterValue,
+					},
+					{
+						Name:        secondOptionalParameterName,
+						Description: secondOptionalParameterDescription,
+						Value:       secondOptionalParameterValue,
+					},
+				},
+			},
+			{
+				Name:         thirdParameterName,
+				Description:  thirdParameterDescription,
+				DefaultValue: thirdParameterValue,
+				Mutable:      true,
+			},
+		}, presets...)
+	}
+
+	// This test verifies that when a template has presets,
+	// including a default preset, and the user specifies a `--preset` flag,
+	// the CLI uses the specified preset instead of the default
+	t.Run("PresetFlag", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// Given: a template and a template version with two presets, including a default
+		defaultPreset := proto.Preset{
+			Name:    "preset-default",
+			Default: true,
+			Parameters: []*proto.PresetParameter{
+				{Name: thirdParameterName, Value: thirdParameterValue},
+			},
+		}
+		preset := proto.Preset{
+			Name: "preset-test",
+			Parameters: []*proto.PresetParameter{
+				{Name: firstParameterName, Value: secondOptionalParameterValue},
+				{Name: thirdParameterName, Value: thirdParameterValue},
+			},
+		}
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses(&defaultPreset, &preset))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// When: running the create command with the specified preset
+		workspaceName := "my-workspace"
+		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name, "-y", "--preset", preset.Name)
+		clitest.SetupConfig(t, member, root)
+		pty := ptytest.New(t).Attach(inv)
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+		err := inv.Run()
+		require.NoError(t, err)
+
+		// Should: display the selected preset as well as its parameters
+		presetName := fmt.Sprintf("Preset '%s' applied:", preset.Name)
+		pty.ExpectMatch(presetName)
+		pty.ExpectMatch(fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
+		pty.ExpectMatch(fmt.Sprintf("%s: '%s'", thirdParameterName, thirdParameterValue))
+
+		// Verify if the new workspace uses expected parameters.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		tvPresets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, tvPresets, 2)
+		var selectedPreset *codersdk.Preset
+		for _, tvPreset := range tvPresets {
+			if tvPreset.Name == preset.Name {
+				selectedPreset = &tvPreset
+			}
+		}
+		require.NotNil(t, selectedPreset)
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Name: workspaceName,
+		})
+		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 1)
+
+		// Should: create a workspace using the expected template version and the preset-defined parameters
+		workspaceLatestBuild := workspaces.Workspaces[0].LatestBuild
+		require.Equal(t, version.ID, workspaceLatestBuild.TemplateVersionID)
+		require.Equal(t, selectedPreset.ID, *workspaceLatestBuild.TemplateVersionPresetID)
+		buildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceLatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParameters, 2)
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: firstParameterName, Value: secondOptionalParameterValue})
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: thirdParameterName, Value: thirdParameterValue})
+	})
+
+	// This test verifies that when a template has presets,
+	// including a default preset, and the user does not specify the `--preset` flag,
+	// the CLI automatically uses the default preset to create the workspace
+	t.Run("DefaultPreset", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// Given: a template and a template version with two presets, including a default
+		defaultPreset := proto.Preset{
+			Name:    "preset-default",
+			Default: true,
+			Parameters: []*proto.PresetParameter{
+				{Name: firstParameterName, Value: secondOptionalParameterValue},
+				{Name: thirdParameterName, Value: thirdParameterValue},
+			},
+		}
+		preset := proto.Preset{
+			Name: "preset-test",
+			Parameters: []*proto.PresetParameter{
+				{Name: thirdParameterName, Value: thirdParameterValue},
+			},
+		}
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses(&defaultPreset, &preset))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// When: running the create command without a preset
+		workspaceName := "my-workspace"
+		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name, "-y")
+		clitest.SetupConfig(t, member, root)
+		pty := ptytest.New(t).Attach(inv)
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+		err := inv.Run()
+		require.NoError(t, err)
+
+		// Should: display the default preset as well as its parameters
+		presetName := fmt.Sprintf("Preset '%s' (default) applied:", defaultPreset.Name)
+		pty.ExpectMatch(presetName)
+		pty.ExpectMatch(fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
+		pty.ExpectMatch(fmt.Sprintf("%s: '%s'", thirdParameterName, thirdParameterValue))
+
+		// Verify if the new workspace uses expected parameters.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		tvPresets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, tvPresets, 2)
+		var selectedPreset *codersdk.Preset
+		for _, tvPreset := range tvPresets {
+			if tvPreset.Default {
+				selectedPreset = &tvPreset
+			}
+		}
+		require.NotNil(t, selectedPreset)
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Name: workspaceName,
+		})
+		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 1)
+
+		// Should: create a workspace using the expected template version and the default preset parameters
+		workspaceLatestBuild := workspaces.Workspaces[0].LatestBuild
+		require.Equal(t, version.ID, workspaceLatestBuild.TemplateVersionID)
+		require.Equal(t, selectedPreset.ID, *workspaceLatestBuild.TemplateVersionPresetID)
+		buildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceLatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParameters, 2)
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: firstParameterName, Value: secondOptionalParameterValue})
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: thirdParameterName, Value: thirdParameterValue})
+	})
+
+	// This test verifies that when a template has presets but no default preset,
+	// and the user does not provide the `--preset` flag,
+	// the CLI prompts the user to select a preset.
+	t.Run("NoDefaultPresetPromptUser", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// Given: a template and a template version with two presets
+		preset := proto.Preset{
+			Name:        "preset-test",
+			Description: "Preset Test.",
+			Parameters: []*proto.PresetParameter{
+				{Name: firstParameterName, Value: secondOptionalParameterValue},
+				{Name: thirdParameterName, Value: thirdParameterValue},
+			},
+		}
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses(&preset))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// When: running the create command without specifying a preset
+		workspaceName := "my-workspace"
+		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name,
+			"--parameter", fmt.Sprintf("%s=%s", firstParameterName, firstOptionalParameterValue),
+			"--parameter", fmt.Sprintf("%s=%s", thirdParameterName, thirdParameterValue))
+		clitest.SetupConfig(t, member, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		// Should: prompt the user for the preset
+		pty.ExpectMatch("Select a preset below:")
+		pty.WriteLine("\n")
+		pty.ExpectMatch("Preset 'preset-test' applied")
+		pty.ExpectMatch("Confirm create?")
+		pty.WriteLine("yes")
+
+		<-doneChan
+
+		// Verify if the new workspace uses expected parameters.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		tvPresets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, tvPresets, 1)
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Name: workspaceName,
+		})
+		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 1)
+
+		// Should: create a workspace using the expected template version and the preset-defined parameters
+		workspaceLatestBuild := workspaces.Workspaces[0].LatestBuild
+		require.Equal(t, version.ID, workspaceLatestBuild.TemplateVersionID)
+		require.Equal(t, tvPresets[0].ID, *workspaceLatestBuild.TemplateVersionPresetID)
+		buildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceLatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParameters, 2)
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: firstParameterName, Value: secondOptionalParameterValue})
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: thirdParameterName, Value: thirdParameterValue})
+	})
+
+	// This test verifies that when a template version has no presets,
+	// the CLI does not prompt the user to select a preset and proceeds
+	// with workspace creation without applying any preset.
+	t.Run("TemplateVersionWithoutPresets", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// Given: a template and a template version without presets
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses())
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// When: running the create command without a preset
+		workspaceName := "my-workspace"
+		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name, "-y",
+			"--parameter", fmt.Sprintf("%s=%s", firstParameterName, firstOptionalParameterValue),
+			"--parameter", fmt.Sprintf("%s=%s", thirdParameterName, thirdParameterValue))
+		clitest.SetupConfig(t, member, root)
+		pty := ptytest.New(t).Attach(inv)
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+		err := inv.Run()
+		require.NoError(t, err)
+		pty.ExpectMatch("No preset applied.")
+
+		// Verify if the new workspace uses expected parameters.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Name: workspaceName,
+		})
+		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 1)
+
+		// Should: create a workspace using the expected template version and no preset
+		workspaceLatestBuild := workspaces.Workspaces[0].LatestBuild
+		require.Equal(t, version.ID, workspaceLatestBuild.TemplateVersionID)
+		require.Nil(t, workspaceLatestBuild.TemplateVersionPresetID)
+		buildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceLatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParameters, 2)
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: firstParameterName, Value: firstOptionalParameterValue})
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: thirdParameterName, Value: thirdParameterValue})
+	})
+
+	// This test verifies that when the user provides `--preset none`,
+	// the CLI skips applying any preset, even if the template version has a default preset.
+	// The workspace should be created without using any preset-defined parameters.
+	t.Run("PresetFlagNone", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// Given: a template and a template version with a default preset
+		preset := proto.Preset{
+			Name:    "preset-test",
+			Default: true,
+			Parameters: []*proto.PresetParameter{
+				{Name: firstParameterName, Value: secondOptionalParameterValue},
+				{Name: thirdParameterName, Value: thirdParameterValue},
+			},
+		}
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses(&preset))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// When: running the create command with flag '--preset none'
+		workspaceName := "my-workspace"
+		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name, "-y", "--preset", cli.PresetNone,
+			"--parameter", fmt.Sprintf("%s=%s", firstParameterName, firstOptionalParameterValue),
+			"--parameter", fmt.Sprintf("%s=%s", thirdParameterName, thirdParameterValue))
+		clitest.SetupConfig(t, member, root)
+		pty := ptytest.New(t).Attach(inv)
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+		err := inv.Run()
+		require.NoError(t, err)
+		pty.ExpectMatch("No preset applied.")
+
+		// Verify that the new workspace doesn't use the preset parameters.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		tvPresets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, tvPresets, 1)
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Name: workspaceName,
+		})
+		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 1)
+
+		// Should: create a workspace using the expected template version and no preset
+		workspaceLatestBuild := workspaces.Workspaces[0].LatestBuild
+		require.Equal(t, version.ID, workspaceLatestBuild.TemplateVersionID)
+		require.Nil(t, workspaceLatestBuild.TemplateVersionPresetID)
+		buildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceLatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParameters, 2)
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: firstParameterName, Value: firstOptionalParameterValue})
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: thirdParameterName, Value: thirdParameterValue})
+	})
+
+	// This test verifies that the CLI returns an appropriate error
+	// when a user provides a `--preset` value that does not correspond
+	// to any existing preset in the template version.
+	t.Run("FailsWhenPresetDoesNotExist", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// Given: a template and a template version where the preset defines values for all required parameters
+		preset := proto.Preset{
+			Name: "preset-test",
+			Parameters: []*proto.PresetParameter{
+				{Name: firstParameterName, Value: secondOptionalParameterValue},
+				{Name: thirdParameterName, Value: thirdParameterValue},
+			},
+		}
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses(&preset))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// When: running the create command with a non-existent preset
+		workspaceName := "my-workspace"
+		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name, "-y", "--preset", "invalid-preset")
+		clitest.SetupConfig(t, member, root)
+		pty := ptytest.New(t).Attach(inv)
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+		err := inv.Run()
+
+		// Should: fail with an error indicating the preset was not found
+		require.Contains(t, err.Error(), "preset \"invalid-preset\" not found")
+	})
+
+	// This test verifies that when both a preset and a user-provided
+	// `--parameter` flag define a value for the same parameter,
+	// the preset's value takes precedence over the user's.
+	//
+	// The preset defines one parameter (A), and two `--parameter` flags provide A and B.
+	// The workspace should be created using:
+	// - the value of parameter A from the preset (overriding the parameter flag's value),
+	// - and the value of parameter B from the parameter flag.
+	t.Run("PresetOverridesParameterFlagValues", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// Given: a template version with a preset that defines one parameter
+		preset := proto.Preset{
+			Name: "preset-test",
+			Parameters: []*proto.PresetParameter{
+				{Name: firstParameterName, Value: secondOptionalParameterValue},
+			},
+		}
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses(&preset))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// When: creating a workspace with a preset and passing overlapping and additional parameters via `--parameter`
+		workspaceName := "my-workspace"
+		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name, "-y",
+			"--preset", preset.Name,
+			"--parameter", fmt.Sprintf("%s=%s", firstParameterName, firstOptionalParameterValue),
+			"--parameter", fmt.Sprintf("%s=%s", thirdParameterName, thirdParameterValue))
+		clitest.SetupConfig(t, member, root)
+		pty := ptytest.New(t).Attach(inv)
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+		err := inv.Run()
+		require.NoError(t, err)
+
+		// Should: display the selected preset as well as its parameter
+		presetName := fmt.Sprintf("Preset '%s' applied:", preset.Name)
+		pty.ExpectMatch(presetName)
+		pty.ExpectMatch(fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
+
+		// Verify if the new workspace uses expected parameters.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		tvPresets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, tvPresets, 1)
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Name: workspaceName,
+		})
+		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 1)
+
+		// Should: include both parameters, one from the preset and one from the `--parameter` flag
+		workspaceLatestBuild := workspaces.Workspaces[0].LatestBuild
+		require.Equal(t, version.ID, workspaceLatestBuild.TemplateVersionID)
+		require.Equal(t, tvPresets[0].ID, *workspaceLatestBuild.TemplateVersionPresetID)
+		buildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceLatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParameters, 2)
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: firstParameterName, Value: secondOptionalParameterValue})
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: thirdParameterName, Value: thirdParameterValue})
+	})
+
+	// This test verifies that when both a preset and a user-provided
+	// `--rich-parameter-file` define a value for the same parameter,
+	// the preset's value takes precedence over the one in the file.
+	//
+	// The preset defines one parameter (A), and the parameter file provides two parameters (A and B).
+	// The workspace should be created using:
+	// - the value of parameter A from the preset (overriding the file's value),
+	// - and the value of parameter B from the file.
+	t.Run("PresetOverridesParameterFileValues", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// Given: a template version with a preset that defines one parameter
+		preset := proto.Preset{
+			Name: "preset-test",
+			Parameters: []*proto.PresetParameter{
+				{Name: firstParameterName, Value: secondOptionalParameterValue},
+			},
+		}
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses(&preset))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// When: creating a workspace with the preset and passing the second required parameter via `--rich-parameter-file`
+		workspaceName := "my-workspace"
+		tempDir := t.TempDir()
+		removeTmpDirUntilSuccessAfterTest(t, tempDir)
+		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
+		_, _ = parameterFile.WriteString(
+			firstParameterName + ": " + firstOptionalParameterValue + "\n" +
+				thirdParameterName + ": " + thirdParameterValue)
+		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name, "-y",
+			"--preset", preset.Name,
+			"--rich-parameter-file", parameterFile.Name())
+		clitest.SetupConfig(t, member, root)
+		pty := ptytest.New(t).Attach(inv)
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+		err := inv.Run()
+		require.NoError(t, err)
+
+		// Should: display the selected preset as well as its parameter
+		presetName := fmt.Sprintf("Preset '%s' applied:", preset.Name)
+		pty.ExpectMatch(presetName)
+		pty.ExpectMatch(fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
+
+		// Verify if the new workspace uses expected parameters.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		tvPresets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, tvPresets, 1)
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Name: workspaceName,
+		})
+		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 1)
+
+		// Should: include both parameters, one from the preset and one from the `--rich-parameter-file` flag
+		workspaceLatestBuild := workspaces.Workspaces[0].LatestBuild
+		require.Equal(t, version.ID, workspaceLatestBuild.TemplateVersionID)
+		require.Equal(t, tvPresets[0].ID, *workspaceLatestBuild.TemplateVersionPresetID)
+		buildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceLatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParameters, 2)
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: firstParameterName, Value: secondOptionalParameterValue})
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: thirdParameterName, Value: thirdParameterValue})
+	})
+
+	// This test verifies that when a preset provides only some parameters,
+	// and the remaining ones are not provided via flags,
+	// the CLI prompts the user for input to fill in the missing parameters.
+	t.Run("PromptsForMissingParametersWhenPresetIsIncomplete", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// Given: a template version with a preset that defines one parameter
+		preset := proto.Preset{
+			Name: "preset-test",
+			Parameters: []*proto.PresetParameter{
+				{Name: firstParameterName, Value: secondOptionalParameterValue},
+			},
+		}
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses(&preset))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// When: running the create command with the specified preset
+		workspaceName := "my-workspace"
+		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name, "--preset", preset.Name)
+		clitest.SetupConfig(t, member, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		// Should: display the selected preset as well as its parameters
+		presetName := fmt.Sprintf("Preset '%s' applied:", preset.Name)
+		pty.ExpectMatch(presetName)
+		pty.ExpectMatch(fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
+
+		// Should: prompt for the missing parameter
+		pty.ExpectMatch(thirdParameterDescription)
+		pty.WriteLine(thirdParameterValue)
+		pty.ExpectMatch("Confirm create?")
+		pty.WriteLine("yes")
+
+		<-doneChan
+
+		// Verify if the new workspace uses expected parameters.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		tvPresets, err := client.TemplateVersionPresets(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, tvPresets, 1)
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Name: workspaceName,
+		})
+		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 1)
+
+		// Should: create a workspace using the expected template version and the preset-defined parameters
+		workspaceLatestBuild := workspaces.Workspaces[0].LatestBuild
+		require.Equal(t, version.ID, workspaceLatestBuild.TemplateVersionID)
+		require.Equal(t, tvPresets[0].ID, *workspaceLatestBuild.TemplateVersionPresetID)
+		buildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceLatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParameters, 2)
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: firstParameterName, Value: secondOptionalParameterValue})
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: thirdParameterName, Value: thirdParameterValue})
 	})
 }
 

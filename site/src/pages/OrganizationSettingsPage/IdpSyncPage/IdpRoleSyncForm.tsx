@@ -159,7 +159,7 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 					<p className="text-content-danger text-sm m-0">{form.errors.field}</p>
 				)}
 				<div className="flex flex-row gap-2 justify-between items-start">
-					<div className="grid items-center gap-1">
+					<div className="grid items-center gap-1 w-72">
 						<Label className="text-sm" htmlFor={`${id}-idp-role-name`}>
 							IdP role name
 						</Label>

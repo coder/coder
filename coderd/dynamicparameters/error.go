@@ -10,7 +10,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func ParameterValidationError(diags hcl.Diagnostics) *DiagnosticError {
+func parameterValidationError(diags hcl.Diagnostics) *DiagnosticError {
 	return &DiagnosticError{
 		Message:          "Unable to validate parameters",
 		Diagnostics:      diags,
@@ -18,9 +18,9 @@ func ParameterValidationError(diags hcl.Diagnostics) *DiagnosticError {
 	}
 }
 
-func TagValidationError(diags hcl.Diagnostics) *DiagnosticError {
+func tagValidationError(diags hcl.Diagnostics) *DiagnosticError {
 	return &DiagnosticError{
-		Message:          "Failed to parse workspace tags",
+		Message:          "Unable to parse workspace tags",
 		Diagnostics:      diags,
 		KeyedDiagnostics: make(map[string]hcl.Diagnostics),
 	}

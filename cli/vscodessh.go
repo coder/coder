@@ -102,7 +102,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			// will call this command after the workspace is started.
 			autostart := false
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, autostart, fmt.Sprintf("%s/%s", owner, name))
+			workspace, workspaceAgent, _, err := getWorkspaceAndAgent(ctx, inv, client, autostart, fmt.Sprintf("%s/%s", owner, name))
 			if err != nil {
 				return xerrors.Errorf("find workspace and agent: %w", err)
 			}

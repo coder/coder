@@ -125,6 +125,10 @@ var testCases = []testCase{
 		name:          "partial_resources",
 		expectedError: "",
 	},
+	{
+		name:          "pod_securitycontext",
+		expectedError: "",
+	},
 }
 
 type testCase struct {

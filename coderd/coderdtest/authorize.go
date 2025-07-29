@@ -451,6 +451,7 @@ func randomRBACType() string {
 	all := []string{
 		rbac.ResourceWorkspace.Type,
 		rbac.ResourceAuditLog.Type,
+		rbac.ResourceConnectionLog.Type,
 		rbac.ResourceTemplate.Type,
 		rbac.ResourceGroup.Type,
 		rbac.ResourceFile.Type,

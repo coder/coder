@@ -20,14 +20,15 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/testutil"
 )
 
 // WillUsePostgres returns true if a call to NewDB() will return a real, postgres-backed Store and Pubsub.
+// TODO(hugodutka): since we removed the in-memory database, this is always true,
+// and we need to remove this function. https://github.com/coder/internal/issues/758
 func WillUsePostgres() bool {
-	return os.Getenv("DB") != ""
+	return true
 }
 
 type options struct {
@@ -109,52 +110,48 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 
 	var db database.Store
 	var ps pubsub.Pubsub
-	if WillUsePostgres() {
-		connectionURL := os.Getenv("CODER_PG_CONNECTION_URL")
-		if connectionURL == "" && o.url != "" {
-			connectionURL = o.url
-		}
-		if connectionURL == "" {
-			var err error
-			connectionURL, err = Open(t)
-			require.NoError(t, err)
-		}
 
-		if o.fixedTimezone == "" {
-			// To make sure we find timezone-related issues, we set the timezone
-			// of the database to a non-UTC one.
-			// The below was picked due to the following properties:
-			// - It has a non-UTC offset
-			// - It has a fractional hour UTC offset
-			// - It includes a daylight savings time component
-			o.fixedTimezone = DefaultTimezone
-		}
-		dbName := dbNameFromConnectionURL(t, connectionURL)
-		setDBTimezone(t, connectionURL, dbName, o.fixedTimezone)
-
-		sqlDB, err := sql.Open("postgres", connectionURL)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = sqlDB.Close()
-		})
-		if o.returnSQLDB != nil {
-			o.returnSQLDB(sqlDB)
-		}
-		if o.dumpOnFailure {
-			t.Cleanup(func() { DumpOnFailure(t, connectionURL) })
-		}
-		// Unit tests should not retry serial transaction failures.
-		db = database.New(sqlDB, database.WithSerialRetryCount(1))
-
-		ps, err = pubsub.New(context.Background(), o.logger, sqlDB, connectionURL)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = ps.Close()
-		})
-	} else {
-		db = dbmem.New()
-		ps = pubsub.NewInMemory()
+	connectionURL := os.Getenv("CODER_PG_CONNECTION_URL")
+	if connectionURL == "" && o.url != "" {
+		connectionURL = o.url
 	}
+	if connectionURL == "" {
+		var err error
+		connectionURL, err = Open(t)
+		require.NoError(t, err)
+	}
+
+	if o.fixedTimezone == "" {
+		// To make sure we find timezone-related issues, we set the timezone
+		// of the database to a non-UTC one.
+		// The below was picked due to the following properties:
+		// - It has a non-UTC offset
+		// - It has a fractional hour UTC offset
+		// - It includes a daylight savings time component
+		o.fixedTimezone = DefaultTimezone
+	}
+	dbName := dbNameFromConnectionURL(t, connectionURL)
+	setDBTimezone(t, connectionURL, dbName, o.fixedTimezone)
+
+	sqlDB, err := sql.Open("postgres", connectionURL)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+	})
+	if o.returnSQLDB != nil {
+		o.returnSQLDB(sqlDB)
+	}
+	if o.dumpOnFailure {
+		t.Cleanup(func() { DumpOnFailure(t, connectionURL) })
+	}
+	// Unit tests should not retry serial transaction failures.
+	db = database.New(sqlDB, database.WithSerialRetryCount(1))
+
+	ps, err = pubsub.New(context.Background(), o.logger, sqlDB, connectionURL)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = ps.Close()
+	})
 
 	return db, ps
 }

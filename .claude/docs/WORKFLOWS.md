@@ -81,11 +81,6 @@
    - Add each new field with appropriate action (ActionTrack, ActionIgnore, ActionSecret)
    - Run `make gen` to verify no audit errors
 
-6. **In-memory database (dbmem) updates**:
-   - When adding new fields to database structs, ensure `dbmem` implementation copies all fields
-   - Check `coderd/database/dbmem/dbmem.go` for Insert/Update methods
-   - Missing fields in dbmem can cause tests to fail even if main implementation is correct
-
 ### Database Generation Process
 
 1. Modify SQL files in `coderd/database/queries/`
@@ -132,9 +127,11 @@
 
 ## Code Navigation and Investigation
 
-### Using Go LSP Tools (STRONGLY RECOMMENDED)
+### Using LSP Tools (STRONGLY RECOMMENDED)
 
-**IMPORTANT**: Always use Go LSP tools for code navigation and understanding. These tools provide accurate, real-time analysis of the codebase and should be your first choice for code investigation.
+**IMPORTANT**: Always use LSP tools for code navigation and understanding. These tools provide accurate, real-time analysis of the codebase and should be your first choice for code investigation.
+
+#### Go LSP Tools (for backend code)
 
 1. **Find function definitions** (USE THIS FREQUENTLY):
    - `mcp__go-language-server__definition symbolName`
@@ -150,13 +147,48 @@
    - `mcp__go-language-server__hover filePath line column`
    - Get type information and documentation at specific positions
 
+#### TypeScript LSP Tools (for frontend code in site/)
+
+1. **Find component/function definitions** (USE THIS FREQUENTLY):
+   - `mcp__typescript-language-server__definition symbolName`
+   - Example: `mcp__typescript-language-server__definition LoginPage`
+   - Quickly navigate to React components, hooks, and utility functions
+
+2. **Find symbol references** (ESSENTIAL FOR UNDERSTANDING IMPACT):
+   - `mcp__typescript-language-server__references symbolName`
+   - Locate all usages of components, types, or functions
+   - Critical for refactoring React components and understanding prop usage
+
+3. **Get type information**:
+   - `mcp__typescript-language-server__hover filePath line column`
+   - Get TypeScript type information and JSDoc documentation
+
+4. **Rename symbols safely**:
+   - `mcp__typescript-language-server__rename_symbol filePath line column newName`
+   - Rename components, props, or functions across the entire codebase
+
+5. **Check for TypeScript errors**:
+   - `mcp__typescript-language-server__diagnostics filePath`
+   - Get compilation errors and warnings for a specific file
+
 ### Investigation Strategy (LSP-First Approach)
 
+#### Backend Investigation (Go)
+
 1. **Start with route registration** in `coderd/coderd.go` to understand API endpoints
-2. **Use LSP `definition` lookup** to trace from route handlers to actual implementations
-3. **Use LSP `references`** to understand how functions are called throughout the codebase
+2. **Use Go LSP `definition` lookup** to trace from route handlers to actual implementations
+3. **Use Go LSP `references`** to understand how functions are called throughout the codebase
 4. **Follow the middleware chain** using LSP tools to understand request processing flow
 5. **Check test files** for expected behavior and error patterns
+
+#### Frontend Investigation (TypeScript/React)
+
+1. **Start with route definitions** in `site/src/App.tsx` or router configuration
+2. **Use TypeScript LSP `definition`** to navigate to React components and hooks
+3. **Use TypeScript LSP `references`** to find all component usages and prop drilling
+4. **Follow the component hierarchy** using LSP tools to understand data flow
+5. **Check for TypeScript errors** with `diagnostics` before making changes
+6. **Examine test files** (`.test.tsx`) for component behavior and expected props
 
 ## Troubleshooting Development Issues
 
@@ -164,9 +196,8 @@
 
 1. **Development server won't start** - Use `./scripts/develop.sh` instead of manual commands
 2. **Database migration errors** - Check migration file format and use helper scripts
-3. **Test failures after database changes** - Update `dbmem` implementations
-4. **Audit table errors** - Update `enterprise/audit/table.go` with new fields
-5. **OAuth2 compliance issues** - Ensure RFC-compliant error responses
+3. **Audit table errors** - Update `enterprise/audit/table.go` with new fields
+4. **OAuth2 compliance issues** - Ensure RFC-compliant error responses
 
 ### Debug Commands
 

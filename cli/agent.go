@@ -40,22 +40,23 @@ import (
 
 func (r *RootCmd) workspaceAgent() *serpent.Command {
 	var (
-		auth                string
-		logDir              string
-		scriptDataDir       string
-		pprofAddress        string
-		noReap              bool
-		sshMaxTimeout       time.Duration
-		tailnetListenPort   int64
-		prometheusAddress   string
-		debugAddress        string
-		slogHumanPath       string
-		slogJSONPath        string
-		slogStackdriverPath string
-		blockFileTransfer   bool
-		agentHeaderCommand  string
-		agentHeader         []string
-		devcontainers       bool
+		auth                         string
+		logDir                       string
+		scriptDataDir                string
+		pprofAddress                 string
+		noReap                       bool
+		sshMaxTimeout                time.Duration
+		tailnetListenPort            int64
+		prometheusAddress            string
+		debugAddress                 string
+		slogHumanPath                string
+		slogJSONPath                 string
+		slogStackdriverPath          string
+		blockFileTransfer            bool
+		agentHeaderCommand           string
+		agentHeader                  []string
+		devcontainers                bool
+		devcontainerProjectDiscovery bool
 	)
 	cmd := &serpent.Command{
 		Use:   "agent",
@@ -364,6 +365,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					Devcontainers:      devcontainers,
 					DevcontainerAPIOptions: []agentcontainers.Option{
 						agentcontainers.WithSubAgentURL(r.agentURL.String()),
+						agentcontainers.WithProjectDiscovery(devcontainerProjectDiscovery),
 					},
 				})
 
@@ -509,6 +511,13 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_DEVCONTAINERS_ENABLE",
 			Description: "Allow the agent to automatically detect running devcontainers.",
 			Value:       serpent.BoolOf(&devcontainers),
+		},
+		{
+			Flag:        "devcontainers-project-discovery-enable",
+			Default:     "true",
+			Env:         "CODER_AGENT_DEVCONTAINERS_PROJECT_DISCOVERY_ENABLE",
+			Description: "Allow the agent to search the filesystem for devcontainer projects.",
+			Value:       serpent.BoolOf(&devcontainerProjectDiscovery),
 		},
 	}
 

@@ -12,38 +12,34 @@ import (
 	"github.com/coder/coder/v2/enterprise/audit"
 )
 
-type slogBackend struct {
+type SlogExporter struct {
 	log slog.Logger
 }
 
-func NewSlog(logger slog.Logger) audit.Backend {
-	return &slogBackend{log: logger}
+func NewSlogExporter(logger slog.Logger) *SlogExporter {
+	return &SlogExporter{log: logger}
 }
 
-func (*slogBackend) Decision() audit.FilterDecision {
-	return audit.FilterDecisionExport
-}
-
-func (b *slogBackend) Export(ctx context.Context, alog database.AuditLog, details audit.BackendDetails) error {
+func (e *SlogExporter) ExportStruct(ctx context.Context, data any, message string, extraFields ...slog.Field) error {
 	// We don't use structs.Map because we don't want to recursively convert
 	// fields into maps. When we keep the type information, slog can more
 	// pleasantly format the output. For example, the clean result of
 	// (*NullString).Value() may be printed instead of {String: "foo", Valid: true}.
-	sfs := structs.Fields(alog)
+	sfs := structs.Fields(data)
 	var fields []any
 	for _, sf := range sfs {
-		fields = append(fields, b.fieldToSlog(sf))
+		fields = append(fields, e.fieldToSlog(sf))
 	}
 
-	if details.Actor != nil {
-		fields = append(fields, slog.F("actor", details.Actor))
+	for _, field := range extraFields {
+		fields = append(fields, field)
 	}
 
-	b.log.Info(ctx, "audit_log", fields...)
+	e.log.Info(ctx, message, fields...)
 	return nil
 }
 
-func (*slogBackend) fieldToSlog(field *structs.Field) slog.Field {
+func (*SlogExporter) fieldToSlog(field *structs.Field) slog.Field {
 	val := field.Value()
 
 	switch ty := field.Value().(type) {
@@ -54,4 +50,27 @@ func (*slogBackend) fieldToSlog(field *structs.Field) slog.Field {
 	}
 
 	return slog.F(field.Name(), val)
+}
+
+type auditSlogBackend struct {
+	exporter *SlogExporter
+}
+
+func NewSlog(logger slog.Logger) audit.Backend {
+	return &auditSlogBackend{
+		exporter: NewSlogExporter(logger),
+	}
+}
+
+func (*auditSlogBackend) Decision() audit.FilterDecision {
+	return audit.FilterDecisionExport
+}
+
+func (b *auditSlogBackend) Export(ctx context.Context, alog database.AuditLog, details audit.BackendDetails) error {
+	var extraFields []slog.Field
+	if details.Actor != nil {
+		extraFields = append(extraFields, slog.F("actor", details.Actor))
+	}
+
+	return b.exporter.ExportStruct(ctx, alog, "audit_log", extraFields...)
 }

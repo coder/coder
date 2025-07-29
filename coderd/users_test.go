@@ -32,7 +32,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -1791,15 +1790,6 @@ func TestUsersFilter(t *testing.T) {
 				match := c.FilterF(c.Filter, made)
 				if match {
 					exp = append(exp, made)
-				}
-			}
-
-			// TODO: This can be removed with dbmem
-			if !dbtestutil.WillUsePostgres() {
-				for i := range matched.Users {
-					if len(matched.Users[i].OrganizationIDs) == 0 {
-						matched.Users[i].OrganizationIDs = nil
-					}
 				}
 			}
 

@@ -252,6 +252,10 @@ $(CODER_ALL_BINARIES): go.mod go.sum \
 		fi
 
 		cp "$@" "./site/out/bin/coder-$$os-$$arch$$dot_ext"
+
+		if [[ "$${CODER_SIGN_GPG:-0}" == "1" ]]; then
+			cp "$@.asc" "./site/out/bin/coder-$$os-$$arch$$dot_ext.asc"
+		fi
 	fi
 
 # This task builds Coder Desktop dylibs
@@ -460,7 +464,7 @@ ifdef FILE
 	# Format single file
 	if [[ -f "$(FILE)" ]] && [[ "$(FILE)" == *.go ]] && ! grep -q "DO NOT EDIT" "$(FILE)"; then \
 		echo "$(GREEN)==>$(RESET) $(BOLD)fmt/go$(RESET) $(FILE)"; \
-		go run mvdan.cc/gofumpt@v0.4.0 -w -l "$(FILE)"; \
+		go run mvdan.cc/gofumpt@v0.8.0 -w -l "$(FILE)"; \
 	fi
 else
 	go mod tidy
@@ -468,8 +472,8 @@ else
 	# VS Code users should check out
 	# https://github.com/mvdan/gofumpt#visual-studio-code
 	find . $(FIND_EXCLUSIONS) -type f -name '*.go' -print0 | \
-		xargs -0 grep --null -L "DO NOT EDIT" | \
-		xargs -0 go run mvdan.cc/gofumpt@v0.4.0 -w -l
+		xargs -0 grep -E --null -L '^// Code generated .* DO NOT EDIT\.$$' | \
+		xargs -0 go run mvdan.cc/gofumpt@v0.8.0 -w -l
 endif
 .PHONY: fmt/go
 
@@ -599,7 +603,6 @@ DB_GEN_FILES := \
 	coderd/database/dump.sql \
 	coderd/database/querier.go \
 	coderd/database/unique_constraint.go \
-	coderd/database/dbmem/dbmem.go \
 	coderd/database/dbmetrics/dbmetrics.go \
 	coderd/database/dbauthz/dbauthz.go \
 	coderd/database/dbmock/dbmock.go
@@ -973,7 +976,7 @@ sqlc-vet: test-postgres-docker
 test-postgres: test-postgres-docker
 	# The postgres test is prone to failure, so we limit parallelism for
 	# more consistent execution.
-	$(GIT_FLAGS)  DB=ci gotestsum \
+	$(GIT_FLAGS)  gotestsum \
 		--junitfile="gotests.xml" \
 		--jsonfile="gotests.json" \
 		$(GOTESTSUM_RETRY_FLAGS) \

@@ -20,11 +20,17 @@ type DynamicParameterTemplateParams struct {
 	Plan           json.RawMessage
 	ModulesArchive []byte
 
+	// Uses a zip archive instead of a tar
+	Zip bool
+
 	// StaticParams is used if the provisioner daemon version does not support dynamic parameters.
 	StaticParams []*proto.RichParameter
 
 	// TemplateID is used to update an existing template instead of creating a new one.
 	TemplateID uuid.UUID
+
+	Version   func(request *codersdk.CreateTemplateVersionRequest)
+	Variables []codersdk.TemplateVersionVariable
 }
 
 func DynamicParameterTemplate(t *testing.T, client *codersdk.Client, org uuid.UUID, args DynamicParameterTemplateParams) (codersdk.Template, codersdk.TemplateVersion) {
@@ -43,10 +49,44 @@ func DynamicParameterTemplate(t *testing.T, client *codersdk.Client, org uuid.UU
 		},
 	}}
 
-	version := CreateTemplateVersion(t, client, org, files, func(request *codersdk.CreateTemplateVersionRequest) {
+	userVars := make([]codersdk.VariableValue, 0, len(args.Variables))
+	parseVars := make([]*proto.TemplateVariable, 0, len(args.Variables))
+	for _, argv := range args.Variables {
+		parseVars = append(parseVars, &proto.TemplateVariable{
+			Name:         argv.Name,
+			Description:  argv.Description,
+			Type:         argv.Type,
+			DefaultValue: argv.DefaultValue,
+			Required:     argv.Required,
+			Sensitive:    argv.Sensitive,
+		})
+
+		userVars = append(userVars, codersdk.VariableValue{
+			Name:  argv.Name,
+			Value: argv.Value,
+		})
+	}
+
+	files.Parse = []*proto.Response{{
+		Type: &proto.Response_Parse{
+			Parse: &proto.ParseComplete{
+				TemplateVariables: parseVars,
+			},
+		},
+	}}
+
+	mime := codersdk.ContentTypeTar
+	if args.Zip {
+		mime = codersdk.ContentTypeZip
+	}
+	version := CreateTemplateVersionMimeType(t, client, mime, org, files, func(request *codersdk.CreateTemplateVersionRequest) {
 		if args.TemplateID != uuid.Nil {
 			request.TemplateID = args.TemplateID
 		}
+		if args.Version != nil {
+			args.Version(request)
+		}
+		request.UserVariableValues = userVars
 	})
 	AwaitTemplateVersionJobCompleted(t, client, version.ID)
 

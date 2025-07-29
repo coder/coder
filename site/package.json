@@ -17,7 +17,7 @@
 		"lint:check": " biome lint --error-on-warnings .",
 		"lint:circular-deps": "dpdm --no-tree --no-warning -T ./src/App.tsx",
 		"lint:knip": "knip",
-		"lint:fix": " biome lint --error-on-warnings --write . && knip --fix",
+		"lint:fix": "biome lint --error-on-warnings --write . && knip --fix",
 		"lint:types": "tsc -p .",
 		"playwright:install": "playwright install --with-deps chromium",
 		"playwright:test": "playwright test --config=e2e/playwright.config.ts",
@@ -120,6 +120,7 @@
 		"undici": "6.21.2",
 		"unique-names-generator": "4.7.1",
 		"uuid": "9.0.1",
+		"websocket-ts": "2.2.1",
 		"yup": "1.6.1"
 	},
 	"devDependencies": {

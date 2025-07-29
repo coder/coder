@@ -197,8 +197,8 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Default is true until dynamic parameters are promoted to stable.
-	useClassicParameterFlow := ptr.NilToDefault(createTemplate.UseClassicParameterFlow, true)
+	// Default is false as dynamic parameters are now the preferred approach.
+	useClassicParameterFlow := ptr.NilToDefault(createTemplate.UseClassicParameterFlow, false)
 
 	// Make a temporary struct to represent the template. This is used for
 	// auditing if any of the following checks fail. It will be overwritten when
