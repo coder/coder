@@ -254,6 +254,11 @@ export const createTemplate = async (
 			mimeType: "application/x-tar",
 			name: "template.tar",
 		});
+		
+		// Wait for the file upload to complete by checking that the file name appears
+		// and the upload spinner is no longer visible
+		await page.waitForSelector('[data-testid="drop-zone"]', { state: "hidden", timeout: 10000 });
+		await page.waitForSelector('span:has-text("template.tar")', { state: "visible", timeout: 10000 });
 	}
 
 	// If the organization picker is present on the page, select the default
