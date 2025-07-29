@@ -124,6 +124,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 				Hash:      hash,
 				CreatedBy: apiKey.UserID,
 			})
+			api.Logger.Info(ctx, "postFile handler hit UniqueViolation trying to upload file after already checking for the file existence", slog.F("hash", hash), slog.F("created_by_id", apiKey.UserID))
 		}
 		// At this point the first error was either not the UniqueViolation OR there's still an error even after we
 		// attempt to fetch the file again, so we should return here.
