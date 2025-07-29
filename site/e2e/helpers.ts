@@ -255,12 +255,8 @@ export const createTemplate = async (
 			name: "template.tar",
 		});
 
-		// Wait for the file upload to complete by checking that the upload UI changes
-		// from the drop-zone to the uploaded file display
-		await page.waitForSelector('[data-testid="drop-zone"]', {
-			state: "detached",
-			timeout: 10000,
-		});
+		// Wait for the file upload to complete by checking that the uploaded file appears
+		// The drop-zone is replaced with a file display when upload completes
 		await page.waitForSelector("text=template.tar", {
 			state: "visible",
 			timeout: 10000,
