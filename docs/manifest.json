@@ -205,9 +205,19 @@
 						},
 						{
 							"title": "JetBrains IDEs",
-							"description": "Use JetBrains IDEs with Coder",
+							"description": "Use other JetBrains IDEs with Coder (CLion, GoLand, WebStorm, etc.)",
 							"path": "./user-guides/workspace-access/jetbrains/index.md",
 							"children": [
+                                                            {
+                                                                    "title": "PyCharm",
+                                                                    "description": "Connect PyCharm Professional to Coder workspaces with one-click integration",
+                                                                    "path": "./user-guides/workspace-access/jetbrains/pycharm.md"
+                                                            },
+                                                            {
+                                                                    "title": "IntelliJ IDEA",
+                                                                    "description": "Connect IntelliJ IDEA Ultimate to Coder workspaces with one-click integration",
+                                                                    "path": "./user-guides/workspace-access/jetbrains/intellij.md"
+                                                            },
 								{
 									"title": "JetBrains Fleet",
 									"description": "Connect JetBrains Fleet to a Coder workspace",
