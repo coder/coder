@@ -120,12 +120,19 @@ export const createWorkspace = async (
 			: `${template.organization}/${template.name}`;
 
 	await page.goto(`/templates/${templatePath}/workspace`, {
-		waitUntil: "domcontentloaded",
+		waitUntil: "networkidle",
 	});
 	await expectUrl(page).toHavePathName(`/templates/${templatePath}/workspace`);
 
 	const name = randomName();
 	await page.getByLabel("name").fill(name);
+
+	// Wait for the form to be fully loaded before filling parameters
+	if (buildParameters.length > 0) {
+		await page.waitForSelector("form", { state: "visible" });
+		// Additional wait to ensure all form elements are rendered
+		await page.waitForTimeout(500);
+	}
 
 	await fillParameters(page, richParameters, buildParameters);
 
@@ -900,7 +907,7 @@ const fillParameters = async (
 
 		const parameterLabel = await page.waitForSelector(
 			`[data-testid='parameter-field-${richParameter.name}']`,
-			{ state: "visible" },
+			{ state: "visible", timeout: 10000 },
 		);
 
 		if (richParameter.type === "bool") {
@@ -1214,25 +1221,44 @@ export const disableDynamicParameters = async (
 	orgName = defaultOrganizationName,
 ) => {
 	await page.goto(`/templates/${orgName}/${templateName}/settings`, {
-		waitUntil: "domcontentloaded",
+		waitUntil: "networkidle",
 	});
 
-	// Find and uncheck the "Enable dynamic parameters" checkbox
+	// Wait for the page to be fully loaded and the form to be visible
+	await page.waitForSelector("form", { state: "visible" });
+
+	// Find the "Enable dynamic parameters" checkbox and wait for it to be visible
 	const dynamicParamsCheckbox = page.getByRole("checkbox", {
 		name: /Enable dynamic parameters for workspace creation/,
 	});
 
+	// Wait for the checkbox to be visible and stable
+	await dynamicParamsCheckbox.waitFor({ state: "visible" });
+
 	// If the checkbox is checked, uncheck it
 	if (await dynamicParamsCheckbox.isChecked()) {
 		await dynamicParamsCheckbox.click();
+
+		// Wait a bit for the UI to update after the click
+		await page.waitForTimeout(100);
 	}
 
-	// Save the changes
-	await page.getByRole("button", { name: /save/i }).click();
+	// Find and click the save button
+	const saveButton = page.getByRole("button", { name: /save/i });
+	await saveButton.waitFor({ state: "visible" });
+	await saveButton.click();
 
-	// Wait for the success message or page to update
-	await page.waitForSelector("text=Template updated successfully", {
-		state: "visible",
-		timeout: 10000,
-	});
+	// Wait for the success message with a more robust selector
+	await page
+		.locator(
+			"[role='alert']:has-text('Template updated successfully'), .MuiAlert-root:has-text('Template updated successfully')",
+		)
+		.first()
+		.waitFor({
+			state: "visible",
+			timeout: 15000,
+		});
+
+	// Additional wait to ensure the changes are persisted
+	await page.waitForTimeout(500);
 };
