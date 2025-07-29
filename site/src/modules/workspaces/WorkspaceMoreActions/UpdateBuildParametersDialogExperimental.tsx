@@ -1,4 +1,4 @@
-import type { TemplateVersionParameter } from "api/typesGenerated";
+import type { FieldError } from "api/errors";
 import { Button } from "components/Button/Button";
 import {
 	Dialog,
@@ -14,7 +14,7 @@ import { useNavigate } from "react-router-dom";
 type UpdateBuildParametersDialogExperimentalProps = {
 	open: boolean;
 	onClose: () => void;
-	missedParameters: TemplateVersionParameter[];
+	validations: FieldError[];
 	workspaceOwnerName: string;
 	workspaceName: string;
 	templateVersionId: string | undefined;
@@ -23,7 +23,7 @@ type UpdateBuildParametersDialogExperimentalProps = {
 export const UpdateBuildParametersDialogExperimental: FC<
 	UpdateBuildParametersDialogExperimentalProps
 > = ({
-	missedParameters,
+	validations,
 	open,
 	onClose,
 	workspaceOwnerName,
@@ -47,8 +47,8 @@ export const UpdateBuildParametersDialogExperimental: FC<
 					<DialogDescription>
 						This template has{" "}
 						<strong className="text-content-primary">
-							{missedParameters.length} new parameter
-							{missedParameters.length === 1 ? "" : "s"}
+							{validations.length} parameter
+							{validations.length === 1 ? "" : "s"}
 						</strong>{" "}
 						that must be configured to complete the update.
 					</DialogDescription>

@@ -6,12 +6,14 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"runtime/debug"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/aisdk-go"
 
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -33,6 +35,7 @@ const (
 	ToolNameUploadTarFile               = "coder_upload_tar_file"
 	ToolNameCreateTemplate              = "coder_create_template"
 	ToolNameDeleteTemplate              = "coder_delete_template"
+	ToolNameWorkspaceBash               = "coder_workspace_bash"
 )
 
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
@@ -121,7 +124,14 @@ func WithRecover(h GenericHandlerFunc) GenericHandlerFunc {
 	return func(ctx context.Context, deps Deps, args json.RawMessage) (ret json.RawMessage, err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				err = xerrors.Errorf("tool handler panic: %v", r)
+				if buildinfo.IsDev() {
+					// Capture stack trace in dev builds
+					stack := debug.Stack()
+					err = xerrors.Errorf("tool handler panic: %v\nstack trace:\n%s", r, stack)
+				} else {
+					// Simple error message in production builds
+					err = xerrors.Errorf("tool handler panic: %v", r)
+				}
 			}
 		}()
 		return h(ctx, deps, args)
@@ -183,6 +193,7 @@ var All = []GenericTool{
 	ReportTask.Generic(),
 	UploadTarFile.Generic(),
 	UpdateTemplateActiveVersion.Generic(),
+	WorkspaceBash.Generic(),
 }
 
 type ReportTaskArgs struct {
@@ -241,6 +252,10 @@ ONLY report an "idle" or "failure" state if you have FULLY completed the task.
 	Handler: func(_ context.Context, deps Deps, args ReportTaskArgs) (codersdk.Response, error) {
 		if len(args.Summary) > 160 {
 			return codersdk.Response{}, xerrors.New("summary must be less than 160 characters")
+		}
+		// Check if task reporting is available to prevent nil pointer dereference
+		if deps.report == nil {
+			return codersdk.Response{}, xerrors.New("task reporting not available. Please ensure a task reporter is configured.")
 		}
 		err := deps.report(args)
 		if err != nil {

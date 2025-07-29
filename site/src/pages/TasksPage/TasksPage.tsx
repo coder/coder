@@ -2,7 +2,11 @@ import Skeleton from "@mui/material/Skeleton";
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { disabledRefetchOptions } from "api/queries/util";
-import type { Template, TemplateVersionExternalAuth } from "api/typesGenerated";
+import type {
+	Preset,
+	Template,
+	TemplateVersionExternalAuth,
+} from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
@@ -36,6 +40,7 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 
+import { templateVersionPresets } from "api/queries/templates";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
@@ -50,7 +55,7 @@ import { RedoIcon, RotateCcwIcon, SendIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
-import { type FC, type ReactNode, useState } from "react";
+import { type FC, type ReactNode, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
@@ -210,7 +215,11 @@ const TaskFormSection: FC<{
 	);
 };
 
-type CreateTaskMutationFnProps = { prompt: string; templateVersionId: string };
+type CreateTaskMutationFnProps = {
+	prompt: string;
+	templateVersionId: string;
+	presetId: string | null;
+};
 
 type TaskFormProps = {
 	templates: Template[];
@@ -223,15 +232,49 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 	const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
 		templates[0].id,
 	);
+	const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
 	const selectedTemplate = templates.find(
 		(t) => t.id === selectedTemplateId,
 	) as Template;
+
 	const {
 		externalAuth,
 		externalAuthError,
 		isPollingExternalAuth,
 		isLoadingExternalAuth,
 	} = useExternalAuth(selectedTemplate.active_version_id);
+
+	// Fetch presets when template changes
+	const { data: presetsData, isLoading: isLoadingPresets } = useQuery<
+		Preset[] | null,
+		Error
+	>(templateVersionPresets(selectedTemplate.active_version_id));
+
+	// Handle preset selection when data changes
+	useEffect(() => {
+		if (presetsData === undefined) {
+			// Still loading
+			return;
+		}
+
+		if (!presetsData || presetsData.length === 0) {
+			setSelectedPresetId(null);
+			return;
+		}
+
+		// Always select the default preset when new data arrives
+		const defaultPreset = presetsData.find((p: Preset) => p.Default);
+		const defaultPresetID = defaultPreset?.ID || null;
+		setSelectedPresetId(defaultPresetID);
+	}, [presetsData]);
+
+	// Extract AI prompt from selected preset
+	const selectedPreset = presetsData?.find((p) => p.ID === selectedPresetId);
+	const presetAIPrompt = selectedPreset?.Parameters?.find(
+		(param) => param.Name === AI_PROMPT_PARAMETER_NAME,
+	)?.Value;
+	const isPromptReadOnly = !!presetAIPrompt;
+
 	const missedExternalAuth = externalAuth?.filter(
 		(auth) => !auth.optional && !auth.authenticated,
 	);
@@ -243,8 +286,9 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 		mutationFn: async ({
 			prompt,
 			templateVersionId,
+			presetId,
 		}: CreateTaskMutationFnProps) =>
-			data.createTask(prompt, user.id, templateVersionId),
+			data.createTask(prompt, user.id, templateVersionId, presetId),
 		onSuccess: async (task) => {
 			await queryClient.invalidateQueries({
 				queryKey: ["tasks"],
@@ -258,13 +302,13 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 
 		const form = e.currentTarget;
 		const formData = new FormData(form);
-		const prompt = formData.get("prompt") as string;
-		const templateID = formData.get("templateID") as string;
+		const prompt = presetAIPrompt || (formData.get("prompt") as string);
 
 		try {
 			await createTaskMutation.mutateAsync({
 				prompt,
 				templateVersionId: selectedTemplate.active_version_id,
+				presetId: selectedPresetId,
 			});
 		} catch (error) {
 			const message = getErrorMessage(error, "Error creating task");
@@ -285,39 +329,113 @@ const TaskForm: FC<TaskFormProps> = ({ templates, onSuccess }) => {
 				className="border border-border border-solid rounded-lg p-4"
 				disabled={createTaskMutation.isPending}
 			>
-				<label htmlFor="prompt" className="sr-only">
-					Prompt
+				<label
+					htmlFor="prompt"
+					className={
+						isPromptReadOnly
+							? "text-xs font-medium text-content-primary mb-2 block"
+							: "sr-only"
+					}
+				>
+					{isPromptReadOnly ? "Prompt defined by preset" : "Prompt"}
 				</label>
 				<TextareaAutosize
 					required
 					id="prompt"
 					name="prompt"
+					value={presetAIPrompt || undefined}
+					readOnly={isPromptReadOnly}
 					placeholder={textareaPlaceholder}
 					className={`border-0 resize-none w-full h-full bg-transparent rounded-lg outline-none flex min-h-[60px]
-						text-sm shadow-sm text-content-primary placeholder:text-content-secondary md:text-sm`}
+						text-sm shadow-sm text-content-primary placeholder:text-content-secondary md:text-sm ${
+							isPromptReadOnly ? "opacity-60 cursor-not-allowed" : ""
+						}`}
 				/>
 				<div className="flex items-center justify-between pt-2">
-					<Select
-						name="templateID"
-						onValueChange={(value) => setSelectedTemplateId(value)}
-						defaultValue={templates[0].id}
-						required
-					>
-						<SelectTrigger className="w-52 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3">
-							<SelectValue placeholder="Select a template" />
-						</SelectTrigger>
-						<SelectContent>
-							{templates.map((template) => {
-								return (
-									<SelectItem value={template.id} key={template.id}>
-										<span className="overflow-hidden text-ellipsis block">
-											{template.display_name || template.name}
-										</span>
-									</SelectItem>
-								);
-							})}
-						</SelectContent>
-					</Select>
+					<div className="flex items-center gap-4">
+						<div className="flex flex-col gap-1">
+							<label
+								htmlFor="templateID"
+								className="text-xs font-medium text-content-primary"
+							>
+								Template
+							</label>
+							<Select
+								name="templateID"
+								onValueChange={(value) => setSelectedTemplateId(value)}
+								defaultValue={templates[0].id}
+								required
+							>
+								<SelectTrigger
+									id="templateID"
+									className="w-80 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3"
+								>
+									<SelectValue placeholder="Select a template" />
+								</SelectTrigger>
+								<SelectContent>
+									{templates.map((template) => {
+										return (
+											<SelectItem value={template.id} key={template.id}>
+												<span className="overflow-hidden text-ellipsis block">
+													{template.display_name || template.name}
+												</span>
+											</SelectItem>
+										);
+									})}
+								</SelectContent>
+							</Select>
+						</div>
+
+						<div className="flex flex-col gap-1">
+							<label
+								htmlFor="presetID"
+								className="text-xs font-medium text-content-primary"
+							>
+								Preset
+							</label>
+							{isLoadingPresets ? (
+								<Skeleton variant="rounded" width={320} height={32} />
+							) : (
+								<Select
+									key={`preset-select-${selectedTemplate.active_version_id}`}
+									name="presetID"
+									value={selectedPresetId || undefined}
+									onValueChange={(value) => setSelectedPresetId(value || null)}
+									disabled={!presetsData || presetsData.length === 0}
+								>
+									<SelectTrigger
+										id="presetID"
+										className="w-80 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3"
+									>
+										<SelectValue
+											placeholder={
+												!presetsData || presetsData.length === 0
+													? "None"
+													: "Select a preset"
+											}
+										/>
+									</SelectTrigger>
+									<SelectContent>
+										{presetsData && presetsData.length > 0 ? (
+											sortedPresets(presetsData).map((preset) => (
+												<SelectItem value={preset.ID} key={preset.ID}>
+													<span className="overflow-hidden text-ellipsis block">
+														{preset.Name} {preset.Default && "(Default)"}
+													</span>
+												</SelectItem>
+											))
+										) : (
+											<SelectItem value="none" disabled>
+												<span className="overflow-hidden text-ellipsis block">
+													No presets available
+												</span>
+											</SelectItem>
+										)}
+									</SelectContent>
+								</Select>
+							)}
+						</div>
+					</div>
 
 					<div className="flex items-center gap-2">
 						{missedExternalAuth && (
@@ -608,13 +726,22 @@ export const data = {
 		prompt: string,
 		userId: string,
 		templateVersionId: string,
+		presetId: string | null = null,
 	): Promise<Task> {
-		const presets = await API.getTemplateVersionPresets(templateVersionId);
-		const defaultPreset = presets?.find((p) => p.Default);
+		// If no preset is selected, get the default preset
+		let preset_id = presetId;
+		if (!preset_id) {
+			const presets = await API.getTemplateVersionPresets(templateVersionId);
+			const defaultPreset = presets?.find((p) => p.Default);
+			if (defaultPreset) {
+				preset_id = defaultPreset.ID;
+			}
+		}
+
 		const workspace = await API.createWorkspace(userId, {
 			name: `task-${generateWorkspaceName()}`,
 			template_version_id: templateVersionId,
-			template_version_preset_id: defaultPreset?.ID,
+			template_version_preset_id: preset_id || undefined,
 			rich_parameter_values: [
 				{ name: AI_PROMPT_PARAMETER_NAME, value: prompt },
 			],
@@ -625,6 +752,18 @@ export const data = {
 			prompt,
 		};
 	},
+};
+
+// sortedPresets sorts presets with the default preset first,
+// followed by the rest sorted alphabetically by name ascending.
+const sortedPresets = (presets: Preset[]): Preset[] => {
+	return presets.sort((a, b) => {
+		// Default preset should come first
+		if (a.Default && !b.Default) return -1;
+		if (!a.Default && b.Default) return 1;
+		// Otherwise, sort alphabetically by name
+		return a.Name.localeCompare(b.Name);
+	});
 };
 
 export default TasksPage;

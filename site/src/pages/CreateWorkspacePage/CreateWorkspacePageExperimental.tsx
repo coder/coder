@@ -79,7 +79,10 @@ const CreateWorkspacePageExperimental: FC = () => {
 	});
 	const permissionsQuery = useQuery({
 		...checkAuthorization({
-			checks: createWorkspaceChecks(templateQuery.data?.organization_id ?? ""),
+			checks: createWorkspaceChecks(
+				templateQuery.data?.organization_id ?? "",
+				templateQuery.data?.id,
+			),
 		}),
 		enabled: !!templateQuery.data,
 	});
@@ -292,6 +295,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 					owner={owner}
 					setOwner={setOwner}
 					autofillParameters={autofillParameters}
+					canUpdateTemplate={permissionsQuery.data?.canUpdateTemplate}
 					error={
 						wsError ||
 						createWorkspaceMutation.error ||

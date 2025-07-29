@@ -196,6 +196,7 @@ func AllAppSharingLevelValues() []AppSharingLevel {
 	}
 }
 
+// NOTE: `connect`, `disconnect`, `open`, and `close` are deprecated and no longer used - these events are now tracked in the connection_logs table.
 type AuditAction string
 
 const (
@@ -348,12 +349,17 @@ func AllAutomaticUpdatesValues() []AutomaticUpdates {
 type BuildReason string
 
 const (
-	BuildReasonInitiator  BuildReason = "initiator"
-	BuildReasonAutostart  BuildReason = "autostart"
-	BuildReasonAutostop   BuildReason = "autostop"
-	BuildReasonDormancy   BuildReason = "dormancy"
-	BuildReasonFailedstop BuildReason = "failedstop"
-	BuildReasonAutodelete BuildReason = "autodelete"
+	BuildReasonInitiator           BuildReason = "initiator"
+	BuildReasonAutostart           BuildReason = "autostart"
+	BuildReasonAutostop            BuildReason = "autostop"
+	BuildReasonDormancy            BuildReason = "dormancy"
+	BuildReasonFailedstop          BuildReason = "failedstop"
+	BuildReasonAutodelete          BuildReason = "autodelete"
+	BuildReasonDashboard           BuildReason = "dashboard"
+	BuildReasonCli                 BuildReason = "cli"
+	BuildReasonSshConnection       BuildReason = "ssh_connection"
+	BuildReasonVscodeConnection    BuildReason = "vscode_connection"
+	BuildReasonJetbrainsConnection BuildReason = "jetbrains_connection"
 )
 
 func (e *BuildReason) Scan(src interface{}) error {
@@ -398,7 +404,12 @@ func (e BuildReason) Valid() bool {
 		BuildReasonAutostop,
 		BuildReasonDormancy,
 		BuildReasonFailedstop,
-		BuildReasonAutodelete:
+		BuildReasonAutodelete,
+		BuildReasonDashboard,
+		BuildReasonCli,
+		BuildReasonSshConnection,
+		BuildReasonVscodeConnection,
+		BuildReasonJetbrainsConnection:
 		return true
 	}
 	return false
@@ -412,6 +423,139 @@ func AllBuildReasonValues() []BuildReason {
 		BuildReasonDormancy,
 		BuildReasonFailedstop,
 		BuildReasonAutodelete,
+		BuildReasonDashboard,
+		BuildReasonCli,
+		BuildReasonSshConnection,
+		BuildReasonVscodeConnection,
+		BuildReasonJetbrainsConnection,
+	}
+}
+
+type ConnectionStatus string
+
+const (
+	ConnectionStatusConnected    ConnectionStatus = "connected"
+	ConnectionStatusDisconnected ConnectionStatus = "disconnected"
+)
+
+func (e *ConnectionStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ConnectionStatus(s)
+	case string:
+		*e = ConnectionStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ConnectionStatus: %T", src)
+	}
+	return nil
+}
+
+type NullConnectionStatus struct {
+	ConnectionStatus ConnectionStatus `json:"connection_status"`
+	Valid            bool             `json:"valid"` // Valid is true if ConnectionStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullConnectionStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ConnectionStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ConnectionStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullConnectionStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ConnectionStatus), nil
+}
+
+func (e ConnectionStatus) Valid() bool {
+	switch e {
+	case ConnectionStatusConnected,
+		ConnectionStatusDisconnected:
+		return true
+	}
+	return false
+}
+
+func AllConnectionStatusValues() []ConnectionStatus {
+	return []ConnectionStatus{
+		ConnectionStatusConnected,
+		ConnectionStatusDisconnected,
+	}
+}
+
+type ConnectionType string
+
+const (
+	ConnectionTypeSsh             ConnectionType = "ssh"
+	ConnectionTypeVscode          ConnectionType = "vscode"
+	ConnectionTypeJetbrains       ConnectionType = "jetbrains"
+	ConnectionTypeReconnectingPty ConnectionType = "reconnecting_pty"
+	ConnectionTypeWorkspaceApp    ConnectionType = "workspace_app"
+	ConnectionTypePortForwarding  ConnectionType = "port_forwarding"
+)
+
+func (e *ConnectionType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ConnectionType(s)
+	case string:
+		*e = ConnectionType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ConnectionType: %T", src)
+	}
+	return nil
+}
+
+type NullConnectionType struct {
+	ConnectionType ConnectionType `json:"connection_type"`
+	Valid          bool           `json:"valid"` // Valid is true if ConnectionType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullConnectionType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ConnectionType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ConnectionType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullConnectionType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ConnectionType), nil
+}
+
+func (e ConnectionType) Valid() bool {
+	switch e {
+	case ConnectionTypeSsh,
+		ConnectionTypeVscode,
+		ConnectionTypeJetbrains,
+		ConnectionTypeReconnectingPty,
+		ConnectionTypeWorkspaceApp,
+		ConnectionTypePortForwarding:
+		return true
+	}
+	return false
+}
+
+func AllConnectionTypeValues() []ConnectionType {
+	return []ConnectionType{
+		ConnectionTypeSsh,
+		ConnectionTypeVscode,
+		ConnectionTypeJetbrains,
+		ConnectionTypeReconnectingPty,
+		ConnectionTypeWorkspaceApp,
+		ConnectionTypePortForwarding,
 	}
 }
 
@@ -2784,6 +2928,32 @@ type AuditLog struct {
 	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
+type ConnectionLog struct {
+	ID               uuid.UUID      `db:"id" json:"id"`
+	ConnectTime      time.Time      `db:"connect_time" json:"connect_time"`
+	OrganizationID   uuid.UUID      `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID uuid.UUID      `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    string         `db:"workspace_name" json:"workspace_name"`
+	AgentName        string         `db:"agent_name" json:"agent_name"`
+	Type             ConnectionType `db:"type" json:"type"`
+	Ip               pqtype.Inet    `db:"ip" json:"ip"`
+	// Either the HTTP status code of the web request, or the exit code of an SSH connection. For non-web connections, this is Null until we receive a disconnect event for the same connection_id.
+	Code sql.NullInt32 `db:"code" json:"code"`
+	// Null for SSH events. For web connections, this is the User-Agent header from the request.
+	UserAgent sql.NullString `db:"user_agent" json:"user_agent"`
+	// Null for SSH events. For web connections, this is the ID of the user that made the request.
+	UserID uuid.NullUUID `db:"user_id" json:"user_id"`
+	// Null for SSH events. For web connections, this is the slug of the app or the port number being forwarded.
+	SlugOrPort sql.NullString `db:"slug_or_port" json:"slug_or_port"`
+	// The SSH connection ID. Used to correlate connections and disconnections. As it originates from the agent, it is not guaranteed to be unique.
+	ConnectionID uuid.NullUUID `db:"connection_id" json:"connection_id"`
+	// The time the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.
+	DisconnectTime sql.NullTime `db:"disconnect_time" json:"disconnect_time"`
+	// The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.
+	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
+}
+
 type CryptoKey struct {
 	Feature     CryptoKeyFeature `db:"feature" json:"feature"`
 	Sequence    int32            `db:"sequence" json:"sequence"`
@@ -3451,6 +3621,10 @@ type TemplateVersionPreset struct {
 	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
 	SchedulingTimezone  string         `db:"scheduling_timezone" json:"scheduling_timezone"`
 	IsDefault           bool           `db:"is_default" json:"is_default"`
+	// Short text describing the preset (max 128 characters).
+	Description string `db:"description" json:"description"`
+	// URL or path to an icon representing the preset (max 256 characters).
+	Icon string `db:"icon" json:"icon"`
 }
 
 type TemplateVersionPresetParameter struct {
