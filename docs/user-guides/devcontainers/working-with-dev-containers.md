@@ -9,49 +9,64 @@ This page assumes you have a template with the [dev containers integration](./in
 
 ## SSH Access
 
-You can SSH into your dev container directly using the Coder CLI:
+You can connect directly to your dev container.
 
-```console
-coder ssh --container keen_dijkstra my-workspace
+1. Run `coder config-ssh` to configure your SSH local client:
+
+   ```bash
+    coder config-ssh
+    ```
+
+1. SSH to your workspace:
+
+    ```bash
+    ssh <agent>.<workspace-name>.me.coder
+    ```
+
+   Example:
+
+    ```bash
+    ssh devcontainer.myworkspace.me.coder
+    ```
+
+### Coder CLI
+
+```bash
+coder ssh <workspace-name>
 ```
 
-> [!NOTE]
->
-> SSH access is not yet compatible with the `coder config-ssh` command for use
-> with OpenSSH. You would need to manually modify your SSH config to include the
-> `--container` flag in the `ProxyCommand`.
+Coder CLI connects to your dev container based on your workspace configuration.
 
-## Web Terminal Access
+### Web Terminal Access
 
-Once your workspace and dev container are running, you can use the web terminal
-in the Coder interface to execute commands directly inside the dev container.
+Once your workspace and dev container are running, you can use the **Terminal**
+in the Coder workspace to execute commands directly inside the dev container.
 
 ![Coder web terminal with dev container](../../images/user-guides/devcontainers/devcontainer-web-terminal.png)
 
 ## IDE Integration (VS Code)
 
-You can open your dev container directly in VS Code by:
+To open your dev container directly in VS Code, select "Open in VS Code Desktop" from the Coder dashboard.
 
-1. Selecting "Open in VS Code Desktop" from the Coder web interface
-2. Using the Coder CLI with the container flag:
+Alternatively, you can use the CLI:
 
-```console
-coder open vscode --container keen_dijkstra my-workspace
+```bash
+coder open vscode <workspace-name>
 ```
 
-While optimized for VS Code, other IDEs with dev containers support may also
-work.
+Coder CLI connects to your dev container based on your workspace configuration.
 
 ## Port Forwarding
 
-During the early access phase, port forwarding is limited to ports defined via
-[`appPort`](https://containers.dev/implementors/json_reference/#image-specific)
-in your `devcontainer.json` file.
+Coder supports port forwarding for dev containers through the following mechanisms:
 
-> [!NOTE]
->
-> Support for automatic port forwarding via the `forwardPorts` property in
-> `devcontainer.json` is planned for a future release.
+1. **Defined Ports**: Ports defined in your `devcontainer.json` file via the [`appPort`](https://containers.dev/implementors/json_reference/#image-specific) property.
+
+1. **Dynamic Ports**: For ports not defined in your `devcontainer.json`, you can use the Coder CLI to forward them:
+
+   ```bash
+   coder port-forward <workspace-name> --tcp <local-port>:<container-port>
+   ```
 
 For example, with this `devcontainer.json` configuration:
 
@@ -61,25 +76,25 @@ For example, with this `devcontainer.json` configuration:
 }
 ```
 
-You can forward these ports to your local machine using:
+You can access these ports directly through your browser via the Coder dashboard, or forward them to your local machine:
 
-```console
-coder port-forward my-workspace --tcp 8080,4000
+```bash
+coder port-forward <workspace-name> --tcp 8080,4000
 ```
 
-This forwards port 8080 (local) -> 8080 (agent) -> 8080 (dev container) and port
-4000 (local) -> 4000 (agent) -> 3000 (dev container).
+This forwards port 8080 (local) → 8080 (container) and port 4000 (local) → 3000 (container).
 
 ## Dev Container Features
 
-You can use standard dev container features in your `devcontainer.json` file.
-Coder also maintains a
-[repository of features](https://github.com/coder/devcontainer-features) to
-enhance your development experience.
+Dev container features allow you to enhance your development environment with pre-configured tooling.
 
-Currently available features include [code-server](https://github.com/coder/devcontainer-features/blob/main/src/code-server).
+Coder supports the standard [dev container features specification](https://containers.dev/implementors/features/), allowing you to use any compatible features in your `devcontainer.json` file.
 
-To use the code-server feature, add the following to your `devcontainer.json`:
+### Example: Add code-server
+
+Coder maintains a [repository of features](https://github.com/coder/devcontainer-features) designed specifically for Coder environments.
+
+To add code-server (VS Code in the browser), add this to your `devcontainer.json`:
 
 ```json
 {
@@ -93,7 +108,30 @@ To use the code-server feature, add the following to your `devcontainer.json`:
 }
 ```
 
-> [!NOTE]
->
-> Remember to include the port in the `appPort` section to ensure proper port
-> forwarding.
+After rebuilding your container, code-server will be available on the configured port.
+
+### Using Multiple Features
+
+You can combine multiple features in a single `devcontainer.json`:
+
+```json
+{
+    "features": {
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+        "ghcr.io/devcontainers/features/python:1": {
+            "version": "3.10"
+        },
+        "ghcr.io/coder/devcontainer-features/code-server:1": {
+            "port": 13337
+        }
+    }
+}
+```
+
+## Rebuilding Dev Containers
+
+When you make changes to your `devcontainer.json` file, you need to rebuild the container for those changes to take effect.
+
+From the Coder dashboard, click the rebuild button on the dev container to apply your changes.
+
+You can also restart your workspace, which will rebuild containers when it restarts.
