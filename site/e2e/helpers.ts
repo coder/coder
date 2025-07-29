@@ -257,7 +257,7 @@ export const createTemplate = async (
 
 		// Wait for the file upload to complete by checking that the uploaded file appears
 		// The drop-zone is replaced with a file display when upload completes
-		await page.waitForSelector("text=template.tar", {
+		await page.locator("span").filter({ hasText: "template.tar" }).waitFor({
 			state: "visible",
 			timeout: 10000,
 		});
