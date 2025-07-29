@@ -357,7 +357,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						value={form.values.cors_behavior}
 						label="CORS Behavior"
 					>
-						<MenuItem value="simple">Simple</MenuItem>
+						<MenuItem value="simple">Simple (recommended)</MenuItem>
 						<MenuItem value="passthru">Passthru</MenuItem>
 					</TextField>
 				</FormFields>
