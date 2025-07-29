@@ -291,7 +291,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							default = "1"
 						}
 						data "coder_parameter" "b" {
-                            name = "b"
+							name = "b"
 							type = string
 							default = "2"
 						}
@@ -313,7 +313,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							default = "1"
 						}
 						data "coder_parameter" "b" {
-                            name = "b"
+							name = "b"
 							type = string
 							default = "2"
 						}
@@ -338,7 +338,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							default = "1"
 						}
 						data "coder_parameter" "b" {
-                            name = "b"
+							name = "b"
 							type = string
 							default = "2"
 						}
@@ -369,7 +369,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							default = "1"
 						}
 						data "coder_parameter" "b" {
-                            name = "b"
+							name = "b"
 							type = string
 							default = "2"
 						}
@@ -400,7 +400,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							default = "1"
 						}
 						data "coder_parameter" "b" {
-                            name = "b"
+							name = "b"
 							type = string
 							default = "2"
 						}
@@ -448,7 +448,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							default = "1"
 						}
 						data "coder_parameter" "b" {
-                            name = "b"
+							name = "b"
 							type = string
 							default = "2"
 						}
