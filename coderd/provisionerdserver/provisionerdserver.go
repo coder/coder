@@ -937,7 +937,7 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 			// Check if we would overflow the job logs (not leaving enough room for the error message)
 			willOverflow := int64(job.LogsLength)+int64(newLogSize)+int64(lenErrMsg)+int64(len(output)) > 1048576
 			if willOverflow {
-				s.Logger.Debug(ctx, "provisioner job logs overflowed 1MB size limit in database.", slog.F("job_id", parsedID))
+				s.Logger.Debug(ctx, "provisioner job logs overflowed 1MB size limit in database", slog.F("job_id", parsedID))
 				err = s.Database.UpdateProvisionerJobLogsOverflowed(ctx, database.UpdateProvisionerJobLogsOverflowedParams{
 					ID:             parsedID,
 					LogsOverflowed: true,
