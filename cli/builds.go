@@ -53,6 +53,7 @@ func (r *RootCmd) builds() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
+	}
 }
 
 func (r *RootCmd) buildsList() *serpent.Command {
