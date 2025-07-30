@@ -43,8 +43,8 @@ func WorkspaceConverter() *sqltypes.VariableConverter {
 		userOwnerMatcher(),
 	)
 	matcher.RegisterMatcher(
-		groupACLMatcher(matcher).UsingSubfield("permissions"),
-		userACLMatcher(matcher).UsingSubfield("permissions"),
+		ACLMappingMatcher(matcher, "workspaces.group_acl", []string{"input", "object", "acl_group_list"}).UsingSubfield("permissions"),
+		ACLMappingMatcher(matcher, "workspaces.user_acl", []string{"input", "object", "acl_user_list"}).UsingSubfield("permissions"),
 	)
 
 	return matcher

@@ -107,7 +107,10 @@ func (g ACLMappingVar) ConvertVariable(rego ast.Ref) (sqltypes.Node, bool) {
 
 func (g ACLMappingVar) SQLString(cfg *sqltypes.SQLGenerator) string {
 	if g.Subfield != "" {
-		return fmt.Sprintf("%s->%s->%s", g.SelectSQL, g.GroupNode.SQLString(cfg), g.Subfield)
+		// We can't use subsequent -> operators because the first one might return
+		// NULL, which would result in an error like "column does not exist"' from
+		// the second.
+		return fmt.Sprintf("%s#>array[%s, '%s']", g.SelectSQL, g.GroupNode.SQLString(cfg), g.Subfield)
 	}
 	return fmt.Sprintf("%s->%s", g.SelectSQL, g.GroupNode.SQLString(cfg))
 }
