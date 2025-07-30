@@ -25,8 +25,6 @@ import (
 func TestReconcileAll(t *testing.T) {
 	t.Parallel()
 
-	// nolint:gocritic // Reconciliation happens as prebuilds system user, not a human user.
-	ctx := dbauthz.AsPrebuildsOrchestrator(testutil.Context(t, testutil.WaitLong))
 	clock := quartz.NewMock(t)
 
 	// Helper to build a minimal Preset row belonging to a given org.
@@ -82,6 +80,8 @@ func TestReconcileAll(t *testing.T) {
 						t.Run(tc.name, func(t *testing.T) {
 							t.Parallel()
 
+							// nolint:gocritic // Reconciliation happens as prebuilds system user, not a human user.
+							ctx := dbauthz.AsPrebuildsOrchestrator(testutil.Context(t, testutil.WaitLong))
 							_, db := coderdtest.NewWithDatabase(t, nil)
 
 							defaultOrg, err := db.GetDefaultOrganization(ctx)
