@@ -252,6 +252,11 @@
 							"path": "./user-guides/workspace-access/web-ides.md"
 						},
 						{
+							"title": "code-server",
+							"description": "Access your workspace with code-server",
+							"path": "./user-guides/workspace-access/code-server.md"
+						},
+						{
 							"title": "Zed",
 							"description": "Access your workspace with Zed",
 							"path": "./user-guides/workspace-access/zed.md"
