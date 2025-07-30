@@ -3827,16 +3827,12 @@ func TestDevcontainerPrebuildSupport(t *testing.T) {
 	}
 
 	var (
-		ctx        = testutil.Context(t, testutil.WaitShort)
-		logger     = testutil.Logger(t)
-		mClock     = quartz.NewMock(t)
-		tickerTrap = mClock.Trap().TickerFunc("updaterLoop")
+		ctx    = testutil.Context(t, testutil.WaitShort)
+		logger = testutil.Logger(t)
 
-		mCtrl  = gomock.NewController(t)
-		mCCLI  = acmock.NewMockContainerCLI(mCtrl)
-		mDCCLI = acmock.NewMockDevcontainerCLI(mCtrl)
-
-		fSAC = &fakeSubAgentClient{}
+		fDCCLI = &fakeDevcontainerCLI{readConfigErrC: make(chan func(envs []string) error, 1)}
+		fCCLI  = &fakeContainerCLI{arch: runtime.GOARCH}
+		fSAC   = &fakeSubAgentClient{}
 
 		testDC = codersdk.WorkspaceAgentDevcontainer{
 			ID:              uuid.New(),
@@ -3855,17 +3851,12 @@ func TestDevcontainerPrebuildSupport(t *testing.T) {
 		userAppURL    = "user.zed"
 	)
 
-	coderBin, err := os.Executable()
-	require.NoError(t, err)
-
 	// ==================================================
 	// PHASE 1: Prebuild workspace creates devcontainer
 	// ==================================================
 
 	// Given: There are no containers initially.
-	mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
-		Containers: []codersdk.WorkspaceAgentContainer{},
-	}, nil)
+	fCCLI.containers = codersdk.WorkspaceAgentListContainersResponse{}
 
 	api := agentcontainers.NewAPI(logger,
 		// We want this first `agentcontainers.API` to have a manifest info
@@ -3877,71 +3868,42 @@ func TestDevcontainerPrebuildSupport(t *testing.T) {
 			[]codersdk.WorkspaceAgentScript{{ID: testDC.ID, LogSourceID: uuid.New()}},
 		),
 		agentcontainers.WithSubAgentClient(fSAC),
-		agentcontainers.WithContainerCLI(mCCLI),
-		agentcontainers.WithDevcontainerCLI(mDCCLI),
-		agentcontainers.WithClock(mClock),
+		agentcontainers.WithContainerCLI(fCCLI),
+		agentcontainers.WithDevcontainerCLI(fDCCLI),
 		agentcontainers.WithWatcher(watcher.NewNoop()),
 	)
 	api.Start()
 
-	tickerTrap.MustWait(ctx).MustRelease(ctx)
-	tickerTrap.Close()
+	fCCLI.containers = codersdk.WorkspaceAgentListContainersResponse{
+		Containers: []codersdk.WorkspaceAgentContainer{testContainer},
+	}
 
 	// Given: We allow the dev container to be created.
-	mDCCLI.EXPECT().Up(gomock.Any(), testDC.WorkspaceFolder, testDC.ConfigPath, gomock.Any()).
-		Return("test-container-id", nil)
-
-	mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
-		Containers: []codersdk.WorkspaceAgentContainer{testContainer},
-	}, nil)
-
-	gomock.InOrder(
-		mCCLI.EXPECT().DetectArchitecture(gomock.Any(), "test-container-id").Return(runtime.GOARCH, nil),
-
-		// Verify prebuild environment variables are passed to devcontainer
-		mDCCLI.EXPECT().ReadConfig(gomock.Any(),
-			testDC.WorkspaceFolder,
-			testDC.ConfigPath,
-			gomock.Cond(func(envs []string) bool {
-				return slices.Contains(envs, "CODER_WORKSPACE_OWNER_NAME="+prebuildOwner) &&
-					slices.Contains(envs, "CODER_WORKSPACE_NAME="+prebuildWorkspace)
-			}),
-		).Return(agentcontainers.DevcontainerConfig{
-			MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
-				Customizations: agentcontainers.DevcontainerMergedCustomizations{
-					Coder: []agentcontainers.CoderCustomization{
-						{
-							Apps: []agentcontainers.SubAgentApp{
-								{
-									Slug: "zed",
-									URL:  prebuildAppURL,
-								},
-							},
-						},
+	fDCCLI.upID = testContainer.ID
+	fDCCLI.readConfig = agentcontainers.DevcontainerConfig{
+		MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
+			Customizations: agentcontainers.DevcontainerMergedCustomizations{
+				Coder: []agentcontainers.CoderCustomization{{
+					Apps: []agentcontainers.SubAgentApp{
+						{Slug: "zed", URL: prebuildAppURL},
 					},
-				},
+				}},
 			},
-		}, nil),
+		},
+	}
 
-		mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
-		mCCLI.EXPECT().Copy(gomock.Any(), testContainer.ID, coderBin, "/.coder-agent/coder").Return(nil),
-		mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
-		mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "/bin/sh", "-c", "chown $(id -u):$(id -g) /.coder-agent/coder").Return(nil, nil),
-
-		// We want to mock how the `Exec` function works when starting an agent. This should
-		// run until the given `ctx` is done.
-		mDCCLI.EXPECT().Exec(gomock.Any(),
-			testDC.WorkspaceFolder, testDC.ConfigPath,
-			"/.coder-agent/coder", []string{"agent"}, gomock.Any(), gomock.Any(),
-		).Do(func(ctx context.Context, _, _, _ string, _ []string, _ ...agentcontainers.DevcontainerCLIExecOptions) error {
-			<-ctx.Done()
-			return nil
-		}),
-	)
+	var readConfigEnvVars []string
+	testutil.RequireSend(ctx, t, fDCCLI.readConfigErrC, func(env []string) error {
+		readConfigEnvVars = env
+		return nil
+	})
 
 	// When: We create the dev container resource
-	err = api.CreateDevcontainer(testDC.WorkspaceFolder, testDC.ConfigPath)
+	err := api.CreateDevcontainer(testDC.WorkspaceFolder, testDC.ConfigPath)
 	require.NoError(t, err)
+
+	require.Contains(t, readConfigEnvVars, "CODER_WORKSPACE_OWNER_NAME="+prebuildOwner)
+	require.Contains(t, readConfigEnvVars, "CODER_WORKSPACE_NAME="+prebuildWorkspace)
 
 	// Then: We there to be only 1 agent.
 	require.Len(t, fSAC.agents, 1)
@@ -3968,14 +3930,6 @@ func TestDevcontainerPrebuildSupport(t *testing.T) {
 	// PHASE 2: User claims workspace, devcontainer should be reused
 	// =============================================================
 
-	// Given: We have a running container.
-	mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
-		Containers: []codersdk.WorkspaceAgentContainer{testContainer},
-	}, nil)
-
-	mClock = quartz.NewMock(t)
-	tickerTrap = mClock.Trap().TickerFunc("updaterLoop")
-
 	// Given: We create a new claimed API
 	api = agentcontainers.NewAPI(logger,
 		// We want this second `agentcontainers.API` to have a manifest info
@@ -3987,74 +3941,45 @@ func TestDevcontainerPrebuildSupport(t *testing.T) {
 			[]codersdk.WorkspaceAgentScript{{ID: testDC.ID, LogSourceID: uuid.New()}},
 		),
 		agentcontainers.WithSubAgentClient(fSAC),
-		agentcontainers.WithContainerCLI(mCCLI),
-		agentcontainers.WithDevcontainerCLI(mDCCLI),
-		agentcontainers.WithClock(mClock),
+		agentcontainers.WithContainerCLI(fCCLI),
+		agentcontainers.WithDevcontainerCLI(fDCCLI),
 		agentcontainers.WithWatcher(watcher.NewNoop()),
 	)
 	api.Start()
-	defer api.Close()
+	defer func() {
+		close(fDCCLI.readConfigErrC)
 
-	tickerTrap.MustWait(ctx).MustRelease(ctx)
-	tickerTrap.Close()
+		api.Close()
+	}()
 
 	// Given: We allow the dev container to be created.
-	mDCCLI.EXPECT().Up(gomock.Any(), testDC.WorkspaceFolder, testDC.ConfigPath, gomock.Any()).
-		Return("test-container-id", nil)
-
-	mCCLI.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{
-		Containers: []codersdk.WorkspaceAgentContainer{testContainer},
-	}, nil)
-
-	gomock.InOrder(
-		mCCLI.EXPECT().DetectArchitecture(gomock.Any(), "test-container-id").Return(runtime.GOARCH, nil),
-
-		// Verify claimed workspace environment variables are passed to devcontainer
-		mDCCLI.EXPECT().ReadConfig(gomock.Any(),
-			testDC.WorkspaceFolder,
-			testDC.ConfigPath,
-			gomock.Cond(func(envs []string) bool {
-				return slices.Contains(envs, "CODER_WORKSPACE_OWNER_NAME="+userOwner) &&
-					slices.Contains(envs, "CODER_WORKSPACE_NAME="+userWorkspace)
-			}),
-		).Return(agentcontainers.DevcontainerConfig{
-			MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
-				Customizations: agentcontainers.DevcontainerMergedCustomizations{
-					Coder: []agentcontainers.CoderCustomization{
-						{
-							Apps: []agentcontainers.SubAgentApp{
-								{
-									Slug: "zed",
-									URL:  userAppURL,
-								},
-							},
-						},
+	fDCCLI.upID = testContainer.ID
+	fDCCLI.readConfig = agentcontainers.DevcontainerConfig{
+		MergedConfiguration: agentcontainers.DevcontainerMergedConfiguration{
+			Customizations: agentcontainers.DevcontainerMergedCustomizations{
+				Coder: []agentcontainers.CoderCustomization{{
+					Apps: []agentcontainers.SubAgentApp{
+						{Slug: "zed", URL: userAppURL},
 					},
-				},
+				}},
 			},
-		}, nil),
+		},
+	}
 
-		mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "mkdir", "-p", "/.coder-agent").Return(nil, nil),
-		mCCLI.EXPECT().Copy(gomock.Any(), testContainer.ID, coderBin, "/.coder-agent/coder").Return(nil),
-		mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "chmod", "0755", "/.coder-agent", "/.coder-agent/coder").Return(nil, nil),
-		mCCLI.EXPECT().ExecAs(gomock.Any(), testContainer.ID, "root", "/bin/sh", "-c", "chown $(id -u):$(id -g) /.coder-agent/coder").Return(nil, nil),
-
-		// We want to mock how the `Exec` function works when starting an agent. This should
-		// run until the given `ctx` is done.
-		mDCCLI.EXPECT().Exec(gomock.Any(),
-			testDC.WorkspaceFolder, testDC.ConfigPath,
-			"/.coder-agent/coder", []string{"agent"}, gomock.Any(), gomock.Any(),
-		).Do(func(ctx context.Context, _, _, _ string, _ []string, _ ...agentcontainers.DevcontainerCLIExecOptions) error {
-			<-ctx.Done()
-			return nil
-		}),
-	)
+	testutil.RequireSend(ctx, t, fDCCLI.readConfigErrC, func(env []string) error {
+		readConfigEnvVars = env
+		return nil
+	})
 
 	// When: We create the dev container resource.
 	err = api.CreateDevcontainer(testDC.WorkspaceFolder, testDC.ConfigPath)
 	require.NoError(t, err)
 
-	// Then: We expect there to be only 1 agent.
+	// Then: We expect the environment variables were passed correctly.
+	require.Contains(t, readConfigEnvVars, "CODER_WORKSPACE_OWNER_NAME="+userOwner)
+	require.Contains(t, readConfigEnvVars, "CODER_WORKSPACE_NAME="+userWorkspace)
+
+	// And: We expect there to be only 1 agent.
 	require.Len(t, fSAC.agents, 1)
 
 	// And: We expect _a separate agent_ to have been created.
