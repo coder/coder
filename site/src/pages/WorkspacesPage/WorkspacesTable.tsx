@@ -81,7 +81,7 @@ import {
 	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { cn } from "utils/cn";
 import {
 	getDisplayWorkspaceTemplateName,

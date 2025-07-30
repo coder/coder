@@ -1,8 +1,8 @@
-import { action } from "@storybook/addon-actions";
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Avatar } from "components/Avatar/Avatar";
 import { useState } from "react";
+import { action } from "storybook/actions";
+import { expect, userEvent, within } from "storybook/test";
 import { withDesktopViewport } from "testHelpers/storybook";
 import {
 	SelectFilter,

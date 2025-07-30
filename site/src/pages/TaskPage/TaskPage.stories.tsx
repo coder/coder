@@ -1,11 +1,11 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, spyOn, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import type {
 	Workspace,
 	WorkspaceApp,
 	WorkspaceResource,
 } from "api/typesGenerated";
+import { expect, spyOn, within } from "storybook/test";
 import {
 	MockFailedWorkspace,
 	MockStartingWorkspace,

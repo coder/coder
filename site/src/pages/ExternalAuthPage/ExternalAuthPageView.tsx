@@ -12,7 +12,7 @@ import { ExternalLinkIcon } from "lucide-react";
 import { RotateCwIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 
-export interface ExternalAuthPageViewProps {
+interface ExternalAuthPageViewProps {
 	externalAuth: ExternalAuth;
 	viewExternalAuthConfig: boolean;
 

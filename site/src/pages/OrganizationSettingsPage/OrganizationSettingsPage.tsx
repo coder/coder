@@ -11,7 +11,7 @@ import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQueryClient } from "react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 

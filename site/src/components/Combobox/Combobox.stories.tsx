@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, screen, userEvent, waitFor, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { Combobox } from "./Combobox";
 
 const simpleOptions = ["Go", "Gleam", "Kotlin", "Rust"];
@@ -31,7 +31,9 @@ const advancedOptions = [
 
 const ComboboxWithHooks = ({
 	options = advancedOptions,
-}: { options?: React.ComponentProps<typeof Combobox>["options"] }) => {
+}: {
+	options?: React.ComponentProps<typeof Combobox>["options"];
+}) => {
 	const [value, setValue] = useState("");
 	const [open, setOpen] = useState(false);
 	const [inputValue, setInputValue] = useState("");

@@ -1,7 +1,7 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { deploymentConfigQueryKey } from "api/queries/deployment";
 import { agentLogsKey, buildLogsKey } from "api/queries/workspaces";
+import { expect, userEvent, within } from "storybook/test";
 import * as Mocks from "testHelpers/entities";
 import {
 	withAuthProvider,

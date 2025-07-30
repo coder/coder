@@ -1,4 +1,4 @@
-import type { StoryObj } from "@storybook/react";
+import type { StoryObj } from "@storybook/react-vite";
 import { HEALTH_QUERY_KEY } from "api/queries/debug";
 import type { HealthcheckReport } from "api/typesGenerated";
 import { MockHealth } from "testHelpers/entities";

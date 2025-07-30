@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { PaginationStatus, TableToolbar } from "./TableToolbar";
 
 const meta: Meta<typeof TableToolbar> = {

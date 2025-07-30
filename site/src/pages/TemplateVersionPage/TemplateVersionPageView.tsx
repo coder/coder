@@ -16,7 +16,7 @@ import { linkToTemplate, useLinks } from "modules/navigation";
 import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { createDayString } from "utils/createDayString";
 import type { TemplateVersionFiles } from "utils/templateVersion";
 

@@ -10,7 +10,7 @@ import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import {

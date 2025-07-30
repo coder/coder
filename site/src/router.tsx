@@ -7,7 +7,7 @@ import {
 	Route,
 	createBrowserRouter,
 	createRoutesFromChildren,
-} from "react-router-dom";
+} from "react-router";
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";

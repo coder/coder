@@ -1,5 +1,5 @@
 import TableContainer from "@mui/material/TableContainer";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Table, TableBody } from "components/Table/Table";
 import {
 	MockConnectedSSHConnectionLog,

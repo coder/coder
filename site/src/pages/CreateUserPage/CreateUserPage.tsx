@@ -5,7 +5,7 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";
 import { CreateUserForm } from "./CreateUserForm";
 

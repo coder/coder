@@ -3,7 +3,7 @@ import { Alert } from "components/Alert/Alert";
 import { Provisioner } from "modules/provisioners/Provisioner";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext } from "react-router";
 import { pageTitle } from "utils/page";
 import {
 	Header,
