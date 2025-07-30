@@ -30,7 +30,6 @@ message ManagerMessage {
 		NetworkSettingsResponse network_settings = 3;
 		StartRequest start = 4;
 		StopRequest stop = 5;
-		PortForwardRequest port_forward = 6;
 	}
 }
 
@@ -43,7 +42,6 @@ message TunnelMessage {
 		NetworkSettingsRequest network_settings = 4;
 		StartResponse start = 5;
 		StopResponse stop = 6;
-		PortForwardResponse port_forward = 7;
 	}
 }
 
@@ -216,6 +214,7 @@ message NetworkSettingsResponse {
 // StartResponse.
 message StartRequest {
 	int32 tunnel_file_descriptor = 1;
+	bool tunnel_use_soft_net_isolation = 8;
 	string coder_url = 2;
 	string api_token = 3;
 	// Additional HTTP headers added to all requests
@@ -291,33 +290,4 @@ message Status {
 	// should replace their current peer state. Only the Upserted fields will
 	// be populated.
 	PeerUpdate peer_update = 3;
-}
-
-message PortForwardConfig {
-  enum Protocol {
-    TCP = 0;
-    UDP = 1;
-  }
-	uint32 local_port = 1;
-	bytes agent_id = 2; // UUID
-	uint32 remote_port = 3;
-	Protocol protocol = 4;
-}
-
-message PortForwardRequest {
-	repeated PortForwardConfig configs = 1;
-}
-
-message PortForwardResponseConfig {
-  enum Status {
-    ACTIVE = 0;
-    ERRORED = 1;
-  }
-	PortForwardConfig config = 1;
-	Status status = 2;
-	string error_message = 3;
-}
-
-message PortForwardResponse {
-	repeated PortForwardResponseConfig configs = 1;
 }
