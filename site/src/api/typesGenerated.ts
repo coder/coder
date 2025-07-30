@@ -1997,6 +1997,9 @@ export interface Preset {
 	readonly Name: string;
 	readonly Parameters: readonly PresetParameter[];
 	readonly Default: boolean;
+	readonly DesiredPrebuildInstances: number | null;
+	readonly Description: string;
+	readonly Icon: string;
 }
 
 // From codersdk/presets.go
@@ -2699,9 +2702,6 @@ export interface SessionLifetime {
 	readonly max_token_lifetime?: number;
 	readonly max_admin_token_lifetime?: number;
 }
-
-// From codersdk/client.go
-export const SessionTokenCookie = "coder_session_token";
 
 // From codersdk/client.go
 export const SessionTokenHeader = "Coder-Session-Token";

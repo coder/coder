@@ -830,7 +830,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 						}
 						api.derpMesh.SetAddresses(addresses, false)
 					}
-					_ = api.updateEntitlements(ctx)
+					_ = api.updateEntitlements(api.ctx)
 				})
 			} else {
 				coordinator = agpltailnet.NewCoordinator(api.Logger)
@@ -840,7 +840,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				api.replicaManager.SetCallback(func() {
 					// If the amount of replicas change, so should our entitlements.
 					// This is to display a warning in the UI if the user is unlicensed.
-					_ = api.updateEntitlements(ctx)
+					_ = api.updateEntitlements(api.ctx)
 				})
 			}
 

@@ -1,4 +1,3 @@
-import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import {
 	Command,
@@ -23,6 +22,7 @@ import { Check, ChevronDown, CornerDownLeft } from "lucide-react";
 import { Info } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useState } from "react";
 import { cn } from "utils/cn";
+import { ExternalImage } from "../ExternalImage/ExternalImage";
 
 interface ComboboxProps {
 	value: string;
@@ -69,19 +69,18 @@ export const Combobox: FC<ComboboxProps> = ({
 
 	const isOpen = open ?? managedOpen;
 
+	const handleOpenChange = (newOpen: boolean) => {
+		setManagedOpen(newOpen);
+		onOpenChange?.(newOpen);
+	};
+
 	return (
-		<Popover
-			open={isOpen}
-			onOpenChange={(newOpen) => {
-				setManagedOpen(newOpen);
-				onOpenChange?.(newOpen);
-			}}
-		>
+		<Popover open={isOpen} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
 				<Button
 					variant="outline"
 					aria-expanded={isOpen}
-					className="w-72 justify-between group"
+					className="w-full justify-between group"
 				>
 					<span className={cn(!value && "text-content-secondary")}>
 						{optionsMap.get(value)?.displayName || value || placeholder}
@@ -89,7 +88,7 @@ export const Combobox: FC<ComboboxProps> = ({
 					<ChevronDown className="size-icon-sm text-content-secondary group-hover:text-content-primary" />
 				</Button>
 			</PopoverTrigger>
-			<PopoverContent className="w-72">
+			<PopoverContent className="w-[var(--radix-popover-trigger-width)]">
 				<Command>
 					<CommandInput
 						placeholder="Search or enter custom value"
@@ -116,15 +115,21 @@ export const Combobox: FC<ComboboxProps> = ({
 									keywords={[option.displayName]}
 									onSelect={(currentValue) => {
 										onSelect(currentValue === value ? "" : currentValue);
+										// Close the popover after selection
+										handleOpenChange(false);
 									}}
 								>
-									{showIcons && (
-										<Avatar
-											size="sm"
-											src={option.icon}
-											fallback={option.value}
-										/>
-									)}
+									{showIcons &&
+										(option.icon ? (
+											<ExternalImage
+												className="w-4 h-4 object-contain"
+												src={option.icon}
+												alt={option.displayName}
+											/>
+										) : (
+											/* Placeholder for missing icon to maintain layout consistency */
+											<div className="w-4 h-4"></div>
+										))}
 									{option.displayName}
 									<div className="flex flex-row items-center ml-auto gap-1">
 										{value === option.value && (
@@ -134,7 +139,12 @@ export const Combobox: FC<ComboboxProps> = ({
 											<TooltipProvider delayDuration={100}>
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<Info className="w-3.5 h-3.5 text-content-secondary" />
+														<span
+															className="flex"
+															onMouseEnter={(e) => e.stopPropagation()}
+														>
+															<Info className="w-3.5 h-3.5 text-content-secondary" />
+														</span>
 													</TooltipTrigger>
 													<TooltipContent side="right" sideOffset={10}>
 														{option.description}
