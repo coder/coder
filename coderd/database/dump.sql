@@ -73,6 +73,11 @@ CREATE TYPE connection_type AS ENUM (
     'port_forwarding'
 );
 
+CREATE TYPE cors_behavior AS ENUM (
+    'simple',
+    'passthru'
+);
+
 CREATE TYPE crypto_key_feature AS ENUM (
     'workspace_apps_token',
     'workspace_apps_api_key',
@@ -1757,7 +1762,8 @@ CREATE TABLE templates (
     deprecated text DEFAULT ''::text NOT NULL,
     activity_bump bigint DEFAULT '3600000000000'::bigint NOT NULL,
     max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
-    use_classic_parameter_flow boolean DEFAULT false NOT NULL
+    use_classic_parameter_flow boolean DEFAULT false NOT NULL,
+    cors_behavior cors_behavior DEFAULT 'simple'::cors_behavior NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -1810,6 +1816,7 @@ CREATE VIEW template_with_names AS
     templates.activity_bump,
     templates.max_port_sharing_level,
     templates.use_classic_parameter_flow,
+    templates.cors_behavior,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name,

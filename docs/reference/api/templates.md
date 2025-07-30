@@ -57,6 +57,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
         "p95": 146
       }
     },
+    "cors_behavior": "simple",
     "created_at": "2019-08-24T14:15:22Z",
     "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
     "created_by_name": "string",
@@ -113,6 +114,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`»» [any property]`|[codersdk.TransitionStats](schemas.md#codersdktransitionstats)|false|||
 |`»»» p50`|integer|false|||
 |`»»» p95`|integer|false|||
+|`» cors_behavior`|[codersdk.CORSBehavior](schemas.md#codersdkcorsbehavior)|false|||
 |`» created_at`|string(date-time)|false|||
 |`» created_by_id`|string(uuid)|false|||
 |`» created_by_name`|string|false|||
@@ -141,6 +143,8 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 | Property               | Value           |
 |------------------------|-----------------|
+| `cors_behavior`        | `simple`        |
+| `cors_behavior`        | `passthru`      |
 | `max_port_share_level` | `owner`         |
 | `max_port_share_level` | `authenticated` |
 | `max_port_share_level` | `organization`  |
@@ -182,6 +186,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
     ],
     "weeks": 0
   },
+  "cors_behavior": "simple",
   "default_ttl_ms": 0,
   "delete_ttl_ms": 0,
   "description": "string",
@@ -238,6 +243,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
       "p95": 146
     }
   },
+  "cors_behavior": "simple",
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
@@ -387,6 +393,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
       "p95": 146
     }
   },
+  "cors_behavior": "simple",
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
@@ -793,6 +800,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
         "p95": 146
       }
     },
+    "cors_behavior": "simple",
     "created_at": "2019-08-24T14:15:22Z",
     "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
     "created_by_name": "string",
@@ -849,6 +857,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`»» [any property]`|[codersdk.TransitionStats](schemas.md#codersdktransitionstats)|false|||
 |`»»» p50`|integer|false|||
 |`»»» p95`|integer|false|||
+|`» cors_behavior`|[codersdk.CORSBehavior](schemas.md#codersdkcorsbehavior)|false|||
 |`» created_at`|string(date-time)|false|||
 |`» created_by_id`|string(uuid)|false|||
 |`» created_by_name`|string|false|||
@@ -877,6 +886,8 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 | Property               | Value           |
 |------------------------|-----------------|
+| `cors_behavior`        | `simple`        |
+| `cors_behavior`        | `passthru`      |
 | `max_port_share_level` | `owner`         |
 | `max_port_share_level` | `authenticated` |
 | `max_port_share_level` | `organization`  |
@@ -993,6 +1004,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
       "p95": 146
     }
   },
+  "cors_behavior": "simple",
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
@@ -1123,6 +1135,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
       "p95": 146
     }
   },
+  "cors_behavior": "simple",
   "created_at": "2019-08-24T14:15:22Z",
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",

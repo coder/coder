@@ -307,6 +307,11 @@ export const BypassRatelimitHeader = "X-Coder-Bypass-Ratelimit";
 // From codersdk/client.go
 export const CLITelemetryHeader = "Coder-CLI-Telemetry";
 
+// From codersdk/cors_behavior.go
+export type CORSBehavior = "passthru" | "simple";
+
+export const CORSBehaviors: CORSBehavior[] = ["passthru", "simple"];
+
 // From codersdk/workspacebuilds.go
 export interface CancelWorkspaceBuildParams {
 	readonly expect_status?: CancelWorkspaceBuildStatus;
@@ -492,6 +497,7 @@ export interface CreateTemplateRequest {
 	readonly require_active_version: boolean;
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel | null;
 	readonly template_use_classic_parameter_flow?: boolean;
+	readonly cors_behavior: CORSBehavior | null;
 }
 
 // From codersdk/templateversions.go
@@ -2817,6 +2823,7 @@ export interface Template {
 	readonly time_til_dormant_autodelete_ms: number;
 	readonly require_active_version: boolean;
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel;
+	readonly cors_behavior: CORSBehavior;
 	readonly use_classic_parameter_flow: boolean;
 }
 
@@ -3189,6 +3196,7 @@ export interface UpdateTemplateMeta {
 	readonly deprecation_message?: string;
 	readonly disable_everyone_group_access: boolean;
 	readonly max_port_share_level?: WorkspaceAgentPortShareLevel;
+	readonly cors_behavior?: CORSBehavior;
 	readonly use_classic_parameter_flow?: boolean;
 }
 

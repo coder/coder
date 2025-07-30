@@ -11467,6 +11467,17 @@ const docTemplate = `{
                 "BuildReasonJetbrainsConnection"
             ]
         },
+        "codersdk.CORSBehavior": {
+            "type": "string",
+            "enum": [
+                "simple",
+                "passthru"
+            ],
+            "x-enum-varnames": [
+                "CORSBehaviorSimple",
+                "CORSBehaviorPassthru"
+            ]
+        },
         "codersdk.ChangePasswordWithOneTimePasscodeRequest": {
             "type": "object",
             "required": [
@@ -11805,6 +11816,14 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
+                        }
+                    ]
+                },
+                "cors_behavior": {
+                    "description": "CORSBehavior allows optionally specifying the CORS behavior for all shared ports.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.CORSBehavior"
                         }
                     ]
                 },
@@ -16217,6 +16236,9 @@ const docTemplate = `{
                 },
                 "build_time_stats": {
                     "$ref": "#/definitions/codersdk.TemplateBuildTimeStats"
+                },
+                "cors_behavior": {
+                    "$ref": "#/definitions/codersdk.CORSBehavior"
                 },
                 "created_at": {
                     "type": "string",
