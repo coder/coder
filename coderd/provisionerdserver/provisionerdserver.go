@@ -28,14 +28,6 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
-
-	"github.com/coder/coder/v2/coderd/usage"
-	"github.com/coder/coder/v2/coderd/util/slice"
-
-	"github.com/coder/coder/v2/codersdk/drpcsdk"
-
-	"github.com/coder/quartz"
-
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -49,13 +41,18 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/usage"
+	"github.com/coder/coder/v2/coderd/usage/usagetypes"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -2041,7 +2038,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			// Insert usage event for managed agents.
 			usageInserter := s.UsageInserter.Load()
 			if usageInserter != nil {
-				event := usage.DCManagedAgentsV1{
+				event := usagetypes.DCManagedAgentsV1{
 					Count: 1,
 				}
 				err = (*usageInserter).InsertDiscreteUsageEvent(ctx, db, event)
