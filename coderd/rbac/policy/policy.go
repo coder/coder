@@ -345,10 +345,10 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"user_secret": {
 		Actions: map[Action]ActionDefinition{
-			ActionCreate: actDef("create a user secret"),
-			ActionRead:   actDef("read a user secret"),
-			ActionUpdate: actDef("update a user secret"),
-			ActionDelete: actDef("delete a user secret"),
+			ActionCreate: "create a user secret",
+			ActionRead:   "read a user secret",
+			ActionUpdate: "update a user secret",
+			ActionDelete: "delete a user secret",
 		},
 	},
 }
