@@ -222,8 +222,8 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 								borderBottom: `1px solid ${theme.palette.divider}`,
 							}}
 						>
-							Provisioner logs exceeded the maximum size of 1MB and were
-							truncated.
+							Provisioner logs exceeded the max size of 1MB. Will not continue
+							to write provisioner logs for workspace build.
 						</Alert>
 					)}
 
