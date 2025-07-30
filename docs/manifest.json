@@ -1171,6 +1171,11 @@
 							"path": "reference/cli/external-workspaces_create.md"
 						},
 						{
+							"title": "external-workspaces list",
+							"description": "List external workspaces",
+							"path": "reference/cli/external-workspaces_list.md"
+						},
+						{
 							"title": "favorite",
 							"description": "Add a workspace to your favorites",
 							"path": "reference/cli/favorite.md"

@@ -33,6 +33,7 @@ func (r *RootCmd) externalWorkspaces() *serpent.Command {
 		Children: []*serpent.Command{
 			r.externalWorkspaceCreate(),
 			r.externalWorkspaceAgentInstructions(),
+			r.externalWorkspaceList(),
 		},
 	}
 
@@ -138,9 +139,9 @@ func (r *RootCmd) externalWorkspaceAgentInstructions() *serpent.Command {
 			}
 
 			var output strings.Builder
-			output.WriteString(fmt.Sprintf("Please run the following commands to attach agent %s:\n", cliui.Keyword(agent.AgentName)))
-			output.WriteString(fmt.Sprintf("%s\n", pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("export CODER_AGENT_TOKEN=%s", agent.AuthToken))))
-			output.WriteString(pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("curl -fsSL %s | sh", agent.InitScript)))
+			_, _ = output.WriteString(fmt.Sprintf("Please run the following commands to attach agent %s:\n", cliui.Keyword(agent.AgentName)))
+			_, _ = output.WriteString(fmt.Sprintf("%s\n", pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("export CODER_AGENT_TOKEN=%s", agent.AuthToken))))
+			_, _ = output.WriteString(pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("curl -fsSL %s | sh", agent.InitScript)))
 
 			return output.String(), nil
 		}),
@@ -204,6 +205,71 @@ func (r *RootCmd) externalWorkspaceAgentInstructions() *serpent.Command {
 	return cmd
 }
 
+func (r *RootCmd) externalWorkspaceList() *serpent.Command {
+	var (
+		filter    cliui.WorkspaceFilter
+		formatter = cliui.NewOutputFormatter(
+			cliui.TableFormat(
+				[]workspaceListRow{},
+				[]string{
+					"workspace",
+					"template",
+					"status",
+					"healthy",
+					"last built",
+					"current version",
+					"outdated",
+				},
+			),
+			cliui.JSONFormat(),
+		)
+	)
+	client := new(codersdk.Client)
+	cmd := &serpent.Command{
+		Annotations: workspaceCommand,
+		Use:         "list",
+		Short:       "List external workspaces",
+		Aliases:     []string{"ls"},
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(0),
+			r.InitClient(client),
+		),
+		Handler: func(inv *serpent.Invocation) error {
+			baseFilter := filter.Filter()
+
+			if baseFilter.FilterQuery == "" {
+				baseFilter.FilterQuery = "has-external-agent:true"
+			} else {
+				baseFilter.FilterQuery += " has-external-agent:true"
+			}
+
+			res, err := queryConvertWorkspaces(inv.Context(), client, baseFilter, workspaceListRowFromWorkspace)
+			if err != nil {
+				return err
+			}
+
+			if len(res) == 0 && formatter.FormatID() != cliui.JSONFormat().ID() {
+				pretty.Fprintf(inv.Stderr, cliui.DefaultStyles.Prompt, "No workspaces found! Create one:\n")
+				_, _ = fmt.Fprintln(inv.Stderr)
+				_, _ = fmt.Fprintln(inv.Stderr, "  "+pretty.Sprint(cliui.DefaultStyles.Code, "coder external-workspaces create <name>"))
+				_, _ = fmt.Fprintln(inv.Stderr)
+				return nil
+			}
+
+			out, err := formatter.Format(inv.Context(), res)
+			if err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprintln(inv.Stdout, out)
+			return err
+		},
+	}
+	filter.AttachOptions(&cmd.Options)
+	formatter.AttachOptions(&cmd.Options)
+	return cmd
+}
+
 // fetchExternalAgents fetches the external agents for a workspace.
 func fetchExternalAgents(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, resources []codersdk.WorkspaceResource) ([]externalAgent, error) {
 	if len(resources) == 0 {
@@ -241,18 +307,18 @@ func fetchExternalAgents(inv *serpent.Invocation, client *codersdk.Client, works
 
 // printExternalAgents prints the instructions for an external agent.
 func printExternalAgents(inv *serpent.Invocation, workspaceName string, externalAgents []externalAgent) error {
-	fmt.Fprintf(inv.Stdout, "\nPlease run the following commands to attach external agent to the workspace %s:\n\n", cliui.Keyword(workspaceName))
+	_, _ = fmt.Fprintf(inv.Stdout, "\nPlease run the following commands to attach external agent to the workspace %s:\n\n", cliui.Keyword(workspaceName))
 
 	for i, agent := range externalAgents {
 		if len(externalAgents) > 1 {
-			fmt.Fprintf(inv.Stdout, "For agent %s:\n", cliui.Keyword(agent.AgentName))
+			_, _ = fmt.Fprintf(inv.Stdout, "For agent %s:\n", cliui.Keyword(agent.AgentName))
 		}
 
-		fmt.Fprintf(inv.Stdout, "%s\n", pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("export CODER_AGENT_TOKEN=%s", agent.AuthToken)))
-		fmt.Fprintf(inv.Stdout, "%s\n", pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("curl -fsSL %s | sh", agent.InitScript)))
+		_, _ = fmt.Fprintf(inv.Stdout, "%s\n", pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("export CODER_AGENT_TOKEN=%s", agent.AuthToken)))
+		_, _ = fmt.Fprintf(inv.Stdout, "%s\n", pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("curl -fsSL %s | sh", agent.InitScript)))
 
 		if i < len(externalAgents)-1 {
-			fmt.Fprintf(inv.Stdout, "\n")
+			_, _ = fmt.Fprintf(inv.Stdout, "\n")
 		}
 	}
 

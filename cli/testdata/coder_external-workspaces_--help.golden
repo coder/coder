@@ -8,6 +8,7 @@ USAGE:
 SUBCOMMANDS:
     agent-instructions    Get the instructions for an external agent
     create                Create a new external workspace
+    list                  List external workspaces
 
 OPTIONS:
   -O, --org string, $CODER_ORGANIZATION

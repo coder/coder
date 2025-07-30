@@ -15,6 +15,7 @@ coder external-workspaces [flags] [subcommand]
 |--------------------------------------------------------------------------------|--------------------------------------------|
 | [<code>create</code>](./external-workspaces_create.md)                         | Create a new external workspace            |
 | [<code>agent-instructions</code>](./external-workspaces_agent-instructions.md) | Get the instructions for an external agent |
+| [<code>list</code>](./external-workspaces_list.md)                             | List external workspaces                   |
 
 ## Options
 
