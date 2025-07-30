@@ -13519,6 +13519,151 @@ func (q *sqlQuerier) DisableForeignKeysAndTriggers(ctx context.Context) error {
 	return err
 }
 
+const insertUsageEvent = `-- name: InsertUsageEvent :exec
+INSERT INTO
+    usage_events (
+        id,
+        event_type,
+        event_data,
+        created_at,
+        publish_started_at,
+        published_at,
+        failure_message
+    )
+VALUES
+    ($1, $2::usage_event_type, $3, $4, NULL, NULL, NULL)
+ON CONFLICT (id) DO NOTHING
+`
+
+type InsertUsageEventParams struct {
+	ID        string          `db:"id" json:"id"`
+	EventType UsageEventType  `db:"event_type" json:"event_type"`
+	EventData json.RawMessage `db:"event_data" json:"event_data"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+}
+
+// Duplicate events are ignored intentionally to allow for multiple replicas to
+// publish heartbeat events.
+func (q *sqlQuerier) InsertUsageEvent(ctx context.Context, arg InsertUsageEventParams) error {
+	_, err := q.db.ExecContext(ctx, insertUsageEvent,
+		arg.ID,
+		arg.EventType,
+		arg.EventData,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const selectUsageEventsForPublishing = `-- name: SelectUsageEventsForPublishing :many
+WITH usage_events AS (
+    UPDATE
+        usage_events
+    SET
+        publish_started_at = $1::timestamptz
+    WHERE
+        id IN (
+            SELECT
+                potential_event.id
+            FROM
+                usage_events potential_event
+            WHERE
+                -- We do not publish events older than 30 days. Tallyman will
+                -- always permanently reject these events anyways.
+                -- The parenthesis around @now::timestamptz are necessary to
+                -- avoid sqlc from generating an extra argument.
+                potential_event.created_at > ($1::timestamptz) - INTERVAL '30 days'
+                AND potential_event.published_at IS NULL
+                AND (
+                    potential_event.publish_started_at IS NULL
+                    -- If the event has publish_started_at set, it must be older
+                    -- than an hour ago. This is so we can retry publishing
+                    -- events where the replica exited or couldn't update the
+                    -- row.
+                    -- Also, same parenthesis thing here:
+                    OR potential_event.publish_started_at < ($1::timestamptz) - INTERVAL '1 hour'
+                )
+            ORDER BY potential_event.created_at ASC
+            FOR UPDATE SKIP LOCKED
+            LIMIT 100
+        )
+    RETURNING id, event_type, event_data, created_at, publish_started_at, published_at, failure_message
+)
+SELECT id, event_type, event_data, created_at, publish_started_at, published_at, failure_message
+FROM usage_events
+ORDER BY created_at ASC
+`
+
+// Note that this selects from the CTE, not the original table. The CTE is named
+// the same as the original table to trick sqlc into reusing the existing struct
+// for the table.
+// The CTE and the reorder is required because UPDATE doesn't guarantee order.
+func (q *sqlQuerier) SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]UsageEvent, error) {
+	rows, err := q.db.QueryContext(ctx, selectUsageEventsForPublishing, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UsageEvent
+	for rows.Next() {
+		var i UsageEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventType,
+			&i.EventData,
+			&i.CreatedAt,
+			&i.PublishStartedAt,
+			&i.PublishedAt,
+			&i.FailureMessage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateUsageEventsPostPublish = `-- name: UpdateUsageEventsPostPublish :exec
+UPDATE
+    usage_events
+SET
+    publish_started_at = NULL,
+    published_at = CASE WHEN input.set_published_at THEN $1::timestamptz ELSE NULL END,
+    failure_message = NULLIF(input.failure_message, '')
+FROM (
+    SELECT
+        UNNEST($2::text[]) AS id,
+        UNNEST($3::text[]) AS failure_message,
+        UNNEST($4::boolean[]) AS set_published_at
+) input
+WHERE
+    input.id = usage_events.id
+    AND cardinality($2::text[]) = cardinality($3::text[])
+    AND cardinality($2::text[]) = cardinality($4::boolean[])
+`
+
+type UpdateUsageEventsPostPublishParams struct {
+	Now             time.Time `db:"now" json:"now"`
+	IDs             []string  `db:"ids" json:"ids"`
+	FailureMessages []string  `db:"failure_messages" json:"failure_messages"`
+	SetPublishedAts []bool    `db:"set_published_ats" json:"set_published_ats"`
+}
+
+func (q *sqlQuerier) UpdateUsageEventsPostPublish(ctx context.Context, arg UpdateUsageEventsPostPublishParams) error {
+	_, err := q.db.ExecContext(ctx, updateUsageEventsPostPublish,
+		arg.Now,
+		pq.Array(arg.IDs),
+		pq.Array(arg.FailureMessages),
+		pq.Array(arg.SetPublishedAts),
+	)
+	return err
+}
+
 const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one
 SELECT
 	user_links.user_id, user_links.login_type, user_links.linked_id, user_links.oauth_access_token, user_links.oauth_refresh_token, user_links.oauth_expiry, user_links.oauth_access_token_key_id, user_links.oauth_refresh_token_key_id, user_links.claims

@@ -7,7 +7,6 @@ tailnet/proto/ @spikecurtis @johnstcn
 vpn/vpn.proto @spikecurtis @johnstcn
 vpn/version.go @spikecurtis @johnstcn
 
-
 # This caching code is particularly tricky, and one must be very careful when
 # altering it.
 coderd/files/ @aslilac
@@ -34,3 +33,8 @@ site/CLAUDE.md
 # requires elite ball knowledge of most of the scheduling code to make changes
 # without inadvertently affecting other parts of the codebase.
 coderd/schedule/autostop.go @deansheather @DanielleMaywood
+
+# Usage tracking code requires intimate knowledge of Tallyman and Metronome, as
+# well as guidance from revenue.
+coderd/usage/ @deansheather
+enterprise/coderd/usage/ @deansheather

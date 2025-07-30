@@ -286,6 +286,12 @@ CREATE TYPE tailnet_status AS ENUM (
     'lost'
 );
 
+CREATE TYPE usage_event_type AS ENUM (
+    'dc_managed_agents_v1'
+);
+
+COMMENT ON TYPE usage_event_type IS 'The usage event type with version. "dc" means "discrete" (e.g. a single event, for counters), "hb" means "heartbeat" (e.g. a recurring event that contains a total count of usage generated from the database, for gauges).';
+
 CREATE TYPE user_status AS ENUM (
     'active',
     'suspended',
@@ -1832,6 +1838,28 @@ CREATE VIEW template_with_names AS
 
 COMMENT ON VIEW template_with_names IS 'Joins in the display name information such as username, avatar, and organization name.';
 
+CREATE TABLE usage_events (
+    id text NOT NULL,
+    event_type usage_event_type NOT NULL,
+    event_data jsonb NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    publish_started_at timestamp with time zone,
+    published_at timestamp with time zone,
+    failure_message text
+);
+
+COMMENT ON TABLE usage_events IS 'usage_events contains usage data that is collected from the product and potentially shipped to the usage collector service.';
+
+COMMENT ON COLUMN usage_events.id IS 'For "discrete" event types, this is a random UUID. For "heartbeat" event types, this is a combination of the event type and a truncated timestamp.';
+
+COMMENT ON COLUMN usage_events.event_data IS 'Event payload. Determined by the matching usage struct for this event type.';
+
+COMMENT ON COLUMN usage_events.publish_started_at IS 'Set to a timestamp while the event is being published by a Coder replica to the usage collector service. Used to avoid duplicate publishes by multiple replicas. Timestamps older than 1 hour are considered expired.';
+
+COMMENT ON COLUMN usage_events.published_at IS 'Set to a timestamp when the event is successfully (or permanently unsuccessfully) published to the usage collector service. If set, the event should never be attempted to be published again.';
+
+COMMENT ON COLUMN usage_events.failure_message IS 'Set to an error message when the event is temporarily or permanently unsuccessfully published to the usage collector service.';
+
 CREATE TABLE user_configs (
     user_id uuid NOT NULL,
     key character varying(256) NOT NULL,
@@ -2681,6 +2709,9 @@ ALTER TABLE ONLY template_versions
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY usage_events
+    ADD CONSTRAINT usage_events_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY user_configs
     ADD CONSTRAINT user_configs_pkey PRIMARY KEY (user_id, key);
 
@@ -2848,6 +2879,12 @@ CREATE UNIQUE INDEX idx_template_version_presets_default ON template_version_pre
 CREATE INDEX idx_template_versions_has_ai_task ON template_versions USING btree (has_ai_task);
 
 CREATE UNIQUE INDEX idx_unique_preset_name ON template_version_presets USING btree (name, template_version_id);
+
+CREATE INDEX idx_usage_events_created_at ON usage_events USING btree (created_at);
+
+CREATE INDEX idx_usage_events_publish_started_at ON usage_events USING btree (publish_started_at);
+
+CREATE INDEX idx_usage_events_published_at ON usage_events USING btree (published_at);
 
 CREATE INDEX idx_user_deleted_deleted_at ON user_deleted USING btree (deleted_at);
 
