@@ -744,6 +744,7 @@ func insertTemplates(t *testing.T, db database.Store, u database.User, org datab
 		MaxPortSharingLevel: database.AppSharingLevelAuthenticated,
 		CreatedBy:           u.ID,
 		OrganizationID:      org.ID,
+		CorsBehavior:        database.CorsBehaviorSimple,
 	}))
 	pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
 
@@ -763,6 +764,7 @@ func insertTemplates(t *testing.T, db database.Store, u database.User, org datab
 		MaxPortSharingLevel: database.AppSharingLevelAuthenticated,
 		CreatedBy:           u.ID,
 		OrganizationID:      org.ID,
+		CorsBehavior:        database.CorsBehaviorSimple,
 	}))
 
 	require.NoError(t, db.InsertTemplateVersion(context.Background(), database.InsertTemplateVersionParams{

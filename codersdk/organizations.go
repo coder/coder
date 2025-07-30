@@ -206,6 +206,9 @@ type CreateTemplateRequest struct {
 	// true, and is why `*bool` is used here. When dynamic parameters becomes
 	// the default, this will default to false.
 	UseClassicParameterFlow *bool `json:"template_use_classic_parameter_flow,omitempty"`
+
+	// CORSBehavior allows optionally specifying the CORS behavior for all shared ports.
+	CORSBehavior *CORSBehavior `json:"cors_behavior"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.

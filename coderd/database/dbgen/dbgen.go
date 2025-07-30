@@ -148,6 +148,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		AllowUserCancelWorkspaceJobs: seed.AllowUserCancelWorkspaceJobs,
 		MaxPortSharingLevel:          takeFirst(seed.MaxPortSharingLevel, database.AppSharingLevelOwner),
 		UseClassicParameterFlow:      takeFirst(seed.UseClassicParameterFlow, false),
+		CorsBehavior:                 takeFirst(seed.CorsBehavior, database.CorsBehaviorSimple),
 	})
 	require.NoError(t, err, "insert template")
 

@@ -1462,6 +1462,7 @@ func (s *MethodTestSuite) TestTemplate() {
 			Provisioner:         "echo",
 			OrganizationID:      orgID,
 			MaxPortSharingLevel: database.AppSharingLevelOwner,
+			CorsBehavior:        database.CorsBehaviorSimple,
 		}).Asserts(rbac.ResourceTemplate.InOrg(orgID), policy.ActionCreate)
 	}))
 	s.Run("InsertTemplateVersion", s.Subtest(func(db database.Store, check *expects) {
@@ -1582,6 +1583,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(database.UpdateTemplateMetaByIDParams{
 			ID:                  t1.ID,
 			MaxPortSharingLevel: "owner",
+			CorsBehavior:        database.CorsBehaviorSimple,
 		}).Asserts(t1, policy.ActionUpdate)
 	}))
 	s.Run("UpdateTemplateVersionByID", s.Subtest(func(db database.Store, check *expects) {

@@ -124,7 +124,7 @@ export const Combobox: FC<ComboboxProps> = ({
 											<ExternalImage
 												className="w-4 h-4 object-contain"
 												src={option.icon}
-												alt={option.displayName}
+												alt=""
 											/>
 										) : (
 											/* Placeholder for missing icon to maintain layout consistency */

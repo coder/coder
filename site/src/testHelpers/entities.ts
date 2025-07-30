@@ -827,6 +827,7 @@ export const MockTemplate: TypesGen.Template = {
 	deprecation_message: "",
 	max_port_share_level: "public",
 	use_classic_parameter_flow: false,
+	cors_behavior: "simple",
 };
 
 const MockTemplateVersionFiles: TemplateVersionFiles = {
