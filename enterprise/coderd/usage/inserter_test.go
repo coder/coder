@@ -28,7 +28,7 @@ func TestInserter(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		clock := quartz.NewMock(t)
-		inserter := usage.NewInserter(usage.InserterWithClock(clock))
+		inserter := usage.NewDBInserter(usage.InserterWithClock(clock))
 
 		now := dbtime.Now()
 		events := []struct {
@@ -51,8 +51,8 @@ func TestInserter(t *testing.T) {
 
 		for _, event := range events {
 			eventJSON := jsoninate(t, event.event)
-			db.EXPECT().InsertUsageEvent(ctx, gomock.Any()).DoAndReturn(
-				func(ctx interface{}, params database.InsertUsageEventParams) error {
+			db.EXPECT().InsertUsageEvent(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(ctx any, params database.InsertUsageEventParams) error {
 					_, err := uuid.Parse(params.ID)
 					assert.NoError(t, err)
 					assert.Equal(t, string(event.event.EventType()), params.EventType)
@@ -76,7 +76,7 @@ func TestInserter(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 
 		// We should get an error if the event is invalid.
-		inserter := usage.NewInserter()
+		inserter := usage.NewDBInserter()
 		err := inserter.InsertDiscreteUsageEvent(ctx, db, agplusage.DCManagedAgentsV1{
 			Count: 0, // invalid
 		})

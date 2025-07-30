@@ -44,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -64,6 +65,13 @@ func testUserQuietHoursScheduleStore() *atomic.Pointer[schedule.UserQuietHoursSc
 	ptr := &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{}
 	store := schedule.NewAGPLUserQuietHoursScheduleStore()
 	ptr.Store(&store)
+	return ptr
+}
+
+func testUsageInserter() *atomic.Pointer[usage.Inserter] {
+	ptr := &atomic.Pointer[usage.Inserter]{}
+	inserter := usage.NewAGPLInserter()
+	ptr.Store(&inserter)
 	return ptr
 }
 
@@ -2672,7 +2680,10 @@ func TestCompleteJob(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					t.Parallel()
 
-					srv, db, _, pd := setup(t, false, &overrides{})
+					fakeUsageInserter, usageInserterPtr := newFakeUsageInserter()
+					srv, db, _, pd := setup(t, false, &overrides{
+						usageInserter: usageInserterPtr,
+					})
 
 					importJobID := uuid.New()
 					tvID := uuid.New()
@@ -2741,6 +2752,10 @@ func TestCompleteJob(t *testing.T) {
 					require.NoError(t, err)
 					require.True(t, version.HasAITask.Valid) // We ALWAYS expect a value to be set, therefore not nil, i.e. valid = true.
 					require.Equal(t, tc.expected, version.HasAITask.Bool)
+
+					// We never expect a usage event to be collected for
+					// template imports.
+					require.Empty(t, fakeUsageInserter.collectedEvents)
 				})
 			}
 		})
@@ -2750,9 +2765,9 @@ func TestCompleteJob(t *testing.T) {
 		// will be set as well in that case.
 		t.Run("WorkspaceBuild", func(t *testing.T) {
 			type testcase struct {
-				name     string
-				input    *proto.CompletedJob_WorkspaceBuild
-				expected bool
+				name              string
+				input             *proto.CompletedJob_WorkspaceBuild
+				expectedHasAiTask bool
 			}
 
 			sidebarAppID := uuid.NewString()
@@ -2762,7 +2777,7 @@ func TestCompleteJob(t *testing.T) {
 					input: &proto.CompletedJob_WorkspaceBuild{
 						// No AiTasks defined.
 					},
-					expected: false,
+					expectedHasAiTask: false,
 				},
 				{
 					name: "has_ai_task is set to true",
@@ -2792,7 +2807,7 @@ func TestCompleteJob(t *testing.T) {
 							},
 						},
 					},
-					expected: true,
+					expectedHasAiTask: true,
 				},
 				// Checks regression for https://github.com/coder/coder/issues/18776
 				{
@@ -2808,13 +2823,16 @@ func TestCompleteJob(t *testing.T) {
 							},
 						},
 					},
-					expected: false,
+					expectedHasAiTask: false,
 				},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					t.Parallel()
 
-					srv, db, _, pd := setup(t, false, &overrides{})
+					fakeUsageInserter, usageInserterPtr := newFakeUsageInserter()
+					srv, db, _, pd := setup(t, false, &overrides{
+						usageInserter: usageInserterPtr,
+					})
 
 					importJobID := uuid.New()
 					tvID := uuid.New()
@@ -2899,10 +2917,19 @@ func TestCompleteJob(t *testing.T) {
 					build, err = db.GetWorkspaceBuildByID(ctx, build.ID)
 					require.NoError(t, err)
 					require.True(t, build.HasAITask.Valid) // We ALWAYS expect a value to be set, therefore not nil, i.e. valid = true.
-					require.Equal(t, tc.expected, build.HasAITask.Bool)
+					require.Equal(t, tc.expectedHasAiTask, build.HasAITask.Bool)
 
-					if tc.expected {
+					if tc.expectedHasAiTask {
 						require.Equal(t, sidebarAppID, build.AITaskSidebarAppID.UUID.String())
+
+						// Check that a usage event was collected.
+						require.Len(t, fakeUsageInserter.collectedEvents, 1)
+						require.Equal(t, usage.DCManagedAgentsV1{
+							Count: 1,
+						}, fakeUsageInserter.collectedEvents[0])
+					} else {
+						// Check that no usage event was collected.
+						require.Empty(t, fakeUsageInserter.collectedEvents)
 					}
 				})
 			}
@@ -3835,6 +3862,7 @@ type overrides struct {
 	externalAuthConfigs         []*externalauth.Config
 	templateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	userQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
+	usageInserter               *atomic.Pointer[usage.Inserter]
 	clock                       *quartz.Mock
 	acquireJobLongPollDuration  time.Duration
 	heartbeatFn                 func(ctx context.Context) error
@@ -3855,6 +3883,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	var externalAuthConfigs []*externalauth.Config
 	tss := testTemplateScheduleStore()
 	uqhss := testUserQuietHoursScheduleStore()
+	usageInserter := testUsageInserter()
 	clock := quartz.NewReal()
 	pollDur := time.Duration(0)
 	if ov == nil {
@@ -3889,6 +3918,15 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		uqhss = ov.userQuietHoursScheduleStore
 		if uqhss.Load() == nil {
 			swapped := uqhss.CompareAndSwap(nil, tuqhss)
+			require.True(t, swapped)
+		}
+	}
+	if ov.usageInserter != nil {
+		tUsageInserter := usageInserter.Load()
+		// keep the initial test value if the override hasn't set the atomic pointer.
+		usageInserter = ov.usageInserter
+		if usageInserter.Load() == nil {
+			swapped := usageInserter.CompareAndSwap(nil, tUsageInserter)
 			require.True(t, swapped)
 		}
 	}
@@ -3947,6 +3985,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		auditPtr,
 		tss,
 		uqhss,
+		usageInserter,
 		deploymentValues,
 		provisionerdserver.Options{
 			ExternalAuthConfigs:   externalAuthConfigs,
@@ -4060,4 +4099,23 @@ func (s *fakeStream) cancel() {
 	defer s.c.L.Unlock()
 	s.canceled = true
 	s.c.Broadcast()
+}
+
+type fakeUsageInserter struct {
+	collectedEvents []usage.Event
+}
+
+var _ usage.Inserter = &fakeUsageInserter{}
+
+func newFakeUsageInserter() (*fakeUsageInserter, *atomic.Pointer[usage.Inserter]) {
+	ptr := &atomic.Pointer[usage.Inserter]{}
+	fake := &fakeUsageInserter{}
+	var inserter usage.Inserter = fake
+	ptr.Store(&inserter)
+	return fake, ptr
+}
+
+func (f *fakeUsageInserter) InsertDiscreteUsageEvent(_ context.Context, _ database.Store, event usage.DiscreteEvent) error {
+	f.collectedEvents = append(f.collectedEvents, event)
+	return nil
 }
