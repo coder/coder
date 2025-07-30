@@ -150,6 +150,7 @@ sql:
           has_ai_task: HasAITask
           ai_task_sidebar_app_id: AITaskSidebarAppID
           latest_build_has_ai_task: LatestBuildHasAITask
+          cors_behavior: CorsBehavior
 rules:
   - name: do-not-use-public-schema-in-queries
     message: "do not use public schema in queries"
