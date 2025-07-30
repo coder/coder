@@ -3822,6 +3822,10 @@ func TestDevcontainerDiscovery(t *testing.T) {
 func TestDevcontainerPrebuildSupport(t *testing.T) {
 	t.Parallel()
 
+	if runtime.GOOS == "windows" {
+		t.Skip("Dev Container tests are not supported on Windows")
+	}
+
 	var (
 		ctx        = testutil.Context(t, testutil.WaitShort)
 		logger     = testutil.Logger(t)
@@ -3839,6 +3843,7 @@ func TestDevcontainerPrebuildSupport(t *testing.T) {
 			WorkspaceFolder: "/home/coder/coder",
 			ConfigPath:      "/home/coder/coder/.devcontainer/devcontainer.json",
 		}
+
 		testContainer = newFakeContainer("test-container-id", testDC.ConfigPath, testDC.WorkspaceFolder)
 
 		prebuildOwner     = "prebuilds"
